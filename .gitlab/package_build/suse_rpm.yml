@@ -49,7 +49,7 @@ agent_suse-x64-a6:
   rules:
     !reference [.on_a6]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "linux_x64_go_deps"]
   variables:
@@ -67,7 +67,7 @@ agent_suse-x64-a7:
   rules:
     !reference [.on_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "linux_x64_go_deps"]
   variables:
@@ -83,7 +83,7 @@ iot_agent_suse-x64:
   rules:
     !reference [.on_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "linux_x64_go_deps"]
   before_script:
@@ -117,7 +117,7 @@ dogstatsd_suse-x64:
   rules:
     !reference [.on_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-deb_x64", "linux_x64_go_deps"]
   variables:

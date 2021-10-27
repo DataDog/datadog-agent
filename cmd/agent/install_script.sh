@@ -499,6 +499,34 @@ elif [ "$OS" = "SUSE" ]; then
   
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
 
+  # ".32" is the latest version supported for OpenSUSE < 15 and SLES < 12
+  if [ "$DISTRIBUTION" == "openSUSE" ] && [ "$SUSE_VER" -lt 15 ]; then
+      if [ -n "$agent_minor_version" ]; then
+          if [ "$agent_minor_version" -ge "33" ]; then
+              printf "\033[31mopenSUSE < 15 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              exit;
+          fi
+      else
+          if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+              echo -e "  \033[33mAgent $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              agent_minor_version=32
+          fi
+      fi
+  fi
+  if [ "$DISTRIBUTION" == "SUSE" ] && [ "$SUSE_VER" -lt 12 ]; then
+      if [ -n "$agent_minor_version" ]; then
+          if [ "$agent_minor_version" -ge "33" ]; then
+              printf "\033[31mSLES < 12 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              exit;
+          fi
+      else
+          if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+              echo -e "  \033[33mAgent $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              agent_minor_version=32
+          fi
+      fi
+  fi
+
   if [ -n "$agent_minor_version" ]; then
       # Example: datadog-agent-1:7.20.2-1
       pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
