@@ -150,13 +150,13 @@ func (m *Module) Start() error {
 		return errors.Wrap(err, "failed to start probe")
 	}
 
-	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
-	// context is ready when we start the probes
-	if err := m.probe.Snapshot(); err != nil {
+	if err := m.Reload(); err != nil {
 		return err
 	}
 
-	if err := m.Reload(); err != nil {
+	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
+	// context is ready when we start the probes
+	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
 
