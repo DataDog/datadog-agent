@@ -58,22 +58,21 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	json.Indent(&out, jsonStats, "", "\t") //nolint:errcheck
 	serialized := out.Bytes()
 
+	// replace all Image: sha256:xxx with a resolved image name
+	imgRx := regexp.MustCompile(`\"Image\": \"sha256:\w+"`)
+	replFunc := func(s []byte) []byte {
+		m := string(s[10 : len(s)-1])
+		shaResolvedInspect, _ := du.ResolveImageName(context.TODO(), m)
+		return []byte(shaResolvedInspect)
+	}
+	imgRx.ReplaceAllFunc(serialized, replFunc)
+
 	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
 	w, err := scrubber.NewWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
-
-	w.RegisterReplacer(scrubber.Replacer{
-		Regex: regexp.MustCompile(`\"Image\": \"sha256:\w+"`),
-		ReplFunc: func(s []byte) []byte {
-			m := string(s[10 : len(s)-1])
-			shaResolvedInspect, _ := du.ResolveImageName(context.TODO(), m)
-			return []byte(shaResolvedInspect)
-		},
-	})
-
 	_, err = w.Write(serialized)
 	return err
 }

@@ -16,37 +16,28 @@ import (
 // a sensitive value spans two chunks, it will not be matched by a replacer and thus
 // not scrubbed.
 
-// Writer is an io.Writer implementation that redacts content before writing to
-// target.
+// Writer is an io.Writer implementation that scrubts content before writing to
+// a target file.
 type Writer struct {
 	targetFile *os.File
 	targetBuf  *bufio.Writer
-	r          []Replacer
+	scrubber   *Scrubber
 }
 
-// NewWriter instantiates a Writer to the given file path with the given
-// permissions.
-func NewWriter(path string, p os.FileMode) (*Writer, error) {
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, p)
+// newWriterWithScrubber creates a Writer.  Typically, this is accessed via sc.NewWriter for
+// some scrubber sc.
+func newWriterWithScrubber(path string, perms os.FileMode, scrubber *Scrubber) (*Writer, error) {
+	targetFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, perms)
 	if err != nil {
 		return nil, err
 	}
 
-	b := bufio.NewWriter(f)
+	targetBuf := bufio.NewWriter(targetFile)
 
-	return &Writer{
-		targetFile: f,
-		targetBuf:  b,
-		r:          []Replacer{},
-	}, nil
+	return &Writer{targetFile, targetBuf, scrubber}, nil
 }
 
-// RegisterReplacer register additional replacers to run on stream
-func (f *Writer) RegisterReplacer(r Replacer) {
-	f.r = append(f.r, r)
-}
-
-// WriteFromFile will read contents from file and write them redacted to target. If
+// WriteFromFile will read contents from file and write them scrubbed to target. If
 // the file does not exist, this returns an error.
 func (f *Writer) WriteFromFile(filePath string) (int, error) {
 	data, err := ioutil.ReadFile(filePath)
@@ -57,18 +48,12 @@ func (f *Writer) WriteFromFile(filePath string) (int, error) {
 	return f.Write(data)
 }
 
-// Write writes the redacted byte stream, applying all replacers and credential
+// Write writes the scrubbed byte stream, applying all replacers and credential
 // cleanup to target
 func (f *Writer) Write(p []byte) (int, error) {
-	cleaned, err := ScrubBytes(p)
+	cleaned, err := f.scrubber.ScrubBytes(p)
 	if err != nil {
 		return 0, err
-	}
-
-	for _, r := range f.r {
-		if r.Regex != nil && r.ReplFunc != nil {
-			cleaned = r.Regex.ReplaceAllFunc(cleaned, r.ReplFunc)
-		}
 	}
 
 	n, err := f.targetBuf.Write(cleaned)

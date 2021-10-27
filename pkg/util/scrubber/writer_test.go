@@ -84,21 +84,22 @@ password: ********
 auth_token: ********
 log_level: info`
 
-	w, err := NewWriter(filename, os.ModePerm)
-	require.NoError(t, err)
-
-	w.RegisterReplacer(Replacer{
+	s := New()
+	AddDefaultReplacers(s)
+	s.AddReplacer(MultiLine, Replacer{
 		Regex: regexp.MustCompile(`user`),
 		ReplFunc: func(s []byte) []byte {
 			return []byte("USERISREDACTEDTOO")
 		},
 	})
-	w.RegisterReplacer(Replacer{
+	s.AddReplacer(MultiLine, Replacer{
 		Regex: regexp.MustCompile(`@.*\:[0-9]+`),
 		ReplFunc: func(s []byte) []byte {
 			return []byte("@foo:bar")
 		},
 	})
+	w, err := s.NewWriter(filename, os.ModePerm)
+	require.NoError(t, err)
 
 	n, err := w.Write([]byte(input))
 	require.NoError(t, err)

@@ -7,6 +7,7 @@ package scrubber
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -133,4 +134,10 @@ func AddStrippedKeys(strippedKeys []string) {
 		}
 		DefaultScrubber.AddReplacer(SingleLine, configReplacer)
 	}
+}
+
+// NewWriter instantiates a Writer to the given file path with the given
+// permissions, using the default scrubber.
+func NewWriter(path string, perms os.FileMode) (*Writer, error) {
+	return newWriterWithScrubber(path, perms, DefaultScrubber)
 }
