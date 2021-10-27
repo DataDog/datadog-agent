@@ -955,6 +955,9 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 	return nil
 }
 
+// newScrubberWriter creates a new scrubber.Writer, configured to always buffer
+// output and with additional replacers added to scrub third-party credentials
+// likely to be seen in flares.  The `buffered` argument is ignored.
 func newScrubberWriter(f string, p os.FileMode, buffered bool) (*scrubber.Writer, error) {
 	w, err := scrubber.NewWriter(f, os.ModePerm, true)
 	if err != nil {

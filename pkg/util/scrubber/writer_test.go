@@ -46,40 +46,6 @@ log_level: info`
 
 }
 
-// TODO: move to flare
-/*
-func TestRedactingOtherServicesApiKey(t *testing.T) {
-	clear := `init_config:
-instances:
-- host: 127.0.0.1
-  api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  port: 8082
-  api_key: dGhpc2++lzM+XBhc3N3b3JkW113aXRo/c29tZWN]oYXJzMTIzCg==
-  version: 4 # omit this line if you're running pdns_recursor version 3.x`
-	redacted := `init_config:
-instances:
-- host: 127.0.0.1
-  api_key: ***************************aaaaa
-  port: 8082
-  api_key: ********
-  version: 4 # omit this line if you're running pdns_recursor version 3.x`
-
-	buf := bytes.NewBuffer([]byte{})
-
-	w := Writer{
-		targetBuf: bufio.NewWriter(buf),
-	}
-	w.RegisterReplacer(otherAPIKeysReplacer)
-
-	n, err := w.Write([]byte(clear))
-	assert.Nil(t, err)
-	err = w.Flush()
-	assert.Nil(t, err)
-	assert.Equal(t, len(clear), n)
-	assert.Equal(t, redacted, buf.String())
-}
-*/
-
 func TestRedactingWriterReplacers(t *testing.T) {
 	redacted := `dd_url: https://app.datadoghq.com
 api_key: ***************************aaaaa

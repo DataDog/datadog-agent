@@ -17,7 +17,8 @@ import (
 // a sensitive value spans two chunks, it will not be matched by a replacer and thus
 // not scrubbed.
 
-// Writer is a writer that redacts content before writing to target.
+// Writer is an io.Writer implementation that redacts content before writing to
+// target.
 type Writer struct {
 	target    *os.File
 	targetBuf *bufio.Writer
@@ -25,9 +26,11 @@ type Writer struct {
 	r         []Replacer
 }
 
-// NewWriter instantiates a Writer to target with given permissions
-func NewWriter(t string, p os.FileMode, buffered bool) (*Writer, error) {
-	f, err := os.OpenFile(t, os.O_RDWR|os.O_CREATE, p)
+// NewWriter instantiates a Writer to the given file path with the given
+// permissions.  If buffered is true, then writes to the underlying file
+// are buffered, improving performance.
+func NewWriter(path string, p os.FileMode, buffered bool) (*Writer, error) {
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, p)
 	if err != nil {
 		return nil, err
 	}
