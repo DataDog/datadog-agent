@@ -1394,29 +1394,18 @@ def create_release_branch(ctx, repo, release_branch, upstream="origin"):
         )
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin", redo=False):
+def unfreeze(ctx, major_versions="6,7", upstream="origin", redo=False):
     """
-    Updates the release entries in release.json to prepare the next RC build.
-    If the previous version of the Agent (determined as the latest tag on the
-    current branch) is not an RC:
-    - by default, updates the release entries for the next minor version of
-      the Agent.
-    - if --patch-version is specified, updates the release entries for the next
-      patch version of the Agent.
-
-    This changes which tags will be considered on the dependency repositories (only
-    tags that match the same major and minor version as the Agent).
-
-    If the previous version of the Agent was an RC, updates the release entries for RC + 1.
-
-    Examples:
-    If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
-    is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
-    will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
+    Performs set of tasks required for the main branch unfreeze during the agent release cycle.
+    That includes:
+    - creates a release branch in datadog-agent, omnibus-ruby and omnibus-software repositories,
+    - pushes an empty commit on the datadog-agent main branch,
+    - createas devel tags in the datadog-agent repository on the empty commit from the last step.
 
     Notes:
     This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
     with 'repo' permissions.
+    This task assumes that datadog repositories are accessible through ~/dd/ directory.
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
@@ -1438,16 +1427,16 @@ def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin", 
     # Step 0: checks
 
     print(color_message("Checking repository state", "bold"))
-    #ctx.run("git fetch")
+    ctx.run("git fetch")
 
-    #if check_uncommitted_changes(ctx):
-    #    raise Exit(
-    #        color_message(
-    #            "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
-    #            "red",
-    #        ),
-    #        code=1,
-    #    )
+    if check_uncommitted_changes(ctx):
+        raise Exit(
+            color_message(
+                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
+                "red",
+            ),
+            code=1,
+        )
 
     if not yes_no_question(
         "This task will create new branches with the name '{}' in repositories: datadog-agent, omnibus-ruby and omnibus-software Is this OK?".format(
@@ -1458,7 +1447,35 @@ def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin", 
     ):
         raise Exit(color_message("Aborting.", "red"), code=1)
 
+    # Step 1: Create release branch
+    repos = ["datadog-agent", "omnibus-software", "omnibus-ruby"]
+    for repo in repos:
+        create_release_branch(ctx, repo, release_branch)
+        pass
+    
+    with ctx.cd("~/dd/datadog-agent"):
+        ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags {}'")
+        if not ok:
+            raise Exit(
+                color_message(
+                    "Could not create commit. Please commit manually, push the commit manually to the main branch.",
+                    "red",
+                ),
+                code=1,
+            )
 
+        print(color_message("Pushing new commit", "bold"))
+        res = ctx.run("git push {}".format(upstream), warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    "Could not push commit to the upstream '{}'. Please push it manually.".format(
+                        upstream,
+                    ),
+                    "red",
+                ),
+                code=1,
+            )
 
     # Step 3: Create tags for next version
     print(color_message("Tagging RC for agent version(s) {}".format(list_major_versions), "bold"))
