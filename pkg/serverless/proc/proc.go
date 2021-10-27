@@ -24,9 +24,9 @@ func getPidList(procPath string) []int {
 	}
 	for _, file := range files {
 		if file.IsDir() {
-			if processId, err := strconv.Atoi(file.Name()); err == nil {
-				if processId != 1 { // no need to check for the root pid
-					pids = append(pids, processId)
+			if processID, err := strconv.Atoi(file.Name()); err == nil {
+				if processID != 1 { // no need to check for the root pid
+					pids = append(pids, processID)
 				}
 			}
 		}
