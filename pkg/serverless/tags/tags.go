@@ -59,7 +59,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	runtime, err := detectRuntime(bootstrapPath, runtimeVar)
 	if err != nil {
 		log.Debug(err)
-		runtime = "unknown"
+		runtime = "custom"
 	}
 
 	tags = setIfNotEmpty(tags, runtimeKey, runtime)

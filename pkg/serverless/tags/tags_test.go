@@ -75,7 +75,7 @@ func TestBuildTagMapFromArnIncomplete(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 	// Result of this test depends on build environment
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-	assert.Equal(t, "unknown", tagMap["runtime"])
+	assert.Equal(t, "custom", tagMap["runtime"])
 }
 
 func TestBuildTagMapFromArnIncompleteWithCommaAndSpaceTags(t *testing.T) {
@@ -92,7 +92,7 @@ func TestBuildTagMapFromArnIncompleteWithCommaAndSpaceTags(t *testing.T) {
 	assert.Equal(t, "value3", tagMap["tag3"])
 	// Result of this test depends on build environment
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-	assert.Equal(t, "unknown", tagMap["runtime"])
+	assert.Equal(t, "custom", tagMap["runtime"])
 }
 
 func TestBuildTagMapFromArnComplete(t *testing.T) {
@@ -112,7 +112,7 @@ func TestBuildTagMapFromArnComplete(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 	// Result of this test depends on build environment
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-	assert.Equal(t, "unknown", tagMap["runtime"])
+	assert.Equal(t, "custom", tagMap["runtime"])
 }
 
 func TestBuildTagMapFromArnCompleteWithEnvAndVersionAndService(t *testing.T) {
@@ -142,7 +142,7 @@ func TestBuildTagMapFromArnCompleteWithEnvAndVersionAndService(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 	// Result of this test depends on build environment
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-	assert.Equal(t, "unknown", tagMap["runtime"])
+	assert.Equal(t, "custom", tagMap["runtime"])
 }
 
 func TestBuildTagMapFromArnCompleteWithUpperCase(t *testing.T) {
@@ -161,7 +161,7 @@ func TestBuildTagMapFromArnCompleteWithUpperCase(t *testing.T) {
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-	assert.Equal(t, "unknown", tagMap["runtime"])
+	assert.Equal(t, "custom", tagMap["runtime"])
 }
 
 func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
@@ -181,7 +181,7 @@ func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-	assert.Equal(t, "unknown", tagMap["runtime"])
+	assert.Equal(t, "custom", tagMap["runtime"])
 }
 
 func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
@@ -202,7 +202,7 @@ func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-	assert.Equal(t, "unknown", tagMap["runtime"])
+	assert.Equal(t, "custom", tagMap["runtime"])
 }
 
 func TestAddTagInvalid(t *testing.T) {
@@ -291,7 +291,7 @@ func TestBuildTagMapWithMemoryTag(t *testing.T) {
 	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
-	assert.Equal(t, "unknown", tagMap["runtime"])
+	assert.Equal(t, "custom", tagMap["runtime"])
 	assert.Equal(t, "128", tagMap["memorysize"])
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
 }
