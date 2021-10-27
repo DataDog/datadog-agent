@@ -1083,6 +1083,26 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
+func findUnknownEnvVars(config Config) []string {
+	var unknownVars []string
+
+	knownVars := map[string]struct{}{}
+	for _, key := range config.GetEnvVars() {
+		knownVars[key] = struct{}{}
+	}
+
+	for _, equality := range os.Environ() {
+		key := strings.SplitN(equality, "=", 2)[0]
+		if !strings.HasPrefix(key, "DD_") {
+			continue
+		}
+		if _, known := knownVars[key]; !known {
+			unknownVars = append(unknownVars, key)
+		}
+	}
+	return unknownVars
+}
+
 func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
@@ -1106,6 +1126,10 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	for _, key := range findUnknownKeys(config) {
 		log.Warnf("Unknown key in config file: %v", key)
+	}
+
+	for _, v := range findUnknownEnvVars(config) {
+		log.Warnf("Unknown environment variable: %v", v)
 	}
 
 	if loadSecret {

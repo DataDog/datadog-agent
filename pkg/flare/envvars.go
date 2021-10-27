@@ -85,11 +85,6 @@ var allowedEnvvarNames = []string{
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
 	for _, envName := range config.Datadog.GetEnvVars() {
-		// config.Datadog.GetEnvVars() returns nested config using the format DD_FOO.BAR
-		// we should consider the format DD_FOO_BAR
-		if replaced := strings.ReplaceAll(envName, ".", "_"); replaced != envName {
-			allowed = append(allowed, replaced)
-		}
 		allowed = append(allowed, envName)
 	}
 	var found []string
