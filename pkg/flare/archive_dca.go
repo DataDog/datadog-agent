@@ -220,7 +220,7 @@ func zipClusterAgentClusterChecks(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -288,7 +288,7 @@ func zipClusterAgentDiagnose(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -310,7 +310,7 @@ func zipClusterAgentTelemetry(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}

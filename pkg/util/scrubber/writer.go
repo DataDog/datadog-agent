@@ -13,16 +13,20 @@ import (
 	"os"
 )
 
-// RedactingWriter is a writer that will redact content before writing to target.
-type RedactingWriter struct {
+// BUG(dustin) the writer applies scrubbing to each "chunk" of data independently. If
+// a sensitive value spans two chunks, it will not be matched by a replacer and thus
+// not scrubbed.
+
+// Writer is a writer that redacts content before writing to target.
+type Writer struct {
 	target    *os.File
 	targetBuf *bufio.Writer
 	perm      os.FileMode
 	r         []Replacer
 }
 
-// NewRedactingWriter instantiates a RedactingWriter to target with given permissions
-func NewRedactingWriter(t string, p os.FileMode, buffered bool) (*RedactingWriter, error) {
+// NewWriter instantiates a Writer to target with given permissions
+func NewWriter(t string, p os.FileMode, buffered bool) (*Writer, error) {
 	f, err := os.OpenFile(t, os.O_RDWR|os.O_CREATE, p)
 	if err != nil {
 		return nil, err
@@ -33,7 +37,7 @@ func NewRedactingWriter(t string, p os.FileMode, buffered bool) (*RedactingWrite
 		b = bufio.NewWriter(f)
 	}
 
-	return &RedactingWriter{
+	return &Writer{
 		target:    f,
 		targetBuf: b,
 		perm:      p,
@@ -42,13 +46,13 @@ func NewRedactingWriter(t string, p os.FileMode, buffered bool) (*RedactingWrite
 }
 
 // RegisterReplacer register additional replacers to run on stream
-func (f *RedactingWriter) RegisterReplacer(r Replacer) {
+func (f *Writer) RegisterReplacer(r Replacer) {
 	f.r = append(f.r, r)
 }
 
 // WriteFromFile will read contents from file and write them redacted to target. If
 // the file does not exist, this returns an error.
-func (f *RedactingWriter) WriteFromFile(filePath string) (int, error) {
+func (f *Writer) WriteFromFile(filePath string) (int, error) {
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return 0, err
@@ -61,7 +65,7 @@ func (f *RedactingWriter) WriteFromFile(filePath string) (int, error) {
 
 // Write writes the redacted byte stream, applying all replacers and credential
 // cleanup to target
-func (f *RedactingWriter) Write(p []byte) (int, error) {
+func (f *Writer) Write(p []byte) (int, error) {
 	fReady, buffered := (f.target != nil), (f.targetBuf != nil)
 
 	if !fReady && !buffered {
@@ -94,12 +98,12 @@ func (f *RedactingWriter) Write(p []byte) (int, error) {
 }
 
 // Truncate truncates the file of the target file to the specified size
-func (f *RedactingWriter) Truncate(size int64) error {
+func (f *Writer) Truncate(size int64) error {
 	return f.target.Truncate(size)
 }
 
 // Flush if this is a buffered writer, it flushes the buffer, otherwise NOP
-func (f *RedactingWriter) Flush() error {
+func (f *Writer) Flush() error {
 
 	if f.targetBuf == nil {
 		return nil
@@ -109,7 +113,7 @@ func (f *RedactingWriter) Flush() error {
 }
 
 // Close closes the underlying file, if buffered previously flushes the contents
-func (f *RedactingWriter) Close() error {
+func (f *Writer) Close() error {
 	var err error
 
 	if f.targetBuf != nil {

@@ -125,7 +125,7 @@ func zipEnvvars(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "envvars.log")
-	w, err := scrubber.NewRedactingWriter(f, os.ModePerm, true)
+	w, err := scrubber.NewWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}

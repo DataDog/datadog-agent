@@ -33,7 +33,7 @@ auth_token: ********
 log_level: info`
 
 	buf := bytes.NewBuffer([]byte{})
-	w := RedactingWriter{
+	w := Writer{
 		targetBuf: bufio.NewWriter(buf),
 	}
 
@@ -66,7 +66,7 @@ instances:
 
 	buf := bytes.NewBuffer([]byte{})
 
-	w := RedactingWriter{
+	w := Writer{
 		targetBuf: bufio.NewWriter(buf),
 	}
 	w.RegisterReplacer(otherAPIKeysReplacer)
@@ -89,7 +89,7 @@ auth_token: ********
 log_level: info`
 
 	buf := bytes.NewBuffer([]byte{})
-	w := RedactingWriter{
+	w := Writer{
 		targetBuf: bufio.NewWriter(buf),
 	}
 
@@ -121,7 +121,7 @@ log_level: info`
 log_level: info`
 
 	buf := bytes.NewBuffer([]byte{})
-	w := RedactingWriter{
+	w := Writer{
 		targetBuf: bufio.NewWriter(buf),
 	}
 
