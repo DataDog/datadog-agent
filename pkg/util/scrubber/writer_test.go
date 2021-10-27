@@ -6,12 +6,13 @@
 package scrubber
 
 import (
-	"bufio"
-	"bytes"
+	"io/ioutil"
+	"os"
+	"path"
 	"regexp"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -25,6 +26,8 @@ log_level: info`
 )
 
 func TestRedactingWriter(t *testing.T) {
+	filename := path.Join(t.TempDir(), "redacted")
+
 	redacted := `dd_url: https://app.datadoghq.com
 api_key: ***************************aaaaa
 proxy: http://user:********@host:1234
@@ -32,21 +35,25 @@ password: ********
 auth_token: ********
 log_level: info`
 
-	buf := bytes.NewBuffer([]byte{})
-	w := Writer{
-		targetBuf: bufio.NewWriter(buf),
-	}
+	w, err := NewWriter(filename, os.ModePerm, true)
+	require.NoError(t, err)
 
 	n, err := w.Write([]byte(input))
-	assert.Nil(t, err)
-	err = w.Flush()
-	assert.Nil(t, err)
-	assert.Equal(t, len(input), n)
-	assert.Equal(t, redacted, buf.String())
+	require.NoError(t, err)
+	require.Equal(t, len(input), n)
 
+	err = w.Flush()
+	require.NoError(t, err)
+
+	got, err := ioutil.ReadFile(filename)
+	require.NoError(t, err)
+
+	require.Equal(t, redacted, string(got))
 }
 
 func TestRedactingWriterReplacers(t *testing.T) {
+	filename := path.Join(t.TempDir(), "redacted")
+
 	redacted := `dd_url: https://app.datadoghq.com
 api_key: ***************************aaaaa
 proxy: http://USERISREDACTEDTOO:********@foo:bar
@@ -54,10 +61,8 @@ password: ********
 auth_token: ********
 log_level: info`
 
-	buf := bytes.NewBuffer([]byte{})
-	w := Writer{
-		targetBuf: bufio.NewWriter(buf),
-	}
+	w, err := NewWriter(filename, os.ModePerm, true)
+	require.NoError(t, err)
 
 	w.RegisterReplacer(Replacer{
 		Regex: regexp.MustCompile(`user`),
@@ -73,28 +78,37 @@ log_level: info`
 	})
 
 	n, err := w.Write([]byte(input))
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Equal(t, len(input), n)
+
 	err = w.Flush()
-	assert.Nil(t, err)
-	assert.Equal(t, len(input), n)
-	assert.Equal(t, redacted, buf.String())
+	require.NoError(t, err)
+
+	got, err := ioutil.ReadFile(filename)
+	require.NoError(t, err)
+
+	require.Equal(t, redacted, string(got))
 
 }
 func TestRedactingNothing(t *testing.T) {
-	src := `dd_url: https://app.datadoghq.com
-log_level: info`
-	dst := `dd_url: https://app.datadoghq.com
+	filename := path.Join(t.TempDir(), "redacted")
+
+	// nothing to redact here
+	content := `dd_url: https://app.datadoghq.com
 log_level: info`
 
-	buf := bytes.NewBuffer([]byte{})
-	w := Writer{
-		targetBuf: bufio.NewWriter(buf),
-	}
+	w, err := NewWriter(filename, os.ModePerm, true)
+	require.NoError(t, err)
 
-	n, err := w.Write([]byte(src))
-	assert.Nil(t, err)
+	n, err := w.Write([]byte(content))
+	require.NoError(t, err)
+	require.Equal(t, n, len(content))
+
 	err = w.Flush()
-	assert.Nil(t, err)
-	assert.Equal(t, n, len(dst))
-	assert.Equal(t, dst, buf.String())
+	require.NoError(t, err)
+
+	got, err := ioutil.ReadFile(filename)
+	require.NoError(t, err)
+
+	require.Equal(t, content, string(got))
 }
