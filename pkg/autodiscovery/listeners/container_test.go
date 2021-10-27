@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-func TestDockerCreateContainerService(t *testing.T) {
+func TestCreateContainerService(t *testing.T) {
 	containerEntityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindContainer,
 		ID:   containerID,
@@ -133,7 +133,7 @@ func TestDockerCreateContainerService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			listener, wlm := newDockerListener(t)
+			listener, wlm := newContainerListener(t)
 
 			listener.createContainerService(tt.container, integration.After)
 
@@ -142,8 +142,8 @@ func TestDockerCreateContainerService(t *testing.T) {
 	}
 }
 
-func newDockerListener(t *testing.T) (*DockerListener, *testWorkloadmetaListener) {
+func newContainerListener(t *testing.T) (*ContainerListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
 
-	return &DockerListener{workloadmetaListener: wlm}, wlm
+	return &ContainerListener{workloadmetaListener: wlm}, wlm
 }
