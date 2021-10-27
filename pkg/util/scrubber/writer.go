@@ -61,8 +61,6 @@ func (f *Writer) WriteFromFile(filePath string) (int, error) {
 		return 0, err
 	}
 
-	f.Truncate(0)       //nolint:errcheck
-	f.target.Seek(0, 0) //nolint:errcheck // offset, whence: 0 relative to start of file
 	return f.Write(data)
 }
 
@@ -98,11 +96,6 @@ func (f *Writer) Write(p []byte) (int, error) {
 	}
 
 	return len(p), err
-}
-
-// Truncate truncates the file of the target file to the specified size
-func (f *Writer) Truncate(size int64) error {
-	return f.target.Truncate(size)
 }
 
 // Flush if this is a buffered writer, it flushes the buffer, otherwise NOP

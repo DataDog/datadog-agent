@@ -23,17 +23,16 @@ password: foo
 auth_token: bar
 # comment to strip
 log_level: info`
-)
-
-func TestRedactingWriter(t *testing.T) {
-	filename := path.Join(t.TempDir(), "redacted")
-
-	redacted := `dd_url: https://app.datadoghq.com
+	redacted = `dd_url: https://app.datadoghq.com
 api_key: ***************************aaaaa
 proxy: http://user:********@host:1234
 password: ********
 auth_token: ********
 log_level: info`
+)
+
+func TestWriter(t *testing.T) {
+	filename := path.Join(t.TempDir(), "redacted")
 
 	w, err := NewWriter(filename, os.ModePerm, true)
 	require.NoError(t, err)
@@ -46,6 +45,30 @@ log_level: info`
 	require.NoError(t, err)
 
 	got, err := ioutil.ReadFile(filename)
+	require.NoError(t, err)
+
+	require.Equal(t, redacted, string(got))
+}
+
+func TestWriterWriteFromFile(t *testing.T) {
+	dir := t.TempDir()
+	src := path.Join(dir, "input")
+	dst := path.Join(dir, "redacted")
+
+	err := ioutil.WriteFile(src, []byte(input), os.ModePerm)
+	require.NoError(t, err)
+
+	w, err := NewWriter(dst, os.ModePerm, true)
+	require.NoError(t, err)
+
+	n, err := w.WriteFromFile(src)
+	require.NoError(t, err)
+	require.Equal(t, len(input), n)
+
+	err = w.Flush()
+	require.NoError(t, err)
+
+	got, err := ioutil.ReadFile(dst)
 	require.NoError(t, err)
 
 	require.Equal(t, redacted, string(got))
