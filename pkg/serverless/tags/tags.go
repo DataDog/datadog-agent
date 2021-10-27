@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 )
 
 const (
@@ -49,11 +52,14 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
 	architecture := ResolveRuntimeArch()
+	begin := time.Now()
+	fmt.Println("BEGIN GET RUNTIME")
+	runtime := getRuntime("/proc/", runtimeVar)
+	fmt.Printf("END RUNTIME %s in %v\n", runtime, time.Now().Sub(begin))
+
 	tags = setIfNotEmpty(tags, architectureKey, architecture)
 
-	cleanedRuntime := strings.Replace(os.Getenv(runtimeVar), "AWS_Lambda_", "", 1)
-
-	tags = setIfNotEmpty(tags, runtimeKey, cleanedRuntime)
+	tags = setIfNotEmpty(tags, runtimeKey, runtime)
 	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
 
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
@@ -143,4 +149,12 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
 	}
 	return tagMap
+}
+
+func getRuntime(procPath string, varName string) string {
+	value := proc.GetEnvVariable(procPath, varName)
+	if len(value) > 0 {
+		return strings.Replace(value, "AWS_Lambda_", "", 1)
+	}
+	return "custom"
 }
