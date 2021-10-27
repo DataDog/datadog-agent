@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+package scrubber
 
 import (
 	"bufio"
@@ -11,20 +11,17 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-//RedactingWriter is a writer that will redact content before writing to target
+// RedactingWriter is a writer that will redact content before writing to target.
 type RedactingWriter struct {
 	target    *os.File
 	targetBuf *bufio.Writer
 	perm      os.FileMode
-	r         []scrubber.Replacer
+	r         []Replacer
 }
 
-//NewRedactingWriter instantiates a RedactingWriter to target with given permissions
+// NewRedactingWriter instantiates a RedactingWriter to target with given permissions
 func NewRedactingWriter(t string, p os.FileMode, buffered bool) (*RedactingWriter, error) {
 	f, err := os.OpenFile(t, os.O_RDWR|os.O_CREATE, p)
 	if err != nil {
@@ -40,26 +37,18 @@ func NewRedactingWriter(t string, p os.FileMode, buffered bool) (*RedactingWrite
 		target:    f,
 		targetBuf: b,
 		perm:      p,
-		r:         []scrubber.Replacer{},
+		r:         []Replacer{},
 	}, nil
 }
 
-//RegisterReplacer register additional replacers to run on stream
-func (f *RedactingWriter) RegisterReplacer(r scrubber.Replacer) {
+// RegisterReplacer register additional replacers to run on stream
+func (f *RedactingWriter) RegisterReplacer(r Replacer) {
 	f.r = append(f.r, r)
 }
 
-//WriteFromFile will read contents from file and write them redacted to target
+// WriteFromFile will read contents from file and write them redacted to target. If
+// the file does not exist, this returns an error.
 func (f *RedactingWriter) WriteFromFile(filePath string) (int, error) {
-
-	if _, err := os.Stat(filePath); err != nil {
-		if os.IsNotExist(err) {
-			log.Warnf("the specified path: %s does not exist", filePath)
-		}
-
-		return 0, err
-	}
-
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return 0, err
@@ -70,8 +59,8 @@ func (f *RedactingWriter) WriteFromFile(filePath string) (int, error) {
 	return f.Write(data)
 }
 
-//Write writes the redacted byte stream, applying all replacers and credential
-//cleanup to target
+// Write writes the redacted byte stream, applying all replacers and credential
+// cleanup to target
 func (f *RedactingWriter) Write(p []byte) (int, error) {
 	fReady, buffered := (f.target != nil), (f.targetBuf != nil)
 
@@ -79,7 +68,7 @@ func (f *RedactingWriter) Write(p []byte) (int, error) {
 		return 0, errors.New("No viable target defined")
 	}
 
-	cleaned, err := scrubber.ScrubBytes(p)
+	cleaned, err := ScrubBytes(p)
 	if err != nil {
 		return 0, err
 	}
@@ -104,12 +93,12 @@ func (f *RedactingWriter) Write(p []byte) (int, error) {
 	return len(p), err
 }
 
-//Truncate truncates the file of the target file to the specified size
+// Truncate truncates the file of the target file to the specified size
 func (f *RedactingWriter) Truncate(size int64) error {
 	return f.target.Truncate(size)
 }
 
-//Flush if this is a buffered writer, it flushes the buffer, otherwise NOP
+// Flush if this is a buffered writer, it flushes the buffer, otherwise NOP
 func (f *RedactingWriter) Flush() error {
 
 	if f.targetBuf == nil {
@@ -119,7 +108,7 @@ func (f *RedactingWriter) Flush() error {
 	return f.targetBuf.Flush()
 }
 
-//Close closes the underlying file, if buffered previously flushes the contents
+// Close closes the underlying file, if buffered previously flushes the contents
 func (f *RedactingWriter) Close() error {
 	var err error
 

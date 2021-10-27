@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package flare
@@ -58,7 +59,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	serialized := out.Bytes()
 
 	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	w, err := scrubber.NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -106,7 +107,7 @@ func zipDockerPs(tempDir, hostname string) error {
 
 	// Write to file
 	f := filepath.Join(tempDir, hostname, "docker_ps.log")
-	file, err := NewRedactingWriter(f, os.ModePerm, false)
+	file, err := scrubber.NewRedactingWriter(f, os.ModePerm, false)
 	if err != nil {
 		return err
 	}

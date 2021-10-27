@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+package scrubber
 
 import (
 	"bufio"
@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,6 +46,8 @@ log_level: info`
 
 }
 
+// TODO: move to flare
+/*
 func TestRedactingOtherServicesApiKey(t *testing.T) {
 	clear := `init_config:
 instances:
@@ -77,6 +78,7 @@ instances:
 	assert.Equal(t, len(clear), n)
 	assert.Equal(t, redacted, buf.String())
 }
+*/
 
 func TestRedactingWriterReplacers(t *testing.T) {
 	redacted := `dd_url: https://app.datadoghq.com
@@ -91,13 +93,13 @@ log_level: info`
 		targetBuf: bufio.NewWriter(buf),
 	}
 
-	w.RegisterReplacer(scrubber.Replacer{
+	w.RegisterReplacer(Replacer{
 		Regex: regexp.MustCompile(`user`),
 		ReplFunc: func(s []byte) []byte {
 			return []byte("USERISREDACTEDTOO")
 		},
 	})
-	w.RegisterReplacer(scrubber.Replacer{
+	w.RegisterReplacer(Replacer{
 		Regex: regexp.MustCompile(`@.*\:[0-9]+`),
 		ReplFunc: func(s []byte) []byte {
 			return []byte("@foo:bar")

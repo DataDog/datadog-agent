@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var allowedEnvvarNames = []string{
@@ -124,7 +125,7 @@ func zipEnvvars(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "envvars.log")
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	w, err := scrubber.NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
