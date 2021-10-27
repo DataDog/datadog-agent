@@ -47,8 +47,7 @@ import (
 )
 
 var (
-	discarderChanLength = 10000
-	logger              seelog.LoggerInterface
+	logger seelog.LoggerInterface
 )
 
 const (
@@ -150,15 +149,15 @@ func (to testOpts) Equal(opts testOpts) bool {
 }
 
 type testModule struct {
-	config       *config.Config
-	opts         testOpts
-	st           *simpleTest
-	module       *module.Module
-	probe        *sprobe.Probe
-	probeHandler *testProbeHandler
-	discarders   chan *testDiscarder
-	cmdWrapper   cmdWrapper
-	ruleHandler  testRuleHandler
+	config                *config.Config
+	opts                  testOpts
+	st                    *simpleTest
+	module                *module.Module
+	probe                 *sprobe.Probe
+	probeHandler          *testProbeHandler
+	cmdWrapper            cmdWrapper
+	ruleHandler           testRuleHandler
+	eventDiscarderHandler testEventDiscarderHandler
 }
 
 var testMod *testModule
@@ -172,6 +171,12 @@ type testDiscarder struct {
 type ruleHandler func(*sprobe.Event, *rules.Rule)
 type eventHandler func(*sprobe.Event)
 type customEventHandler func(*rules.Rule, *sprobe.CustomEvent)
+type eventDiscarderHandler func(*testDiscarder) bool
+
+type testEventDiscarderHandler struct {
+	sync.RWMutex
+	callback eventDiscarderHandler
+}
 
 type testRuleHandler struct {
 	sync.RWMutex
@@ -443,7 +448,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if useReload && testMod != nil {
 		if opts.Equal(testMod.opts) {
-			testMod.reset()
 			testMod.st = st
 			testMod.cmdWrapper = cmdWrapper
 			return testMod, testMod.reloadConfiguration()
@@ -482,7 +486,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		st:           st,
 		module:       mod.(*module.Module),
 		probe:        mod.(*module.Module).GetProbe(),
-		discarders:   make(chan *testDiscarder, discarderChanLength),
 		probeHandler: &testProbeHandler{module: mod.(*module.Module)},
 		cmdWrapper:   cmdWrapper,
 	}
@@ -507,17 +510,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
 	tm.cmdWrapper.Run(t, name, fnc)
-}
-
-func (tm *testModule) reset() {
-DRAIN_DISCARDERS:
-	for {
-		select {
-		case <-tm.discarders:
-		default:
-			break DRAIN_DISCARDERS
-		}
-	}
 }
 
 func (tm *testModule) reloadConfiguration() error {
@@ -549,25 +541,48 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 	}
 }
 
+func (tm *testModule) RegisterEventDiscarderHandler(cb eventDiscarderHandler) {
+	tm.eventDiscarderHandler.Lock()
+	tm.eventDiscarderHandler.callback = cb
+	tm.eventDiscarderHandler.Unlock()
+}
+
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
-	e := event.(*sprobe.Event).Retain()
+	tm.eventDiscarderHandler.RLock()
+	callback := tm.eventDiscarderHandler.callback
+	tm.eventDiscarderHandler.RUnlock()
 
-	discarder := &testDiscarder{event: &e, field: field, eventType: eventType}
+	if callback != nil {
+		discarder := &testDiscarder{event: event.(*sprobe.Event), field: field, eventType: eventType}
+		_ = callback(discarder)
+	}
+}
+
+func (tm *testModule) GetEventDiscarder(tb testing.TB, cb eventDiscarderHandler) error {
+	tb.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tm.RegisterEventDiscarderHandler(func(d *testDiscarder) bool {
+		tb.Helper()
+		if cb(d) {
+			cancel()
+		}
+		return true
+	})
+
+	defer tm.RegisterEventDiscarderHandler(nil)
+
 	select {
-	case tm.discarders <- discarder:
-	default:
-		log.Tracef("Discarding discarder %+v", discarder)
+	case <-time.After(getEventTimeout):
+		return NewTimeoutError(tm.probe)
+	case <-ctx.Done():
+		return nil
 	}
 }
 
-func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHandler) error {
-	if err := tm.GetSignal(tb, action, cb); err != nil {
-		tb.Error(err)
-		return err
-	}
-	return nil
-}
-
+// GetStatusMetrics returns a string representation of the perf buffer monitor metrics
 func GetStatusMetrics(probe *sprobe.Probe) string {
 	var status string
 
@@ -610,6 +625,14 @@ func NewTimeoutError(probe *sprobe.Probe) ErrTimeout {
 
 	err.msg += GetStatusMetrics(probe)
 	return err
+}
+
+func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHandler) error {
+	if err := tm.GetSignal(tb, action, cb); err != nil {
+		tb.Error(err)
+		return err
+	}
+	return nil
 }
 
 func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandler) error {
@@ -977,40 +1000,6 @@ func applyUmask(fileMode int) int {
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) flushChannels(duration time.Duration) {
-	timeout := time.After(duration)
-	for {
-		select {
-		case <-tm.discarders:
-		case <-timeout:
-			return
-		}
-	}
-}
-
-//nolint:deadcode,unused
-func waitForDiscarder(test *testModule, key string, value interface{}, eventType model.EventType) error {
-	timeout := time.After(5 * time.Second)
-
-	for {
-		select {
-		case discarder := <-test.discarders:
-			e := discarder.event.(*sprobe.Event)
-			if e == nil || (e != nil && e.GetEventType() != eventType) {
-				continue
-			}
-			v, _ := e.GetFieldValue(key)
-			if v == value {
-				test.flushChannels(time.Second)
-				return nil
-			}
-		case <-timeout:
-			return NewTimeoutError(test.probe)
-		}
-	}
-}
-
-//nolint:deadcode,unused
 func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintptr)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
@@ -1031,16 +1020,10 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 func waitForProbeEvent(test *testModule, action func() error, key string, value interface{}, eventType model.EventType) error {
 	return test.GetProbeEvent(action, func(event *sprobe.Event) bool {
 		if v, _ := event.GetFieldValue(key); v == value {
-			test.flushChannels(time.Second)
 			return true
 		}
 		return false
 	}, getEventTimeout, eventType)
-}
-
-//nolint:deadcode,unused
-func waitForOpenDiscarder(test *testModule, filename string) error {
-	return waitForDiscarder(test, "open.file.path", filename, model.FileOpenEventType)
 }
 
 //nolint:deadcode,unused

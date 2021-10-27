@@ -184,11 +184,21 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 	defer syscall.Close(fd)
 	defer os.Remove(testFile)
 
-	if err := waitForOpenDiscarder(test, testFile); err != nil {
+	if err := test.GetEventDiscarder(t, func(d *testDiscarder) bool {
+		e := d.event.(*probe.Event)
+		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+			return false
+		}
+		v, _ := e.GetFieldValue("open.file.path")
+		if v == testFile {
+			return true
+		}
+		return false
+	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
 
-		t.Fatalf("not able to get the expected event inode: %d, parent inode: %d", inode, parentInode)
+		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
 	if err := waitForOpenProbeEvent(test, func() error {
@@ -232,11 +242,21 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	defer syscall.Close(fd)
 	defer os.Remove(testFile)
 
-	if err := waitForOpenDiscarder(test, testFile); err != nil {
+	if err := test.GetEventDiscarder(t, func(d *testDiscarder) bool {
+		e := d.event.(*probe.Event)
+		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+			return false
+		}
+		v, _ := e.GetFieldValue("open.file.path")
+		if v == testFile {
+			return true
+		}
+		return false
+	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
 
-		t.Fatalf("not able to get the expected event inode: %d, parent inode: %d", inode, parentInode)
+		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
 	if err := waitForOpenProbeEvent(test, func() error {
@@ -409,8 +429,21 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 	defer syscall.Close(fd)
 	defer os.Remove(testFile)
 
-	if err := waitForOpenDiscarder(test, testFile); err != nil {
-		t.Fatal(err)
+	if err := test.GetEventDiscarder(t, func(d *testDiscarder) bool {
+		e := d.event.(*probe.Event)
+		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+			return false
+		}
+		v, _ := e.GetFieldValue("open.file.path")
+		if v == testFile {
+			return true
+		}
+		return false
+	}); err != nil {
+		inode := getInode(t, testFile)
+		parentInode := getInode(t, path.Dir(testFile))
+
+		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
 	defer os.Remove(testFile)
@@ -462,7 +495,17 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 	defer syscall.Close(fd)
 	defer os.Remove(testFile)
 
-	if err = waitForOpenDiscarder(test, testFile); err != nil {
+	if err := test.GetEventDiscarder(t, func(d *testDiscarder) bool {
+		e := d.event.(*probe.Event)
+		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+			return false
+		}
+		v, _ := e.GetFieldValue("open.file.path")
+		if v == testFile {
+			return true
+		}
+		return false
+	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
 
