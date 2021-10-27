@@ -29,10 +29,10 @@ func IsPortInEphemeralRange(p uint16) EphemeralPortType {
 
 	low, hi, err := ephemeralIntPair.Get()
 	if err == nil {
-		if low > 0 && low < math.MaxInt16{
+		if low > 0 && low < math.MaxUInt16{
 			ephemeralLow = uint16(low)
 		}
-		if hi > 0 && hi < math.MaxInt16{
+		if hi > 0 && hi < math.MaxUInt16{
 			ephemeralHigh = uint16(hi)
 		}
 	}
