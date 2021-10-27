@@ -9,11 +9,12 @@ package docker
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, containerID string) *decoder.Decoder {
-	return decoder.NewDecoderWithEndLineMatcher(source, NewParser(containerID), &headerMatcher{}, nil)
+	return decoder.NewDecoderWithEndLineMatcher(source, parser.NewDockerStreamFormat(containerID), &headerMatcher{}, nil)
 }
 
 const (

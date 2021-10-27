@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package kubernetes
+package parser
 
 import (
 	"bytes"
@@ -12,47 +12,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-const (
-	// Kubernetes log stream types
-	stdout             = "stdout"
-	stderr             = "stderr"
-	numberOfComponents = 4 // timestamp stream flag message
-)
+// KubernetesFormat parses Kubernetes-formatted log lines.  Kubernetes log
+// lines follow the pattern '<timestamp> <stream> <flag> <content>'; see
+// https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/kuberuntime/logs/logs.go.
+// For example: `2018-09-20T11:54:11.753589172Z stdout F This is my message`
+var KubernetesFormat Parser = &kubernetesFormat{}
 
-var (
-	// log line timestamp/stream/flag/content delimiter
-	delimiter = []byte{' '}
-)
+type kubernetesFormat struct{}
 
-// Parser parses Kubernetes log lines
-var Parser *parser
-
-type parser struct{}
-
-// Parse parses a Kubernetes log line.
-// Kubernetes log lines follow this pattern '<timestamp> <stream> <flag> <content>',
-// see https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/kuberuntime/logs/logs.go
-// Example:
-// 2018-09-20T11:54:11.753589172Z stdout F This is my message
-func (p *parser) Parse(msg []byte) ([]byte, string, string, bool, error) {
-	content, status, timestamp, flag, err := parse(msg)
+// Parse implements Parser#Parse
+func (p *kubernetesFormat) Parse(msg []byte) ([]byte, string, string, bool, error) {
+	content, status, timestamp, flag, err := parseKubernetes(msg)
 	return content, status, timestamp, isPartial(flag), err
 }
 
-func (p *parser) SupportsPartialLine() bool {
+// SupportsPartialLine implements Parser#SupportsPartialLine
+func (p *kubernetesFormat) SupportsPartialLine() bool {
 	return true
 }
 
-func parse(msg []byte) ([]byte, string, string, string, error) {
+func parseKubernetes(msg []byte) ([]byte, string, string, string, error) {
 	var status = message.StatusInfo
 	var flag string
 	var timestamp string
-	components := bytes.SplitN(msg, delimiter, numberOfComponents)
-	if len(components) < numberOfComponents-1 {
+	// split '<timestamp> <stream> <flag> <content>' into its components
+	components := bytes.SplitN(msg, spaceByte, 4)
+	if len(components) < 3 {
 		return msg, status, timestamp, flag, errors.New("cannot parse the log line")
 	}
 	var content []byte
-	if len(components) > numberOfComponents-1 {
+	if len(components) > 3 {
 		content = components[3]
 	}
 	status = getStatus(components[1])
