@@ -3,8 +3,6 @@ package dogstatsd
 import (
 	"bytes"
 	"fmt"
-	"strconv"
-	"unsafe"
 	"math"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
