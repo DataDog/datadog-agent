@@ -35,6 +35,7 @@ func parseKubernetes(msg []byte) ([]byte, string, string, string, error) {
 	var status = message.StatusInfo
 	var flag string
 	var timestamp string
+	// split '<timestamp> <stream> <flag> <content>' into its components
 	components := bytes.SplitN(msg, spaceByte, 4)
 	if len(components) < 3 {
 		return msg, status, timestamp, flag, errors.New("cannot parse the log line")
