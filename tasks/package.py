@@ -19,6 +19,8 @@ def get_package_path(glob_pattern):
 
 @task
 def compare_size(_, new_package, stable_package, package_type, last_stable, threshold):
+    mb = 1000000
+
     new_package_size = os.path.getsize(get_package_path(new_package))
     stable_package_size = os.path.getsize(get_package_path(stable_package))
 
@@ -26,18 +28,27 @@ def compare_size(_, new_package, stable_package, package_type, last_stable, thre
 
     diff = new_package_size - stable_package_size
 
+    # For printing purposes
+    new_package_size_mb = new_package_size / mb
+    stable_package_size_mb = stable_package_size / mb
+    threshold_mb = threshold / mb
+    diff_mb = diff / mb
+
     if diff > threshold:
         print(
-            f"""{package_type} size increase is too large:
-  New package size is {new_package_size/1000000:.2f}MB
-  Stable package ({last_stable}) size is {stable_package_size/1000000:.2f}MB
-  Diff is {diff/1000000:.2f}MB > {threshold/1000000:.2f}MB (max allowed diff)"""
+            color_message(
+                f"""{package_type} size increase is too large:
+  New package size is {new_package_size_mb:.2f}MB
+  Stable package ({last_stable}) size is {stable_package_size_mb:.2f}MB
+  Diff is {diff_mb:.2f}MB > {threshold_mb:.2f}MB (max allowed diff)""",
+                "red",
+            )
         )
         raise Exit(code=1)
 
     print(
         f"""{package_type} size increase is OK:
-  New package size is {new_package_size/1000000:.2f}MB
-  Stable package ({last_stable}) size is {stable_package_size/1000000:.2f}MB
-  Diff is {diff/1000000:.2f}MB (max allowed diff: {threshold/1000000:.2f}MB)"""
+  New package size is {new_package_size_mb:.2f}MB
+  Stable package ({last_stable}) size is {stable_package_size_mb:.2f}MB
+  Diff is {diff_mb:.2f}MB (max allowed diff: {threshold_mb:.2f}MB)"""
     )
