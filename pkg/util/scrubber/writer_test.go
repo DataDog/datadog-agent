@@ -34,7 +34,7 @@ log_level: info`
 func TestWriter(t *testing.T) {
 	filename := path.Join(t.TempDir(), "redacted")
 
-	w, err := NewWriter(filename, os.ModePerm, true)
+	w, err := NewWriter(filename, os.ModePerm)
 	require.NoError(t, err)
 
 	n, err := w.Write([]byte(input))
@@ -58,7 +58,7 @@ func TestWriterWriteFromFile(t *testing.T) {
 	err := ioutil.WriteFile(src, []byte(input), os.ModePerm)
 	require.NoError(t, err)
 
-	w, err := NewWriter(dst, os.ModePerm, true)
+	w, err := NewWriter(dst, os.ModePerm)
 	require.NoError(t, err)
 
 	n, err := w.WriteFromFile(src)
@@ -84,7 +84,7 @@ password: ********
 auth_token: ********
 log_level: info`
 
-	w, err := NewWriter(filename, os.ModePerm, true)
+	w, err := NewWriter(filename, os.ModePerm)
 	require.NoError(t, err)
 
 	w.RegisterReplacer(Replacer{
@@ -120,7 +120,7 @@ func TestRedactingNothing(t *testing.T) {
 	content := `dd_url: https://app.datadoghq.com
 log_level: info`
 
-	w, err := NewWriter(filename, os.ModePerm, true)
+	w, err := NewWriter(filename, os.ModePerm)
 	require.NoError(t, err)
 
 	n, err := w.Write([]byte(content))

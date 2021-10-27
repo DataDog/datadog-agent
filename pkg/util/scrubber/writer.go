@@ -7,7 +7,6 @@ package scrubber
 
 import (
 	"bufio"
-	"errors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -20,31 +19,25 @@ import (
 // Writer is an io.Writer implementation that redacts content before writing to
 // target.
 type Writer struct {
-	target    *os.File
-	targetBuf *bufio.Writer
-	perm      os.FileMode
-	r         []Replacer
+	targetFile *os.File
+	targetBuf  *bufio.Writer
+	r          []Replacer
 }
 
 // NewWriter instantiates a Writer to the given file path with the given
-// permissions.  If buffered is true, then writes to the underlying file
-// are buffered, improving performance.
-func NewWriter(path string, p os.FileMode, buffered bool) (*Writer, error) {
+// permissions.
+func NewWriter(path string, p os.FileMode) (*Writer, error) {
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, p)
 	if err != nil {
 		return nil, err
 	}
 
-	var b *bufio.Writer
-	if buffered {
-		b = bufio.NewWriter(f)
-	}
+	b := bufio.NewWriter(f)
 
 	return &Writer{
-		target:    f,
-		targetBuf: b,
-		perm:      p,
-		r:         []Replacer{},
+		targetFile: f,
+		targetBuf:  b,
+		r:          []Replacer{},
 	}, nil
 }
 
@@ -67,12 +60,6 @@ func (f *Writer) WriteFromFile(filePath string) (int, error) {
 // Write writes the redacted byte stream, applying all replacers and credential
 // cleanup to target
 func (f *Writer) Write(p []byte) (int, error) {
-	fReady, buffered := (f.target != nil), (f.targetBuf != nil)
-
-	if !fReady && !buffered {
-		return 0, errors.New("No viable target defined")
-	}
-
 	cleaned, err := ScrubBytes(p)
 	if err != nil {
 		return 0, err
@@ -84,12 +71,7 @@ func (f *Writer) Write(p []byte) (int, error) {
 		}
 	}
 
-	var n int
-	if buffered {
-		n, err = f.targetBuf.Write(cleaned)
-	} else {
-		n, err = f.target.Write(cleaned)
-	}
+	n, err := f.targetBuf.Write(cleaned)
 
 	if n != len(cleaned) {
 		err = io.ErrShortWrite
@@ -100,28 +82,15 @@ func (f *Writer) Write(p []byte) (int, error) {
 
 // Flush if this is a buffered writer, it flushes the buffer, otherwise NOP
 func (f *Writer) Flush() error {
-
-	if f.targetBuf == nil {
-		return nil
-	}
-
 	return f.targetBuf.Flush()
 }
 
 // Close closes the underlying file, if buffered previously flushes the contents
 func (f *Writer) Close() error {
-	var err error
-
-	if f.targetBuf != nil {
-		err = f.targetBuf.Flush()
-		if err != nil {
-			return err
-		}
+	err := f.Flush()
+	if err != nil {
+		return err
 	}
 
-	if f.target != nil {
-		err = f.target.Close()
-	}
-
-	return err
+	return f.targetFile.Close()
 }

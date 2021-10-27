@@ -59,7 +59,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	serialized := out.Bytes()
 
 	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
-	w, err := scrubber.NewWriter(f, os.ModePerm, true)
+	w, err := scrubber.NewWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func zipDockerPs(tempDir, hostname string) error {
 
 	// Write to file
 	f := filepath.Join(tempDir, hostname, "docker_ps.log")
-	file, err := scrubber.NewWriter(f, os.ModePerm, false)
+	file, err := scrubber.NewWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}

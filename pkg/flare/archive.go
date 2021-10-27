@@ -959,7 +959,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 // output and with additional replacers added to scrub third-party credentials
 // likely to be seen in flares.  The `buffered` argument is ignored.
 func newScrubberWriter(f string, p os.FileMode, buffered bool) (*scrubber.Writer, error) {
-	w, err := scrubber.NewWriter(f, os.ModePerm, true)
+	w, err := scrubber.NewWriter(f, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
