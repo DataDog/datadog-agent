@@ -12,11 +12,11 @@ import (
 	"os"
 )
 
-// BUG(dustin) the writer applies scrubbing to each "chunk" of data independently. If
+// BUG(dustin) Writer applies scrubbing to each "chunk" of data independently. If
 // a sensitive value spans two chunks, it will not be matched by a replacer and thus
 // not scrubbed.
 
-// Writer is an io.Writer implementation that scrubts content before writing to
+// Writer is an io.Writer implementation that scrubs content before writing to
 // a target file.
 type Writer struct {
 	targetFile *os.File
