@@ -211,7 +211,7 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 		metricsChan := daemon.MetricAgent.GetMetricChannel()
 		metrics.SendInvocationEnhancedMetric(metricTags, metricsChan)
 	} else {
-		log.Error("Impossible to send the invocation enhanced metric")
+		log.Error("Could not send the invocation enhanced metric")
 	}
 
 	if daemon.ExecutionContext.Coldstart {
