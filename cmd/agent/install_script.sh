@@ -507,7 +507,10 @@ elif [ "$OS" = "SUSE" ]; then
               exit;
           fi
       else
-          agent_minor_version=32
+          if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+              echo -e "  \033[33mAgent $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              agent_minor_version=32
+          fi
       fi
   fi
   if [ "$DISTRIBUTION" == "SUSE" ] && [ "$SUSE_VER" -lt 12 ]; then
@@ -517,7 +520,10 @@ elif [ "$OS" = "SUSE" ]; then
               exit;
           fi
       else
-          agent_minor_version=32
+          if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+              echo -e "  \033[33mAgent $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              agent_minor_version=32
+          fi
       fi
   fi
 
