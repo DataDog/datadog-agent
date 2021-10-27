@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"unsafe"
-
+	"math"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -86,8 +86,8 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 	rawTextLength := rawLengths[sepIndex+1:]
 
 	// Convert title length to workable type and do a basic validity check on value
-	titleLength, err := strconv.Atoi(*(*string)(unsafe.Pointer(&rawTitleLength)))
-	if err != nil || titleLength < 0 {
+	titleLength, err := parseInt64(rawTitleLength)
+	if err != nil || titleLength < 0  || titleLength > math.MaxInt{
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
 
@@ -97,8 +97,8 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 	}
 
 	// Convert text length to workable type and do a basic validity check on value
-	textLength, err := strconv.Atoi(*(*string)(unsafe.Pointer(&rawTextLength)))
-	if err != nil || textLength < 0 {
+	textLength, err := parseInt64(rawTextLength)
+	if err != nil || textLength < 0  || textLength > math.MaxInt {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
 
