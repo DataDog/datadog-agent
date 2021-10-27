@@ -6,9 +6,12 @@
 package tags
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -18,6 +21,8 @@ const (
 	serviceEnvVar   = "DD_SERVICE"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
+
+	bootstrapPath = "/var/runtime/bootstrap"
 
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
@@ -51,9 +56,13 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	architecture := ResolveRuntimeArch()
 	tags = setIfNotEmpty(tags, architectureKey, architecture)
 
-	cleanedRuntime := strings.Replace(os.Getenv(runtimeVar), "AWS_Lambda_", "", 1)
+	runtime, err := detectRuntime(bootstrapPath, runtimeVar)
+	if err != nil {
+		log.Debug(err)
+		runtime = "unknown"
+	}
 
-	tags = setIfNotEmpty(tags, runtimeKey, cleanedRuntime)
+	tags = setIfNotEmpty(tags, runtimeKey, runtime)
 	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
 
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
@@ -143,4 +152,32 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
 	}
 	return tagMap
+}
+
+func detectRuntime(path string, runtimeVarName string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("could not detect the runtime: bootstrap file cannot be read")
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		currentLine := scanner.Text()
+		if strings.Contains(currentLine, runtimeVarName) {
+			return extractRuntimeFromLine(currentLine)
+		}
+	}
+	return "", fmt.Errorf("could not detect the runtime: cannot find the runtime value in the bootstrap file")
+}
+
+func extractRuntimeFromLine(line string) (string, error) {
+	parts := strings.Split(line, "=")
+	if len(parts) == 2 {
+		prefixedRuntime := strings.TrimSpace(parts[1])
+		runtime := strings.Replace(prefixedRuntime, "AWS_Lambda_", "", 1)
+		if runtime != prefixedRuntime {
+			return runtime, nil
+		}
+	}
+	return "", fmt.Errorf("could not detect the runtime: invalid format found")
 }

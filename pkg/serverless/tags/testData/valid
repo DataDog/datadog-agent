@@ -1,0 +1,3 @@
+bla bla bla
+export AWS_EXECUTION_ENV=AWS_Lambda_nodejs14.x
+bla bla bla
