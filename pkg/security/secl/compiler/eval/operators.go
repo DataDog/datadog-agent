@@ -6,8 +6,6 @@
 package eval
 
 import (
-	"fmt"
-
 	"github.com/pkg/errors"
 )
 
@@ -230,40 +228,19 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 		isPartialLeaf = true
 	}
 
-	var arrayOp func(a string, b []string) bool
+	arrayOp := func(a string, b StringValues) bool {
+		if b.scalars != nil && b.scalars[a] {
+			return true
+		}
+		if b.regexps != nil {
+			for _, re := range b.regexps {
+				if re.MatchString(a) {
+					return true
+				}
+			}
+		}
 
-	if a.regexp != nil {
-		arrayOp = func(as string, bs []string) bool {
-			for _, v := range bs {
-				if a.regexp.MatchString(v) {
-					return true
-				}
-			}
-			return false
-		}
-	} else if b.regexps != nil || b.scalars != nil {
-		arrayOp = func(as string, bs []string) bool {
-			if b.scalars != nil && b.scalars[as] {
-				return true
-			}
-			if b.regexps != nil {
-				for _, re := range b.regexps {
-					if re.MatchString(as) {
-						return true
-					}
-				}
-			}
-			return false
-		}
-	} else {
-		arrayOp = func(as string, bs []string) bool {
-			for _, v := range bs {
-				if as == v {
-					return true
-				}
-			}
-			return false
-		}
+		return false
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -281,20 +258,20 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
-		ea, eb := a.Value, b.Values
+		ea, eb := a.Value, b.stringValues
 
 		return &BoolEvaluator{
 			Value:     arrayOp(ea, eb),
-			Weight:    a.Weight + InArrayWeight*len(eb),
+			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	if a.EvalFnc != nil {
-		ea, eb := a.EvalFnc, b.Values
+		ea, eb := a.EvalFnc, b.stringValues
 
 		if a.Field != "" {
-			for _, value := range b.fieldValues {
+			for _, value := range eb.fieldValues {
 				if err := state.UpdateFieldValues(a.Field, value); err != nil {
 					return nil, err
 				}
@@ -307,7 +284,7 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
+			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -347,34 +324,24 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 		isPartialLeaf = true
 	}
 
-	if a.regexps != nil {
+	if len(a.stringValues.regexps) != 0 {
 		return nil, errors.New("pattern not supported on left list")
 	}
 
-	var arrayOp func(a []string, b []string) bool
-
-	if b.regexps != nil {
-		arrayOp = func(as []string, bs []string) bool {
-			for _, va := range as {
+	arrayOp := func(a StringValues, b StringValues) bool {
+		for _, as := range a.values {
+			if b.scalars != nil && b.scalars[as] {
+				return true
+			}
+			if b.regexps != nil {
 				for _, re := range b.regexps {
-					if re.MatchString(va) {
+					if re.MatchString(as) {
 						return true
 					}
 				}
 			}
-			return false
 		}
-	} else {
-		arrayOp = func(as []string, bs []string) bool {
-			for _, va := range as {
-				for _, vb := range bs {
-					if va == vb {
-						return true
-					}
-				}
-			}
-			return false
-		}
+		return false
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -392,20 +359,20 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 	}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
-		ea, eb := a.Values, b.Values
+		ea, eb := a.stringValues, b.stringValues
 
 		return &BoolEvaluator{
 			Value:     arrayOp(ea, eb),
-			Weight:    a.Weight + InArrayWeight*len(eb),
+			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	if a.EvalFnc != nil {
-		ea, eb := a.EvalFnc, b.Values
+		ea, eb := a.EvalFnc, b.stringValues
 
 		if a.Field != "" {
-			for _, value := range b.fieldValues {
+			for _, value := range eb.fieldValues {
 				if err := state.UpdateFieldValues(a.Field, value); err != nil {
 					return nil, err
 				}
@@ -418,15 +385,15 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
+			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
-	ea, eb := a.Values, b.EvalFnc
+	ea, eb := a.stringValues, b.EvalFnc
 
 	if b.Field != "" {
-		for _, value := range a.fieldValues {
+		for _, value := range ea.fieldValues {
 			if err := state.UpdateFieldValues(b.Field, value); err != nil {
 				return nil, err
 			}

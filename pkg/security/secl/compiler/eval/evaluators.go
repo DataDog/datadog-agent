@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/pkg/errors"
 )
 
@@ -143,21 +143,79 @@ func (s *StringEvaluator) Compile() error {
 	return nil
 }
 
+// StringValues describes a set of string values, either regex or scalar
+type StringValues struct {
+	fieldValues []FieldValue
+	values      []string
+	scalars     map[string]bool
+	regexps     []*regexp.Regexp
+}
+
+// AppendFieldValue append a FieldValue
+func (s *StringValues) AppendFieldValue(value FieldValue) error {
+	if s.scalars == nil {
+		s.scalars = make(map[string]bool)
+	}
+
+	switch value.Type {
+	case PatternValueType:
+		if err := value.Compile(); err != nil {
+			return err
+		}
+
+		s.regexps = append(s.regexps, value.Regexp)
+		s.fieldValues = append(s.fieldValues, value)
+	case RegexpValueType:
+		if err := value.Compile(); err != nil {
+			return err
+		}
+
+		s.regexps = append(s.regexps, value.Regexp)
+		s.fieldValues = append(s.fieldValues, value)
+	default:
+		str := value.Value.(string)
+		s.values = append(s.values, str)
+		s.scalars[str] = true
+		s.fieldValues = append(s.fieldValues, value)
+	}
+
+	return nil
+}
+
+// SetFieldValues apply field values
+func (s *StringValues) SetFieldValues(values ...FieldValue) error {
+	s.fieldValues = []FieldValue{}
+
+	// reset internal caches
+	s.regexps = []*regexp.Regexp{}
+	s.scalars = nil
+
+	for _, value := range values {
+		if err := s.AppendFieldValue(value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// AppendValue append a string value
+func (s *StringValues) AppendValue(value string) {
+	s.values = append(s.values, value)
+	s.scalars[value] = true
+	s.fieldValues = append(s.fieldValues, FieldValue{Value: value})
+}
+
 // StringArrayEvaluator returns an array of strings
 type StringArrayEvaluator struct {
-	EvalFnc     func(ctx *Context) []string
+	EvalFnc     func(ctx *Context) StringValues
 	Field       Field
-	Values      []string
 	Weight      int
 	OpOverrides *OpOverrides
 
 	isPartial bool
 
-	fieldValues []FieldValue
-
-	// cache
-	scalars map[string]bool
-	regexps []*regexp.Regexp
+	stringValues StringValues
 }
 
 // Eval returns the result of the evaluation
@@ -180,40 +238,11 @@ func (s *StringArrayEvaluator) IsScalar() bool {
 	return s.EvalFnc == nil
 }
 
-// GetFieldValues return current field values
-func (s *StringArrayEvaluator) GetFieldValues() []FieldValue {
-	return s.fieldValues
-}
-
 // AppendFieldValues append field values
 func (s *StringArrayEvaluator) AppendFieldValues(values ...FieldValue) error {
-	if s.scalars == nil {
-		s.scalars = make(map[string]bool)
-	}
-
 	for _, value := range values {
-		switch value.Type {
-		case PatternValueType:
-			if err := value.Compile(); err != nil {
-				return err
-			}
-
-			s.Values = append(s.Values, value.Value.(string))
-			s.regexps = append(s.regexps, value.Regexp)
-			s.fieldValues = append(s.fieldValues, value)
-		case RegexpValueType:
-			if err := value.Compile(); err != nil {
-				return err
-			}
-
-			s.Values = append(s.Values, value.Value.(string))
-			s.regexps = append(s.regexps, value.Regexp)
-			s.fieldValues = append(s.fieldValues, value)
-		default:
-			str := value.Value.(string)
-			s.Values = append(s.Values, str)
-			s.scalars[str] = true
-			s.fieldValues = append(s.fieldValues, value)
+		if err := s.stringValues.AppendFieldValue(value); err != nil {
+			return err
 		}
 	}
 
@@ -222,43 +251,32 @@ func (s *StringArrayEvaluator) AppendFieldValues(values ...FieldValue) error {
 
 // SetFieldValues apply field values
 func (s *StringArrayEvaluator) SetFieldValues(values ...FieldValue) error {
-	s.Values = []string{}
-
-	// reset internal caches
-	s.fieldValues = []FieldValue{}
-	s.regexps = []*regexp.Regexp{}
-	s.scalars = nil
-
-	return s.AppendFieldValues(values...)
+	return s.stringValues.SetFieldValues(values...)
 }
 
 // AppendMembers add members to the evaluator
 func (s *StringArrayEvaluator) AppendMembers(members ...ast.StringMember) error {
-	if s.scalars == nil {
-		s.scalars = make(map[string]bool)
-	}
-
 	var values []FieldValue
+	var value FieldValue
+
 	for _, member := range members {
 		if member.Pattern != nil {
-			value := FieldValue{
+			value = FieldValue{
 				Value: *member.Pattern,
 				Type:  PatternValueType,
 			}
-			values = append(values, value)
 		} else if member.Regexp != nil {
-			value := FieldValue{
+			value = FieldValue{
 				Value: *member.Regexp,
 				Type:  RegexpValueType,
 			}
-			values = append(values, value)
 		} else {
-			value := FieldValue{
+			value = FieldValue{
 				Value: *member.String,
 				Type:  ScalarValueType,
 			}
-			values = append(values, value)
 		}
+		values = append(values, value)
 	}
 
 	return s.AppendFieldValues(values...)

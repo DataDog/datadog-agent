@@ -13,7 +13,6 @@ import (
 
 	"container/list"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/pkg/errors"
 )
 
@@ -240,19 +239,19 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	case "process.list.value":
 
 		return &StringArrayEvaluator{
-			EvalFnc: func(ctx *Context) []string {
+			EvalFnc: func(ctx *Context) StringValues {
 				// to test optimisation
 				(*testEvent)(ctx.Object).listEvaluated = true
 
-				var result []string
+				var values StringValues
 
 				el := (*testEvent)(ctx.Object).process.list.Front()
 				for el != nil {
-					result = append(result, el.Value.(*testItem).value)
+					values.AppendValue(el.Value.(*testItem).value)
 					el = el.Next()
 				}
 
-				return result
+				return values
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -298,14 +297,14 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	case "process.array.value":
 
 		return &StringArrayEvaluator{
-			EvalFnc: func(ctx *Context) []string {
-				var result []string
+			EvalFnc: func(ctx *Context) StringValues {
+				var values StringValues
 
 				for _, el := range (*testEvent)(ctx.Object).process.array {
-					result = append(result, el.value)
+					values.AppendValue(el.value)
 				}
 
-				return result
+				return values
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -666,8 +665,6 @@ func (m *testModel) AddOverridenValue(value string) {
 	m.overrideLock.Unlock()
 }
 
-// wrap BoolEvaluator
-
 // StringEqualsOverride operator override
 func (m *testModel) StringEqualsOverride(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	var scalar *StringEvaluator
@@ -684,8 +681,7 @@ func (m *testModel) StringEqualsOverride(a *StringEvaluator, b *StringEvaluator,
 		return nil, err
 	}
 
-	value := "abc"
-	if err := evaluator.AppendMembers(ast.StringMember{String: &value}); err != nil {
+	if err := evaluator.AppendFieldValues(FieldValue{Value: "abc"}); err != nil {
 		return nil, err
 	}
 	return ArrayStringContains(a, &evaluator, opts, state)
