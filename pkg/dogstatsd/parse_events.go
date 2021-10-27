@@ -101,8 +101,8 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 	}
 
 	return eventHeader{
-		titleLength: titleLength,
-		textLength:  textLength,
+		titleLength: int(titleLength),
+		textLength:  int(textLength),
 	}, nil
 }
 
