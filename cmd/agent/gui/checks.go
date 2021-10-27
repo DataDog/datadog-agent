@@ -192,8 +192,8 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	for _, path := range configPaths {
 		filePath, err := securejoin.SecureJoin(path, fileName)
 		if err != nil {
-			w.Write([]byte("Error: Unable to join config path with the file name: " + fileName))
-			return
+			w.Write([]byte("Error: Unable to join config path with the file name: " + html.EscapeString(fileName)))
+			continue
 		}
 		file, e = ioutil.ReadFile(filePath)
 		if e == nil {
@@ -258,7 +258,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		// Attempt to write new configs to custom checks directory
 		path, err := securejoin.SecureJoin(checkConfFolderPath, fileName)
 		if err != nil {
-			w.Write([]byte("Error: Unable to join conf folder path with the file name: " + fileName))
+			w.Write([]byte("Error: Unable to join conf folder path with the file name: " + html.EscapeString(fileName)))
 			return
 		}
 		os.MkdirAll(checkConfFolderPath, os.FileMode(0755)) //nolint:errcheck
@@ -268,7 +268,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
 			path, err = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
 			if err != nil {
-				w.Write([]byte("Error: Unable to join conf folder path with the file name: " + fileName))
+				w.Write([]byte("Error: Unable to join conf folder path with the file name: " + html.EscapeString(fileName)))
 				return
 			}
 			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755)) //nolint:errcheck
@@ -287,7 +287,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		// Attempt to write new configs to custom checks directory
 		path, err := securejoin.SecureJoin(checkConfFolderPath, fileName)
 		if err != nil {
-			w.Write([]byte("Error: Unable to join conf folder path with the file name: " + fileName))
+			w.Write([]byte("Error: Unable to join conf folder path with the file name: " + html.EscapeString(fileName)))
 		}
 		e := os.Rename(path, path+".disabled")
 
