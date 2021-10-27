@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 )
@@ -52,14 +51,10 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
 	architecture := ResolveRuntimeArch()
-	begin := time.Now()
-	fmt.Println("BEGIN GET RUNTIME")
-	runtime := getRuntime("/proc/", runtimeVar)
-	fmt.Printf("END RUNTIME %s in %v\n", runtime, time.Now().Sub(begin))
 
 	tags = setIfNotEmpty(tags, architectureKey, architecture)
 
-	tags = setIfNotEmpty(tags, runtimeKey, runtime)
+	tags = setIfNotEmpty(tags, runtimeKey, getRuntime("/proc/", runtimeVar))
 	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
 
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))

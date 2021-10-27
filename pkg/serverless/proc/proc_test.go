@@ -47,6 +47,7 @@ func TestGetEnvVariablesFromPidCorrect(t *testing.T) {
 func TestGetEnvVariableFound(t *testing.T) {
 	fakeEnviron := []byte("env0=value0\000env1=value1\000env2=value2\000env3=value3")
 	err := os.WriteFile("./testData/13/environ", fakeEnviron, 0644)
+	defer os.Remove("./testData/13/environ")
 	assert.NilError(t, err)
 
 	result := GetEnvVariable("./testData/", "env1")
@@ -55,6 +56,7 @@ func TestGetEnvVariableFound(t *testing.T) {
 func TestGetEnvVariableNotFound(t *testing.T) {
 	fakeEnviron := []byte("env0=value0\000env1=value1\000env2=value2\000env3=value3")
 	err := os.WriteFile("./testData/13/environ", fakeEnviron, 0644)
+	defer os.Remove("./testData/13/environ")
 	assert.NilError(t, err)
 
 	result := GetEnvVariable("./testData/", "xxx")

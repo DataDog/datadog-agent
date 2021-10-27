@@ -299,6 +299,7 @@ func TestBuildTagMapWithMemoryTag(t *testing.T) {
 func TestGetRuntimeFound(t *testing.T) {
 	fakeEnviron := []byte("env0=value0\000env1=value1\000AWS_EXECUTION_ENV=AWS_Lambda_nodejs14.x\000env3=value3")
 	err := os.WriteFile("../proc/testData/13/environ", fakeEnviron, 0644)
+	defer os.Remove("../proc/testData/13/environ")
 	assert.Nil(t, err)
 
 	result := getRuntime("../proc/testData/", "AWS_EXECUTION_ENV")
