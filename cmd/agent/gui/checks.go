@@ -296,7 +296,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		if e != nil {
 			path, err = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
 			if err != nil {
-				w.Write([]byte("Error: Unable to join conf folder path with the file name: " + fileName))
+				w.Write([]byte("Error: Unable to join conf folder path with the file name: " + html.EscapeString(fileName)))
 				return
 			}
 			e = os.Rename(path, path+".disabled")
