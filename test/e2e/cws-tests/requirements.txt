@@ -1,0 +1,6 @@
+kubernetes
+datadog-api-client
+pyaml
+docker
+retry
+emoji

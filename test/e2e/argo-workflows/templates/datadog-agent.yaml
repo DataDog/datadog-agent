@@ -8,6 +8,10 @@ spec:
       inputs:
         parameters:
           - name: namespace
+          - name: dd-url
+          - name: site
+          - name: api-key
+          - name: app-key
           - name: agent-image-repository
           - name: agent-image-tag
           - name: cluster-agent-image-repository
@@ -20,9 +24,13 @@ spec:
 
           cat > /tmp/values.yaml <<EOF
           datadog:
-            dd_url: http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local
-            apiKey: 123er
-            appKey: 123er1
+            dd_url: {{inputs.parameters.dd-url}}
+            site: {{inputs.parameters.site}}
+            apiKey: {{inputs.parameters.api-key}}
+            appKey: {{inputs.parameters.app-key}}
+            tags:
+              - tag1
+              - tag2
             kubelet:
               tlsVerify: false
             env:
@@ -37,6 +45,7 @@ spec:
             processAgent:
               enabled: true
             systemProbe:
+              seccomp: "runtime/default"
               enableTCPQueueLength: true
               enableOOMKill: true
             networkMonitoring:
@@ -78,6 +87,14 @@ spec:
               doNotCheckTag: true
               pullSecrets:
                 - name: docker-registry
+            containers:
+              systemProbe:
+                logLevel: TRACE
+                env:
+                  - name:  DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
+                    value: "module.*"
+                  - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
+                    value: "/tmp/runtime-security.d"
 
           clusterAgent:
             enabled: true
@@ -92,7 +109,7 @@ spec:
               enabled: true
             env:
               - name: DATADOG_HOST
-                value: http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local
+                value: {{inputs.parameters.dd-url}}
           EOF
 
           helm repo add datadog https://helm.datadoghq.com
@@ -349,6 +366,35 @@ spec:
               parameters:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
+
+    - name: test-cws-e2e
+      inputs:
+        parameters:
+          - name: namespace
+          - name: site
+          - name: api-key
+          - name: app-key
+      activeDeadlineSeconds: 500
+      script:
+        image: python
+        command: [bash]
+        volumeMounts:
+          - name: datadog-agent-volume
+            mountPath: /host/datadog-agent
+        source: |
+          set -euo pipefail
+
+          export DD_SITE={{inputs.parameters.site}}
+          export DD_API_KEY={{inputs.parameters.api-key}}
+          export DD_APP_KEY={{inputs.parameters.app-key}}
+
+          set +x
+
+          cd /host/datadog-agent/test/e2e/cws-tests
+          python -m venv /tmp/.venv
+          source /tmp/.venv/bin/activate
+          pip install -r requirements.txt
+          python tests/test_e2e_cws_kubernetes.py --namespace {{inputs.parameters.namespace}} --in-cluster
 
     - name: describe-agent
       inputs:
