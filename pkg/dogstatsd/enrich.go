@@ -102,7 +102,7 @@ func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsd
 		metricName = namespace + metricName
 	}
 
-	if isMetricBlocklisted(metricName, metricBlocklist) {
+	if len(metricBlocklist) > 0 && isMetricBlocklisted(metricName, metricBlocklist) {
 		return []metrics.MetricSample{}
 	}
 
