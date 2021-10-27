@@ -166,7 +166,7 @@ send_pkg_size-a7:
             failures=$((${failures}+$?))
             set -e
         done
-    - if [ ! -z "${failures}" ]; then false; fi
+    - if [ "${failures}" -ne "0" ]; then false; fi
 
 check_pkg_size-a6:
   extends: .check_pkg_size
