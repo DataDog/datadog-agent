@@ -24,7 +24,7 @@ const (
 // Monitor is the interface to HTTP monitoring
 type Monitor interface {
 	Start()
-	GetHTTPStats() map[Key]*RequestStats
+	GetHTTPStats() map[Key]RequestStats
 	GetStats() (map[string]int64, error)
 	Stop() error
 }
@@ -41,16 +41,21 @@ type DriverMonitor struct {
 }
 
 // NewDriverMonitor returns a new DriverMonitor instance
-func NewDriverMonitor(c *config.Config, dh *driver.Handle) (Monitor, error) {
-	di, err := newDriverInterface(dh)
+func NewDriverMonitor(c *config.Config) (Monitor, error) {
+	di, err := newDriverInterface()
 	if err != nil {
 		return nil, err
 	}
 
-	telemetry, err := newTelemetry()
-	if err != nil {
-		return nil, err
+	if uint64(c.MaxTrackedConnections) != defaultMaxTrackedConnections {
+		maxFlows := uint64(c.MaxTrackedConnections)
+		err := di.setMaxFlows(maxFlows)
+		if err != nil {
+			log.Warnf("Failed to set max number of flows in driver http filter to %v %v", maxFlows, err)
+		}
 	}
+
+	telemetry := newTelemetry()
 
 	return &DriverMonitor{
 		di:         di,
@@ -61,7 +66,6 @@ func NewDriverMonitor(c *config.Config, dh *driver.Handle) (Monitor, error) {
 
 // Start consuming HTTP events
 func (m *DriverMonitor) Start() {
-	log.Infof("Driver Monitor: starting")
 	m.di.startReadingBuffers()
 
 	m.eventLoopWG.Add(1)
@@ -81,7 +85,7 @@ func (m *DriverMonitor) Start() {
 	return
 }
 
-func (m *DriverMonitor) process(transactionBatch []FullHttpTransaction) {
+func (m *DriverMonitor) process(transactionBatch []driver.HttpTransactionType) {
 	transactions := make([]httpTX, len(transactionBatch))
 	for i := range transactionBatch {
 		transactions[i] = httpTX(transactionBatch[i])
@@ -97,13 +101,13 @@ func (m *DriverMonitor) process(transactionBatch []FullHttpTransaction) {
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *DriverMonitor) GetHTTPStats() map[Key]*RequestStats {
+func (m *DriverMonitor) GetHTTPStats() map[Key]RequestStats {
+	transactions, err := m.di.flushPendingTransactions()
+	if err != nil {
+		log.Warnf("Failed to flush pending http transactions: %v", err)
+	}
 
-	// dbtodo  This is now going to cause any pending transactions
-	// to be read and then stuffed into the channel.  Which then I think
-	// creates a race condition that there still could be some mid-
-	// process when we come back
-	m.di.readAllPendingTransactions()
+	m.process(transactions)
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
@@ -117,7 +121,7 @@ func (m *DriverMonitor) GetHTTPStats() map[Key]*RequestStats {
 	return stats
 }
 
-func removeDuplicates(stats map[Key]*RequestStats) {
+func removeDuplicates(stats map[Key]RequestStats) {
 	// With localhost traffic, the driver will create a flow for both endpoints. Both
 	// these flows will be normalized so that source=client and dest=server, which
 	// results in 2 identical http transactions being sent up to userspace & processed.
@@ -125,7 +129,10 @@ func removeDuplicates(stats map[Key]*RequestStats) {
 
 	for k, v := range stats {
 		if isLocalhost(k) {
-			v.HalfAllCounts()
+			for i := 0; i < NumStatusClasses; i++ {
+				v[i].Count = v[i].Count / 2
+				stats[k] = v
+			}
 		}
 	}
 }

@@ -253,7 +253,6 @@ func TestHTTPCorrectness(t *testing.T) {
 			30*time.Millisecond,
 		)
 		transactions := []httpTX{tx}
-
 		sk.Process(transactions)
 		require.Equal(t, int64(1), tel.malformed.Load())
 

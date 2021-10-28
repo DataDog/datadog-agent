@@ -12,6 +12,7 @@ package dns
 import "C"
 import (
 	"fmt"
+	"net"
 	"time"
 	"unsafe"
 

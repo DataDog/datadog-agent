@@ -12,6 +12,8 @@ import (
 	"encoding/hex"
 	"strings"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 /*
@@ -140,3 +142,4 @@ func nsTimestampToFloat(ns uint64) float64 {
 	}
 	return float64(ns << shift)
 }
+

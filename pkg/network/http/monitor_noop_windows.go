@@ -17,7 +17,7 @@ func NewNoOpMonitor() Monitor {
 
 func (*noOpMonitor) Start() {}
 
-func (*noOpMonitor) GetHTTPStats() map[Key]*RequestStats {
+func (*noOpMonitor) GetHTTPStats() map[Key]RequestStats {
 	return nil
 }
 

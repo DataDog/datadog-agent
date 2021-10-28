@@ -225,6 +225,21 @@ func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	return "", ebpf.ErrNotImplemented
 }
 
+func newHttpMonitor(c *config.Config) http.Monitor {
+	if !c.EnableHTTPMonitoring {
+		log.Infof("http monitoring has been disabled")
+		return http.NewNoOpMonitor()
+	}
+	log.Infof("http monitoring has been enabled")
+
+	monitor, err := http.NewDriverMonitor(c)
+	if err != nil {
+		log.Errorf("could not instantiate http monitor: %s", err)
+		return http.NewNoOpMonitor()
+	}
+	monitor.Start()
+	return monitor
+}
 // DebugCachedConntrack is not implemented on this OS for Tracer
 func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented

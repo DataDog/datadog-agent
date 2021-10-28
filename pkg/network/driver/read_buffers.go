@@ -1,5 +1,4 @@
-//go:build windows
-// +build windows
+//+build windows
 
 package driver
 
@@ -11,10 +10,9 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/sys/windows"
 	"syscall"
 	"unsafe"
-
-	"golang.org/x/sys/windows"
 )
 
 // ReadBuffer is the type that an overlapped read returns -- the overlapped object, which must be passed
@@ -40,6 +38,7 @@ func PrepareCompletionBuffers(handle windows.Handle, count int) (iocp windows.Ha
 	if err != nil {
 		return windows.Handle(0), nil, fmt.Errorf("error creating IO completion port: %w", err)
 	}
+
 	buffers = make([]*ReadBuffer, count)
 	for i := 0; i < count; i++ {
 		buf := (*ReadBuffer)(C.malloc(C.size_t(unsafe.Sizeof(ReadBuffer{}))))

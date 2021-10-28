@@ -36,9 +36,7 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
 	di, err := newDriverInterface()
 	require.NoError(t, err)
 
-	telemetry, err := newTelemetry()
-	require.NoError(t, err)
-
+	telemetry := newTelemetry()
 	monitor := &DriverMonitor{
 		di:         di,
 		telemetry:  telemetry,
@@ -93,10 +91,11 @@ func requestGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
 	}
 }
 
-func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
+func includesRequest(t *testing.T, allStats map[Key]RequestStats, req *nethttp.Request) {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
-		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+		i := expectedStatus/100 - 1
+		if key.Path == req.URL.Path && stats[i].Count == 1 {
 			return
 		}
 	}

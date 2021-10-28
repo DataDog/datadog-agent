@@ -19,11 +19,7 @@ func (*noOpMonitor) Start() error {
 	return nil
 }
 
-func (*noOpMonitor) GetHTTPStats() map[Key]*RequestStats {
-	return nil
-}
-
-func (*noOpMonitor) GetStats() map[string]interface{} {
+func (*noOpMonitor) GetHTTPStats() map[Key]RequestStats {
 	return nil
 }
 

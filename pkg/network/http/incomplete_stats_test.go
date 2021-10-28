@@ -69,3 +69,11 @@ func TestOrphanEntries(t *testing.T) {
 		assert.True(t, len(buffer.data) == 0)
 	})
 }
+
+func requestFragment(fragment []byte) [HTTPBufferSize]_Ctype_char {
+	var b [HTTPBufferSize]_Ctype_char
+	for i := 0; i < len(b) && i < len(fragment); i++ {
+		b[i] = _Ctype_char(fragment[i])
+	}
+	return b
+}

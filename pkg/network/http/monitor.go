@@ -191,7 +191,6 @@ func (m *EBPFMonitor) GetHTTPStats() map[Key]*RequestStats {
 
 func (m *EBPFMonitor) GetStats() map[string]interface{} {
 	empty := map[string]interface{}{}
-	if m == nil {
 		return empty
 	}
 
@@ -203,8 +202,6 @@ func (m *EBPFMonitor) GetStats() map[string]interface{} {
 
 	if m.telemetrySnapshot == nil {
 		return empty
-	}
-
 	return m.telemetrySnapshot.report()
 }
 

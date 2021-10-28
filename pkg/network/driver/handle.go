@@ -49,6 +49,9 @@ const (
 
 	// StatsHandle has no filter set and is used to pull total stats from the driver
 	StatsHandle HandleType = "Stats"
+
+	// HTTPHandle is keyed to return batches of completed HTTP transactions from the driver. Used with: #define FILTER_LAYER_TRANSPORT ((uint64_t) 1)
+	HTTPHandle HandleType = "HTTP"
 )
 
 // handleTypeToPathName maps the handle type to the path name that the driver is expecting.
@@ -56,6 +59,7 @@ var handleTypeToPathName = map[HandleType]string{
 	FlowHandle:  "flowstatshandle",
 	DataHandle:  "transporthandle",
 	StatsHandle: "driverstatshandle", // for now just use that; any path will do
+	HTTPHandle:  "httphandle",
 }
 
 // Handle struct stores the windows handle for the driver as well as information about what type of filter is set
@@ -123,6 +127,23 @@ func (dh *Handle) SetDataFilters(filters []FilterDefinition) error {
 	for _, filter := range filters {
 		err := windows.DeviceIoControl(dh.Handle,
 			SetDataFilterIOCTL,
+			(*byte)(unsafe.Pointer(&filter)),
+			uint32(unsafe.Sizeof(filter)),
+			(*byte)(unsafe.Pointer(&id)),
+			uint32(unsafe.Sizeof(id)), nil, nil)
+		if err != nil {
+			return fmt.Errorf("failed to set filter: %v", err)
+		}
+	}
+	return nil
+}
+
+// SetHTTPFilters installs the provided filters for http messages
+func (dh *Handle) SetHTTPFilters(filters []FilterDefinition) error {
+	var id int64
+	for _, filter := range filters {
+		err := windows.DeviceIoControl(dh.Handle,
+			SetHTTPFilterIOCTL,
 			(*byte)(unsafe.Pointer(&filter)),
 			uint32(unsafe.Sizeof(filter)),
 			(*byte)(unsafe.Pointer(&id)),

@@ -14,7 +14,9 @@ package http
 */
 import "C"
 import (
-	"runtime"
+	"errors"
+	"fmt"
+	"net"
 	"sync"
 	"unsafe"
 
@@ -27,110 +29,163 @@ const (
 	httpReadBufferCount = 100
 )
 
-type FullHttpTransaction struct {
-	Txn             driver.HttpTransactionType
-	RequestFragment []byte
-}
 type httpDriverInterface struct {
-	driverHTTPHandle  *driver.Handle
-	driverEventHandle windows.Handle
+	driverHTTPHandle *driver.Handle
+	readBuffers      []*driver.ReadBuffer
+	iocp             windows.Handle
 
-	readMux     sync.Mutex
-	dataChannel chan []FullHttpTransaction
+	dataChannel chan []driver.HttpTransactionType
 	eventLoopWG sync.WaitGroup
-	closed      bool
 }
 
-func newDriverInterface(dh *driver.Handle) (*httpDriverInterface, error) {
+func newDriverInterface() (*httpDriverInterface, error) {
 	d := &httpDriverInterface{}
-	err := d.setupHTTPHandle(dh)
+	err := d.setupHTTPHandle()
 	if err != nil {
 		return nil, err
 	}
 
-	d.dataChannel = make(chan []FullHttpTransaction)
+	d.dataChannel = make(chan []driver.HttpTransactionType)
 	return d, nil
 }
 
-func (di *httpDriverInterface) setupHTTPHandle(dh *driver.Handle) error {
-
-	// enable HTTP on this handle
-	settings := driver.HttpConfigurationSettings{
-		MaxTransactions:        driver.HttpBatchSize * 2,
-		NotificationThreshhold: driver.HttpBatchSize,
-		MaxRequestFragment:     driver.HttpBufferSize,
-	}
-
-	err := windows.DeviceIoControl(dh.Handle,
-		driver.EnableHttpIOCTL,
-		(*byte)(unsafe.Pointer(&settings)),
-		uint32(driver.HttpSettingsTypeSize),
-		nil,
-		uint32(0), nil, nil)
+func (di *httpDriverInterface) setupHTTPHandle() error {
+	dh, err := driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.HTTPHandle)
 	if err != nil {
-		log.Warnf("Failed to enable http in driver %v", err)
 		return err
 	}
-	log.Infof("Enabled http in driver")
+
+	filters, err := createHTTPFilters()
+	if err != nil {
+		return err
+	}
+
+	if err := dh.SetHTTPFilters(filters); err != nil {
+		return err
+	}
+
+	iocp, buffers, err := driver.PrepareCompletionBuffers(dh.Handle, httpReadBufferCount)
+	if err != nil {
+		return err
+	}
 
 	di.driverHTTPHandle = dh
-
-	u16eventname, err := windows.UTF16PtrFromString("Global\\DDNPMHttpTxnReadyEvent")
-	di.driverEventHandle, err = windows.CreateEvent(nil, 1, 0, u16eventname)
-	if err != nil {
-		if err != windows.ERROR_ALREADY_EXISTS || di.driverEventHandle == windows.Handle(0) {
-			log.Warnf("Failed to create driver event handle %v", err)
-			return err
-		}
-		log.Infof("non-nil err, %v %v", di.driverEventHandle, err)
-	}
+	di.iocp = iocp
+	di.readBuffers = buffers
 	return nil
 }
 
-func (di *httpDriverInterface) readAllPendingTransactions() {
-	di.readMux.Lock()
-	defer di.readMux.Unlock()
-	count := int(0)
-	for {
-		txns, err := di.readPendingTransactions()
-		if err != nil {
-			log.Warnf("Error reading http transaction buffer: %v", err)
-			break
-		}
-		if txns == nil && err == nil {
-			// no transactions to read
-			break
-		}
-		count += len(txns)
-		di.dataChannel <- txns
+func createHTTPFilters() ([]driver.FilterDefinition, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
 	}
-	log.Infof("Read all pending transactions read %d transactions", count)
+
+	var filters []driver.FilterDefinition
+	for _, iface := range ifaces {
+		// IPv4
+		filters = append(filters, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionOutbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: uint64(iface.Index),
+			Af:             windows.AF_INET,
+			Protocol:       windows.IPPROTO_TCP,
+		}, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionInbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: uint64(iface.Index),
+			Af:             windows.AF_INET,
+			Protocol:       windows.IPPROTO_TCP,
+		})
+
+		// IPv6
+		filters = append(filters, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionOutbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: uint64(iface.Index),
+			Af:             windows.AF_INET6,
+			Protocol:       windows.IPPROTO_TCP,
+		}, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionInbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: uint64(iface.Index),
+			Af:             windows.AF_INET6,
+			Protocol:       windows.IPPROTO_TCP,
+		})
+	}
+
+	return filters, nil
+}
+
+func (di *httpDriverInterface) setMaxFlows(maxFlows uint64) error {
+	log.Debugf("Setting max flows in driver http filter to %v", maxFlows)
+	err := windows.DeviceIoControl(di.driverHTTPHandle.Handle,
+		driver.SetMaxFlowsIOCTL,
+		(*byte)(unsafe.Pointer(&maxFlows)),
+		uint32(unsafe.Sizeof(maxFlows)),
+		nil,
+		uint32(0), nil, nil)
+	return err
 }
 
 func (di *httpDriverInterface) startReadingBuffers() {
 	di.eventLoopWG.Add(1)
 	go func() {
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
 		defer di.eventLoopWG.Done()
 
 		for {
-			windows.WaitForSingleObject(di.driverEventHandle, windows.INFINITE)
-			// dbtodo -- downgrade or remove this message
-			log.Infof("Driver signalled batch is ready")
-			if di.closed {
-				break
+			buf, bytesRead, err := driver.GetReadBufferWhenReady(di.iocp)
+			if iocpIsClosedError(err) {
+				log.Debug("http io completion port is closed. stopping http monitoring")
+				return
 			}
-			di.readAllPendingTransactions()
+			if err != nil {
+				log.Warnf("Error reading http transaction buffer: %v", err)
+				continue
+			}
+
+			transactionSize := uint32(driver.HttpTransactionTypeSize)
+			batchSize := bytesRead / transactionSize
+			transactionBatch := make([]driver.HttpTransactionType, batchSize)
+
+			for i := uint32(0); i < batchSize; i++ {
+				transactionBatch[i] = *(*driver.HttpTransactionType)(unsafe.Pointer(&buf.Data[i*transactionSize]))
+			}
+
+			di.dataChannel <- transactionBatch
+
+			err = driver.StartNextRead(di.driverHTTPHandle.Handle, buf)
+			if err != nil && err != windows.ERROR_IO_PENDING {
+				log.Warnf("Error starting next http transaction read: %v")
+			}
 		}
 	}()
 }
 
-//func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
-func (di *httpDriverInterface) readPendingTransactions() ([]FullHttpTransaction, error) {
+func iocpIsClosedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// ERROR_OPERATION_ABORTED or ERROR_ABANDONED_WAIT_0 indicates that the iocp handle was closed
+	// during a call to GetQueuedCompletionStatus.
+	// ERROR_INVALID_HANDLE indicates that the handle was closed prior to the call being made.
+	return errors.Is(err, windows.ERROR_OPERATION_ABORTED) ||
+		errors.Is(err, windows.ERROR_ABANDONED_WAIT_0) ||
+		errors.Is(err, windows.ERROR_INVALID_HANDLE)
+}
+
+func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
 	var (
 		bytesRead uint32
-		buf       = make([]byte, (driver.HttpTransactionTypeSize+driver.HttpBufferSize)*driver.HttpBatchSize)
+		buf       = make([]byte, driver.HttpTransactionTypeSize*driver.HttpBatchSize)
 	)
 
 	err := windows.DeviceIoControl(di.driverHTTPHandle.Handle,
@@ -141,42 +196,48 @@ func (di *httpDriverInterface) readPendingTransactions() ([]FullHttpTransaction,
 		nil)
 
 	if err != nil {
-		log.Infof("http flushPendingTransactions error %v", err)
 		return nil, err
 	}
-	if bytesRead == 0 {
-		return nil, nil
-	}
-	transactionBatch := make([]FullHttpTransaction, 0)
 
-	for i := uint32(0); i < bytesRead; {
-		var tx FullHttpTransaction
-		tx.Txn = *(*driver.HttpTransactionType)(unsafe.Pointer(&buf[i]))
-		tx.RequestFragment = make([]byte, tx.Txn.MaxRequestFragment)
-		i += driver.HttpTransactionTypeSize
-		copy(tx.RequestFragment, buf[i:i+uint32(tx.Txn.MaxRequestFragment)])
-		i += uint32(tx.Txn.MaxRequestFragment)
+	transactionSize := uint32(driver.HttpTransactionTypeSize)
+	batchSize := bytesRead / transactionSize
+	transactionBatch := make([]driver.HttpTransactionType, batchSize)
 
-		transactionBatch = append(transactionBatch, tx)
+	for i := uint32(0); i < batchSize; i++ {
+		transactionBatch[i] = *(*driver.HttpTransactionType)(unsafe.Pointer(&buf[i*transactionSize]))
 	}
 
 	return transactionBatch, nil
 }
 
 func (di *httpDriverInterface) getStats() (map[string]int64, error) {
-	stats, err := di.driverHTTPHandle.GetStatsForHandle()
-	if err != nil {
-		return nil, err
-	}
-	return stats["handle"], nil
+	return di.driverHTTPHandle.GetStatsForHandle()
 }
 
 func (di *httpDriverInterface) close() error {
-	di.closed = true
-	windows.SetEvent(di.driverEventHandle)
+	err := di.closeDriverHandles()
 	di.eventLoopWG.Wait()
-	windows.CloseHandle(di.driverEventHandle)
 	close(di.dataChannel)
 
+	for _, buf := range di.readBuffers {
+		C.free(unsafe.Pointer(buf))
+	}
+	di.readBuffers = nil
+	return err
+}
+
+func (di *httpDriverInterface) closeDriverHandles() error {
+	err := windows.CancelIoEx(di.driverHTTPHandle.Handle, nil)
+	if err != nil && err != windows.ERROR_NOT_FOUND {
+		return fmt.Errorf("error cancelling outstanding HTTP io requests: %w", err)
+	}
+	err = windows.CloseHandle(di.iocp)
+	if err != nil {
+		return fmt.Errorf("error closing HTTP io completion handle: %w", err)
+	}
+	err = di.driverHTTPHandle.Close()
+	if err != nil {
+		return fmt.Errorf("error closing driver HTTP file handle: %w", err)
+	}
 	return nil
 }
