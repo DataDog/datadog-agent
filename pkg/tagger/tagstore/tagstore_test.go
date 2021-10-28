@@ -359,6 +359,7 @@ func TestSubscribe(t *testing.T) {
 	store := newTagStoreWithClock(clock)
 
 	collectors.CollectorPriorities["source2"] = collectors.ClusterOrchestrator
+	collectors.CollectorPriorities["source"] = collectors.NodeRuntime
 
 	var expectedEvents = []entityEventExpectation{
 		{types.EventTypeAdded, "test1", []string{"low"}, []string{}, []string{"high"}},

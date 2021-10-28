@@ -1,12 +1,12 @@
 package tagstore
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EntityTags holds the tag information for a given entity. It is not
@@ -70,64 +70,64 @@ func (e *EntityTags) toEntity() types.Entity {
 	}
 }
 
-type tagPriority struct {
-	tag         string                       // full tag
-	priority    collectors.CollectorPriority // collector priority
-	cardinality collectors.TagCardinality    // cardinality level of the tag (low, orchestrator, high)
-}
-
 func (e *EntityTags) computeCache() {
 	if e.cacheValid {
 		return
 	}
 
-	var sources []string
-	tagPrioMapper := make(map[string][]tagPriority)
+	tagList := make(map[collectors.TagCardinality][]string)
+	tagMap := make(map[string]collectors.CollectorPriority)
 
-	for source, tags := range e.sourceTags {
+	var sources []string
+	for source := range e.sourceTags {
 		sources = append(sources, source)
-		insertWithPriority(tagPrioMapper, tags.lowCardTags, source, collectors.LowCardinality)
-		insertWithPriority(tagPrioMapper, tags.orchestratorCardTags, source, collectors.OrchestratorCardinality)
-		insertWithPriority(tagPrioMapper, tags.highCardTags, source, collectors.HighCardinality)
 	}
 
-	var lowCardTags []string
-	var orchestratorCardTags []string
-	var highCardTags []string
-	for _, tags := range tagPrioMapper {
-		for i := 0; i < len(tags); i++ {
-			insert := true
-			for j := 0; j < len(tags); j++ {
-				// if we find a duplicate tag with higher priority we do not insert the tag
-				if i != j && tags[i].priority < tags[j].priority {
-					insert = false
-					break
-				}
-			}
-			if !insert {
+	// sort sources in descending order of priority. assumes lowest if
+	// priority is not declared
+	sort.Slice(sources, func(i, j int) bool {
+		sourceI := sources[i]
+		sourceJ := sources[j]
+		return collectors.CollectorPriorities[sourceI] > collectors.CollectorPriorities[sourceJ]
+	})
+
+	// insertWithPriority prevents two collectors of different priorities
+	// from reporting duplicated tags. two collectors of the same priority
+	// still can report duplicated tags.
+	insertWithPriority := func(source string, tags []string, cardinality collectors.TagCardinality) {
+		prio := collectors.CollectorPriorities[source]
+		for _, t := range tags {
+			tagName := strings.SplitN(t, ":", 2)[0]
+			existingPrio, exists := tagMap[tagName]
+			if exists && prio < existingPrio {
 				continue
 			}
-			if tags[i].cardinality == collectors.HighCardinality {
-				highCardTags = append(highCardTags, tags[i].tag)
-				continue
-			} else if tags[i].cardinality == collectors.OrchestratorCardinality {
-				orchestratorCardTags = append(orchestratorCardTags, tags[i].tag)
-				continue
-			}
-			lowCardTags = append(lowCardTags, tags[i].tag)
+
+			tagMap[tagName] = prio
+			tagList[cardinality] = append(tagList[cardinality], t)
 		}
 	}
 
-	tags := append(lowCardTags, orchestratorCardTags...)
-	tags = append(tags, highCardTags...)
+	for _, source := range sources {
+		tags := e.sourceTags[source]
+		insertWithPriority(source, tags.lowCardTags, collectors.LowCardinality)
+		insertWithPriority(source, tags.orchestratorCardTags, collectors.OrchestratorCardinality)
+		insertWithPriority(source, tags.highCardTags, collectors.HighCardinality)
+	}
+
+	tags := append(tagList[collectors.LowCardinality], tagList[collectors.OrchestratorCardinality]...)
+	tags = append(tags, tagList[collectors.HighCardinality]...)
 
 	cached := tagset.NewHashedTagsFromSlice(tags)
+
+	lowCardTags := len(tagList[collectors.LowCardinality])
+	orchCardTags := len(tagList[collectors.OrchestratorCardinality])
 
 	// Write cache
 	e.cacheValid = true
 	e.cachedAll = cached
-	e.cachedLow = cached.Slice(0, len(lowCardTags))
-	e.cachedOrchestrator = cached.Slice(0, len(lowCardTags)+len(orchestratorCardTags))
+	e.cachedLow = cached.Slice(0, lowCardTags)
+	e.cachedOrchestrator = cached.Slice(0, lowCardTags+orchCardTags)
 }
 
 func (e *EntityTags) shouldRemove() bool {
@@ -138,21 +138,4 @@ func (e *EntityTags) shouldRemove() bool {
 	}
 
 	return true
-}
-
-func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, source string, cardinality collectors.TagCardinality) {
-	priority, found := collectors.CollectorPriorities[source]
-	if !found {
-		log.Warnf("Tagger: %s collector has no defined priority, assuming low", source)
-		priority = collectors.NodeRuntime
-	}
-
-	for _, t := range tags {
-		tagName := strings.Split(t, ":")[0]
-		tagPrioMapper[tagName] = append(tagPrioMapper[tagName], tagPriority{
-			tag:         t,
-			priority:    priority,
-			cardinality: cardinality,
-		})
-	}
 }
