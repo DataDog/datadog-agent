@@ -9,59 +9,15 @@
 package http
 
 import (
-	"runtime"
-	"strings"
+	"encoding/binary"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
-
-func TestPath(t *testing.T) {
-	tx := httpTX{
-		request_fragment: requestFragment(
-			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-		),
-	}
-
-	b := make([]byte, HTTPBufferSize)
-	path, fullPath := tx.Path(b)
-	assert.Equal(t, "/foo/bar", string(path))
-	assert.True(t, fullPath)
-}
-
-func TestMaximumLengthPath(t *testing.T) {
-	rep := strings.Repeat("a", HTTPBufferSize-6)
-	str := "GET /" + rep
-	str += "bc"
-	tx := httpTX{
-		request_fragment: requestFragment(
-			[]byte(str),
-		),
-	}
-	b := make([]byte, HTTPBufferSize)
-	path, fullPath := tx.Path(b)
-	expected := "/" + rep
-	expected = expected + "b"
-	assert.Equal(t, expected, string(path))
-	assert.False(t, fullPath)
-}
-
-func TestPathHandlesNullTerminator(t *testing.T) {
-	tx := httpTX{
-		request_fragment: requestFragment(
-			// This probably isn't a valid HTTP request
-			// (since it's missing a version before the end),
-			// but if the null byte isn't handled
-			// then the path becomes "/foo/\x00bar"
-			[]byte("GET /foo/\x00bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-		),
-	}
-
-	b := make([]byte, HTTPBufferSize)
-	path, fullPath := tx.Path(b)
-	assert.Equal(t, "/foo/", string(path))
-	assert.False(t, fullPath)
-}
 
 func TestLatency(t *testing.T) {
 	tx := httpTX{
@@ -72,20 +28,33 @@ func TestLatency(t *testing.T) {
 	assert.Equal(t, 999424.0, tx.RequestLatency())
 }
 
-func BenchmarkPath(b *testing.B) {
-	tx := httpTX{
-		request_fragment: requestFragment(
-			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-		),
-	}
+func (tx *httpTX) SetMethodUnknown() {
+	tx.request_method = 0
+}
 
-	b.ReportAllocs()
-	b.ResetTimer()
-	buf := make([]byte, HTTPBufferSize)
-	for i := 0; i < b.N; i++ {
-		_, _ = tx.Path(buf)
+func generateTransactionWithFragment(fragment string) httpTX {
+	return httpTX{
+		request_fragment: requestFragment([]byte(fragment)),
 	}
-	runtime.KeepAlive(buf)
+}
+
+func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
+	var tx httpTX
+
+	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
+	latencyNS := _Ctype_ulonglong(uint64(latency))
+	tx.request_started = 1
+	tx.request_method = 1
+	tx.response_last_seen = tx.request_started + latencyNS
+	tx.response_status_code = _Ctype_ushort(code)
+	tx.request_fragment = requestFragment([]byte(reqFragment))
+	tx.tup.saddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(source.Bytes()))
+	tx.tup.sport = _Ctype_ushort(sourcePort)
+	tx.tup.daddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(dest.Bytes()))
+	tx.tup.dport = _Ctype_ushort(destPort)
+	tx.tup.metadata = 1
+
+	return tx
 }
 
 func requestFragment(fragment []byte) [HTTPBufferSize]_Ctype_char {

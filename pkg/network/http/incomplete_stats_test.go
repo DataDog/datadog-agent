@@ -45,7 +45,7 @@ func TestOrphanEntries(t *testing.T) {
 		require.Len(t, complete, 1)
 
 		completeTX := complete[0]
-		path, _ := completeTX.Path(make([]byte, 256))
+		path, _ := getPath(completeTX.ReqFragment(), make([]byte, 256))
 		assert.Equal(t, "/foo/bar", string(path))
 		assert.Equal(t, 200, completeTX.StatusClass())
 	})

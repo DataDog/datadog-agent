@@ -10,6 +10,7 @@ const (
 	SetFlowFilterIOCTL        = 0x122010
 	SetDataFilterIOCTL        = 0x12200c
 	SetMaxFlowsIOCTL          = 0x122018
+	SetHTTPFilterIOCTL        = 0x12201c
 	FlushPendingHttpTxnsIOCTL = 0x122020
 )
 
