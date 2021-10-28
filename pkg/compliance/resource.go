@@ -53,8 +53,8 @@ type Resource struct {
 	Fallback       *Fallback `yaml:"fallback,omitempty"`
 }
 
-// RegoResource describes supported resource types observed by a Rego Rule
-type RegoResource struct {
+// RegoInput describes supported resource types observed by a Rego Rule
+type RegoInput struct {
 	ResourceCommon `yaml:",inline"`
 	TagName        string `yaml:"tag"`
 }

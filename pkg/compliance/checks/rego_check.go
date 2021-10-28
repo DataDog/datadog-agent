@@ -29,7 +29,7 @@ type regoCheck struct {
 	ruleID            string
 	constants         map[string]interface{}
 	ruleScope         compliance.RuleScope
-	resources         []compliance.RegoResource
+	inputs            []compliance.RegoInput
 	preparedEvalQuery rego.PreparedEvalQuery
 }
 
@@ -148,8 +148,8 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 	inputPerTags := make(map[string][]interface{})
 
-	for _, resource := range r.resources {
-		resolve, _, err := resourceKindToResolverAndFields(env, r.ruleID, resource.Kind())
+	for _, input := range r.inputs {
+		resolve, _, err := resourceKindToResolverAndFields(env, r.ruleID, input.Kind())
 		if err != nil {
 			return nil, err
 		}
@@ -157,18 +157,18 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		resolved, err := resolve(ctx, env, r.ruleID, resource.ResourceCommon)
+		resolved, err := resolve(ctx, env, r.ruleID, input.ResourceCommon)
 		if err != nil {
 			continue
 		}
 
-		if resource.TagName == "" {
+		if input.TagName == "" {
 			return nil, errors.New("no tag name found for resource")
 		}
 
 		switch res := resolved.(type) {
 		case resolvedInstance:
-			r.appendInstance(inputPerTags, resource.TagName, res)
+			r.appendInstance(inputPerTags, input.TagName, res)
 		case eval.Iterator:
 			it := res
 			for !it.Done() {
@@ -177,7 +177,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 					return nil, err
 				}
 
-				r.appendInstance(inputPerTags, resource.TagName, instance)
+				r.appendInstance(inputPerTags, input.TagName, instance)
 			}
 		}
 	}

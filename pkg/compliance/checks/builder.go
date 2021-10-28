@@ -673,8 +673,8 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 
 func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
 	regoCheck := &regoCheck{
-		ruleID:    rule.ID,
-		resources: rule.Resources,
+		ruleID: rule.ID,
+		inputs: rule.Inputs,
 	}
 
 	if err := regoCheck.compileRule(rule, ruleScope, meta); err != nil {

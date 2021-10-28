@@ -18,7 +18,7 @@ import (
 
 type regoFixture struct {
 	name      string
-	resources []compliance.RegoResource
+	resources []compliance.RegoInput
 	module    string
 	findings  string
 	scope     compliance.RuleScope
@@ -85,7 +85,7 @@ func TestRegoProcessCheck(t *testing.T) {
 	tests := []regoFixture{
 		{
 			name: "simple case",
-			resources: []compliance.RegoResource{
+			resources: []compliance.RegoInput{
 				{
 					ResourceCommon: compliance.ResourceCommon{
 						Process: &compliance.Process{

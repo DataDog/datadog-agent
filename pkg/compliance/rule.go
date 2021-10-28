@@ -43,7 +43,7 @@ func (r *ConditionFallbackRule) Common() *RuleCommon {
 type RegoRule struct {
 	RuleCommon `yaml:",inline"`
 	Constants  map[string]interface{} `yaml:"constants,omitempty"`
-	Resources  []RegoResource         `yaml:"input,omitempty"`
+	Inputs     []RegoInput            `yaml:"input,omitempty"`
 	Module     string                 `yaml:"module,omitempty"`
 	Imports    []string               `yaml:"imports,omitempty"`
 	Findings   string                 `yaml:"findings,omitempty"`
@@ -51,7 +51,7 @@ type RegoRule struct {
 
 // ResourceCount returns the count of resources
 func (r *RegoRule) ResourceCount() int {
-	return len(r.Resources)
+	return len(r.Inputs)
 }
 
 // Common returns the common field between all rules
