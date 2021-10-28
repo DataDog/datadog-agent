@@ -109,16 +109,36 @@ func NewStore(catalog map[string]collectorFactory) Store {
 
 // Start starts the workload metadata store.
 func (s *store) Start(ctx context.Context) {
-	retryTicker := time.NewTicker(retryCollectorInterval)
-	pullTicker := time.NewTicker(pullCollectorInterval)
-	health := health.RegisterLiveness("workloadmeta-store")
-
-	pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
-
-	// Start processing events before starting collectors, as in some cases
-	// they may be able to generate more events than what fits in eventCh's
-	// buffer, and the store will deadlock.
 	go func() {
+		health := health.RegisterLiveness("workloadmeta-store")
+		for {
+			select {
+			case <-health.C:
+
+			case evs := <-s.eventCh:
+				s.handleEvents(evs)
+
+			case <-ctx.Done():
+				err := health.Deregister()
+				if err != nil {
+					log.Warnf("error de-registering health check: %s", err)
+				}
+
+				return
+			}
+		}
+	}()
+
+	go func() {
+		retryTicker := time.NewTicker(retryCollectorInterval)
+		pullTicker := time.NewTicker(pullCollectorInterval)
+		health := health.RegisterLiveness("workloadmeta-puller")
+		pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
+
+		// Start a pull immediately to fill the store without waiting for the
+		// next tick.
+		s.pull(pullCtx)
+
 		for {
 			select {
 			case <-health.C:
@@ -132,9 +152,6 @@ func (s *store) Start(ctx context.Context) {
 				pullCtx, pullCancel = context.WithTimeout(ctx, pullCollectorInterval)
 				s.pull(pullCtx)
 
-			case evs := <-s.eventCh:
-				s.handleEvents(evs)
-
 			case <-retryTicker.C:
 				stop := s.startCandidates(ctx)
 
@@ -146,6 +163,8 @@ func (s *store) Start(ctx context.Context) {
 				retryTicker.Stop()
 				pullTicker.Stop()
 
+				pullCancel()
+
 				err := health.Deregister()
 				if err != nil {
 					log.Warnf("error de-registering health check: %s", err)
@@ -156,12 +175,7 @@ func (s *store) Start(ctx context.Context) {
 		}
 	}()
 
-	// Start collectors immediately
 	s.startCandidates(ctx)
-
-	// Start a pull immediately to fill the store without waiting for the
-	// next tick.
-	s.pull(pullCtx)
 
 	log.Info("workloadmeta store initialized successfully")
 }
