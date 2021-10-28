@@ -57,9 +57,10 @@ func getEnvVariablesFromPid(procPath string, pid int) map[string]string {
 	return envVars
 }
 
-// GetEnvVariable returns the value of the given env variable name
+// SearchProcsForEnvVariable returns the value of the given env variable name
 // It returns an empty string if not found
-func GetEnvVariable(procPath string, envName string) string {
+// If an env variable is found more that one time, the first one is returned
+func SearchProcsForEnvVariable(procPath string, envName string) string {
 	pidList := getPidList(procPath)
 	for _, pid := range pidList {
 		envMap := getEnvVariablesFromPid(procPath, pid)

@@ -147,7 +147,7 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 }
 
 func getRuntime(procPath string, varName string) string {
-	value := proc.GetEnvVariable(procPath, varName)
+	value := proc.SearchProcsForEnvVariable(procPath, varName)
 	if len(value) > 0 {
 		return strings.Replace(value, "AWS_Lambda_", "", 1)
 	}
