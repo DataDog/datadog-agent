@@ -70,6 +70,16 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
 
+	deltaTTL := cfg.GetInt64(config.ExperimentalOTLPMetricsDeltaTTL)
+	quantiles := cfg.GetBool(config.ExperimentalOTLPMetricsQuantiles)
+	sendMonotonic := cfg.GetBool(config.ExperimentalOTLPMetricsSendMonotonic)
+
+	resourceAttributesAsTags := cfg.GetBool(config.ExperimentalOTLPMetricsResourceAttributesAsTags)
+	instrumentationLibraryMetadataAsTags := cfg.GetBool(config.ExperimentalOTLPMetricsInstrumentationLibraryMetadataAsTags)
+
+	histogramsMode := cfg.GetString(config.ExperimentalOTLPMetricsHistogramsMode)
+	histogramsSendCountSum := cfg.GetBool(config.ExperimentalOTLPMetricsHistogramsSendCountSum)
+
 	return PipelineConfig{
 		BindHost:       getReceiverHost(cfg),
 		HTTPPort:       httpPort,
@@ -77,6 +87,19 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 		TracePort:      tracePort,
 		MetricsEnabled: metricsEnabled,
 		TracesEnabled:  tracesEnabled,
+		Metrics: MetricsConfig{
+			DeltaTTL:      deltaTTL,
+			Quantiles:     quantiles,
+			SendMonotonic: sendMonotonic,
+			ExporterConfig: MetricsExporterConfig{
+				ResourceAttributesAsTags:             resourceAttributesAsTags,
+				InstrumentationLibraryMetadataAsTags: instrumentationLibraryMetadataAsTags,
+			},
+			HistConfig: HistogramConfig{
+				Mode:         histogramsMode,
+				SendCountSum: histogramsSendCountSum,
+			},
+		},
 	}, multierr.Combine(errs...)
 }
 

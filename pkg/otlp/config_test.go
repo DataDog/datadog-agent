@@ -85,6 +85,19 @@ func TestFromAgentConfig(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				Metrics: MetricsConfig{
+					DeltaTTL:      3600,
+					Quantiles:     true,
+					SendMonotonic: false,
+					ExporterConfig: MetricsExporterConfig{
+						ResourceAttributesAsTags:             false,
+						InstrumentationLibraryMetadataAsTags: false,
+					},
+					HistConfig: HistogramConfig{
+						Mode:         "distributions",
+						SendCountSum: false,
+					},
+				},
 			},
 		},
 		{
@@ -97,6 +110,19 @@ func TestFromAgentConfig(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				Metrics: MetricsConfig{
+					DeltaTTL:      3600,
+					Quantiles:     true,
+					SendMonotonic: false,
+					ExporterConfig: MetricsExporterConfig{
+						ResourceAttributesAsTags:             false,
+						InstrumentationLibraryMetadataAsTags: false,
+					},
+					HistConfig: HistogramConfig{
+						Mode:         "distributions",
+						SendCountSum: false,
+					},
+				},
 			},
 		},
 		{
@@ -120,6 +146,44 @@ func TestFromAgentConfig(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				Metrics: MetricsConfig{
+					DeltaTTL:      3600,
+					Quantiles:     true,
+					SendMonotonic: false,
+					ExporterConfig: MetricsExporterConfig{
+						ResourceAttributesAsTags:             false,
+						InstrumentationLibraryMetadataAsTags: false,
+					},
+					HistConfig: HistogramConfig{
+						Mode:         "distributions",
+						SendCountSum: false,
+					},
+				},
+			},
+		},
+		{
+			name: "custom metrics exporter config",
+			path: "./testdata/metrics_config.yaml",
+			cfg: PipelineConfig{
+				BindHost:       "localhost",
+				HTTPPort:       1234,
+				GRPCPort:       5678,
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				Metrics: MetricsConfig{
+					DeltaTTL:      2400,
+					Quantiles:     false,
+					SendMonotonic: true,
+					ExporterConfig: MetricsExporterConfig{
+						ResourceAttributesAsTags:             true,
+						InstrumentationLibraryMetadataAsTags: true,
+					},
+					HistConfig: HistogramConfig{
+						Mode:         "counters",
+						SendCountSum: true,
+					},
+				},
 			},
 		},
 		{

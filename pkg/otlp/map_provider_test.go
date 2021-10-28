@@ -10,7 +10,6 @@ package otlp
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,8 +24,7 @@ func TestNewMap(t *testing.T) {
 	tests := []struct {
 		name string
 		pcfg PipelineConfig
-		ocfg string
-		cfg  map[string]interface{}
+		ocfg map[string]interface{}
 	}{
 		{
 			name: "only gRPC, only Traces",
@@ -36,23 +34,33 @@ func TestNewMap(t *testing.T) {
 				BindHost:      "bindhost",
 				TracesEnabled: true,
 			},
-			ocfg: `
-receivers:
-  otlp:
-    protocols:
-      grpc:
-        endpoint: bindhost:1234
-exporters:
-  otlp:
-    tls:
-      insecure: true
-    endpoint: localhost:5003
-service:
-  pipelines:
-    traces:
-      receivers: [otlp]
-      exporters: [otlp]
-`,
+			ocfg: map[string]interface{}{
+				"receivers": map[string]interface{}{
+					"otlp": map[string]interface{}{
+						"protocols": map[string]interface{}{
+							"grpc": map[string]interface{}{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"exporters": map[string]interface{}{
+					"otlp": map[string]interface{}{
+						"tls": map[string]interface{}{
+							"insecure": true,
+						},
+						"endpoint": "localhost:5003",
+					},
+				},
+				"service": map[string]interface{}{
+					"pipelines": map[string]interface{}{
+						"traces": map[string]interface{}{
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "only HTTP, metrics and traces",
@@ -62,34 +70,68 @@ service:
 				BindHost:       "bindhost",
 				TracesEnabled:  true,
 				MetricsEnabled: true,
+				Metrics: MetricsConfig{
+					DeltaTTL:      2000,
+					Quantiles:     false,
+					SendMonotonic: true,
+					ExporterConfig: MetricsExporterConfig{
+						ResourceAttributesAsTags:             true,
+						InstrumentationLibraryMetadataAsTags: true,
+					},
+					HistConfig: HistogramConfig{
+						Mode:         "counters",
+						SendCountSum: true,
+					},
+				},
 			},
-			ocfg: `
-receivers:
-  otlp:
-    protocols:
-      http:
-        endpoint: bindhost:1234
-
-processors:
-  batch:
-
-exporters:
-  otlp:
-    tls:
-      insecure: true
-    endpoint: localhost:5003
-  serializer:
-
-service:
-  pipelines:
-    traces:
-      receivers: [otlp]
-      exporters: [otlp]
-    metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [serializer]
-`,
+			ocfg: map[string]interface{}{
+				"receivers": map[string]interface{}{
+					"otlp": map[string]interface{}{
+						"protocols": map[string]interface{}{
+							"http": map[string]interface{}{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"processors": map[string]interface{}{
+					"batch": nil,
+				},
+				"exporters": map[string]interface{}{
+					"otlp": map[string]interface{}{
+						"tls": map[string]interface{}{
+							"insecure": true,
+						},
+						"endpoint": "localhost:5003",
+					},
+					"serializer": map[string]interface{}{
+						"metrics": map[string]interface{}{
+							"delta_ttl":                                int64(2000),
+							"report_quantiles":                         false,
+							"send_monotonic_counter":                   true,
+							"resource_attributes_as_tags":              true,
+							"instrumentation_library_metadata_as_tags": true,
+							"histograms": map[string]interface{}{
+								"mode":                   "counters",
+								"send_count_sum_metrics": true,
+							},
+						},
+					},
+				},
+				"service": map[string]interface{}{
+					"pipelines": map[string]interface{}{
+						"traces": map[string]interface{}{
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
+						},
+						"metrics": map[string]interface{}{
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"batch"},
+							"exporters":  []interface{}{"serializer"},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "with both",
@@ -100,25 +142,36 @@ service:
 				BindHost:      "bindhost",
 				TracesEnabled: true,
 			},
-			ocfg: `
-receivers:
-  otlp:
-    protocols:
-      grpc:
-        endpoint: bindhost:1234
-      http:
-        endpoint: bindhost:5678
-exporters:
-  otlp:
-    tls:
-      insecure: true
-    endpoint: localhost:5003
-service:
-  pipelines:
-    traces:
-      receivers: [otlp]
-      exporters: [otlp]
-`,
+			ocfg: map[string]interface{}{
+				"receivers": map[string]interface{}{
+					"otlp": map[string]interface{}{
+						"protocols": map[string]interface{}{
+							"grpc": map[string]interface{}{
+								"endpoint": "bindhost:1234",
+							},
+							"http": map[string]interface{}{
+								"endpoint": "bindhost:5678",
+							},
+						},
+					},
+				},
+				"exporters": map[string]interface{}{
+					"otlp": map[string]interface{}{
+						"tls": map[string]interface{}{
+							"insecure": true,
+						},
+						"endpoint": "localhost:5003",
+					},
+				},
+				"service": map[string]interface{}{
+					"pipelines": map[string]interface{}{
+						"traces": map[string]interface{}{
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "only HTTP, only metrics",
@@ -127,27 +180,58 @@ service:
 				TracePort:      5003,
 				BindHost:       "bindhost",
 				MetricsEnabled: true,
+				Metrics: MetricsConfig{
+					DeltaTTL:      1500,
+					Quantiles:     true,
+					SendMonotonic: false,
+					ExporterConfig: MetricsExporterConfig{
+						ResourceAttributesAsTags:             false,
+						InstrumentationLibraryMetadataAsTags: false,
+					},
+					HistConfig: HistogramConfig{
+						Mode:         "nobuckets",
+						SendCountSum: true,
+					},
+				},
 			},
-			ocfg: `
-receivers:
-  otlp:
-    protocols:
-      http:
-        endpoint: bindhost:1234
-
-processors:
-  batch:
-
-exporters:
-  serializer:
-
-service:
-  pipelines:
-    metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [serializer]
-`,
+			ocfg: map[string]interface{}{
+				"receivers": map[string]interface{}{
+					"otlp": map[string]interface{}{
+						"protocols": map[string]interface{}{
+							"http": map[string]interface{}{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"processors": map[string]interface{}{
+					"batch": nil,
+				},
+				"exporters": map[string]interface{}{
+					"serializer": map[string]interface{}{
+						"metrics": map[string]interface{}{
+							"delta_ttl":                                int64(1500),
+							"report_quantiles":                         true,
+							"send_monotonic_counter":                   false,
+							"resource_attributes_as_tags":              false,
+							"instrumentation_library_metadata_as_tags": false,
+							"histograms": map[string]interface{}{
+								"mode":                   "nobuckets",
+								"send_count_sum_metrics": true,
+							},
+						},
+					},
+				},
+				"service": map[string]interface{}{
+					"pipelines": map[string]interface{}{
+						"metrics": map[string]interface{}{
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"batch"},
+							"exporters":  []interface{}{"serializer"},
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -156,8 +240,7 @@ service:
 			cfgProvider := newMapProvider(testInstance.pcfg)
 			cfg, err := cfgProvider.Get(context.Background())
 			require.NoError(t, err)
-			tcfg, err := config.NewMapFromBuffer(strings.NewReader(testInstance.ocfg))
-			require.NoError(t, err)
+			tcfg := config.NewMapFromStringMap(testInstance.ocfg)
 			assert.Equal(t, tcfg.ToStringMap(), cfg.ToStringMap())
 		})
 	}
@@ -171,6 +254,19 @@ func TestUnmarshal(t *testing.T) {
 		BindHost:       "localhost",
 		MetricsEnabled: true,
 		TracesEnabled:  true,
+		Metrics: MetricsConfig{
+			DeltaTTL:      2000,
+			Quantiles:     false,
+			SendMonotonic: true,
+			ExporterConfig: MetricsExporterConfig{
+				ResourceAttributesAsTags:             true,
+				InstrumentationLibraryMetadataAsTags: true,
+			},
+			HistConfig: HistogramConfig{
+				Mode:         "counters",
+				SendCountSum: true,
+			},
+		},
 	})
 	configMap, err := mapProvider.Get(context.Background())
 	require.NoError(t, err)
