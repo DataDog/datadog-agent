@@ -21,7 +21,7 @@ func httpSupported(t *testing.T) bool {
 }
 
 func TestDriverRequiresPath(t *testing.T) {
-	p, err := windows.UTF16PtrFromString(deviceName)
+	p, err := windows.UTF16PtrFromString(DeviceName)
 	assert.Nil(t, err)
 	h, err := windows.CreateFile(p,
 		windows.GENERIC_READ|windows.GENERIC_WRITE,
@@ -38,7 +38,7 @@ func TestDriverRequiresPath(t *testing.T) {
 
 func TestDriverCanOpenExpectedPaths(t *testing.T) {
 	for _, pathext := range handleTypeToPathName {
-		fullpath := deviceName + `\` + pathext
+		fullpath := DeviceName + `\` + pathext
 		p, err := windows.UTF16PtrFromString(fullpath)
 		assert.Nil(t, err)
 		h, err := windows.CreateFile(p,
@@ -60,7 +60,7 @@ func createHandleForHandleType(t HandleType) (windows.Handle, error) {
 	if !ok {
 		return 0, fmt.Errorf("Unknown Handle type %v", t)
 	}
-	fullpath := deviceName + `\` + pathext
+	fullpath := DeviceName + `\` + pathext
 	p, err := windows.UTF16PtrFromString(fullpath)
 	if err != nil {
 		return 0, err

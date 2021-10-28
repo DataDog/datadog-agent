@@ -9,7 +9,12 @@
 package http
 
 import (
+	"encoding/binary"
+	"fmt"
+	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 /*
@@ -38,31 +43,10 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
 }
 
-// Path returns the URL from the request fragment captured in eBPF with
-// GET variables excluded.
-// Example:
-// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *httpTX) Path(buffer []byte) []byte {
+// ReqFragment returns a byte slice containing the first HTTPBufferSize bytes of the request
+func (tx *httpTX) ReqFragment() []byte {
 	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
-
-	// b might contain a null terminator in the middle
-	bLen := strlen(b[:])
-
-	var i, j int
-	for i = 0; i < bLen && b[i] != ' '; i++ {
-	}
-
-	i++
-
-	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
-	}
-
-	if i < j && j <= bLen {
-		n := copy(buffer, b[i:j])
-		return buffer[:n]
-	}
-
-	return nil
+	return b[:]
 }
 
 // StatusClass returns an integer representing the status code class
@@ -80,6 +64,38 @@ func (tx *httpTX) RequestLatency() float64 {
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
 func (tx *httpTX) Incomplete() bool {
 	return tx.request_started == 0 || tx.response_status_code == 0
+}
+
+func (tx *httpTX) SrcIPHigh() uint64 {
+	return uint64(tx.tup.saddr_h)
+}
+
+func (tx *httpTX) SrcIPLow() uint64 {
+	return uint64(tx.tup.saddr_l)
+}
+
+func (tx *httpTX) SrcPort() uint16 {
+	return uint16(tx.tup.sport)
+}
+
+func (tx *httpTX) DstIPHigh() uint64 {
+	return uint64(tx.tup.daddr_h)
+}
+
+func (tx *httpTX) DstIPLow() uint64 {
+	return uint64(tx.tup.daddr_l)
+}
+
+func (tx *httpTX) DstPort() uint16 {
+	return uint16(tx.tup.dport)
+}
+
+func (tx *httpTX) Method() Method {
+	return Method(tx.request_method)
+}
+
+func (tx *httpTX) StatusCode() uint16 {
+	return uint16(tx.response_status_code)
 }
 
 // Tags returns an uint64 representing the tags bitfields
@@ -115,12 +131,22 @@ func nsTimestampToFloat(ns uint64) float64 {
 	return float64(ns << shift)
 }
 
-// strlen returns the length of a null-terminated string
-func strlen(str []byte) int {
-	for i := 0; i < len(str); i++ {
-		if str[i] == 0 {
-			return i
-		}
+func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
+	var tx httpTX
+
+	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
+	latencyNS := C.ulonglong(uint64(latency))
+
+	tx.request_started = 1
+	tx.response_last_seen = tx.request_started + latencyNS
+	tx.response_status_code = C.ushort(code)
+	for i := 0; i < len(tx.request_fragment) && i < len(reqFragment); i++ {
+		tx.request_fragment[i] = C.char(reqFragment[i])
 	}
-	return len(str)
+	tx.tup.saddr_l = C.ulonglong(binary.LittleEndian.Uint32(source.Bytes()))
+	tx.tup.sport = C.ushort(sourcePort)
+	tx.tup.daddr_l = C.ulonglong(binary.LittleEndian.Uint32(dest.Bytes()))
+	tx.tup.dport = C.ushort(destPort)
+
+	return tx
 }

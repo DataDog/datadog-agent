@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build linux_bpf || (windows && npm)
+// +build linux_bpf windows,npm
 
 package http
 
@@ -87,19 +87,19 @@ func (h *httpStatKeeper) add(tx httpTX) {
 
 func (h *httpStatKeeper) newKey(tx httpTX, path string) Key {
 	return Key{
-		SrcIPHigh: uint64(tx.tup.saddr_h),
-		SrcIPLow:  uint64(tx.tup.saddr_l),
-		SrcPort:   uint16(tx.tup.sport),
-		DstIPHigh: uint64(tx.tup.daddr_h),
-		DstIPLow:  uint64(tx.tup.daddr_l),
-		DstPort:   uint16(tx.tup.dport),
+		SrcIPHigh: tx.SrcIPHigh(),
+		SrcIPLow:  tx.SrcIPLow(),
+		SrcPort:   tx.SrcPort(),
+		DstIPHigh: tx.DstIPHigh(),
+		DstIPLow:  tx.DstIPLow(),
+		DstPort:   tx.DstPort(),
 		Path:      path,
-		Method:    Method(tx.request_method),
+		Method:    tx.Method(),
 	}
 }
 
 func (h *httpStatKeeper) processHTTPPath(tx httpTX) (pathStr string, rejected bool) {
-	path := tx.Path(h.buffer)
+	path := getPath(tx.ReqFragment(), h.buffer)
 
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
@@ -122,4 +122,34 @@ func (h *httpStatKeeper) intern(b []byte) string {
 		h.interned[v] = v
 	}
 	return v
+}
+
+// getPath returns the URL from a request fragment with GET variables excluded.
+// Example:
+// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
+func getPath(reqFragment, buffer []byte) []byte {
+	// reqLen might contain a null terminator in the middle
+	reqLen := len(reqFragment)
+	for i := 0; i < reqLen; i++ {
+		if reqFragment[i] == 0 {
+			reqLen = i
+			break
+		}
+	}
+
+	var i, j int
+	for i = 0; i < reqLen && reqFragment[i] != ' '; i++ {
+	}
+
+	i++
+
+	for j = i; j < reqLen && reqFragment[j] != ' ' && reqFragment[j] != '?'; j++ {
+	}
+
+	if i < j && j <= reqLen {
+		n := copy(buffer, reqFragment[i:j])
+		return buffer[:n]
+	}
+
+	return nil
 }

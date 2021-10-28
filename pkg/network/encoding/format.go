@@ -180,22 +180,19 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) (map[http.Key]*mod
 	return aggregationsByKey, tagsByKey
 }
 
-// Build the key for the http map based on whether the local or remote side is http.
-func httpKeyFromConn(c network.ConnectionStats) http.Key {
+// Build possible keys for the http map
+func httpKeysFromConn(c network.ConnectionStats) [2]http.Key {
 	// Retrieve translated addresses
 	laddr, lport := network.GetNATLocalAddress(c)
 	raddr, rport := network.GetNATRemoteAddress(c)
 
-	// HTTP data is always indexed as (client, server), so we account for that when generating the
-	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport < dport
-	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
-	if (network.IsEphemeralPort(int(lport)) && !network.IsEphemeralPort(int(rport))) ||
-		(network.IsEphemeralPort(int(lport)) == network.IsEphemeralPort(int(rport)) && lport < rport) {
-		return http.NewKey(laddr, raddr, lport, rport, "", http.MethodUnknown)
+	// HTTP data is always indexed as (client, server), but we don't know which is the remote
+	// and which is the local address. To account for this, we'll construct 2 possible
+	// http keys and check for both of them in our http aggregations map.
+	return [2]http.Key{
+		http.NewKey(laddr, raddr, lport, rport, "", http.MethodUnknown),
+		http.NewKey(raddr, laddr, rport, lport, "", http.MethodUnknown),
 	}
-
-	return http.NewKey(raddr, laddr, rport, lport, "", http.MethodUnknown)
 }
 
 func returnToPool(c *model.Connections) {

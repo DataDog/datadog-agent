@@ -3,15 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build linux_bpf || (windows && npm)
+// +build linux_bpf windows,npm
 
 package http
 
 import (
-	"encoding/binary"
-	"fmt"
 	"regexp"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -65,24 +64,6 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	}
 }
 
-func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
-	var tx httpTX
-
-	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
-	latencyNS := _Ctype_ulonglong(uint64(latency))
-	tx.request_started = 1
-	tx.response_last_seen = tx.request_started + latencyNS
-	tx.response_status_code = _Ctype_ushort(code)
-	tx.request_fragment = requestFragment([]byte(reqFragment))
-	tx.tup.saddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(source.Bytes()))
-	tx.tup.sport = _Ctype_ushort(sourcePort)
-	tx.tup.daddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(dest.Bytes()))
-	tx.tup.dport = _Ctype_ushort(destPort)
-	tx.tup.metadata = 1
-
-	return tx
-}
-
 func BenchmarkProcessSameConn(b *testing.B) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
 	sk := newHTTPStatkeeper(cfg, newTelemetry())
@@ -102,6 +83,30 @@ func BenchmarkProcessSameConn(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		sk.Process(transactions)
 	}
+}
+
+func TestGetPath(t *testing.T) {
+	requestFragment := []byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0")
+	b := make([]byte, len(requestFragment))
+	assert.Equal(t, "/foo/bar", string(getPath(requestFragment, b)))
+}
+
+func TestGetPathHandlesNullTerminator(t *testing.T) {
+	requestFragment := []byte("GET /foo/\x00bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0")
+	b := make([]byte, len(requestFragment))
+	assert.Equal(t, "/foo/", string(getPath(requestFragment, b)))
+}
+
+func BenchmarkGetPath(b *testing.B) {
+	requestFragment := []byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	buf := make([]byte, len(requestFragment))
+	for i := 0; i < b.N; i++ {
+		_ = getPath(requestFragment, buf)
+	}
+	runtime.KeepAlive(buf)
 }
 
 func TestPathProcessing(t *testing.T) {
@@ -194,5 +199,4 @@ func TestPathProcessing(t *testing.T) {
 			assert.Equal(t, 2, metrics[statusCode/100-1].Count)
 		}
 	})
-
 }

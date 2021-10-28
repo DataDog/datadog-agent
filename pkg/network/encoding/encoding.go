@@ -75,11 +75,16 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	tagsSet := network.NewTagsSet()
 
 	for i, conn := range conns.Conns {
-		httpKey := httpKeyFromConn(conn)
-		httpAggregations := httpIndex[httpKey]
-		if httpAggregations != nil {
-			httpMatches[httpKey] = struct{}{}
-			conn.Tags |= tagsIndex[httpKey]
+		var httpAggregations *model.HTTPAggregations
+
+		httpKeys := httpKeysFromConn(conn)
+		for _, httpKey := range httpKeys {
+			httpAggregations = httpIndex[httpKey]
+			if httpAggregations != nil {
+				httpMatches[httpKey] = struct{}{}
+				conn.Tags |= tagsIndex[httpKey]
+				break
+			}
 		}
 
 		agentConns[i] = FormatConnection(conn, routeIndex, httpAggregations, dnsFormatter, ipc, tagsSet)

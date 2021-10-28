@@ -3,13 +3,15 @@
 
 package driver
 
-const Signature = 0xddfd0000000c
+const Signature = 0xddfd00000010
 
 const (
-	GetStatsIOCTL      = 0x122004
-	SetFlowFilterIOCTL = 0x122010
-	SetDataFilterIOCTL = 0x12200c
-	SetMaxFlowsIOCTL   = 0x122018
+	GetStatsIOCTL             = 0x122004
+	SetFlowFilterIOCTL        = 0x122010
+	SetDataFilterIOCTL        = 0x12200c
+	SetMaxFlowsIOCTL          = 0x122018
+	SetHTTPFilterIOCTL        = 0x12201c
+	FlushPendingHttpTxnsIOCTL = 0x122020
 )
 
 type FilterAddress struct {
@@ -79,10 +81,18 @@ type TransportStats struct {
 	Read_packets_skipped int64
 	Packets_reported     int64
 }
+type HttpStats struct {
+	Packets_processed             int64
+	Num_flow_collisions           int64
+	Num_flows_missed_max_exceeded int64
+	Read_batch_skipped            int64
+	Batches_reported              int64
+}
 type Stats struct {
 	Handle_stats    HandleStats
 	Flow_stats      FlowStats
 	Transport_stats TransportStats
+	Http_stats      HttpStats
 }
 type DriverStats struct {
 	FilterVersion uint64
@@ -90,7 +100,7 @@ type DriverStats struct {
 	Handle        Stats
 }
 
-const DriverStatsSize = 0x178
+const DriverStatsSize = 0x1c8
 
 type PerFlowData struct {
 	FlowHandle         uint64
@@ -140,4 +150,28 @@ const (
 
 const (
 	LayerTransport = 0x1
+)
+
+type HttpTransactionType struct {
+	RequestStarted     uint64
+	ResponseLastSeen   uint64
+	Tup                ConnTupleType
+	RequestMethod      uint32
+	ResponseStatusCode uint16
+	RequestFragment    [25]uint8
+	Pad_cgo_0          [1]byte
+}
+type ConnTupleType struct {
+	CliAddr [16]uint8
+	SrvAddr [16]uint8
+	CliPort uint16
+	SrvPort uint16
+	Family  uint16
+}
+type HttpMethodType uint32
+
+const (
+	HttpBatchSize           = 0xf
+	HttpBufferSize          = 0x19
+	HttpTransactionTypeSize = 0x58
 )

@@ -46,7 +46,7 @@ type Tracer struct {
 	state       network.State
 	conntracker netlink.Conntracker
 	reverseDNS  dns.ReverseDNS
-	httpMonitor *http.Monitor
+	httpMonitor http.Monitor
 	ebpfTracer  connection.Tracer
 
 	// Telemetry
@@ -596,13 +596,13 @@ func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if t.httpMonitor == nil {
-		return "tracer:\n" + tracerMaps, nil
-	}
 
 	httpMaps, err := t.httpMonitor.DumpMaps(maps...)
 	if err != nil {
 		return "", err
+	}
+	if httpMaps == "" {
+		return "tracer:\n" + tracerMaps, nil
 	}
 	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + httpMaps, nil
 }
@@ -667,32 +667,32 @@ func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
 	}
 }
 
-func newHTTPMonitor(supported bool, c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {
+func newHTTPMonitor(supported bool, c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) http.Monitor {
 	if !c.EnableHTTPMonitoring {
-		return nil
+		return http.NewNoOpMonitor()
 	}
 
 	if !supported {
 		log.Warnf("http monitoring is not supported by this kernel version. please refer to system-probe's documentation")
-		return nil
+		return http.NewNoOpMonitor()
 	}
 	// Shared with the HTTP program
 	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
-	monitor, err := http.NewMonitor(c, offsets, sockFDMap)
+	monitor, err := http.NewEBPFMonitor(c, offsets, sockFDMap)
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)
-		return nil
+		return http.NewNoOpMonitor()
 	}
 
 	err = monitor.Start()
 	if errors.Is(err, syscall.ENOMEM) {
 		log.Error("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
-		return nil
+		return http.NewNoOpMonitor()
 	}
 
 	if err != nil {
 		log.Errorf("could not enable http monitoring: %s", err)
-		return nil
+		return http.NewNoOpMonitor()
 	}
 
 	log.Info("http monitoring enabled")

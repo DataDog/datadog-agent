@@ -11,14 +11,16 @@ package tracer
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,6 +38,7 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      dns.ReverseDNS
+	httpMonitor     http.Monitor
 
 	activeBuffer *network.ConnectionBuffer
 	closedBuffer *network.ConnectionBuffer
@@ -54,12 +57,12 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface(config)
-
-	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
-		log.Debugf("could not create driver interface: %v", err)
+	if _, err := os.Stat(driver.DeviceName); errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
-	} else if err != nil {
+	}
+
+	di, err := network.NewDriverInterface(config)
+	if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
 
@@ -88,6 +91,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
+		httpMonitor:     newHttpMonitor(config),
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
@@ -99,7 +103,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 func (t *Tracer) Stop() {
 	close(t.stopChan)
 	t.reverseDNS.Close()
-	err := t.driverInterface.Close()
+	err := t.httpMonitor.Stop()
+	if err != nil {
+		log.Errorf("error closing http monitor: %s", err)
+	}
+	err = t.driverInterface.Close()
 	if err != nil {
 		log.Errorf("error closing driver interface: %s", err)
 	}
@@ -123,7 +131,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.RemoveExpiredClients(time.Now())
 
 	t.state.StoreClosedConnections(closedConnStats)
-	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 
 	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
@@ -135,6 +143,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	names := t.reverseDNS.Resolve(ips)
 	return &network.Connections{
 		BufferedData: delta.BufferedData,
+		HTTP:         delta.HTTP,
 		DNS:          names,
 		DNSStats:     delta.DNSStats,
 	}, nil
@@ -147,12 +156,20 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		log.Errorf("not printing driver stats: %v", err)
 	}
 
+	httpStats, err := t.httpMonitor.GetStats()
+	if err != nil {
+		log.Errorf("not printing http monitor stats: %v", err)
+	}
+
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
 		"dns":   t.reverseDNS.GetStats(),
 	}
 	for _, name := range network.DriverExpvarNames {
 		stats[string(name)] = driverStats[name]
+	}
+	if httpStats != nil {
+		stats["http"] = httpStats
 	}
 	return stats, nil
 }
@@ -170,4 +187,20 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // DebugEBPFMaps is not implemented on this OS for Tracer
 func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	return "", ebpf.ErrNotImplemented
+}
+
+func newHttpMonitor(c *config.Config) http.Monitor {
+	if !c.EnableHTTPMonitoring {
+		log.Infof("http monitoring has been disabled")
+		return http.NewNoOpMonitor()
+	}
+	log.Infof("http monitoring has been enabled")
+
+	monitor, err := http.NewDriverMonitor(c)
+	if err != nil {
+		log.Errorf("could not instantiate http monitor: %s", err)
+		return http.NewNoOpMonitor()
+	}
+	monitor.Start()
+	return monitor
 }
