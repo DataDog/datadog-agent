@@ -122,6 +122,18 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 	metricsChan <- enhancedMetrics
 }
 
+// SendInvocationEnhancedMetric sends an enhanced metric representing an invocation
+func SendInvocationEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
+	metricsChan <- []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.invocations",
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(time.Now().UnixNano()),
+	}}
+}
+
 // SendTimeoutEnhancedMetric sends an enhanced metric representing a timeout
 func SendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
 	metricsChan <- []metrics.MetricSample{{
