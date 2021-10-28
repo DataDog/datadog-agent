@@ -138,6 +138,7 @@ type inodeDiscarder struct {
 	Padding uint32
 }
 
+// inodeDiscarders is used to issue eRPC discarder requests
 type inodeDiscarders struct {
 	*lib.Map
 	erpc           *ERPC
@@ -176,6 +177,18 @@ func (id *inodeDiscarders) discardInode(eventType model.EventType, mountID uint3
 	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
 	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
 	model.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
+
+	return id.erpc.Request(&req)
+}
+
+// expireInodeDiscarder sends an eRPC request to expire a discarder
+func (id *inodeDiscarders) expireInodeDiscarder(mountID uint32, inode uint64) error {
+	req := ERPCRequest{
+		OP: ExpireInodeDiscarderOp,
+	}
+
+	model.ByteOrder.PutUint64(req.Data[0:8], inode)
+	model.ByteOrder.PutUint32(req.Data[8:12], mountID)
 
 	return id.erpc.Request(&req)
 }

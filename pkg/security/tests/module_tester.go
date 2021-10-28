@@ -558,7 +558,7 @@ func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 	}
 }
 
-func (tm *testModule) GetEventDiscarder(tb testing.TB, cb eventDiscarderHandler) error {
+func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb eventDiscarderHandler) error {
 	tb.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -572,7 +572,14 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, cb eventDiscarderHandler)
 		return true
 	})
 
-	defer tm.RegisterEventDiscarderHandler(nil)
+	defer func() {
+		tm.RegisterEventDiscarderHandler(nil)
+	}()
+
+	if err := action(); err != nil {
+		tb.Fatal(err)
+		return err
+	}
 
 	select {
 	case <-time.After(getEventTimeout):
@@ -647,7 +654,9 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandl
 		cancel()
 	})
 
-	defer tm.RegisterRuleEventHandler(nil)
+	defer func() {
+		tm.RegisterRuleEventHandler(nil)
+	}()
 
 	if err := action(); err != nil {
 		tb.Fatal(err)

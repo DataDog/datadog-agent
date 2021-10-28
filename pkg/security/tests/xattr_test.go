@@ -11,7 +11,6 @@ import (
 	"os"
 	"syscall"
 	"testing"
-	"time"
 	"unsafe"
 
 	"github.com/stretchr/testify/assert"
@@ -297,16 +296,8 @@ func TestRemoveXAttr(t *testing.T) {
 				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.RemoveXAttr.File.Mode)&expectedMode)
 			}
 
-			now := time.Now()
-			mtime := time.Unix(0, int64(event.RemoveXAttr.File.MTime))
-			if mtime.After(now) || mtime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, mtime)
-			}
-
-			ctime := time.Unix(0, int64(event.RemoveXAttr.File.CTime))
-			if ctime.After(now) || ctime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, ctime)
-			}
+			assertNearTime(t, event.RemoveXAttr.File.MTime)
+			assertNearTime(t, event.RemoveXAttr.File.CTime)
 		})
 	})
 }

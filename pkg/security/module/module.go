@@ -452,6 +452,10 @@ func (m *Module) metricsSender() {
 	for {
 		select {
 		case <-statsTicker.C:
+			if os.Getenv("RUNTIME_SECURITY_TESTSUITE") == "true" {
+				continue
+			}
+
 			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}
