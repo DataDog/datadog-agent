@@ -919,6 +919,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True
 
     print("Created all tags for version {}".format(agent_version))
 
+
 def current_version(ctx, major_version) -> Version:
     return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
 
@@ -1372,7 +1373,9 @@ def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upst
         # Step 1 - Create a local branch out from the default branch
 
         print(color_message("Working repository: {}".format(repo), "bold"))
-        main_branch = ctx.run("git remote show {} | grep \"HEAD branch\" | sed 's/.*: //'".format(upstream)).stdout.strip()
+        main_branch = ctx.run(
+            "git remote show {} | grep \"HEAD branch\" | sed 's/.*: //'".format(upstream)
+        ).stdout.strip()
         ctx.run("git checkout {}".format(main_branch))
         ctx.run("git pull")
         print(color_message("Branching out to {}".format(release_branch), "bold"))
@@ -1442,8 +1445,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     if not yes_no_question(
         "This task will create new branches with the name '{}' in repositories: {}. Is this OK?".format(
-            release_branch,
-            ", ".join(repos)
+            release_branch, ", ".join(repos)
         ),
         color="orange",
         default=False,
