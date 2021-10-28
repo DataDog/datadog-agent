@@ -139,7 +139,7 @@ type Flush struct {
 
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	return
+	// intentionally empty
 }
 
 // SetClientReady indicates that the client library has initialised and called the /hello route on the agent

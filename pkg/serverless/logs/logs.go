@@ -266,6 +266,8 @@ func GetLambdaSource() *logConfig.LogSource {
 
 // ServeHTTP - see type LambdaLogsCollector comment.
 func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now().Unix()
+	log.Debugf("Received logs payload at time %d", startTime)
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
@@ -273,6 +275,7 @@ func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(400)
 	} else {
 		processLogMessages(c, messages)
+		log.Debugf("Finished processing logs payload that was received at time %d", startTime)
 		w.WriteHeader(200)
 	}
 }
@@ -325,6 +328,7 @@ func processMessage(message logMessage, executionContext *ExecutionContext, enha
 	}
 
 	if message.logType == logTypePlatformRuntimeDone {
+		log.Debug("Received a runtimeDone log message")
 		handleRuntimeDone()
 	}
 }
