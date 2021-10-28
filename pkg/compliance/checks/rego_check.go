@@ -27,7 +27,6 @@ import (
 
 type regoCheck struct {
 	ruleID            string
-	constants         map[string]interface{}
 	ruleScope         compliance.RuleScope
 	inputs            []compliance.RegoInput
 	preparedEvalQuery rego.PreparedEvalQuery
@@ -140,7 +139,6 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 
 	r.preparedEvalQuery = preparedEvalQuery
 	r.ruleScope = ruleScope
-	r.constants = rule.Constants
 
 	return nil
 }
@@ -239,7 +237,6 @@ func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, i
 func (r *regoCheck) buildContextInput(env env.Env) eval.RegoInputMap {
 	context := make(map[string]interface{})
 	context["hostname"] = env.Hostname()
-	context["constants"] = r.constants
 
 	if r.ruleScope == compliance.KubernetesNodeScope {
 		context["kubernetes_node_labels"] = env.NodeLabels()

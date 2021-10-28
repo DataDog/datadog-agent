@@ -42,11 +42,10 @@ func (r *ConditionFallbackRule) Common() *RuleCommon {
 // RegoRule defines a rule in a compliance config
 type RegoRule struct {
 	RuleCommon `yaml:",inline"`
-	Constants  map[string]interface{} `yaml:"constants,omitempty"`
-	Inputs     []RegoInput            `yaml:"input,omitempty"`
-	Module     string                 `yaml:"module,omitempty"`
-	Imports    []string               `yaml:"imports,omitempty"`
-	Findings   string                 `yaml:"findings,omitempty"`
+	Inputs     []RegoInput `yaml:"input,omitempty"`
+	Module     string      `yaml:"module,omitempty"`
+	Imports    []string    `yaml:"imports,omitempty"`
+	Findings   string      `yaml:"findings,omitempty"`
 }
 
 // ResourceCount returns the count of resources

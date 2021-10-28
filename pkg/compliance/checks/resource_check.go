@@ -208,6 +208,8 @@ func resourceKindToResolverAndFields(env env.Env, ruleID string, kind compliance
 			return nil, nil, log.Errorf("%s: kube client not initialized", ruleID)
 		}
 		return resolveKubeapiserver, kubeResourceReportedFields, nil
+	case compliance.KindConstants:
+		return resolveConstants, nil, nil
 	default:
 		return nil, nil, ErrResourceKindNotSupported
 	}
