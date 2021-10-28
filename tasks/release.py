@@ -1365,15 +1365,15 @@ def get_release_json_value(_, key):
 
     print(release_json)
 
-def create_release_branch(ctx, repo, release_branch, upstream="origin"):
+def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
     # Perform branch out in all required repositories
-    with ctx.cd("~/dd/{}".format(repo)):
-
+    with ctx.cd("{}/{}".format(base_directory, repo)):
         # Step 1 - Create a local branch out from the default branch
 
         print(color_message("Working repository: {}".format(repo), "bold"))
         main_branch = ctx.run("git remote show {} | grep \"HEAD branch\" | sed 's/.*: //'".format(upstream)).stdout.strip()
         ctx.run("git checkout {}".format(main_branch))
+        ctx.run("git pull")
         print(color_message("Branching out to {}".format(release_branch), "bold"))
         ctx.run("git checkout -b {}".format(release_branch))
 
@@ -1394,25 +1394,23 @@ def create_release_branch(ctx, repo, release_branch, upstream="origin"):
         )
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def unfreeze(ctx, major_versions="6,7", upstream="origin", redo=False):
+def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin", redo=False):
     """
     Performs set of tasks required for the main branch unfreeze during the agent release cycle.
     That includes:
     - creates a release branch in datadog-agent, omnibus-ruby and omnibus-software repositories,
     - pushes an empty commit on the datadog-agent main branch,
-    - createas devel tags in the datadog-agent repository on the empty commit from the last step.
+    - creates devel tags in the datadog-agent repository on the empty commit from the last step.
 
     Notes:
+    base_directory - path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
     This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
     with 'repo' permissions.
-    This task assumes that datadog repositories are accessible through ~/dd/ directory.
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
-
-    github = GithubAPI(repository=REPOSITORY_NAME, api_token=get_github_token())
 
     list_major_versions = parse_major_versions(major_versions)
 
@@ -1423,6 +1421,8 @@ def unfreeze(ctx, major_versions="6,7", upstream="origin", redo=False):
     # Strings with proper branch/tag names
     release_branch = current.branch()
     devel_tag = str(next)
+
+    repos = ["datadog-agent", "omnibus-software", "omnibus-ruby"]
 
     # Step 0: checks
 
@@ -1439,8 +1439,9 @@ def unfreeze(ctx, major_versions="6,7", upstream="origin", redo=False):
         )
 
     if not yes_no_question(
-        "This task will create new branches with the name '{}' in repositories: datadog-agent, omnibus-ruby and omnibus-software Is this OK?".format(
-            release_branch
+        "This task will create new branches with the name '{}' in repositories: {}. Is this OK?".format(
+            release_branch,
+            ", ".join(repos)
         ),
         color="orange",
         default=False,
@@ -1448,12 +1449,12 @@ def unfreeze(ctx, major_versions="6,7", upstream="origin", redo=False):
         raise Exit(color_message("Aborting.", "red"), code=1)
 
     # Step 1: Create release branch
-    repos = ["datadog-agent", "omnibus-software", "omnibus-ruby"]
     for repo in repos:
-        create_release_branch(ctx, repo, release_branch)
+        create_release_branch(ctx, repo, release_branch, base_directory=base_directory)
         pass
     
-    with ctx.cd("~/dd/datadog-agent"):
+    print(color_message("Creating empty commit for devel tags", "bold"))
+    with ctx.cd("{}/datadog-agent".format(base_directory)):
         ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags {}'")
         if not ok:
             raise Exit(
@@ -1478,7 +1479,7 @@ def unfreeze(ctx, major_versions="6,7", upstream="origin", redo=False):
             )
 
     # Step 3: Create tags for next version
-    print(color_message("Tagging RC for agent version(s) {}".format(list_major_versions), "bold"))
+    print(color_message("Creating devel tags for agent version(s) {}".format(list_major_versions), "bold"))
     print(
         color_message("If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold")
     )
