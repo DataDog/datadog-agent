@@ -161,6 +161,14 @@ type Warnings struct {
 	TraceMallocEnabledWithPy2 bool
 }
 
+// DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
+type DataType string
+
+const (
+	// Metrics type covers series & sketches
+	Metrics DataType = "metrics"
+)
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -954,6 +962,9 @@ func InitConfig(config Config) {
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
+	// Vector integration
+	bindVectorOptions(config, Metrics)
+
 	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
@@ -1542,4 +1553,26 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 	combined = append(combined, dsdTags...)
 
 	return combined
+}
+
+func bindVectorOptions(config Config, datatype DataType) {
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
+}
+
+// GetVectorURL returns the URL under the 'vector.' prefix for the given datatype
+func GetVectorURL(datatype DataType) (string, error) {
+	if Datadog.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
+		vectorURL := Datadog.GetString(fmt.Sprintf("vector.%s.url", datatype))
+		if vectorURL == "" {
+			log.Errorf("vector.%s.enabled is set to true, but vector.%s.url is empty", datatype, datatype)
+			return "", nil
+		}
+		_, err := url.Parse(vectorURL)
+		if err != nil {
+			return "", fmt.Errorf("could not parse vector %s endpoint: %s", datatype, err)
+		}
+		return vectorURL, nil
+	}
+	return "", nil
 }
