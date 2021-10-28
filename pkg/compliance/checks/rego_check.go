@@ -184,7 +184,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			case "array":
 				r.appendInstance(arraysPerTags, tagName, res)
 			case "object":
-				objectsPerTags[tagName] = res
+				objectsPerTags[tagName] = res.RegoInput()
 			default:
 				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
 			}
