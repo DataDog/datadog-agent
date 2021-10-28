@@ -261,3 +261,13 @@ func (r *RequestStat) initSketch() (err error) {
 	}
 	return
 }
+
+// HalfAllCounts sets the count of all stats for each status class to half their current value.
+// This is used to remove duplicates from the count in the context of Windows localhost traffic.
+func (r *RequestStats) HalfAllCounts() {
+	for i := 0; i < NumStatusClasses; i++ {
+		if r.data[i] != nil {
+			r.data[i].Count = r.data[i].Count / 2
+		}
+	}
+}

@@ -42,7 +42,10 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	// pre-populate aggregation map with keys for all existent connections
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
-		encoder.aggregations[network.HTTPKeyTupleFromConn(conn)] = nil
+		keys := network.HTTPKeyTuplesFromConn(conn)
+		for _, key := range keys {
+			encoder.aggregations[key] = nil
+		}
 	}
 
 	encoder.buildAggregations(payload)
@@ -54,8 +57,14 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 		return nil, 0
 	}
 
-	keyTuple := network.HTTPKeyTupleFromConn(c)
-	return e.aggregations[keyTuple], e.tags[keyTuple]
+	keyTuples := network.HTTPKeyTuplesFromConn(c)
+	for _, key := range keyTuples {
+		if aggregation := e.aggregations[key]; aggregation != nil {
+			return e.aggregations[key], e.tags[key]
+		}
+	}
+
+	return nil, 0
 }
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {

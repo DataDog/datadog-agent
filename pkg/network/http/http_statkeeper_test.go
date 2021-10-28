@@ -3,16 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build linux_bpf || (windows && npm)
+// +build linux_bpf windows,npm
 
 package http
 
 import (
-	"encoding/binary"
-	"fmt"
 	"regexp"
+	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,25 +69,6 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	}
 }
 
-func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
-	var tx httpTX
-
-	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
-	latencyNS := _Ctype_ulonglong(uint64(latency))
-	tx.request_started = 1
-	tx.request_method = 1
-	tx.response_last_seen = tx.request_started + latencyNS
-	tx.response_status_code = _Ctype_ushort(code)
-	tx.request_fragment = requestFragment([]byte(reqFragment))
-	tx.tup.saddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(source.Bytes()))
-	tx.tup.sport = _Ctype_ushort(sourcePort)
-	tx.tup.daddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(dest.Bytes()))
-	tx.tup.dport = _Ctype_ushort(destPort)
-	tx.tup.metadata = 1
-
-	return tx
-}
-
 func BenchmarkProcessSameConn(b *testing.B) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
 	tel, err := newTelemetry()
@@ -109,6 +90,52 @@ func BenchmarkProcessSameConn(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		sk.Process(transactions)
 	}
+}
+
+func TestGetPath(t *testing.T) {
+	tx := generateTransactionWithFragment("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0")
+	b := make([]byte, HTTPBufferSize)
+
+	path, fullPath := getPath(tx.ReqFragment(), b)
+	assert.Equal(t, "/foo/bar", string(path))
+	assert.True(t, fullPath)
+}
+
+func TestMaximumLengthGetPath(t *testing.T) {
+	rep := strings.Repeat("a", HTTPBufferSize-6)
+	str := "GET /" + rep
+	str += "bc"
+	tx := generateTransactionWithFragment(str)
+	b := make([]byte, HTTPBufferSize)
+
+	path, fullPath := getPath(tx.ReqFragment(), b)
+	expected := "/" + rep
+	expected = expected + "b"
+	assert.Equal(t, expected, string(path))
+	assert.False(t, fullPath)
+}
+
+func TestGetPathHandlesNullTerminator(t *testing.T) {
+	// This probably isn't a valid HTTP request (since it's missing a version before the end),
+	// but if the null byte isn't handled then the path becomes "/foo/\x00bar"
+	tx := generateTransactionWithFragment("GET /foo/\x00bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0")
+	b := make([]byte, HTTPBufferSize)
+
+	path, fullPath := getPath(tx.ReqFragment(), b)
+	assert.Equal(t, "/foo/", string(path))
+	assert.False(t, fullPath)
+}
+
+func BenchmarkGetPath(b *testing.B) {
+	tx := generateTransactionWithFragment("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	buf := make([]byte, HTTPBufferSize)
+	for i := 0; i < b.N; i++ {
+		_, _ = getPath(tx.ReqFragment(), buf)
+	}
+	runtime.KeepAlive(buf)
 }
 
 func TestPathProcessing(t *testing.T) {
@@ -247,7 +274,7 @@ func TestHTTPCorrectness(t *testing.T) {
 			404,
 			30*time.Millisecond,
 		)
-		tx.request_method = 0 /* This is MethodUnknown */
+		tx.SetMethodUnknown()
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
