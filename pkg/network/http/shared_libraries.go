@@ -69,7 +69,7 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
 	return &soWatcher{
 		procRoot:   procRoot,
-		hostMount:  os.Getenv("HOST_FS"),
+		hostMount:  os.Getenv("HOST_ROOT"),
 		all:        all,
 		rules:      rules,
 		loadEvents: perfHandler,
