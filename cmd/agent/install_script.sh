@@ -1,5 +1,5 @@
 #!/bin/bash
-# (C) Datadog, Inc. 2010-2016
+# (C) Datadog, Inc. 2010-present
 # All rights reserved
 # Licensed under Simplified BSD License (see LICENSE)
 # Datadog Agent installation script: install and set up the Agent on supported Linux distributions
