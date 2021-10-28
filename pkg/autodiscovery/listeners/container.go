@@ -36,7 +36,7 @@ func NewContainerListener() (ServiceListener, error) {
 	l := &ContainerListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]string{"docker", "containerd"},
+		[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd},
 	)
 
 	var err error

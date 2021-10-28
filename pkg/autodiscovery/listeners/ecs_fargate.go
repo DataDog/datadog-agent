@@ -30,7 +30,7 @@ func NewECSFargateListener() (ServiceListener, error) {
 	l := &ECSFargateListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindECSTask},
-		[]string{"ecs_fargate"},
+		[]workloadmeta.Source{workloadmeta.SourceECSFargate},
 	)
 
 	var err error
