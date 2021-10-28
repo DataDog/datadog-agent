@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubelet
@@ -180,7 +181,7 @@ func (c *collector) parsePodContainers(
 
 			podContainer.Image, err = workloadmeta.NewContainerImage(containerSpec.Image)
 			if err != nil {
-				log.Warnf("cannot split image name %q: %s", containerSpec.Image, err)
+				log.Debugf("cannot split image name %q: %s", containerSpec.Image, err)
 			}
 
 			podContainer.Image.ID = container.ImageID
