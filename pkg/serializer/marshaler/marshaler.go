@@ -20,18 +20,25 @@ type Marshaler interface {
 // JSONMarshaler is a AbstractMarshaler that implement JSON marshaling.
 type JSONMarshaler interface {
 	AbstractMarshaler
+
+	// MarshalJSON serialization a Payload to JSON
 	MarshalJSON() ([]byte, error)
 }
 
 // ProtoMarshaler is a AbstractMarshaler that implement proto marshaling.
 type ProtoMarshaler interface {
 	AbstractMarshaler
+
+	// Marshal serialize objects using agent-payload definition.
 	Marshal() ([]byte, error)
 }
 
 // AbstractMarshaler is an abstract marshaler.
 type AbstractMarshaler interface {
+	// SplitPayload breaks the payload into times number of pieces
 	SplitPayload(int) ([]AbstractMarshaler, error)
+
+	// MarshalSplitCompress uses the stream compressor to marshal and compress payloads.
 	MarshalSplitCompress(*BufferContext) ([]*[]byte, error)
 }
 
