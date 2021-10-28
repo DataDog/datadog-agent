@@ -120,6 +120,11 @@ func (s *Store) Notify(events []workloadmeta.CollectorEvent) {
 	panic("not implemented")
 }
 
+// Dump is not implemented in the testing store.
+func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
+	panic("not implemented")
+}
+
 func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta.Entity, error) {
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
