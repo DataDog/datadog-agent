@@ -1365,6 +1365,7 @@ def get_release_json_value(_, key):
 
     print(release_json)
 
+
 def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
     # Perform branch out in all required repositories
     with ctx.cd("{}/{}".format(base_directory, repo)):
@@ -1391,7 +1392,8 @@ def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upst
                     "red",
                 ),
                 code=1,
-        )
+            )
+
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
 def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin", redo=False):
@@ -1451,8 +1453,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     # Step 1: Create release branch
     for repo in repos:
         create_release_branch(ctx, repo, release_branch, base_directory=base_directory)
-        pass
-    
+
     print(color_message("Creating empty commit for devel tags", "bold"))
     with ctx.cd("{}/datadog-agent".format(base_directory)):
         ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags {}'")
@@ -1485,4 +1486,3 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     )
 
     tag_version(ctx, devel_tag, tag_modules=False, push=False, force=redo)
-
