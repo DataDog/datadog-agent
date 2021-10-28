@@ -17,11 +17,11 @@ import (
 )
 
 type regoFixture struct {
-	name      string
-	resources []compliance.RegoInput
-	module    string
-	findings  string
-	scope     compliance.RuleScope
+	name     string
+	inputs   []compliance.RegoInput
+	module   string
+	findings string
+	scope    compliance.RuleScope
 
 	processes     processes
 	useCache      bool
@@ -40,8 +40,8 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 	}
 
 	regoCheck := &regoCheck{
-		ruleID:    ruleID,
-		resources: f.resources,
+		ruleID: ruleID,
+		inputs: f.inputs,
 	}
 
 	if err := regoCheck.compileRule(rule, f.scope, &compliance.SuiteMeta{}); err != nil {
@@ -85,7 +85,7 @@ func TestRegoProcessCheck(t *testing.T) {
 	tests := []regoFixture{
 		{
 			name: "simple case",
-			resources: []compliance.RegoInput{
+			inputs: []compliance.RegoInput{
 				{
 					ResourceCommon: compliance.ResourceCommon{
 						Process: &compliance.Process{
@@ -93,6 +93,7 @@ func TestRegoProcessCheck(t *testing.T) {
 						},
 					},
 					TagName: "processes",
+					Type:    "array",
 				},
 			},
 			module: `

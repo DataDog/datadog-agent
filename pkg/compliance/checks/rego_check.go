@@ -169,7 +169,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			tagName = string(input.Kind())
 		}
 
-		inputType, err := input.ValiateInputType()
+		inputType, err := input.ValidateInputType()
 		if err != nil {
 			return nil, err
 		}

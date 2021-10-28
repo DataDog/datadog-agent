@@ -26,7 +26,7 @@ func resolveConstants(_ context.Context, e env.Env, ruleID string, res complianc
 	for name := range constants.Values {
 		idHash.Write([]byte(name))
 	}
-	resourceId := fmt.Sprintf("%x", idHash.Sum(nil))
+	resourceID := fmt.Sprintf("%x", idHash.Sum(nil))
 
 	log.Debugf("%s: running constants check", ruleID)
 
@@ -34,6 +34,6 @@ func resolveConstants(_ context.Context, e env.Env, ruleID string, res complianc
 	regoInput := eval.RegoInputMap(constants.Values)
 
 	instance := eval.NewInstance(vars, nil, regoInput)
-	resolvedInstance := newResolvedInstance(instance, resourceId, "constants")
+	resolvedInstance := newResolvedInstance(instance, resourceID, "constants")
 	return resolvedInstance, nil
 }
