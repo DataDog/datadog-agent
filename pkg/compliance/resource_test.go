@@ -116,20 +116,6 @@ func TestResources(t *testing.T) {
 			},
 		},
 		{
-			name:  "command",
-			input: testResourceCommand,
-			expected: Resource{
-				ResourceCommon: ResourceCommon{
-					Command: &Command{
-						ShellCmd: &ShellCmd{
-							Run: `mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"`,
-						},
-					},
-				},
-				Condition: `command.exitCode == 0`,
-			},
-		},
-		{
 			name:  "audit",
 			input: testResourceAudit,
 			expected: Resource{

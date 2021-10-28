@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
@@ -27,6 +28,10 @@ var (
 
 	// ErrResourceFailedToResolve is returned when a resource failed to resolve to any instances for evaluation
 	ErrResourceFailedToResolve = errors.New("failed to resolve resource")
+)
+
+const (
+	defaultTimeout = 30 * time.Second
 )
 
 type resolved interface {
@@ -194,8 +199,6 @@ func resourceKindToResolverAndFields(env env.Env, ruleID string, kind compliance
 		return resolveAudit, auditReportedFields, nil
 	case compliance.KindGroup:
 		return resolveGroup, groupReportedFields, nil
-	case compliance.KindCommand:
-		return resolveCommand, commandReportedFields, nil
 	case compliance.KindProcess:
 		return resolveProcess, processReportedFields, nil
 	case compliance.KindDocker:

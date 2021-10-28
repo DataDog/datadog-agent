@@ -22,8 +22,6 @@ const (
 	KindProcess = ResourceKind("process")
 	// KindGroup is used for a Group resource
 	KindGroup = ResourceKind("group")
-	// KindCommand is used for a Command resource
-	KindCommand = ResourceKind("command")
 	// KindDocker is used for a DockerResource resource
 	KindDocker = ResourceKind("docker")
 	// KindAudit is used for an Audit resource
@@ -39,7 +37,6 @@ type ResourceCommon struct {
 	File          *File               `yaml:"file,omitempty"`
 	Process       *Process            `yaml:"process,omitempty"`
 	Group         *Group              `yaml:"group,omitempty"`
-	Command       *Command            `yaml:"command,omitempty"`
 	Audit         *Audit              `yaml:"audit,omitempty"`
 	Docker        *DockerResource     `yaml:"docker,omitempty"`
 	KubeApiserver *KubernetesResource `yaml:"kubeApiserver,omitempty"`
@@ -68,8 +65,6 @@ func (r *ResourceCommon) Kind() ResourceKind {
 		return KindProcess
 	case r.Group != nil:
 		return KindGroup
-	case r.Command != nil:
-		return KindCommand
 	case r.Audit != nil:
 		return KindAudit
 	case r.Docker != nil:

@@ -756,8 +756,6 @@ func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
 	instance := eval.NewInstance(
 		nil,
 		eval.FunctionMap{
-			builderFuncShell:       b.withValueCache(builderFuncShell, evalCommandShell),
-			builderFuncExec:        b.withValueCache(builderFuncExec, evalCommandExec),
 			builderFuncProcessFlag: b.withValueCache(builderFuncProcessFlag, evalProcessFlag),
 			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(jsonGetter)),
 			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(yamlGetter)),
@@ -783,80 +781,6 @@ func (b *builder) withValueCache(funcName string, fn eval.Function) eval.Functio
 		}
 		return v, err
 	}
-}
-
-func evalCommandShell(_ eval.Instance, args ...interface{}) (interface{}, error) {
-	if len(args) == 0 {
-		return nil, errors.New(`expecting at least one argument`)
-	}
-	command, ok := args[0].(string)
-	if !ok {
-		return nil, fmt.Errorf(`expecting string value for command argument`)
-	}
-
-	var shellAndArgs []string
-
-	if len(args) > 1 {
-		for _, arg := range args[1:] {
-			s, ok := arg.(string)
-			if !ok {
-				return nil, fmt.Errorf(`expecting only string value for shell command and arguments`)
-			}
-			shellAndArgs = append(shellAndArgs, s)
-		}
-	}
-	return valueFromShellCommand(command, shellAndArgs...)
-}
-
-func valueFromShellCommand(command string, shellAndArgs ...string) (interface{}, error) {
-	log.Debugf("Resolving value from shell command: %s, args [%s]", command, strings.Join(shellAndArgs, ","))
-
-	shellCmd := &compliance.ShellCmd{
-		Run: command,
-	}
-	if len(shellAndArgs) > 0 {
-		shellCmd.Shell = &compliance.BinaryCmd{
-			Name: shellAndArgs[0],
-			Args: shellAndArgs[1:],
-		}
-	}
-	execCommand := shellCmdToBinaryCmd(shellCmd)
-	exitCode, stdout, err := runBinaryCmd(execCommand, defaultTimeout)
-	if exitCode != 0 || err != nil {
-		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
-	}
-	return stdout, nil
-}
-
-func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) {
-	if len(args) == 0 {
-		return nil, errors.New(`expecting at least one argument`)
-	}
-
-	var cmdArgs []string
-
-	for _, arg := range args {
-		s, ok := arg.(string)
-		if !ok {
-			return nil, fmt.Errorf(`expecting only string values for arguments`)
-		}
-		cmdArgs = append(cmdArgs, s)
-	}
-
-	return valueFromBinaryCommand(cmdArgs[0], cmdArgs[1:]...)
-}
-
-func valueFromBinaryCommand(name string, args ...string) (interface{}, error) {
-	log.Debugf("Resolving value from command: %s, args [%s]", name, strings.Join(args, ","))
-	execCommand := &compliance.BinaryCmd{
-		Name: name,
-		Args: args,
-	}
-	exitCode, stdout, err := runBinaryCmd(execCommand, defaultTimeout)
-	if exitCode != 0 || err != nil {
-		return nil, fmt.Errorf("command '%v' execution failed, error: %v", execCommand, err)
-	}
-	return stdout, nil
 }
 
 func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) {
