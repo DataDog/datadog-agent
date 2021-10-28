@@ -146,7 +146,11 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 }
 
 func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
-	inputPerTags := make(map[string][]interface{})
+	objectsPerTags := make(map[string]interface{})
+	arraysPerTags := make(map[string][]interface{})
+
+	contextInput := r.buildContextInput(env)
+	objectsPerTags["context"] = contextInput
 
 	for _, input := range r.inputs {
 		resolve, _, err := resourceKindToResolverAndFields(env, r.ruleID, input.Kind())
@@ -162,14 +166,42 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			continue
 		}
 
-		if input.TagName == "" {
-			return nil, errors.New("no tag name found for resource")
+		tagName := input.TagName
+		if tagName == "" {
+			tagName = string(input.Kind())
+		}
+
+		inputType, err := input.ValiateInputType()
+		if err != nil {
+			return nil, err
+		}
+
+		if _, present := objectsPerTags[tagName]; present {
+			return nil, fmt.Errorf("already defined tag: `%s`", tagName)
 		}
 
 		switch res := resolved.(type) {
 		case resolvedInstance:
-			r.appendInstance(inputPerTags, input.TagName, res)
+			switch inputType {
+			case "array":
+				r.appendInstance(arraysPerTags, tagName, res)
+			case "object":
+				objectsPerTags[tagName] = res
+			default:
+				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
+			}
 		case eval.Iterator:
+			if inputType != "array" {
+				return nil, fmt.Errorf("the input kind `%s` does not support the `%s` type", string(input.Kind()), inputType)
+			}
+
+			// create an empty array as a base
+			// this is useful if the iterator is empty for example, as it will ensure we at least
+			// export an empty array to the rego input
+			if _, present := arraysPerTags[tagName]; !present {
+				arraysPerTags[tagName] = []interface{}{}
+			}
+
 			it := res
 			for !it.Done() {
 				instance, err := it.Next()
@@ -177,20 +209,31 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 					return nil, err
 				}
 
-				r.appendInstance(inputPerTags, input.TagName, instance)
+				r.appendInstance(arraysPerTags, tagName, instance)
 			}
 		}
 	}
 
-	context := r.buildContextInput(env)
-
 	input := make(map[string]interface{})
-	for k, v := range inputPerTags {
+	for k, v := range objectsPerTags {
 		input[k] = v
 	}
-	input["context"] = context
+	for k, v := range arraysPerTags {
+		if _, present := input[k]; present {
+			return nil, fmt.Errorf("multiple definitions of tag: `%s`", k)
+		}
+		input[k] = v
+	}
 
 	return input, nil
+}
+
+func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, instance eval.Instance) {
+	vars, exists := input[key]
+	if !exists {
+		vars = []interface{}{}
+	}
+	input[key] = append(vars, instance.RegoInput())
 }
 
 func (r *regoCheck) buildContextInput(env env.Env) eval.RegoInputMap {
@@ -294,14 +337,6 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 	}
 
 	return ioutil.WriteFile(path, jsonData, 0644)
-}
-
-func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, instance eval.Instance) {
-	vars, exists := input[key]
-	if !exists {
-		vars = []interface{}{}
-	}
-	input[key] = append(vars, instance.RegoInput())
 }
 
 type regoFinding struct {

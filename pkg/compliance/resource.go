@@ -57,6 +57,19 @@ type Resource struct {
 type RegoInput struct {
 	ResourceCommon `yaml:",inline"`
 	TagName        string `yaml:"tag"`
+	Type           string `yaml:"type"`
+}
+
+// ValidateInputType returns the validated input type or an error
+func (i *RegoInput) ValiateInputType() (string, error) {
+	switch i.Type {
+	case "object", "array":
+		return i.Type, nil
+	case "":
+		return "object", nil
+	default:
+		return "", fmt.Errorf("invalid input type `%s`", i.Type)
+	}
 }
 
 // Kind returns ResourceKind of the resource
