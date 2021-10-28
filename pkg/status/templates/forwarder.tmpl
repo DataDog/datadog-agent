@@ -60,8 +60,8 @@ Forwarder
   {{- if .config.forwarder_storage_max_size_in_bytes }}
     {{- if .FileStorage.CurrentSizeInBytes }}
     Disk usage in bytes: {{ .FileStorage.CurrentSizeInBytes }}
-    Number of files: {{ .FileStorage.FilesCount }}
-    Number of files removed: {{ .FileStorage.FilesRemovedCount }}
+    Current number of files: {{ .FileStorage.FilesCount }}
+    Number of files removed containing payloads: {{ .FileStorage.FilesRemovedCount }}
     Deserialization errors count: {{ .FileStorage.DeserializeErrorsCount }}
     Outdated files removed at startup: {{ .RemovalPolicy.OutdatedFilesCount }}
     {{- else }}
