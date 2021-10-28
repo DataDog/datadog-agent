@@ -61,7 +61,7 @@ Forwarder
     {{- if .FileStorage.CurrentSizeInBytes }}
     Disk usage in bytes: {{ .FileStorage.CurrentSizeInBytes }}
     Current number of files: {{ .FileStorage.FilesCount }}
-    Number of files removed containing payloads: {{ .FileStorage.FilesRemovedCount }}
+    Number of files dropped: {{ .FileStorage.FilesRemovedCount }}
     Deserialization errors count: {{ .FileStorage.DeserializeErrorsCount }}
     Outdated files removed at startup: {{ .RemovalPolicy.OutdatedFilesCount }}
     {{- else }}
