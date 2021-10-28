@@ -178,13 +178,13 @@ type testEventsPayload struct {
 	mock.Mock
 }
 
-func createTestEventsPayloadMock(marshaler marshaler.StreamJSONMarshaler) *testEventsPayload {
+func createTestEventsPayloadMock(marshaler marshaler.Marshaler) *testEventsPayload {
 	p := &testEventsPayload{}
 	p.Marshaler = marshaler
 	return p
 }
 
-func createTestEventsPayload(marshaler marshaler.StreamJSONMarshaler) *testEventsPayload {
+func createTestEventsPayload(marshaler marshaler.Marshaler) *testEventsPayload {
 	p := createTestEventsPayloadMock(marshaler)
 	p.On("CreateSingleMarshaler").Return(marshaler)
 	return p
