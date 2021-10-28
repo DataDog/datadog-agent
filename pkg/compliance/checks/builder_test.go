@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -117,30 +116,6 @@ func TestResolveValueFrom(t *testing.T) {
 		expectValue interface{}
 		expectError error
 	}{
-		{
-			name:       "from shell command",
-			expression: `shell("cat /home/root/hiya-buddy.txt", "/bin/bash")`,
-			setup: func(t *testing.T) {
-				commandRunner = func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
-					assert.Equal("/bin/bash", name)
-					assert.Equal([]string{"cat /home/root/hiya-buddy.txt"}, args)
-					return 0, []byte("hiya buddy"), nil
-				}
-			},
-			expectValue: "hiya buddy",
-		},
-		{
-			name:       "from binary command",
-			expression: `exec("/bin/buddy", "/home/root/hiya-buddy.txt")`,
-			setup: func(t *testing.T) {
-				commandRunner = func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
-					assert.Equal("/bin/buddy", name)
-					assert.Equal([]string{"/home/root/hiya-buddy.txt"}, args)
-					return 0, []byte("hiya buddy"), nil
-				}
-			},
-			expectValue: "hiya buddy",
-		},
 		{
 			name:       "from process",
 			expression: `process.flag("buddy", "--path")`,

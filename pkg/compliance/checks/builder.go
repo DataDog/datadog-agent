@@ -38,8 +38,6 @@ var ErrRuleScopeNotSupported = errors.New("rule scope not supported")
 var ErrRuleDoesNotApply = errors.New("rule does not apply to this environment")
 
 const (
-	builderFuncExec        = "exec"
-	builderFuncShell       = "shell"
 	builderFuncProcessFlag = "process.flag"
 	builderFuncJSON        = "json"
 	builderFuncYAML        = "yaml"

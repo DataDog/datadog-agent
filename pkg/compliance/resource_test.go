@@ -36,13 +36,6 @@ fallback:
     condition: file.jq(".tlsverify") == "true"
 `
 
-const testResourceCommand = `
-command:
-  shell:
-    run: mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"
-condition: command.exitCode == 0
-`
-
 const testResourceAudit = `
 audit:
   path: /usr/bin/dockerd
