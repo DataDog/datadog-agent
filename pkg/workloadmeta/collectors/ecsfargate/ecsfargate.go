@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package ecsfargate
@@ -151,7 +152,7 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 
 		image, err := workloadmeta.NewContainerImage(container.Image)
 		if err != nil {
-			log.Warnf("cannot split image name %q: %s", container.Image, err)
+			log.Debugf("cannot split image name %q: %s", container.Image, err)
 		}
 
 		ips := make(map[string]string)
