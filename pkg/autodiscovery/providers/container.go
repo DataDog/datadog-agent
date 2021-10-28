@@ -80,7 +80,7 @@ func (d *ContainerConfigProvider) listen() {
 
 	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]string{"docker", "containerd"},
+		[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd},
 	))
 
 	for {

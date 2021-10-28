@@ -74,7 +74,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	for _, expired := range expires {
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: collectorID,
+			Source: workloadmeta.SourceECSFargate,
 			Entity: expired,
 		})
 	}
@@ -122,7 +122,7 @@ func (c *collector) parseTask(ctx context.Context, task *v2.Task) []workloadmeta
 
 	events = append(events, containerEvents...)
 	events = append(events, workloadmeta.CollectorEvent{
-		Source: collectorID,
+		Source: workloadmeta.SourceECSFargate,
 		Type:   workloadmeta.EventTypeSet,
 		Entity: entity,
 	})
@@ -171,7 +171,7 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: collectorID,
+			Source: workloadmeta.SourceECSFargate,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: entityID,

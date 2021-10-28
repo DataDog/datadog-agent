@@ -34,6 +34,9 @@ type Store interface {
 // Kind is the kind of an entity.
 type Kind string
 
+// Source is the source name of an entity.
+type Source string
+
 // ContainerRuntime is the container runtime used by a container.
 type ContainerRuntime string
 
@@ -48,6 +51,13 @@ const (
 	KindContainer     Kind = "container"
 	KindKubernetesPod Kind = "kubernetes_pod"
 	KindECSTask       Kind = "ecs_task"
+
+	SourceDocker       Source = "docker"
+	SourceContainerd   Source = "containerd"
+	SourceECS          Source = "ecs"
+	SourceECSFargate   Source = "ecs_fargate"
+	SourceKubelet      Source = "kubelet"
+	SourceKubeMetadata Source = "kube_metadata"
 
 	ContainerRuntimeDocker     ContainerRuntime = "docker"
 	ContainerRuntimeContainerd ContainerRuntime = "containerd"
@@ -282,7 +292,7 @@ var _ Entity = &ECSTask{}
 // by the metadata store.
 type CollectorEvent struct {
 	Type   EventType
-	Source string
+	Source Source
 	Entity Entity
 }
 
@@ -290,7 +300,7 @@ type CollectorEvent struct {
 // subscribers.
 type Event struct {
 	Type    EventType
-	Sources []string
+	Sources []Source
 	Entity  Entity
 }
 
