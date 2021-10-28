@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // Agent handles REST API calls
@@ -151,7 +152,7 @@ func (a *Agent) getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scrubbed, err := log.CredentialsCleanerBytes(runtimeConfig)
+	scrubbed, err := scrubber.ScrubBytes(runtimeConfig)
 	if err != nil {
 		log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})

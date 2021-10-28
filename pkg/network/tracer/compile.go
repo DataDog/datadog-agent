@@ -7,15 +7,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-//go:generate go run ../../ebpf/include_headers.go ../ebpf/c/runtime/tracer.c ../../ebpf/bytecode/build/runtime/tracer.c ../ebpf/c ../ebpf/c/runtime ../../ebpf/c
-//go:generate go run ../../ebpf/bytecode/runtime/integrity.go ../../ebpf/bytecode/build/runtime/tracer.c ../../ebpf/bytecode/runtime/tracer.go runtime
-
-//go:generate go run ../../ebpf/include_headers.go ../ebpf/c/runtime/conntrack.c ../../ebpf/bytecode/build/runtime/conntrack.c ../ebpf/c ../ebpf/c/runtime ../../ebpf/c
-//go:generate go run ../../ebpf/bytecode/runtime/integrity.go ../../ebpf/bytecode/build/runtime/conntrack.c ../../ebpf/bytecode/runtime/conntrack.go runtime
-
-func getRuntimeCompiledTracer(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.Tracer.Compile(&config.Config, getCFlags(config))
-}
+//go:generate go run ../../../pkg/ebpf/include_headers.go ../../../pkg/network/ebpf/c/runtime/conntrack.c ../../../pkg/ebpf/bytecode/build/runtime/conntrack.c ../../../pkg/ebpf/c ../../../pkg/network/ebpf/c/runtime ../../../pkg/network/ebpf/c
+//go:generate go run ../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../pkg/ebpf/bytecode/build/runtime/conntrack.c ../../../pkg/ebpf/bytecode/runtime/conntrack.go runtime
 
 func getRuntimeCompiledConntracker(config *config.Config) (runtime.CompiledOutput, error) {
 	return runtime.Conntrack.Compile(&config.Config, getCFlags(config))

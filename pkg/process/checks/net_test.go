@@ -74,7 +74,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		cfg.MaxConnsPerMessage = tc.maxSize
 		ctm := &model.CollectorConnectionsTelemetry{}
 		rctm := map[string]*model.RuntimeCompilationTelemetry{}
-		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil)
+		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil, nil)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
@@ -115,7 +115,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil)
+	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -124,9 +124,9 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 
 		// Only the last chunk should have a DNS mapping
 		if i == 3 {
-			assert.NotEmpty(t, connections.EncodedDNS)
+			assert.NotEmpty(t, connections.EncodedDnsLookups)
 		} else {
-			assert.Empty(t, connections.EncodedDNS)
+			assert.Empty(t, connections.EncodedDnsLookups)
 		}
 
 		total += len(connections.Connections)
@@ -156,7 +156,7 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 2
 
-	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil, nil)
+	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil, nil, nil)
 
 	assert.Len(t, chunks, 3)
 	total := 0
@@ -182,7 +182,16 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	assert.Equal(t, 6, total)
 }
 
-func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
+func indexOf(s string, db []string) int32 {
+	for idx, val := range db {
+		if val == s {
+			return int32(idx)
+		}
+	}
+	return -1
+}
+
+func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	conns := makeConnections(4)
 
 	domains := []string{"foo.com", "bar.com", "baz.com"}
@@ -199,14 +208,14 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 		0: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(dns.TypeA): {
-					DnsTimeouts: 1,
+					DnsTimeouts: 2,
 				},
 			},
 		},
 		2: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(dns.TypeA): {
-					DnsTimeouts: 1,
+					DnsTimeouts: 3,
 				},
 			},
 		},
@@ -215,39 +224,224 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 		1: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(dns.TypeA): {
-					DnsTimeouts: 1,
+					DnsTimeouts: 4,
 				},
 			},
 		},
 		2: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(dns.TypeA): {
-					DnsTimeouts: 1,
+					DnsTimeouts: 5,
 				},
 			},
 		},
 	}
-	dns := map[string]*model.DNSEntry{}
+	dnsmap := map[string]*model.DNSEntry{}
 
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, nil, domains, nil)
+	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
 	for i, c := range chunks {
 		connections := c.(*model.CollectorConnections)
 		total += len(connections.Connections)
+
+		domaindb := connections.GetDNSNamesV2()
+
+		// verify nothing was put in the DnsStatsByDomain bucket by mistake
+		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomain), 0)
+		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomainByQueryType), 0)
+
 		switch i {
 		case 0:
-			assert.Equal(t, []string{"", "", ""}, connections.Domains)
+			assert.Equal(t, len(domaindb), 0)
 		case 1:
-			assert.Equal(t, []string{"foo.com", "", ""}, connections.Domains)
+			assert.Equal(t, len(domaindb), 1)
+			assert.Equal(t, domains[0], domaindb[0])
+
+			// check for correctness of the data
+			conn := connections.Connections[0]
+			//val, ok := conn.DnsStatsByDomainByQueryType[0]
+			assert.Equal(t, 1, len(conn.DnsStatsByDomainOffsetByQueryType))
+			// we don't know what hte offset will be, but since there's only one
+			// the iteration should only happen once
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
+				assert.Equal(t, domainstr, domains[0])
+				assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(1))
+			}
+
 		case 2:
-			assert.Equal(t, []string{"foo.com", "", "baz.com"}, connections.Domains)
+			assert.Equal(t, len(domaindb), 2)
+			assert.Contains(t, domaindb, domains[0])
+			assert.Contains(t, domaindb, domains[2])
+			assert.NotContains(t, domaindb, domains[1])
+
+			conn := connections.Connections[0]
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
+
+				idx := indexOf(domainstr, domains)
+				assert.NotEqual(t, -1, idx)
+
+				switch idx {
+				case 0:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(2))
+				case 2:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(3))
+				default:
+					assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+				}
+			}
+
 		case 3:
-			assert.Equal(t, []string{"", "bar.com", "baz.com"}, connections.Domains)
+			assert.Equal(t, len(domaindb), 2)
+			assert.Contains(t, domaindb, domains[1])
+			assert.Contains(t, domaindb, domains[2])
+			assert.NotContains(t, domaindb, domains[0])
+
+			conn := connections.Connections[0]
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
+
+				idx := indexOf(domainstr, domains)
+				assert.NotEqual(t, -1, idx)
+
+				switch idx {
+				case 1:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(4))
+				case 2:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(5))
+				default:
+					assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+				}
+			}
+		}
+	}
+	assert.Equal(t, 4, total)
+}
+
+func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
+	conns := makeConnections(4)
+
+	domains := []string{"foo.com", "bar.com", "baz.com"}
+	conns[1].DnsStatsByDomain = map[int32]*model.DNSStats{
+		0: {
+			DnsTimeouts: 1,
+		},
+	}
+	conns[2].DnsStatsByDomain = map[int32]*model.DNSStats{
+		0: {
+			DnsTimeouts: 2,
+		},
+		2: {
+			DnsTimeouts: 3,
+		},
+	}
+	conns[3].DnsStatsByDomain = map[int32]*model.DNSStats{
+		1: {
+			DnsTimeouts: 4,
+		},
+		2: {
+			DnsTimeouts: 5,
+		},
+	}
+	dnsmap := map[string]*model.DNSEntry{}
+
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.MaxConnsPerMessage = 1
+
+	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil)
+
+	assert.Len(t, chunks, 4)
+	total := 0
+	for i, c := range chunks {
+		connections := c.(*model.CollectorConnections)
+		total += len(connections.Connections)
+
+		domaindb := connections.GetDNSNamesV2()
+
+		// verify nothing was put in the DnsStatsByDomain bucket by mistake
+		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomain), 0)
+		// verify nothing was put in the DnsStatsByDomainByQueryType bucket by mistake
+		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomainByQueryType), 0)
+
+		switch i {
+		case 0:
+			assert.Equal(t, len(domaindb), 0)
+		case 1:
+			assert.Equal(t, len(domaindb), 1)
+			assert.Equal(t, domains[0], domaindb[0])
+
+			// check for correctness of the data
+			conn := connections.Connections[0]
+			// we don't know what hte offset will be, but since there's only one
+			// the iteration should only happen once
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
+				assert.Equal(t, domainstr, domains[0])
+				assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(1))
+			}
+		case 2:
+			assert.Equal(t, len(domaindb), 2)
+			assert.Contains(t, domaindb, domains[0])
+			assert.Contains(t, domaindb, domains[2])
+			assert.NotContains(t, domaindb, domains[1])
+
+			conn := connections.Connections[0]
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
+
+				idx := indexOf(domainstr, domains)
+				assert.NotEqual(t, -1, idx)
+
+				switch idx {
+				case 0:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(2))
+				case 2:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(3))
+				default:
+					assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+				}
+			}
+
+		case 3:
+			assert.Equal(t, len(domaindb), 2)
+			assert.Contains(t, domaindb, domains[1])
+			assert.Contains(t, domaindb, domains[2])
+			assert.NotContains(t, domaindb, domains[0])
+
+			conn := connections.Connections[0]
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
+
+				idx := indexOf(domainstr, domains)
+				assert.NotEqual(t, -1, idx)
+
+				switch idx {
+				case 1:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(4))
+				case 2:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(5))
+				default:
+					assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+				}
+			}
 		}
 	}
 	assert.Equal(t, 4, total)
@@ -276,7 +470,7 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 4
 
-	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, routes)
+	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, routes, nil)
 
 	assert.Len(t, chunks, 2)
 	total := 0

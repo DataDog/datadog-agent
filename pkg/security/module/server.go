@@ -24,7 +24,7 @@ import (
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -236,8 +236,9 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string) {
 	agentContext := &AgentContext{
-		RuleID:  rule.Definition.ID,
-		Version: version.AgentVersion,
+		RuleID:      rule.Definition.ID,
+		RuleVersion: rule.Definition.Version,
+		Version:     version.AgentVersion,
 	}
 
 	ruleEvent := &Signal{

@@ -16,9 +16,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
@@ -278,10 +280,13 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.ReceiverHost = "0.0.0.0"
 	}
 
+	var grpcPort int
+	if otlp.IsEnabled(config.Datadog) {
+		grpcPort = config.Datadog.GetInt(config.ExperimentalOTLPTracePort)
+	}
 	c.OTLPReceiver = &OTLP{
 		BindHost:        c.ReceiverHost,
-		HTTPPort:        config.Datadog.GetInt("experimental.otlp.http_port"),
-		GRPCPort:        config.Datadog.GetInt("experimental.otlp.grpc_port"),
+		GRPCPort:        grpcPort,
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
 
@@ -376,6 +381,28 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		// if we are in "debug mode" and log throttling behavior was not
 		// set by the user, disable it
 		c.LogThrottling = false
+	}
+
+	if config.Datadog.GetBool("apm_config.internal_profiling.enabled") {
+		profilingSite := config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if profilingSite == "" {
+			profilingSite = site
+		}
+
+		c.ProfilingSettings = &profiling.Settings{
+			Site: profilingSite,
+
+			// remaining configuration parameters use the top-level `internal_profiling` config
+			Period:               config.Datadog.GetDuration("internal_profiling.period"),
+			CPUDuration:          config.Datadog.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     config.Datadog.GetInt("internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+
+			// NOTE: Tags cannot be set here, because it is based on
+			// info.Version and leads to a package reference loop. It is set
+			// from Run, instead.
+		}
 	}
 
 	return nil

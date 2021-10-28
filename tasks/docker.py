@@ -7,32 +7,11 @@ import os
 import shutil
 import sys
 import tempfile
-import time
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from .dogstatsd import DOGSTATSD_TAG
-
-
-def retry_run(ctx, *args, **kwargs):
-    remaining_retries = 5
-    while True:
-        warn = True
-        if remaining_retries == 0:
-            warn = False
-
-        r = ctx.run(*args, warn=warn, **kwargs)
-
-        if r.ok:
-            return r
-
-        # Pause between retries. Hope it helps.
-        time.sleep(5)
-
-        remaining_retries -= 1
-
-    return r
 
 
 @task
@@ -95,7 +74,7 @@ COPY test.bin /test.bin
         test_image.id,
         detach=True,
         pid_mode="host",  # For origin detection
-        environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch",],
+        environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch"],
         volumes={
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
             '/proc': {'bind': '/host/proc', 'mode': 'ro'},

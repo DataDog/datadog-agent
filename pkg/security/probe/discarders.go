@@ -17,30 +17,17 @@ import (
 	"strings"
 	"time"
 
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	// DiscardInodeOp discards an inode
-	DiscardInodeOp = iota + 1
-	// DiscardPidOp discards a pid
-	DiscardPidOp
-	// ResolveSegmentOp resolves the requested segment
-	ResolveSegmentOp
-	// ResolvePathOp resolves the requested path
-	ResolvePathOp
-	// ResolveParentOp resolves the parent of the provide path key
-	ResolveParentOp
 )
 
 const (
@@ -227,19 +214,22 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 		return false, nil
 	}
 
-	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
-
 	event := discarderEvent
 	defer func() {
 		*discarderEvent = eventZero
 	}()
 
 	if _, err := event.GetFieldType(filenameField); err != nil {
-		return false, nil
+		return false, err
 	}
 
+	if !strings.HasSuffix(filenameField, ".path") {
+		return false, errors.New("path suffix not found")
+	}
+
+	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
 	if _, err := event.GetFieldType(basenameField); err != nil {
-		return false, nil
+		return false, err
 	}
 
 	for _, rule := range bucket.GetRules() {
@@ -287,14 +277,6 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 					return false, nil
 				}
 			}
-
-			if err := event.SetFieldValue(filenameField, dirname); err != nil {
-				return false, err
-			}
-
-			if isDiscarder, _ := rs.IsDiscarder(event, filenameField); isDiscarder {
-				return true, nil
-			}
 		}
 
 		// check basename
@@ -307,6 +289,14 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 				return false, nil
 			}
 		}
+	}
+
+	if err := event.SetFieldValue(filenameField, dirname); err != nil {
+		return false, err
+	}
+
+	if isDiscarder, _ := rs.IsDiscarder(event, filenameField); !isDiscarder {
+		return false, nil
 	}
 
 	seclog.Tracef("`%s` discovered as parent discarder", dirname)
@@ -364,10 +354,13 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 
 					// not able to discard the parent then only discard the filename
-					err = probe.inodeDiscarders.discardInode(eventType, mountID, inode, true)
+					if err = probe.inodeDiscarders.discardInode(eventType, mountID, inode, true); err == nil {
+						probe.countNewInodeDiscarder(eventType)
+					}
 				}
-			} else {
+			} else if !isDeleted {
 				seclog.Tracef("Apply `%s.file.path` parent inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, parentInode, filename)
+				probe.countNewInodeDiscarder(eventType)
 			}
 
 			if err != nil {
@@ -399,16 +392,14 @@ func isInvalidDiscarder(field eval.Field, value interface{}) bool {
 func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
 	invalidDiscarders := make(map[eval.Field]map[interface{}]bool)
 
-	if InvalidDiscarders != nil {
-		for field, values := range InvalidDiscarders {
-			ivalues := invalidDiscarders[field]
-			if ivalues == nil {
-				ivalues = make(map[interface{}]bool)
-				invalidDiscarders[field] = ivalues
-			}
-			for _, value := range values {
-				ivalues[value] = true
-			}
+	for field, values := range InvalidDiscarders {
+		ivalues := invalidDiscarders[field]
+		if ivalues == nil {
+			ivalues = make(map[interface{}]bool)
+			invalidDiscarders[field] = ivalues
+		}
+		for _, value := range values {
+			ivalues[value] = true
 		}
 	}
 

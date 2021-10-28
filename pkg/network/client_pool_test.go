@@ -1,0 +1,33 @@
+package network
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestClientBufferPool(t *testing.T) {
+	pool := &clientBufferPool{
+		bufferByClient: make(map[string]*clientBuffer),
+	}
+
+	buffer := pool.Get("client_id")
+
+	// Add twice the elements the buffer originally supports
+	assert.Equal(t, 0, buffer.Len())
+	assert.Equal(t, defaultClientBufferSize, buffer.Capacity())
+	for i := 0; i < 2*defaultClientBufferSize; i++ {
+		buffer.Next().Pid = uint32(i)
+	}
+	assert.Equal(t, 2*defaultClientBufferSize, buffer.Len())
+	increasedCapacity := buffer.Capacity()
+
+	// Now we return the buffer and retrieve it again
+	pool.Put(buffer)
+	buffer = pool.Get("client_id")
+
+	// Buffer length has to be 0, as buffers are cleared when returned to the pool
+	assert.Equal(t, 0, buffer.Len())
+	// Capacity should be retained
+	assert.Equal(t, increasedCapacity, buffer.Capacity())
+}

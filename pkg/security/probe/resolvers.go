@@ -18,7 +18,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -79,7 +79,7 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 
 // resolveFileFieldsPath resolves the inode to a full path
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
-	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
+	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
 		return pathStr, err
 	}

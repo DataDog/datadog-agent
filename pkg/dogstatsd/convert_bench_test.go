@@ -27,6 +27,7 @@ var (
 func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 	parser := newParser(newFloat64ListPool())
 	namespaceBlacklist := []string{}
+	metricBlocklist := []string{}
 
 	for i := 1; i < 1000; i *= 4 {
 		b.Run(fmt.Sprintf("%d-tags", i), func(sb *testing.B) {
@@ -41,7 +42,7 @@ func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 					continue
 				}
 
-				benchSamples = enrichMetricSample(samples, parsed, "", namespaceBlacklist, "default-hostname", "", true, false)
+				benchSamples = enrichMetricSample(samples, parsed, "", namespaceBlacklist, metricBlocklist, "default-hostname", "", true, false)
 			}
 		})
 	}

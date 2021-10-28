@@ -78,13 +78,15 @@ struct bpf_map_def SEC("maps/dentry_resolver_tracepoint_callbacks") dentry_resol
 #define DR_TRACEPOINT 2
 
 #define DR_ERPC_KEY                        0
-#define DR_KPROBE_DENTRY_RESOLVER_KERN_KEY 1
+#define DR_ERPC_PARENT_KEY                 1
+#define DR_ERPC_SEGMENT_KEY                2
+#define DR_KPROBE_DENTRY_RESOLVER_KERN_KEY 3
 
 struct bpf_map_def SEC("maps/dentry_resolver_kprobe_progs") dentry_resolver_kprobe_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
-    .max_entries = 2,
+    .max_entries = 4,
 };
 
 #define DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY 0
@@ -192,13 +194,13 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
     }                                                                                                                  \
 
 SEC("kprobe/dentry_resolver_kern")
-int kprobe__dentry_resolver_kern(struct pt_regs *ctx) {
+int kprobe_dentry_resolver_kern(struct pt_regs *ctx) {
     dentry_resolver_kern(ctx, &dentry_resolver_kprobe_progs, &dentry_resolver_kprobe_callbacks, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
 SEC("tracepoint/dentry_resolver_kern")
-int tracepoint__dentry_resolver_kern(void *ctx) {
+int tracepoint_dentry_resolver_kern(void *ctx) {
     dentry_resolver_kern(ctx, &dentry_resolver_tracepoint_progs, &dentry_resolver_tracepoint_callbacks, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
@@ -252,8 +254,55 @@ struct bpf_map_def SEC("maps/dr_erpc_stats_bb") dr_erpc_stats_bb = {
     .namespace = "",
 };
 
+int __attribute__((always_inline)) monitor_resolution_err(u32 resolution_err) {
+    if (resolution_err > 0) {
+        struct bpf_map_def *erpc_stats = select_buffer(&dr_erpc_stats_fb, &dr_erpc_stats_bb, ERPC_MONITOR_KEY);
+        if (erpc_stats == NULL) {
+            return 0;
+        }
+
+        struct dr_erpc_stats_t *stats = bpf_map_lookup_elem(erpc_stats, &resolution_err);
+        if (stats == NULL) {
+            return 0;
+        }
+        __sync_fetch_and_add(&stats->count, 1);
+    }
+    return 0;
+}
+
+u32 __attribute__((always_inline)) parse_erpc_request(struct dr_erpc_state_t *state, void *data) {
+    u32 err = 0;
+    int ret = bpf_probe_read(&state->key, sizeof(state->key), data);
+    if (ret < 0) {
+        err = DR_ERPC_READ_PAGE_FAULT;
+        goto exit;
+    }
+    ret = bpf_probe_read(&state->userspace_buffer, sizeof(state->userspace_buffer), data + sizeof(state->key));
+    if (ret < 0) {
+        err = DR_ERPC_READ_PAGE_FAULT;
+        goto exit;
+    }
+    ret = bpf_probe_read(&state->buffer_size, sizeof(state->buffer_size), data + sizeof(state->key) + sizeof(state->userspace_buffer));
+    if (ret < 0) {
+        err = DR_ERPC_READ_PAGE_FAULT;
+        goto exit;
+    }
+    ret = bpf_probe_read(&state->challenge, sizeof(state->challenge), data + sizeof(state->key) + sizeof(state->userspace_buffer) + sizeof(state->buffer_size));
+    if (ret < 0) {
+        err = DR_ERPC_READ_PAGE_FAULT;
+        goto exit;
+    }
+
+    state->iteration = 0;
+    state->ret = 0;
+    state->cursor = 0;
+
+exit:
+    return err;
+}
+
 SEC("kprobe/dentry_resolver_erpc")
-int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
+int kprobe_dentry_resolver_erpc(struct pt_regs *ctx) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;
@@ -321,211 +370,110 @@ int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
     }
 
 exit:
-    if (resolution_err > 0) {
-        struct bpf_map_def *erpc_stats = select_buffer(&dr_erpc_stats_fb, &dr_erpc_stats_bb, ERPC_MONITOR_KEY);
-        if (erpc_stats == NULL) {
-            return 0;
-        }
-
-        struct dr_erpc_stats_t *stats = bpf_map_lookup_elem(erpc_stats, &resolution_err);
-        if (stats == NULL) {
-            return 0;
-        }
-        __sync_fetch_and_add(&stats->count, 1);
-    }
+    monitor_resolution_err(resolution_err);
     return 0;
 }
 
-int __attribute__((always_inline)) handle_resolve_path(struct pt_regs* ctx, void *data) {
+SEC("kprobe/dentry_resolver_segment_erpc")
+int kprobe_dentry_resolver_segment_erpc(struct pt_regs *ctx) {
     u32 key = 0;
-    u32 err = 0;
+    u32 resolution_err = 0;
     struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
     if (state == NULL) {
         return 0;
     }
 
-    int ret = bpf_probe_read(&state->key, sizeof(state->key), data);
-    if (ret < 0) {
-        err = DR_ERPC_READ_PAGE_FAULT;
-        goto error;
-    }
-    ret = bpf_probe_read(&state->userspace_buffer, sizeof(state->userspace_buffer), data + sizeof(state->key));
-    if (ret < 0) {
-        err = DR_ERPC_READ_PAGE_FAULT;
-        goto error;
-    }
-    ret = bpf_probe_read(&state->buffer_size, sizeof(state->buffer_size), data + sizeof(state->key) + sizeof(state->userspace_buffer));
-    if (ret < 0) {
-        err = DR_ERPC_READ_PAGE_FAULT;
-        goto error;
-    }
-    ret = bpf_probe_read(&state->challenge, sizeof(state->challenge), data + sizeof(state->key) + sizeof(state->userspace_buffer) + sizeof(state->buffer_size));
-    if (ret < 0) {
-        err = DR_ERPC_READ_PAGE_FAULT;
-        goto error;
-    }
-
-    state->iteration = 0;
-    state->ret = 0;
-    state->cursor = 0;
-
-    bpf_tail_call(ctx, &dentry_resolver_kprobe_progs, DR_ERPC_KEY);
-
-error:
-    if (err > 0) {
-        struct bpf_map_def *erpc_stats = select_buffer(&dr_erpc_stats_fb, &dr_erpc_stats_bb, ERPC_MONITOR_KEY);
-        if (erpc_stats == NULL) {
-            return 0;
-        }
-
-        struct dr_erpc_stats_t *stats = bpf_map_lookup_elem(erpc_stats, &err);
-        if (stats == NULL) {
-            return 0;
-        }
-        __sync_fetch_and_add(&stats->count, 1);
-    }
-    return 0;
-}
-
-int __attribute__((always_inline)) handle_resolve_segment(void *data) {
-    struct path_key_t key = {};
-    char *userspace_buffer = 0;
-    u32 buffer_size = 0;
-    u32 resolution_err = 0;
-    u32 challenge = 0;
-
-    int ret = bpf_probe_read(&key, sizeof(key), data);
-    if (ret < 0) {
-        resolution_err = DR_ERPC_READ_PAGE_FAULT;
-        goto exit;
-    }
-    ret = bpf_probe_read(&userspace_buffer, sizeof(userspace_buffer), data + sizeof(key));
-    if (ret < 0) {
-        resolution_err = DR_ERPC_READ_PAGE_FAULT;
-        goto exit;
-    }
-    ret = bpf_probe_read(&buffer_size, sizeof(buffer_size), data + sizeof(key) + sizeof(userspace_buffer));
-    if (ret < 0) {
-        resolution_err = DR_ERPC_READ_PAGE_FAULT;
-        goto exit;
-    }
-    ret = bpf_probe_read(&challenge, sizeof(challenge), data + sizeof(key) + sizeof(userspace_buffer) + sizeof(buffer_size));
-    if (ret < 0) {
-        resolution_err = DR_ERPC_READ_PAGE_FAULT;
-        goto exit;
-    }
-
     // resolve segment and write in buffer
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &key);
+    struct path_key_t path_key = state->key;
+    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
     if (map_value == NULL) {
         resolution_err = DR_ERPC_CACHE_MISS;
         goto exit;
     }
 
-    if (map_value->len + sizeof(key) > buffer_size) {
+    if (map_value->len + sizeof(key) > state->buffer_size) {
         // make sure we do not write outside of the provided buffer
         resolution_err = DR_ERPC_BUFFER_SIZE;
         goto exit;
     }
 
-    ret = bpf_probe_write_user((void *) userspace_buffer, &key, sizeof(key));
+    int ret = bpf_probe_write_user((void *) state->userspace_buffer, &state->key, sizeof(state->key));
     if (ret < 0) {
         resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
         goto exit;
     }
-    ret = bpf_probe_write_user((void *) userspace_buffer + offsetof(struct path_key_t, path_id), &challenge, sizeof(challenge));
+    ret = bpf_probe_write_user((void *) state->userspace_buffer + offsetof(struct path_key_t, path_id), &state->challenge, sizeof(state->challenge));
     if (ret < 0) {
         resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
         goto exit;
     }
 
-    ret = bpf_probe_write_user((void *) userspace_buffer + sizeof(key), map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
+    ret = bpf_probe_write_user((void *) state->userspace_buffer + sizeof(state->key), map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
     if (ret < 0) {
         resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
         goto exit;
     }
 
 exit:
-    if (resolution_err > 0) {
-        struct bpf_map_def *erpc_stats = select_buffer(&dr_erpc_stats_fb, &dr_erpc_stats_bb, ERPC_MONITOR_KEY);
-        if (erpc_stats == NULL) {
-            return 0;
-        }
-
-        struct dr_erpc_stats_t *stats = bpf_map_lookup_elem(erpc_stats, &resolution_err);
-        if (stats == NULL) {
-            return 0;
-        }
-        __sync_fetch_and_add(&stats->count, 1);
-    }
+    monitor_resolution_err(resolution_err);
     return 0;
 }
 
-int __attribute__((always_inline)) handle_resolve_parent(void *data) {
-    struct path_key_t key = {};
-    char *userspace_buffer = 0;
-    u32 buffer_size = 0;
+SEC("kprobe/dentry_resolver_parent_erpc")
+int kprobe_dentry_resolver_parent_erpc(struct pt_regs *ctx) {
+    u32 key = 0;
     u32 resolution_err = 0;
-    u32 challenge = 0;
-
-    int ret = bpf_probe_read(&key, sizeof(key), data);
-    if (ret < 0) {
-        resolution_err = DR_ERPC_READ_PAGE_FAULT;
-        goto exit;
-    }
-    ret = bpf_probe_read(&userspace_buffer, sizeof(userspace_buffer), data + sizeof(key));
-    if (ret < 0) {
-        resolution_err = DR_ERPC_READ_PAGE_FAULT;
-        goto exit;
-    }
-    ret = bpf_probe_read(&buffer_size, sizeof(buffer_size), data + sizeof(key) + sizeof(userspace_buffer));
-    if (ret < 0) {
-        resolution_err = DR_ERPC_READ_PAGE_FAULT;
-        goto exit;
-    }
-    ret = bpf_probe_read(&challenge, sizeof(challenge), data + sizeof(key) + sizeof(userspace_buffer) + sizeof(buffer_size));
-    if (ret < 0) {
-        resolution_err = DR_ERPC_READ_PAGE_FAULT;
-        goto exit;
+    struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
+    if (state == NULL) {
+        return 0;
     }
 
     // resolve segment and write in buffer
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &key);
+    struct path_key_t path_key = state->key;
+    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
     if (map_value == NULL) {
         resolution_err = DR_ERPC_CACHE_MISS;
         goto exit;
     }
 
-    if (sizeof(map_value->parent) > buffer_size) {
+    if (sizeof(map_value->parent) > state->buffer_size) {
         // make sure we do not write outside of the provided buffer
         resolution_err = DR_ERPC_BUFFER_SIZE;
         goto exit;
     }
 
-    ret = bpf_probe_write_user((void *) userspace_buffer, &map_value->parent, sizeof(map_value->parent));
+    int ret = bpf_probe_write_user((void *) state->userspace_buffer, &map_value->parent, sizeof(map_value->parent));
     if (ret < 0) {
         resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
         goto exit;
     }
-    ret = bpf_probe_write_user((void *) userspace_buffer + offsetof(struct path_key_t, path_id), &challenge, sizeof(challenge));
+    ret = bpf_probe_write_user((void *) state->userspace_buffer + offsetof(struct path_key_t, path_id), &state->challenge, sizeof(state->challenge));
     if (ret < 0) {
         resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
         goto exit;
     }
 
 exit:
-    if (resolution_err > 0) {
-        struct bpf_map_def *erpc_stats = select_buffer(&dr_erpc_stats_fb, &dr_erpc_stats_bb, ERPC_MONITOR_KEY);
-        if (erpc_stats == NULL) {
-            return 0;
-        }
+    monitor_resolution_err(resolution_err);
+    return 0;
+}
 
-        struct dr_erpc_stats_t *stats = bpf_map_lookup_elem(erpc_stats, &resolution_err);
-        if (stats == NULL) {
-            return 0;
-        }
-        __sync_fetch_and_add(&stats->count, 1);
+int __attribute__((always_inline)) handle_dr_request(struct pt_regs *ctx, void *data, u32 dr_erpc_key) {
+    u32 key = 0;
+    struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
+    if (state == NULL) {
+        return 0;
     }
+
+    u32 resolution_err = parse_erpc_request(state, data);
+    if (resolution_err > 0) {
+        goto exit;
+    }
+
+    bpf_tail_call(ctx, &dentry_resolver_kprobe_progs, dr_erpc_key);
+
+exit:
+    monitor_resolution_err(resolution_err);
     return 0;
 }
 

@@ -28,7 +28,7 @@ var processReportedFields = []string{
 	compliance.ProcessFieldCmdLine,
 }
 
-func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Resource) (resolved, error) {
+func resolveProcess(_ context.Context, e env.Env, id string, res compliance.ResourceCommon) (resolved, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
@@ -53,6 +53,7 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 				compliance.ProcessFieldName:    mp.Name,
 				compliance.ProcessFieldExe:     mp.Exe,
 				compliance.ProcessFieldCmdLine: mp.Cmdline,
+				compliance.ProcessFieldFlags:   flagValues,
 			},
 			eval.FunctionMap{
 				compliance.ProcessFuncFlag:    processFlag(flagValues),
@@ -76,7 +77,7 @@ func processFlag(flagValues map[string]string) eval.Function {
 		if err != nil {
 			return nil, err
 		}
-		value, _ := flagValues[flag]
+		value := flagValues[flag]
 		return value, nil
 	}
 }

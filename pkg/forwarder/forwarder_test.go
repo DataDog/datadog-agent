@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -43,12 +45,12 @@ var (
 )
 
 func TestNewDefaultForwarder(t *testing.T) {
-	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomains)))
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.NumberOfWorkers)
 	require.Len(t, forwarder.domainForwarders, 1) // only one domain has keys
-	assert.Equal(t, validKeysPerDomain, forwarder.keysPerDomains)
+	assert.Equal(t, resolver.NewSingleDomainResolvers(validKeysPerDomain), forwarder.domainResolvers)
 	assert.Len(t, forwarder.domainForwarders, 1) // datadog.bar should have been dropped
 
 	assert.Equal(t, forwarder.internalState, Stopped)
@@ -73,7 +75,7 @@ func TestFeature(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	forwarder := NewDefaultForwarder(NewOptions(monoKeysDomains))
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(monoKeysDomains)))
 	err := forwarder.Start()
 	defer forwarder.Stop()
 
@@ -101,7 +103,7 @@ func TestStopWithPurgingTransaction(t *testing.T) {
 }
 
 func testStop(t *testing.T) {
-	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomains)))
 	assert.Equal(t, Stopped, forwarder.State())
 	forwarder.Stop() // this should be a noop
 	forwarder.Start()
@@ -116,7 +118,7 @@ func testStop(t *testing.T) {
 }
 
 func TestSubmitIfStopped(t *testing.T) {
-	forwarder := NewDefaultForwarder(NewOptions(monoKeysDomains))
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(monoKeysDomains)))
 
 	require.NotNil(t, forwarder)
 	require.Equal(t, Stopped, forwarder.State())
@@ -131,7 +133,7 @@ func TestSubmitIfStopped(t *testing.T) {
 }
 
 func TestCreateHTTPTransactions(t *testing.T) {
-	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	p2 := []byte("Another payload")
@@ -169,7 +171,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 }
 
 func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
-	forwarder := NewDefaultForwarder(NewOptions(keysWithMultipleDomains))
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysWithMultipleDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
@@ -202,12 +204,81 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	assert.Equal(t, txBar[0].Endpoint.Route, "/api/foo?api_key=api-key-3")
 }
 
+func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
+	resolvers := resolver.NewSingleDomainResolvers(keysWithMultipleDomains)
+	additionalResolver := resolver.NewMultiDomainResolver("datadog.vector", []string{"api-key-4"})
+	additionalResolver.RegisterAlternateDestination("diversion.domain", "diverted_name", resolver.Vector)
+	resolvers["datadog.vector"] = additionalResolver
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolvers))
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "diverted_name"}
+	p1 := []byte("A payload")
+	payloads := Payloads{&p1}
+	headers := make(http.Header)
+	headers.Set("HTTP-MAGIC", "foo")
+
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	require.Len(t, transactions, 4, "should contain 4 transactions, contains %d", len(transactions))
+
+	var txNormal, txBar, txVector []*transaction.HTTPTransaction
+	for _, t := range transactions {
+		if t.Domain == testVersionDomain {
+			txNormal = append(txNormal, t)
+		}
+		if t.Domain == "datadog.bar" {
+			txBar = append(txBar, t)
+		}
+		if t.Domain == "diversion.domain" {
+			txVector = append(txVector, t)
+		}
+	}
+
+	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
+	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
+
+	if strings.HasSuffix(txNormal[0].Endpoint.Route, "api-key-1") {
+		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-2")
+	} else {
+		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-2")
+		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-1")
+	}
+	assert.Equal(t, txBar[0].Endpoint.Route, "/api/foo?api_key=api-key-3")
+	assert.Equal(t, txVector[0].Endpoint.Route, "/api/foo?api_key=api-key-4")
+}
+
+func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
+	resolvers := make(map[string]resolver.DomainResolver)
+	r := resolver.NewMultiDomainResolver(testDomain, []string{"api-key-1"})
+	r.RegisterAlternateDestination("vector.tld", "diverted", resolver.Vector)
+	resolvers[testDomain] = r
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolvers))
+
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "no_diverted"}
+	p1 := []byte("A payload")
+	payloads := Payloads{&p1}
+	headers := make(http.Header)
+	headers.Set("HTTP-MAGIC", "foo")
+
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
+
+	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+	assert.Equal(t, transactions[0].Domain, testVersionDomain)
+
+	endpoint.Name = "diverted"
+	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
+
+	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+	assert.Equal(t, transactions[0].Domain, "vector.tld")
+}
+
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("allow_arbitrary_tags", true)
 	defer mockConfig.Set("allow_arbitrary_tags", false)
 
-	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	payload := []byte("A payload")
 	headers := make(http.Header)
@@ -218,7 +289,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 }
 
 func TestSendHTTPTransactions(t *testing.T) {
-	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
@@ -236,7 +307,7 @@ func TestSendHTTPTransactions(t *testing.T) {
 }
 
 func TestSubmitV1Intake(t *testing.T) {
-	forwarder := NewDefaultForwarder(NewOptions(monoKeysDomains))
+	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(monoKeysDomains)))
 	forwarder.Start()
 	defer forwarder.Stop()
 
@@ -267,7 +338,7 @@ func TestSubmitV1Intake(t *testing.T) {
 // per component.
 func TestForwarderEndtoEnd(t *testing.T) {
 	// reseting DroppedOnInput
-	transactionsDroppedOnInput.Set(0)
+	highPriorityQueueFull.Set(0)
 
 	requests := int64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -279,11 +350,11 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
 
-	f := NewDefaultForwarder(NewOptions(map[string][]string{
+	f := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{
 		ts.URL:     {"api_key1", "api_key2"},
 		"invalid":  {},
 		"invalid2": nil,
-	}))
+	})))
 
 	f.Start()
 	defer f.Stop()
@@ -325,9 +396,9 @@ func TestTransactionEventHandlers(t *testing.T) {
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
 
-	f := NewDefaultForwarder(NewOptions(map[string][]string{
+	f := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{
 		ts.URL: {"api_key1"},
-	}))
+	})))
 
 	_ = f.Start()
 	defer f.Stop()
@@ -337,7 +408,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -364,10 +435,10 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	requests := int64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(v1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(metadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.MetadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		if v := atomic.AddInt64(&requests, 1); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
@@ -383,9 +454,9 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
 
-	f := NewDefaultForwarder(NewOptions(map[string][]string{
+	f := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{
 		ts.URL: {"api_key1"},
-	}))
+	})))
 
 	_ = f.Start()
 	defer f.Stop()
@@ -395,7 +466,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -422,10 +493,10 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	requests := int64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(v1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(metadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.MetadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusInternalServerError)
 	})
@@ -437,9 +508,9 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
 
-	f := NewDefaultForwarder(NewOptions(map[string][]string{
+	f := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{
 		ts.URL: {"api_key1"},
-	}))
+	})))
 
 	_ = f.Start()
 	defer f.Stop()
@@ -449,7 +520,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -496,9 +567,9 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 		defaultResponseTimeout = responseTimeout
 	}()
 
-	f := NewDefaultForwarder(NewOptions(map[string][]string{
+	f := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{
 		ts.URL: {"api_key1"},
-	}))
+	})))
 
 	_ = f.Start()
 	defer f.Stop()
@@ -508,10 +579,10 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
-	responses, err := f.submitProcessLikePayload(metadataEndpoint, payload, headers, true)
+	responses, err := f.submitProcessLikePayload(endpoints.MetadataEndpoint, payload, headers, true)
 	require.NoError(t, err)
 
 	_, ok := <-responses
@@ -548,9 +619,9 @@ func TestHighPriorityTransaction(t *testing.T) {
 	flushInterval = 500 * time.Millisecond
 	defer func() { flushInterval = oldFlushInterval }()
 
-	f := NewDefaultForwarder(NewOptions(map[string][]string{
+	f := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{
 		ts.URL: {"api_key1"},
-	}))
+	})))
 
 	f.Start()
 	defer f.Stop()
@@ -576,7 +647,7 @@ func TestHighPriorityTransaction(t *testing.T) {
 }
 
 func TestCustomCompletionHandler(t *testing.T) {
-	transactionsDroppedOnInput.Set(0)
+	highPriorityQueueFull.Set(0)
 
 	// Setup a test HTTP server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -597,9 +668,9 @@ func TestCustomCompletionHandler(t *testing.T) {
 		done <- struct{}{}
 	}
 
-	options := NewOptions(map[string][]string{
+	options := NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{
 		srv.URL: {"api_key1"},
-	})
+	}))
 	options.CompletionHandler = handler
 
 	f := NewDefaultForwarder(options)

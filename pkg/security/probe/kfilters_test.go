@@ -13,9 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/hashicorp/golang-lru/simplelru"
 )
 
@@ -68,8 +68,8 @@ func TestIsParentDiscarder(t *testing.T) {
 	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
 	addRuleExpr(t, rs, `unlink.file.path =~ "/var/log/*" && unlink.file.name =~ ".*"`)
 
-	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.file.path", "/var/lib/.runc/1234"); !is {
-		t.Error("should be a parent discarder")
+	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.file.path", "/var/lib/.runc/1234"); is {
+		t.Error("shouldn't be able to find a parent discarder, due to partial evaluation: true && unlink.file.name =~ '.*'")
 	}
 
 	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
@@ -148,6 +148,20 @@ func TestIsParentDiscarder(t *testing.T) {
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.file.path", "/etc/cron.d/log"); is {
 		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
+	addRuleExpr(t, rs, `open.file.path == "/tmp/passwd"`, `open.file.path == "/tmp/secret"`)
+
+	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileOpenEventType, "open.file.path", "/tmp/runc"); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
+	addRuleExpr(t, rs, `open.file.path =~ "/run/secrets/kubernetes.io/serviceaccount/*/token"`, `open.file.path == "/etc/secret"`)
+
+	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileOpenEventType, "open.file.path", "/tmp/token"); !is {
+		t.Error("should be a parent discarder")
 	}
 }
 

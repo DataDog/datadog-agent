@@ -11,7 +11,7 @@ struct bpf_map_def SEC("maps/exec_file_cache") exec_file_cache = {
 };
 
 SEC("kprobe/security_inode_getattr")
-int kprobe__security_inode_getattr(struct pt_regs *ctx) {
+int kprobe_security_inode_getattr(struct pt_regs *ctx) {
     u64 pid;
     LOAD_CONSTANT("runtime_pid", pid);
 

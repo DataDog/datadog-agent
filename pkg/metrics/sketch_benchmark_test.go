@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/stretchr/testify/require"
 )
 
 func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
@@ -20,10 +21,11 @@ func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
 		testSketchSeries[i] = Makeseries(200)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		split.Payloads(testSketchSeries, true, split.Marshal)
+		split.Payloads(testSketchSeries, true, split.ProtoMarshalFct)
 	}
 }
 
@@ -33,10 +35,18 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 		testSketchSeries[i] = Makeseries(200)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		testSketchSeries.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		payloads, err := testSketchSeries.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		require.NoError(b, err)
+		var pb int
+		for _, p := range payloads {
+			pb += len(*p)
+		}
+		b.ReportMetric(float64(pb), "payload-bytes")
+		b.ReportMetric(float64(len(payloads)), "payloads")
 	}
 }
 

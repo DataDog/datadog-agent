@@ -182,8 +182,8 @@ func scrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 
 		mP, mFound := paths["memory"]
 		fP, fFound := paths["freezer"]
-		if !fFound || !mFound || mP != fP {
-			log.Tracef("skipping cgroup from pid: %s as it does not appear to be a container cgroup")
+		if !fFound || !mFound || mP != fP && !strings.Contains(mP, "garden.service") {
+			log.Tracef("skipping cgroup from pid: %d - does not appear to be a container: memory path: %s, freezer path: %s", pid, mP, fP)
 			continue
 		}
 

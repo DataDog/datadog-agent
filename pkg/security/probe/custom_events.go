@@ -13,9 +13,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -222,6 +222,7 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		}
 		policy.RulesLoaded = append(policy.RulesLoaded, &RuleLoaded{
 			ID:         rule.ID,
+			Version:    rule.Definition.Version,
 			Expression: rule.Definition.Expression,
 		})
 	}
@@ -238,6 +239,7 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 				}
 				policy.RulesIgnored = append(policy.RulesIgnored, &RuleIgnored{
 					ID:         rerr.Definition.ID,
+					Version:    rerr.Definition.Version,
 					Expression: rerr.Definition.Expression,
 					Reason:     rerr.Err.Error(),
 				})

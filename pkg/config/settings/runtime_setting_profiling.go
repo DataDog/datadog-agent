@@ -8,7 +8,6 @@ package settings
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -69,18 +68,20 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			site = config.Datadog.GetString("internal_profiling.profile_dd_url")
 		}
 
+		// Note that we must derive a new profiling.Settings on every
+		// invocation, as many of these settings may have changed at runtime.
 		v, _ := version.Agent()
-		err := profiling.Start(
-			site,
-			config.Datadog.GetString("env"),
-			profiling.ProfileCoreService,
-			profiling.DefaultProfilingPeriod,
-			15*time.Second,
-			profiling.GetMutexProfileFraction(),
-			profiling.GetBlockProfileRate(),
-			config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-			fmt.Sprintf("version:%v", v),
-		)
+		settings := profiling.Settings{
+			Site:                 site,
+			Env:                  config.Datadog.GetString("env"),
+			Service:              "datadog-agent",
+			Period:               profiling.DefaultProfilingPeriod,
+			MutexProfileFraction: profiling.GetMutexProfileFraction(),
+			BlockProfileRate:     profiling.GetBlockProfileRate(),
+			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+		}
+		err := profiling.Start(settings)
 		if err == nil {
 			config.Datadog.Set("internal_profiling.enabled", true)
 		}

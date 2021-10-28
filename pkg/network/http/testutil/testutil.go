@@ -41,7 +41,7 @@ func HTTPServer(t *testing.T, addr string, enableTLS bool) func() {
 	// If certPath is set we enabled TLS
 	if enableTLS {
 		curDir, _ := curDir()
-		crtPath := filepath.Join(curDir, "testdata/cert.pem")
+		crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
 		keyPath := filepath.Join(curDir, "testdata/server.key")
 		listenFn = func() { _ = srv.ListenAndServeTLS(crtPath, keyPath) }
 	}

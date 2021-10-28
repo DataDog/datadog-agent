@@ -45,13 +45,13 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 		return detectedProviders, detectedListeners
 	}
 
-	if config.IsFeaturePresent(config.Docker) {
-		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "docker", Polling: true, PollInterval: "1s"})
+	if config.IsFeaturePresent(config.Docker) || config.IsFeaturePresent(config.Containerd) {
+		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "container", Polling: true, PollInterval: "1s"})
 		if !config.IsFeaturePresent(config.Kubernetes) {
-			detectedListeners = append(detectedListeners, config.Listeners{Name: "docker"})
-			log.Info("Adding Docker listener from environment")
+			detectedListeners = append(detectedListeners, config.Listeners{Name: "container"})
+			log.Info("Adding Container listener from environment")
 		}
-		log.Info("Adding Docker provider from environment")
+		log.Info("Adding Container provider from environment")
 	}
 
 	if config.IsFeaturePresent(config.Kubernetes) {

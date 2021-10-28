@@ -44,7 +44,7 @@ type Agent struct {
 	Replacer              *filters.Replacer
 	PrioritySampler       *sampler.PrioritySampler
 	ErrorsSampler         *sampler.ErrorsSampler
-	ExceptionSampler      *sampler.ExceptionSampler
+	RareSampler           *sampler.RareSampler
 	NoPrioritySampler     *sampler.NoPrioritySampler
 	EventProcessor        *event.Processor
 	TraceWriter           *writer.TraceWriter
@@ -78,7 +78,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
 		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf),
 		ErrorsSampler:         sampler.NewErrorsSampler(conf),
-		ExceptionSampler:      sampler.NewExceptionSampler(),
+		RareSampler:           sampler.NewRareSampler(),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
 		EventProcessor:        newEventProcessor(conf),
 		TraceWriter:           writer.NewTraceWriter(conf),
@@ -165,7 +165,7 @@ func (a *Agent) loop() {
 				a.PrioritySampler,
 				a.ErrorsSampler,
 				a.NoPrioritySampler,
-				a.ExceptionSampler,
+				a.RareSampler,
 				a.EventProcessor,
 				a.OTLPReceiver,
 				a.obfuscator,
@@ -208,7 +208,7 @@ func (a *Agent) Process(p *api.Payload) {
 		root := traceutil.GetRoot(t)
 
 		if !a.Blacklister.Allows(root) {
-			log.Debugf("Trace rejected by blacklister. root: %v", root)
+			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
 			continue
@@ -365,20 +365,11 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (events []*pb.Span, keep bool) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.Root)
 
-	// Depending on the sampling priority, count that trace differently.
-	stat := &ts.TracesPriorityNone
 	if hasPriority {
-		if priority < 0 {
-			stat = &ts.TracesPriorityNeg
-		} else if priority == 0 {
-			stat = &ts.TracesPriority0
-		} else if priority == 1 {
-			stat = &ts.TracesPriority1
-		} else {
-			stat = &ts.TracesPriority2
-		}
+		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
+	} else {
+		atomic.AddInt64(&ts.TracesPriorityNone, 1)
 	}
-	atomic.AddInt64(stat, 1)
 
 	if priority < 0 {
 		return nil, false
@@ -404,7 +395,7 @@ func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) bool {
 }
 
 // samplePriorityTrace samples traces with priority set on them. PrioritySampler and
-// ErrorSampler are run in parallel. The ExceptionSampler catches traces with rare top-level
+// ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
 	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env, pt.ClientDroppedP0s) {
@@ -413,7 +404,7 @@ func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
 	if traceContainsError(pt.Trace) {
 		return a.ErrorsSampler.Sample(pt.Trace, pt.Root, pt.Env)
 	}
-	return a.ExceptionSampler.Sample(pt.Trace, pt.Root, pt.Env)
+	return a.RareSampler.Sample(pt.Trace, pt.Root, pt.Env)
 }
 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces

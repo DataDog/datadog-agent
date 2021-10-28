@@ -328,6 +328,90 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "phase tag for pod",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_pod_status_phase": {
+					{
+						Type: "*v1.Pod",
+						Name: "kube_pod_status_phase",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "pod": "redis", "phase": "Running"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: metricTransformers,
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.pod.status_phase",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "pod_name:redis", "pod_phase:Running"},
+					hostname: "",
+				},
+			},
+		},
+		{
+			name:   "phase tag for pvc",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_persistentvolumeclaim_status_phase": {
+					{
+						Type: "*v1.PersistentVolumeClaim",
+						Name: "kube_persistentvolumeclaim_status_phase",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "persistentvolumeclaim": "pvc", "phase": "Bound"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: metricTransformers,
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.persistentvolumeclaim.status",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "persistentvolumeclaim:pvc", "phase:Bound"},
+					hostname: "",
+				},
+			},
+		},
+		{
+			name:   "phase tag for ns",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_namespace_status_phase": {
+					{
+						Type: "*v1.Namespace",
+						Name: "kube_namespace_status_phase",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "phase": "Active"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: metricTransformers,
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.namespace.count",
+					val:      1,
+					tags:     []string{"phase:Active"},
+					hostname: "",
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
@@ -610,9 +694,10 @@ func TestSendTelemetry(t *testing.T) {
 
 func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	type args struct {
-		labels       map[string]string
-		metricsToGet []ksmstore.DDMetricsFam
-		clusterName  string
+		labels          map[string]string
+		lMapperOverride map[string]string
+		metricsToGet    []ksmstore.DDMetricsFam
+		clusterName     string
 	}
 	tests := []struct {
 		name         string
@@ -880,6 +965,17 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			wantTags:     []string{"foo_label:foo_value", "kube_daemon_set:foo_name"},
 			wantHostname: "",
 		},
+		{
+			name:   "labels mapper override",
+			config: &KSMConfig{},
+			args: args{
+				labels:          map[string]string{"foo_label": "foo_value"},
+				metricsToGet:    []ksmstore.DDMetricsFam{},
+				lMapperOverride: map[string]string{"foo_label": "new_foo_label"},
+			},
+			wantTags:     []string{"new_foo_label:foo_value"},
+			wantHostname: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -890,9 +986,76 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				labelJoiner.insertFamily(metricFam)
 			}
 
-			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags(tt.args.labels, labelJoiner)
+			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags(tt.args.labels, labelJoiner, tt.args.lMapperOverride)
 			assert.ElementsMatch(t, tt.wantTags, tags)
 			assert.Equal(t, tt.wantHostname, hostname)
+		})
+	}
+}
+
+func TestKSMCheck_processLabelsAsTags(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         *KSMConfig
+		expectedJoins  map[string]*JoinsConfig
+		expectedMapper map[string]string
+	}{
+		{
+			name: "Initially empty",
+			config: &KSMConfig{
+				LabelJoins:   map[string]*JoinsConfig{},
+				LabelsMapper: map[string]string{},
+				LabelsAsTags: map[string]map[string]string{
+					"pod": {"my_pod_label": "my_pod_tag"},
+				},
+			},
+			expectedJoins: map[string]*JoinsConfig{
+				"kube_pod_labels": {
+					LabelsToMatch: []string{"pod", "namespace"},
+					LabelsToGet:   []string{"label_my_pod_label"},
+				},
+			},
+			expectedMapper: map[string]string{
+				"label_my_pod_label": "my_pod_tag",
+			},
+		},
+		{
+			name: "Already initialized",
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"kube_pod_labels": {
+						LabelsToMatch: []string{"pod", "namespace"},
+						LabelsToGet:   []string{"standard_pod_label"},
+					},
+				},
+				LabelsMapper: map[string]string{},
+				LabelsAsTags: map[string]map[string]string{
+					"pod":  {"my_pod_label": "my_pod_tag"},
+					"node": {"my_node_label": "my_node_tag"},
+				},
+			},
+			expectedJoins: map[string]*JoinsConfig{
+				"kube_pod_labels": {
+					LabelsToMatch: []string{"pod", "namespace"},
+					LabelsToGet:   []string{"standard_pod_label", "label_my_pod_label"},
+				},
+				"kube_node_labels": {
+					LabelsToMatch: []string{"node"},
+					LabelsToGet:   []string{"label_my_node_label"},
+				},
+			},
+			expectedMapper: map[string]string{
+				"label_my_pod_label":  "my_pod_tag",
+				"label_my_node_label": "my_node_tag",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: tt.config}
+			k.processLabelsAsTags()
+			assert.Equal(t, tt.expectedJoins, k.instance.LabelJoins)
+			assert.Equal(t, tt.expectedMapper, k.instance.LabelsMapper)
 		})
 	}
 }

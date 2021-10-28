@@ -303,7 +303,7 @@ func (s *KubeServiceService) IsReady(context.Context) bool {
 	return true
 }
 
-// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
+// GetCheckNames returns slice of check names defined in kubernetes annotations or container labels
 // KubeServiceService doesn't implement this method
 func (s *KubeServiceService) GetCheckNames(context.Context) []string {
 	return nil

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
 type variableGetter func(ctx context.Context, key []byte, svc listeners.Service) ([]byte, error)
@@ -31,46 +32,21 @@ var templateVariables = map[string]variableGetter{
 	"kube":     getAdditionalTplVariables,
 }
 
-// SubstituteTemplateVariables replaces %%VARIABLES%% using the variableGetters passed in
-func SubstituteTemplateVariables(ctx context.Context, config *integration.Config, getters map[string]variableGetter, svc listeners.Service) error {
-	for i := 0; i < len(config.Instances); i++ {
-		vars := config.GetTemplateVariablesForInstance(i)
-		for _, v := range vars {
-			if f, found := getters[string(v.Name)]; found {
-				resolvedVar, err := f(ctx, v.Key, svc)
-				if err != nil {
-					return err
-				}
-				// init config vars are replaced by the first found
-				config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, resolvedVar, -1)
-				config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, resolvedVar, -1)
-			}
-		}
-	}
-	return nil
-}
-
-// SubstituteTemplateEnvVars replaces %%ENV_VARIABLE%% from environment variables
+// SubstituteTemplateEnvVars replaces %%ENV_VARIABLE%% from environment
+// variables in the config init, instances, and logs config.
+// When there is an error, it continues replacing. When there are multiple
+// errors, the one returned is the one that happened first.
 func SubstituteTemplateEnvVars(config *integration.Config) error {
 	var retErr error
-	for i := 0; i < len(config.Instances); i++ {
-		vars := config.GetTemplateVariablesForInstance(i)
-		for _, v := range vars {
-			if "env" == string(v.Name) {
-				resolvedVar, err := getEnvvar(v.Key)
-				if err != nil {
-					log.Warnf("variable not replaced: %s", err)
-					if retErr == nil {
-						retErr = err
-					}
-					continue
-				}
-				// init config vars are replaced by the first found
-				config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, resolvedVar, -1)
-				config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, resolvedVar, -1)
-			}
+
+	for _, toResolve := range dataToResolve(config) {
+		var err error
+		*toResolve, err = resolveDataWithEnvs(*toResolve)
+		if err != nil && retErr == nil {
+			retErr = err
 		}
 	}
+
 	return retErr
 }
 
@@ -106,14 +82,14 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		checkNames := svc.GetCheckNames(ctx)
 		lenCheckNames := len(checkNames)
 		if lenCheckNames == 0 || (lenCheckNames == 1 && checkNames[0] == "") {
-			// Empty check names on k8s annotations or docker labels override the check config from file
+			// Empty check names on k8s annotations or container labels override the check config from file
 			// Used to deactivate unneeded OOTB autodiscovery checks defined in files
 			// The checkNames slice is considered empty also if it contains one single empty string
 			return resolvedConfig, "", fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
 		}
 		for _, checkName := range checkNames {
 			if tpl.Name == checkName {
-				// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or docker labels)
+				// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or container labels)
 				return resolvedConfig, "", fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
 			}
 		}
@@ -124,7 +100,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		return resolvedConfig, "", errors.New("unable to resolve, service not ready")
 	}
 
-	if err := SubstituteTemplateVariables(ctx, &resolvedConfig, templateVariables, svc); err != nil {
+	if err := substituteTemplateVariables(ctx, &resolvedConfig, svc); err != nil {
 		return resolvedConfig, "", err
 	}
 
@@ -145,6 +121,75 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	}
 
 	return resolvedConfig, tagsHash, nil
+}
+
+// substituteTemplateVariables replaces %%VARIABLES%% in the config init,
+// instances, and logs config.
+// When there is an error, it stops processing.
+func substituteTemplateVariables(ctx context.Context, config *integration.Config, svc listeners.Service) error {
+	var err error
+
+	for _, toResolve := range dataToResolve(config) {
+		*toResolve, err = resolveDataWithTemplateVars(ctx, *toResolve, svc)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func dataToResolve(config *integration.Config) []*integration.Data {
+	res := []*integration.Data{&config.InitConfig}
+
+	for i := 0; i < len(config.Instances); i++ {
+		res = append(res, &config.Instances[i])
+	}
+
+	if config.IsLogConfig() {
+		res = append(res, &config.LogsConfig)
+	}
+
+	return res
+}
+
+func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc listeners.Service) ([]byte, error) {
+	res := append([]byte(nil), data...)
+
+	templateVars := tmplvar.Parse(data)
+	for _, tVar := range templateVars {
+		if f, found := templateVariables[string(tVar.Name)]; found {
+			resolvedVar, err := f(ctx, tVar.Key, svc)
+			if err != nil {
+				return res, err
+			}
+			res = bytes.Replace(res, tVar.Raw, resolvedVar, -1)
+		}
+	}
+
+	return res, nil
+}
+
+func resolveDataWithEnvs(data integration.Data) ([]byte, error) {
+	var retErr error
+	res := append([]byte(nil), data...)
+
+	templateVars := tmplvar.Parse(data)
+	for _, tVar := range templateVars {
+		if "env" == string(tVar.Name) {
+			resolvedVar, err := getEnvvar(tVar.Key)
+			if err != nil {
+				log.Warnf("variable not replaced: %s", err)
+				if retErr == nil {
+					retErr = err
+				}
+				continue
+			}
+			res = bytes.Replace(res, tVar.Raw, resolvedVar, -1)
+		}
+	}
+
+	return res, retErr
 }
 
 func addServiceTags(resolvedConfig *integration.Config, tags []string) error {
@@ -192,11 +237,12 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 			return host, nil
 		}
 	}
-	for k, v := range hosts {
-		if k == "bridge" {
-			return v, nil
-		}
+
+	bridgeIP, bridgeIsPresent := hosts["bridge"]
+	if bridgeIsPresent {
+		return bridgeIP, nil
 	}
+
 	return "", errors.New("not able to determine which network is reachable")
 }
 

@@ -416,8 +416,12 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(s.config.Network), nil
 	case "loader":
 		return []byte(s.config.Loader), nil
+	case "namespace":
+		return []byte(s.config.Namespace), nil
 	case "collect_device_metadata":
 		return []byte(strconv.FormatBool(s.config.CollectDeviceMetadata)), nil
+	case "use_device_id_as_hostname":
+		return []byte(strconv.FormatBool(s.config.UseDeviceIDAsHostname)), nil
 	case "tags":
 		return []byte(convertToCommaSepTags(s.config.Tags)), nil
 	case "min_collection_interval":

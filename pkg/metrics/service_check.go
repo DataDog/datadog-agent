@@ -15,10 +15,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
 
-	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
@@ -90,28 +88,6 @@ type ServiceCheck struct {
 // ServiceChecks represents a list of service checks ready to be serialize
 type ServiceChecks []*ServiceCheck
 
-// Marshal serialize service checks using agent-payload definition
-func (sc ServiceChecks) Marshal() ([]byte, error) {
-	payload := &agentpayload.ServiceChecksPayload{
-		ServiceChecks: []*agentpayload.ServiceChecksPayload_ServiceCheck{},
-		Metadata:      &agentpayload.CommonMetadata{},
-	}
-
-	for _, c := range sc {
-		payload.ServiceChecks = append(payload.ServiceChecks,
-			&agentpayload.ServiceChecksPayload_ServiceCheck{
-				Name:    c.CheckName,
-				Host:    c.Host,
-				Ts:      c.Ts,
-				Status:  int32(c.Status),
-				Message: c.Message,
-				Tags:    c.Tags,
-			})
-	}
-
-	return proto.Marshal(payload)
-}
-
 // MarshalJSON serializes service checks to JSON so it can be sent to V1 endpoints
 //FIXME(olivier): to be removed when v2 endpoints are available
 func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
@@ -163,7 +139,7 @@ func (sc ServiceChecks) MarshalStrings() ([]string, [][]string) {
 }
 
 // SplitPayload breaks the payload into times number of pieces
-func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	serviceCheckExpvar.Add("TimesSplit", 1)
 	tlmServiceCheck.Inc("times_split")
 	// only split it up as much as possible
@@ -172,7 +148,7 @@ func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 		tlmServiceCheck.Inc("shorter")
 		times = len(sc)
 	}
-	splitPayloads := make([]marshaler.Marshaler, times)
+	splitPayloads := make([]marshaler.AbstractMarshaler, times)
 	batchSize := len(sc) / times
 	n := 0
 	for i := 0; i < times; i++ {

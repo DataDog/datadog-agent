@@ -9,18 +9,17 @@ package probe
 
 import (
 	"C"
-	"bytes"
 	"fmt"
 	"strings"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/statsd"
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 import "github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -37,7 +36,7 @@ func (p *ProcessSyscall) UnmarshalBinary(data []byte) error {
 	var comm [16]byte
 	model.SliceToArray(data[0:16], unsafe.Pointer(&comm))
 
-	p.Process = string(bytes.Trim(comm[:], "\x00"))
+	p.Process, _ = model.UnmarshalString(comm[:], 16)
 	p.Pid = model.ByteOrder.Uint32(data[16:20])
 	p.ID = model.ByteOrder.Uint32(data[20:24])
 	return nil

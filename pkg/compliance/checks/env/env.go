@@ -14,6 +14,7 @@ import (
 type Env interface {
 	Clients
 	Configuration
+	RegoConfiguration
 	Reporter() event.Reporter
 }
 
@@ -22,6 +23,15 @@ type Clients interface {
 	DockerClient() DockerClient
 	AuditClient() AuditClient
 	KubeClient() KubeClient
+}
+
+// ProvidedInputMap represents the datastructure of the cmd line provided rego input
+type ProvidedInputMap map[string]interface{}
+
+// RegoConfiguration provides the rego specific configuration
+type RegoConfiguration interface {
+	ProvidedInput(ruleID string) ProvidedInputMap
+	DumpInputPath() string
 }
 
 // Configuration provides an abstraction for various environment methods used by checks
@@ -33,4 +43,5 @@ type Configuration interface {
 	RelativeToHostRoot(path string) string
 	EvaluateFromCache(e eval.Evaluatable) (interface{}, error)
 	IsLeader() bool
+	NodeLabels() map[string]string
 }

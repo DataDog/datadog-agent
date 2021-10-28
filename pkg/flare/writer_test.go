@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -91,13 +91,13 @@ log_level: info`
 		targetBuf: bufio.NewWriter(buf),
 	}
 
-	w.RegisterReplacer(log.Replacer{
+	w.RegisterReplacer(scrubber.Replacer{
 		Regex: regexp.MustCompile(`user`),
 		ReplFunc: func(s []byte) []byte {
 			return []byte("USERISREDACTEDTOO")
 		},
 	})
-	w.RegisterReplacer(log.Replacer{
+	w.RegisterReplacer(scrubber.Replacer{
 		Regex: regexp.MustCompile(`@.*\:[0-9]+`),
 		ReplFunc: func(s []byte) []byte {
 			return []byte("@foo:bar")

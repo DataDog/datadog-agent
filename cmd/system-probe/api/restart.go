@@ -14,6 +14,11 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	moduleName := config.ModuleName(vars["module-name"])
 
+	if moduleName == config.SecurityRuntimeModule {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	var target module.Factory
 	for _, f := range modules.All {
 		if f.Name == moduleName {

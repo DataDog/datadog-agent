@@ -161,6 +161,14 @@ type Warnings struct {
 	TraceMallocEnabledWithPy2 bool
 }
 
+// DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
+type DataType string
+
+const (
+	// Metrics type covers series & sketches
+	Metrics DataType = "metrics"
+)
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -221,6 +229,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Remote config
+	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
+	config.BindEnvAndSetDefault("remote_configuration.endpoint", "")
+	config.BindEnvAndSetDefault("remote_configuration.key", "")
+	config.BindEnv("remote_configuration.api_key")
+	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
+	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
+	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 60) // in seconds
+
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
@@ -229,6 +246,11 @@ func InitConfig(config Config) {
 	// The number of commits before expiring a context. The value is 2 to handle
 	// the case where a check miss to send a metric.
 	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 2)
+	// The number of seconds before removing stateful metric data after expiring a
+	// context. Default is 25h, to minimise problems for checks that emit metircs
+	// only occasionally.
+	config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
+	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
@@ -451,6 +473,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
+	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
@@ -494,6 +517,8 @@ func InitConfig(config Config) {
 	// Containerd
 	// We only support containerd in Kubernetes. By default containerd cri uses `k8s.io` https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
 	config.BindEnvAndSetDefault("containerd_namespace", "k8s.io")
+	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
@@ -540,6 +565,7 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.configs")
 	config.SetKnown("snmp_listener.loader")
 	config.SetKnown("snmp_listener.min_collection_interval")
+	config.SetKnown("snmp_listener.namespace")
 
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
@@ -690,7 +716,7 @@ func InitConfig(config Config) {
 	// Enable the agent to use files to collect container logs on standalone docker environment, containers
 	// with an existing registry offset will continue to be tailed from the docker socket unless
 	// logs_config.docker_container_force_use_file is set to true.
-	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", false)
+	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", true)
 	// Force tailing from file for all docker container, even the ones with an existing registry entry
 	config.BindEnvAndSetDefault("logs_config.docker_container_force_use_file", false)
 	// While parsing Kubernetes pod logs, use /var/log/containers to validate that
@@ -712,14 +738,23 @@ func InitConfig(config Config) {
 
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
+	config.BindEnvAndSetDefault("network_devices.namespace", "default")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
+	// The following auto_multi_line settings are experimental and may change
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
+
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
 	// including multi-line log processing rules and chunked line reaggregation.
@@ -855,6 +890,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.strip_proc_arguments")
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
+	config.SetKnown("process_config.windows.use_perf_counters")
 	config.SetKnown("process_config.additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
@@ -862,6 +898,10 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.internal_profiling.enabled")
 	config.SetKnown("process_config.remote_tagger")
+
+	// Process Discovery Check
+	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false)
+	config.BindEnvAndSetDefault("process_config.process_discovery.interval", 4*time.Hour)
 
 	// Network
 	config.BindEnv("network.id")
@@ -914,6 +954,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
+	config.BindEnvAndSetDefault("runtime_security_config.enable_remote_configuration", false)
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
@@ -922,9 +963,13 @@ func InitConfig(config Config) {
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
+	// Vector integration
+	bindVectorOptions(config, Metrics)
+
 	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
+	SetupOTLP(config)
 }
 
 var ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)
@@ -1050,6 +1095,26 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
+func findUnknownEnvVars(config Config) []string {
+	var unknownVars []string
+
+	knownVars := map[string]struct{}{}
+	for _, key := range config.GetEnvVars() {
+		knownVars[key] = struct{}{}
+	}
+
+	for _, equality := range os.Environ() {
+		key := strings.SplitN(equality, "=", 2)[0]
+		if !strings.HasPrefix(key, "DD_") {
+			continue
+		}
+		if _, known := knownVars[key]; !known {
+			unknownVars = append(unknownVars, key)
+		}
+	}
+	return unknownVars
+}
+
 func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
@@ -1073,6 +1138,10 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	for _, key := range findUnknownKeys(config) {
 		log.Warnf("Unknown key in config file: %v", key)
+	}
+
+	for _, v := range findUnknownEnvVars(config) {
+		log.Warnf("Unknown environment variable: %v", v)
 	}
 
 	if loadSecret {
@@ -1485,4 +1554,26 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 	combined = append(combined, dsdTags...)
 
 	return combined
+}
+
+func bindVectorOptions(config Config, datatype DataType) {
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
+}
+
+// GetVectorURL returns the URL under the 'vector.' prefix for the given datatype
+func GetVectorURL(datatype DataType) (string, error) {
+	if Datadog.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
+		vectorURL := Datadog.GetString(fmt.Sprintf("vector.%s.url", datatype))
+		if vectorURL == "" {
+			log.Errorf("vector.%s.enabled is set to true, but vector.%s.url is empty", datatype, datatype)
+			return "", nil
+		}
+		_, err := url.Parse(vectorURL)
+		if err != nil {
+			return "", fmt.Errorf("could not parse vector %s endpoint: %s", datatype, err)
+		}
+		return vectorURL, nil
+	}
+	return "", nil
 }
