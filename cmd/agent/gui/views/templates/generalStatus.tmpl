@@ -261,7 +261,7 @@
         {{- if .forwarderStats.FileStorage.CurrentSizeInBytes }}
         Disk usage in bytes: {{ .forwarderStats.FileStorage.CurrentSizeInBytes }}<br>
         Number of files: {{ .forwarderStats.FileStorage.FilesCount }}<br>
-        Number of files removed: {{ .forwarderStats.FileStorage.FilesRemovedCount }}<br>
+        Number of files dropped: {{ .forwarderStats.FileStorage.FilesRemovedCount }}<br>
         Deserialization errors count: {{ .forwarderStats.FileStorage.DeserializeErrorsCount }}<br>
         Outdated files removed at startup: {{ .forwarderStats.RemovalPolicy.OutdatedFilesCount }}<br>
         {{- else }}
