@@ -23,10 +23,10 @@ import (
 )
 
 const (
-	// Label keys of Docker Autodiscovery
-	newIdentifierLabel         = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel      = "com.datadoghq.sd.check.id"
-	dockerADTemplateCheckNames = "com.datadoghq.ad.check_names"
+	// Label keys of Container Autodiscovery
+	newIdentifierLabel            = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel         = "com.datadoghq.sd.check.id"
+	containerADTemplateCheckNames = "com.datadoghq.ad.check_names"
 	// Keys of standard tags
 	tagKeyEnv     = "env"
 	tagKeyVersion = "version"
@@ -70,9 +70,9 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 }
 
 // getCheckNamesFromLabels unmarshals the json string of check names
-// defined in docker labels and returns a slice of check names
+// defined in container labels and returns a slice of check names
 func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
-	if checkLabels, found := labels[dockerADTemplateCheckNames]; found {
+	if checkLabels, found := labels[containerADTemplateCheckNames]; found {
 		checkNames := []string{}
 		err := json.Unmarshal([]byte(checkLabels), &checkNames)
 		if err != nil {

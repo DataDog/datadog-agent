@@ -195,6 +195,10 @@ func getMeta(ctx context.Context, hostnameData util.HostnameData) *Meta {
 		AgentHostname:  agentHostname,
 	}
 
+	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, hostname); finalClusterName != "" {
+		m.ClusterName = finalClusterName
+	}
+
 	// Cache the metadata for use in other payload
 	key := buildKey("meta")
 	cache.Cache.Set(key, m, cache.NoExpiration)

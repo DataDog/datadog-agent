@@ -2,9 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-// +build docker
 
-package docker
+package parser
 
 import (
 	"errors"
@@ -16,7 +15,7 @@ import (
 )
 
 var dockerHeader = string([]byte{1, 0, 0, 0, 0, 0, 0, 0}) + "2018-06-14T18:27:03.246999277Z"
-var container1Parser = NewParser("container_1")
+var container1Parser = NewDockerStreamFormat("container_1")
 
 func TestGetDockerSeverity(t *testing.T) {
 	assert.Equal(t, message.StatusInfo, getDockerSeverity([]byte{1}))
@@ -26,7 +25,7 @@ func TestGetDockerSeverity(t *testing.T) {
 
 func TestDockerStandaloneParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := dockerHeader + " " + "anything"
-	parser := NewParser("container_1")
+	parser := NewDockerStreamFormat("container_1")
 	content, status, timestamp, partial, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
 	assert.False(t, partial)

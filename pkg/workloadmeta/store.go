@@ -35,9 +35,9 @@ type subscriber struct {
 	filter *Filter
 }
 
-type sourceToEntity map[string]Entity
+type sourceToEntity map[Source]Entity
 
-func (s sourceToEntity) merge(sources []string) Entity {
+func (s sourceToEntity) merge(sources []Source) Entity {
 	if len(sources) == 0 {
 		sources = s.sources()
 	}
@@ -59,14 +59,14 @@ func (s sourceToEntity) merge(sources []string) Entity {
 	return merged
 }
 
-func (s sourceToEntity) sources() []string {
-	sources := make([]string, 0, len(s))
+func (s sourceToEntity) sources() []Source {
+	sources := make([]Source, 0, len(s))
 
 	for source := range s {
 		sources = append(sources, source)
 	}
 
-	sort.Strings(sources)
+	sort.SliceStable(sources, func(i, j int) bool { return sources[i] < sources[j] })
 
 	return sources
 }
@@ -397,7 +397,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		for _, ev := range evs {
 			entityID := ev.Entity.GetID()
-			evSources, ok := filter.SelectSources([]string{ev.Source})
+			evSources, ok := filter.SelectSources([]Source{ev.Source})
 
 			if !filter.MatchKind(entityID.Kind) || !ok {
 				// event should be filtered out because it

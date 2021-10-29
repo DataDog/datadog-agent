@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,17 +48,16 @@ func BuildTransactionRetryQueue(
 	optionalDomainFolderPath string,
 	storageMaxSize int64,
 	dropPrioritySorter TransactionPrioritySorter,
-	domain string,
-	apiKeys []string) *TransactionRetryQueue {
+	resolver resolver.DomainResolver) *TransactionRetryQueue {
 	var storage TransactionSerializer
 	var err error
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
-		serializer := NewHTTPTransactionsSerializer(domain, apiKeys)
+		serializer := NewHTTPTransactionsSerializer(resolver)
 		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
 
 		diskUsageLimit := newDiskUsageLimit(optionalDomainFolderPath, filesystem.NewDisk(), storageMaxSize, diskRatio)
-		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, diskUsageLimit, newOnDiskRetryQueueTelemetry(domain))
+		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, diskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()))
 
 		// If the storage on disk cannot be used, log the error and continue.
 		// Returning `nil, err` would mean not using `TransactionRetryQueue` and so not using `forwarder_retry_queue_payloads_max_size` config.
@@ -71,7 +71,7 @@ func BuildTransactionRetryQueue(
 		storage,
 		maxMemSizeInBytes,
 		flushToStorageRatio,
-		NewTransactionRetryQueueTelemetry(domain))
+		NewTransactionRetryQueueTelemetry(resolver.GetBaseDomain()))
 }
 
 // NewTransactionRetryQueue creates a new instance of NewTransactionRetryQueue

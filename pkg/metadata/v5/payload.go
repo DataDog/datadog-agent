@@ -37,7 +37,7 @@ type MarshalledGohaiPayload struct {
 }
 
 // SplitPayload breaks the payload into times number of pieces
-func (p *Payload) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	// Metadata payloads are analyzed as a whole, so they cannot be split
 	return nil, fmt.Errorf("V5 Payload splitting is not implemented")
 }

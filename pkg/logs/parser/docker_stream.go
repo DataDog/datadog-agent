@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build docker
-
-package docker
+package parser
 
 import (
 	"bytes"
@@ -26,37 +24,37 @@ const dockerBufferSize = 16 * 1024
 // Escaped CRLF, used for determine empty messages
 var escapedCRLF = []byte{'\\', 'r', '\\', 'n'}
 
-// Parser contains the related docker container id.
-type Parser struct {
+// DockerStreamFormat parses docker log messages as provided by the log-streaming
+// API.  The format is documented at
+// https://pkg.go.dev/github.com/moby/moby/client?utm_source=godoc#Client.ContainerLogs
+type DockerStreamFormat struct {
 	containerID string
 }
 
-// NewParser create a new instance of docker parser.
-func NewParser(containerID string) *Parser {
-	return &Parser{
+// NewDockerStreamFormat create a new instance of docker parser for a specific container.  The given
+// container ID is only used to generate error messages for invalid log data.
+func NewDockerStreamFormat(containerID string) *DockerStreamFormat {
+	return &DockerStreamFormat{
 		containerID: containerID,
 	}
 }
 
-// Parse calls parse to extract the message body, status, timestamp
-// can put them in the Message
-func (p *Parser) Parse(msg []byte) ([]byte, string, string, bool, error) {
-	return parse(msg, p.containerID)
+// Parse implements Parser#Parse
+func (p *DockerStreamFormat) Parse(msg []byte) ([]byte, string, string, bool, error) {
+	return parseDockerStream(msg, p.containerID)
 }
 
-func (p *Parser) SupportsPartialLine() bool {
+// SupportsPartialLine implements Parser#SupportsPartialLine
+func (p *DockerStreamFormat) SupportsPartialLine() bool {
 	return false
 }
 
-// parse extracts the date and the status from the raw docker message
-// it returns 1. raw message 2. severity 3. timestamp, 4. is partial, 5. error
-// see https://github.com/moby/moby/blob/master/client/container_logs.go#L36
-func parse(msg []byte, containerID string) ([]byte, string, string, bool, error) {
+func parseDockerStream(msg []byte, containerID string) ([]byte, string, string, bool, error) {
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return msg, message.StatusInfo, "", false, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", ShortContainerID(containerID))
+		return msg, message.StatusInfo, "", false, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", containerID)
 	}
 
 	// Read the first byte to get the status

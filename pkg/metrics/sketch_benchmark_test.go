@@ -25,7 +25,7 @@ func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		split.Payloads(testSketchSeries, true, split.Marshal)
+		split.Payloads(testSketchSeries, true, split.ProtoMarshalFct)
 	}
 }
 

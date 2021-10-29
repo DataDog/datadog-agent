@@ -107,3 +107,18 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 }
+
+func TestBuildMetricBlocklist(t *testing.T) {
+	userProvidedBlocklist := []string{
+		"user.defined.a",
+		"user.defined.b",
+	}
+	expected := []string{
+		"user.defined.a",
+		"user.defined.b",
+		"aws.lambda.enhanced.invocations",
+	}
+	result := buildMetricBlocklist(userProvidedBlocklist)
+	assert.Equal(t, expected, result)
+
+}
