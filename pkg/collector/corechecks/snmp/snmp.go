@@ -104,7 +104,8 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	}
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
-	if rawInstance.GetNameForInstance() == "" {
+	instanceName := rawInstance.GetNameForInstance()
+	if instanceName == "" || instanceName == c.config.Namespace {
 		setNameErr := rawInstance.SetNameForInstance(c.config.DeviceID)
 		if setNameErr != nil {
 			log.Debugf("error setting device_id as name: %s", setNameErr)
