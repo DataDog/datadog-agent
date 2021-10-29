@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb/otlppb"
+	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -121,21 +123,23 @@ func TestOTLPReceiver(t *testing.T) {
 	})
 
 	t.Run("Start/http", func(t *testing.T) {
+		port := testutil.FreeTCPPort(t)
 		o := NewOTLPReceiver(nil, &config.OTLP{
 			BindHost: "localhost",
-			HTTPPort: 50052,
+			HTTPPort: port,
 		})
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
 		assert.NotNil(t, o.httpsrv)
-		assert.Equal(t, "localhost:50052", o.httpsrv.Addr)
+		assert.Equal(t, fmt.Sprintf("localhost:%d", port), o.httpsrv.Addr)
 	})
 
 	t.Run("Start/grpc", func(t *testing.T) {
+		port := testutil.FreeTCPPort(t)
 		o := NewOTLPReceiver(nil, &config.OTLP{
 			BindHost: "localhost",
-			GRPCPort: 50051,
+			GRPCPort: port,
 		})
 		o.Start()
 		defer o.Stop()
@@ -149,10 +153,11 @@ func TestOTLPReceiver(t *testing.T) {
 	})
 
 	t.Run("Start/http+grpc", func(t *testing.T) {
+		port1, port2 := testutil.FreeTCPPort(t), testutil.FreeTCPPort(t)
 		o := NewOTLPReceiver(nil, &config.OTLP{
 			BindHost: "localhost",
-			HTTPPort: 50052,
-			GRPCPort: 50051,
+			HTTPPort: port1,
+			GRPCPort: port2,
 		})
 		o.Start()
 		defer o.Stop()
