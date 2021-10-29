@@ -69,7 +69,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		podModel.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 
 		if len(tags) == 0 {
-			podModel.Tags = append(tags, extractTags(p)...)
+			podModel.Tags = extractTags(p)
 		}
 
 		// The resource version field collected from the Kubelet can't be
