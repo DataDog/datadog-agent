@@ -75,9 +75,9 @@ kitchen_test_system_probe_windows_x64:
     KITCHEN_OSVERS: "win2012r2"
     CHEF_VERSION: 14.12.9
   before_script:
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-variable --name WINDOWS_DDNPM_DRIVER --version $RELEASE_VERSION_7)
-    - export WINDOWS_DDNPM_VERSION=$(inv release.get-variable --name WINDOWS_DDNPM_VERSION --version $RELEASE_VERSION_7)
-    - export WINDOWS_DDNPM_SHASUM=$(inv release.get-variable --name WINDOWS_DDNPM_SHASUM --version $RELEASE_VERSION_7)
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_DRIVER")
+    - export WINDOWS_DDNPM_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_VERSION")
+    - export WINDOWS_DDNPM_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_SHASUM")
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh

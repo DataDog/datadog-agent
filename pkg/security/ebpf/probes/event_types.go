@@ -10,7 +10,7 @@ package probes
 import (
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
@@ -226,6 +226,21 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "linkat"}, EntryAndExit),
 		},
+
+		// selinux
+		// This needs to be best effort, as sel_write_disable is in the process to be removed
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_disable", EBPFFuncName: "kprobe_sel_write_disable"}},
+		}},
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_enforce", EBPFFuncName: "kprobe_sel_write_enforce"}},
+		}},
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_bool", EBPFFuncName: "kprobe_sel_write_bool"}},
+		}},
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_commit_bools_write", EBPFFuncName: "kprobe_sel_commit_bools_write"}},
+		}},
 	},
 
 	// List of probes to activate to capture chmod events
@@ -364,21 +379,5 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "futimesat"}, EntryAndExit|ExpandTime32),
 		},
-	},
-
-	"selinux": {
-		// This needs to be best effort, as sel_write_disable is in the process to be removed
-		&manager.BestEffort{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_disable", EBPFFuncName: "kprobe_sel_write_disable"}},
-		}},
-		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_enforce", EBPFFuncName: "kprobe_sel_write_enforce"}},
-		}},
-		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_bool", EBPFFuncName: "kprobe_sel_write_bool"}},
-		}},
-		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_commit_bools_write", EBPFFuncName: "kprobe_sel_commit_bools_write"}},
-		}},
 	},
 }

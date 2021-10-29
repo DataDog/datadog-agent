@@ -10,6 +10,7 @@ package kubelet
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -36,10 +37,33 @@ func HostnameProvider(ctx context.Context, options map[string]interface{}) (stri
 		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
 	}
 
-	clusterName := clustername.GetClusterName(ctx, nodeName)
+	clusterName, initialClusterName := getRFC1123CompliantClusterName(ctx, nodeName)
 	if clusterName == "" {
 		log.Debugf("Now using plain kubernetes nodename as an alias: no cluster name was set and none could be autodiscovered")
 		return nodeName, nil
 	}
-	return (nodeName + "-" + clusterName), nil
+	if clusterName != initialClusterName {
+		log.Debugf("hostAlias: cluster name: '%s' contains `_`, replacing it with `-` to be RFC1123 compliant", clusterName)
+	}
+	return nodeName + "-" + clusterName, nil
+}
+
+// getRFC1123CompliantClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
+// Some kubernetes cluster-names (EKS,AKS) are not RFC1123 compliant, mostly due to an `_`.
+// This function replaces the invalid `_` with a valid `-`.
+func getRFC1123CompliantClusterName(ctx context.Context, hostname string) (string, string) {
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return "", ""
+	}
+	clusterName := clustername.GetClusterName(ctx, hostname)
+	return makeClusterNameRFC1123Compliant(clusterName)
+}
+
+// makeClusterNameRFC1123Compliant returns the compliant cluster name and as the second return value the initial clusterName
+func makeClusterNameRFC1123Compliant(clusterName string) (string, string) {
+	if strings.Contains(clusterName, "_") {
+		finalName := strings.ReplaceAll(clusterName, "_", "-")
+		return finalName, clusterName
+	}
+	return clusterName, clusterName
 }

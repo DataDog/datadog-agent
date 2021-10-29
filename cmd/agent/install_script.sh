@@ -1,5 +1,5 @@
 #!/bin/bash
-# (C) Datadog, Inc. 2010-2016
+# (C) Datadog, Inc. 2010-present
 # All rights reserved
 # Licensed under Simplified BSD License (see LICENSE)
 # Datadog Agent installation script: install and set up the Agent on supported Linux distributions
@@ -268,7 +268,7 @@ fi
 
 # OS/Distro Detection
 # Try lsb_release, fallback with /etc/issue then uname command
-KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE|Rocky|AlmaLinux)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
 if [ "$DISTRIBUTION" = "Darwin" ]; then
@@ -279,7 +279,7 @@ Please use the 1-step script available at https://app.datadoghq.com/account/sett
 
 elif [ -f /etc/debian_version ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
     OS="Debian"
-elif [ -f /etc/redhat-release ] || [ "$DISTRIBUTION" == "RedHat" ] || [ "$DISTRIBUTION" == "CentOS" ] || [ "$DISTRIBUTION" == "Amazon" ]; then
+elif [ -f /etc/redhat-release ] || [ "$DISTRIBUTION" == "RedHat" ] || [ "$DISTRIBUTION" == "CentOS" ] || [ "$DISTRIBUTION" == "Amazon" ] || [ "$DISTRIBUTION" == "Rocky" ] || [ "$DISTRIBUTION" == "AlmaLinux" ]; then
     OS="RedHat"
 # Some newer distros like Amazon may not have a redhat-release file
 elif [ -f /etc/system-release ] || [ "$DISTRIBUTION" == "Amazon" ]; then
@@ -301,6 +301,10 @@ fi
 
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
+    if { [ "$DISTRIBUTION" == "Rocky" ] || [ "$DISTRIBUTION" == "AlmaLinux" ]; } && { [ -n "$agent_minor_version" ] && [ "$agent_minor_version" -lt 33 ]; } && ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+        echo -e "\033[33mA future version of Agent will support $DISTRIBUTION\n\033[0m"
+        exit;
+    fi
     echo -e "\033[34m\n* Installing YUM sources for Datadog\n\033[0m"
 
     UNAME_M=$(uname -m)
@@ -498,6 +502,34 @@ elif [ "$OS" = "SUSE" ]; then
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
   
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
+
+  # ".32" is the latest version supported for OpenSUSE < 15 and SLES < 12
+  if [ "$DISTRIBUTION" == "openSUSE" ] && [ "$SUSE_VER" -lt 15 ]; then
+      if [ -n "$agent_minor_version" ]; then
+          if [ "$agent_minor_version" -ge "33" ]; then
+              printf "\033[31mopenSUSE < 15 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              exit;
+          fi
+      else
+          if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+              echo -e "  \033[33mAgent $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              agent_minor_version=32
+          fi
+      fi
+  fi
+  if [ "$DISTRIBUTION" == "SUSE" ] && [ "$SUSE_VER" -lt 12 ]; then
+      if [ -n "$agent_minor_version" ]; then
+          if [ "$agent_minor_version" -ge "33" ]; then
+              printf "\033[31mSLES < 12 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              exit;
+          fi
+      else
+          if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+              echo -e "  \033[33mAgent $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              agent_minor_version=32
+          fi
+      fi
+  fi
 
   if [ -n "$agent_minor_version" ]; then
       # Example: datadog-agent-1:7.20.2-1

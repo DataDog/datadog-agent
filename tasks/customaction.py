@@ -10,12 +10,34 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.libs.common.color import color_message
+
 from .utils import get_version, get_version_numeric_only
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 CUSTOM_ACTION_ROOT_DIR = "tools\\windows\\install-help"
+
+
+def try_run(ctx, cmd, n):
+    """
+    Tries to run a command n number of times. If after n tries it still
+    fails, returns False.
+    """
+
+    for _ in range(n):
+        res = ctx.run(cmd, warn=True)
+        if res.exited is None or res.exited > 0:
+            print(
+                color_message(
+                    "Failed to run \"{}\" - retrying".format(cmd),
+                    "orange",
+                )
+            )
+            continue
+        return True
+    return False
 
 
 @task
@@ -60,7 +82,12 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     cmd += verprops
     print("Build Command: %s" % cmd)
 
-    ctx.run(cmd)
+    # Try to run the command 3 times to alleviate transient
+    # network failures
+    succeeded = try_run(ctx, cmd, 3)
+    if not succeeded:
+        raise Exit("Failed to build the customaction.", code=1)
+
     artefacts = [
         {"source": "customaction.dll", "target": "customaction.dll"},
         {"source": "customaction.pdb", "target": "customaction-{}.pdb".format(package_version)},

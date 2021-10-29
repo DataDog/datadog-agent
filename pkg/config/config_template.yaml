@@ -98,7 +98,7 @@ api_key:
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
 # tags:
-#   - environment:dev
+#   - team:infra
 #   - <TAG_KEY>:<TAG_VALUE>
 
 ## @param env - string - optional
@@ -255,6 +255,22 @@ api_key:
 ## created more than `forwarder_outdated_file_in_days` days ago, they are removed.
 #
 # forwarder_outdated_file_in_days: 10
+
+## @param forwarder_high_prio_buffer_size - int - optional - default: 100
+## Defines the size of the high prio buffer.
+## Increasing the buffer size can help if payload drops occur due to high prio buffer being full.
+#
+# forwarder_high_prio_buffer_size: 100
+
+## @param forwarder_low_prio_buffer_size - int - optional - default: 100
+## Defines the size of the low prio buffer.
+#
+# forwarder_low_prio_buffer_size: 100
+
+## @param forwarder_requeue_buffer_size - int - optional - default: 100
+## Defines the size of the requeue prio buffer.
+#
+# forwarder_requeue_buffer_size: 100
 
 ## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
 ## This option restricts which cloud provider endpoint will be used by the
@@ -1131,7 +1147,7 @@ api_key:
 
   ## @param process_discovery - custom object - optional
   ## Specifies custom settings for the `process_discovery` object.
-  # process_discovery
+  # process_discovery:
       ## @param enabled - boolean - optional - default: false
       ## Toggles the `process_discovery` check. If enabled, this check gathers information about possible running integrations.
       ## This check is experimental.
@@ -1958,6 +1974,64 @@ api_key:
   # listen_address: /var/vcap/data/garden/garden.sock
 
 {{ end -}}
+{{- if .ClusterAgent }}
+
+#################################
+## Cluster Agent Configuration ##
+#################################
+
+## @param cluster_agent - custom object - optional
+## Settings for the Cluster Agent.
+## See https://docs.datadoghq.com/agent/cluster_agent/
+#
+# cluster_agent:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Cluster Agent.
+  #
+  # enabled: false
+
+  ## @param auth_token - string - optional - default: ""
+  ## Auth token used to make requests to the Kubernetes API server.
+  #
+  # auth_token: ""
+
+  ## @param url - string - optional - default: ""
+  ## The Cluster Agent endpoint. There's no need to set it if "kubernetes_service_name" is set.
+  #
+  # url: ""
+
+  ## @param kubernetes_service_name - string - optional - default: "datadog-cluster-agent"
+  ## Name of the Kubernetes service for the Cluster Agent.
+  #
+  # kubernetes_service_name: "datadog-cluster-agent"
+
+  ## @param tagging_fallback - boolean - optional - default: false
+  ## Set to true to enabled fallback to local metamapper when the connection with the Cluster Agent fails.
+  #
+  # tagging_fallback: false
+
+  ## @param server - custom object - optional
+  ## Sets the connection timeouts
+  #
+  # server:
+
+      ## @param read_timeout_seconds - integer - optional - default: 2
+      ## Read timeout in seconds.
+      #
+      # read_timeout_seconds: 2
+
+      ## @param write_timeout_seconds - integer - optional - default: 2
+      ## Write timeout in seconds.
+      #
+      # write_timeout_seconds: 2
+
+      ## @param idle_timeout_seconds - integer - optional - default: 60
+      ## Idle timeout in seconds.
+      #
+      # idle_timeout_seconds: 60
+
+{{ end -}}
 {{- if .ClusterChecks }}
 
 #################################
@@ -1974,23 +2048,27 @@ api_key:
 # cluster_checks:
 
   ## @param enabled - boolean - optional - default: false
+  ## @env DD_CLUSTER_CHECKS_ENABLED - boolean - optional - default: false
   ## Set to true to enable the dispatching logic on the leader cluster-agent.
   #
   # enabled: false
 
   ## @param node_expiration_timeout - integer - optional - default: 30
+  ## @env DD_CLUSTER_CHECKS_NODE_EXPIRATION_TIMEOUT - integer - optional - default: 30
   ## Set "node_expiration_timeout" time in second after which Node-agents that have not
   ## queried the cluster-agent are deleted, and their checks re-dispatched to other nodes.
   #
   # node_expiration_timeout: 30
 
   ## @param warmup_duration - integer - optional - default: 30
+  ## @env DD_CLUSTER_CHECKS_WARMUP_DURATION - integer - optional - default: 30
   ## Set the "warmup_duration" duration in second for the cluster-agent to wait for all
   ## node-agents to report to it before dispatching configurations.
   #
   # warmup_duration: 30
 
   ## @param cluster_tag_name - string - optional - default: cluster_name
+  ## @env DD_CLUSTER_CHECKS_CLUSTER_TAG_NAME - string - optional - default: cluster_name
   ## If a cluster_name value is set or autodetected, a "<CLUSTER_NAME>" tag is added
   ## to all cluster-check configurations sent to the node-agents.
   ## Set a custom tag name here, or disable it by setting an empty name.
@@ -1998,18 +2076,21 @@ api_key:
   # cluster_tag_name: cluster_name
 
   ## @param extra_tags - list of key:value elements - optional
+  ## @env DD_CLUSTER_CHECKS_EXTRA_TAGS - list of key:value elements - optional
   ## Set a list of additionnal tags can to be added to every cluster-check configuration.
   #
   # extra_tags:
   #   - <TAG_KEY>:<TAG_VALUE>
 
   ## @param advanced_dispatching_enabled - boolean - optional - default: false
+  ## @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: false
   ## If advanced_dispatching_enabled is true the leader cluster-agent collects stats
   ## from the cluster level check runners to optimize the check dispatching logic.
   #
   # advanced_dispatching_enabled: false
 
   ## @param clc_runners_port - integer - optional - default: 5005
+  ## @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005
   ## Set the "clc_runners_port" used by the cluster-agent client to reach cluster level
   ## check runners and collect their stats.
   #
@@ -2023,6 +2104,7 @@ api_key:
 #########################
 
 ## @param container_cgroup_prefix - string - optional - default: /docker/
+## @env DD_CONTAINER_CGROUP_PREFIX - string - optional - default: /docker/
 ## On hosts with mixed workloads, non-containernized processes can
 ## mistakenly be detected as containerized. Use this parameter to
 ## tune the detection logic to your system and avoid false-positives.
@@ -2034,19 +2116,25 @@ api_key:
 ###########################
 
 ## @param docker_labels_as_tags - map - optional
+## @env DD_DOCKER_LABELS_AS_TAGS - json - optional
 ## The Agent can extract container label values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
 #
 # docker_labels_as_tags:
 #   <LABEL_NAME>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+#
+# DD_DOCKER_LABELS_AS_TAGS='{"LABEL_NAME":"tag_key"}'
 
 ## @param docker_env_as_tags - map - optional
+## @env DD_DOCKER_ENV_AS_TAGS - json - optional
 ## The Agent can extract environment variables values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
 #
 # docker_env_as_tags:
 #   <ENVVAR_NAME>: <TAG_KEY>
+#
+# DD_DOCKER_ENV_AS_TAGS='{"ENVVAR_NAME": "tag_key"}'
 
 {{ end -}}
 {{- if .KubernetesTagging }}
@@ -2056,20 +2144,26 @@ api_key:
 ###############################
 
 ## @param kubernetes_pod_labels_as_tags - map - optional
+## @env DD_KUBERNETES_POD_LABELS_AS_TAGS - json - optional
 ## The Agent can extract pod labels values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
 #
 # kubernetes_pod_labels_as_tags:
 #   <POD_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+#
+# DD_KUBERNETES_POD_LABELS_AS_TAGS='{"LABEL_NAME":"tag_key"}'
 
 ## @param kubernetes_pod_annotations_as_tags - map - optional
+## @env DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS - json - optional
 ## The Agent can extract annotations values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
 #
 # kubernetes_pod_annotations_as_tags:
 #   <ANNOTATION>: <TAG_KEY>
 #   <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
+#
+# DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS='{"ANNOTATION_NAME":"tag_key"}'
 
 ## @param kubernetes_namespace_labels_as_tags - map - optional
 ## The Agent can extract namespace label values and set them as metric tags values associated to a <TAG_KEY>.
@@ -2087,6 +2181,16 @@ api_key:
 # container_env_as_tags:
 #   <ENV>: <TAG_KEY>
 
+## @param container_labels_as_tags - map - optional
+## @env DD_CONTAINER_LABELS_AS_TAGS - map - optional
+## The Agent can extract container label values and set them as metric tags values associated to a <TAG_KEY>.
+## If you prefix your tag name with `+`, it will only be added to high cardinality metrics. (Supported container
+## runtimes: Containerd, Docker).
+#
+# container_labels_as_tags:
+#   <LABEL_NAME>: <TAG_KEY>
+#   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+
 {{ end -}}
 {{- if .ECS }}
 
@@ -2095,12 +2199,14 @@ api_key:
 ###################################
 
 ## @param ecs_agent_container_name - string - optional - default: ecs-agent
+## @env DD_ECS_AGENT_CONTAINER_NAME - string - optional - default: ecs-agent
 ## The ECS Agent container should be autodetected when running with the
 ## default (ecs-agent) name. If not, change the container name here:
 #
 # ecs_agent_container_name: ecs-agent
 
 ## @param ecs_agent_url - string - optional - default: http://localhost:51678
+## @env DD_ECS_AGENT_URL - string - optional - default: http://localhost:51678
 ## The ECS Agent container should be autodetected when running with the
 ## default (ecs-agent) name. If not, change the container name the
 ## Agent should look for with ecs_agent_container_name, or force a fixed url here:
@@ -2108,6 +2214,7 @@ api_key:
 # ecs_agent_url: http://localhost:51678
 
 ## @param ecs_collect_resource_tags_ec2 - boolean - optional - default: false
+## @env DD_ECS_COLLECT_RESOURCE_TAGS_EC2 - boolean - optional - default: false
 ## The Agent can collect resource tags from the metadata API exposed by the
 ## ECS Agent for tasks scheduled with the EC2 launch type.
 #
@@ -2131,6 +2238,7 @@ api_key:
 ###################################
 
 ## @param cri_socket_path - string - optional - default: ""
+## @env DD_CRI_SOCKET_PATH - string - optional - default: ""
 ## To activate the CRI check, indicate the path of the CRI socket you're using
 ## and mount it in the container if needed.
 ## If left empty, the CRI check is disabled.
@@ -2139,11 +2247,13 @@ api_key:
 # cri_socket_path: ""
 
 ## @param cri_connection_timeout - integer - optional - default: 5
+## @env DD_CRI_CONNECTION_TIMEOUT - integer - optional - default: 5
 ## Configure the initial connection timeout in seconds.
 #
 # cri_connection_timeout: 5
 
 ## @param cri_query_timeout - integer - optional - default: 5
+## @env DD_CRI_QUERY_TIMEOUT - integer - optional - default: 5
 ## Configure the timeout in seconds for querying the CRI.
 #
 # cri_query_timeout: 5
@@ -2156,6 +2266,7 @@ api_key:
 ##########################################
 
 ## @param cri_socket_path - string - optional - default: /var/run/containerd/containerd.sock
+## @env DD_CRI_SOCKET_PATH - string - optional - default: /var/run/containerd/containerd.sock
 ## To activate the Containerd check, indicate the path of the Containerd socket you're using
 ## and mount it in the container if needed.
 ## see: https://docs.datadoghq.com/integrations/containerd/
@@ -2163,11 +2274,13 @@ api_key:
 # cri_socket_path: /var/run/containerd/containerd.sock
 
 ## @param cri_query_timeout - integer - optional - default: 5
+## @env DD_CRI_QUERY_TIMEOUT - integer - optional - default: 5
 ## Configure the timeout in seconds for querying the Containerd API.
 #
 # cri_query_timeout: 5
 
 ## @param containerd_namespace - string - optional - default: k8s.io
+## @env DD_CONTAINERD_NAMESPACE - string - optional - default: k8s.io
 ## Activating the Containerd check also activates the CRI check, as it contains an additional subset of useful metrics.
 ## Specify here the namespace that Containerd is using on your system. As the Containerd check
 ## only supports Kubernetes, the default value is `k8s.io`
@@ -2183,34 +2296,40 @@ api_key:
 ###################################################
 
 ## @param kubernetes_kubelet_host - string - optional
+## @env DD_KUBERNETES_KUBELET_HOST - string - optional
 ## The kubelet host should be autodetected when running inside a pod.
 ## If you run into connectivity issues, set the host here according to your cluster setup.
 #
 # kubernetes_kubelet_host: <KUBLET_HOST>
 
 ## @param kubernetes_http_kubelet_port - integer - optional - default: 10255
+## @env DD_KUBERNETES_HTTP_KUBELET_PORT - integer - optional - default: 10255
 ## The kubelet http port should be autodetected when running inside a pod.
 ## If you run into connectivity issues, set the http port here according to your cluster setup.
 #
 # kubernetes_http_kubelet_port: 10255
 
 ## @param kubernetes_https_kubelet_port - integer - optional - default: 10250
+## @env DD_KUBERNETES_HTTPS_KUBELET_PORT - integer - optional - default: 10250
 ## The kubelet https port should be autodetected when running inside a pod.
 ## If you run into connectivity issues, set the https port here according to your cluster setup.
 #
 # kubernetes_https_kubelet_port: 10250
 
 ## @param kubelet_tls_verify - boolean - optional - default: true
+## @env DD_KUBELET_TLS_VERIFY - boolean - optional - default: true
 ## Set to false if you don't want the Agent to verify the kubelet's certificate when using HTTPS.
 #
 # kubelet_tls_verify: true
 
 ## @param kubelet_client_ca - string - optional - default: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+## @env DD_KUBELET_CLIENT_CA - string - optional - default: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 ## Kublet client CA file path.
 #
 # kubelet_client_ca: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
 ## @param kubelet_auth_token_path - string - optional
+## @env DD_KUBELET_AUTH_TOKEN_PATH - string - optional
 ## If authentication is needed, the Agent uses the pod's service account's
 ## credentials. If you want to use a different account, or are running the Agent
 ## on the host, set a custom token file path here.
@@ -2218,16 +2337,19 @@ api_key:
 # kubelet_auth_token_path: <TOKEN_FILE_PATH>
 
 ## @param kubelet_client_crt - string - optional
+## @env DD_KUBELET_CLIENT_CRT - string - optional
 ## Set a custom Client CRT file path.
 #
 # kubelet_client_crt: <CRT_FILE_PATH>
 
 ## @param kubelet_client_key - string - optional
+## @env DD_KUBELET_CLIENT_KEY - string - optional
 ## Set a custom Client key file path.
 #
 # kubelet_client_key: <CLIENT_KEY_FILE_PATH>
 
 ## @param kubelet_wait_on_missing_container - integer - optional - default: 0
+## @env DD_KUBELET_WAIT_ON_MISSING_CONTAINER - integer - optional - default: 0
 ## On some kubelet versions, containers can take up to a second to
 ## register in the podlist. This option allows to wait for up to a given
 ## number of seconds (in 250ms chunks) when a container does not exist in the podlist.
@@ -2235,17 +2357,20 @@ api_key:
 # kubelet_wait_on_missing_container: 0
 
 ## @param kubelet_cache_pods_duration - integer - optional - default: 5
+## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 5
 ## Polling frequency in seconds of the Agent to the kubelet "/pods" endpoint.
 #
 # kubelet_cache_pods_duration: 5
 
 ## @param kubernetes_pod_expiration_duration - integer - optional - default: 900
+## @env DD_KUBERNETES_POD_EXPIRATION_DURATION - integer - optional - default: 900
 ## Set the time in second after which the Agent ignores the pods that have exited.
 ## Set the duration to 0 to disable this filtering.
 #
 # kubernetes_pod_expiration_duration: 900
 
 ## @param kubelet_listener_polling_interval - integer - optional - default: 5
+## @env DD_KUBELET_LISTENER_POLLING_INTERVAL - integer - optional - default: 5
 ## Polling frequency in seconds at which autodiscovery will query the pod watcher to detect new pods/containers.
 ## Note that kubelet_cache_pods_duration needs to be lower than this setting, or autodiscovery will only poll more frequently the same cached data (kubelet_cache_pods_duration controls the cache refresh frequency).
 #
@@ -2259,6 +2384,7 @@ api_key:
 ####################################################
 
 ## @param kubernetes_kubeconfig_path - string - optional - default: ""
+## @env DD_KUBERNETES_KUBECONFIG_PATH - string - optional - default: ""
 ## When running in a pod, the Agent automatically uses the pod's service account
 ## to authenticate with the API server.
 ## Provide the path to a custom KubeConfig file if you wish to install the Agent out of a pod
@@ -2282,12 +2408,14 @@ api_key:
 # kubernetes_apiserver_tls_verify: true
 
 ## @param kubernetes_apiserver_use_protobuf - boolean - optional - default: false
+## @env DD_KUBERNETES_APISERVER_USE_PROTOBUF - boolean - optional - default: false
 ## By default, communication with the apiserver is in json format. Setting the following
 ## option to true allows communication in the binary protobuf format.
 #
 # kubernetes_apiserver_use_protobuf: false
 
 ## @param kubernetes_collect_metadata_tags - boolean - optional - default: true
+## @env DD_KUBERNETES_COLLECT_METADATA_TAGS - boolean - optional - default: true
 ## Set this to false to disable tag collection for the Agent.
 ## Note: In order to collect Kubernetes service names, the Agent needs certain rights.
 ## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#kubernetes
@@ -2295,16 +2423,19 @@ api_key:
 # kubernetes_collect_metadata_tags: true
 
 ## @param kubernetes_metadata_tag_update_freq - integer - optional - default: 60
+## @env DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ - integer - optional - default: 60
 ## Set how often in secons the Agent refreshes the internal mapping of services to ContainerIDs.
 #
 # kubernetes_metadata_tag_update_freq: 60
 
 ## @param kubernetes_apiserver_client_timeout - integer - optional - default: 10
+## @env DD_KUBERNETES_APISERVER_CLIENT_TIMEOUT - integer - optional - default: 10
 ## Set the timeout for the Agent when connecting to the Kubernetes API server.
 #
 # kubernetes_apiserver_client_timeout: 10
 
 ## @param collect_kubernetes_events - boolean - optional - default: false
+## @env DD_COLLECT_KUBERNETES_EVENTS - boolean - optional - default: false
 ## Set `collect_kubernetes_events` to true to enable log collection.
 ## Note: leader election must be enabled must be enabled  bellow to to collect events.
 ##       Only the leader Agent collects events.
@@ -2313,30 +2444,37 @@ api_key:
 # collect_kubernetes_events: false
 
 ## @param kubernetes_event_collection_timeout - integer - optional - default: 100
+## @env DD_KUBERNETES_EVENT_COLLECTION_TIMEOUT - integer - optional - default: 100
 ## Set the timeout between two successful event collections in milliseconds.
 #
 # kubernetes_event_collection_timeout: 100
 
 ## @param leader_election - boolean - optional - default: false
+## @env DD_LEADER_ELECTION - boolean - optional - default: false
 ## Set the parameter to true to enable leader election on this node.
 ## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#leader-election
 #
 # leader_election: false
 
 ## @param leader_lease_duration - integer - optional - default: 60
+## @env DD_LEADER_LEASE_DURATION - integer - optional - default: 60
 ## Set the leader election lease in seconds.
 #
 # leader_lease_duration: 60
 
 ## @param kubernetes_node_labels_as_tags - map - optional
+## @env DD_KUBERNETES_NODE_LABELS_AS_TAGS - json - optional
 ## Configure node labels that should be collected and their name as host tags.
 ## Note: Some of these labels are redundant with metadata collected by cloud provider crawlers (AWS, GCE, Azure)
 #
 # kubernetes_node_labels_as_tags:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
+#
+# DD_KUBERNETES_NODE_LABELS_AS_TAGS='{"NODE_LABEL": "TAG_KEY"}'
 
 ## @param cluster_name - string - optional
+## @env DD_CLUSTER_NAME - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 ## The cluster name can be up to 40 characters with the following restrictions:
 ## * Lowercase letters, numbers, and hyphens only.
@@ -2368,27 +2506,32 @@ api_key:
 # cloud_foundry_bbs:
 
   ## @param url - string - optional - default: https://bbs.service.cf.internal:8889
+  ## @env DD_CLOUD_FOUNDRY_BBS_URL - string - optional - default: https://bbs.service.cf.internal:8889
   ## URL of the BBS API.
   #
   # url: https://bbs.service.cf.internal:8889
 
   ## @param poll_interval - integer - optional - default: 15
+  ## @env DD_CLOUD_FOUNDRY_BBS_POLL_INTERVAL - integer - optional - default: 15
   ## Refresh rate of BBS API, in seconds. Values lower than 10 might influence
   ## performance of other operations in the cluster.
   #
   # poll_interval: 15
 
   ## @param ca_file - string - optional - default: ""
+  ## @env DD_CLOUD_FOUNDRY_BBS_CA_FILE - string - optional - default: ""
   ## PEM-encoded CA certificate used when connecting to the BBS API.
   #
   # ca_file: ""
 
   ## @param cert_file - string - optional - default: ""
+  ## @env DD_CLOUD_FOUNDRY_BBS_CERT_FILE - string - optional - default: ""
   ## PEM-encoded client certificate used when connecting to the BBS API.
   #
   # cert_file: ""
 
   ## @param key_file - string - optional - default: ""
+  ## @env DD_CLOUD_FOUNDRY_BBS_KEY_FILE - string - optional - default: ""
   ## PEM-encoded client key used when connecting to the BBS API.
   #
   # key_file: ""
