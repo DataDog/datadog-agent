@@ -30,6 +30,11 @@ func FormatStatus(data []byte) (string, error) {
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats) //nolint:errcheck
 	forwarderStats := stats["forwarderStats"]
+	if forwarderStatsMap, ok := forwarderStats.(map[string]interface{}); ok {
+		forwarderStatsMap["config"] = stats["config"]
+	} else {
+		log.Warn("The Forwarder status format is invalid. Some parts of the `Forwarder` section may be missing.")
+	}
 	runnerStats := stats["runnerStats"]
 	pyLoaderStats := stats["pyLoaderStats"]
 	pythonInit := stats["pythonInit"]
