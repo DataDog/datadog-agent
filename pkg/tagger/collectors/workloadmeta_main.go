@@ -11,6 +11,7 @@ import (
 	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -96,7 +97,7 @@ func (c *WorkloadMetaCollector) Stop() error {
 // workloadmeta.Store will eventually own notifying all downstream consumers,
 // this codepath should never trigger anyway.
 func (c *WorkloadMetaCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
-	return nil, nil, nil, nil
+	return nil, nil, nil, errors.NewNotFound(entity)
 }
 
 func workloadmetaFactory() Collector {
