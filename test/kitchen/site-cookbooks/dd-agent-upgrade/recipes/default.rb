@@ -75,9 +75,15 @@ if node['platform_family'] != 'windows'
     package node['dd-agent-upgrade']['package_name'] do
       action :remove
     end
-    package node['dd-agent-upgrade']['package_name'] do
-      action :install
-      version node['dd-agent-upgrade']['version']
+    # package node['dd-agent-upgrade']['package_name'] do
+    #   action :install
+    #   version node['dd-agent-upgrade']['version']
+    # end
+    execute 'install agent' do
+      command "zypper --non-interactive install --auto-agree-with-licenses #{node['dd-agent-upgrade']['package_name']}=#{node['dd-agent-upgrade']['version']}"
+
+      environment({'ZYPP_RPM_DEBUG' => '1'})
+      action :run
     end
   end
 end
