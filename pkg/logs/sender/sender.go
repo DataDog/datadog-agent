@@ -118,7 +118,6 @@ func SplitChannel(inputChan chan *message.Message, output1 chan *message.Message
 					continue
 				}
 			}
-
 		}
 	}()
 }

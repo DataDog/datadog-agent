@@ -36,26 +36,19 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 
 	senderChan := make(chan *message.Message, config.ChanSize)
 
-	var strategy sender.Strategy
-	if endpoints.UseHTTP || serverless {
-		strategy = sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", pipelineID)
-	} else {
-		strategy = sender.StreamStrategy
-	}
-
 	var mainSender *sender.Sender
 	var backupSender *sender.Sender
 
 	// If there is a backup endpoint - we are dual-shipping so we need to spawn an additional sender.
 	if backupDestinations != nil {
-		mainSenderChannel := make(chan *message.Message, config.ChanSize)
-		backupSenderChannel := make(chan *message.Message, config.ChanSize)
+		mainSenderChannel := make(chan *message.Message, config.ChanSize*2)
+		backupSenderChannel := make(chan *message.Message, config.ChanSize*2)
 		sender.SplitChannel(senderChan, mainSenderChannel, backupSenderChannel)
 
-		mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, strategy)
-		backupSender = sender.NewSender(backupSenderChannel, outputChan, backupDestinations, strategy)
+		mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
+		backupSender = sender.NewSender(backupSenderChannel, outputChan, backupDestinations, getStrategy(endpoints, serverless, pipelineID))
 	} else {
-		mainSender = sender.NewSender(senderChan, outputChan, mainDestinations, strategy)
+		mainSender = sender.NewSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
 	}
 
 	var encoder processor.Encoder
@@ -131,4 +124,12 @@ func getBackupDestinations(endpoints *config.Endpoints, destinationsContext *cli
 	}
 	backup := tcp.NewDestination(*endpoints.Backup, endpoints.UseProto, destinationsContext)
 	return client.NewDestinations(backup, []client.Destination{})
+}
+
+func getStrategy(endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
+	if endpoints.UseHTTP || serverless {
+		return sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", pipelineID)
+	} else {
+		return sender.StreamStrategy
+	}
 }
