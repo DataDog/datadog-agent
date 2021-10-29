@@ -70,17 +70,15 @@ func TestNewMap(t *testing.T) {
 				BindHost:       "bindhost",
 				TracesEnabled:  true,
 				MetricsEnabled: true,
-				Metrics: MetricsConfig{
-					DeltaTTL:      2000,
-					Quantiles:     false,
-					SendMonotonic: true,
-					ExporterConfig: MetricsExporterConfig{
-						ResourceAttributesAsTags:             true,
-						InstrumentationLibraryMetadataAsTags: true,
-					},
-					HistConfig: HistogramConfig{
-						Mode:         "counters",
-						SendCountSum: true,
+				Metrics: map[string]interface{}{
+					"delta_ttl":                                2000,
+					"report_quantiles":                         false,
+					"send_monotonic_counter":                   true,
+					"resource_attributes_as_tags":              true,
+					"instrumentation_library_metadata_as_tags": true,
+					"histograms": map[string]interface{}{
+						"mode":                   "counters",
+						"send_count_sum_metrics": true,
 					},
 				},
 			},
@@ -106,7 +104,7 @@ func TestNewMap(t *testing.T) {
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                int64(2000),
+							"delta_ttl":                                2000,
 							"report_quantiles":                         false,
 							"send_monotonic_counter":                   true,
 							"resource_attributes_as_tags":              true,
@@ -180,17 +178,15 @@ func TestNewMap(t *testing.T) {
 				TracePort:      5003,
 				BindHost:       "bindhost",
 				MetricsEnabled: true,
-				Metrics: MetricsConfig{
-					DeltaTTL:      1500,
-					Quantiles:     true,
-					SendMonotonic: false,
-					ExporterConfig: MetricsExporterConfig{
-						ResourceAttributesAsTags:             false,
-						InstrumentationLibraryMetadataAsTags: false,
-					},
-					HistConfig: HistogramConfig{
-						Mode:         "nobuckets",
-						SendCountSum: true,
+				Metrics: map[string]interface{}{
+					"delta_ttl":                                1500,
+					"report_quantiles":                         true,
+					"send_monotonic_counter":                   false,
+					"resource_attributes_as_tags":              false,
+					"instrumentation_library_metadata_as_tags": false,
+					"histograms": map[string]interface{}{
+						"mode":                   "nobuckets",
+						"send_count_sum_metrics": true,
 					},
 				},
 			},
@@ -210,7 +206,7 @@ func TestNewMap(t *testing.T) {
 				"exporters": map[string]interface{}{
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                int64(1500),
+							"delta_ttl":                                1500,
 							"report_quantiles":                         true,
 							"send_monotonic_counter":                   false,
 							"resource_attributes_as_tags":              false,
@@ -254,17 +250,15 @@ func TestUnmarshal(t *testing.T) {
 		BindHost:       "localhost",
 		MetricsEnabled: true,
 		TracesEnabled:  true,
-		Metrics: MetricsConfig{
-			DeltaTTL:      2000,
-			Quantiles:     false,
-			SendMonotonic: true,
-			ExporterConfig: MetricsExporterConfig{
-				ResourceAttributesAsTags:             true,
-				InstrumentationLibraryMetadataAsTags: true,
-			},
-			HistConfig: HistogramConfig{
-				Mode:         "counters",
-				SendCountSum: true,
+		Metrics: map[string]interface{}{
+			"delta_ttl":                                2000,
+			"report_quantiles":                         false,
+			"send_monotonic_counter":                   true,
+			"resource_attributes_as_tags":              true,
+			"instrumentation_library_metadata_as_tags": true,
+			"histograms": map[string]interface{}{
+				"mode":                   "counters",
+				"send_count_sum_metrics": true,
 			},
 		},
 	})

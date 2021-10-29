@@ -33,19 +33,7 @@ func TestStartPipeline(t *testing.T) {
 		TracePort:      5003,
 		MetricsEnabled: true,
 		TracesEnabled:  true,
-		Metrics: MetricsConfig{
-			DeltaTTL:      3600,
-			Quantiles:     true,
-			SendMonotonic: false,
-			ExporterConfig: MetricsExporterConfig{
-				ResourceAttributesAsTags:             false,
-				InstrumentationLibraryMetadataAsTags: false,
-			},
-			HistConfig: HistogramConfig{
-				Mode:         "distributions",
-				SendCountSum: false,
-			},
-		},
+		Metrics:        map[string]interface{}{},
 	}
 
 	p, err := NewPipeline(pcfg, &serializer.MockSerializer{})

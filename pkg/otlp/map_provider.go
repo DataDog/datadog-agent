@@ -84,38 +84,8 @@ func newMetricsMapProvider(cfg PipelineConfig) parserprovider.MapProvider {
 	configMap := config.NewMap()
 
 	configMap.Set(
-		buildKey("exporters", "serializer", "metrics", "delta_ttl"),
-		cfg.Metrics.DeltaTTL,
-	)
-
-	configMap.Set(
-		buildKey("exporters", "serializer", "metrics", "send_monotonic_counter"),
-		cfg.Metrics.SendMonotonic,
-	)
-
-	configMap.Set(
-		buildKey("exporters", "serializer", "metrics", "report_quantiles"),
-		cfg.Metrics.Quantiles,
-	)
-
-	configMap.Set(
-		buildKey("exporters", "serializer", "metrics", "resource_attributes_as_tags"),
-		cfg.Metrics.ExporterConfig.ResourceAttributesAsTags,
-	)
-
-	configMap.Set(
-		buildKey("exporters", "serializer", "metrics", "instrumentation_library_metadata_as_tags"),
-		cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags,
-	)
-
-	configMap.Set(
-		buildKey("exporters", "serializer", "metrics", "histograms", "mode"),
-		cfg.Metrics.HistConfig.Mode,
-	)
-
-	configMap.Set(
-		buildKey("exporters", "serializer", "metrics", "histograms", "send_count_sum_metrics"),
-		cfg.Metrics.HistConfig.SendCountSum,
+		buildKey("exporters", "serializer", "metrics"),
+		cfg.Metrics,
 	)
 
 	return parserprovider.NewMergeMapProvider(

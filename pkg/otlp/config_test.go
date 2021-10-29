@@ -85,19 +85,7 @@ func TestFromAgentConfig(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
-				Metrics: MetricsConfig{
-					DeltaTTL:      3600,
-					Quantiles:     true,
-					SendMonotonic: false,
-					ExporterConfig: MetricsExporterConfig{
-						ResourceAttributesAsTags:             false,
-						InstrumentationLibraryMetadataAsTags: false,
-					},
-					HistConfig: HistogramConfig{
-						Mode:         "distributions",
-						SendCountSum: false,
-					},
-				},
+				Metrics:        map[string]interface{}{},
 			},
 		},
 		{
@@ -110,19 +98,7 @@ func TestFromAgentConfig(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
-				Metrics: MetricsConfig{
-					DeltaTTL:      3600,
-					Quantiles:     true,
-					SendMonotonic: false,
-					ExporterConfig: MetricsExporterConfig{
-						ResourceAttributesAsTags:             false,
-						InstrumentationLibraryMetadataAsTags: false,
-					},
-					HistConfig: HistogramConfig{
-						Mode:         "distributions",
-						SendCountSum: false,
-					},
-				},
+				Metrics:        map[string]interface{}{},
 			},
 		},
 		{
@@ -146,19 +122,7 @@ func TestFromAgentConfig(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
-				Metrics: MetricsConfig{
-					DeltaTTL:      3600,
-					Quantiles:     true,
-					SendMonotonic: false,
-					ExporterConfig: MetricsExporterConfig{
-						ResourceAttributesAsTags:             false,
-						InstrumentationLibraryMetadataAsTags: false,
-					},
-					HistConfig: HistogramConfig{
-						Mode:         "distributions",
-						SendCountSum: false,
-					},
-				},
+				Metrics:        map[string]interface{}{},
 			},
 		},
 		{
@@ -171,17 +135,15 @@ func TestFromAgentConfig(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
-				Metrics: MetricsConfig{
-					DeltaTTL:      2400,
-					Quantiles:     false,
-					SendMonotonic: true,
-					ExporterConfig: MetricsExporterConfig{
-						ResourceAttributesAsTags:             true,
-						InstrumentationLibraryMetadataAsTags: true,
-					},
-					HistConfig: HistogramConfig{
-						Mode:         "counters",
-						SendCountSum: true,
+				Metrics: map[string]interface{}{
+					"delta_ttl":                                2400,
+					"report_quantiles":                         false,
+					"send_monotonic_counter":                   true,
+					"resource_attributes_as_tags":              true,
+					"instrumentation_library_metadata_as_tags": true,
+					"histograms": map[string]interface{}{
+						"mode":                   "counters",
+						"send_count_sum_metrics": true,
 					},
 				},
 			},

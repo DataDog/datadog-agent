@@ -94,55 +94,7 @@ type PipelineConfig struct {
 	TracesEnabled bool
 
 	// Metrics contains configuration options for the serializer metrics exporter
-	Metrics MetricsConfig
-}
-
-// MetricsConfig defines the metrics exporter specific configuration options
-type MetricsConfig struct {
-	// Quantiles states whether to report quantiles from summary metrics.
-	// By default, the minimum, maximum and average are reported.
-	Quantiles bool
-
-	// SendMonotonic states whether to report cumulative monotonic metrics as counters
-	// or gauges
-	SendMonotonic bool
-
-	// DeltaTTL defines the time that previous points of a cumulative monotonic
-	// metric are kept in memory to calculate deltas
-	DeltaTTL int64
-
-	ExporterConfig MetricsExporterConfig
-
-	// HistConfig defines the export of OTLP Histograms.
-	HistConfig HistogramConfig
-}
-
-// MetricsExporterConfig provides options for a user to customize the behavior of the
-// metrics exporter
-type MetricsExporterConfig struct {
-	// ResourceAttributesAsTags, if set to true, will use the exporterhelper feature to transform all
-	// resource attributes into metric labels, which are then converted into tags
-	ResourceAttributesAsTags bool
-
-	// InstrumentationLibraryMetadataAsTags, if set to true, adds the name and version of the
-	// instrumentation library that created a metric to the metric tags
-	InstrumentationLibraryMetadataAsTags bool
-}
-
-// HistogramConfig customizes export of OTLP Histograms.
-type HistogramConfig struct {
-	// Mode for exporting histograms. Valid values are 'distributions', 'counters' or 'nobuckets'.
-	//  - 'distributions' sends histograms as Datadog distributions (recommended).
-	//  - 'counters' sends histograms as Datadog counts, one metric per bucket.
-	//  - 'nobuckets' sends no bucket histogram metrics. .sum and .count metrics will still be sent
-	//    if `send_count_sum_metrics` is enabled.
-	//
-	// The current default is 'distributions'.
-	Mode string
-
-	// SendCountSum states if the export should send .sum and .count metrics for histograms.
-	// The current default is false.
-	SendCountSum bool
+	Metrics map[string]interface{}
 }
 
 // Pipeline is an OTLP pipeline.

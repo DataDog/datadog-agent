@@ -57,9 +57,17 @@ type exporter struct {
 }
 
 func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.Translator, error) {
+	histogramMode := translator.HistogramMode(cfg.Metrics.HistConfig.Mode)
+	switch histogramMode {
+	case translator.HistogramModeCounters, translator.HistogramModeNoBuckets, translator.HistogramModeDistributions:
+		// Do nothing
+	default:
+		return nil, fmt.Errorf("invalid `mode` %s", cfg.Metrics.HistConfig.Mode)
+	}
+
 	options := []translator.Option{
 		translator.WithFallbackHostnameProvider(hostnameProviderFunc(util.GetHostname)),
-		translator.WithHistogramMode(translator.HistogramMode(cfg.Metrics.HistConfig.Mode)),
+		translator.WithHistogramMode(histogramMode),
 		translator.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}
 
