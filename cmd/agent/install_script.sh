@@ -302,7 +302,7 @@ fi
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
     if { [ "$DISTRIBUTION" == "Rocky" ] || [ "$DISTRIBUTION" == "AlmaLinux" ]; } && { [ -n "$agent_minor_version" ] && [ "$agent_minor_version" -lt 33 ]; } && ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
-        echo -e "\033[33mOnly Agent >= $agent_major_version.33 is supported on $DISTRIBUTION\n\033[0m"
+        echo -e "\033[33mA future version of Agent will support $DISTRIBUTION\n\033[0m"
         exit;
     fi
     echo -e "\033[34m\n* Installing YUM sources for Datadog\n\033[0m"
