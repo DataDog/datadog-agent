@@ -103,16 +103,17 @@ func shouldStopSending(err error) bool {
 func SplitChannel(inputChan chan *message.Message, output1 chan *message.Message, output2 chan *message.Message) {
 	go func() {
 		for v := range inputChan {
+			copy := *v
 			select {
 			case output1 <- v:
 				select {
-				case output2 <- v:
+				case output2 <- &copy:
 				default:
 					continue
 				}
 			case output2 <- v:
 				select {
-				case output1 <- v:
+				case output1 <- &copy:
 				default:
 					continue
 				}
