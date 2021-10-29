@@ -46,11 +46,11 @@ func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 	}
 
 	if err := rule.Parse(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parsing error: %v", err)
 	}
 
 	if err := rule.GenEvaluator(model, opts); err != nil {
-		return rule, err
+		return rule, fmt.Errorf("compilation error: %v", err)
 	}
 
 	return rule, nil

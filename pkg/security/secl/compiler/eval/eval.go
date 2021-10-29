@@ -189,7 +189,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *state) (interface{}, 
 	if len(array.Numbers) != 0 {
 		var evaluator IntArrayEvaluator
 		evaluator.AppendMembers(array.Numbers...)
-		return evaluator, array.Pos, nil
+		return &evaluator, array.Pos, nil
 	} else if len(array.StringMembers) != 0 {
 		var evaluator StringArrayEvaluator
 		if err := evaluator.AppendMembers(array.StringMembers...); err != nil {
@@ -417,7 +417,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
-					return nil, pos, NewTypeError(pos, reflect.Array)
+					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.Bool)
 				}
 			case *StringEvaluator:
 				switch nextString := next.(type) {
@@ -431,7 +431,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
-					return nil, pos, NewTypeError(pos, reflect.Array)
+					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.String)
 				}
 			case *StringArrayEvaluator:
 				switch nextStringArray := next.(type) {
@@ -445,7 +445,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
-					return nil, pos, NewTypeError(pos, reflect.Array)
+					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.String)
 				}
 			case *IntEvaluator:
 				switch nextInt := next.(type) {
@@ -459,7 +459,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
-					return nil, pos, NewTypeError(pos, reflect.Array)
+					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.Int)
 				}
 			case *IntArrayEvaluator:
 				switch nextIntArray := next.(type) {
@@ -473,7 +473,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
-					return nil, pos, NewTypeError(pos, reflect.Array)
+					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.Int)
 				}
 			default:
 				return nil, pos, NewTypeError(pos, reflect.Array)
