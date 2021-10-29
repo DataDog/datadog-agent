@@ -129,7 +129,6 @@ func getBackupDestinations(endpoints *config.Endpoints, destinationsContext *cli
 func getStrategy(endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		return sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", pipelineID)
-	} else {
-		return sender.StreamStrategy
 	}
+	return sender.StreamStrategy
 }
