@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package pb;
+
+import "span.proto";
+
+message TraceChunk {
+	int32 priority = 1;
+	string origin = 2;
+	repeated Span spans = 3;
+	map<string, string> tags = 4;
+	bool droppedTrace = 5;
+}
+
+message TracerPayload {
+	string containerID = 1;
+	string languageName = 2;
+	string languageVersion = 3;
+	string tracerVersion = 4;
+	string runtimeID = 5;
+	repeated TraceChunk chunks = 6;
+	map<string, string> tags = 7;
+	string env = 8;
+	string appVersion = 9;
+}

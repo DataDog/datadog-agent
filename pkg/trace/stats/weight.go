@@ -20,20 +20,26 @@ type WeightedSpan struct {
 }
 
 // WeightedTrace is a slice of WeightedSpan pointers.
-type WeightedTrace []*WeightedSpan
+type WeightedTrace struct {
+	Origin string
+	Spans  []*WeightedSpan
+}
 
 // NewWeightedTrace returns a weighted trace, with coefficient required by the concentrator.
-func NewWeightedTrace(trace pb.Trace, root *pb.Span) WeightedTrace {
-	wt := make(WeightedTrace, len(trace))
+func NewWeightedTrace(trace *pb.TraceChunk, root *pb.Span) WeightedTrace {
+	wt := WeightedTrace{
+		Origin: trace.Origin,
+		Spans:  make([]*WeightedSpan, len(trace.Spans)),
+	}
 
 	weight := Weight(root)
 
-	for i := range trace {
-		wt[i] = &WeightedSpan{
-			Span:     trace[i],
+	for i := range trace.Spans {
+		wt.Spans[i] = &WeightedSpan{
+			Span:     trace.Spans[i],
 			Weight:   weight,
-			TopLevel: traceutil.HasTopLevel(trace[i]),
-			Measured: traceutil.IsMeasured(trace[i]),
+			TopLevel: traceutil.HasTopLevel(trace.Spans[i]),
+			Measured: traceutil.IsMeasured(trace.Spans[i]),
 		}
 	}
 	return wt

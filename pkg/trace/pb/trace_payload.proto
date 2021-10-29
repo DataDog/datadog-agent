@@ -1,13 +1,15 @@
+// protoc -I. -I$GOPATH/src --gogofaster_out=. span.proto tracer_payload.proto trace_payload.proto
+
 syntax = "proto3";
 
 package pb;
 
-import "trace.proto";
-import "span.proto";
+import "tracer_payload.proto";
 
 message TracePayload {
         string hostName = 1;
         string env = 2;
-        repeated APITrace traces = 3;
-        repeated Span transactions = 4;
+        repeated TracerPayload tracerPayloads = 5;
+        map<string, string> tags = 6;
+        string agentVersion = 7;
 }

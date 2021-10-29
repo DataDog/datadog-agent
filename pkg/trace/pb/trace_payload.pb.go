@@ -20,10 +20,11 @@ var _ = fmt.Errorf
 var _ = math.Inf
 
 type TracePayload struct {
-	HostName     string      `protobuf:"bytes,1,opt,name=hostName,proto3" json:"hostName,omitempty"`
-	Env          string      `protobuf:"bytes,2,opt,name=env,proto3" json:"env,omitempty"`
-	Traces       []*APITrace `protobuf:"bytes,3,rep,name=traces" json:"traces,omitempty"`
-	Transactions []*Span     `protobuf:"bytes,4,rep,name=transactions" json:"transactions,omitempty"`
+	HostName       string            `protobuf:"bytes,1,opt,name=hostName,proto3" json:"hostName,omitempty"`
+	Env            string            `protobuf:"bytes,2,opt,name=env,proto3" json:"env,omitempty"`
+	TracerPayloads []*TracerPayload  `protobuf:"bytes,5,rep,name=tracerPayloads" json:"tracerPayloads,omitempty"`
+	Tags           map[string]string `protobuf:"bytes,6,rep,name=tags" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	AgentVersion   string            `protobuf:"bytes,7,opt,name=agentVersion,proto3" json:"agentVersion,omitempty"`
 }
 
 func (m *TracePayload) Reset()                    { *m = TracePayload{} }
@@ -31,22 +32,22 @@ func (m *TracePayload) String() string            { return proto.CompactTextStri
 func (*TracePayload) ProtoMessage()               {}
 func (*TracePayload) Descriptor() ([]byte, []int) { return fileDescriptorTracePayload, []int{0} }
 
-func (m *TracePayload) GetTraces() []*APITrace {
+func (m *TracePayload) GetTracerPayloads() []*TracerPayload {
 	if m != nil {
-		return m.Traces
+		return m.TracerPayloads
 	}
 	return nil
 }
 
-func (m *TracePayload) GetTransactions() []*Span {
+func (m *TracePayload) GetTags() map[string]string {
 	if m != nil {
-		return m.Transactions
+		return m.Tags
 	}
 	return nil
 }
 
 func init() {
-	proto.RegisterType((*TracePayload)(nil), "model.TracePayload")
+	proto.RegisterType((*TracePayload)(nil), "pb.TracePayload")
 }
 func (m *TracePayload) Marshal() (data []byte, err error) {
 	size := m.Size()
@@ -75,9 +76,9 @@ func (m *TracePayload) MarshalTo(data []byte) (int, error) {
 		i = encodeVarintTracePayload(data, i, uint64(len(m.Env)))
 		i += copy(data[i:], m.Env)
 	}
-	if len(m.Traces) > 0 {
-		for _, msg := range m.Traces {
-			data[i] = 0x1a
+	if len(m.TracerPayloads) > 0 {
+		for _, msg := range m.TracerPayloads {
+			data[i] = 0x2a
 			i++
 			i = encodeVarintTracePayload(data, i, uint64(msg.Size()))
 			n, err := msg.MarshalTo(data[i:])
@@ -87,17 +88,28 @@ func (m *TracePayload) MarshalTo(data []byte) (int, error) {
 			i += n
 		}
 	}
-	if len(m.Transactions) > 0 {
-		for _, msg := range m.Transactions {
-			data[i] = 0x22
+	if len(m.Tags) > 0 {
+		for k := range m.Tags {
+			data[i] = 0x32
 			i++
-			i = encodeVarintTracePayload(data, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(data[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
+			v := m.Tags[k]
+			mapSize := 1 + len(k) + sovTracePayload(uint64(len(k))) + 1 + len(v) + sovTracePayload(uint64(len(v)))
+			i = encodeVarintTracePayload(data, i, uint64(mapSize))
+			data[i] = 0xa
+			i++
+			i = encodeVarintTracePayload(data, i, uint64(len(k)))
+			i += copy(data[i:], k)
+			data[i] = 0x12
+			i++
+			i = encodeVarintTracePayload(data, i, uint64(len(v)))
+			i += copy(data[i:], v)
 		}
+	}
+	if len(m.AgentVersion) > 0 {
+		data[i] = 0x3a
+		i++
+		i = encodeVarintTracePayload(data, i, uint64(len(m.AgentVersion)))
+		i += copy(data[i:], m.AgentVersion)
 	}
 	return i, nil
 }
@@ -140,17 +152,23 @@ func (m *TracePayload) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovTracePayload(uint64(l))
 	}
-	if len(m.Traces) > 0 {
-		for _, e := range m.Traces {
+	if len(m.TracerPayloads) > 0 {
+		for _, e := range m.TracerPayloads {
 			l = e.Size()
 			n += 1 + l + sovTracePayload(uint64(l))
 		}
 	}
-	if len(m.Transactions) > 0 {
-		for _, e := range m.Transactions {
-			l = e.Size()
-			n += 1 + l + sovTracePayload(uint64(l))
+	if len(m.Tags) > 0 {
+		for k, v := range m.Tags {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovTracePayload(uint64(len(k))) + 1 + len(v) + sovTracePayload(uint64(len(v)))
+			n += mapEntrySize + 1 + sovTracePayload(uint64(mapEntrySize))
 		}
+	}
+	l = len(m.AgentVersion)
+	if l > 0 {
+		n += 1 + l + sovTracePayload(uint64(l))
 	}
 	return n
 }
@@ -255,9 +273,9 @@ func (m *TracePayload) Unmarshal(data []byte) error {
 			}
 			m.Env = string(data[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 3:
+		case 5:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Traces", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field TracerPayloads", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -281,14 +299,14 @@ func (m *TracePayload) Unmarshal(data []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Traces = append(m.Traces, &APITrace{})
-			if err := m.Traces[len(m.Traces)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
+			m.TracerPayloads = append(m.TracerPayloads, &TracerPayload{})
+			if err := m.TracerPayloads[len(m.TracerPayloads)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
-		case 4:
+		case 6:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Transactions", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Tags", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -312,10 +330,124 @@ func (m *TracePayload) Unmarshal(data []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Transactions = append(m.Transactions, &Span{})
-			if err := m.Transactions[len(m.Transactions)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
-				return err
+			var keykey uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTracePayload
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				keykey |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
 			}
+			var stringLenmapkey uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTracePayload
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				stringLenmapkey |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLenmapkey := int(stringLenmapkey)
+			if intStringLenmapkey < 0 {
+				return ErrInvalidLengthTracePayload
+			}
+			postStringIndexmapkey := iNdEx + intStringLenmapkey
+			if postStringIndexmapkey > l {
+				return io.ErrUnexpectedEOF
+			}
+			mapkey := string(data[iNdEx:postStringIndexmapkey])
+			iNdEx = postStringIndexmapkey
+			if m.Tags == nil {
+				m.Tags = make(map[string]string)
+			}
+			if iNdEx < postIndex {
+				var valuekey uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowTracePayload
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := data[iNdEx]
+					iNdEx++
+					valuekey |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				var stringLenmapvalue uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowTracePayload
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := data[iNdEx]
+					iNdEx++
+					stringLenmapvalue |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				intStringLenmapvalue := int(stringLenmapvalue)
+				if intStringLenmapvalue < 0 {
+					return ErrInvalidLengthTracePayload
+				}
+				postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+				if postStringIndexmapvalue > l {
+					return io.ErrUnexpectedEOF
+				}
+				mapvalue := string(data[iNdEx:postStringIndexmapvalue])
+				iNdEx = postStringIndexmapvalue
+				m.Tags[mapkey] = mapvalue
+			} else {
+				var mapvalue string
+				m.Tags[mapkey] = mapvalue
+			}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AgentVersion", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTracePayload
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTracePayload
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AgentVersion = string(data[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -446,17 +578,20 @@ var (
 func init() { proto.RegisterFile("trace_payload.proto", fileDescriptorTracePayload) }
 
 var fileDescriptorTracePayload = []byte{
-	// 192 bytes of a gzipped FileDescriptorProto
+	// 236 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x12, 0x2e, 0x29, 0x4a, 0x4c,
 	0x4e, 0x8d, 0x2f, 0x48, 0xac, 0xcc, 0xc9, 0x4f, 0x4c, 0xd1, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17,
-	0x62, 0xcd, 0xcd, 0x4f, 0x49, 0xcd, 0x91, 0xe2, 0x06, 0xcb, 0x41, 0xc4, 0xa4, 0xb8, 0x8a, 0x0b,
-	0x12, 0xf3, 0x20, 0x6c, 0xa5, 0x69, 0x8c, 0x5c, 0x3c, 0x21, 0x20, 0xb9, 0x00, 0x88, 0x36, 0x21,
-	0x29, 0x2e, 0x8e, 0x8c, 0xfc, 0xe2, 0x12, 0xbf, 0xc4, 0xdc, 0x54, 0x09, 0x46, 0x05, 0x46, 0x0d,
-	0xce, 0x20, 0x38, 0x5f, 0x48, 0x80, 0x8b, 0x39, 0x35, 0xaf, 0x4c, 0x82, 0x09, 0x2c, 0x0c, 0x62,
-	0x0a, 0xa9, 0x73, 0xb1, 0x81, 0x4d, 0x2e, 0x96, 0x60, 0x56, 0x60, 0xd6, 0xe0, 0x36, 0xe2, 0xd7,
-	0x03, 0xdb, 0xa7, 0xe7, 0x18, 0xe0, 0x09, 0x36, 0x35, 0x08, 0x2a, 0x2d, 0xa4, 0xcf, 0xc5, 0x53,
-	0x52, 0x94, 0x98, 0x57, 0x9c, 0x98, 0x5c, 0x92, 0x99, 0x9f, 0x57, 0x2c, 0xc1, 0x02, 0x56, 0xce,
-	0x0d, 0x55, 0x1e, 0x5c, 0x90, 0x98, 0x17, 0x84, 0xa2, 0xc0, 0x49, 0xe0, 0xc4, 0x23, 0x39, 0xc6,
-	0x0b, 0x8f, 0xe4, 0x18, 0x1f, 0x3c, 0x92, 0x63, 0x9c, 0xf0, 0x58, 0x8e, 0x21, 0x89, 0x0d, 0xec,
-	0x62, 0x63, 0x40, 0x00, 0x00, 0x00, 0xff, 0xff, 0x5f, 0xc9, 0x04, 0x9e, 0xe8, 0x00, 0x00, 0x00,
+	0x62, 0x2a, 0x48, 0x92, 0x12, 0x01, 0x4b, 0x14, 0xa1, 0xca, 0x28, 0xb5, 0x30, 0x71, 0xf1, 0x84,
+	0x80, 0x24, 0x02, 0x20, 0xc2, 0x42, 0x52, 0x5c, 0x1c, 0x19, 0xf9, 0xc5, 0x25, 0x7e, 0x89, 0xb9,
+	0xa9, 0x12, 0x8c, 0x0a, 0x8c, 0x1a, 0x9c, 0x41, 0x70, 0xbe, 0x90, 0x00, 0x17, 0x73, 0x6a, 0x5e,
+	0x99, 0x04, 0x13, 0x58, 0x18, 0xc4, 0x14, 0xb2, 0xe4, 0xe2, 0x83, 0x18, 0x0b, 0xd5, 0x5e, 0x2c,
+	0xc1, 0xaa, 0xc0, 0xac, 0xc1, 0x6d, 0x24, 0xa8, 0x57, 0x90, 0xa4, 0x17, 0x82, 0x2c, 0x13, 0x84,
+	0xa6, 0x50, 0x48, 0x8f, 0x8b, 0xa5, 0x24, 0x31, 0xbd, 0x58, 0x82, 0x0d, 0xac, 0x41, 0x0a, 0xae,
+	0x01, 0xaa, 0x40, 0x2f, 0x24, 0x31, 0xbd, 0xd8, 0x35, 0xaf, 0xa4, 0xa8, 0x32, 0x08, 0xac, 0x4e,
+	0x48, 0x89, 0x8b, 0x27, 0x31, 0x3d, 0x35, 0xaf, 0x24, 0x2c, 0xb5, 0xa8, 0x38, 0x33, 0x3f, 0x4f,
+	0x82, 0x1d, 0xec, 0x0a, 0x14, 0x31, 0x29, 0x73, 0x2e, 0x4e, 0xb8, 0x36, 0x90, 0x6b, 0xb3, 0x53,
+	0x2b, 0xa1, 0x9e, 0x00, 0x31, 0x85, 0x44, 0xb8, 0x58, 0xcb, 0x12, 0x73, 0x4a, 0x53, 0xa1, 0x3e,
+	0x80, 0x70, 0xac, 0x98, 0x2c, 0x18, 0x9d, 0x04, 0x4e, 0x3c, 0x92, 0x63, 0xbc, 0xf0, 0x48, 0x8e,
+	0xf1, 0xc1, 0x23, 0x39, 0xc6, 0x09, 0x8f, 0xe5, 0x18, 0x92, 0xd8, 0xc0, 0xe1, 0x63, 0x0c, 0x08,
+	0x00, 0x00, 0xff, 0xff, 0x37, 0xba, 0x96, 0xb6, 0x50, 0x01, 0x00, 0x00,
 }

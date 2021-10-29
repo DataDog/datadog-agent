@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
@@ -115,12 +114,11 @@ func useFlushThreshold(n int) func() {
 // randomSampledSpans returns a set of spans sampled spans and events events.
 func randomSampledSpans(spans, events int) *SampledSpans {
 	realisticIDs := true
-	trace := testutil.GetTestTraces(1, spans, realisticIDs)[0]
+	traceChunk := testutil.GetTestTraceChunks(1, spans, realisticIDs)[0]
 	return &SampledSpans{
-		Traces:    []*pb.APITrace{traceutil.APITrace(trace)},
-		Events:    trace[:events],
-		Size:      trace.Msgsize() + pb.Trace(trace[:events]).Msgsize(),
-		SpanCount: int64(len(trace)),
+		TracerPayload: &pb.TracerPayload{Chunks: []*pb.TraceChunk{traceChunk}},
+		Size:          pb.Trace(traceChunk.Spans).Msgsize() + pb.Trace(traceChunk.Spans[:events]).Msgsize(),
+		SpanCount:     int64(len(traceChunk.Spans)),
 	}
 }
 
@@ -139,22 +137,21 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledS
 		assert.NoError(err)
 		assert.Equal(payload.HostName, testHostname)
 		assert.Equal(payload.Env, testEnv)
-		all.Traces = append(all.Traces, payload.Traces...)
-		all.Transactions = append(all.Transactions, payload.Transactions...)
+		all.TracerPayloads = append(all.TracerPayloads, payload.TracerPayloads...)
 	}
 	for _, ss := range sampledSpans {
 		var found bool
-		for _, trace := range all.Traces {
-			if reflect.DeepEqual(trace.Spans, ss.Traces[0].Spans) {
-				found = true
-				break
+		for _, tracerPayload := range all.TracerPayloads {
+			for _, trace := range tracerPayload.Chunks {
+				if reflect.DeepEqual(trace, ss.TracerPayload.Chunks[0]) {
+					found = true
+					break
+				}
 			}
 		}
+
 		if !found {
 			t.Fatal("payloads didn't contain given traces")
-		}
-		for _, event := range ss.Events {
-			assert.Contains(t, all.Transactions, event)
 		}
 	}
 }
@@ -242,4 +239,44 @@ func TestTraceWriterSyncNoop(t *testing.T) {
 		err := tw.FlushSync()
 		assert.NotNil(t, err)
 	})
+}
+
+// BenchmarkMapDelete-8   	35125977	        28.85 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkMapDelete-8   	100000000	        14.36 ns/op	       0 B/op	       0 allocs/op
+func BenchmarkMapDelete(b *testing.B) {
+	m := map[string]float64{
+		"hello.world.1": 1,
+		"hello.world.2": 1,
+		"hello.world.3": 1,
+		"hello.world.4": 1,
+		"hello.world.5": 1,
+		"hello.world.6": 1,
+		"hello.world.7": 1,
+		"hello.world.8": 1,
+	}
+	for n := 0; n < b.N; n++ {
+		m["_sampling_priority_v1"] = 1
+		//delete(m, "_sampling_priority_v1")
+	}
+}
+
+// BenchmarkSpanProto-8   	 2124880	       567.1 ns/op	     256 B/op	       1 allocs/op
+// BenchmarkSpanProto-8   	 2222722	       528.4 ns/op	     208 B/op	       1 allocs/op
+func BenchmarkSpanProto(b *testing.B) {
+	s := pb.Span{
+		Metrics: map[string]float64{
+			"hello.world.1": 1,
+			"hello.world.2": 1,
+			"hello.world.3": 1,
+			"hello.world.4": 1,
+			"hello.world.5": 1,
+			"hello.world.6": 1,
+			"hello.world.7": 1,
+			"hello.world.8": 1,
+			//"_sampling_priority_v1": 1,
+		},
+	}
+	for n := 0; n < b.N; n++ {
+		s.Marshal()
+	}
 }
