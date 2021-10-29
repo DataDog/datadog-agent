@@ -27,12 +27,10 @@ func TestGetComponents(t *testing.T) {
 
 func TestStartPipeline(t *testing.T) {
 	pcfg := PipelineConfig{
-		BindHost:       "localhost",
-		GRPCPort:       4317,
-		HTTPPort:       4318,
-		TracePort:      5003,
-		MetricsEnabled: true,
-		TracesEnabled:  true,
+		OTLPReceiverConfig: otlpConfigFromPorts("localhost", 4317, 4318),
+		TracePort:          5003,
+		MetricsEnabled:     true,
+		TracesEnabled:      true,
 	}
 
 	p, err := NewPipeline(pcfg, &serializer.MockSerializer{})

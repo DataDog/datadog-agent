@@ -84,22 +84,26 @@ func newMetricsMapProvider() parserprovider.MapProvider {
 	return parserprovider.NewInMemoryMapProvider(strings.NewReader(defaultMetricsConfig))
 }
 
-func newReceiverProvider(cfg PipelineConfig) parserprovider.MapProvider {
-	configMap := config.NewMap()
-	if cfg.GRPCPort > 0 {
-		configMap.Set(
-			buildKey("receivers", "otlp", "protocols", "grpc", "endpoint"),
-			fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort),
-		)
-	}
+func otlpConfigFromPorts(bindHost string, gRPCPort uint, httpPort uint) map[string]interface{} {
+	otlpConfig := map[string]interface{}{"protocols": map[string]interface{}{}}
 
-	if cfg.HTTPPort > 0 {
-		configMap.Set(
-			buildKey("receivers", "otlp", "protocols", "http", "endpoint"),
-			fmt.Sprintf("%s:%d", cfg.BindHost, cfg.HTTPPort),
-		)
+	if gRPCPort > 0 {
+		otlpConfig["protocols"].(map[string]interface{})["grpc"] = map[string]interface{}{
+			"endpoint": fmt.Sprintf("%s:%d", bindHost, gRPCPort),
+		}
 	}
+	if httpPort > 0 {
+		otlpConfig["protocols"].(map[string]interface{})["http"] = map[string]interface{}{
+			"endpoint": fmt.Sprintf("%s:%d", bindHost, httpPort),
+		}
+	}
+	return otlpConfig
+}
 
+func newReceiverProvider(otlpReceiverConfig map[string]interface{}) parserprovider.MapProvider {
+	configMap := config.NewMapFromStringMap(map[string]interface{}{
+		"receivers": map[string]interface{}{"otlp": otlpReceiverConfig},
+	})
 	return mapProvider(*configMap)
 }
 
@@ -112,6 +116,6 @@ func newMapProvider(cfg PipelineConfig) parserprovider.MapProvider {
 	if cfg.MetricsEnabled {
 		providers = append(providers, newMetricsMapProvider())
 	}
-	providers = append(providers, newReceiverProvider(cfg))
+	providers = append(providers, newReceiverProvider(cfg.OTLPReceiverConfig))
 	return parserprovider.NewMergeMapProvider(providers...)
 }
