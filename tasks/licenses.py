@@ -115,6 +115,7 @@ def wwhrd_licenses(ctx):
     exceptions_wildcard = []
     exceptions = []
     additional = {}
+    overrides = {}
     with open('.wwhrd.yml', encoding="utf-8") as wwhrd_conf_yml:
         wwhrd_conf = yaml.safe_load(wwhrd_conf_yml)
         for pkg in wwhrd_conf['exceptions']:
@@ -126,6 +127,9 @@ def wwhrd_licenses(ctx):
 
         for pkg, license in wwhrd_conf.get('additional', {}).items():
             additional[pkg] = license
+
+        for pkg, lic in wwhrd_conf.get('overrides', {}).items():
+            overrides[pkg] = lic
 
     def is_excluded(pkg):
         if package in exceptions:
@@ -153,6 +157,8 @@ def wwhrd_licenses(ctx):
                     if is_excluded(package):
                         print("Skipping {} ({}) excluded in .wwhrd.yml".format(package, license))
                     else:
+                        if package in overrides:
+                            license = overrides[package]
                         licenses.append({"component": "core", "package": package, "license": license})
 
     for pkg, lic in additional.items():

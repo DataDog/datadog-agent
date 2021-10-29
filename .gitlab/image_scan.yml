@@ -13,7 +13,6 @@ scan_nightly-dogstatsd:
     - docker_build_dogstatsd_amd64
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
     IMG_DESTINATIONS: dogstatsd-scan:${DEB_RPM_BUCKET_BRANCH}
 
@@ -27,7 +26,6 @@ scan_nightly-a6:
     - docker_build_agent6_jmx
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
@@ -45,7 +43,6 @@ scan_nightly-a7:
     - docker_build_agent7_jmx
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
@@ -61,7 +58,6 @@ dca_scan_nightly:
   needs: ["docker_build_cluster_agent_amd64"]
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
     IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
     IMG_DESTINATIONS: cluster-agent-scan:${DEB_RPM_BUCKET_BRANCH}
 
@@ -75,7 +71,6 @@ scan_master-dogstatsd:
     - docker_build_dogstatsd_amd64
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
     IMG_DESTINATIONS: dogstatsd-scan:master
 
@@ -89,7 +84,6 @@ scan_master-a6:
     - docker_build_agent6_jmx
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
@@ -107,7 +101,6 @@ scan_master-a7:
     - docker_build_agent7_jmx
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
@@ -123,6 +116,5 @@ dca_scan_master:
   needs: ["docker_build_cluster_agent_amd64"]
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
     IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
     IMG_DESTINATIONS: cluster-agent-scan:master

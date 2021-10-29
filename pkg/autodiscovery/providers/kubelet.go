@@ -125,10 +125,10 @@ func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]i
 				ADErrors[namespacedName][err.Error()] = struct{}{}
 			}
 		}
-		k.Lock()
-		k.configErrors = ADErrors
-		k.Unlock()
 	}
+	k.Lock()
+	k.configErrors = ADErrors
+	k.Unlock()
 	return configs, nil
 }
 

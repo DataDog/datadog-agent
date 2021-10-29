@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/mholt/archiver/v3"
 	"gopkg.in/yaml.v2"
@@ -62,7 +63,7 @@ var (
 	// own already redacted (we don't want to match: **************************abcde)
 	// Basically we allow many special chars while forbidding *
 	otherAPIKeysRx       = regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]+`)
-	otherAPIKeysReplacer = log.Replacer{
+	otherAPIKeysReplacer = scrubber.Replacer{
 		Regex: otherAPIKeysRx,
 		ReplFunc: func(b []byte) []byte {
 			return []byte("api_key: ********")

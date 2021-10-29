@@ -18,6 +18,8 @@
   script:
     - inv -e install-tools
     - inv -e test --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json
+    - python3 -m tasks.release_tests
+    - python3 -m tasks.libs.version_tests
   artifacts:
     expire_in: 2 weeks
     when: always

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -33,17 +34,21 @@ func IsRunningOn(ctx context.Context) bool {
 	return false
 }
 
+var instanceIDFetcher = cachedfetch.Fetcher{
+	Name: "Alibaba InstanceID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		res, err := getResponseWithMaxLength(ctx, metadataURL+"/latest/meta-data/instance-id",
+			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+		if err != nil {
+			return "", fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
+		}
+		return res, err
+	},
+}
+
 // GetHostAlias returns the VM ID from the Alibaba Metadata api
 func GetHostAlias(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-	res, err := getResponseWithMaxLength(ctx, metadataURL+"/latest/meta-data/instance-id",
-		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
-	if err != nil {
-		return "", fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
-	}
-	return res, err
+	return instanceIDFetcher.FetchString(ctx)
 }
 
 // GetNTPHosts returns the NTP hosts for Alibaba if it is detected as the cloud provider, otherwise an empty array.
@@ -73,6 +78,10 @@ func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength in
 }
 
 func getResponse(ctx context.Context, url string) (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
+
 	client := http.Client{
 		Transport: httputils.CreateHTTPTransport(),
 		Timeout:   timeout,

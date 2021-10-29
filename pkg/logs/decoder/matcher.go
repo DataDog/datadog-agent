@@ -22,7 +22,6 @@ type EndLineMatcher interface {
 
 // NewLineMatcher implements EndLineMatcher for line ending with '\n'
 type NewLineMatcher struct {
-	EndLineMatcher
 }
 
 // Match returns true whenever a '\n' (newline) is met.

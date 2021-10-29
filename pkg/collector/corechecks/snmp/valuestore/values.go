@@ -1,6 +1,7 @@
 package valuestore
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -21,8 +22,8 @@ type ScalarResultValuesType map[string]ResultValue
 // ResultValueStore store OID values
 type ResultValueStore struct {
 	// TODO: make fields private + use a constructor instead
-	ScalarValues ScalarResultValuesType
-	ColumnValues ColumnResultValuesType
+	ScalarValues ScalarResultValuesType `json:"scalar_values"`
+	ColumnValues ColumnResultValuesType `json:"column_values"`
 }
 
 // GetScalarValue look for oid in ResultValueStore and returns the value and boolean
@@ -128,4 +129,17 @@ func (v *ResultValueStore) GetColumnIndexes(columnOid string) ([]string, error) 
 
 	sort.Strings(indexes) // sort indexes for better consistency
 	return indexes, nil
+}
+
+// ResultValueStoreAsString used to format ResultValueStore for debug/trace logging
+func ResultValueStoreAsString(values *ResultValueStore) string {
+	if values == nil {
+		return ""
+	}
+	jsonPayload, err := json.Marshal(values)
+	if err != nil {
+		log.Debugf("error marshaling debugVar: %s", err)
+		return ""
+	}
+	return string(jsonPayload)
 }

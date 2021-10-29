@@ -13,9 +13,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
@@ -155,7 +157,21 @@ func TestLogBufferWithContext(t *testing.T) {
 	assert.Equal(t, strings.Count(b.String(), "baz"), 5)
 }
 
+// Set up for scrubbing tests, by temporarily setting Scrubber; this avoids testing
+// the default scrubber's functionality in this module
+func setupScrubbing(t *testing.T) {
+	oldScrubber := scrubber.DefaultScrubber
+	scrubber.DefaultScrubber = scrubber.New()
+	scrubber.DefaultScrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+		Regex: regexp.MustCompile("SECRET"),
+		Repl:  []byte("******"),
+	})
+	t.Cleanup(func() { scrubber.DefaultScrubber = oldScrubber })
+}
+
 func TestCredentialScrubbingLogging(t *testing.T) {
+	setupScrubbing(t)
+
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
@@ -165,24 +181,25 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	SetupLogger(l, "info")
 	assert.NotNil(t, logger)
 
-	Info("this is an API KEY: ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	Infof("this is a credential encoding urI: %s", "http://user:password@host:port")
+	Info("don't tell anyone: ", "SECRET")
+	Infof("this is a SECRET password: %s", "hunter2")
 	w.Flush()
 
-	assert.Equal(t, strings.Count(b.String(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), 0)
-	assert.Equal(t, strings.Count(b.String(), "http://user:password@host:port"), 0)
-	assert.Equal(t, strings.Count(b.String(), "***************************aaaaa"), 1)
-	assert.Equal(t, strings.Count(b.String(), "http://user:********@host:port"), 1)
+	assert.Equal(t, strings.Count(b.String(), "SECRET"), 0)
+	assert.Equal(t, strings.Count(b.String(), "don't tell anyone:  ******"), 1)
+	assert.Equal(t, strings.Count(b.String(), "this is a ****** password: hunter2"), 1)
 }
 
 func TestExtraLogging(t *testing.T) {
+	setupScrubbing(t)
+
 	var a, b bytes.Buffer
 	w := bufio.NewWriter(&a)
 	wA := bufio.NewWriter(&b)
 
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	lA, err := seelog.LoggerFromWriterWithMinLevelAndFormat(wA, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	lA, err := seelog.LoggerFromWriterWithMinLevelAndFormat(wA, seelog.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
 
 	SetupLogger(l, "info")
@@ -191,37 +208,39 @@ func TestExtraLogging(t *testing.T) {
 	err = RegisterAdditionalLogger("extra", lA)
 	assert.Nil(t, err)
 
-	Info("this is an API KEY: ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	Infof("this is a credential encoding urI: %s", "http://user:password@host:port")
+	Info("don't tell anyone: ", "SECRET")
+	Infof("this is a SECRET password: %s", "hunter2")
 	w.Flush()
 	wA.Flush()
 
-	assert.Equal(t, strings.Count(a.String(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), 0)
-	assert.Equal(t, strings.Count(a.String(), "http://user:password@host:port"), 0)
-	assert.Equal(t, strings.Count(a.String(), "***************************aaaaa"), 1)
-	assert.Equal(t, strings.Count(a.String(), "http://user:********@host:port"), 1)
-	assert.Equal(t, a.String(), a.String())
+	assert.Equal(t, strings.Count(a.String(), "SECRET"), 0)
+	assert.Equal(t, strings.Count(a.String(), "don't tell anyone:  ******"), 1)
+	assert.Equal(t, strings.Count(a.String(), "this is a ****** password: hunter2"), 1)
+	assert.Equal(t, b.String(), a.String())
 }
 
 func TestFormatErrorfScrubbing(t *testing.T) {
-	err := formatErrorf("%s", "aaaaaaaaaaaaaaaaaaaaaaaaaaabaaaa")
-	assert.Equal(t, "***************************baaaa", err.Error())
+	setupScrubbing(t)
+
+	err := formatErrorf("%s", "a SECRET message")
+	assert.Equal(t, "a ****** message", err.Error())
 }
 
 func TestFormatErrorScrubbing(t *testing.T) {
-	err := formatError("aaaaaaaaaaaaaaaaaaaaaaaaaaabaaaa")
-	assert.Equal(t, "***************************baaaa", err.Error())
+	setupScrubbing(t)
+
+	err := formatError("a big SECRET")
+	assert.Equal(t, "a big ******", err.Error())
 }
 
 func TestFormatErrorcScrubbing(t *testing.T) {
-	err := formatErrorc("aaaaaaaaaaaaaaaaaaaaaaaaaaabaaaa")
-	assert.Equal(t, "***************************baaaa", err.Error())
+	setupScrubbing(t)
 
-	err = formatErrorc("API key test", "key", "aaaaaaaaaaaaaaaaaaaaaaaaaaabaaaa")
-	assert.Equal(t, "API key test (key:***************************baaaa)", err.Error())
+	err := formatErrorc("super-SECRET")
+	assert.Equal(t, "super-******", err.Error())
 
-	err = formatErrorc("API key test", "key", "aaaaaaaaaaaaaaaaaaaaaaaaaaabaaaa", "key2", "val2")
-	assert.Equal(t, "API key test (key:***************************baaaa, key2:val2)", err.Error())
+	err = formatErrorc("secrets", "key", "a SECRET", "SECRET-key2", "SECRET2")
+	assert.Equal(t, "secrets (key:a ******, ******-key2:******2)", err.Error())
 }
 
 func TestWarnNotNil(t *testing.T) {
