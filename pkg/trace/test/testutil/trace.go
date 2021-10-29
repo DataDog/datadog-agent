@@ -9,6 +9,7 @@ import (
 	"math/rand"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
 // genNextLevel generates a new level for the trace tree structure,
@@ -86,6 +87,16 @@ func RandomTrace(maxLevels, maxSpans int) pb.Trace {
 	return t
 }
 
+// RandomTraceChunk generates a random trace chunk with a depth from 1 to
+// maxLevels of spans. Each level has at most maxSpans items.
+func RandomTraceChunk(maxLevels, maxSpans int) *pb.TraceChunk {
+	return &pb.TraceChunk{
+		Priority: int32(rand.Intn(3)),
+		Origin:   "lambda",
+		Spans:    RandomTrace(maxLevels, maxLevels),
+	}
+}
+
 // GetTestTraces returns a []Trace that is composed by ``traceN`` number
 // of traces, each one composed by ``size`` number of spans.
 func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
@@ -114,4 +125,47 @@ func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 		traces = append(traces, trace)
 	}
 	return traces
+}
+
+// GetTestTraceChunks returns a []TraceChunk that is composed by ``traceN`` number
+// of traces, each one composed by ``size`` number of spans.
+func GetTestTraceChunks(traceN, size int, realisticIDs bool) []*pb.TraceChunk {
+	traces := GetTestTraces(traceN, size, realisticIDs)
+	traceChunks := make([]*pb.TraceChunk, 0, len(traces))
+	for _, trace := range traces {
+		traceChunks = append(traceChunks, &pb.TraceChunk{
+			Spans: trace,
+		})
+	}
+	return traceChunks
+}
+
+// GetTraceChunkWithSpan wraps a `span` with pb.TraceChunk
+func GetTraceChunkWithSpan(span *pb.Span) *pb.TraceChunk {
+	return &pb.TraceChunk{
+		Spans:    []*pb.Span{span},
+		Priority: int32(sampler.PriorityNone),
+	}
+}
+
+// GetTraceChunkWithSpans wraps `spans` with pb.TraceChunk
+func GetTraceChunkWithSpans(spans []*pb.Span) *pb.TraceChunk {
+	return &pb.TraceChunk{
+		Spans:    spans,
+		Priority: int32(sampler.PriorityNone),
+	}
+}
+
+// GetTracerPayloadWithChunk wraps `chunk` with pb.TraceChunk
+func GetTracerPayloadWithChunk(chunk *pb.TraceChunk) *pb.TracerPayload {
+	return &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{chunk},
+	}
+}
+
+// GetTracerPayloadWithChunks wraps `chunks` with pb.TraceChunk
+func GetTracerPayloadWithChunks(chunks []*pb.TraceChunk) *pb.TracerPayload {
+	return &pb.TracerPayload{
+		Chunks: chunks,
+	}
 }

@@ -98,13 +98,13 @@ func (s *PrioritySampler) Stop() {
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
-func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string, clientDroppedP0s bool) bool {
+func (s *PrioritySampler) Sample(trace *pb.TraceChunk, root *pb.Span, env string, clientDroppedP0s bool) bool {
 	// Extra safety, just in case one trace is empty
-	if len(trace) == 0 {
+	if len(trace.Spans) == 0 {
 		return false
 	}
 
-	samplingPriority, _ := GetSamplingPriority(root)
+	samplingPriority, _ := GetSamplingPriority(trace)
 	// Regardless of rates, sampling here is based on the metadata set
 	// by the client library. Which, is turn, is based on agent hints,
 	// but the rule of thumb is: respect client choice.

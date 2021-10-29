@@ -179,7 +179,7 @@ func TestOTLPReceiver(t *testing.T) {
 			case p := <-out:
 				assert.Equal(t, "go", p.Source.Lang)
 				assert.Equal(t, "opentelemetry_grpc_v1", p.Source.EndpointVersion)
-				assert.Len(t, p.Traces, 1)
+				assert.Len(t, p.TracerPayload.Chunks, 1)
 				ps[i] = p
 			case <-timeout:
 				t.Fatal("timed out")
@@ -488,9 +488,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"error.stack":                     "1/2/3",
 				},
 				Metrics: map[string]float64{
-					"_sampling_priority_v1": 1,
-					"name":                  1.2,
-					"count":                 2,
+					"name":  1.2,
+					"count": 2,
 				},
 				Type: "web",
 			},
@@ -579,9 +578,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"peer.service":                    "userbase",
 				},
 				Metrics: map[string]float64{
-					"_sampling_priority_v1": 1,
-					"name":                  1.2,
-					"count":                 2,
+					"name":  1.2,
+					"count": 2,
 				},
 				Type: "web",
 			},
@@ -669,9 +667,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"http.route":                      "/path",
 				},
 				Metrics: map[string]float64{
-					"_sampling_priority_v1": 1,
-					"name":                  1.2,
-					"count":                 2,
+					"name":  1.2,
+					"count": 2,
 				},
 				Type: "web",
 			},

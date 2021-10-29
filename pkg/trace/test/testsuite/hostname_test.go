@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
@@ -46,12 +45,15 @@ func TestHostname(t *testing.T) {
 			defer r.KillAgent()
 
 			payload := pb.Traces{pb.Trace{testutil.RandomSpan()}}
-			payload[0][0].Metrics[sampler.KeySamplingPriority] = 2
+			payload[0][0].Metrics["_sampling_priority_v1"] = 2
 			if err := r.Post(payload); err != nil {
 				t.Fatal(err)
 			}
 			waitForTrace(t, &r, func(v pb.TracePayload) {
-				if n := len(v.Traces); n != 1 {
+				if n := len(v.TracerPayloads); n != 1 {
+					t.Fatalf("expected %d tracer payloads, got %d", 1, n)
+				}
+				if n := len(v.TracerPayloads[0].Chunks); n != 1 {
 					t.Fatalf("expected %d traces, got %d", len(payload), n)
 				}
 				if v.HostName != expectedHostname {
@@ -76,12 +78,15 @@ func TestHostname(t *testing.T) {
 		defer r.KillAgent()
 
 		payload := pb.Traces{pb.Trace{testutil.RandomSpan()}}
-		payload[0][0].Metrics[sampler.KeySamplingPriority] = 2
+		payload[0][0].Metrics["_sampling_priority_v1"] = 2
 		if err := r.Post(payload); err != nil {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v pb.TracePayload) {
-			if n := len(v.Traces); n != 1 {
+			if n := len(v.TracerPayloads); n != 1 {
+				t.Fatalf("expected %d tracer payloads, got %d", 1, n)
+			}
+			if n := len(v.TracerPayloads[0].Chunks); n != 1 {
 				t.Fatalf("expected %d traces, got %d", len(payload), n)
 			}
 			if v.HostName == "" {

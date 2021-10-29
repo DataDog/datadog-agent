@@ -90,7 +90,13 @@ func TestProcess(t *testing.T) {
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
 		agnt.Process(&api.Payload{
-			Traces: pb.Traces{{span}},
+			TracerPayload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{span},
+					},
+				},
+			},
 			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
 		})
 
@@ -129,14 +135,26 @@ func TestProcess(t *testing.T) {
 		assert := assert.New(t)
 
 		agnt.Process(&api.Payload{
-			Traces: pb.Traces{{spanValid}},
-			Source: want,
+			TracerPayload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{spanValid},
+					},
+				},
+			},
+			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
 		})
 		assert.EqualValues(0, want.TracesFiltered)
 		assert.EqualValues(0, want.SpansFiltered)
 
 		agnt.Process(&api.Payload{
-			Traces: pb.Traces{{spanInvalid, spanInvalid}},
+			TracerPayload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{spanInvalid, spanInvalid},
+					},
+				},
+			},
 			Source: want,
 		})
 		assert.EqualValues(1, want.TracesFiltered)
@@ -174,7 +192,21 @@ func TestProcess(t *testing.T) {
 		assert := assert.New(t)
 
 		agnt.Process(&api.Payload{
-			Traces: pb.Traces{{spanInvalid, spanInvalid}, {spanValid}},
+			TracerPayload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							spanInvalid,
+							spanInvalid,
+						},
+					},
+					{
+						Spans: []*pb.Span{
+							spanValid,
+						},
+					},
+				},
+			},
 			Source: want,
 		})
 		assert.EqualValues(1, want.TracesFiltered)
@@ -182,36 +214,11 @@ func TestProcess(t *testing.T) {
 		var span *pb.Span
 		select {
 		case ss := <-agnt.TraceWriter.In:
-			span = ss.Traces[0].Spans[0]
+			span = ss.TracerPayload.Chunks[0].Spans[0]
 		case <-time.After(2 * time.Second):
 			t.Fatal("timeout: Expected one valid trace, but none were received.")
 		}
 		assert.Equal("unnamed_operation", span.Name)
-	})
-
-	t.Run("ContainerTags", func(t *testing.T) {
-		cfg := config.New()
-		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
-		defer cancel()
-
-		span := &pb.Span{
-			TraceID:  1,
-			SpanID:   1,
-			Resource: "INSERT INTO db VALUES (1, 2, 3)",
-			Type:     "sql",
-			Start:    time.Now().Unix(),
-			Duration: (500 * time.Millisecond).Nanoseconds(),
-		}
-
-		agnt.Process(&api.Payload{
-			Traces:        pb.Traces{{span}},
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
-			ContainerTags: "A:B,C",
-		})
-
-		assert.Equal(t, "A:B,C", span.Meta[tagContainersTags])
 	})
 
 	t.Run("Stats/Priority", func(t *testing.T) {
@@ -249,12 +256,11 @@ func TestProcess(t *testing.T) {
 				Duration: (500 * time.Millisecond).Nanoseconds(),
 				Metrics:  map[string]float64{},
 			}
-			if key != sampler.PriorityNone {
-				sampler.SetSamplingPriority(span, key)
-			}
+			chunk := testutil.GetTraceChunkWithSpan(span)
+			chunk.Priority = int32(key)
 			agnt.Process(&api.Payload{
-				Traces: pb.Traces{{span}},
-				Source: want,
+				TracerPayload: testutil.GetTracerPayloadWithChunk(chunk),
+				Source:        want,
 			})
 		}
 
@@ -266,31 +272,6 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(t, 5, samplingPriorityTagValues["2"])
 	})
 
-	t.Run("GlobalTags", func(t *testing.T) {
-		cfg := config.New()
-		cfg.GlobalTags["_dd.test"] = "value"
-		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
-		defer cancel()
-		now := time.Now()
-		span := &pb.Span{
-			TraceID:  1,
-			SpanID:   1,
-			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
-			Type:     "sql",
-			Start:    now.Add(-time.Second).UnixNano(),
-			Duration: (500 * time.Millisecond).Nanoseconds(),
-		}
-		agnt.Process(&api.Payload{
-			Traces: pb.Traces{{span}},
-			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
-		})
-
-		assert := assert.New(t)
-		assert.Equal("value", span.GetMeta()["_dd.test"])
-	})
-
 	t.Run("normalizing", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
@@ -298,25 +279,31 @@ func TestProcess(t *testing.T) {
 		agnt := NewAgent(ctx, cfg)
 		defer cancel()
 
-		traces := pb.Traces{{{
-			Service:  "something &&<@# that should be a metric!",
-			TraceID:  1,
-			SpanID:   1,
-			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
-			Type:     "sql",
-			Start:    time.Now().Add(-time.Second).UnixNano(),
-			Duration: (500 * time.Millisecond).Nanoseconds(),
-			Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
-		}}}
+		tp := pb.TracerPayload{
+			Chunks: []*pb.TraceChunk{
+				{
+					Priority: 2,
+					Spans: []*pb.Span{{
+						Service:  "something &&<@# that should be a metric!",
+						TraceID:  1,
+						SpanID:   1,
+						Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+						Type:     "sql",
+						Start:    time.Now().Add(-time.Second).UnixNano(),
+						Duration: (500 * time.Millisecond).Nanoseconds(),
+					}},
+				},
+			},
+		}
 		go agnt.Process(&api.Payload{
-			Traces: traces,
-			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			TracerPayload: &tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
 		timeout := time.After(2 * time.Second)
 		var span *pb.Span
 		select {
 		case ss := <-agnt.TraceWriter.In:
-			span = ss.Traces[0].Spans[0]
+			span = ss.TracerPayload.Chunks[0].Spans[0]
 		case <-timeout:
 			t.Fatal("timed out")
 		}
@@ -331,25 +318,27 @@ func TestProcess(t *testing.T) {
 		agnt := NewAgent(ctx, cfg)
 		defer cancel()
 
-		trace := pb.Trace{{
-			TraceID:  1,
-			SpanID:   1,
-			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
-			Type:     "sql",
-			Start:    time.Now().Add(-time.Second).UnixNano(),
-			Duration: (500 * time.Millisecond).Nanoseconds(),
-			Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
-		}}
+		chunk1 := testutil.GetTraceChunkWithSpan(testutil.RandomSpan())
+		chunk1.Priority = 2
+		chunk2 := testutil.GetTraceChunkWithSpan(testutil.RandomSpan())
+		chunk2.Priority = 2
+		chunk3 := testutil.GetTraceChunkWithSpan(testutil.RandomSpan())
+		chunk3.Priority = 2
 		// we are sending 3 traces
-		traces := pb.Traces{trace, trace, trace}
+		tp := testutil.GetTracerPayloadWithChunks([]*pb.TraceChunk{
+			chunk1,
+			chunk2,
+			chunk3,
+		})
 		// setting writer.MaxPayloadSize to the size of 1 trace (+1 byte)
 		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
-		writer.MaxPayloadSize = trace.Msgsize() + 1
+		//minChunkSize := int(math.Min(math.Min(float64(tp.Chunks[0].Msgsize()), float64(tp.Chunks[1].Msgsize())), float64(tp.Chunks[2].Msgsize())))
+		writer.MaxPayloadSize = 1
 		// and expecting it to result in 3 payloads
 		expectedPayloads := 3
 		go agnt.Process(&api.Payload{
-			Traces: traces,
-			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
 
 		var gotCount int
@@ -364,7 +353,7 @@ func TestProcess(t *testing.T) {
 			}
 		}
 		// without missing a trace
-		assert.Equal(t, gotCount, len(traces))
+		assert.Equal(t, gotCount, 3)
 	})
 }
 
@@ -374,27 +363,20 @@ func TestClientComputedTopLevel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := NewAgent(ctx, cfg)
 	defer cancel()
-	traces := pb.Traces{{{
-		Service:  "something &&<@# that should be a metric!",
-		TraceID:  1,
-		SpanID:   1,
-		Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
-		Type:     "sql",
-		Start:    time.Now().Add(-time.Second).UnixNano(),
-		Duration: (500 * time.Millisecond).Nanoseconds(),
-		Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
-	}}}
 
 	t.Run("onNotTop", func(t *testing.T) {
+		chunk := testutil.GetTraceChunkWithSpan(testutil.RandomSpan())
+		chunk.Priority = 2
+		tp := testutil.GetTracerPayloadWithChunk(chunk)
 		go agnt.Process(&api.Payload{
-			Traces:                 traces,
+			TracerPayload:          tp,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
 		})
 		timeout := time.After(time.Second)
 		select {
 		case ss := <-agnt.TraceWriter.In:
-			_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+			_, ok := ss.TracerPayload.Chunks[0].Spans[0].Metrics["_top_level"]
 			assert.False(t, ok)
 			return
 		case <-timeout:
@@ -403,15 +385,18 @@ func TestClientComputedTopLevel(t *testing.T) {
 	})
 
 	t.Run("off", func(t *testing.T) {
+		chunk := testutil.GetTraceChunkWithSpan(testutil.RandomSpan())
+		chunk.Priority = 2
+		tp := testutil.GetTracerPayloadWithChunk(chunk)
 		go agnt.Process(&api.Payload{
-			Traces:                 traces,
+			TracerPayload:          tp,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: false,
 		})
 		timeout := time.After(time.Second)
 		select {
 		case ss := <-agnt.TraceWriter.In:
-			_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+			_, ok := ss.TracerPayload.Chunks[0].Spans[0].Metrics["_top_level"]
 			assert.True(t, ok)
 			return
 		case <-timeout:
@@ -420,18 +405,24 @@ func TestClientComputedTopLevel(t *testing.T) {
 	})
 
 	t.Run("onTop", func(t *testing.T) {
-		traces[0][0].Metrics["_dd.top_level"] = 1
+		span := testutil.RandomSpan()
+		span.Metrics = map[string]float64{
+			"_dd.top_level": 1,
+		}
+		chunk := testutil.GetTraceChunkWithSpan(span)
+		chunk.Priority = 2
+		tp := testutil.GetTracerPayloadWithChunk(chunk)
 		go agnt.Process(&api.Payload{
-			Traces:                 traces,
+			TracerPayload:          tp,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
 		})
 		timeout := time.After(time.Second)
 		select {
 		case ss := <-agnt.TraceWriter.In:
-			_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+			_, ok := ss.TracerPayload.Chunks[0].Spans[0].Metrics["_top_level"]
 			assert.True(t, ok)
-			_, ok = ss.Traces[0].Spans[0].Metrics["_dd.top_level"]
+			_, ok = ss.TracerPayload.Chunks[0].Spans[0].Metrics["_dd.top_level"]
 			assert.True(t, ok)
 			return
 		case <-timeout:
@@ -522,20 +513,26 @@ func TestClientComputedStats(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := NewAgent(ctx, cfg)
 	defer cancel()
-	traces := pb.Traces{{{
-		Service:  "something &&<@# that should be a metric!",
-		TraceID:  1,
-		SpanID:   1,
-		Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
-		Type:     "sql",
-		Start:    time.Now().Add(-time.Second).UnixNano(),
-		Duration: (500 * time.Millisecond).Nanoseconds(),
-		Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
-	}}}
+	tp := pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{
+			{
+				Priority: 2,
+				Spans: []*pb.Span{{
+					Service:  "something &&<@# that should be a metric!",
+					TraceID:  1,
+					SpanID:   1,
+					Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+					Type:     "sql",
+					Start:    time.Now().Add(-time.Second).UnixNano(),
+					Duration: (500 * time.Millisecond).Nanoseconds(),
+				}},
+			},
+		},
+	}
 
 	t.Run("on", func(t *testing.T) {
 		agnt.Process(&api.Payload{
-			Traces:              traces,
+			TracerPayload:       &tp,
 			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedStats: true,
 		})
@@ -544,7 +541,7 @@ func TestClientComputedStats(t *testing.T) {
 
 	t.Run("off", func(t *testing.T) {
 		agnt.Process(&api.Payload{
-			Traces:              traces,
+			TracerPayload:       &tp,
 			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedStats: false,
 		})
@@ -662,12 +659,12 @@ func TestSampling(t *testing.T) {
 			if tt.hasErrors {
 				root.Error = 1
 			}
-			pt := ProcessedTrace{Trace: pb.Trace{root}, Root: root}
+			pt := ProcessedTrace{TraceChunk: testutil.GetTraceChunkWithSpan(root), Root: root}
 			if tt.hasPriority {
 				if tt.prioritySampled {
-					sampler.SetSamplingPriority(pt.Root, 1)
+					pt.TraceChunk.Priority = 1
 				} else {
-					sampler.SetSamplingPriority(pt.Root, 0)
+					pt.TraceChunk.Priority = 0
 				}
 			}
 
@@ -811,12 +808,11 @@ Loop:
 			spans[i] = span
 		}
 		root := spans[0]
-		if priority != sampler.PriorityNone {
-			sampler.SetSamplingPriority(root, priority)
-		}
+		chunk := testutil.GetTraceChunkWithSpans(spans)
+		chunk.Priority = int32(priority)
 
-		events, _ := processor.Process(root, spans)
-		totalSampled += len(events)
+		numEvents, _ := processor.Process(root, chunk, true)
+		totalSampled += int(numEvents)
 
 		<-eventTicker.C
 		select {
@@ -865,7 +861,9 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		ta.Process(&api.Payload{
-			Traces: pb.Traces{testutil.RandomTrace(10, 8)},
+			TracerPayload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{testutil.RandomTraceChunk(10, 8)},
+			},
 			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
 		})
 	}
@@ -1195,4 +1193,20 @@ func TestMergeDuplicates(t *testing.T) {
 	}
 	mergeDuplicates(in)
 	assert.Equal(t, expected, in)
+}
+
+func TestSampleWithPriorityNone(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	agnt := NewAgent(ctx, cfg)
+	defer cancel()
+
+	span := testutil.RandomSpan()
+	numEvents, keep := agnt.sample(info.NewReceiverStats().GetTagStats(info.Tags{}), ProcessedTrace{
+		TraceChunk: testutil.GetTraceChunkWithSpan(span),
+		Root:       span,
+	})
+	assert.True(t, keep) // Score Sampler should keep the trace.
+	assert.EqualValues(t, numEvents, 0)
 }
