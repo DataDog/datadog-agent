@@ -717,8 +717,8 @@ community_string: abc
 	err = check2.Configure(rawInstanceConfig2, []byte(``), "test")
 	assert.Nil(t, err)
 
-	assert.Equal(t, check.ID("snmp:ed97702503abb6ec"), check1.ID())
-	assert.Equal(t, check.ID("snmp:e4bdb13416d918f4"), check2.ID())
+	assert.Equal(t, check.ID("snmp:default:1.1.1.1:a3ec59dfb03e4457"), check1.ID())
+	assert.Equal(t, check.ID("snmp:default:2.2.2.2:3979cd473e4beb3f"), check2.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }
 
