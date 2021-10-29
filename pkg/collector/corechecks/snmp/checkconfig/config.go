@@ -65,6 +65,7 @@ type InitConfig struct {
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
+	Name                  string            `yaml:"name"`
 	IPAddress             string            `yaml:"ip_address"`
 	Port                  Number            `yaml:"port"`
 	CommunityString       string            `yaml:"community_string"`
@@ -116,6 +117,7 @@ type InstanceConfig struct {
 
 // CheckConfig holds config needed for an integration instance to run
 type CheckConfig struct {
+	Name                  string
 	IPAddress             string
 	Port                  uint16
 	CommunityString       string
@@ -260,6 +262,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c := &CheckConfig{}
 
+	c.Name = instance.Name
 	c.SnmpVersion = instance.SnmpVersion
 	c.IPAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
