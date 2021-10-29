@@ -230,6 +230,9 @@ require (
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 )
 
+// Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
+replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
+
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30.0
 
 // Internal code requires adaptation to support changes introduced in https://github.com/kubernetes/kube-state-metrics/commit/83887f16116cbf9ecc34a32e4ad8b4d8e782348d
