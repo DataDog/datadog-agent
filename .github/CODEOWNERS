@@ -182,8 +182,6 @@
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/agent-core
 /pkg/logs/input/traps/                  @DataDog/infrastructure-integrations @DataDog/agent-core
-/pkg/metadata/ecs/                      @DataDog/agent-network
-/pkg/metadata/kubernetes/               @DataDog/agent-network
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/process/net/                       @DataDog/processes @DataDog/agent-network
