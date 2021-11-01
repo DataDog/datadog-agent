@@ -102,7 +102,8 @@ func (s *Sender) send(payload []byte) error {
 
 	return nil
 }
-func (s *Sender) HasError() bool {
+
+func (s *Sender) hasError() bool {
 	s.Lock()
 	defer s.Unlock()
 	return s.lastError != nil
@@ -121,11 +122,12 @@ func SplitChannel(inputChan chan *message.Message, main *Sender, backup *Sender)
 		for v := range inputChan {
 			copy := *v
 
-			mainSenderHasErr := main.HasError()
-			backupSenderHasErr := backup.HasError()
+			mainSenderHasErr := main.hasError()
+			backupSenderHasErr := backup.hasError()
 			sentMain := false
 			sentBackup := false
 
+			// If both senders are failing, we want to block the pipeline until at least one succeeds
 			if mainSenderHasErr && backupSenderHasErr {
 				select {
 				case main.inputChan <- v:
@@ -135,10 +137,16 @@ func SplitChannel(inputChan chan *message.Message, main *Sender, backup *Sender)
 				}
 			}
 
+			// If the main sender succeeded above skip it so we don't duplicate a log line.
 			if !sentMain {
 				if !mainSenderHasErr {
+					// If there is no error - block and write to the buffered channel.
+					// If we don't block, the input can fill the buffered channels faster than sender can
+					// drain them - causing missing logs.
 					main.inputChan <- v
 				} else {
+					// Even if there is an error, try to put the log line in the buffered channel in case the
+					// error resolves quickly and there is room in the channel.
 					select {
 					case main.inputChan <- v:
 					default:
@@ -147,6 +155,7 @@ func SplitChannel(inputChan chan *message.Message, main *Sender, backup *Sender)
 				}
 			}
 
+			// Repeat the same steps for the backup sender.
 			if !sentBackup {
 				if !backupSenderHasErr {
 					backup.inputChan <- &copy
