@@ -27,7 +27,6 @@ provisioner:
   wait_for_retry: 90
   client_rb:
     client_fork: false
-  log_level: debug
 
 driver:
   name: azurerm
