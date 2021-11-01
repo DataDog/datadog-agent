@@ -46,7 +46,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 
 		mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
 		backupSender = sender.NewSender(backupSenderChannel, outputChan, backupDestinations, getStrategy(endpoints, serverless, pipelineID))
-		sender.SplitChannel(senderChan, mainSender, backupSender)
+		sender.SplitSenders(senderChan, mainSender, backupSender)
 	} else {
 		mainSender = sender.NewSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
 	}

@@ -114,13 +114,13 @@ func shouldStopSending(err error) bool {
 	return err == context.Canceled
 }
 
-// SplitChannel splits a single stream of message into 2 equal streams.
+// SplitSenders splits a single stream of message into 2 equal streams.
 // Acts like an AND gate in that the input will only block if both outputs block.
 // This ensures backpressure is propagated to the input to prevent loss of measages in the pipeline.
-func SplitChannel(inputChan chan *message.Message, main *Sender, backup *Sender) {
+func SplitSenders(inputChan chan *message.Message, main *Sender, backup *Sender) {
 	go func() {
-		for v := range inputChan {
-			copy := *v
+		for message := range inputChan {
+			messageCopy := *message
 
 			mainSenderHasErr := main.hasError()
 			backupSenderHasErr := backup.hasError()
@@ -130,9 +130,9 @@ func SplitChannel(inputChan chan *message.Message, main *Sender, backup *Sender)
 			// If both senders are failing, we want to block the pipeline until at least one succeeds
 			if mainSenderHasErr && backupSenderHasErr {
 				select {
-				case main.inputChan <- v:
+				case main.inputChan <- message:
 					sentMain = true
-				case backup.inputChan <- &copy:
+				case backup.inputChan <- &messageCopy:
 					sentBackup = true
 				}
 			}
@@ -143,12 +143,12 @@ func SplitChannel(inputChan chan *message.Message, main *Sender, backup *Sender)
 					// If there is no error - block and write to the buffered channel.
 					// If we don't block, the input can fill the buffered channels faster than sender can
 					// drain them - causing missing logs.
-					main.inputChan <- v
+					main.inputChan <- message
 				} else {
 					// Even if there is an error, try to put the log line in the buffered channel in case the
 					// error resolves quickly and there is room in the channel.
 					select {
-					case main.inputChan <- v:
+					case main.inputChan <- message:
 					default:
 						break
 					}
@@ -158,10 +158,10 @@ func SplitChannel(inputChan chan *message.Message, main *Sender, backup *Sender)
 			// Repeat the same steps for the backup sender.
 			if !sentBackup {
 				if !backupSenderHasErr {
-					backup.inputChan <- &copy
+					backup.inputChan <- &messageCopy
 				} else {
 					select {
-					case backup.inputChan <- &copy:
+					case backup.inputChan <- &messageCopy:
 					default:
 						break
 					}
