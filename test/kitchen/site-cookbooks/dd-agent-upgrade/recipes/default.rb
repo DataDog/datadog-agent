@@ -83,6 +83,7 @@ if node['platform_family'] != 'windows'
       command "zypper --non-interactive install --auto-agree-with-licenses #{node['dd-agent-upgrade']['package_name']}=#{node['dd-agent-upgrade']['version']}"
 
       environment({'ZYPP_RPM_DEBUG' => '1'})
+      live_stream true
       action :run
     end
   end
