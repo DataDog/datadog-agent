@@ -7,6 +7,7 @@ package sender
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -104,17 +105,20 @@ func SplitChannel(inputChan chan *message.Message, output1 chan *message.Message
 	go func() {
 		for v := range inputChan {
 			copy := *v
+			fmt.Println("ChanSize: ", len(output1), len(output2))
 			select {
 			case output1 <- v:
 				select {
 				case output2 <- &copy:
 				default:
+					fmt.Println("Dropping for chan2")
 					continue
 				}
 			case output2 <- v:
 				select {
 				case output1 <- &copy:
 				default:
+					fmt.Println("Dropping for chan2")
 					continue
 				}
 			}
