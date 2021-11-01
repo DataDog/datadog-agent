@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -300,14 +299,10 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 
 // getPath returns the file path of the container log to tail.
 func getPath(id string) string {
-	var tpl string
-	switch coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
-	case false:
-		tpl = filepath.Join(basePath, "$ID/$ID-json.log")
-	case true:
-		tpl = "/var/lib/containers/storage/overlay-containers/$ID/userdata/ctr.log"
+	if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		return fmt.Sprintf("/var/lib/containers/storage/overlay-containers/%s/userdata/ctr.log", id)
 	}
-	return strings.ReplaceAll(tpl, "$ID", id)
+	return filepath.Join(basePath, id, fmt.Sprintf("%s-json.log", id))
 }
 
 // newOverridenSource is separated from overrideSource for testing purpose
