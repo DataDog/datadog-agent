@@ -7,7 +7,7 @@ package sender
 
 import (
 	"context"
-	"fmt"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -28,6 +28,8 @@ type Sender struct {
 	destinations *client.Destinations
 	strategy     Strategy
 	done         chan struct{}
+	lastError    error
+	sync.Mutex
 }
 
 // NewSender returns a new sender.
@@ -72,15 +74,23 @@ func (s *Sender) send(payload []byte) error {
 	for {
 		err := s.destinations.Main.Send(payload)
 		if err != nil {
+			s.Lock()
+			s.lastError = err
+			s.Unlock()
+
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
 			if _, ok := err.(*client.RetryableError); ok {
+
 				// could not send the payload because of a client issue,
 				// let's retry
 				continue
 			}
 			return err
 		}
+		s.Lock()
+		s.lastError = nil
+		s.Unlock()
 		break
 	}
 
@@ -92,6 +102,11 @@ func (s *Sender) send(payload []byte) error {
 
 	return nil
 }
+func (s *Sender) HasError() bool {
+	s.Lock()
+	defer s.Unlock()
+	return s.lastError != nil
+}
 
 // shouldStopSending returns true if a component should stop sending logs.
 func shouldStopSending(err error) bool {
@@ -101,25 +116,46 @@ func shouldStopSending(err error) bool {
 // SplitChannel splits a single stream of message into 2 equal streams.
 // Acts like an AND gate in that the input will only block if both outputs block.
 // This ensures backpressure is propagated to the input to prevent loss of measages in the pipeline.
-func SplitChannel(inputChan chan *message.Message, output1 chan *message.Message, output2 chan *message.Message) {
+func SplitChannel(inputChan chan *message.Message, main *Sender, backup *Sender) {
 	go func() {
 		for v := range inputChan {
 			copy := *v
-			fmt.Println("ChanSize: ", len(output1), len(output2))
-			select {
-			case output1 <- v:
+
+			mainSenderHasErr := main.HasError()
+			backupSenderHasErr := backup.HasError()
+			sentMain := false
+			sentBackup := false
+
+			if mainSenderHasErr && backupSenderHasErr {
 				select {
-				case output2 <- &copy:
-				default:
-					fmt.Println("Dropping for chan2")
-					continue
+				case main.inputChan <- v:
+					sentMain = true
+				case backup.inputChan <- &copy:
+					sentBackup = true
 				}
-			case output2 <- v:
-				select {
-				case output1 <- &copy:
-				default:
-					fmt.Println("Dropping for chan2")
-					continue
+			}
+
+			if !sentMain {
+				if !mainSenderHasErr {
+					main.inputChan <- v
+				} else {
+					select {
+					case main.inputChan <- v:
+					default:
+						break
+					}
+				}
+			}
+
+			if !sentBackup {
+				if !backupSenderHasErr {
+					backup.inputChan <- &copy
+				} else {
+					select {
+					case backup.inputChan <- &copy:
+					default:
+						break
+					}
 				}
 			}
 		}
