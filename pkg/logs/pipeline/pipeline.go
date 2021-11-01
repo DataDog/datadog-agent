@@ -41,8 +41,8 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 
 	// If there is a backup endpoint - we are dual-shipping so we need to spawn an additional sender.
 	if backupDestinations != nil {
-		mainSenderChannel := make(chan *message.Message, config.ChanSize*10)
-		backupSenderChannel := make(chan *message.Message, config.ChanSize*10)
+		mainSenderChannel := make(chan *message.Message, config.ChanSize*100)
+		backupSenderChannel := make(chan *message.Message, config.ChanSize*100)
 		sender.SplitChannel(senderChan, mainSenderChannel, backupSenderChannel)
 
 		mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
