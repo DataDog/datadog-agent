@@ -327,8 +327,14 @@ func processMessage(message logMessage, executionContext *ExecutionContext, enha
 		log.Debug("Logs were dropped by the AWS Lambda Logs API")
 	}
 
+	// If we receive a runtimeDone log message for the current invocation, we know the runtime is done
+	// If we receive a runtimeDone message for a different invocation, we received the message too late and we ignore it
 	if message.logType == logTypePlatformRuntimeDone {
-		log.Debug("Received a runtimeDone log message")
-		handleRuntimeDone()
+		if executionContext.LastRequestID == message.objectRecord.requestID {
+			log.Debug("Received a runtimeDone log message for the current invocation")
+			handleRuntimeDone()
+		} else {
+			log.Debug("Received a runtimeDone log message for a previous invocation, ignoring it")
+		}
 	}
 }

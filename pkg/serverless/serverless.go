@@ -193,7 +193,8 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 		if err != nil {
 			log.Debug("Unable to save the current state")
 		}
-		daemon.FinishInvocation()
+		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
+		daemon.TellDaemonRuntimeDone()
 		return
 	case <-doneChannel:
 		return
@@ -201,7 +202,7 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 }
 
 func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
-	daemon.StartInvocation()
+	daemon.TellDaemonRuntimeStarted()
 	log.Debug("Received invocation event...")
 	daemon.SetExecutionContext(arn, requestID)
 	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
@@ -222,6 +223,7 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	} else {
 		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", daemon.GetFlushStrategy(), flush.Starting)
 	}
+
 	daemon.WaitForDaemon()
 	doneChannel <- true
 }

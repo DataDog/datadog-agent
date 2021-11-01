@@ -62,17 +62,20 @@ type Daemon struct {
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
 
-	// InvcWg is used to keep track of whether the daemon is doing any pending work
-	// before finishing an invocation
-	InvcWg *sync.WaitGroup
+	// RuntimeWg is used to keep track of whether the runtime is currently handling an invocation.
+	// It should be reset when we start a new invocation, as we may start a new invocation before hearing that the last one finished.
+	RuntimeWg *sync.WaitGroup
+
+	// FlushWg is used to keep track of whether there is currently a flush in progress
+	FlushWg *sync.WaitGroup
 
 	ExtraTags *serverlessLog.Tags
 
 	ExecutionContext *serverlessLog.ExecutionContext
 
-	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
+	// TellDaemonRuntimeDoneOnce asserts that TellDaemonRuntimeDone will be called at most once per invocation (at the end of the function OR after a timeout)
 	// this should be reset before each invocation
-	finishInvocationOnce sync.Once
+	TellDaemonRuntimeDoneOnce sync.Once
 
 	// metricsFlushMutex ensures that only one metrics flush can be underway at a given time
 	metricsFlushMutex sync.Mutex
@@ -95,7 +98,8 @@ func StartDaemon(addr string) *Daemon {
 	daemon := &Daemon{
 		httpServer:        &http.Server{Addr: addr, Handler: mux},
 		mux:               mux,
-		InvcWg:            &sync.WaitGroup{},
+		RuntimeWg:         &sync.WaitGroup{},
+		FlushWg:           &sync.WaitGroup{},
 		lastInvocations:   make([]time.Time, 0),
 		useAdaptiveFlush:  true,
 		clientLibReady:    false,
@@ -147,12 +151,12 @@ func (d *Daemon) SetClientReady(isReady bool) {
 	d.clientLibReady = isReady
 }
 
-// HandleRuntimeDone should be called when the runtime is done handling an invocation. It will finish
-// the invocation, and may also flush telemetry.
+// HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
+// that the runtime is done, and may also flush telemetry.
 func (d *Daemon) HandleRuntimeDone() {
 	if !d.ShouldFlush(flush.Stopping, time.Now()) {
 		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
-		d.FinishInvocation()
+		d.TellDaemonRuntimeDone()
 		return
 	}
 
@@ -161,13 +165,13 @@ func (d *Daemon) HandleRuntimeDone() {
 	// if the DogStatsD daemon isn't ready, wait for it.
 	if !d.MetricAgent.IsReady() {
 		log.Debug("The metric agent wasn't ready, skipping flush.")
-		d.FinishInvocation()
+		d.TellDaemonRuntimeDone()
 		return
 	}
 
 	go func() {
 		d.TriggerFlush(false)
-		d.FinishInvocation()
+		d.TellDaemonRuntimeDone()
 	}()
 }
 
@@ -222,8 +226,8 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 // flush may be continued on the next invocation.
 // In some circumstances, it may switch to another flush strategy after the flush.
 func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
-	d.InvcWg.Add(1)
-	defer d.InvcWg.Done()
+	d.FlushWg.Add(1)
+	defer d.FlushWg.Done()
 
 	ctx, cancel := context.WithTimeout(context.Background(), FlushTimeout)
 
@@ -326,23 +330,33 @@ func (d *Daemon) Stop() {
 	log.Debug("Serverless agent shutdown complete")
 }
 
-// StartInvocation tells the daemon the invocation began
-func (d *Daemon) StartInvocation() {
-	d.finishInvocationOnce = sync.Once{}
-	d.InvcWg.Add(1)
+// TellDaemonRuntimeStarted tells the daemon that the runtime started handling an invocation
+func (d *Daemon) TellDaemonRuntimeStarted() {
+	// Reset the RuntimeWg on every new invocation
+	d.RuntimeWg = &sync.WaitGroup{}
+	d.TellDaemonRuntimeDoneOnce = sync.Once{}
+	d.RuntimeWg.Add(1)
 }
 
-// FinishInvocation finishes the current invocation
-func (d *Daemon) FinishInvocation() {
-	d.finishInvocationOnce.Do(func() {
-		d.InvcWg.Done()
+// TellDaemonRuntimeDone tells the daemon that the runtime finished handling an invocation
+func (d *Daemon) TellDaemonRuntimeDone() {
+	d.TellDaemonRuntimeDoneOnce.Do(func() {
+		d.RuntimeWg.Done()
 	})
 }
 
-// WaitForDaemon waits until invocation finished any pending work
+// WaitForDaemon waits until the daemon has finished handling the current invocation
 func (d *Daemon) WaitForDaemon() {
 	if d.clientLibReady {
-		d.InvcWg.Wait()
+		// We always want to wait for any in-progress flush to complete
+		d.FlushWg.Wait()
+
+		// If we are flushing at the end of the invocation, we need to wait for the invocation itself to end
+		// before we finish handling it. Otherwise, the daemon does not actually need to wait for the runtime to
+		// complete the invocation before it is done.
+		if d.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
+			d.RuntimeWg.Wait()
+		}
 	}
 }
 
