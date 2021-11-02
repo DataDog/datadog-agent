@@ -32,6 +32,8 @@ const (
 	ResolveParentOp
 	// RegisterSpanTLSOP is used for span TLS registration
 	RegisterSpanTLSOP //nolint:deadcode,unused
+	// ExpireInodeDiscarderOp is used to expire an inode discarder
+	ExpireInodeDiscarderOp
 )
 
 // ERPC defines a krpc object
