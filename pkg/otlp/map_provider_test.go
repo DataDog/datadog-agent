@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configunmarshaler"
 
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -31,7 +32,7 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only gRPC, only Traces",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: otlpConfigFromPorts("bindhost", 1234, 0),
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
 				TracePort:          5003,
 				TracesEnabled:      true,
 			},
@@ -56,7 +57,7 @@ service:
 		{
 			name: "only HTTP, metrics and traces",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: otlpConfigFromPorts("bindhost", 0, 1234),
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
@@ -92,7 +93,7 @@ service:
 		{
 			name: "with both",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: otlpConfigFromPorts("bindhost", 1234, 5678),
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 5678),
 				TracePort:          5003,
 				TracesEnabled:      true,
 			},
@@ -119,7 +120,7 @@ service:
 		{
 			name: "only HTTP, only metrics",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: otlpConfigFromPorts("bindhost", 0, 1234),
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
 				MetricsEnabled:     true,
 			},
@@ -160,7 +161,7 @@ service:
 
 func TestUnmarshal(t *testing.T) {
 	mapProvider := newMapProvider(PipelineConfig{
-		OTLPReceiverConfig: otlpConfigFromPorts("localhost", 4317, 4318),
+		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
 		TracePort:          5001,
 		MetricsEnabled:     true,
 		TracesEnabled:      true,

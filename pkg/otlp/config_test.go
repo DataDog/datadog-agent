@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//go:build test
+// +build test
+
 package otlp
 
 import (
@@ -11,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +61,7 @@ func TestFromAgentConfigPort(t *testing.T) {
 		{
 			path: "port/bindhost.yaml",
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: otlpConfigFromPorts("bindhost", 5678, 1234),
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 5678, 1234),
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
@@ -66,7 +70,7 @@ func TestFromAgentConfigPort(t *testing.T) {
 		{
 			path: "port/nobindhost.yaml",
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: otlpConfigFromPorts("localhost", 5678, 1234),
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
@@ -87,7 +91,7 @@ func TestFromAgentConfigPort(t *testing.T) {
 		{
 			path: "port/nonlocal.yaml",
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: otlpConfigFromPorts("0.0.0.0", 5678, 1234),
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("0.0.0.0", 5678, 1234),
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,

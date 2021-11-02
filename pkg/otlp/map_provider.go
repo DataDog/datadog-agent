@@ -84,22 +84,6 @@ func newMetricsMapProvider() parserprovider.MapProvider {
 	return parserprovider.NewInMemoryMapProvider(strings.NewReader(defaultMetricsConfig))
 }
 
-func otlpConfigFromPorts(bindHost string, gRPCPort uint, httpPort uint) map[string]interface{} {
-	otlpConfig := map[string]interface{}{"protocols": map[string]interface{}{}}
-
-	if gRPCPort > 0 {
-		otlpConfig["protocols"].(map[string]interface{})["grpc"] = map[string]interface{}{
-			"endpoint": fmt.Sprintf("%s:%d", bindHost, gRPCPort),
-		}
-	}
-	if httpPort > 0 {
-		otlpConfig["protocols"].(map[string]interface{})["http"] = map[string]interface{}{
-			"endpoint": fmt.Sprintf("%s:%d", bindHost, httpPort),
-		}
-	}
-	return otlpConfig
-}
-
 func newReceiverProvider(otlpReceiverConfig map[string]interface{}) parserprovider.MapProvider {
 	configMap := config.NewMapFromStringMap(map[string]interface{}{
 		"receivers": map[string]interface{}{"otlp": otlpReceiverConfig},
