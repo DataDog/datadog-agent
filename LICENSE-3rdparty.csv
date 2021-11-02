@@ -526,6 +526,7 @@ core,github.com/open-policy-agent/opa/internal/debug,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/deepcopy,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/file/archive,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/ir,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,The OPA Authors | lestrrat
@@ -540,6 +541,7 @@ core,github.com/open-policy-agent/opa/internal/merge,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/planner,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/rego/opa,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/semver,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/strings,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/uuid,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/version,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/wasm/constant,Apache-2.0,The OPA Authors
@@ -549,6 +551,7 @@ core,github.com/open-policy-agent/opa/internal/wasm/module,Apache-2.0,The OPA Au
 core,github.com/open-policy-agent/opa/internal/wasm/opcode,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/capabilities,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/wasm/types,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/util,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/keys,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/loader,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/metrics,Apache-2.0,The OPA Authors
@@ -563,6 +566,7 @@ core,github.com/open-policy-agent/opa/topdown,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/builtins,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/cache,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/copypropagation,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/topdown/print,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/types,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/util,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/version,Apache-2.0,The OPA Authors
