@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    ``kubernetes_state.node.*`` metrics are tagged with ``kubelet_version``,
+    ``container_runtime_version``, ``kernel_version``, and ``os_image``.
