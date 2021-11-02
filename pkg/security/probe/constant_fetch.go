@@ -45,10 +45,10 @@ func ComposeConstantFetchers(fetchers []ConstantFetcher) *ComposeConstantFetcher
 
 func (f *ComposeConstantFetcher) appendRequest(req *composeRequest) {
 	f.requests = append(f.requests, req)
-	io.WriteString(f.hasher, req.id)
-	io.WriteString(f.hasher, req.typeName)
-	io.WriteString(f.hasher, req.fieldName)
-	io.WriteString(f.hasher, req.headerName)
+	_, _ = io.WriteString(f.hasher, req.id)
+	_, _ = io.WriteString(f.hasher, req.typeName)
+	_, _ = io.WriteString(f.hasher, req.fieldName)
+	_, _ = io.WriteString(f.hasher, req.headerName)
 }
 
 // AppendSizeofRequest appends a sizeof request
@@ -82,9 +82,9 @@ func (f *ComposeConstantFetcher) getHash() []byte {
 // FinishAndGetResults does the actual fetching and returns the results
 func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	currentHash := f.getHash()
-	if cachedConstants.isMatching(currentHash) {
+	if constantsCache.isMatching(currentHash) {
 		log.Warnf("cached hit")
-		return cachedConstants.constants, nil
+		return constantsCache.constants, nil
 	}
 
 	for _, fetcher := range f.fetchers {
@@ -117,7 +117,7 @@ func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error
 		finalRes[req.id] = req.value
 	}
 
-	cachedConstants = &CachedConstants{
+	constantsCache = &cachedConstants{
 		constants: finalRes,
 		hash:      currentHash,
 	}
@@ -196,14 +196,14 @@ func createConstantEditors(probe *Probe, constants map[string]uint64) []manager.
 	return res
 }
 
-var cachedConstants *CachedConstants
+var constantsCache *cachedConstants
 
-type CachedConstants struct {
+type cachedConstants struct {
 	constants map[string]uint64
 	hash      []byte
 }
 
-func (cc *CachedConstants) isMatching(hash []byte) bool {
+func (cc *cachedConstants) isMatching(hash []byte) bool {
 	if cc == nil {
 		return false
 	}
