@@ -329,6 +329,39 @@ func TestProcessMetrics(t *testing.T) {
 			},
 		},
 		{
+			name:   "node info tags from default label joins",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "cpu", "unit": "core"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: metricTransformers,
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.cpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:cpu", "unit:core", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
+					hostname: "nodename",
+				},
+			},
+		},
+		{
 			name:   "phase tag for pod",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
@@ -1112,6 +1145,7 @@ var metadataMetrics = []string{
 	"kube_deployment_labels",
 	"kube_namespace_labels",
 	"kube_node_labels",
+	"kube_node_info",
 	"kube_daemonset_labels",
 	"kube_pod_labels",
 	"kube_service_labels",
