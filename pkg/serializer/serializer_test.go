@@ -116,8 +116,8 @@ func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContex
 	payloads = append(payloads, &payload)
 	return payloads, nil
 }
-func (p *testPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
-	return []marshaler.Marshaler{}, nil
+func (p *testPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
+	return []marshaler.AbstractMarshaler{}, nil
 }
 
 func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
@@ -139,8 +139,8 @@ type testErrorPayload struct{}
 
 func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, fmt.Errorf("some error") }
 func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Errorf("some error") }
-func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
-	return []marshaler.Marshaler{}, fmt.Errorf("some error")
+func (p *testErrorPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
+	return []marshaler.AbstractMarshaler{}, fmt.Errorf("some error")
 }
 func (p *testErrorPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return nil, fmt.Errorf("some error")
@@ -178,13 +178,13 @@ type testEventsPayload struct {
 	mock.Mock
 }
 
-func createTestEventsPayloadMock(marshaler marshaler.StreamJSONMarshaler) *testEventsPayload {
+func createTestEventsPayloadMock(marshaler marshaler.Marshaler) *testEventsPayload {
 	p := &testEventsPayload{}
 	p.Marshaler = marshaler
 	return p
 }
 
-func createTestEventsPayload(marshaler marshaler.StreamJSONMarshaler) *testEventsPayload {
+func createTestEventsPayload(marshaler marshaler.Marshaler) *testEventsPayload {
 	p := createTestEventsPayloadMock(marshaler)
 	p.On("CreateSingleMarshaler").Return(marshaler)
 	return p

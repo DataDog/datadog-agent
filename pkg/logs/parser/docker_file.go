@@ -3,42 +3,33 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package docker
+package parser
 
 import (
 	"encoding/json"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
-// stream types.
-const (
-	stderr = "stderr"
-	stdout = "stdout"
-)
+// DockerFileFormat parses a raw JSON lines as found in docker log files, or
+// returns an error if it failed.
+// For example:
+// `{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`
+// returns:
+// `"a message", "error", "2019-06-06T16:35:55.930852911Z", false, nil`
+var DockerFileFormat Parser = &dockerFileFormat{}
 
-// JSONParser is a shared json parser.
-var JSONParser parser.Parser = &jsonParser{}
-
-// logLine contains all the attributes of a container log.
 type logLine struct {
 	Log    string
 	Stream string
 	Time   string
 }
 
-// jsonParser parses raw JSON lines to log fields.
-type jsonParser struct{}
+type dockerFileFormat struct{}
 
-// Parse parses a raw JSON line to a container line and then returns all its fields,
-// returns an error if it failed.
-// For example:
-// {"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}
-// returns:
-// "a message", "error", "2019-06-06T16:35:55.930852911Z", nil
-func (p *jsonParser) Parse(data []byte) ([]byte, string, string, bool, error) {
+// Parse implements Parser#Parse
+func (p *dockerFileFormat) Parse(data []byte) ([]byte, string, string, bool, error) {
 	var log *logLine
 	err := json.Unmarshal(data, &log)
 	if err != nil {
@@ -68,6 +59,7 @@ func (p *jsonParser) Parse(data []byte) ([]byte, string, string, bool, error) {
 	return content, status, log.Time, partial, nil
 }
 
-func (p *jsonParser) SupportsPartialLine() bool {
+// SupportsPartialLine implements Parser#SupportsPartialLine
+func (p *dockerFileFormat) SupportsPartialLine() bool {
 	return true
 }

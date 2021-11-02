@@ -59,11 +59,6 @@ type Serie struct {
 // Series represents a list of Serie ready to be serialize
 type Series []*Serie
 
-// Marshal serialize timeseries using protobuf
-func (series Series) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("Series payload serialization is not implemented")
-}
-
 // MarshalStrings converts the timeseries to a sorted slice of string slices
 func (series Series) MarshalStrings() ([]string, [][]string) {
 	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
@@ -153,7 +148,7 @@ func (series Series) MarshalJSON() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into, at least, "times" number of pieces
-func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (series Series) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	seriesExpvar.Add("TimesSplit", 1)
 	tlmSeries.Inc("times_split")
 
@@ -177,7 +172,7 @@ func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 
 	nbSeriesPerPayload := len(series) / times
 
-	payloads := []marshaler.Marshaler{}
+	payloads := []marshaler.AbstractMarshaler{}
 	current := Series{}
 	for _, m := range metricsPerName {
 		// If on metric is bigger than the targeted size we directly

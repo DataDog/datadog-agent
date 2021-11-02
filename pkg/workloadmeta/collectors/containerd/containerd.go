@@ -146,6 +146,7 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 		ev, err := buildCollectorEvent(ctx, &containerdEvent, c.containerdClient)
 		if err != nil {
 			log.Warnf(err.Error())
+			continue
 		}
 
 		events = append(events, ev)

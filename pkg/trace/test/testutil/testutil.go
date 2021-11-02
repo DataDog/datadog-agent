@@ -14,3 +14,22 @@
 // It should NEVER be imported in a program, most likely in one-off
 // projects or fuzz modes or test suites.
 package testutil
+
+import (
+	"net"
+	"testing"
+)
+
+// FreeTCPPort returns a free TCP port.
+func FreeTCPPort(t *testing.T) int {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package docker
+package parser
 
 import (
 	"testing"
@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-func TestJSONParser(t *testing.T) {
+func TestDockerFileFormat(t *testing.T) {
 	var (
 		content   []byte
 		status    string
@@ -22,7 +22,7 @@ func TestJSONParser(t *testing.T) {
 		err       error
 	)
 
-	parser := JSONParser
+	parser := DockerFileFormat
 
 	content, status, timestamp, partial, err = parser.Parse([]byte(`{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`))
 	assert.Nil(t, err)

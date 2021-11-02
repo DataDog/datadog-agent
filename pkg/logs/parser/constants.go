@@ -3,5 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package ecs provides functionalities to collect ECS metadata
-package ecs
+package parser
+
+// stream types.
+const (
+	stderr = "stderr"
+	stdout = "stdout"
+)
+
+var (
+	// one-space delimiter
+	spaceByte = []byte{' '}
+)

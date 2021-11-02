@@ -19,7 +19,7 @@ func buildKey(keys ...string) string {
 	return strings.Join(keys, config.KeyDelimiter)
 }
 
-var _ parserprovider.MapProvider = (*mapProvider)(nil)
+var _ config.MapProvider = (*mapProvider)(nil)
 
 type mapProvider config.Map
 
@@ -51,7 +51,7 @@ service:
       exporters: [otlp]
 `
 
-func newTracesMapProvider(tracePort uint) parserprovider.MapProvider {
+func newTracesMapProvider(tracePort uint) config.MapProvider {
 	configMap := config.NewMap()
 	configMap.Set(buildKey("exporters", "otlp", "endpoint"), fmt.Sprintf("%s:%d", "localhost", tracePort))
 	return parserprovider.NewMergeMapProvider(
@@ -80,7 +80,7 @@ service:
       exporters: [serializer]
 `
 
-func newMetricsMapProvider(cfg PipelineConfig) parserprovider.MapProvider {
+func newMetricsMapProvider(cfg PipelineConfig) config.MapProvider {
 	configMap := config.NewMap()
 
 	configMap.Set(
@@ -94,7 +94,7 @@ func newMetricsMapProvider(cfg PipelineConfig) parserprovider.MapProvider {
 	)
 }
 
-func newReceiverProvider(cfg PipelineConfig) parserprovider.MapProvider {
+func newReceiverProvider(cfg PipelineConfig) config.MapProvider {
 	configMap := config.NewMap()
 	if cfg.GRPCPort > 0 {
 		configMap.Set(
@@ -113,9 +113,9 @@ func newReceiverProvider(cfg PipelineConfig) parserprovider.MapProvider {
 	return mapProvider(*configMap)
 }
 
-// newMapProvider creates a parserprovider.MapProvider with the fixed configuration.
-func newMapProvider(cfg PipelineConfig) parserprovider.MapProvider {
-	var providers []parserprovider.MapProvider
+// newMapProvider creates a config.MapProvider with the fixed configuration.
+func newMapProvider(cfg PipelineConfig) config.MapProvider {
+	var providers []config.MapProvider
 	if cfg.TracesEnabled {
 		providers = append(providers, newTracesMapProvider(cfg.TracePort))
 	}

@@ -168,7 +168,7 @@ func (c *collector) handleEvent(ctx context.Context, ev *docker.ContainerEvent) 
 
 func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.ContainerEvent) (workloadmeta.CollectorEvent, error) {
 	event := workloadmeta.CollectorEvent{
-		Source: collectorID,
+		Source: workloadmeta.SourceDocker,
 	}
 
 	entityID := workloadmeta.EntityID{
