@@ -24,9 +24,9 @@ func TestProcessor(t *testing.T) {
 		expectedExtractedPct float64
 		expectedSampledPct   float64
 		deltaPct             float64
-		keptTrace            bool
+		droppedTrace         bool
 	}{
-		// keptTrace - true
+		// droppedTrace - true
 		// Name: <extraction rates>/<maxEPSSampler rate>/<priority>
 		{"none/1/none", nil, 1, sampler.PriorityNone, 0, 0, 0, true},
 
@@ -47,7 +47,7 @@ func TestProcessor(t *testing.T) {
 		// Test userkeep bypass of max eps
 		{"-1,0.8/0.8/userkeep", []float64{-1, 0.8}, 0.8, sampler.PriorityUserKeep, 0.8, 1, 0.1, true},
 
-		// keptTrace - false
+		// droppedTrace - false
 		// Name: <extraction rates>/<maxEPSSampler rate>/<priority>
 		{"none/1/none", nil, 1, sampler.PriorityNone, 0, 0, 0, false},
 
@@ -91,9 +91,10 @@ func TestProcessor(t *testing.T) {
 			sampler.SetPreSampleRate(root, testPreSampleRate)
 			sampler.SetClientRate(root, testClientSampleRate)
 			testChunk.Priority = int32(test.priority)
+			testChunk.DroppedTrace = test.droppedTrace
 
 			p.Start()
-			numEvents, extracted := p.Process(root, testChunk, test.keptTrace)
+			numEvents, extracted := p.Process(root, testChunk)
 			p.Stop()
 			total := len(testSpans)
 
@@ -112,7 +113,7 @@ func TestProcessor(t *testing.T) {
 			}
 			assert.EqualValues(expectedSampleCalls, testSampler.SampleCalls)
 
-			if test.keptTrace {
+			if !test.droppedTrace {
 				assert.EqualValues(numSpans, len(testChunk.Spans))
 			} else {
 				assert.EqualValues(numEvents, len(testChunk.Spans))

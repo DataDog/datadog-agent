@@ -50,7 +50,7 @@ func (p *Processor) Stop() {
 
 // Process takes a processed trace, extracts events from it and samples them, returning a collection of
 // sampled events along with the total count of extracted events.
-func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk, keptTrace bool) (numEvents, numExtracted int64) {
+func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtracted int64) {
 	clientSampleRate := sampler.GetClientRate(root)
 	preSampleRate := sampler.GetPreSampleRate(root)
 	priority := sampler.SamplingPriority(t.Priority)
@@ -77,17 +77,16 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk, keptTrace bool) (nu
 		sampler.SetPreSampleRate(span, preSampleRate)
 		sampler.SetEventExtractionRate(span, extractionRate)
 		sampler.SetAnalyzedSpan(span)
-		if !keptTrace {
+		if t.DroppedTrace {
 			events = append(events, span)
 		}
 		numEvents++
 	}
 
-	// If `keptTrace` is true, we will just mark spans as analyzed in-place.
-	// If `keptTrace` is false, we will store analyzed spans in `events`, then replaces chunk's `Spans` with it.
-	if !keptTrace {
+	// If `DroppedTrace` is false, we will just mark spans as analyzed in-place.
+	// If `DroppedTrace` is true, we will store analyzed spans in `events`, then replaces chunk's `Spans` with it.
+	if t.DroppedTrace {
 		t.Spans = events
-		t.DroppedTrace = true
 	}
 
 	return numEvents, numExtracted

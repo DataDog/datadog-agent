@@ -191,8 +191,8 @@ func TestLegacyReceiver(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case p := <-tc.r.out:
-				assert.Len(p.TracerPayload.Chunks, 1)
-				rt := p.TracerPayload.Chunks[0].Spans
+				assert.Len(p.Chunks(), 1)
+				rt := p.Chunk(0).Spans
 				assert.Len(rt, 1)
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
@@ -256,7 +256,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case p := <-tc.r.out:
-				rt := p.TracerPayload.Chunks[0].Spans
+				rt := p.Chunk(0).Spans
 				assert.Len(rt, 1)
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
@@ -323,7 +323,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case p := <-tc.r.out:
-					rt := p.TracerPayload.Chunks[0].Spans
+					rt := p.Chunk(0).Spans
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
@@ -346,7 +346,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case p := <-tc.r.out:
-					rt := p.TracerPayload.Chunks[0].Spans
+					rt := p.Chunk(0).Spans
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)

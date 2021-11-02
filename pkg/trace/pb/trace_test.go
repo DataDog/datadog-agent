@@ -22,7 +22,7 @@ func TestRemoveChunk(t *testing.T) {
 	assert.Equal(t, tp.Chunks[0].Origin, "chunk-1")
 }
 
-func TestSplit(t *testing.T) {
+func TestCut(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		tp := &TracerPayload{
 			Tags: map[string]string{
@@ -38,7 +38,7 @@ func TestSplit(t *testing.T) {
 				{Origin: "chunk-2"},
 			},
 		}
-		tp1, tp2 := tp.Split(1)
+		tp1 := tp.Cut(1)
 		assert.Equal(t, tp1, &TracerPayload{
 			Tags: map[string]string{
 				"_dd.container_tags": "kube_deployment:trace-usage-tracker",
@@ -51,7 +51,7 @@ func TestSplit(t *testing.T) {
 				{Origin: "chunk-0"},
 			},
 		})
-		assert.Equal(t, tp2, &TracerPayload{
+		assert.Equal(t, tp, &TracerPayload{
 			Tags: map[string]string{
 				"_dd.container_tags": "kube_deployment:trace-usage-tracker",
 			},
@@ -80,7 +80,7 @@ func TestSplit(t *testing.T) {
 				{Origin: "chunk-2"},
 			},
 		}
-		tp1, tp2 := tp.Split(-1)
+		tp1 := tp.Cut(-1)
 		assert.Equal(t, tp1, &TracerPayload{
 			Tags: map[string]string{
 				"_dd.container_tags": "kube_deployment:trace-usage-tracker",
@@ -91,7 +91,7 @@ func TestSplit(t *testing.T) {
 			ContainerID:     "abcdef123789",
 			Chunks:          []*TraceChunk{},
 		})
-		assert.Equal(t, tp2, &TracerPayload{
+		assert.Equal(t, tp, &TracerPayload{
 			Tags: map[string]string{
 				"_dd.container_tags": "kube_deployment:trace-usage-tracker",
 			},
@@ -121,7 +121,7 @@ func TestSplit(t *testing.T) {
 				{Origin: "chunk-2"},
 			},
 		}
-		tp1, tp2 := tp.Split(100)
+		tp1 := tp.Cut(100)
 		assert.Equal(t, tp1, &TracerPayload{
 			Tags: map[string]string{
 				"_dd.container_tags": "kube_deployment:trace-usage-tracker",
@@ -136,7 +136,7 @@ func TestSplit(t *testing.T) {
 				{Origin: "chunk-2"},
 			},
 		})
-		assert.Equal(t, tp2, &TracerPayload{
+		assert.Equal(t, tp, &TracerPayload{
 			Tags: map[string]string{
 				"_dd.container_tags": "kube_deployment:trace-usage-tracker",
 			},

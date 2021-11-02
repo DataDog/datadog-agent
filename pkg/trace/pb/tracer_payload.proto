@@ -4,22 +4,24 @@ package pb;
 
 import "span.proto";
 
+// TraceChunk represents a list of spans with the same trace id.
 message TraceChunk {
-	int32 priority = 1;
-	string origin = 2;
-	repeated Span spans = 3;
-	map<string, string> tags = 4;
-	bool droppedTrace = 5;
+	int32 priority = 1; // Sampling priority. Example: AutoDrop(0), AutoKeep(1), UserKeep(2), etc.
+	string origin = 2; // Origin product. Example: "lambda", "rum", "ciapp-test", etc.
+	repeated Span spans = 3; // List of spans.
+	map<string, string> tags = 4; // Trace level tags - tags common in all `spans`.
+	bool droppedTrace = 5; // If true, the trace chunk was dropped, but some spans were kept by Event Processor.
 }
 
+// TracerPayload represents a payload the trace agent receives from tracers.
 message TracerPayload {
-	string containerID = 1;
-	string languageName = 2;
-	string languageVersion = 3;
-	string tracerVersion = 4;
-	string runtimeID = 5;
-	repeated TraceChunk chunks = 6;
-	map<string, string> tags = 7;
-	string env = 8;
-	string appVersion = 9;
+	string containerID = 1; // ID of the container where the tracer is running on.
+	string languageName = 2; // Language of the tracer.
+	string languageVersion = 3; // Language version of the tracer.
+	string tracerVersion = 4; // Tracer's version.
+	string runtimeID = 5; // V4 UUID that represents a tracer session.
+	repeated TraceChunk chunks = 6; // List of chunks.
+	map<string, string> tags = 7; // Agent payload level tags - tags common in all `chunks`.
+	string env = 8; // `env` tag that set with the tracer.
+	string appVersion = 9; // `version` tag that set with the tracer.
 }
