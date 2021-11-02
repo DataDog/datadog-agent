@@ -8,8 +8,6 @@ package alibaba
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -37,10 +35,19 @@ func IsRunningOn(ctx context.Context) bool {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "Alibaba InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		res, err := getResponseWithMaxLength(ctx, metadataURL+"/latest/meta-data/instance-id",
-			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+
+		if !config.IsCloudProviderEnabled(CloudProviderName) {
+			return "", fmt.Errorf("cloud provider is disabled by configuration")
+		}
+
+		endpoint := metadataURL + "/latest/meta-data/instance-id"
+		res, err := httputils.Get(ctx, endpoint, nil, timeout)
 		if err != nil {
 			return "", fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
+		}
+		maxLength := config.Datadog.GetInt("metadata_endpoints_max_hostname_size")
+		if len(res) > maxLength {
+			return "", fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
 		}
 		return res, err
 	},
@@ -64,48 +71,4 @@ func GetNTPHosts(ctx context.Context) []string {
 	}
 
 	return nil
-}
-
-func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength int) (string, error) {
-	result, err := getResponse(ctx, endpoint)
-	if err != nil {
-		return result, err
-	}
-	if len(result) > maxLength {
-		return "", fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
-	}
-	return result, err
-}
-
-func getResponse(ctx context.Context, url string) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-
-	client := http.Client{
-		Transport: httputils.CreateHTTPTransport(),
-		Timeout:   timeout,
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return "", err
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-
-	if res.StatusCode != 200 {
-		return "", fmt.Errorf("status code %d trying to GET %s", res.StatusCode, url)
-	}
-
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("error while reading response from alibaba metadata endpoint: %s", err)
-	}
-
-	return string(all), nil
 }

@@ -60,7 +60,7 @@ func createSetEvent(ctx context.Context, containerID string, containerdClient cu
 
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,
-		Source: collectorID,
+		Source: workloadmeta.SourceContainerd,
 		Entity: &entity,
 	}, nil
 }
@@ -68,7 +68,7 @@ func createSetEvent(ctx context.Context, containerID string, containerdClient cu
 func createDeletionEvent(containerID string) workloadmeta.CollectorEvent {
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeUnset,
-		Source: collectorID,
+		Source: workloadmeta.SourceContainerd,
 		Entity: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   containerID,

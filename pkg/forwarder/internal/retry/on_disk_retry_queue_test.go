@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/stretchr/testify/assert"
@@ -125,7 +126,7 @@ func newTestOnDiskRetryQueue(a *assert.Assertions, path string, maxSizeInBytes i
 			Total:     10000,
 		}}
 	diskUsageLimit := newDiskUsageLimit("", disk, maxSizeInBytes, 1)
-	storage, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(domainName, nil), path, diskUsageLimit, telemetry)
+	storage, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domainName, nil)), path, diskUsageLimit, telemetry)
 	a.NoError(err)
 	return storage
 }

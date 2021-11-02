@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package ecsfargate
@@ -74,7 +75,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	for _, expired := range expires {
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: collectorID,
+			Source: workloadmeta.SourceECSFargate,
 			Entity: expired,
 		})
 	}
@@ -122,7 +123,7 @@ func (c *collector) parseTask(ctx context.Context, task *v2.Task) []workloadmeta
 
 	events = append(events, containerEvents...)
 	events = append(events, workloadmeta.CollectorEvent{
-		Source: collectorID,
+		Source: workloadmeta.SourceECSFargate,
 		Type:   workloadmeta.EventTypeSet,
 		Entity: entity,
 	})
@@ -151,7 +152,7 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 
 		image, err := workloadmeta.NewContainerImage(container.Image)
 		if err != nil {
-			log.Warnf("cannot split image name %q: %s", container.Image, err)
+			log.Debugf("cannot split image name %q: %s", container.Image, err)
 		}
 
 		ips := make(map[string]string)
@@ -171,7 +172,7 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: collectorID,
+			Source: workloadmeta.SourceECSFargate,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: entityID,

@@ -358,12 +358,12 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into times number of pieces
-func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	// Only break it down as much as possible
 	if len(sl) < times {
 		times = len(sl)
 	}
-	splitPayloads := make([]marshaler.Marshaler, times)
+	splitPayloads := make([]marshaler.AbstractMarshaler, times)
 	batchSize := len(sl) / times
 	n := 0
 	for i := 0; i < times; i++ {

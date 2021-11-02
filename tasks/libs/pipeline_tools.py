@@ -157,14 +157,14 @@ def get_commit_for_pipeline(gitlab, pipeline_id):
 
 def loop_status(callable, timeout_sec):
     """
-    Utility to loop a function that takes and returns a status, until it returns True.
+    Utility to loop a function that takes a status and returns [done, status], until done is True.
     """
     start = time()
     status = dict()
     while True:
-        res, status = callable(status)
-        if res:
-            return res
+        done, status = callable(status)
+        if done:
+            return status
         if time() - start > timeout_sec:
             raise ErrorMsg("Timed out.")
         sleep(10)

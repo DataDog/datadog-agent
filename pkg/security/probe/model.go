@@ -8,7 +8,6 @@
 package probe
 
 import (
-	"bytes"
 	"encoding/json"
 	"path"
 	"strings"
@@ -110,7 +109,7 @@ func (ev *Event) ResolveFileFieldsInUpperLayer(f *model.FileFields) bool {
 // ResolveXAttrName returns the string representation of the extended attribute name
 func (ev *Event) ResolveXAttrName(e *model.SetXAttrEvent) string {
 	if len(e.Name) == 0 {
-		e.Name = string(bytes.Trim(e.NameRaw[:], "\x00"))
+		e.Name, _ = model.UnmarshalString(e.NameRaw[:], 200)
 	}
 	return e.Name
 }
