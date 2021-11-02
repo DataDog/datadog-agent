@@ -80,6 +80,10 @@ func isCardNumber(b string, validateLuhn bool) (ok bool) {
 	if len(b) == 0 {
 		return false
 	}
+	if len(b) < 12 {
+		// fast path: can not be a credit card
+		return false
+	}
 	if b[0] != ' ' && b[0] != '-' && (b[0] < '0' || b[0] > '9') {
 		// fast path: only valid characters are 0-9, space (" ") and dash("-")
 		return false
