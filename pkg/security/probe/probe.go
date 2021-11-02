@@ -901,17 +901,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		return nil, err
 	}
 
-	for name, value := range constants {
-		if value == errorSentinel {
-			log.Warnf("failed to fetch constant for %s", name)
-			value = 0
-		}
-
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
-			Name:  name,
-			Value: value,
-		})
-	}
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, createConstantEditors(constants)...)
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,

@@ -7,7 +7,10 @@
 
 package probe
 
-import "github.com/DataDog/datadog-agent/pkg/security/log"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/log"
+	manager "github.com/DataDog/ebpf-manager"
+)
 
 const errorSentinel uint64 = ^uint64(0)
 
@@ -147,4 +150,20 @@ func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName,
 // FinishAndGetResults returns the results
 func (f *FallbackConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	return f.res, nil
+}
+
+func createConstantEditors(constants map[string]uint64) []manager.ConstantEditor {
+	res := make([]manager.ConstantEditor, 0, len(constants))
+	for name, value := range constants {
+		if value == errorSentinel {
+			log.Warnf("failed to fetch constant for %s", name)
+			value = 0
+		}
+
+		res = append(res, manager.ConstantEditor{
+			Name:  name,
+			Value: value,
+		})
+	}
+	return res
 }
