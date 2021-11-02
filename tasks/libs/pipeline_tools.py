@@ -1,7 +1,7 @@
+import datetime
 import functools
 import platform
 from time import sleep, time
-import datetime
 
 from tasks.utils import DEFAULT_BRANCH
 
