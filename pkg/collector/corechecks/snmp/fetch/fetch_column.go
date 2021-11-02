@@ -59,7 +59,7 @@ func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepeti
 		if len(curOids) == 0 {
 			break
 		}
-		log.Debugf("fetch column: request oids (maxRep:%d,fetchStrategy:%t): %v", bulkMaxRepetitions, fetchStrategy, curOids)
+		log.Debugf("fetch column: request oids (maxRep:%d,fetchStrategy:%s): %v", bulkMaxRepetitions, fetchStrategy, curOids)
 		var columnOids, requestOids []string
 		for k, v := range curOids {
 			columnOids = append(columnOids, k)

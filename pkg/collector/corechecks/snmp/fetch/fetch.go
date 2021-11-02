@@ -2,6 +2,7 @@ package fetch
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -16,6 +17,17 @@ const (
 	useGetBulk columnFetchStrategy = iota
 	useGetNext
 )
+
+func (c columnFetchStrategy) String() string {
+	switch c {
+	case useGetBulk:
+		return "useGetBulk"
+	case useGetNext:
+		return "useGetNext"
+	default:
+		return strconv.Itoa(int(c))
+	}
+}
 
 // Fetch oid values from device
 // TODO: pass only specific configs instead of the whole CheckConfig
