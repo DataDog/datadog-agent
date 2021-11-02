@@ -310,6 +310,21 @@ func TestLoadEnv(t *testing.T) {
 	}
 
 	for _, envKey := range []string{
+		"DD_APM_ERROR_TPS",
+	} {
+		t.Run(envKey, func(t *testing.T) {
+			defer cleanConfig()()
+			assert := assert.New(t)
+			err := os.Setenv(envKey, "12")
+			assert.NoError(err)
+			defer os.Unsetenv(envKey)
+			cfg, err := Load("./testdata/full.yaml")
+			assert.NoError(err)
+			assert.Equal(12., cfg.ErrorTPS)
+		})
+	}
+
+	for _, envKey := range []string{
 		"DD_MAX_EPS", // deprecated
 		"DD_APM_MAX_EPS",
 	} {

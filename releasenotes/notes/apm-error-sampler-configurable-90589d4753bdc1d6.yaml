@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: Enable configuration of the error sampler. The target tps can be set with the env var
+    DD_APM_ERROR_TPS or the configuration `apm_config.error_traces_per_second`. The trace-agent 
+    defaults to 10 extra trace chunks sampled per second above the head base sampling.
+    The tps is spread to catch all combinations of (service, name, resource, http.status, error.type).
+upgrades:
+  - |
+    APM: Configuration `max_traces_per_second` does not affect anymore errors sampling.
