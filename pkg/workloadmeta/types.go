@@ -26,6 +26,7 @@ type Store interface {
 	Subscribe(name string, filter *Filter) chan EventBundle
 	Unsubscribe(ch chan EventBundle)
 	GetContainer(id string) (*Container, error)
+	ListContainers() ([]*Container, error)
 	GetKubernetesPod(id string) (*KubernetesPod, error)
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 	GetECSTask(id string) (*ECSTask, error)
