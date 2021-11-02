@@ -383,14 +383,16 @@ func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
 	})
 }
 
-func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
+func decodeTraces(v Version, req *http.Request) (*decodedTraces, error) {
 	switch v {
 	case v01:
 		var spans []pb.Span
 		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			return nil, err
 		}
-		return tracesFromSpans(spans), nil
+		return &decodedTraces{
+			Traces: tracesFromSpans(spans),
+		}, nil
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
@@ -399,13 +401,12 @@ func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
 		}
 		var traces pb.Traces
 		err := traces.UnmarshalMsgDictionary(buf.Bytes())
-		return traces, err
+		return &decodedTraces{
+			Traces:  traces,
+			RanHook: true,
+		}, err
 	default:
-		var traces pb.Traces
-		if err := decodeRequest(req, &traces); err != nil {
-			return nil, err
-		}
-		return traces, nil
+		return decodeRequest(req)
 	}
 }
 
@@ -517,12 +518,13 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
+
 	start := time.Now()
-	traces, err := decodeTraces(v, req)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
 	}(err)
+	dectraces, err := decodeTraces(v, req)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
@@ -539,6 +541,17 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
+	}
+	traces := dectraces.Traces
+	if !dectraces.RanHook {
+		// The decoder of this request did not run the pb.MetaHook. The user is either using
+		// a deprecated endpoint or Content-Type, or, a new decoder was implemented and the
+		// the hook was not added.
+		log.Debug("Decoded the request without running pb.MetaHook. If this is a newly implemented endpoint, please make sure to run it!")
+		if _, ok := pb.MetaHook(); ok {
+			log.Warn("Received request on deprecated API endpoint or Content-Type. Performance is degraded. If you think this is an error, please contact support with this message.")
+			runMetaHook(traces)
+		}
 	}
 	if n, ok := r.replyOK(v, w); ok {
 		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
@@ -574,6 +587,23 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			}()
 			r.out <- payload
 		}()
+	}
+}
+
+// runMetaHook runs the pb.MetaHook on all spans from traces.
+func runMetaHook(traces pb.Traces) {
+	hook, ok := pb.MetaHook()
+	if !ok {
+		return
+	}
+	for _, trace := range traces {
+		for _, span := range trace {
+			for k, v := range span.Meta {
+				if newv := hook(k, v); newv != v {
+					span.Meta[k] = newv
+				}
+			}
+		}
 	}
 }
 
@@ -747,38 +777,52 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func decodeRequest(req *http.Request, dest *pb.Traces) error {
+type decodedTraces struct {
+	// Traces contains the decoded request.
+	Traces pb.Traces
+	// RanHook reports whether the decoder was able to run the pb.MetaHook
+	// See pkg/trace/pb/hook.go
+	RanHook bool
+}
+
+func decodeRequest(req *http.Request) (*decodedTraces, error) {
+	var dest pb.Traces
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
 		buf := getBuffer()
 		defer putBuffer(buf)
 		_, err := io.Copy(buf, req.Body)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		_, err = dest.UnmarshalMsg(buf.Bytes())
-		return err
+		return &decodedTraces{
+			Traces:  dest,
+			RanHook: true,
+		}, err
 	case "application/json":
 		fallthrough
 	case "text/json":
 		fallthrough
 	case "":
-		return json.NewDecoder(req.Body).Decode(dest)
+		err := json.NewDecoder(req.Body).Decode(&dest)
+		return &decodedTraces{Traces: dest}, err
 	default:
 		// do our best
-		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
+		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
 			buf := getBuffer()
 			defer putBuffer(buf)
 			_, err2 := io.Copy(buf, req.Body)
 			if err2 != nil {
-				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
+				return nil, err2
 			}
 			_, err2 = dest.UnmarshalMsg(buf.Bytes())
-			if err2 != nil {
-				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
-			}
+			return &decodedTraces{
+				Traces:  dest,
+				RanHook: true,
+			}, err2
 		}
-		return nil
+		return &decodedTraces{Traces: dest}, nil
 	}
 }
 
