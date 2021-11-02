@@ -55,7 +55,7 @@ apm_config:
 			}
 			waitForTrace(t, &r, func(v pb.TracePayload) {
 				payloadsEqual(t, p, v)
-				assert.Equal(t, v.Traces[0].Spans[0].Meta["credit_card_number"], tt.out)
+				assert.Equal(t, v.TracerPayloads[0].Chunks[0].Spans[0].Meta["credit_card_number"], tt.out)
 			})
 		})
 	}
