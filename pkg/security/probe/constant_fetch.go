@@ -8,6 +8,10 @@
 package probe
 
 import (
+	"crypto/md5"
+	"hash"
+	"io"
+
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -25,6 +29,7 @@ type ConstantFetcher interface {
 // ComposeConstantFetcher represents a composition of child constant fetchers
 // It allows the usage of fallbacks if the main source is not working
 type ComposeConstantFetcher struct {
+	hasher   hash.Hash
 	fetchers []ConstantFetcher
 	requests []*composeRequest
 }
@@ -33,12 +38,17 @@ type ComposeConstantFetcher struct {
 // passed fetchers
 func ComposeConstantFetchers(fetchers []ConstantFetcher) *ComposeConstantFetcher {
 	return &ComposeConstantFetcher{
+		hasher:   md5.New(),
 		fetchers: fetchers,
 	}
 }
 
 func (f *ComposeConstantFetcher) appendRequest(req *composeRequest) {
 	f.requests = append(f.requests, req)
+	io.WriteString(f.hasher, req.id)
+	io.WriteString(f.hasher, req.typeName)
+	io.WriteString(f.hasher, req.fieldName)
+	io.WriteString(f.hasher, req.headerName)
 }
 
 // AppendSizeofRequest appends a sizeof request
@@ -65,8 +75,18 @@ func (f *ComposeConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, 
 	})
 }
 
+func (f *ComposeConstantFetcher) getHash() []byte {
+	return f.hasher.Sum(nil)
+}
+
 // FinishAndGetResults does the actual fetching and returns the results
 func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
+	currentHash := f.getHash()
+	if cachedConstants.isMatching(currentHash) {
+		log.Warnf("cached hit")
+		return cachedConstants.constants, nil
+	}
+
 	for _, fetcher := range f.fetchers {
 		for _, req := range f.requests {
 			if req.value == errorSentinel {
@@ -95,6 +115,11 @@ func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error
 	finalRes := make(map[string]uint64)
 	for _, req := range f.requests {
 		finalRes[req.id] = req.value
+	}
+
+	cachedConstants = &CachedConstants{
+		constants: finalRes,
+		hash:      currentHash,
 	}
 	return finalRes, nil
 }
@@ -152,13 +177,16 @@ func (f *FallbackConstantFetcher) FinishAndGetResults() (map[string]uint64, erro
 	return f.res, nil
 }
 
-func createConstantEditors(constants map[string]uint64) []manager.ConstantEditor {
+func createConstantEditors(probe *Probe, constants map[string]uint64) []manager.ConstantEditor {
 	res := make([]manager.ConstantEditor, 0, len(constants))
+	log.Warnf("kernel version: %v", probe.kernelVersion)
 	for name, value := range constants {
 		if value == errorSentinel {
 			log.Warnf("failed to fetch constant for %s", name)
 			value = 0
 		}
+
+		log.Warnf("constant %s = %v", name, value)
 
 		res = append(res, manager.ConstantEditor{
 			Name:  name,
@@ -166,4 +194,28 @@ func createConstantEditors(constants map[string]uint64) []manager.ConstantEditor
 		})
 	}
 	return res
+}
+
+var cachedConstants *CachedConstants
+
+type CachedConstants struct {
+	constants map[string]uint64
+	hash      []byte
+}
+
+func (cc *CachedConstants) isMatching(hash []byte) bool {
+	if cc == nil {
+		return false
+	}
+
+	if len(hash) != len(cc.hash) {
+		return false
+	}
+
+	for i, v := range cc.hash {
+		if v != hash[i] {
+			return false
+		}
+	}
+	return true
 }

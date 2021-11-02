@@ -901,7 +901,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		return nil, err
 	}
 
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, createConstantEditors(constants)...)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, createConstantEditors(p, constants)...)
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
