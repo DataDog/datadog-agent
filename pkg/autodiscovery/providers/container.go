@@ -80,7 +80,11 @@ func (d *ContainerConfigProvider) listen() {
 
 	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd},
+		[]workloadmeta.Source{
+			workloadmeta.SourceDocker,
+			workloadmeta.SourceContainerd,
+			workloadmeta.SourceECSFargate,
+		},
 	))
 
 	for {
@@ -131,8 +135,9 @@ func (d *ContainerConfigProvider) processEvents(eventBundle workloadmeta.EventBu
 
 }
 
-// IsUpToDate checks whether we have new containers to parse, based on events received by the listen goroutine.
-// If listening fails, we fallback to Collecting everytime.
+// IsUpToDate checks whether we have new containers to parse, based on events
+// received by the listen goroutine. If listening fails, we fallback to
+// collecting everytime.
 func (d *ContainerConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	d.RLock()
 	defer d.RUnlock()
