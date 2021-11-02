@@ -87,7 +87,7 @@ require (
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/avast/retry-go v3.0.0+incompatible
-	github.com/aws/aws-sdk-go v1.40.38
+	github.com/aws/aws-sdk-go v1.41.15
 	github.com/beevik/ntp v0.3.0
 	github.com/benbjohnson/clock v1.1.0
 	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
