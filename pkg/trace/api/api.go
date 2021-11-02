@@ -542,12 +542,15 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
+	traces := dectraces.Traces
 	if !dectraces.RanHook {
-		// The decoder of this request did not run the pb.MetaHook. The user could
-		// be using a deprecated endpoint or Content-Type. If there is a hook set,
-		// warn them. Otherwise be silent because it has no impact.
+		// The decoder of this request did not run the pb.MetaHook. The user is either using
+		// a deprecated endpoint or Content-Type, or, a new decoder was implemented and the
+		// the hook was not added.
+		log.Debug("Decoded the request without running pb.MetaHook. If this is a newly implemented endpoint, please make sure to run it!")
 		if _, ok := pb.MetaHook(); ok {
-			log.Warn("Received request on deprecated API endpoint or Content-Type. Performance might be affected.")
+			log.Warn("Received request on deprecated API endpoint or Content-Type. Performance is degraded. If you think this is an error, please contact support with this message.")
+			runMetaHook(traces)
 		}
 	}
 	if n, ok := r.replyOK(v, w); ok {
@@ -555,7 +558,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
 	}
 
-	traces := dectraces.Traces
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
@@ -569,7 +571,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
 		ClientComputedStats:    req.Header.Get(headerComputedStats) != "",
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
-		RunMetaHook:            !dectraces.RanHook,
 	}
 
 	select {
@@ -586,6 +587,23 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			}()
 			r.out <- payload
 		}()
+	}
+}
+
+// runMetaHook runs the pb.MetaHook on all spans from traces.
+func runMetaHook(traces pb.Traces) {
+	hook, ok := pb.MetaHook()
+	if !ok {
+		return
+	}
+	for _, trace := range traces {
+		for _, span := range trace {
+			for k, v := range span.Meta {
+				if newv := hook(k, v); newv != v {
+					span.Meta[k] = newv
+				}
+			}
+		}
 	}
 }
 
@@ -634,10 +652,6 @@ type Payload struct {
 
 	// ClientDroppedP0s specifies the number of P0 traces chunks dropped by the client.
 	ClientDroppedP0s int64
-
-	// RunMetaHook specifies whether the agent.Agent processor should run the pb.MetaHook
-	// See pkg/trace/pb/hook.go
-	RunMetaHook bool
 }
 
 // handleServices handle a request with a list of several services
