@@ -59,6 +59,8 @@ const (
 	MountReleasedEventType
 	// SELinuxEventType selinux event
 	SELinuxEventType
+	// BPFEventType bpf event
+	BPFEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -130,6 +132,8 @@ func (t EventType) String() string {
 		return "mount_released"
 	case SELinuxEventType:
 		return "selinux"
+	case BPFEventType:
+		return "bpf"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
