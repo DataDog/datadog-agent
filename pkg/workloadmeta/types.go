@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/imdario/mergo"
@@ -29,6 +30,7 @@ type Store interface {
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 	GetECSTask(id string) (*ECSTask, error)
 	Notify(events []CollectorEvent)
+	Dump(verbose bool) WorkloadDumpResponse
 }
 
 // Kind is the kind of an entity.
@@ -75,6 +77,7 @@ type Entity interface {
 	GetID() EntityID
 	Merge(Entity) error
 	DeepCopy() Entity
+	String(verbose bool) string
 }
 
 // EntityID represents the ID of an Entity.
@@ -101,6 +104,11 @@ func (i EntityID) DeepCopy() Entity {
 	return i
 }
 
+// String returns a string representation of EntityID.
+func (i EntityID) String(_ bool) string {
+	return fmt.Sprintln("Kind:", i.Kind, "ID:", i.ID)
+}
+
 var _ Entity = EntityID{}
 
 // EntityMeta represents generic metadata about an Entity.
@@ -109,6 +117,20 @@ type EntityMeta struct {
 	Namespace   string
 	Annotations map[string]string
 	Labels      map[string]string
+}
+
+// String returns a string representation of EntityMeta.
+func (e EntityMeta) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Name:", e.Name)
+	_, _ = fmt.Fprintln(&sb, "Namespace:", e.Namespace)
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToString(e.Annotations))
+		_, _ = fmt.Fprintln(&sb, "Labels:", mapToString(e.Labels))
+	}
+
+	return sb.String()
 }
 
 // ContainerImage is the an image used by a container.
@@ -143,11 +165,39 @@ func NewContainerImage(imageName string) (ContainerImage, error) {
 	return image, nil
 }
 
+// String returns a string representation of ContainerImage.
+func (c ContainerImage) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Name:", c.Name)
+	_, _ = fmt.Fprintln(&sb, "Tag:", c.Tag)
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "ID:", c.ID)
+		_, _ = fmt.Fprintln(&sb, "Raw Name:", c.RawName)
+		_, _ = fmt.Fprintln(&sb, "Short Name:", c.ShortName)
+	}
+
+	return sb.String()
+}
+
 // ContainerState is the state of a container.
 type ContainerState struct {
 	Running    bool
 	StartedAt  time.Time
 	FinishedAt time.Time
+}
+
+// String returns a string representation of ContainerState.
+func (c ContainerState) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Running:", c.Running)
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Started At:", c.StartedAt)
+		_, _ = fmt.Fprintln(&sb, "Finished At:", c.FinishedAt)
+	}
+
+	return sb.String()
 }
 
 // ContainerPort is a port open in the container.
@@ -157,12 +207,30 @@ type ContainerPort struct {
 	Protocol string
 }
 
+// String returns a string representation of ContainerPort.
+func (c ContainerPort) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Port:", c.Port)
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Name:", c.Name)
+		_, _ = fmt.Fprintln(&sb, "Protocol:", c.Protocol)
+	}
+
+	return sb.String()
+}
+
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
 	ID    string
 	Name  string
 	Image ContainerImage
+}
+
+// String returns a string representation of OrchestratorContainer.
+func (o OrchestratorContainer) String(_ bool) string {
+	return fmt.Sprintln("Name:", o.Name, "ID:", o.ID)
 }
 
 // Container is a containerized workload.
@@ -199,6 +267,40 @@ func (c *Container) Merge(e Entity) error {
 func (c Container) DeepCopy() Entity {
 	cp := deepcopy.Copy(c).(Container)
 	return &cp
+}
+
+// String returns a string representation of Container.
+func (c Container) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, c.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, c.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Image -----------")
+	_, _ = fmt.Fprint(&sb, c.Image.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Container Info -----------")
+	_, _ = fmt.Fprintln(&sb, "Runtime:", c.Runtime)
+	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Env Variables:", mapToString(c.EnvVars))
+		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
+		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
+		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
+	}
+
+	if len(c.Ports) > 0 && verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Ports -----------")
+		for _, p := range c.Ports {
+			_, _ = fmt.Fprint(&sb, p.String(verbose))
+		}
+	}
+
+	return sb.String()
 }
 
 var _ Entity = &Container{}
@@ -240,6 +342,44 @@ func (p KubernetesPod) DeepCopy() Entity {
 	return &cp
 }
 
+// String returns a string representation of KubernetesPod.
+func (p KubernetesPod) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, p.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, p.EntityMeta.String(verbose))
+
+	if len(p.Owners) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Owners -----------")
+		for _, o := range p.Owners {
+			_, _ = fmt.Fprint(&sb, o.String(verbose))
+		}
+	}
+
+	if len(p.Containers) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Containers -----------")
+		for _, c := range p.Containers {
+			_, _ = fmt.Fprint(&sb, c.String(verbose))
+		}
+	}
+
+	_, _ = fmt.Fprintln(&sb, "----------- Pod Info -----------")
+	_, _ = fmt.Fprintln(&sb, "Ready:", p.Ready)
+	_, _ = fmt.Fprintln(&sb, "Phase:", p.Phase)
+	_, _ = fmt.Fprintln(&sb, "IP:", p.IP)
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
+		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
+		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
+		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
+	}
+
+	return sb.String()
+}
+
 var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
@@ -247,6 +387,19 @@ type KubernetesPodOwner struct {
 	Kind string
 	Name string
 	ID   string
+}
+
+// String returns a string representation of KubernetesPodOwner.
+func (o KubernetesPodOwner) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Kind:", o.Kind, "Name:", o.Name)
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
+
+	}
+
+	return sb.String()
 }
 
 // ECSTask is an ECS Task.
@@ -284,6 +437,35 @@ func (t *ECSTask) Merge(e Entity) error {
 func (t ECSTask) DeepCopy() Entity {
 	cp := deepcopy.Copy(t).(ECSTask)
 	return &cp
+}
+
+// String returns a string representation of ECSTask.
+func (t ECSTask) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, t.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, t.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Containers -----------")
+	for _, c := range t.Containers {
+		_, _ = fmt.Fprint(&sb, c.String(verbose))
+	}
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Task Info -----------")
+		_, _ = fmt.Fprintln(&sb, "Tags:", mapToString(t.Tags))
+		_, _ = fmt.Fprintln(&sb, "Container Instance Tags:", mapToString(t.ContainerInstanceTags))
+		_, _ = fmt.Fprintln(&sb, "Cluster Name:", t.ClusterName)
+		_, _ = fmt.Fprintln(&sb, "Region:", t.Region)
+		_, _ = fmt.Fprintln(&sb, "Availability Zone:", t.AvailabilityZone)
+		_, _ = fmt.Fprintln(&sb, "Family:", t.Family)
+		_, _ = fmt.Fprintln(&sb, "Version:", t.Version)
+		_, _ = fmt.Fprintln(&sb, "Launch Type:", t.LaunchType)
+	}
+
+	return sb.String()
 }
 
 var _ Entity = &ECSTask{}
