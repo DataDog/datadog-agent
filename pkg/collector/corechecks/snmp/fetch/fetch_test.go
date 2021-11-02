@@ -85,7 +85,7 @@ func Test_fetchColumnOids(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -176,7 +176,7 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -273,7 +273,7 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2", "1.1.3": "1.1.3"}
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -286,109 +286,6 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 		},
 		"1.1.3": {
 			"1": valuestore.ResultValue{Value: float64(31)},
-		},
-	}
-	assert.Equal(t, expectedColumnValues, columnValues)
-}
-
-func Test_fetchColumnOidsBatch_usingGetBulkAndGetNextFallback(t *testing.T) {
-	sess := session.CreateMockSession()
-	// When using snmp v2+, we will try GetBulk first and fallback using GetNext
-	sess.Version = gosnmp.Version2c
-
-	bulkPacket := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.1.1.1",
-				Type:  gosnmp.TimeTicks,
-				Value: 11,
-			},
-			{
-				Name:  "1.1.2.1",
-				Type:  gosnmp.TimeTicks,
-				Value: 21,
-			},
-		},
-	}
-
-	bulkPacket2 := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.1.1.2",
-				Type:  gosnmp.TimeTicks,
-				Value: 12,
-			},
-			{
-				Name:  "1.1.9.1",
-				Type:  gosnmp.TimeTicks,
-				Value: 91,
-			},
-		},
-	}
-	bulkPacket3 := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.1.9.2",
-				Type:  gosnmp.TimeTicks,
-				Value: 91,
-			},
-		},
-	}
-
-	secondBatchPacket1 := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.1.3.1",
-				Type:  gosnmp.TimeTicks,
-				Value: 31,
-			},
-		},
-	}
-
-	secondBatchPacket2 := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.1.9.1",
-				Type:  gosnmp.TimeTicks,
-				Value: 91,
-			},
-		},
-	}
-
-	sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
-
-	// First batch
-	sess.On("GetNext", []string{"1.1.1", "1.1.2"}).Return(&bulkPacket, nil)
-	sess.On("GetNext", []string{"1.1.1.1", "1.1.2.1"}).Return(&bulkPacket2, nil)
-	sess.On("GetNext", []string{"1.1.1.2"}).Return(&bulkPacket3, nil)
-
-	// Second batch
-	sess.On("GetNext", []string{"1.1.3"}).Return(&secondBatchPacket1, nil)
-	sess.On("GetNext", []string{"1.1.3.1"}).Return(&secondBatchPacket2, nil)
-
-	config := &checkconfig.CheckConfig{
-		BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
-		OidBatchSize:       2,
-		OidConfig: checkconfig.OidConfig{
-			ColumnOids: []string{"1.1.1", "1.1.2", "1.1.3"},
-		},
-	}
-	columnValues, err := Fetch(sess, config)
-	assert.Nil(t, err)
-
-	expectedColumnValues := &valuestore.ResultValueStore{
-		ScalarValues: valuestore.ScalarResultValuesType{},
-		ColumnValues: valuestore.ColumnResultValuesType{
-			"1.1.1": {
-				"1": valuestore.ResultValue{Value: float64(11)},
-				"2": valuestore.ResultValue{Value: float64(12)},
-			},
-			"1.1.2": {
-				"1": valuestore.ResultValue{Value: float64(21)},
-			},
-			"1.1.3": {
-				"1": valuestore.ResultValue{Value: float64(31)},
-			},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
@@ -739,7 +636,7 @@ func Test_fetchValues_errors(t *testing.T) {
 					ColumnOids: []string{"1.1", "2.2"},
 				},
 			},
-			expectedError: fmt.Errorf("failed to fetch oids with GetNext batching: failed to fetch column oids: fetch column: failed getting oids `[1.1 2.2]` using GetNext: getnext error"),
+			expectedError: fmt.Errorf("failed to fetch oids with batching: failed to fetch column oids: fetch column: failed getting oids `[1.1 2.2]` using GetBulk: bulk error"),
 		},
 	}
 	for _, tt := range tests {
@@ -747,7 +644,6 @@ func Test_fetchValues_errors(t *testing.T) {
 			sess := session.CreateMockSession()
 			sess.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
 			sess.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
-			sess.On("GetNext", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("getnext error"))
 
 			_, err := Fetch(sess, &tt.config)
 
