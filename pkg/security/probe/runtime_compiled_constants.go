@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -138,6 +139,7 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		cf.result[sym.Name] = value
 	}
 
+	log.Warnf("runtime compiled constants: %v", cf.result)
 	return cf.result, nil
 }
 
