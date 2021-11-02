@@ -10,6 +10,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
+type columnFetchStrategy int
+
+const (
+	useGetBulk columnFetchStrategy = iota
+	useGetNext
+)
+
 // Fetch oid values from device
 // TODO: pass only specific configs instead of the whole CheckConfig
 func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
@@ -25,11 +32,11 @@ func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.R
 		oids[value] = value
 	}
 
-	columnResults, err := fetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, false)
+	columnResults, err := fetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, useGetBulk)
 	if err != nil {
 		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
-		columnResults, err = fetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, true)
+		columnResults, err = fetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, useGetNext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}
