@@ -1,11 +1,18 @@
 package fetch
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
@@ -646,6 +653,12 @@ func Test_fetchValues_errors(t *testing.T) {
 }
 
 func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	require.NoError(t, err)
+	log.SetupLogger(l, "debug")
+
 	sess := session.CreateMockSession()
 
 	bulkPacket := gosnmp.SnmpPacket{
@@ -735,4 +748,10 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
+
+	w.Flush()
+	logs := b.String()
+	assert.Nil(t, err)
+
+	assert.Equal(t, 1, strings.Count(logs, "[DEBUG] fetchColumnOids: fetch column: OID already processed: 1.1.1.5"), logs)
 }
