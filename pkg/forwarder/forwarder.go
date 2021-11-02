@@ -501,7 +501,7 @@ func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) e
 
 // SubmitSeries will send timeseries to the v2 endpoint
 func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
