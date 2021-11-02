@@ -15,7 +15,7 @@ type Trace []*Span
 // Traces is a list of traces. This model matters as this is what we unpack from msgp.
 type Traces []Trace
 
-// RemoveChunk removes a chunk by its index
+// RemoveChunk removes a chunk by its index.
 func (p *TracerPayload) RemoveChunk(i int) {
 	if i < 0 || i >= len(p.Chunks) {
 		return
@@ -24,10 +24,9 @@ func (p *TracerPayload) RemoveChunk(i int) {
 	p.Chunks = p.Chunks[:len(p.Chunks)-1]
 }
 
-// Split splits a tracer payload into two tracer payloads
-// The first tracer payload will contain [0, i - 1] chunks,
-// and the second tracer payload will contain [i, len - 1] chunks.
-func (p *TracerPayload) Split(i int) (*TracerPayload, *TracerPayload) {
+// Cut cuts off a new tracer payload from the `p` with [0, i-1] chunks
+// and keeps [i, n-1] chunks in the original payload `p`.
+func (p *TracerPayload) Cut(i int) *TracerPayload {
 	if i < 0 {
 		i = 0
 	}
@@ -38,5 +37,5 @@ func (p *TracerPayload) Split(i int) (*TracerPayload, *TracerPayload) {
 	new.Chunks = p.Chunks[:i]
 	p.Chunks = p.Chunks[i:]
 
-	return &new, p
+	return &new
 }

@@ -33,13 +33,13 @@ const pathTraces = "/api/v0.2/traces"
 // a flush is triggered; replaced in tests.
 var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
 
-// SampledSpans represents the result of a trace sampling operation.
-type SampledSpans struct {
-	// TracerPayload will contain trace chunks if it was sampled or be empty if it wasn't.
+// SampledChunks represents the result of a trace sampling operation.
+type SampledChunks struct {
+	// TracerPayload contains all the chunks that were sampled as part of processing a payload.
 	TracerPayload *pb.TracerPayload
 	// Size represents the approximated message size in bytes.
 	Size int
-	// SpanCount specifies the total number of spans found in Traces.
+	// SpanCount specifies the number of spans that were sampled as part of a trace inside the TracerPayload.
 	SpanCount int64
 	// EventCount specifies the total number of events found in Traces.
 	EventCount int64
@@ -49,7 +49,7 @@ type SampledSpans struct {
 type TraceWriter struct {
 	// In receives sampled spans to be processed by the trace writer.
 	// Channel should only be received from when testing.
-	In chan *SampledSpans
+	In chan *SampledChunks
 
 	hostname string
 	env      string
@@ -73,7 +73,7 @@ type TraceWriter struct {
 // will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 	tw := &TraceWriter{
-		In:        make(chan *SampledSpans, 1000),
+		In:        make(chan *SampledChunks, 1000),
 		hostname:  cfg.Hostname,
 		env:       cfg.DefaultEnv,
 		stats:     &info.TraceWriterInfo{},
@@ -173,7 +173,7 @@ func (w *TraceWriter) FlushSync() error {
 	return nil
 }
 
-func (w *TraceWriter) addSpans(pkg *SampledSpans) {
+func (w *TraceWriter) addSpans(pkg *SampledChunks) {
 	atomic.AddInt64(&w.stats.Spans, pkg.SpanCount)
 	atomic.AddInt64(&w.stats.Traces, int64(len(pkg.TracerPayload.Chunks)))
 	atomic.AddInt64(&w.stats.Events, pkg.EventCount)

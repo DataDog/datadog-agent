@@ -28,6 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// These tags are deprecated. Use `Origin` and `Priority` fields in `TraceChunk`.
+	tagOrigin           = "_dd.origin"
+	tagSamplingPriority = "_sampling_priority_v1"
+)
+
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver              *api.HTTPReceiver
@@ -174,51 +180,51 @@ func (a *Agent) loop() {
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(p *api.Payload) {
-	if len(p.TracerPayload.Chunks) == 0 {
+	if len(p.Chunks()) == 0 {
 		log.Debugf("Skipping received empty payload")
 		return
 	}
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
-	ss := new(writer.SampledSpans)
+	ss := new(writer.SampledChunks)
 	var envtraces []stats.EnvTrace
 	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
 
-	for i := 0; i < len(p.TracerPayload.Chunks); {
-		t := p.TracerPayload.Chunks[i]
-		if len(t.Spans) == 0 {
+	for i := 0; i < len(p.Chunks()); {
+		chunk := p.Chunk(i)
+		if len(chunk.Spans) == 0 {
 			log.Debugf("Skipping received empty trace")
-			p.TracerPayload.RemoveChunk(i)
+			p.RemoveChunk(i)
 			continue
 		}
 
-		tracen := int64(len(t.Spans))
+		tracen := int64(len(chunk.Spans))
 		atomic.AddInt64(&ts.SpansReceived, tracen)
-		err := normalizeTrace(p.Source, t.Spans)
+		err := normalizeTrace(p.Source, chunk.Spans)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
 			atomic.AddInt64(&ts.SpansDropped, tracen)
-			p.TracerPayload.RemoveChunk(i)
+			p.RemoveChunk(i)
 			continue
 		}
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
-		root := traceutil.GetRoot(t.Spans)
-		if t.Priority == int32(sampler.PriorityNone) && root.Metrics != nil {
+		root := traceutil.GetRoot(chunk.Spans)
+		if chunk.Priority == int32(sampler.PriorityNone) && root.Metrics != nil {
 			// if the priority is set in a metric on the root, use it for the whole chunk
-			if p, ok := root.Metrics["_sampling_priority_v1"]; ok {
-				t.Priority = int32(p)
+			if p, ok := root.Metrics[tagSamplingPriority]; ok {
+				chunk.Priority = int32(p)
 			}
 		}
-		if t.Origin == "" && root.Meta != nil {
-			t.Origin = root.Meta["_dd.origin"]
+		if chunk.Origin == "" && root.Meta != nil {
+			chunk.Origin = root.Meta[tagOrigin]
 		}
 
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
-			p.TracerPayload.RemoveChunk(i)
+			p.RemoveChunk(i)
 			continue
 		}
 
@@ -226,15 +232,15 @@ func (a *Agent) Process(p *api.Payload) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
-			p.TracerPayload.RemoveChunk(i)
+			p.RemoveChunk(i)
 			continue
 		}
 
 		// Extra sanitization steps of the trace.
-		for _, span := range t.Spans {
+		for _, span := range chunk.Spans {
 			for k, v := range a.conf.GlobalTags {
-				if k == "_dd.origin" {
-					t.Origin = v
+				if k == tagOrigin {
+					chunk.Origin = v
 				} else {
 					traceutil.SetMeta(span, k, v)
 				}
@@ -244,12 +250,8 @@ func (a *Agent) Process(p *api.Payload) {
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
 			}
-
-			// Origin and Priority are set at chunk level
-			delete(span.Meta, "_dd.origin")
-			delete(span.Metrics, "_sampling_priority_v1")
 		}
-		a.Replacer.Replace(t.Spans)
+		a.Replacer.Replace(chunk.Spans)
 
 		{
 			// this section sets up any necessary tags on the root:
@@ -264,17 +266,17 @@ func (a *Agent) Process(p *api.Payload) {
 		if !p.ClientComputedTopLevel {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
 			// which is not thread-safe while samplers and Concentrator might modify it too.
-			traceutil.ComputeTopLevel(t.Spans)
+			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
 		env := a.conf.DefaultEnv
-		if v := traceutil.GetEnv(t.Spans); v != "" {
+		if v := traceutil.GetEnv(chunk.Spans); v != "" {
 			// this trace has a user defined env.
 			env = v
 		}
 		pt := ProcessedTrace{
-			TraceChunk:       t,
-			WeightedTrace:    stats.NewWeightedTrace(t, root),
+			TraceChunk:       chunk,
+			WeightedTrace:    stats.NewWeightedTrace(chunk, root),
 			Root:             root,
 			Env:              env,
 			ClientDroppedP0s: p.ClientDroppedP0s > 0,
@@ -283,7 +285,7 @@ func (a *Agent) Process(p *api.Payload) {
 		numEvents, keep := a.sample(ts, pt)
 		if !p.ClientComputedStats {
 			if envtraces == nil {
-				envtraces = make([]stats.EnvTrace, 0, len(p.TracerPayload.Chunks))
+				envtraces = make([]stats.EnvTrace, 0, len(p.Chunks()))
 			}
 			envtraces = append(envtraces, stats.EnvTrace{
 				Trace: pt.WeightedTrace,
@@ -291,26 +293,26 @@ func (a *Agent) Process(p *api.Payload) {
 			})
 		}
 
-		if len(t.Spans) == 0 {
+		if len(chunk.Spans) == 0 {
 			// everything was dropped
-			p.TracerPayload.RemoveChunk(i)
+			p.RemoveChunk(i)
 			continue
 		}
 
 		// TODO(piochelepiotr): Maybe we can skip some computation if stats are computed in the tracer and the trace is droped.
 		if keep {
-			ss.SpanCount += int64(len(t.Spans))
+			ss.SpanCount += int64(len(chunk.Spans))
 		}
 		ss.EventCount += numEvents
-		ss.Size += t.Msgsize()
+		ss.Size += chunk.Msgsize()
 		i++
 
 		if ss.Size > writer.MaxPayloadSize {
 			// payload size is getting big; split and flush what we have so far
-			ss.TracerPayload, p.TracerPayload = p.TracerPayload.Split(i)
+			ss.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
 			a.TraceWriter.In <- ss
-			ss = new(writer.SampledSpans)
+			ss = new(writer.SampledChunks)
 		}
 	}
 	ss.TracerPayload = p.TracerPayload
@@ -399,8 +401,8 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (numEvents int64, k
 	}
 
 	sampled := a.runSamplers(pt, hasPriority)
-
-	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, pt.TraceChunk, sampled)
+	pt.TraceChunk.DroppedTrace = !sampled
+	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, pt.TraceChunk)
 
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
 	atomic.AddInt64(&ts.EventsSampled, numEvents)

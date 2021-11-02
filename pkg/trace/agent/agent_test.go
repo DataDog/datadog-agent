@@ -795,7 +795,7 @@ Loop:
 		chunk := testutil.GetTraceChunkWithSpans(spans)
 		chunk.Priority = int32(priority)
 
-		numEvents, _ := processor.Process(root, chunk, true)
+		numEvents, _ := processor.Process(root, chunk)
 		totalSampled += int(numEvents)
 
 		<-eventTicker.C
@@ -898,7 +898,7 @@ func benchThroughput(file string) func(*testing.B) {
 		// start the agent without the trace and stats writers; we will be draining
 		// these channels ourselves in the benchmarks, plus we don't want the writers
 		// resource usage to show up in the results.
-		agnt.TraceWriter.In = make(chan *writer.SampledSpans)
+		agnt.TraceWriter.In = make(chan *writer.SampledChunks)
 		go agnt.Run()
 
 		// wait for receiver to start:

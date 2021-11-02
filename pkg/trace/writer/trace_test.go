@@ -32,7 +32,7 @@ func TestTraceWriter(t *testing.T) {
 	}
 
 	t.Run("ok", func(t *testing.T) {
-		testSpans := []*SampledSpans{
+		testSpans := []*SampledChunks{
 			randomSampledSpans(20, 8),
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
@@ -41,7 +41,7 @@ func TestTraceWriter(t *testing.T) {
 		// but overflow on the third.
 		defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
 		tw := NewTraceWriter(cfg)
-		tw.In = make(chan *SampledSpans)
+		tw.In = make(chan *SampledChunks)
 		go tw.Run()
 		for _, ss := range testSpans {
 			tw.In <- ss
@@ -76,13 +76,13 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		numOpsPerWorker = 100
 	)
 
-	testSpans := []*SampledSpans{
+	testSpans := []*SampledChunks{
 		randomSampledSpans(20, 8),
 		randomSampledSpans(10, 0),
 		randomSampledSpans(40, 5),
 	}
 	tw := NewTraceWriter(cfg)
-	tw.In = make(chan *SampledSpans, 100)
+	tw.In = make(chan *SampledChunks, 100)
 	go tw.Run()
 
 	var wg sync.WaitGroup
@@ -112,10 +112,10 @@ func useFlushThreshold(n int) func() {
 }
 
 // randomSampledSpans returns a set of spans sampled spans and events events.
-func randomSampledSpans(spans, events int) *SampledSpans {
+func randomSampledSpans(spans, events int) *SampledChunks {
 	realisticIDs := true
 	traceChunk := testutil.GetTestTraceChunks(1, spans, realisticIDs)[0]
-	return &SampledSpans{
+	return &SampledChunks{
 		TracerPayload: &pb.TracerPayload{Chunks: []*pb.TraceChunk{traceChunk}},
 		Size:          pb.Trace(traceChunk.Spans).Msgsize() + pb.Trace(traceChunk.Spans[:events]).Msgsize(),
 		SpanCount:     int64(len(traceChunk.Spans)),
@@ -123,7 +123,7 @@ func randomSampledSpans(spans, events int) *SampledSpans {
 }
 
 // payloadsContain checks that the given payloads contain the given set of sampled spans.
-func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledSpans) {
+func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledChunks) {
 	t.Helper()
 	var all pb.TracePayload
 	for _, p := range payloads {
@@ -169,7 +169,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 		SynchronousFlushing: true,
 	}
 	t.Run("ok", func(t *testing.T) {
-		testSpans := []*SampledSpans{
+		testSpans := []*SampledChunks{
 			randomSampledSpans(20, 8),
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
@@ -202,7 +202,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 		SynchronousFlushing: true,
 	}
 	t.Run("ok", func(t *testing.T) {
-		testSpans := []*SampledSpans{
+		testSpans := []*SampledChunks{
 			randomSampledSpans(20, 8),
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
