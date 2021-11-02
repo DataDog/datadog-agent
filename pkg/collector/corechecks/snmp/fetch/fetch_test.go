@@ -644,3 +644,95 @@ func Test_fetchValues_errors(t *testing.T) {
 		})
 	}
 }
+
+func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
+	sess := session.CreateMockSession()
+
+	bulkPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 11,
+			},
+			{
+				Name:  "1.1.2.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 21,
+			},
+			{
+				Name:  "1.1.1.2",
+				Type:  gosnmp.TimeTicks,
+				Value: 12,
+			},
+			{
+				Name:  "1.1.2.2",
+				Type:  gosnmp.TimeTicks,
+				Value: 22,
+			},
+			{
+				Name:  "1.1.1.3",
+				Type:  gosnmp.TimeTicks,
+				Value: 13,
+			},
+			{
+				Name:  "1.1.3.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 31,
+			},
+		},
+	}
+	bulkPacket2 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.4",
+				Type:  gosnmp.TimeTicks,
+				Value: 14,
+			},
+			{
+				Name:  "1.1.1.5",
+				Type:  gosnmp.TimeTicks,
+				Value: 15,
+			},
+		},
+	}
+	bulkPacket3 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				// this OID is already process, we won't try to fetch it again
+				Name:  "1.1.1.4",
+				Type:  gosnmp.TimeTicks,
+				Value: 14,
+			},
+			{
+				// this OID is already process, we won't try to fetch it again
+				Name:  "1.1.1.5",
+				Type:  gosnmp.TimeTicks,
+				Value: 15,
+			},
+		},
+	}
+	sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	sess.On("GetBulk", []string{"1.1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	sess.On("GetBulk", []string{"1.1.1.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
+
+	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
+
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions)
+	assert.Nil(t, err)
+
+	expectedColumnValues := valuestore.ColumnResultValuesType{
+		"1.1.1": {
+			"1": valuestore.ResultValue{Value: float64(11)},
+			"2": valuestore.ResultValue{Value: float64(12)},
+			"3": valuestore.ResultValue{Value: float64(13)},
+			"4": valuestore.ResultValue{Value: float64(14)},
+			"5": valuestore.ResultValue{Value: float64(15)},
+		},
+		"1.1.2": {
+			"1": valuestore.ResultValue{Value: float64(21)},
+			"2": valuestore.ResultValue{Value: float64(22)},
+		},
+	}
+	assert.Equal(t, expectedColumnValues, columnValues)
+}
