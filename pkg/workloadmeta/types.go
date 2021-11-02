@@ -106,10 +106,7 @@ func (i EntityID) DeepCopy() Entity {
 
 // String returns a string representation of EntityID.
 func (i EntityID) String(_ bool) string {
-	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintln("Kind:", i.Kind, "ID:", i.ID))
-
-	return sb.String()
+	return fmt.Sprintln("Kind:", i.Kind, "ID:", i.ID)
 }
 
 var _ Entity = EntityID{}
@@ -125,12 +122,12 @@ type EntityMeta struct {
 // String returns a string representation of EntityMeta.
 func (e EntityMeta) String(verbose bool) string {
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintln("Name:", e.Name))
-	_, _ = sb.WriteString(fmt.Sprintln("Namespace:", e.Namespace))
+	_, _ = fmt.Fprintln(&sb, "Name:", e.Name)
+	_, _ = fmt.Fprintln(&sb, "Namespace:", e.Namespace)
 
 	if verbose {
-		_, _ = sb.WriteString(fmt.Sprintln("Annotations:", mapToString(e.Annotations)))
-		_, _ = sb.WriteString(fmt.Sprintln("Labels:", mapToString(e.Labels)))
+		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToString(e.Annotations))
+		_, _ = fmt.Fprintln(&sb, "Labels:", mapToString(e.Labels))
 	}
 
 	return sb.String()
@@ -171,13 +168,13 @@ func NewContainerImage(imageName string) (ContainerImage, error) {
 // String returns a string representation of ContainerImage.
 func (c ContainerImage) String(verbose bool) string {
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintln("Name:", c.Name))
-	_, _ = sb.WriteString(fmt.Sprintln("Tag:", c.Tag))
+	_, _ = fmt.Fprintln(&sb, "Name:", c.Name)
+	_, _ = fmt.Fprintln(&sb, "Tag:", c.Tag)
 
 	if verbose {
-		_, _ = sb.WriteString(fmt.Sprintln("ID:", c.ID))
-		_, _ = sb.WriteString(fmt.Sprintln("Raw Name:", c.RawName))
-		_, _ = sb.WriteString(fmt.Sprintln("Short Name:", c.ShortName))
+		_, _ = fmt.Fprintln(&sb, "ID:", c.ID)
+		_, _ = fmt.Fprintln(&sb, "Raw Name:", c.RawName)
+		_, _ = fmt.Fprintln(&sb, "Short Name:", c.ShortName)
 	}
 
 	return sb.String()
@@ -193,11 +190,11 @@ type ContainerState struct {
 // String returns a string representation of ContainerState.
 func (c ContainerState) String(verbose bool) string {
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintln("Running:", c.Running))
+	_, _ = fmt.Fprintln(&sb, "Running:", c.Running)
 
 	if verbose {
-		_, _ = sb.WriteString(fmt.Sprintln("Started At:", c.StartedAt))
-		_, _ = sb.WriteString(fmt.Sprintln("Finished At:", c.FinishedAt))
+		_, _ = fmt.Fprintln(&sb, "Started At:", c.StartedAt)
+		_, _ = fmt.Fprintln(&sb, "Finished At:", c.FinishedAt)
 	}
 
 	return sb.String()
@@ -213,11 +210,11 @@ type ContainerPort struct {
 // String returns a string representation of ContainerPort.
 func (c ContainerPort) String(verbose bool) string {
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintln("Port:", c.Port))
+	_, _ = fmt.Fprintln(&sb, "Port:", c.Port)
 
 	if verbose {
-		_, _ = sb.WriteString(fmt.Sprintln("Name:", c.Name))
-		_, _ = sb.WriteString(fmt.Sprintln("Protocol:", c.Protocol))
+		_, _ = fmt.Fprintln(&sb, "Name:", c.Name)
+		_, _ = fmt.Fprintln(&sb, "Protocol:", c.Protocol)
 	}
 
 	return sb.String()
@@ -233,10 +230,7 @@ type OrchestratorContainer struct {
 
 // String returns a string representation of OrchestratorContainer.
 func (o OrchestratorContainer) String(_ bool) string {
-	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintln("Name:", o.Name, "ID:", o.ID))
-
-	return sb.String()
+	return fmt.Sprintln("Name:", o.Name, "ID:", o.ID)
 }
 
 // Container is a containerized workload.
@@ -279,30 +273,30 @@ func (c Container) DeepCopy() Entity {
 func (c Container) String(verbose bool) string {
 	var sb strings.Builder
 
-	_, _ = sb.WriteString(fmt.Sprintln("----------- Entity ID -----------"))
-	_, _ = sb.WriteString(c.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, c.EntityID.String(verbose))
 
-	_, _ = sb.WriteString(fmt.Sprintln("----------- Entity Meta -----------"))
-	_, _ = sb.WriteString(c.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, c.EntityMeta.String(verbose))
 
-	_, _ = sb.WriteString(fmt.Sprintln("----------- Image -----------"))
-	_, _ = sb.WriteString(c.Image.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Image -----------")
+	_, _ = fmt.Fprint(&sb, c.Image.String(verbose))
 
-	_, _ = sb.WriteString(fmt.Sprintln("----------- Container Info -----------"))
-	_, _ = sb.WriteString(fmt.Sprintln("Runtime:", c.Runtime))
-	_, _ = sb.WriteString(c.State.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Container Info -----------")
+	_, _ = fmt.Fprintln(&sb, "Runtime:", c.Runtime)
+	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
 
 	if verbose {
-		_, _ = sb.WriteString(fmt.Sprintln("Env Variables:", mapToString(c.EnvVars)))
-		_, _ = sb.WriteString(fmt.Sprintln("Hostname:", c.Hostname))
-		_, _ = sb.WriteString(fmt.Sprintln("Network IPs:", mapToString(c.NetworkIPs)))
-		_, _ = sb.WriteString(fmt.Sprintln("PID:", c.PID))
+		_, _ = fmt.Fprintln(&sb, "Env Variables:", mapToString(c.EnvVars))
+		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
+		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
+		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
 	}
 
 	if len(c.Ports) > 0 && verbose {
-		_, _ = sb.WriteString(fmt.Sprintln("----------- Ports -----------"))
+		_, _ = fmt.Fprintln(&sb, "----------- Ports -----------")
 		for _, p := range c.Ports {
-			_, _ = sb.WriteString(p.String(verbose))
+			_, _ = fmt.Fprint(&sb, p.String(verbose))
 		}
 	}
 
@@ -351,36 +345,36 @@ func (p KubernetesPod) DeepCopy() Entity {
 // String returns a string representation of KubernetesPod.
 func (p KubernetesPod) String(verbose bool) string {
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintln("----------- Entity ID -----------"))
-	_, _ = sb.WriteString(p.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, p.EntityID.String(verbose))
 
-	_, _ = sb.WriteString(fmt.Sprintln("----------- Entity Meta -----------"))
-	_, _ = sb.WriteString(p.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, p.EntityMeta.String(verbose))
 
 	if len(p.Owners) > 0 {
-		_, _ = sb.WriteString(fmt.Sprintln("----------- Owners -----------"))
+		_, _ = fmt.Fprintln(&sb, "----------- Owners -----------")
 		for _, o := range p.Owners {
-			_, _ = sb.WriteString(o.String(verbose))
+			_, _ = fmt.Fprint(&sb, o.String(verbose))
 		}
 	}
 
 	if len(p.Containers) > 0 {
-		_, _ = sb.WriteString(fmt.Sprintln("----------- Containers -----------"))
+		_, _ = fmt.Fprintln(&sb, "----------- Containers -----------")
 		for _, c := range p.Containers {
-			_, _ = sb.WriteString(c.String(verbose))
+			_, _ = fmt.Fprint(&sb, c.String(verbose))
 		}
 	}
 
-	_, _ = sb.WriteString(fmt.Sprintln("----------- Pod Info -----------"))
-	_, _ = sb.WriteString(fmt.Sprintln("Ready:", p.Ready))
-	_, _ = sb.WriteString(fmt.Sprintln("Phase:", p.Phase))
-	_, _ = sb.WriteString(fmt.Sprintln("IP:", p.IP))
+	_, _ = fmt.Fprintln(&sb, "----------- Pod Info -----------")
+	_, _ = fmt.Fprintln(&sb, "Ready:", p.Ready)
+	_, _ = fmt.Fprintln(&sb, "Phase:", p.Phase)
+	_, _ = fmt.Fprintln(&sb, "IP:", p.IP)
 
 	if verbose {
-		_, _ = sb.WriteString(fmt.Sprintln("Priority Class:", p.PriorityClass))
-		_, _ = sb.WriteString(fmt.Sprintln("PVCs:", sliceToString(p.PersistentVolumeClaimNames)))
-		_, _ = sb.WriteString(fmt.Sprintln("Kube Services:", sliceToString(p.KubeServices)))
-		_, _ = sb.WriteString(fmt.Sprintln("Namespace Labels:", mapToString(p.NamespaceLabels)))
+		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
+		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
+		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
+		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
 	}
 
 	return sb.String()
@@ -398,10 +392,10 @@ type KubernetesPodOwner struct {
 // String returns a string representation of KubernetesPodOwner.
 func (o KubernetesPodOwner) String(verbose bool) string {
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintln("Kind:", o.Kind, "Name:", o.Name))
+	_, _ = fmt.Fprintln(&sb, "Kind:", o.Kind, "Name:", o.Name)
 
 	if verbose {
-		_, _ = sb.WriteString(fmt.Sprintln("ID:", o.ID))
+		_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
 
 	}
 
@@ -448,27 +442,27 @@ func (t ECSTask) DeepCopy() Entity {
 // String returns a string representation of ECSTask.
 func (t ECSTask) String(verbose bool) string {
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintln("----------- Entity ID -----------"))
-	_, _ = sb.WriteString(t.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, t.EntityID.String(verbose))
 
-	_, _ = sb.WriteString(fmt.Sprintln("----------- Entity Meta -----------"))
-	_, _ = sb.WriteString(t.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, t.EntityMeta.String(verbose))
 
-	_, _ = sb.WriteString(fmt.Sprintln("----------- Containers -----------"))
+	_, _ = fmt.Fprintln(&sb, "----------- Containers -----------")
 	for _, c := range t.Containers {
-		_, _ = sb.WriteString(c.String(verbose))
+		_, _ = fmt.Fprint(&sb, c.String(verbose))
 	}
 
 	if verbose {
-		_, _ = sb.WriteString(fmt.Sprintln("----------- Task Info -----------"))
-		_, _ = sb.WriteString(fmt.Sprintln("Tags:", mapToString(t.Tags)))
-		_, _ = sb.WriteString(fmt.Sprintln("Container Instance Tags:", mapToString(t.ContainerInstanceTags)))
-		_, _ = sb.WriteString(fmt.Sprintln("Cluster Name:", t.ClusterName))
-		_, _ = sb.WriteString(fmt.Sprintln("Region:", t.Region))
-		_, _ = sb.WriteString(fmt.Sprintln("Availability Zone:", t.AvailabilityZone))
-		_, _ = sb.WriteString(fmt.Sprintln("Family:", t.Family))
-		_, _ = sb.WriteString(fmt.Sprintln("Version:", t.Version))
-		_, _ = sb.WriteString(fmt.Sprintln("Launch Type:", t.LaunchType))
+		_, _ = fmt.Fprintln(&sb, "----------- Task Info -----------")
+		_, _ = fmt.Fprintln(&sb, "Tags:", mapToString(t.Tags))
+		_, _ = fmt.Fprintln(&sb, "Container Instance Tags:", mapToString(t.ContainerInstanceTags))
+		_, _ = fmt.Fprintln(&sb, "Cluster Name:", t.ClusterName)
+		_, _ = fmt.Fprintln(&sb, "Region:", t.Region)
+		_, _ = fmt.Fprintln(&sb, "Availability Zone:", t.AvailabilityZone)
+		_, _ = fmt.Fprintln(&sb, "Family:", t.Family)
+		_, _ = fmt.Fprintln(&sb, "Version:", t.Version)
+		_, _ = fmt.Fprintln(&sb, "Launch Type:", t.LaunchType)
 	}
 
 	return sb.String()

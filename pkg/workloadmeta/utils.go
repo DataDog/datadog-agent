@@ -5,12 +5,15 @@
 
 package workloadmeta
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 func mapToString(m map[string]string) string {
 	var sb strings.Builder
 	for k, v := range m {
-		_, _ = sb.WriteString(k + ":" + v + " ")
+		fmt.Fprintf(&sb, "%s:%s ", k, v)
 	}
 
 	return sb.String()

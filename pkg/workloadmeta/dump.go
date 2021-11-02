@@ -77,7 +77,7 @@ func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 						continue
 					}
 
-					entities.Infos["source:"+source+" id: "+id] = info
+					entities.Infos["source:"+string(source)+" id: "+id] = info
 				}
 			}
 
