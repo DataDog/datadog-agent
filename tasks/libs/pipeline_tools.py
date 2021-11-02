@@ -1,6 +1,7 @@
 import functools
 import platform
 from time import sleep, time
+import datetime
 
 from tasks.utils import DEFAULT_BRANCH
 
@@ -23,6 +24,18 @@ def get_running_pipelines_on_same_ref(gitlab, ref, sha=None):
     return running_pipelines
 
 
+def parse_datetime(dt, retry=False):
+    # UTC hack
+    try:
+        return datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%f%z")
+    except ValueError as e:
+        if retry:
+            raise e
+        if dt.endswith("Z"):
+            dt = dt[:-1] + "+00:00"
+        return parse_datetime(dt, True)
+
+
 def cancel_pipelines_with_confirmation(gitlab, pipelines):
     for pipeline in pipelines:
         commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, pipeline['id'])
@@ -35,7 +48,13 @@ def cancel_pipelines_with_confirmation(gitlab, pipelines):
             ),
         )
 
-        print(color_message("Started at", "blue"), pipeline['created_at'])
+        print(
+            "{} {:%c} ({})".format(
+                color_message("Started at", "blue"),
+                parse_datetime(pipeline['created_at']).astimezone(),
+                pipeline['created_at'],
+            )
+        )
 
         print(
             color_message("Commit:", "blue"),
