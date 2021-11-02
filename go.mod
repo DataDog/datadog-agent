@@ -192,10 +192,8 @@ require (
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.305.0
-	go.opentelemetry.io/collector v0.37.0
-	go.opentelemetry.io/collector/model v0.37.0
-	// Fix vanity import issue
-	go.opentelemetry.io/otel/internal/metric v0.24.1-0.20211006140346-3d4ae8d0b75f // indirect
+	go.opentelemetry.io/collector v0.38.0
+	go.opentelemetry.io/collector/model v0.38.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/multierr v1.7.0
 	go.uber.org/zap v1.19.1
