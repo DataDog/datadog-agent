@@ -1,11 +1,18 @@
 package fetch
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
@@ -643,4 +650,135 @@ func Test_fetchValues_errors(t *testing.T) {
 			assert.Equal(t, tt.expectedError, err)
 		})
 	}
+}
+
+func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	require.NoError(t, err)
+	log.SetupLogger(l, "debug")
+
+	sess := session.CreateMockSession()
+
+	bulkPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 11,
+			},
+			{
+				Name:  "1.1.2.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 21,
+			},
+			{
+				Name:  "1.1.1.2",
+				Type:  gosnmp.TimeTicks,
+				Value: 12,
+			},
+			{
+				Name:  "1.1.2.2",
+				Type:  gosnmp.TimeTicks,
+				Value: 22,
+			},
+			{
+				Name:  "1.1.1.3",
+				Type:  gosnmp.TimeTicks,
+				Value: 13,
+			},
+			{
+				Name:  "1.1.2.3",
+				Type:  gosnmp.TimeTicks,
+				Value: 23,
+			},
+		},
+	}
+	bulkPacket2 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.4",
+				Type:  gosnmp.TimeTicks,
+				Value: 14,
+			},
+			{
+				Name:  "1.1.2.4",
+				Type:  gosnmp.TimeTicks,
+				Value: 24,
+			},
+			{
+				Name:  "1.1.1.5",
+				Type:  gosnmp.TimeTicks,
+				Value: 15,
+			},
+			{
+				Name:  "1.1.2.5",
+				Type:  gosnmp.TimeTicks,
+				Value: 25,
+			},
+		},
+	}
+	bulkPacket3 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				// this OID is already process, we won't try to fetch it again
+				Name:  "1.1.1.4",
+				Type:  gosnmp.TimeTicks,
+				Value: 14,
+			},
+			{
+				// not processed yet
+				Name:  "1.1.2.6",
+				Type:  gosnmp.TimeTicks,
+				Value: 26,
+			},
+			{
+				// this OID is already process, we won't try to fetch it again
+				Name:  "1.1.1.5",
+				Type:  gosnmp.TimeTicks,
+				Value: 15,
+			},
+			{
+				// this OID is already process, we won't try to fetch it again
+				Name:  "1.1.2.5",
+				Type:  gosnmp.TimeTicks,
+				Value: 25,
+			},
+		},
+	}
+	sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	sess.On("GetBulk", []string{"1.1.1.3", "1.1.2.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	sess.On("GetBulk", []string{"1.1.1.5", "1.1.2.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
+
+	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
+
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions)
+	assert.Nil(t, err)
+
+	expectedColumnValues := valuestore.ColumnResultValuesType{
+		"1.1.1": {
+			"1": valuestore.ResultValue{Value: float64(11)},
+			"2": valuestore.ResultValue{Value: float64(12)},
+			"3": valuestore.ResultValue{Value: float64(13)},
+			"4": valuestore.ResultValue{Value: float64(14)},
+			"5": valuestore.ResultValue{Value: float64(15)},
+		},
+		"1.1.2": {
+			"1": valuestore.ResultValue{Value: float64(21)},
+			"2": valuestore.ResultValue{Value: float64(22)},
+			"3": valuestore.ResultValue{Value: float64(23)},
+			"4": valuestore.ResultValue{Value: float64(24)},
+			"5": valuestore.ResultValue{Value: float64(25)},
+			"6": valuestore.ResultValue{Value: float64(26)},
+		},
+	}
+	assert.Equal(t, expectedColumnValues, columnValues)
+
+	w.Flush()
+	logs := b.String()
+	assert.Nil(t, err)
+
+	assert.Equal(t, 1, strings.Count(logs, "[DEBUG] fetchColumnOids: fetch column: OID already processed: 1.1.1.5"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[DEBUG] fetchColumnOids: fetch column: OID already processed: 1.1.2.5"), logs)
 }

@@ -54,6 +54,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, o
 // The value oid might be equal to column oid or a row oid of the same column.
 func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
+	alreadyProcessedOids := make(map[string]bool)
 	curOids := oids
 	for {
 		if len(curOids) == 0 {
@@ -62,8 +63,16 @@ func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepeti
 		log.Debugf("fetch column: request oids: %v", curOids)
 		var columnOids, requestOids []string
 		for k, v := range curOids {
+			if alreadyProcessedOids[v] {
+				log.Debugf("fetch column: OID already processed: %s", v)
+				continue
+			}
+			alreadyProcessedOids[v] = true
 			columnOids = append(columnOids, k)
 			requestOids = append(requestOids, v)
+		}
+		if len(columnOids) == 0 {
+			break
 		}
 		// sorting ColumnOids and requestOids to make them deterministic for testing purpose
 		sort.Strings(columnOids)
