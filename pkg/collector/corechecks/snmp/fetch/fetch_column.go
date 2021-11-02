@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
-func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 
 	columnOids := getOidsMapKeys(oids)
@@ -31,7 +31,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, o
 			oidsToFetch[oid] = oids[oid]
 		}
 
-		results, err := fetchColumnOids(sess, oidsToFetch, bulkMaxRepetitions, fetchStrategy)
+		results, err := fetchColumnOids(sess, oidsToFetch, bulkMaxRepetitions)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch column oids: %s", err)
 		}
@@ -52,7 +52,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, o
 // fetchColumnOids has an `oids` argument representing a `map[string]string`,
 // the key of the map is the column oid, and the value is the oid used to fetch the next value for the column.
 // The value oid might be equal to column oid or a row oid of the same column.
-func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
 	alreadyProcessedOids := make(map[string]bool)
 	curOids := oids
@@ -60,7 +60,7 @@ func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepeti
 		if len(curOids) == 0 {
 			break
 		}
-		log.Debugf("fetch column: request oids (maxRep:%d,fetchStrategy:%s): %v", bulkMaxRepetitions, fetchStrategy, curOids)
+		log.Debugf("fetch column: request oids: %v", curOids)
 		var columnOids, requestOids []string
 		for k, v := range curOids {
 			if alreadyProcessedOids[v] {
@@ -78,7 +78,7 @@ func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepeti
 		sort.Strings(columnOids)
 		sort.Strings(requestOids)
 
-		results, err := getResults(sess, requestOids, bulkMaxRepetitions, fetchStrategy)
+		results, err := getResults(sess, requestOids, bulkMaxRepetitions)
 		if err != nil {
 			return nil, err
 		}
@@ -89,9 +89,9 @@ func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepeti
 	return returnValues, nil
 }
 
-func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (*gosnmp.SnmpPacket, error) {
+func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
-	if sess.GetVersion() == gosnmp.Version1 || fetchStrategy == useGetNext {
+	if sess.GetVersion() == gosnmp.Version1 {
 		// snmp v1 doesn't support GetBulk
 		getNextResults, err := sess.GetNext(requestOids)
 		if err != nil {
