@@ -48,7 +48,7 @@ func (k *KubeletConfigProvider) String() string {
 	return names.Kubernetes
 }
 
-// Collect retrieves all running pods and extract AD templates from their labels.
+// Collect retrieves all running pods and extract AD templates from their annotations.
 func (k *KubeletConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	k.once.Do(func() {
 		go k.listen()
