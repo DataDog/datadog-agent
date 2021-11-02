@@ -20,11 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	"io/ioutil"
@@ -153,7 +154,7 @@ func getMeta(ctx context.Context, hostnameData util.HostnameData) *Meta {
 }
 
 func getNetworkMeta(ctx context.Context) *NetworkMeta {
-	nid, err := util.GetNetworkID(ctx)
+	nid, err := cloudproviders.GetNetworkID(ctx)
 	if err != nil {
 		log.Infof("could not get network metadata: %s", err)
 		return nil
