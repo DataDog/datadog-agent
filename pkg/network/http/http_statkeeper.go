@@ -89,6 +89,16 @@ func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
 		request, response = response, request
 	}
 
+	if request.request_started == 0 || response.response_status_code == 0 || request.request_started > response.response_last_seen {
+		// This means we can't join these parts as they don't belong to the same transaction.
+		// In this case, as a best-effort we override the incomplete entry with the latest one
+		// we got from eBPF, so it can be joined by it's other half at a later moment.
+		// This can happen because we can get out-of-order half transactions from eBPF
+		atomic.AddInt64(&h.telemetry.dropped, 1)
+		h.incomplete[key] = tx
+		return
+	}
+
 	// Merge response into request
 	request.response_status_code = response.response_status_code
 	request.response_last_seen = response.response_last_seen
