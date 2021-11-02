@@ -5,7 +5,7 @@
 
 // +build linux,linux_bpf
 
-package probe
+package constantfetch
 
 import (
 	"bytes"
@@ -139,7 +139,7 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		cf.result[sym.Name] = value
 	}
 
-	log.Warnf("runtime compiled constants: %v", cf.result)
+	log.Infof("runtime compiled constants: %v", cf.result)
 	return cf.result, nil
 }
 
@@ -179,7 +179,11 @@ func compileConstantFetcher(config *ebpf.Config, cCode string) (io.ReaderAt, err
 		cCode: cCode,
 	}
 	telemetry := runtime.NewRuntimeCompilationTelemetry()
-	return runtime.RuntimeCompileObjectFile(config, additionalFlags, provider, &telemetry)
+	reader, err := runtime.RuntimeCompileObjectFile(config, additionalFlags, provider, &telemetry)
+
+	log.Warnf("telemetry: %+v", telemetry)
+
+	return reader, err
 }
 
 func sortAndDedup(in []string) []string {

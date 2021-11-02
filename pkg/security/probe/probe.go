@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -901,7 +902,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		return nil, err
 	}
 
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, createConstantEditors(p, constants)...)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(constants)...)
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
@@ -1008,7 +1009,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 }
 
 func getOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
-	constantFetcher := ComposeConstantFetchers(getAvailableConstantFetchers(config, probe))
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion))
 
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")

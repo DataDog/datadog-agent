@@ -401,41 +401,6 @@ func getMountIDOffset(probe *Probe) uint64 {
 	return offset
 }
 
-func getSizeOfStructInode(probe *Probe) uint64 {
-	sizeOf := uint64(600)
-
-	switch {
-	case probe.kernelVersion.IsRH7Kernel():
-		sizeOf = 584
-	case probe.kernelVersion.IsRH8Kernel():
-		sizeOf = 648
-	case probe.kernelVersion.IsSLES12Kernel():
-		sizeOf = 560
-	case probe.kernelVersion.IsSLES15Kernel():
-		sizeOf = 592
-	case probe.kernelVersion.IsOracleUEKKernel():
-		sizeOf = 632
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < skernel.Kernel4_16:
-		sizeOf = 608
-	case skernel.Kernel5_0 <= probe.kernelVersion.Code && probe.kernelVersion.Code < skernel.Kernel5_1:
-		sizeOf = 584
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_13:
-		sizeOf = 592
-	}
-
-	return sizeOf
-}
-
-func getSuperBlockMagicOffset(probe *Probe) uint64 {
-	sizeOf := uint64(96)
-
-	if probe.kernelVersion.IsRH7Kernel() {
-		sizeOf = 88
-	}
-
-	return sizeOf
-}
-
 func getVFSLinkDentryPosition(probe *Probe) uint64 {
 	position := uint64(2)
 

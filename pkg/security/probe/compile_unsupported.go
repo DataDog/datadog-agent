@@ -18,10 +18,3 @@ import (
 func getRuntimeCompiledProbe(config *config.Config, useSyscallWrapper bool) (bytecode.AssetReader, error) {
 	return nil, fmt.Errorf("runtime compilation unsupported")
 }
-
-func getAvailableConstantFetchers(config *config.Config, probe *Probe) []ConstantFetcher {
-	fallbackConstantFetcher := NewFallbackConstantFetcher(probe)
-	return []ConstantFetcher{
-		fallbackConstantFetcher,
-	}
-}

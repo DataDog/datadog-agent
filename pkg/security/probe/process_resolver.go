@@ -77,61 +77,6 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 	}
 }
 
-func getSignalTTYOffset(probe *Probe) uint64 {
-	ttyOffset := uint64(400)
-
-	switch {
-	case probe.kernelVersion.IsRH7Kernel():
-		ttyOffset = 416
-	case probe.kernelVersion.IsRH8Kernel():
-		ttyOffset = 392
-	case probe.kernelVersion.IsSLES12Kernel():
-		ttyOffset = 376
-	case probe.kernelVersion.IsSLES15Kernel():
-		ttyOffset = 408
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel5_3:
-		ttyOffset = 368
-	}
-
-	return ttyOffset
-}
-
-func getTTYNameOffset(probe *Probe) uint64 {
-	nameOffset := uint64(368)
-
-	switch {
-	case probe.kernelVersion.IsRH7Kernel():
-		nameOffset = 312
-	case probe.kernelVersion.IsRH8Kernel():
-		nameOffset = 368
-	case probe.kernelVersion.IsSLES12Kernel():
-		nameOffset = 368
-	case probe.kernelVersion.IsSLES15Kernel():
-		nameOffset = 368
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel5_3:
-		nameOffset = 368
-	}
-
-	return nameOffset
-}
-
-// TTYConstants returns the tty constants
-func TTYConstants(probe *Probe) []manager.ConstantEditor {
-	ttyOffset := getSignalTTYOffset(probe)
-	nameOffset := getTTYNameOffset(probe)
-
-	return []manager.ConstantEditor{
-		{
-			Name:  "tty_offset",
-			Value: ttyOffset,
-		},
-		{
-			Name:  "tty_name_offset",
-			Value: nameOffset,
-		},
-	}
-}
-
 // ProcessResolverOpts options of resolver
 type ProcessResolverOpts struct{}
 

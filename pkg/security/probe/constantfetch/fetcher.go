@@ -5,7 +5,7 @@
 
 // +build linux
 
-package probe
+package constantfetch
 
 import (
 	"crypto/md5"
@@ -83,7 +83,6 @@ func (f *ComposeConstantFetcher) getHash() []byte {
 func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	currentHash := f.getHash()
 	if constantsCache.isMatching(currentHash) {
-		log.Warnf("cached hit")
 		return constantsCache.constants, nil
 	}
 
@@ -132,61 +131,14 @@ type composeRequest struct {
 	value               uint64
 }
 
-// FallbackConstantFetcher is a constant fetcher that uses the old fallback
-// heuristics to fetch constants
-type FallbackConstantFetcher struct {
-	probe *Probe
-	res   map[string]uint64
-}
-
-// NewFallbackConstantFetcher returns a new FallbackConstantFetcher
-func NewFallbackConstantFetcher(probe *Probe) *FallbackConstantFetcher {
-	return &FallbackConstantFetcher{
-		probe: probe,
-		res:   make(map[string]uint64),
-	}
-}
-
-func (f *FallbackConstantFetcher) appendRequest(id string) {
-	var value = errorSentinel
-	switch id {
-	case "sizeof_inode":
-		value = getSizeOfStructInode(f.probe)
-	case "sb_magic_offset":
-		value = getSuperBlockMagicOffset(f.probe)
-	case "tty_offset":
-		value = getSignalTTYOffset(f.probe)
-	case "tty_name_offset":
-		value = getTTYNameOffset(f.probe)
-	}
-	f.res[id] = value
-}
-
-// AppendSizeofRequest appends a sizeof request
-func (f *FallbackConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
-	f.appendRequest(id)
-}
-
-// AppendOffsetofRequest appends an offset request
-func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
-	f.appendRequest(id)
-}
-
-// FinishAndGetResults returns the results
-func (f *FallbackConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
-	return f.res, nil
-}
-
-func createConstantEditors(probe *Probe, constants map[string]uint64) []manager.ConstantEditor {
+// CreateConstantEditors creates constant editors based on the constants fetched
+func CreateConstantEditors(constants map[string]uint64) []manager.ConstantEditor {
 	res := make([]manager.ConstantEditor, 0, len(constants))
-	log.Warnf("kernel version: %v", probe.kernelVersion)
 	for name, value := range constants {
 		if value == errorSentinel {
-			log.Warnf("failed to fetch constant for %s", name)
+			log.Errorf("failed to fetch constant for %s", name)
 			value = 0
 		}
-
-		log.Warnf("constant %s = %v", name, value)
 
 		res = append(res, manager.ConstantEditor{
 			Name:  name,

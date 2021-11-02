@@ -29,12 +29,3 @@ func getRuntimeCompiledProbe(config *config.Config, useSyscallWrapper bool) (byt
 
 	return runtime.RuntimeSecurity.Compile(&config.Config, cflags)
 }
-
-func getAvailableConstantFetchers(config *config.Config, probe *Probe) []ConstantFetcher {
-	rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config)
-	fallbackConstantFetcher := NewFallbackConstantFetcher(probe)
-	return []ConstantFetcher{
-		rcConstantFetcher,
-		fallbackConstantFetcher,
-	}
-}
