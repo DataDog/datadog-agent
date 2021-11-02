@@ -7,7 +7,6 @@ package sender
 
 import (
 	"context"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -25,11 +24,11 @@ type Strategy interface {
 type Sender struct {
 	inputChan    chan *message.Message
 	outputChan   chan *message.Message
+	hasError     chan bool
 	destinations *client.Destinations
 	strategy     Strategy
 	done         chan struct{}
 	lastError    error
-	sync.Mutex
 }
 
 // NewSender returns a new sender.
@@ -37,6 +36,7 @@ func NewSender(inputChan chan *message.Message, outputChan chan *message.Message
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
+		hasError:     make(chan bool),
 		destinations: destinations,
 		strategy:     strategy,
 		done:         make(chan struct{}),
@@ -74,9 +74,10 @@ func (s *Sender) send(payload []byte) error {
 	for {
 		err := s.destinations.Main.Send(payload)
 		if err != nil {
-			s.Lock()
+			if s.lastError == nil {
+				s.hasError <- true
+			}
 			s.lastError = err
-			s.Unlock()
 
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
@@ -88,9 +89,10 @@ func (s *Sender) send(payload []byte) error {
 			}
 			return err
 		}
-		s.Lock()
-		s.lastError = nil
-		s.Unlock()
+		if s.lastError != nil {
+			s.lastError = nil
+			s.hasError <- false
+		}
 		break
 	}
 
@@ -103,11 +105,11 @@ func (s *Sender) send(payload []byte) error {
 	return nil
 }
 
-func (s *Sender) hasError() bool {
-	s.Lock()
-	defer s.Unlock()
-	return s.lastError != nil
-}
+// func (s *Sender) hasError() bool {
+// 	s.Lock()
+// 	defer s.Unlock()
+// 	return s.lastError != nil
+// }
 
 // shouldStopSending returns true if a component should stop sending logs.
 func shouldStopSending(err error) bool {
@@ -119,54 +121,69 @@ func shouldStopSending(err error) bool {
 // This ensures backpressure is propagated to the input to prevent loss of measages in the pipeline.
 func SplitSenders(inputChan chan *message.Message, main *Sender, backup *Sender) {
 	go func() {
-		for message := range inputChan {
-			messageCopy := *message
+		mainSenderHasErr := false
+		backupSenderHasErr := false
 
-			mainSenderHasErr := main.hasError()
-			backupSenderHasErr := backup.hasError()
+		for message := range inputChan {
 			sentMain := false
 			sentBackup := false
 
+			// First collect any errors from the senders
+			select {
+			case mainSenderHasErr = <-main.hasError:
+			default:
+			}
+
+			select {
+			case backupSenderHasErr = <-backup.hasError:
+			default:
+			}
+
 			// If both senders are failing, we want to block the pipeline until at least one succeeds
-			if mainSenderHasErr && backupSenderHasErr {
-				select {
-				case main.inputChan <- message:
-					sentMain = true
-				case backup.inputChan <- &messageCopy:
-					sentBackup = true
-				}
-			}
-
-			// If the main sender succeeded above skip it so we don't duplicate a log line.
-			if !sentMain {
-				if !mainSenderHasErr {
-					// If there is no error - block and write to the buffered channel.
-					// If we don't block, the input can fill the buffered channels faster than sender can
-					// drain them - causing missing logs.
-					main.inputChan <- message
-				} else {
-					// Even if there is an error, try to put the log line in the buffered channel in case the
-					// error resolves quickly and there is room in the channel.
+			for {
+				if mainSenderHasErr && backupSenderHasErr {
 					select {
+					// TODO: - this may cause duplication - WIP
 					case main.inputChan <- message:
-					default:
-						break
+						sentMain = true
+					case backup.inputChan <- message:
+						sentBackup = true
+					case mainSenderHasErr = <-main.hasError:
+					case backupSenderHasErr = <-backup.hasError:
 					}
+				} else {
+					break
 				}
 			}
 
-			// Repeat the same steps for the backup sender.
+			if !sentMain {
+				mainSenderHasErr = sendMessage(mainSenderHasErr, main, message)
+			}
+
 			if !sentBackup {
-				if !backupSenderHasErr {
-					backup.inputChan <- &messageCopy
-				} else {
-					select {
-					case backup.inputChan <- &messageCopy:
-					default:
-						break
-					}
-				}
+				backupSenderHasErr = sendMessage(backupSenderHasErr, backup, message)
 			}
 		}
 	}()
+}
+
+func sendMessage(hasError bool, sender *Sender, message *message.Message) bool {
+	if !hasError {
+		// If there is no error - block and write to the buffered channel until it succeeds or we get an error.
+		// If we don't block, the input can fill the buffered channels faster than sender can
+		// drain them - causing missing logs.
+		select {
+		case sender.inputChan <- message:
+		case hasError = <-sender.hasError:
+		}
+	} else {
+		// Even if there is an error, try to put the log line in the buffered channel in case the
+		// error resolves quickly and there is room in the channel.
+		select {
+		case sender.inputChan <- message:
+		default:
+			break
+		}
+	}
+	return hasError
 }

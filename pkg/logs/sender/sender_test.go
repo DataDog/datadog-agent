@@ -87,3 +87,39 @@ func TestSenderNotBlockedByAdditional(t *testing.T) {
 	sender.Stop()
 	destinationsCtx.Stop()
 }
+
+func TestSplitSender(t *testing.T) {
+	l := mock.NewMockLogsIntake(t)
+	defer l.Close()
+
+	source := config.NewLogSource("", &config.LogsConfig{})
+
+	input := make(chan *message.Message, 1)
+	mainInput := make(chan *message.Message, 1)
+	backupInput := make(chan *message.Message, 1)
+	output := make(chan *message.Message, 1)
+
+	destinationsCtx := client.NewDestinationsContext()
+	backupDestinationsCtx := client.NewDestinationsContext()
+	destinationsCtx.Start()
+	backupDestinationsCtx.Start()
+
+	mainDestination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
+	backupDestination := tcp.AddrToDestination(l.Addr(), backupDestinationsCtx)
+	destinations := client.NewDestinations(mainDestination, []client.Destination{})
+	backupDestinations := client.NewDestinations(backupDestination, []client.Destination{})
+
+	mainSender := NewSender(mainInput, output, destinations, &streamStrategy{})
+	backupSender := NewSender(backupInput, output, backupDestinations, &streamStrategy{})
+
+	SplitSenders(input, mainSender, backupSender)
+
+	mainSender.Start()
+	backupSender.Start()
+
+	input <- newMessage([]byte("fake line"), source, "")
+
+	<-output
+	<-output
+
+}
