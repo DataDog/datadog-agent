@@ -689,9 +689,9 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 				Value: 13,
 			},
 			{
-				Name:  "1.1.3.1",
+				Name:  "1.1.2.3",
 				Type:  gosnmp.TimeTicks,
-				Value: 31,
+				Value: 23,
 			},
 		},
 	}
@@ -703,9 +703,19 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 				Value: 14,
 			},
 			{
+				Name:  "1.1.2.4",
+				Type:  gosnmp.TimeTicks,
+				Value: 24,
+			},
+			{
 				Name:  "1.1.1.5",
 				Type:  gosnmp.TimeTicks,
 				Value: 15,
+			},
+			{
+				Name:  "1.1.2.5",
+				Type:  gosnmp.TimeTicks,
+				Value: 25,
 			},
 		},
 	}
@@ -718,16 +728,28 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 				Value: 14,
 			},
 			{
+				// not processed yet
+				Name:  "1.1.2.6",
+				Type:  gosnmp.TimeTicks,
+				Value: 26,
+			},
+			{
 				// this OID is already process, we won't try to fetch it again
 				Name:  "1.1.1.5",
 				Type:  gosnmp.TimeTicks,
 				Value: 15,
 			},
+			{
+				// this OID is already process, we won't try to fetch it again
+				Name:  "1.1.2.5",
+				Type:  gosnmp.TimeTicks,
+				Value: 25,
+			},
 		},
 	}
 	sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
-	sess.On("GetBulk", []string{"1.1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
-	sess.On("GetBulk", []string{"1.1.1.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
+	sess.On("GetBulk", []string{"1.1.1.3", "1.1.2.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	sess.On("GetBulk", []string{"1.1.1.5", "1.1.2.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
@@ -745,6 +767,10 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 		"1.1.2": {
 			"1": valuestore.ResultValue{Value: float64(21)},
 			"2": valuestore.ResultValue{Value: float64(22)},
+			"3": valuestore.ResultValue{Value: float64(23)},
+			"4": valuestore.ResultValue{Value: float64(24)},
+			"5": valuestore.ResultValue{Value: float64(25)},
+			"6": valuestore.ResultValue{Value: float64(26)},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
@@ -754,4 +780,5 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, 1, strings.Count(logs, "[DEBUG] fetchColumnOids: fetch column: OID already processed: 1.1.1.5"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[DEBUG] fetchColumnOids: fetch column: OID already processed: 1.1.2.5"), logs)
 }
