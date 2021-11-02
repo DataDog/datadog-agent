@@ -8,12 +8,15 @@
 package docker
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/docker/docker/api/types"
 )
@@ -177,4 +180,23 @@ func TestGetFileSource(t *testing.T) {
 			assert.Equal(t, tt.wantRules, fileSource.source.Config.ProcessingRules)
 		})
 	}
+}
+
+func TestGetPath(t *testing.T) {
+	t.Run("use_podman_logs=false", func(t *testing.T) {
+		mockConfig := coreConfig.Mock()
+		mockConfig.Set("logs_config.use_podman_logs", false)
+
+		require.Equal(t,
+			filepath.Join(basePath, "123abc/123abc-json.log"),
+			getPath("123abc"))
+	})
+	t.Run("use_podman_logs=true", func(t *testing.T) {
+		mockConfig := coreConfig.Mock()
+		mockConfig.Set("logs_config.use_podman_logs", true)
+
+		require.Equal(t,
+			"/var/lib/containers/storage/overlay-containers/123abc/userdata/ctr.log",
+			getPath("123abc"))
+	})
 }
