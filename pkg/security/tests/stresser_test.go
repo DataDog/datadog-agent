@@ -237,9 +237,12 @@ func getTopData(filename string, from string, size int) ([]byte, error) {
 
 // StressIt starts the stress test
 func StressIt(t *testing.T, pre, post, fnc func() error, opts StressOpts) (StressReport, error) {
+	var report StressReport
+
 	proCPUFile, err := ioutil.TempFile("/tmp", "stress-cpu-")
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return report, err
 	}
 
 	if !opts.KeepProfile {
@@ -250,12 +253,14 @@ func StressIt(t *testing.T, pre, post, fnc func() error, opts StressOpts) (Stres
 
 	if pre != nil {
 		if err := pre(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return report, err
 		}
 	}
 
 	if err := pprof.StartCPUProfile(proCPUFile); err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return report, err
 	}
 
 	done := make(chan bool)
@@ -291,7 +296,8 @@ LOOP:
 	runtime.GC()
 	proMemFile, err := ioutil.TempFile("/tmp", "stress-mem-")
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return report, err
 	}
 
 	if !opts.KeepProfile {
@@ -301,21 +307,24 @@ LOOP:
 	}
 
 	if err := pprof.WriteHeapProfile(proMemFile); err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return report, err
 	}
 
 	if post != nil {
 		if err := post(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return report, err
 		}
 	}
 
 	topData, err := getTopData(proCPUFile.Name(), opts.TopFrom, 50)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return report, err
 	}
 
-	report := StressReport{
+	report = StressReport{
 		Duration:  duration,
 		Iteration: iteration,
 		Top:       topData,
@@ -336,7 +345,8 @@ LOOP:
 	// save report for further comparison
 	if opts.ReportFile != "" {
 		if err := report.Save(opts.ReportFile, t.Name()); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return report, err
 		}
 	}
 

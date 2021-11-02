@@ -50,7 +50,7 @@ func TestChmod(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscall.SYS_FCHMOD, f.Fd(), uintptr(0o707), 0); errno != 0 {
-				return errno
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -58,7 +58,6 @@ func TestChmod(t *testing.T) {
 			assertRights(t, uint16(event.Chmod.Mode), 0o707)
 			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
-
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
@@ -73,7 +72,7 @@ func TestChmod(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_FCHMODAT, 0, uintptr(testFilePtr), uintptr(0o757), 0, 0, 0); errno != 0 {
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -81,7 +80,6 @@ func TestChmod(t *testing.T) {
 			assertRights(t, uint16(event.Chmod.Mode), 0o757)
 			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
 			assertRights(t, event.Chmod.File.Mode, expectedMode)
-
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
@@ -94,7 +92,7 @@ func TestChmod(t *testing.T) {
 	t.Run("chmod", ifSyscallSupported("SYS_CHMOD", func(t *testing.T, syscallNB uintptr) {
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(0o717), 0); errno != 0 {
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -102,7 +100,6 @@ func TestChmod(t *testing.T) {
 			assertRights(t, uint16(event.Chmod.Mode), 0o717, "wrong mode")
 			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
-
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 

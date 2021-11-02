@@ -48,6 +48,8 @@ import (
 
 var (
 	logger seelog.LoggerInterface
+	//nolint:deadcode,unused
+	testSuitePid uint32
 )
 
 const (
@@ -236,12 +238,14 @@ func (h *testProbeHandler) HandleCustomEvent(rule *rules.Rule, event *sprobe.Cus
 func getInode(t *testing.T, path string) uint64 {
 	fileInfo, err := os.Lstat(path)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return 0
 	}
 
 	stats, ok := fileInfo.Sys().(*syscall.Stat_t)
 	if !ok {
-		t.Fatal(errors.New("Not a syscall.Stat_t"))
+		t.Error(errors.New("Not a syscall.Stat_t"))
+		return 0
 	}
 
 	return stats.Ino
@@ -276,61 +280,63 @@ func copyFile(src string, dst string, mode fs.FileMode) error {
 }
 
 //nolint:deadcode,unused
-func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) {
+func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) bool {
 	t.Helper()
 	if len(msgAndArgs) == 0 {
 		msgAndArgs = append(msgAndArgs, "wrong mode")
 	}
-	assert.Equal(t, strconv.FormatUint(uint64(expectedMode), 8), strconv.FormatUint(uint64(actualMode), 8), msgAndArgs...)
+	return assert.Equal(t, strconv.FormatUint(uint64(expectedMode), 8), strconv.FormatUint(uint64(actualMode), 8), msgAndArgs...)
 }
 
 //nolint:deadcode,unused
-func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...interface{}) {
+func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...interface{}) bool {
 	t.Helper()
-	assertMode(t, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
+	return assertMode(t, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
 }
 
 //nolint:deadcode,unused
-func assertNearTime(t *testing.T, ns uint64) {
+func assertNearTime(t *testing.T, ns uint64) bool {
 	t.Helper()
 	now, event := time.Now(), time.Unix(0, int64(ns))
 	if event.After(now) || event.Before(now.Add(-1*time.Hour)) {
 		t.Errorf("expected time close to %s, got %s", now, event)
+		return false
 	}
+	return true
 }
 
 //nolint:deadcode,unused
-func assertTriggeredRule(t *testing.T, r *rules.Rule, id string) {
+func assertTriggeredRule(t *testing.T, r *rules.Rule, id string) bool {
 	t.Helper()
-	assert.Equal(t, id, r.ID, "wrong triggered rule")
+	return assert.Equal(t, id, r.ID, "wrong triggered rule")
 }
 
 //nolint:deadcode,unused
-func assertReturnValue(t *testing.T, retval, expected int64) {
+func assertReturnValue(t *testing.T, retval, expected int64) bool {
 	t.Helper()
-	assert.Equal(t, expected, retval, "wrong return value")
+	return assert.Equal(t, expected, retval, "wrong return value")
 }
 
 //nolint:deadcode,unused
-func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
+func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
 		t.Errorf("failed to get field '%s': %s", field, err)
-	} else {
-		assert.Equal(t, value, fieldValue, msgAndArgs...)
+		return false
 	}
+	return assert.Equal(t, value, fieldValue, msgAndArgs...)
 }
 
 //nolint:deadcode,unused
-func assertFieldOneOf(t *testing.T, e *sprobe.Event, field string, values []interface{}, msgAndArgs ...interface{}) {
+func assertFieldOneOf(t *testing.T, e *sprobe.Event, field string, values []interface{}, msgAndArgs ...interface{}) bool {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
 		t.Errorf("failed to get field '%s': %s", field, err)
-	} else {
-		assert.Contains(t, values, fieldValue)
+		return false
 	}
+	return assert.Contains(t, values, fieldValue)
 }
 
 func setTestConfig(dir string, opts testOpts) (string, error) {
@@ -561,13 +567,28 @@ func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb eventDiscarderHandler) error {
 	tb.Helper()
 
+	message := make(chan ActionMessage, 1)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	tm.RegisterEventDiscarderHandler(func(d *testDiscarder) bool {
 		tb.Helper()
-		if cb(d) {
-			cancel()
+
+		select {
+		case <-ctx.Done():
+			return true
+		case msg := <-message:
+			switch msg {
+			case Skip:
+				cancel()
+			case Continue:
+				if cb(d) {
+					cancel()
+				} else {
+					message <- Continue
+				}
+			}
 		}
 		return true
 	})
@@ -577,9 +598,10 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb e
 	}()
 
 	if err := action(); err != nil {
-		tb.Fatal(err)
+		message <- Skip
 		return err
 	}
+	message <- Continue
 
 	select {
 	case <-time.After(getEventTimeout):
@@ -634,12 +656,33 @@ func NewTimeoutError(probe *sprobe.Probe) ErrTimeout {
 	return err
 }
 
-func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHandler) error {
+// ActionMessage is used to send a message from an action function to its callback
+type ActionMessage int
+
+const (
+	// Continue means that the callback should execute normally
+	Continue ActionMessage = iota
+	// Skip means that the callback should skip the test
+	Skip
+)
+
+// ErrSkipTest is used to notify that a test should be skipped
+type ErrSkipTest struct {
+	msg string
+}
+
+func (err ErrSkipTest) Error() string {
+	return err.msg
+}
+
+func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHandler) {
 	if err := tm.GetSignal(tb, action, cb); err != nil {
-		tb.Error(err)
-		return err
+		if _, ok := err.(ErrSkipTest); ok {
+			tb.Skip(err)
+		} else {
+			tb.Fatal(err)
+		}
 	}
-	return nil
 }
 
 func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandler) error {
@@ -648,9 +691,24 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandl
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	message := make(chan ActionMessage, 1)
+	failNow := make(chan bool, 1)
+
 	tm.RegisterRuleEventHandler(func(e *sprobe.Event, r *rules.Rule) {
 		tb.Helper()
-		cb(e, r)
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-message:
+			switch msg {
+			case Continue:
+				cb(e, r)
+				if tb.Skipped() || tb.Failed() {
+					failNow <- true
+				}
+			case Skip:
+			}
+		}
 		cancel()
 	})
 
@@ -659,11 +717,15 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandl
 	}()
 
 	if err := action(); err != nil {
-		tb.Fatal(err)
+		message <- Skip
 		return err
 	}
+	message <- Continue
 
 	select {
+	case <-failNow:
+		tb.FailNow()
+		return nil
 	case <-time.After(getEventTimeout):
 		return NewTimeoutError(tm.probe)
 	case <-ctx.Done():
@@ -682,6 +744,8 @@ func (tm *testModule) GetProbeCustomEvent(tb testing.TB, action func() error, cb
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	message := make(chan ActionMessage, 1)
+
 	tm.RegisterCustomEventHandler(func(rule *rules.Rule, event *sprobe.CustomEvent) {
 		if len(eventType) > 0 {
 			if event.GetEventType() != eventType[0] {
@@ -689,15 +753,29 @@ func (tm *testModule) GetProbeCustomEvent(tb testing.TB, action func() error, cb
 			}
 		}
 
-		if cb(rule, event) {
-			cancel()
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-message:
+			switch msg {
+			case Continue:
+				if cb(rule, event) {
+					cancel()
+				} else {
+					message <- Continue
+				}
+			case Skip:
+				cancel()
+			}
 		}
 	})
 	defer tm.RegisterCustomEventHandler(nil)
 
 	if err := action(); err != nil {
+		message <- Skip
 		return err
 	}
+	message <- Continue
 
 	select {
 	case <-time.After(getEventTimeout):
@@ -723,6 +801,8 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.E
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	message := make(chan ActionMessage, 1)
+
 	tm.RegisterEventHandler(func(event *sprobe.Event) {
 		if len(eventTypes) > 0 {
 			match := false
@@ -737,20 +817,36 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.E
 			}
 		}
 
-		if cb(event) {
-			cancel()
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-message:
+			switch msg {
+			case Continue:
+				if cb(event) {
+					cancel()
+				} else {
+					message <- Continue
+				}
+			case Skip:
+				cancel()
+			}
 		}
 	})
 	defer tm.RegisterEventHandler(nil)
 
-	if action != nil {
+	if action == nil {
+		message <- Continue
+	} else {
 		if err := action(); err != nil {
+			message <- Skip
 			return err
 		}
+		message <- Continue
 	}
 
 	select {
-	case <-time.After(getEventTimeout):
+	case <-time.After(timeout):
 		return NewTimeoutError(tm.probe)
 	case <-ctx.Done():
 		return nil
@@ -1042,7 +1138,8 @@ func waitForOpenProbeEvent(test *testModule, action func() error, filename strin
 
 func TestEnv(t *testing.T) {
 	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
-		t.Fatal("invalid environment")
+		t.Error("invalid environment")
+		return
 	}
 }
 
@@ -1062,6 +1159,8 @@ func init() {
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	rand.Seed(time.Now().UnixNano())
+
+	testSuitePid = uint32(os.Getpid())
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")

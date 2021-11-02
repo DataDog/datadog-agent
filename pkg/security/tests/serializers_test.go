@@ -36,19 +36,16 @@ func BenchmarkSerializers(b *testing.B) {
 	}
 
 	var workingEvent *sprobe.Event
-	err = test.WaitSignal(b, func() error {
+	test.WaitSignal(b, func() error {
 		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 		if errno != 0 {
-			b.Fatal(errno)
+			return error(errno)
 		}
 		return syscall.Close(int(fd))
 	}, func(event *sprobe.Event, r *rules.Rule) {
-		assert.Equal(b, "open", event.GetType(), "wrong event type")
 		workingEvent = event
+		assert.Equal(b, "open", event.GetType(), "wrong event type")
 	})
-	if err != nil {
-		b.Fatal(err)
-	}
 
 	// then we run the benchmark
 	b.ResetTimer()

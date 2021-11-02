@@ -48,7 +48,7 @@ func TestUtimes(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -56,9 +56,7 @@ func TestUtimes(t *testing.T) {
 			assert.Equal(t, int64(123), event.Utimes.Atime.Unix())
 			assert.Equal(t, int64(456), event.Utimes.Mtime.Unix())
 			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode, "wrong inode")
-
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
-
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 		})
@@ -86,17 +84,15 @@ func TestUtimes(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
-				t.Fatal(errno)
+				return err
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(111), event.Utimes.Atime.Unix())
-
 			assert.Equal(t, int64(222), event.Utimes.Atime.UnixNano()%int64(time.Second)/int64(time.Microsecond))
 			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode)
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
-
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 		})
@@ -125,19 +121,17 @@ func TestUtimes(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_UTIMENSAT, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&ntimes[0])), 0, 0, 0); errno != 0 {
 				if errno == syscall.EINVAL {
-					t.Skip("utimensat not supported")
+					return ErrSkipTest{"utimensat not supported"}
 				}
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(555), event.Utimes.Mtime.Unix())
-
 			assert.Equal(t, int64(666), event.Utimes.Mtime.UnixNano()%int64(time.Second)/int64(time.Nanosecond))
 			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode)
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
-
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 		})
