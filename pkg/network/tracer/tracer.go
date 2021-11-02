@@ -36,12 +36,9 @@ import (
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
 
 type Tracer struct {
-	config *config.Config
-	state  network.State
-
-	conntracker            netlink.Conntracker
-	conntrackerSamplingPct int64
-
+	config      *config.Config
+	state       network.State
+	conntracker netlink.Conntracker
 	reverseDNS  dns.ReverseDNS
 	httpMonitor *http.Monitor
 	ebpfTracer  connection.Tracer
@@ -545,7 +542,6 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 
 	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
-	atomic.StoreInt64(&t.conntrackerSamplingPct, conntrackStats["sampling_pct"])
 
 	ret := map[string]interface{}{
 		"conntrack": conntrackStats,
@@ -640,9 +636,8 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 }
 
 func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
-	// If we're sampling events (or if we're using the eBPF Conntracker, in
-	// which case sampling == 0) there is no point in retrying a Conntrack lookup.
-	if sampling := atomic.LoadInt64(&t.conntrackerSamplingPct); sampling < 100 {
+	// If we're sampling events there is no point in retrying a Conntrack lookup.
+	if t.conntracker.IsSampling() {
 		return
 	}
 
