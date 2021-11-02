@@ -391,7 +391,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *state) (interface{}, 
 
 		for _, member := range array.StringMembers {
 			if member.Pattern != nil {
-				reg, err := patternToRegexp(*member.Pattern)
+				reg, err := PatternToRegexp(*member.Pattern)
 				if err != nil {
 					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid pattern `%s`: %s", *member.Pattern, err))
 				}
@@ -990,7 +990,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				valueType: ScalarValueType,
 			}, obj.Pos, nil
 		case obj.Pattern != nil:
-			reg, err := patternToRegexp(*obj.Pattern)
+			reg, err := PatternToRegexp(*obj.Pattern)
 			if err != nil {
 				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", *obj.Pattern, err))
 			}
