@@ -62,7 +62,7 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 	case translator.HistogramModeCounters, translator.HistogramModeNoBuckets, translator.HistogramModeDistributions:
 		// Do nothing
 	default:
-		return nil, fmt.Errorf("invalid `mode` %s", cfg.Metrics.HistConfig.Mode)
+		return nil, fmt.Errorf("invalid `mode` %q", cfg.Metrics.HistConfig.Mode)
 	}
 
 	options := []translator.Option{
@@ -101,7 +101,7 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
 	tr, err := translatorFromConfig(logger, cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
 
 	return &exporter{tr, s}, nil
