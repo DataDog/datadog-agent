@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/service"
 
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -27,12 +28,10 @@ func TestGetComponents(t *testing.T) {
 
 func TestStartPipeline(t *testing.T) {
 	pcfg := PipelineConfig{
-		BindHost:       "localhost",
-		GRPCPort:       4317,
-		HTTPPort:       4318,
-		TracePort:      5003,
-		MetricsEnabled: true,
-		TracesEnabled:  true,
+		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
+		TracePort:          5003,
+		MetricsEnabled:     true,
+		TracesEnabled:      true,
 	}
 
 	p, err := NewPipeline(pcfg, &serializer.MockSerializer{})

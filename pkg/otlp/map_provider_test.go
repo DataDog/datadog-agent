@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configunmarshaler"
 
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -31,10 +32,9 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only gRPC, only Traces",
 			pcfg: PipelineConfig{
-				GRPCPort:      1234,
-				TracePort:     5003,
-				BindHost:      "bindhost",
-				TracesEnabled: true,
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:          5003,
+				TracesEnabled:      true,
 			},
 			ocfg: `
 receivers:
@@ -57,11 +57,10 @@ service:
 		{
 			name: "only HTTP, metrics and traces",
 			pcfg: PipelineConfig{
-				HTTPPort:       1234,
-				TracePort:      5003,
-				BindHost:       "bindhost",
-				TracesEnabled:  true,
-				MetricsEnabled: true,
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:          5003,
+				TracesEnabled:      true,
+				MetricsEnabled:     true,
 			},
 			ocfg: `
 receivers:
@@ -94,11 +93,9 @@ service:
 		{
 			name: "with both",
 			pcfg: PipelineConfig{
-				GRPCPort:      1234,
-				HTTPPort:      5678,
-				TracePort:     5003,
-				BindHost:      "bindhost",
-				TracesEnabled: true,
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 5678),
+				TracePort:          5003,
+				TracesEnabled:      true,
 			},
 			ocfg: `
 receivers:
@@ -123,10 +120,9 @@ service:
 		{
 			name: "only HTTP, only metrics",
 			pcfg: PipelineConfig{
-				HTTPPort:       1234,
-				TracePort:      5003,
-				BindHost:       "bindhost",
-				MetricsEnabled: true,
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:          5003,
+				MetricsEnabled:     true,
 			},
 			ocfg: `
 receivers:
@@ -165,12 +161,10 @@ service:
 
 func TestUnmarshal(t *testing.T) {
 	mapProvider := newMapProvider(PipelineConfig{
-		GRPCPort:       4317,
-		HTTPPort:       4318,
-		TracePort:      5001,
-		BindHost:       "localhost",
-		MetricsEnabled: true,
-		TracesEnabled:  true,
+		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
+		TracePort:          5001,
+		MetricsEnabled:     true,
+		TracesEnabled:      true,
 	})
 	configMap, err := mapProvider.Get(context.Background())
 	require.NoError(t, err)
