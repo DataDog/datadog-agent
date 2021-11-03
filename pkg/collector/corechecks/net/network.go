@@ -199,8 +199,10 @@ func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCounters
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
 	sender.Rate("system.net.packets_in.count", float64(interfaceIO.PacketsRecv), "", tags)
+	sender.Rate("system.net.packets_in.drop", float64(interfaceIO.Dropin), "", tags)
 	sender.Rate("system.net.packets_in.error", float64(interfaceIO.Errin), "", tags)
 	sender.Rate("system.net.packets_out.count", float64(interfaceIO.PacketsSent), "", tags)
+	sender.Rate("system.net.packets_out.drop", float64(interfaceIO.Dropout), "", tags)
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
