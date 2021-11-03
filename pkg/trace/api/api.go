@@ -387,11 +387,15 @@ func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
 	})
 }
 
-func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (*pb.TracerPayload, bool, error) {
+// decodeTracerPayload decodes the payload in http request `req`.
+// - tp is the decoded payload
+// - ranHook reports whether the decoder was able to run the pb.MetaHook
+// - err is the first error encountered
+func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *pb.TracerPayload, ranHook bool, err error) {
 	switch v {
 	case v01:
 		var spans []pb.Span
-		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
+		if err = json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			return nil, false, err
 		}
 		return &pb.TracerPayload{
@@ -404,11 +408,11 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (*pb.T
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err := io.Copy(buf, req.Body); err != nil {
+		if _, err = io.Copy(buf, req.Body); err != nil {
 			return nil, false, err
 		}
 		var traces pb.Traces
-		err := traces.UnmarshalMsgDictionary(buf.Bytes())
+		err = traces.UnmarshalMsgDictionary(buf.Bytes())
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
@@ -419,11 +423,11 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (*pb.T
 	case v06:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err := io.Copy(buf, req.Body); err != nil {
+		if _, err = io.Copy(buf, req.Body); err != nil {
 			return nil, false, err
 		}
 		var tracerPayload pb.TracerPayload
-		err := tracerPayload.Unmarshal(buf.Bytes())
+		err = tracerPayload.Unmarshal(buf.Bytes())
 		return &tracerPayload, true, err
 	default:
 		var traces pb.Traces
@@ -792,12 +796,16 @@ type decodedTraces struct {
 	RanHook bool
 }
 
-func decodeRequest(req *http.Request, dest *pb.Traces) (bool, error) {
+// decodeRequest decodes the payload in http request `req` into `dest`.
+// It handles only v02, v03, v04 requests.
+// - ranHook reports whether the decoder was able to run the pb.MetaHook
+// - err is the first error encountered
+func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error) {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
 		buf := getBuffer()
 		defer putBuffer(buf)
-		_, err := io.Copy(buf, req.Body)
+		_, err = io.Copy(buf, req.Body)
 		if err != nil {
 			return false, err
 		}
@@ -808,7 +816,7 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (bool, error) {
 	case "text/json":
 		fallthrough
 	case "":
-		err := json.NewDecoder(req.Body).Decode(&dest)
+		err = json.NewDecoder(req.Body).Decode(&dest)
 		return false, err
 	default:
 		// do our best
