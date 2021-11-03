@@ -11,7 +11,6 @@
 package probe
 
 import (
-	"encoding/json"
 	"syscall"
 	"time"
 
@@ -59,20 +58,20 @@ type UserContextSerializer struct {
 // CredentialsSerializer serializes a set credentials to JSON
 // easyjson:json
 type CredentialsSerializer struct {
-	UID          int          `json:"uid" jsonschema_description:"User ID"`
-	User         string       `json:"user,omitempty" jsonschema_description:"User name"`
-	GID          int          `json:"gid" jsonschema_description:"Group ID"`
-	Group        string       `json:"group,omitempty" jsonschema_description:"Group name"`
-	EUID         int          `json:"euid" jsonschema_description:"Effective User ID"`
-	EUser        string       `json:"euser,omitempty" jsonschema_description:"Effective User name"`
-	EGID         int          `json:"egid" jsonschema_description:"Effective Group ID"`
-	EGroup       string       `json:"egroup,omitempty" jsonschema_description:"Effective Group name"`
-	FSUID        int          `json:"fsuid" jsonschema_description:"Filesystem User ID"`
-	FSUser       string       `json:"fsuser,omitempty" jsonschema_description:"Filesystem User name"`
-	FSGID        int          `json:"fsgid" jsonschema_description:"Filesystem Group ID"`
-	FSGroup      string       `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
-	CapEffective JStringArray `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
-	CapPermitted JStringArray `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
+	UID          int      `json:"uid" jsonschema_description:"User ID"`
+	User         string   `json:"user,omitempty" jsonschema_description:"User name"`
+	GID          int      `json:"gid" jsonschema_description:"Group ID"`
+	Group        string   `json:"group,omitempty" jsonschema_description:"Group name"`
+	EUID         int      `json:"euid" jsonschema_description:"Effective User ID"`
+	EUser        string   `json:"euser,omitempty" jsonschema_description:"Effective User name"`
+	EGID         int      `json:"egid" jsonschema_description:"Effective Group ID"`
+	EGroup       string   `json:"egroup,omitempty" jsonschema_description:"Effective Group name"`
+	FSUID        int      `json:"fsuid" jsonschema_description:"Filesystem User ID"`
+	FSUser       string   `json:"fsuser,omitempty" jsonschema_description:"Filesystem User name"`
+	FSGID        int      `json:"fsgid" jsonschema_description:"Filesystem Group ID"`
+	FSGroup      string   `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
+	CapEffective []string `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
+	CapPermitted []string `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
 }
 
 // SetuidSerializer serializes a setuid event
@@ -97,22 +96,11 @@ type SetgidSerializer struct {
 	FSGroup string `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
 }
 
-// JStringArray handles empty array properly not generating null output but []
-type JStringArray []string
-
-// MarshalJSON custom marshaller to handle empty array
-func (j *JStringArray) MarshalJSON() ([]byte, error) {
-	if len(*j) == 0 {
-		return []byte("[]"), nil
-	}
-	return json.Marshal([]string(*j))
-}
-
 // CapsetSerializer serializes a capset event
 // easyjson:json
 type CapsetSerializer struct {
-	CapEffective JStringArray `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
-	CapPermitted JStringArray `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
+	CapEffective []string `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
+	CapPermitted []string `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
 }
 
 // ProcessCredentialsSerializer serializes the process credentials to JSON
@@ -315,8 +303,8 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 		EGroup:       ce.EGroup,
 		FSGID:        int(ce.FSGID),
 		FSGroup:      ce.FSGroup,
-		CapEffective: JStringArray(model.KernelCapability(ce.CapEffective).StringArray()),
-		CapPermitted: JStringArray(model.KernelCapability(ce.CapPermitted).StringArray()),
+		CapEffective: model.KernelCapability(ce.CapEffective).StringArray(),
+		CapPermitted: model.KernelCapability(ce.CapPermitted).StringArray(),
 	}
 }
 
@@ -644,8 +632,8 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.Category = ProcessActivity
 	case model.CapsetEventType:
 		s.ProcessContextSerializer.Credentials.Destination = &CapsetSerializer{
-			CapEffective: JStringArray(model.KernelCapability(event.Capset.CapEffective).StringArray()),
-			CapPermitted: JStringArray(model.KernelCapability(event.Capset.CapPermitted).StringArray()),
+			CapEffective: model.KernelCapability(event.Capset.CapEffective).StringArray(),
+			CapPermitted: model.KernelCapability(event.Capset.CapPermitted).StringArray(),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity
