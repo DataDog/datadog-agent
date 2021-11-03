@@ -41,6 +41,10 @@ func TestIsEnabled(t *testing.T) {
 		{path: "port/invalid.yaml", enabled: true},
 		{path: "port/nobindhost.yaml", enabled: true},
 		{path: "port/nonlocal.yaml", enabled: true},
+
+		{path: "receiver/noprotocols.yaml", enabled: true},
+		{path: "receiver/portandreceiver.yaml", enabled: true},
+		{path: "receiver/simple.yaml", enabled: true},
 	}
 
 	for _, testInstance := range tests {
@@ -100,6 +104,38 @@ func TestFromAgentConfigPort(t *testing.T) {
 		{
 			path: "port/alldisabled.yaml",
 			err:  "at least one OTLP signal needs to be enabled",
+		},
+		{
+			path: "receiver/noprotocols.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+			},
+		},
+		{
+			path: "receiver/portandreceiver.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5679, 1234),
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+			},
+		},
+		{
+			path: "receiver/simple.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": nil,
+						"http": nil,
+					},
+				},
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+			},
 		},
 	}
 
