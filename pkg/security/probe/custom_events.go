@@ -265,12 +265,12 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 // NoisyProcessEvent is used to report that a noisy process was temporarily discarded
 // easyjson:json
 type NoisyProcessEvent struct {
-	Timestamp      time.Time                 `json:"date"`
-	Count          uint64                    `json:"pid_count"`
-	Threshold      int64                     `json:"threshold"`
-	ControlPeriod  time.Duration             `json:"control_period"`
-	DiscardedUntil time.Time                 `json:"discarded_until"`
-	Process        *ProcessContextSerializer `json:"process"`
+	Timestamp      time.Time                `json:"date"`
+	Count          uint64                   `json:"pid_count"`
+	Threshold      int64                    `json:"threshold"`
+	ControlPeriod  time.Duration            `json:"control_period"`
+	DiscardedUntil time.Time                `json:"discarded_until"`
+	Process        ProcessContextSerializer `json:"process"`
 }
 
 // NewNoisyProcessEvent returns the rule and a populated custom event for a noisy_process event
@@ -291,7 +291,7 @@ func NewNoisyProcessEvent(count uint64,
 			Threshold:      threshold,
 			ControlPeriod:  controlPeriod,
 			DiscardedUntil: discardedUntil,
-			Process:        &processSerializer,
+			Process:        processSerializer,
 		}.MarshalJSON)
 }
 
