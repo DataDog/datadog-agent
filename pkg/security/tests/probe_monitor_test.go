@@ -32,6 +32,7 @@ func TestRulesetLoaded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
 		if err := test.GetProbeCustomEvent(t, func() error {
@@ -61,6 +62,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	truncatedParentsFile, _, err := test.Path(truncatedParents)
 	if err != nil {
@@ -130,6 +132,7 @@ func TestNoisyProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	file, _, err := test.Path("test-open")
 	if err != nil {
