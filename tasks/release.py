@@ -901,20 +901,20 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True
 
     for module in DEFAULT_MODULES.values():
         if (tag_modules or module.path == ".") and module.should_tag:
-                for tag in module.tag(agent_version):
-                    ok = try_git_command(
-                        ctx,
-                        "git tag -m {tag} {tag} {commit}{force_option}".format(
-                            tag=tag, commit=commit, force_option=force_option
-                        ),
-                    )
-                    if not ok:
-                        message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
-                        raise Exit(color_message(message, "red"), code=1)
-                    print("Created tag {tag}".format(tag=tag))
-                    if push:
-                        ctx.run("git push origin {tag}{force_option}".format(tag=tag, force_option=force_option))
-                        print("Pushed tag {tag}".format(tag=tag))
+            for tag in module.tag(agent_version):
+                ok = try_git_command(
+                    ctx,
+                    "git tag -m {tag} {tag} {commit}{force_option}".format(
+                        tag=tag, commit=commit, force_option=force_option
+                    ),
+                )
+                if not ok:
+                    message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
+                    raise Exit(color_message(message, "red"), code=1)
+                print("Created tag {tag}".format(tag=tag))
+                if push:
+                    ctx.run("git push origin {tag}{force_option}".format(tag=tag, force_option=force_option))
+                    print("Pushed tag {tag}".format(tag=tag))
 
     print("Created all tags for version {}".format(agent_version))
 
