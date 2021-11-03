@@ -900,8 +900,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True
             print("Continuing without the --force option.")
 
     for module in DEFAULT_MODULES.values():
-        if tag_modules or module.path == ".":
-            if module.should_tag:
+        if (tag_modules or module.path == ".") and module.should_tag:
                 for tag in module.tag(agent_version):
                     ok = try_git_command(
                         ctx,
