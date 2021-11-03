@@ -788,14 +788,6 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-type decodedTraces struct {
-	// Traces contains the decoded request.
-	Traces pb.Traces
-	// RanHook reports whether the decoder was able to run the pb.MetaHook
-	// See pkg/trace/pb/hook.go
-	RanHook bool
-}
-
 // decodeRequest decodes the payload in http request `req` into `dest`.
 // It handles only v02, v03, v04 requests.
 // - ranHook reports whether the decoder was able to run the pb.MetaHook
