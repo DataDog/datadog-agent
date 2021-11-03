@@ -28,7 +28,6 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if target.Name != moduleName {
-		http.Error(w, fmt.Sprintf("invalid module: %s", html.EscapeString(string(moduleName))), http.StatusBadRequest)
 		return
 	}
 
