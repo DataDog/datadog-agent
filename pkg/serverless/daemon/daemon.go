@@ -332,7 +332,8 @@ func (d *Daemon) Stop() {
 
 // TellDaemonRuntimeStarted tells the daemon that the runtime started handling an invocation
 func (d *Daemon) TellDaemonRuntimeStarted() {
-	// Reset the RuntimeWg on every new invocation
+	// Reset the RuntimeWg on every new invocation.
+	// We might receive a new invocation before we learn that the previous invocation has finished.
 	d.RuntimeWg = &sync.WaitGroup{}
 	d.TellDaemonRuntimeDoneOnce = sync.Once{}
 	d.RuntimeWg.Add(1)
