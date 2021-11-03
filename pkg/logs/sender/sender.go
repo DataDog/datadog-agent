@@ -150,12 +150,18 @@ func SplitSenders(inputChan chan *message.Message, main *Sender, backup *Sender)
 			}
 
 			// If both senders are failing, we want to block the pipeline until at least one succeeds
-			if mainSenderHasErr && backupSenderHasErr {
-				select {
-				case main.inputChan <- message:
-				case backup.inputChan <- message:
-				case mainSenderHasErr = <-main.hasError:
-				case backupSenderHasErr = <-backup.hasError:
+			for {
+				if mainSenderHasErr && backupSenderHasErr {
+					select {
+					case main.inputChan <- message:
+						mainSenderHasErr = false
+					case backup.inputChan <- message:
+						backupSenderHasErr = false
+					case mainSenderHasErr = <-main.hasError:
+					case backupSenderHasErr = <-backup.hasError:
+					}
+				} else {
+					break
 				}
 			}
 		}
