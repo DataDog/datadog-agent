@@ -40,6 +40,7 @@ func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvi
 	return &KubeletConfigProvider{
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
 		configErrors:      make(map[string]ErrorMsgSet),
+		podCache:          make(map[string]*workloadmeta.KubernetesPod),
 	}, nil
 }
 
