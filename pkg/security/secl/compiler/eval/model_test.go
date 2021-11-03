@@ -6,12 +6,10 @@
 package eval
 
 import (
+	"container/list"
 	"reflect"
-	"sync"
 	"syscall"
 	"unsafe"
-
-	"container/list"
 
 	"github.com/pkg/errors"
 )
@@ -36,6 +34,9 @@ type testProcess struct {
 	array     []*testItem
 	createdAt int64
 	overriden string
+
+	overrideFnc     func(evaluator *StringEvaluator)
+	overridenValues StringValues
 }
 
 type testItemListIterator struct {
@@ -111,9 +112,6 @@ type testEvent struct {
 }
 
 type testModel struct {
-	overrideLock        sync.RWMutex
-	overrideInvalidated bool
-	overridenValues     []string
 }
 
 func (e *testEvent) GetType() string {
@@ -343,7 +341,30 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringEquals: m.StringEqualsOverride,
+				StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+					var scalar *StringEvaluator
+					if a.EvalFnc == nil {
+						scalar = a
+					} else if b.EvalFnc == nil {
+						scalar = b
+					} else {
+						return nil, errors.New("non scalar overriden is not supported")
+					}
+
+					evaluator := StringArrayEvaluator{
+						EvalFnc: func(ctx *Context) StringValues {
+							process := &(*testEvent)(ctx.Object).process
+
+							if process.overrideFnc != nil {
+								process.overrideFnc(scalar)
+							}
+
+							return process.overridenValues
+						},
+					}
+
+					return ArrayStringContains(a, &evaluator, opts, state)
+				},
 			},
 		}, nil
 
@@ -654,37 +675,6 @@ func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 	}
 
 	return reflect.Invalid, &ErrFieldNotFound{Field: field}
-}
-
-func (m *testModel) AddOverridenValue(value string) {
-	m.overrideLock.Lock()
-
-	m.overridenValues = append(m.overridenValues, value)
-	m.overrideInvalidated = true
-
-	m.overrideLock.Unlock()
-}
-
-// StringEqualsOverride operator override
-func (m *testModel) StringEqualsOverride(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
-	var scalar *StringEvaluator
-	if a.EvalFnc == nil {
-		scalar = a
-	} else if b.EvalFnc == nil {
-		scalar = b
-	} else {
-		return nil, errors.New("not scalar overriden not supported")
-	}
-
-	var evaluator StringArrayEvaluator
-	if err := evaluator.AppendStringEvaluator(scalar); err != nil {
-		return nil, err
-	}
-
-	if err := evaluator.AppendFieldValues(FieldValue{Value: "abc"}); err != nil {
-		return nil, err
-	}
-	return ArrayStringContains(a, &evaluator, opts, state)
 }
 
 var testConstants = map[string]interface{}{

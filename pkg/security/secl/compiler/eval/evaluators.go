@@ -201,9 +201,27 @@ func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 
 // AppendValue append a string value
 func (s *StringValues) AppendValue(value string) {
+	if s.scalars == nil {
+		s.scalars = make(map[string]bool)
+	}
+
 	s.values = append(s.values, value)
 	s.scalars[value] = true
 	s.fieldValues = append(s.fieldValues, FieldValue{Value: value})
+}
+
+// AppendStringEvaluator append a string evalutator
+func (s *StringValues) AppendStringEvaluator(evaluator *StringEvaluator) error {
+	if evaluator.EvalFnc == nil {
+		return errors.New("only scalar evaluator are supported")
+	}
+
+	fieldValue := FieldValue{
+		Value: evaluator.Value,
+		Type:  evaluator.ValueType,
+	}
+
+	return s.AppendFieldValue(fieldValue)
 }
 
 // StringArrayEvaluator returns an array of strings
@@ -285,20 +303,8 @@ func (s *StringArrayEvaluator) AppendMembers(members ...ast.StringMember) error 
 // AppendStringEvaluator add string evaluator to the evaluator
 func (s *StringArrayEvaluator) AppendStringEvaluator(evaluators ...*StringEvaluator) error {
 	for _, evaluator := range evaluators {
-		if evaluator.ValueType == PatternValueType {
-			if err := s.AppendMembers(ast.StringMember{Pattern: &evaluator.Value}); err != nil {
-				return err
-			}
-		} else if evaluator.ValueType == RegexpValueType {
-			if err := s.AppendMembers(ast.StringMember{Regexp: &evaluator.Value}); err != nil {
-				return err
-			}
-		} else if evaluator.EvalFnc == nil {
-			if err := s.AppendMembers(ast.StringMember{String: &evaluator.Value}); err != nil {
-				return err
-			}
-		} else {
-			return errors.New("only scalar evaluator are supported")
+		if err := s.stringValues.AppendStringEvaluator(evaluator); err != nil {
+
 		}
 	}
 

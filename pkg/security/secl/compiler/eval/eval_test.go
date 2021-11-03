@@ -1024,6 +1024,10 @@ func TestOpOverride(t *testing.T) {
 		},
 	}
 
+	event.process.overrideFnc = func(evaluator *StringEvaluator) {
+		event.process.overridenValues.AppendValue("abc")
+	}
+
 	tests := []struct {
 		Expr     string
 		Expected bool
