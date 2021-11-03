@@ -192,7 +192,7 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	for _, path := range configPaths {
 		filePath, err := securejoin.SecureJoin(path, fileName)
 		if err != nil {
-			w.Write([]byte("Error: Unable to join config path with the file name: " + html.EscapeString(fileName)))
+			log.Errorf("Error: Unable to join config path with the file name: %s", fileName)
 			continue
 		}
 		file, e = ioutil.ReadFile(filePath)
