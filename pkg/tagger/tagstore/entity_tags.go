@@ -92,8 +92,11 @@ func (e *EntityTags) computeCache() {
 	})
 
 	// insertWithPriority prevents two collectors of different priorities
-	// from reporting duplicated tags. two collectors of the same priority
-	// still can report duplicated tags.
+	// from reporting duplicated tags, keeping only the tags of the
+	// collector with the higher priority, at whichever cardinality it
+	// reports. we don't want two collectors running with the same priority
+	// in the first place, so this code does not check for duplicates in
+	// that case to keep code simpler.
 	insertWithPriority := func(source string, tags []string, cardinality collectors.TagCardinality) {
 		prio := collectors.CollectorPriorities[source]
 		for _, t := range tags {
