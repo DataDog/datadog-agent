@@ -125,10 +125,6 @@ func SplitSenders(inputChan chan *message.Message, main *Sender, backup *Sender)
 		backupSenderHasErr := false
 
 		for message := range inputChan {
-			sentMain := false
-			sentBackup := false
-
-			// First collect any errors from the senders
 			select {
 			case mainSenderHasErr = <-main.hasError:
 			default:
@@ -139,51 +135,29 @@ func SplitSenders(inputChan chan *message.Message, main *Sender, backup *Sender)
 			default:
 			}
 
-			// If both senders are failing, we want to block the pipeline until at least one succeeds
-			for {
-				if mainSenderHasErr && backupSenderHasErr {
-					select {
-					// TODO: - this may cause duplication - WIP
-					case main.inputChan <- message:
-						sentMain = true
-					case backup.inputChan <- message:
-						sentBackup = true
-					case mainSenderHasErr = <-main.hasError:
-					case backupSenderHasErr = <-backup.hasError:
-					}
-				} else {
-					break
+			if !mainSenderHasErr {
+				select {
+				case main.inputChan <- message:
+				case mainSenderHasErr = <-main.hasError:
 				}
 			}
 
-			if !sentMain {
-				mainSenderHasErr = sendMessage(mainSenderHasErr, main, message)
+			if !backupSenderHasErr {
+				select {
+				case backup.inputChan <- message:
+				case backupSenderHasErr = <-backup.hasError:
+				}
 			}
 
-			if !sentBackup {
-				backupSenderHasErr = sendMessage(backupSenderHasErr, backup, message)
+			// If both senders are failing, we want to block the pipeline until at least one succeeds
+			if mainSenderHasErr && backupSenderHasErr {
+				select {
+				case main.inputChan <- message:
+				case backup.inputChan <- message:
+				case mainSenderHasErr = <-main.hasError:
+				case backupSenderHasErr = <-backup.hasError:
+				}
 			}
 		}
 	}()
-}
-
-func sendMessage(hasError bool, sender *Sender, message *message.Message) bool {
-	if !hasError {
-		// If there is no error - block and write to the buffered channel until it succeeds or we get an error.
-		// If we don't block, the input can fill the buffered channels faster than sender can
-		// drain them - causing missing logs.
-		select {
-		case sender.inputChan <- message:
-		case hasError = <-sender.hasError:
-		}
-	} else {
-		// Even if there is an error, try to put the log line in the buffered channel in case the
-		// error resolves quickly and there is room in the channel.
-		select {
-		case sender.inputChan <- message:
-		default:
-			break
-		}
-	}
-	return hasError
 }
