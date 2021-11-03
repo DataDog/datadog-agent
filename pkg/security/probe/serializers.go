@@ -204,12 +204,12 @@ type DDContextSerializer struct {
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
-	*EventContextSerializer    `json:"evt,omitempty"`
+	EventContextSerializer     `json:"evt,omitempty"`
 	*FileEventSerializer       `json:"file,omitempty"`
 	*SELinuxEventSerializer    `json:"selinux,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
-	ProcessContextSerializer   *ProcessContextSerializer   `json:"process,omitempty"`
-	DDContextSerializer        *DDContextSerializer        `json:"dd,omitempty"`
+	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
+	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
 	ContainerContextSerializer *ContainerContextSerializer `json:"container,omitempty"`
 	Date                       time.Time                   `json:"date,omitempty"`
 }
@@ -377,15 +377,15 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 	return pceSerializer
 }
 
-func newDDContextSerializer(e *Event) *DDContextSerializer {
-	return &DDContextSerializer{
+func newDDContextSerializer(e *Event) DDContextSerializer {
+	return DDContextSerializer{
 		SpanID:  e.SpanContext.SpanID,
 		TraceID: e.SpanContext.TraceID,
 	}
 }
 
-func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {
-	var ps *ProcessContextSerializer
+func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) ProcessContextSerializer {
+	var ps ProcessContextSerializer
 
 	if e == nil {
 		// custom events create an empty event
@@ -395,7 +395,7 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		}
 	}
 
-	ps = &ProcessContextSerializer{
+	ps = ProcessContextSerializer{
 		ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e),
 	}
 
@@ -474,7 +474,7 @@ func serializeSyscallRetval(retval int64) string {
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *Event) *EventSerializer {
 	s := &EventSerializer{
-		EventContextSerializer: &EventContextSerializer{
+		EventContextSerializer: EventContextSerializer{
 			Name:     model.EventType(event.Type).String(),
 			Category: FIMCategory,
 		},

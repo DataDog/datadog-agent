@@ -2322,7 +2322,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jl
 		in.Skip()
 		return
 	}
-	out.EventContextSerializer = new(EventContextSerializer)
 	out.FileEventSerializer = new(FileEventSerializer)
 	out.SELinuxEventSerializer = new(SELinuxEventSerializer)
 	in.Delim('{')
@@ -2336,15 +2335,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jl
 		}
 		switch key {
 		case "evt":
-			if in.IsNull() {
-				in.Skip()
-				out.EventContextSerializer = nil
-			} else {
-				if out.EventContextSerializer == nil {
-					out.EventContextSerializer = new(EventContextSerializer)
-				}
-				(*out.EventContextSerializer).UnmarshalEasyJSON(in)
-			}
+			(out.EventContextSerializer).UnmarshalEasyJSON(in)
 		case "file":
 			if in.IsNull() {
 				in.Skip()
@@ -2368,25 +2359,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jl
 		case "usr":
 			(out.UserContextSerializer).UnmarshalEasyJSON(in)
 		case "process":
-			if in.IsNull() {
-				in.Skip()
-				out.ProcessContextSerializer = nil
-			} else {
-				if out.ProcessContextSerializer == nil {
-					out.ProcessContextSerializer = new(ProcessContextSerializer)
-				}
-				(*out.ProcessContextSerializer).UnmarshalEasyJSON(in)
-			}
+			(out.ProcessContextSerializer).UnmarshalEasyJSON(in)
 		case "dd":
-			if in.IsNull() {
-				in.Skip()
-				out.DDContextSerializer = nil
-			} else {
-				if out.DDContextSerializer == nil {
-					out.DDContextSerializer = new(DDContextSerializer)
-				}
-				(*out.DDContextSerializer).UnmarshalEasyJSON(in)
-			}
+			(out.DDContextSerializer).UnmarshalEasyJSON(in)
 		case "container":
 			if in.IsNull() {
 				in.Skip()
@@ -2415,11 +2390,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(out *j
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.EventContextSerializer != nil {
+	if true {
 		const prefix string = ",\"evt\":"
 		first = false
 		out.RawString(prefix[1:])
-		(*in.EventContextSerializer).MarshalEasyJSON(out)
+		(in.EventContextSerializer).MarshalEasyJSON(out)
 	}
 	if in.FileEventSerializer != nil {
 		const prefix string = ",\"file\":"
@@ -2451,7 +2426,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(out *j
 		}
 		(in.UserContextSerializer).MarshalEasyJSON(out)
 	}
-	if in.ProcessContextSerializer != nil {
+	if true {
 		const prefix string = ",\"process\":"
 		if first {
 			first = false
@@ -2459,9 +2434,9 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(out *j
 		} else {
 			out.RawString(prefix)
 		}
-		(*in.ProcessContextSerializer).MarshalEasyJSON(out)
+		(in.ProcessContextSerializer).MarshalEasyJSON(out)
 	}
-	if in.DDContextSerializer != nil {
+	if true {
 		const prefix string = ",\"dd\":"
 		if first {
 			first = false
@@ -2469,7 +2444,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(out *j
 		} else {
 			out.RawString(prefix)
 		}
-		(*in.DDContextSerializer).MarshalEasyJSON(out)
+		(in.DDContextSerializer).MarshalEasyJSON(out)
 	}
 	if in.ContainerContextSerializer != nil {
 		const prefix string = ",\"container\":"

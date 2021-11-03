@@ -281,6 +281,8 @@ func NewNoisyProcessEvent(count uint64,
 	process *model.ProcessCacheEntry,
 	resolvers *Resolvers,
 	timestamp time.Time) (*rules.Rule, *CustomEvent) {
+
+	processSerializer := newProcessContextSerializer(process, nil, resolvers)
 	return newRule(&rules.RuleDefinition{
 			ID: NoisyProcessRuleID,
 		}), newCustomEvent(model.CustomNoisyProcessEventType, NoisyProcessEvent{
@@ -289,7 +291,7 @@ func NewNoisyProcessEvent(count uint64,
 			Threshold:      threshold,
 			ControlPeriod:  controlPeriod,
 			DiscardedUntil: discardedUntil,
-			Process:        newProcessContextSerializer(process, nil, resolvers),
+			Process:        &processSerializer,
 		}.MarshalJSON)
 }
 
