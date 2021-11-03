@@ -124,7 +124,6 @@ type ProcessCredentialsSerializer struct {
 
 // ProcessCacheEntrySerializer serializes a process cache entry to JSON
 // easyjson:json
-//  jsonschema_description:""
 type ProcessCacheEntrySerializer struct {
 	Pid                 uint32                        `json:"pid,omitempty" jsonschema_description:"Process ID"`
 	PPid                uint32                        `json:"ppid,omitempty" jsonschema_description:"Parent Process ID"`
