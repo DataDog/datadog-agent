@@ -1,8 +1,6 @@
 package api
 
 import (
-	"fmt"
-	"html"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -28,6 +26,7 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if target.Name != moduleName {
+		http.Error(w, "invalid module", http.StatusBadRequest)
 		return
 	}
 
