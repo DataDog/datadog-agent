@@ -5,8 +5,8 @@
 .add_metric_func:
   script:
     - apt-get install -y jq
-    # we will build up a JSON body in `$post_body`.
-    # Then the script using add_metric needs to use the .send_metrics script to send the metrics
+    # Build up a JSON body in $post_body.
+    # To send metrics accumulated in $post_body by add_metric, use the .send_metrics script
     - 'post_body="{\"series\": []}"'
     - currenttime=$(date +%s)
     - |
@@ -27,6 +27,7 @@
 
 .send_metrics:
   script:
+    # Send the metrics accumulated by add_metric
     - DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
     - 'curl --fail -X POST -H "Content-type: application/json" -d "$post_body" "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"'
 
@@ -161,7 +162,7 @@ send_pkg_size-a7:
     - source /root/.bashrc && conda activate ddpy3
     - export failures=0
     - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}")
-    # Get stable packages from S3 buckets & compare sizes
+    # Get stable packages from S3 buckets, send new package sizes & compare stable and new package sizes
     # The loop assumes that all flavors start with "da", which is currently the case
     # We want to run all package size comparisons before failing, so we set +e while doing the comparisons
     # to get the error codes without exiting the shell.
@@ -189,7 +190,7 @@ send_pkg_size-a7:
     # Send package size metrics
     - !reference [.send_metrics, script]
 
-    # Make the job fail if at least
+    # Make the job fail if at least one package is above threshold
     - if [ "${failures}" -ne "0" ]; then false; fi
 
 check_pkg_size-a6:
