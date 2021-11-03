@@ -32,6 +32,7 @@ func TestStartPipeline(t *testing.T) {
 		TracePort:          5003,
 		MetricsEnabled:     true,
 		TracesEnabled:      true,
+		Metrics:            map[string]interface{}{},
 	}
 
 	p, err := NewPipeline(pcfg, &serializer.MockSerializer{})

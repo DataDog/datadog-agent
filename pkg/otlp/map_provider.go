@@ -80,8 +80,18 @@ service:
       exporters: [serializer]
 `
 
-func newMetricsMapProvider() config.MapProvider {
-	return parserprovider.NewInMemoryMapProvider(strings.NewReader(defaultMetricsConfig))
+func newMetricsMapProvider(cfg PipelineConfig) config.MapProvider {
+	configMap := config.NewMap()
+
+	configMap.Set(
+		buildKey("exporters", "serializer", "metrics"),
+		cfg.Metrics,
+	)
+
+	return parserprovider.NewMergeMapProvider(
+		parserprovider.NewInMemoryMapProvider(strings.NewReader(defaultMetricsConfig)),
+		mapProvider(*configMap),
+	)
 }
 
 func newReceiverProvider(otlpReceiverConfig map[string]interface{}) config.MapProvider {
@@ -98,7 +108,7 @@ func newMapProvider(cfg PipelineConfig) config.MapProvider {
 		providers = append(providers, newTracesMapProvider(cfg.TracePort))
 	}
 	if cfg.MetricsEnabled {
-		providers = append(providers, newMetricsMapProvider())
+		providers = append(providers, newMetricsMapProvider(cfg))
 	}
 	providers = append(providers, newReceiverProvider(cfg.OTLPReceiverConfig))
 	return parserprovider.NewMergeMapProvider(providers...)

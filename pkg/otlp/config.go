@@ -38,6 +38,11 @@ func isSetExperimentalPort(cfg config.Config) bool {
 	return cfg.IsSet(config.ExperimentalOTLPHTTPPort) || cfg.IsSet(config.ExperimentalOTLPgRPCPort)
 }
 
+// isSetExperimentalMetrics checks if the experimental metrics config is set.
+func isSetExperimentalMetrics(cfg config.Config) bool {
+	return cfg.IsSet(config.ExperimentalOTLPMetrics)
+}
+
 func isSetExperimental(cfg config.Config) bool {
 	return isSetExperimentalPort(cfg)
 }
@@ -104,11 +109,17 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
 
+	metrics := map[string]interface{}{}
+	if isSetExperimentalMetrics(cfg) {
+		metrics = cfg.GetStringMap(config.ExperimentalOTLPMetrics)
+	}
+
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),
 		TracePort:          tracePort,
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
+		Metrics:            metrics,
 	}, multierr.Combine(errs...)
 }
 
