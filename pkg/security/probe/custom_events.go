@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/hashicorp/go-multierror"
+	"github.com/mailru/easyjson"
 )
 
 const (
@@ -40,26 +41,26 @@ func AllCustomRuleIDs() []string {
 	}
 }
 
-func newCustomEvent(eventType model.EventType, marshalFunc func() ([]byte, error)) *CustomEvent {
+func newCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler) *CustomEvent {
 	return &CustomEvent{
-		eventType:   eventType,
-		marshalFunc: marshalFunc,
+		eventType: eventType,
+		marshaler: marshaler,
 	}
 }
 
 // CustomEvent is used to send custom security events to Datadog
 type CustomEvent struct {
-	eventType   model.EventType
-	tags        []string
-	marshalFunc func() ([]byte, error)
+	eventType model.EventType
+	tags      []string
+	marshaler easyjson.Marshaler
 }
 
 // Clone returns a copy of the current CustomEvent
 func (ce *CustomEvent) Clone() CustomEvent {
 	return CustomEvent{
-		eventType:   ce.eventType,
-		tags:        ce.tags,
-		marshalFunc: ce.marshalFunc,
+		eventType: ce.eventType,
+		tags:      ce.tags,
+		marshaler: ce.marshaler,
 	}
 }
 
@@ -80,7 +81,7 @@ func (ce *CustomEvent) GetEventType() model.EventType {
 
 // MarshalJSON is the JSON marshaller function of the custom event
 func (ce *CustomEvent) MarshalJSON() ([]byte, error) {
-	return ce.marshalFunc()
+	return easyjson.Marshal(ce.marshaler)
 }
 
 // String returns the string representation of a custom event
@@ -115,7 +116,7 @@ func NewEventLostReadEvent(mapName string, lost float64) (*rules.Rule, *CustomEv
 			Name:      mapName,
 			Lost:      lost,
 			Timestamp: time.Now(),
-		}.MarshalJSON)
+		})
 }
 
 // EventLostWrite is the event used to report lost events detected from kernel space
@@ -134,7 +135,7 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*
 			Name:      mapName,
 			Lost:      perEventPerCPU,
 			Timestamp: time.Now(),
-		}.MarshalJSON)
+		})
 }
 
 // RuleIgnored defines a ignored
@@ -259,7 +260,7 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 			PoliciesLoaded:  policies,
 			PoliciesIgnored: &PoliciesIgnored{Errors: err},
 			MacrosLoaded:    rs.ListMacroIDs(),
-		}.MarshalJSON)
+		})
 }
 
 // NoisyProcessEvent is used to report that a noisy process was temporarily discarded
@@ -292,7 +293,7 @@ func NewNoisyProcessEvent(count uint64,
 			ControlPeriod:  controlPeriod,
 			DiscardedUntil: discardedUntil,
 			Process:        processSerializer,
-		}.MarshalJSON)
+		})
 }
 
 func resolutionErrorToEventType(err error) model.EventType {
@@ -320,5 +321,5 @@ func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule,
 			Timestamp:           event.ResolveEventTimestamp(),
 			Event:               NewEventSerializer(event),
 			PathResolutionError: pathResolutionError.Error(),
-		}.MarshalJSON)
+		})
 }
