@@ -857,7 +857,7 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
