@@ -235,7 +235,6 @@ func (series Series) MarshalSplitCompress(bufferContext *marshaler.BufferContext
 	const seriesTags = 3
 	const seriesPoints = 4
 	const seriesType = 5
-	const seriesUnit = 6
 	const seriesSourceTypeName = 7
 	const seriesInterval = 8
 	const resourceType = 1
