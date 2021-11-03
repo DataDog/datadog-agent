@@ -222,7 +222,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "/usr/local/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -234,7 +234,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	var fd int
 	var testFile string
 
-	testFile, _, err = test.Path("test-obd-2")
+	testFile, _, err = test.Path("a", "test-obd-2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,6 +268,12 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 
 		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
+
+	testFile, _, err = test.Path("a", "test-obd-3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
 
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
