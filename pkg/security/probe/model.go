@@ -17,6 +17,7 @@ import (
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/mailru/easyjson"
 )
 
 const (
@@ -405,7 +406,7 @@ func (ev *Event) SetPathResolutionError(err error) {
 // MarshalJSON returns the JSON encoding of the event
 func (ev *Event) MarshalJSON() ([]byte, error) {
 	s := NewEventSerializer(ev)
-	return json.Marshal(s)
+	return easyjson.Marshal(s)
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
