@@ -64,6 +64,7 @@ api_key:
 # hostname: <HOSTNAME_NAME>
 
 ## @param hostname_file - string - optional
+## @env DD_HOSTNAME_FILE - string - optional
 ## In some environments, auto-detection of the hostname is not adequate and
 ## environment variables cannot be used to set the value. In such cases, the
 ## file on the host can also be used provide an appropriate value. If
@@ -80,6 +81,7 @@ api_key:
 # hostname_fqdn: false
 
 ## @param host_aliases - list of strings - optional
+## @env DD_HOST_ALIASES - space separated list of strings - optional
 ## List of host aliases to report in addition to any aliases collected
 ## automatically from cloud providers.
 ## More information at
@@ -209,6 +211,7 @@ api_key:
 # forwarder_timeout: 20
 
 ## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640 (15MB)
+## @env DD_FORWARDER_RETRY_QUEUE_PAYLOADS_MAX_SIZE - integer - optional - default: 15728640 (15MB)
 ## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
 ## The actual memory used is greater than the payloads size as there are extra fields like HTTP headers,
 ## but no more than 2.5 times the payload size.
@@ -234,7 +237,8 @@ api_key:
 #
 # forwarder_stop_timeout: 2
 
-## @param forwarder_storage_max_size_in_bytes - int - optional - default: 0
+## @param forwarder_storage_max_size_in_bytes - integer - optional - default: 0
+## @env DD_FORWARDER_STORAGE_MAX_SIZE_IN_BYTES - integer - optional - default: 0
 ## When the retry queue of the forwarder is full, `forwarder_storage_max_size_in_bytes`
 ## defines the amount of disk space the Agent can use to store transactions on the disk.
 ## When `forwarder_storage_max_size_in_bytes` is `0`, the transactions are never stored on the disk.
@@ -242,6 +246,7 @@ api_key:
 # forwarder_storage_max_size_in_bytes: 50000000
 
 ## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.8
+## @env DD_FORWARDER_STORAGE_MAX_DISK_RATIO - float - optional - default: 0.8
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
 ## `0.8` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
 ## is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
@@ -249,7 +254,8 @@ api_key:
 #
 # forwarder_storage_max_disk_ratio: 0.8
 
-## @param forwarder_outdated_file_in_days - int - optional - default: 10
+## @param forwarder_outdated_file_in_days - integer - optional - default: 10
+## @env DD_FORWARDER_OUTDATED_FILE_IN_DAYS - integer - optional - default: 10
 ## This value specifies how many days the overflow transactions will remain valid before
 ## being discarded. During the Agent restart, if a retry file contains transactions that were
 ## created more than `forwarder_outdated_file_in_days` days ago, they are removed.
@@ -273,6 +279,7 @@ api_key:
 # forwarder_requeue_buffer_size: 100
 
 ## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
+## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
 ## and alibaba providers. Some cloud provider are not enabled by default to not
@@ -305,11 +312,13 @@ api_key:
 # collect_ec2_tags: false
 
 ## @param ec2_metadata_timeout - integer - optional - default: 300
+## @env DD_EC2_METADATA_TIMEOUT - integer - optional - default: 300
 ## Timeout in milliseconds on calls to the AWS EC2 metadata endpoints.
 #
 # ec2_metadata_timeout: 300
 
 ## @param ec2_prefer_imdsv2 - boolean - optional - default: false
+## @env DD_EC2_PREFER_IMDSV2 - boolean - optional - default: false
 ## If this flag is true then the agent will request EC2 metadata using IMDS v2,
 ## which offers additional security for accessing metadata. However, in some
 ## situations (such as a containerized agent on a plain EC2 instance) it may
@@ -347,17 +356,20 @@ api_key:
 #   - "bosh_settings"
 
 ## @param gce_send_project_id_tag - bool - optional - default: false
+## @env DD_GCE_SEND_PROJECT_ID_TAG - bool - optional - default: false
 ## Send the project ID host tag with the `project_id:` tag key in addition to
 ## the `project:` tag key.
 #
 # gce_send_project_id_tag: false
 
 ## @param gce_metadata_timeout - integer - optional - default: 1000
+## @env DD_GCE_METADATA_TIMEOUT - integer - optional - default: 1000
 ## Timeout in milliseconds on calls to the GCE metadata endpoints.
 #
 # gce_metadata_timeout: 1000
 
 ## @param azure_hostname_style - string - optional - default: "os"
+## @env DD_AZURE_HOSTNAME_STYLE - string - optional - default: "os"
 ## Changes how agent hostname is set on Azure virtual machines.
 ##
 ## Possible values:
@@ -381,12 +393,14 @@ api_key:
 #   - "sensitive_key_2"
 
 ## @param no_proxy_nonexact_match - boolean - optional - default: false
+## @env DD_NO_PROXY_NONEXACT_MATCH - boolean - optional - default: false
 ## Enable more flexible no_proxy matching. See https://godoc.org/golang.org/x/net/http/httpproxy#Config
 ## for more information on accepted matching criteria.
 #
 # no_proxy_nonexact_match: false
 
 ## @param use_proxy_for_cloud_metadata - boolean - optional - default: false
+## @env DD_USE_PROXY_FOR_CLOUD_METADATA - boolean - optional - default: false
 ## By default cloud provider IP's are added to the transport's `no_proxy` list.
 ## Use this parameter to remove them from the `no_proxy` list.
 #
@@ -404,16 +418,19 @@ api_key:
   #
   # noprocess:
     ## @param enabled - boolean - optional - default: false
+    ## @env DD_AUTO_EXIT_NOPROCESS_ENABLED - boolean - optional - default: false
     ## Enable the `noprocess` method
     #
     # enabled: false
 
-    ## @param enabled - list of strings - optional
+    ## @param excluded_processes - list of strings - optional
+    ## @env DD_AUTO_EXIT_NOPROCESS_EXCLUDED_PROCESSES - space separated list of strings - optional
     ## List of regular expressions to exclude extra processes (on top of built-in list).
     #
     # excluded_processes: []
 
-  ## @param validation_period - int - optional - default: 60
+  ## @param validation_period - integer - optional - default: 60
+  ## @env DD_AUTO_EXIT_VALIDATION_PERIOD - integer - optional - default: 60
   ## Time (in seconds) delay during which the auto exit validates that the selected method continuously detects an exit condition, before exiting.
   ## The value is verified every 30s. By default, three consecutive checks need to return true to trigger an automatic exit.
   #
