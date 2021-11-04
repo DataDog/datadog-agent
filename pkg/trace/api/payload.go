@@ -26,17 +26,17 @@ type Payload struct {
 	ClientDroppedP0s int64
 }
 
-// Chunks TODO
+// Chunks returns chunks in TracerPayload
 func (p *Payload) Chunks() []*pb.TraceChunk {
 	return p.TracerPayload.Chunks
 }
 
-// Chunk TODO
+// Chunk returns a chunk in TracerPayload by its index
 func (p *Payload) Chunk(i int) *pb.TraceChunk {
 	return p.TracerPayload.Chunks[i]
 }
 
-// RemoveChunk TODO
+// RemoveChunk removes a chunk in TracerPayload by its index
 func (p *Payload) RemoveChunk(i int) {
 	p.TracerPayload.RemoveChunk(i)
 }

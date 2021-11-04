@@ -293,14 +293,14 @@ func (a *Agent) Process(p *api.Payload) {
 			})
 		}
 
-		if len(chunk.Spans) == 0 {
-			// everything was dropped
+		if !keep {
+			// the trace was dropped and no analyzed span was kept
 			p.RemoveChunk(i)
 			continue
 		}
 
 		// TODO(piochelepiotr): Maybe we can skip some computation if stats are computed in the tracer and the trace is droped.
-		if keep {
+		if !chunk.DroppedTrace {
 			ss.SpanCount += int64(len(chunk.Spans))
 		}
 		ss.EventCount += numEvents
@@ -407,7 +407,7 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (numEvents int64, k
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
 	atomic.AddInt64(&ts.EventsSampled, numEvents)
 
-	return numEvents, sampled
+	return numEvents, sampled || numEvents > 0
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
