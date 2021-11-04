@@ -1,23 +1,30 @@
 ### What does this PR do?
 
+<!--
 A brief description of the change being made with this pull request.
+-->
 
 ### Motivation
 
+<!--
 What inspired you to submit this pull request?
+-->
 
 ### Additional Notes
 
+<!--
 Anything else we should know when reviewing?
+-->
 
-### Describe how to test your changes
+### Describe how to test/QA your changes
 
-Write here in detail how you have tested your changes
-and instructions on how this should be tested in QA.
+<!--
+Write here in detail how you have tested your changes and instructions on how
+this should be tested in QA.
 
-Describe or link instructions to set up environment 
-for testing, if the process requires more than just
-running the agent on one of the supported platforms.
+Describe or link instructions to set up environment for testing, if the process
+requires more than just running the agent on one of the supported platforms.
+-->
 
 ### Checklist
 <!-- Place an '[x]' (no spaces) in all applicable fields. Please remove unrelated fields. -->
