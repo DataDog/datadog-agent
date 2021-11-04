@@ -1,3 +1,17 @@
+<!--
+Requirements for contributing to this repository:
+
+* Fill out the template below. Any pull request that does not include enough
+  information to be reviewed in a timely manner may be closed at thei
+  maintainers' discretion.
+* The pull request should only fix one issue, or add one feature, at the time.
+* The pull request must update the test suite to demonstrate the changedi
+  functionality.
+* After you create the pull request, all status checks must be pass before a
+  maintainer reviews your contribution. For more details, please see
+  [CONTRIBUTING](/CONTRIBUTING.md).
+
+-->
 ### What does this PR do?
 
 <!--
