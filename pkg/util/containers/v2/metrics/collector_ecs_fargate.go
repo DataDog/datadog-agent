@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
@@ -44,6 +45,10 @@ type ecsStatsFunc func(ctx context.Context, id string) (*v2.ContainerStats, erro
 
 // newEcsFargateCollector returns a new *ecsFargateCollector.
 func newEcsFargateCollector() (*ecsFargateCollector, error) {
+	if !config.IsFeaturePresent(config.ECSFargate) {
+		return nil, ErrPermaFail
+	}
+
 	client, err := metadata.V2()
 	if err != nil {
 		return nil, err
