@@ -7,8 +7,8 @@ package sender
 
 import (
 	"context"
+	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -19,12 +19,51 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+type mockDestination struct {
+	errChan  chan bool
+	hasError bool
+}
+
+func newMockDestination() *mockDestination {
+	return &mockDestination{
+		errChan:  make(chan bool, 1),
+		hasError: false,
+	}
+}
+
+func (m *mockDestination) Send(payload []byte) error {
+	select {
+	case m.hasError = <-m.errChan:
+	default:
+	}
+
+	if m.hasError {
+		return errors.New("Test error")
+	}
+	return nil
+
+}
+func (m *mockDestination) SendAsync(payload []byte) {
+}
+
 type mockStrategy struct {
+	sendFailed chan bool
+}
+
+func newMockStrategy() *mockStrategy {
+	return &mockStrategy{
+		sendFailed: make(chan bool),
+	}
+
 }
 
 func (m *mockStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
 	for msg := range inputChan {
-		outputChan <- msg
+		if send(msg.Content) == nil {
+			outputChan <- msg
+		} else {
+			m.sendFailed <- true
+		}
 	}
 }
 
@@ -32,19 +71,6 @@ func (m *mockStrategy) Flush(ctx context.Context) {}
 
 func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
 	return message.NewMessageWithSource(content, status, source, 0)
-}
-
-func assertNoMessage(t *testing.T, channel chan *message.Message) {
-	timer := time.NewTimer(10 * time.Millisecond)
-loop:
-	for {
-		select {
-		case <-channel:
-			t.Fail()
-		case <-timer.C:
-			break loop
-		}
-	}
 }
 
 func TestSender(t *testing.T) {
@@ -114,28 +140,25 @@ func TestSenderNotBlockedByAdditional(t *testing.T) {
 	destinationsCtx.Stop()
 }
 
-func TestSplitSender(t *testing.T) {
+func TestDualShipEndpoints(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
-
-	senderError := func(sender *Sender, fail bool) {
-		semaChan := make(chan bool)
-		go func() {
-			semaChan <- true
-			sender.hasError <- fail
-		}()
-		<-semaChan
-	}
 
 	input := make(chan *message.Message, 1)
 	mainInput := make(chan *message.Message, 1)
 	backupInput := make(chan *message.Message, 1)
-	mainOutput := make(chan *message.Message, 1)
-	backupOutput := make(chan *message.Message, 1)
+	mainOutput := make(chan *message.Message)
+	backupOutput := make(chan *message.Message)
 
-	mainStrategy := &mockStrategy{}
-	backupStrategy := &mockStrategy{}
-	mainSender := NewSender(mainInput, mainOutput, nil, mainStrategy)
-	backupSender := NewSender(backupInput, backupOutput, nil, backupStrategy)
+	mainDest := newMockDestination()
+	mainDests := client.NewDestinations(mainDest, []client.Destination{})
+	backupDest := newMockDestination()
+	backupDests := client.NewDestinations(backupDest, []client.Destination{})
+
+	mainMockStrategy := newMockStrategy()
+	backupMockStrategy := newMockStrategy()
+
+	mainSender := NewSender(mainInput, mainOutput, mainDests, mainMockStrategy)
+	backupSender := NewSender(backupInput, backupOutput, backupDests, backupMockStrategy)
 
 	SplitSenders(input, mainSender, backupSender)
 
@@ -149,28 +172,29 @@ func TestSplitSender(t *testing.T) {
 	<-mainOutput
 	<-backupOutput
 
-	senderError(backupSender, true)
+	backupDest.errChan <- true
 
 	// Main should get the message - backup should not.
 	input <- newMessage([]byte("fake line"), source, "")
 	<-mainOutput
-	assertNoMessage(t, backupOutput)
+	<-backupMockStrategy.sendFailed
 
-	senderError(mainSender, true)
+	mainDest.errChan <- true
 
 	// Both senders are in a failed state. SplitSenders will now block until
-	// one succeeds regardless of the error state. Simulate main starting to recover.
+	// one succeeds regardless of the error state.
 	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
+	<-mainMockStrategy.sendFailed
+	<-backupMockStrategy.sendFailed
 
-	senderError(mainSender, false)
+	mainDest.errChan <- false
 
 	// Main has recovered and should should get the message - backup should not.
-	input <- newMessage([]byte("fake line"), source, "")
+	input <- newMessage([]byte("1"), source, "")
 	<-mainOutput
-	assertNoMessage(t, backupOutput)
+	<-backupMockStrategy.sendFailed
 
-	senderError(backupSender, false)
+	backupDest.errChan <- false
 
 	// Both senders are now recovered - both get the messsage
 	input <- newMessage([]byte("fake line"), source, "")
@@ -179,16 +203,15 @@ func TestSplitSender(t *testing.T) {
 
 	// Scenario 2: One sender fails and then recovers
 
-	senderError(mainSender, true)
+	mainDest.errChan <- true
 
 	input <- newMessage([]byte("fake line"), source, "")
-	assertNoMessage(t, mainOutput)
+	<-mainMockStrategy.sendFailed
 	<-backupOutput
 
-	senderError(mainSender, false)
+	mainDest.errChan <- false
 
 	input <- newMessage([]byte("fake line"), source, "")
 	<-mainOutput
 	<-backupOutput
-
 }

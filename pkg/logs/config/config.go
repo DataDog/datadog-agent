@@ -188,15 +188,15 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 
 	if logsDDBackupURL, defined := logsConfig.logsDDURLBackup(); defined {
 		// Copy the main endpoint since all the settings are shared except the host + port
-		copiedEndpoint := main
+		backupEndpoint := main
 		host, port, err := parseAddress(logsDDBackupURL)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", logsDDBackupURL, err)
 		}
-		copiedEndpoint.Host = host
-		copiedEndpoint.Port = port
+		backupEndpoint.Host = host
+		backupEndpoint.Port = port
 
-		backup = &copiedEndpoint
+		backup = &backupEndpoint
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()
@@ -256,15 +256,15 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 
 	if logsDDBackupURL, logsDDURLDefined := logsConfig.logsDDURLBackup(); logsDDURLDefined {
 		// Copy the main endpoint since all the settings are shared except the host + port
-		copiedEndpoint := main
+		backupEndpoint := main
 
 		host, port, err := parseAddress(logsDDBackupURL)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", logsDDBackupURL, err)
 		}
-		copiedEndpoint.Host = host
-		copiedEndpoint.Port = port
-		backup = &copiedEndpoint
+		backupEndpoint.Host = host
+		backupEndpoint.Port = port
+		backup = &backupEndpoint
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()

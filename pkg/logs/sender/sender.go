@@ -36,7 +36,7 @@ func NewSender(inputChan chan *message.Message, outputChan chan *message.Message
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
-		hasError:     make(chan bool),
+		hasError:     make(chan bool, 1),
 		destinations: destinations,
 		strategy:     strategy,
 		done:         make(chan struct{}),
@@ -69,7 +69,7 @@ func (s *Sender) run() {
 
 // send sends a payload to multiple destinations,
 // it will forever retry for the main destination unless the error is not retryable
-// and only try once for additionnal destinations.
+// and only try once for additional destinations.
 func (s *Sender) send(payload []byte) error {
 	for {
 		err := s.destinations.Main.Send(payload)
@@ -105,12 +105,6 @@ func (s *Sender) send(payload []byte) error {
 	return nil
 }
 
-// func (s *Sender) hasError() bool {
-// 	s.Lock()
-// 	defer s.Unlock()
-// 	return s.lastError != nil
-// }
-
 // shouldStopSending returns true if a component should stop sending logs.
 func shouldStopSending(err error) bool {
 	return err == context.Canceled
@@ -125,6 +119,10 @@ func SplitSenders(inputChan chan *message.Message, main *Sender, backup *Sender)
 		backupSenderHasErr := false
 
 		for message := range inputChan {
+			sentMain := false
+			sentBackup := false
+
+			// First collect any errors from the senders
 			select {
 			case mainSenderHasErr = <-main.hasError:
 			default:
@@ -135,28 +133,14 @@ func SplitSenders(inputChan chan *message.Message, main *Sender, backup *Sender)
 			default:
 			}
 
-			if !mainSenderHasErr {
-				select {
-				case main.inputChan <- message:
-				case mainSenderHasErr = <-main.hasError:
-				}
-			}
-
-			if !backupSenderHasErr {
-				select {
-				case backup.inputChan <- message:
-				case backupSenderHasErr = <-backup.hasError:
-				}
-			}
-
 			// If both senders are failing, we want to block the pipeline until at least one succeeds
 			for {
-				if mainSenderHasErr && backupSenderHasErr {
+				if mainSenderHasErr && backupSenderHasErr && !sentMain && !sentBackup {
 					select {
 					case main.inputChan <- message:
-						mainSenderHasErr = false
+						sentMain = true
 					case backup.inputChan <- message:
-						backupSenderHasErr = false
+						sentBackup = true
 					case mainSenderHasErr = <-main.hasError:
 					case backupSenderHasErr = <-backup.hasError:
 					}
@@ -164,6 +148,35 @@ func SplitSenders(inputChan chan *message.Message, main *Sender, backup *Sender)
 					break
 				}
 			}
+
+			if !sentMain {
+				mainSenderHasErr = sendMessage(mainSenderHasErr, main, message)
+			}
+
+			if !sentBackup {
+				backupSenderHasErr = sendMessage(backupSenderHasErr, backup, message)
+			}
 		}
 	}()
+}
+
+func sendMessage(hasError bool, sender *Sender, message *message.Message) bool {
+	if !hasError {
+		// If there is no error - block and write to the buffered channel until it succeeds or we get an error.
+		// If we don't block, the input can fill the buffered channels faster than sender can
+		// drain them - causing missing logs.
+		select {
+		case sender.inputChan <- message:
+		case hasError = <-sender.hasError:
+		}
+	} else {
+		// Even if there is an error, try to put the log line in the buffered channel in case the
+		// error resolves quickly and there is room in the channel.
+		select {
+		case sender.inputChan <- message:
+		default:
+			break
+		}
+	}
+	return hasError
 }
