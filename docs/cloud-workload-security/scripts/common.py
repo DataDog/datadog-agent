@@ -1,5 +1,7 @@
-import jinja2
 import os
+
+import jinja2
+
 
 def fill_template(template_name, **kwargs):
     env = jinja2.Environment(
