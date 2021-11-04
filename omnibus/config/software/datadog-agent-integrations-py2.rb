@@ -275,7 +275,7 @@ build do
     end
 
     tasks_dir_in = windows_safe_path(Dir.pwd)
-    cache_bucket = `inv release.get-release-json-value base_branch`
+    cache_bucket = `cd .. && inv release.get-release-json-value base_branch`.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
     awscli = if windows? then '"c:\program files\amazon\awscli\bin\aws"' else 'aws' end
     if cache_bucket != ''
