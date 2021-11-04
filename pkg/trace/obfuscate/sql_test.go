@@ -83,6 +83,30 @@ func TestKeepSQLAlias(t *testing.T) {
 	})
 }
 
+func TestCanObfuscateAutoVacuum(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct{ in, out string }{
+		{
+			in:  "autovacuum: VACUUM ANALYZE fake.table",
+			out: "autovacuum : VACUUM ANALYZE fake.table",
+		},
+		{
+			in:  "autovacuum: VACUUM ANALYZE fake.table_downtime",
+			out: "autovacuum : VACUUM ANALYZE fake.table_downtime",
+		},
+		{
+			in:  "autovacuum: VACUUM fake.big_table (to prevent wraparound)",
+			out: "autovacuum : VACUUM fake.big_table ( to prevent wraparound )",
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
+		})
+	}
+}
+
 func TestDollarQuotedFunc(t *testing.T) {
 	q := `SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users`
 
