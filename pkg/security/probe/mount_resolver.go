@@ -395,6 +395,8 @@ func getSizeOfStructInode(probe *Probe) uint64 {
 		sizeOf = 632
 	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < skernel.Kernel4_16:
 		sizeOf = 608
+	case skernel.Kernel5_0 <= probe.kernelVersion.Code && probe.kernelVersion.Code < skernel.Kernel5_1:
+		sizeOf = 584
 	}
 
 	return sizeOf
