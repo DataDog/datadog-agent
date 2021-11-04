@@ -591,8 +591,7 @@ int kprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     };
     struct sock** sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
     if (sock != NULL) {
-        // TODO un-comment this line eventually
-        // return 0;
+        return 0;
     }
 
     bpf_map_update_elem(&sockfd_lookup_args, &pid_tgid, &sockfd, BPF_ANY);
