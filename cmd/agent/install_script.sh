@@ -59,7 +59,6 @@ function report(){
    printf "A notification has been sent to Datadog with the contents of $logfile\n"
   else
     printf "Unable to send the notification (curl v7.18 or newer is required)"
-    fallback_msg
   fi
 }
 
@@ -106,9 +105,8 @@ Troubleshooting and basic usage information for the Agent are available at:
             get_email
             if [[ -n "$isEmailValid" ]]; then
               report
-            else
-              fallback_msg
             fi
+            fallback_msg
             break;;
           [Nn]*|"" )
             fallback_msg
