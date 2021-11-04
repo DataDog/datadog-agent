@@ -11,7 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-go/statsd"
 )
 
 var (
@@ -71,6 +74,31 @@ func (tm *RuntimeCompilationTelemetry) GetTelemetry() map[string]int64 {
 		stats["runtime_compilation_enabled"] = 0
 	}
 	return stats
+}
+
+func (tm *RuntimeCompilationTelemetry) SendMetrics(client *statsd.Client) error {
+	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+
+	var enabled float64 = 0
+	if tm.compilationEnabled {
+		enabled = 1
+	}
+	if err := client.Gauge(metrics.MetricRuntimeCompiledConstantsEnabled, enabled, tags, 1); err != nil {
+		return err
+	}
+
+	// if the runtime compilation is not enabled we return directly
+	if !tm.compilationEnabled {
+		return nil
+	}
+
+	if err := client.Gauge(metrics.MetricRuntimeCompiledConstantsCompilationResult, float64(tm.compilationResult), tags, 1); err != nil {
+		return err
+	}
+	if err := client.Gauge(metrics.MetricRuntimeCompiledConstantsCompilationDuration, float64(tm.compilationDuration), tags, 1); err != nil {
+		return err
+	}
+	return client.Gauge(metrics.MetricRuntimeCompiledConstantsHeaderFetchResult, float64(tm.headerFetchResult), tags, 1)
 }
 
 type RuntimeCompilationFileProvider interface {

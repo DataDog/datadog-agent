@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-go/statsd"
 )
 
 type rcSymbolPair struct {
@@ -30,16 +31,18 @@ type rcSymbolPair struct {
 }
 
 type RuntimeCompilationConstantFetcher struct {
-	config      *ebpf.Config
-	headers     []string
-	symbolPairs []rcSymbolPair
-	result      map[string]uint64
+	config       *ebpf.Config
+	statsdClient *statsd.Client
+	headers      []string
+	symbolPairs  []rcSymbolPair
+	result       map[string]uint64
 }
 
-func NewRuntimeCompilationConstantFetcher(config *ebpf.Config) *RuntimeCompilationConstantFetcher {
+func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient *statsd.Client) *RuntimeCompilationConstantFetcher {
 	return &RuntimeCompilationConstantFetcher{
-		config: config,
-		result: make(map[string]uint64),
+		config:       config,
+		statsdClient: statsdClient,
+		result:       make(map[string]uint64),
 	}
 }
 
@@ -97,13 +100,27 @@ func (cf *RuntimeCompilationConstantFetcher) getCCode() (string, error) {
 	return buffer.String(), nil
 }
 
+func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf.Config, cCode string) (io.ReaderAt, error) {
+	provider := &constantFetcherRCProvider{
+		cCode: cCode,
+	}
+	telemetry := runtime.NewRuntimeCompilationTelemetry()
+	reader, err := runtime.RuntimeCompileObjectFile(config, additionalFlags, provider, &telemetry)
+
+	if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
+		log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
+	}
+
+	return reader, err
+}
+
 func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	cCode, err := cf.getCCode()
 	if err != nil {
 		return nil, err
 	}
 
-	elfFile, err := compileConstantFetcher(cf.config, cCode)
+	elfFile, err := cf.compileConstantFetcher(cf.config, cCode)
 	if err != nil {
 		return nil, err
 	}
@@ -172,18 +189,6 @@ func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kerne
 	cCodeHash := hasher.Sum(nil)
 
 	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHash, flagHash)), nil
-}
-
-func compileConstantFetcher(config *ebpf.Config, cCode string) (io.ReaderAt, error) {
-	provider := &constantFetcherRCProvider{
-		cCode: cCode,
-	}
-	telemetry := runtime.NewRuntimeCompilationTelemetry()
-	reader, err := runtime.RuntimeCompileObjectFile(config, additionalFlags, provider, &telemetry)
-
-	log.Warnf("telemetry: %+v", telemetry)
-
-	return reader, err
 }
 
 func sortAndDedup(in []string) []string {
