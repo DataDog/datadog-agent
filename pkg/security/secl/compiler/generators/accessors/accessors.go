@@ -525,9 +525,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				{{- if $Field.IsArray}}
 					{{$ArrayPrefix = "[]"}}
 				{{end}}
-				{{- if $Field.OpOverride }}
+				{{- if and $Field.OpOverride (not $Mock)}}
 				OpOverride: $Field.OpOverride,
-				{{- end }}
+				{{- end}}
 				EvalFnc: func(ctx *eval.Context) {{$ArrayPrefix}}{{$Field.ReturnType}} {
 					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
 					{{- if and (ne $Field.Handler "") (not $Mock)}}

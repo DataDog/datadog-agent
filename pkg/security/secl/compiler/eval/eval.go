@@ -65,7 +65,7 @@ type VariableValue struct {
 
 // OpOverride defines a operator override function suite
 type OpOverrides struct {
-	StringEquals func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *state) (*BoolEvaluator, error)
+	StringEquals func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
 }
 
 // BoolEvalFnc describe a eval function return a boolean
@@ -97,7 +97,7 @@ type ident struct {
 	Ident *string
 }
 
-func identToEvaluator(obj *ident, opts *Opts, state *state) (interface{}, lexer.Position, error) {
+func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.Position, error) {
 	if accessor, ok := opts.Constants[*obj.Ident]; ok {
 		return accessor, obj.Pos, nil
 	}
@@ -185,7 +185,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *state) (interface{}, lexer.
 	return accessor, obj.Pos, nil
 }
 
-func arrayToEvaluator(array *ast.Array, opts *Opts, state *state) (interface{}, lexer.Position, error) {
+func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, lexer.Position, error) {
 	if len(array.Numbers) != 0 {
 		var evaluator IntArrayEvaluator
 		evaluator.AppendMembers(array.Numbers...)

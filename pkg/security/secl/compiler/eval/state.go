@@ -15,7 +15,7 @@ type registerInfo struct {
 	subFields map[Field]bool
 }
 
-type state struct {
+type State struct {
 	model         Model
 	field         Field
 	events        map[EventType]bool
@@ -24,13 +24,13 @@ type state struct {
 	registersInfo map[RegisterID]*registerInfo
 }
 
-func (s *state) UpdateFields(field Field) {
+func (s *State) UpdateFields(field Field) {
 	if _, ok := s.fieldValues[field]; !ok {
 		s.fieldValues[field] = []FieldValue{}
 	}
 }
 
-func (s *state) UpdateFieldValues(field Field, value FieldValue) error {
+func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 	values, ok := s.fieldValues[field]
 	if !ok {
 		values = []FieldValue{}
@@ -40,7 +40,7 @@ func (s *state) UpdateFieldValues(field Field, value FieldValue) error {
 	return s.model.ValidateField(field, value)
 }
 
-func (s *state) Events() []EventType {
+func (s *State) Events() []EventType {
 	var events []EventType
 
 	for event := range s.events {
@@ -55,7 +55,7 @@ func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *sta
 	if macros == nil {
 		macros = make(map[MacroID]*MacroEvaluator)
 	}
-	return &state{
+	return &State{
 		field:         field,
 		macros:        macros,
 		model:         model,
