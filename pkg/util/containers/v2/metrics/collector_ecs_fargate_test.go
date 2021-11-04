@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 
@@ -135,11 +136,11 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 				networks: map[string]string{},
 			},
 			want: &ContainerNetworkStats{
-				Interfaces:  map[string]InterfaceNetStats{"eth1": {BytesRcvd: floatPtr(2398415937), PacketsRcvd: floatPtr(1898631), BytesSent: floatPtr(1259037719), PacketsSent: floatPtr(428002)}},
-				BytesRcvd:   floatPtr(2398415937),
-				PacketsRcvd: floatPtr(1898631),
-				BytesSent:   floatPtr(1259037719),
-				PacketsSent: floatPtr(428002),
+				Interfaces:  map[string]InterfaceNetStats{"eth1": {BytesRcvd: util.UIntToFloatPtr(2398415937), PacketsRcvd: util.UIntToFloatPtr(1898631), BytesSent: util.UIntToFloatPtr(1259037719), PacketsSent: util.UIntToFloatPtr(428002)}},
+				BytesRcvd:   util.UIntToFloatPtr(2398415937),
+				PacketsRcvd: util.UIntToFloatPtr(1898631),
+				BytesSent:   util.UIntToFloatPtr(1259037719),
+				PacketsSent: util.UIntToFloatPtr(428002),
 			},
 		},
 		{
@@ -149,11 +150,11 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 				networks: map[string]string{"eth1": "custom_iface"},
 			},
 			want: &ContainerNetworkStats{
-				Interfaces:  map[string]InterfaceNetStats{"custom_iface": {BytesRcvd: floatPtr(2398415937), PacketsRcvd: floatPtr(1898631), BytesSent: floatPtr(1259037719), PacketsSent: floatPtr(428002)}},
-				BytesRcvd:   floatPtr(2398415937),
-				PacketsRcvd: floatPtr(1898631),
-				BytesSent:   floatPtr(1259037719),
-				PacketsSent: floatPtr(428002),
+				Interfaces:  map[string]InterfaceNetStats{"custom_iface": {BytesRcvd: util.UIntToFloatPtr(2398415937), PacketsRcvd: util.UIntToFloatPtr(1898631), BytesSent: util.UIntToFloatPtr(1259037719), PacketsSent: util.UIntToFloatPtr(428002)}},
+				BytesRcvd:   util.UIntToFloatPtr(2398415937),
+				PacketsRcvd: util.UIntToFloatPtr(1898631),
+				BytesSent:   util.UIntToFloatPtr(1259037719),
+				PacketsSent: util.UIntToFloatPtr(428002),
 			},
 		},
 		{
@@ -161,19 +162,19 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 			args: args{
 				netStats: v2.NetStatsMap{
 					"eth0": v2.NetStats{RxBytes: 2398415937, RxPackets: 1898631, TxBytes: 1259037719, TxPackets: 428002},
-					"eth1": v2.NetStats{TxBytes: 2398415937, TxPackets: 1898631, RxBytes: 1259037719, RxPackets: 428002},
+					"eth1": v2.NetStats{TxBytes: 2398415936, TxPackets: 1898630, RxBytes: 1259037718, RxPackets: 428001},
 				},
 				networks: map[string]string{},
 			},
 			want: &ContainerNetworkStats{
 				Interfaces: map[string]InterfaceNetStats{
-					"eth0": {BytesRcvd: floatPtr(2398415937), PacketsRcvd: floatPtr(1898631), BytesSent: floatPtr(1259037719), PacketsSent: floatPtr(428002)},
-					"eth1": {BytesSent: floatPtr(2398415937), PacketsSent: floatPtr(1898631), BytesRcvd: floatPtr(1259037719), PacketsRcvd: floatPtr(428002)},
+					"eth0": {BytesRcvd: util.UIntToFloatPtr(2398415937), PacketsRcvd: util.UIntToFloatPtr(1898631), BytesSent: util.UIntToFloatPtr(1259037719), PacketsSent: util.UIntToFloatPtr(428002)},
+					"eth1": {BytesSent: util.UIntToFloatPtr(2398415936), PacketsSent: util.UIntToFloatPtr(1898630), BytesRcvd: util.UIntToFloatPtr(1259037718), PacketsRcvd: util.UIntToFloatPtr(428001)},
 				},
-				BytesRcvd:   floatPtr(3657453656),
-				PacketsRcvd: floatPtr(2326633),
-				BytesSent:   floatPtr(3657453656),
-				PacketsSent: floatPtr(2326633),
+				BytesRcvd:   util.UIntToFloatPtr(3657453655),
+				PacketsRcvd: util.UIntToFloatPtr(2326632),
+				BytesSent:   util.UIntToFloatPtr(3657453655),
+				PacketsSent: util.UIntToFloatPtr(2326632),
 			},
 		},
 	}
@@ -269,23 +270,18 @@ func TestConvertEcsStats(t *testing.T) {
 			},
 			want: &ContainerStats{
 				Timestamp: constTime,
-				CPU:       &ContainerCPUStats{Total: floatPtr(1137691504), System: floatPtr(80000000), User: floatPtr(810000000)},
-				Memory:    &ContainerMemStats{Limit: floatPtr(9223372036854772000), UsageTotal: floatPtr(6504448), RSS: floatPtr(4669440), Cache: floatPtr(651264)},
-				IO:        &ContainerIOStats{ReadBytes: floatPtr(638976), WriteBytes: floatPtr(0), ReadOperations: floatPtr(12), WriteOperations: floatPtr(0)},
+				CPU:       &ContainerCPUStats{Total: util.UIntToFloatPtr(1137691504), System: util.UIntToFloatPtr(80000000), User: util.UIntToFloatPtr(810000000)},
+				Memory:    &ContainerMemStats{Limit: util.UIntToFloatPtr(9223372036854772000), UsageTotal: util.UIntToFloatPtr(6504448), RSS: util.UIntToFloatPtr(4669440), Cache: util.UIntToFloatPtr(651264)},
+				IO:        &ContainerIOStats{ReadBytes: util.UIntToFloatPtr(638976), WriteBytes: util.UIntToFloatPtr(0), ReadOperations: util.UIntToFloatPtr(12), WriteOperations: util.UIntToFloatPtr(0)},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := convertEcsStats(tt.args.ecsStats)
-			got.Timestamp = constTime
+			got.Timestamp = constTime // avoid comparing the timestamp field as we have no control over it
 
 			assert.EqualValues(t, tt.want, got)
 		})
 	}
-}
-
-func floatPtr(u uint64) *float64 {
-	f := float64(u)
-	return &f
 }

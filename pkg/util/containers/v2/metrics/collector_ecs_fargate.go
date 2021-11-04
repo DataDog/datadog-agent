@@ -22,7 +22,7 @@ import (
 const (
 	ecsFargateCollectorID = "ecs_fargate"
 	statsCacheKey         = "ecs-stats-%s"
-	statsCacheExpiration  = 2 * time.Minute
+	statsCacheExpiration  = 10 * time.Second
 )
 
 func init() {
@@ -99,6 +99,10 @@ func (e *ecsFargateCollector) stats(containerID string, cacheValidity time.Durat
 }
 
 func convertEcsStats(ecsStats *v2.ContainerStats) *ContainerStats {
+	if ecsStats == nil {
+		return nil
+	}
+
 	return &ContainerStats{
 		Timestamp: time.Now(),
 		CPU:       convertCPUStats(&ecsStats.CPU),
@@ -108,6 +112,10 @@ func convertEcsStats(ecsStats *v2.ContainerStats) *ContainerStats {
 }
 
 func convertCPUStats(cpuStats *v2.CPUStats) *ContainerCPUStats {
+	if cpuStats == nil {
+		return nil
+	}
+
 	stats := &ContainerCPUStats{}
 	convertField(&cpuStats.Usage.Total, &stats.Total)
 	convertField(&cpuStats.Usage.Kernelmode, &stats.System)
@@ -117,6 +125,10 @@ func convertCPUStats(cpuStats *v2.CPUStats) *ContainerCPUStats {
 }
 
 func convertMemoryStats(memStats *v2.MemStats) *ContainerMemStats {
+	if memStats == nil {
+		return nil
+	}
+
 	stats := &ContainerMemStats{}
 	convertField(&memStats.Limit, &stats.Limit)
 	convertField(&memStats.Usage, &stats.UsageTotal)
@@ -127,8 +139,11 @@ func convertMemoryStats(memStats *v2.MemStats) *ContainerMemStats {
 }
 
 func convertIOStats(ioStats *v2.IOStats) *ContainerIOStats {
-	stats := &ContainerIOStats{}
+	if ioStats == nil {
+		return nil
+	}
 
+	stats := &ContainerIOStats{}
 	var readBytes, writeBytes uint64
 	for _, stat := range ioStats.BytesPerDeviceAndKind {
 		switch stat.Kind {
