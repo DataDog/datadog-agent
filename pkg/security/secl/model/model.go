@@ -51,6 +51,10 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 				return errAbs
 			}
 
+			if value == "*" {
+				return errAbs
+			}
+
 			if !filepath.IsAbs(value) && len(value) > 0 && value[0] != '*' {
 				return errAbs
 			}
