@@ -1,5 +1,7 @@
 # Datadog Agent
 
+Mergefreeze test
+
 [![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/main.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/main)
 [![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/main?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/main)
 [![Coverage status](https://codecov.io/github/DataDog/datadog-agent/coverage.svg?branch=main)](https://codecov.io/github/DataDog/datadog-agent?branch=main)
