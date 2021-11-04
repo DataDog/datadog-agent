@@ -6,7 +6,7 @@ package pb;
 
 import "tracer_payload.proto";
 
-message TracePayload {
+message AgentPayload {
         string hostName = 1;
         string env = 2;
         repeated TracerPayload tracerPayloads = 5;

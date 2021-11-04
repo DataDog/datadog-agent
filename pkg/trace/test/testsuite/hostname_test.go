@@ -49,7 +49,7 @@ func TestHostname(t *testing.T) {
 			if err := r.Post(payload); err != nil {
 				t.Fatal(err)
 			}
-			waitForTrace(t, &r, func(v pb.TracePayload) {
+			waitForTrace(t, &r, func(v pb.AgentPayload) {
 				if n := len(v.TracerPayloads); n != 1 {
 					t.Fatalf("expected %d tracer payloads, got %d", 1, n)
 				}
@@ -82,7 +82,7 @@ func TestHostname(t *testing.T) {
 		if err := r.Post(payload); err != nil {
 			t.Fatal(err)
 		}
-		waitForTrace(t, &r, func(v pb.TracePayload) {
+		waitForTrace(t, &r, func(v pb.AgentPayload) {
 			if n := len(v.TracerPayloads); n != 1 {
 				t.Fatalf("expected %d tracer payloads, got %d", 1, n)
 			}
@@ -96,20 +96,20 @@ func TestHostname(t *testing.T) {
 	})
 }
 
-// waitForTrace waits on the out channel until it times out or receives an pb.TracePayload.
+// waitForTrace waits on the out channel until it times out or receives an pb.AgentPayload.
 // If the latter happens it will call fn.
-func waitForTrace(t *testing.T, runner *test.Runner, fn func(pb.TracePayload)) {
+func waitForTrace(t *testing.T, runner *test.Runner, fn func(pb.AgentPayload)) {
 	waitForTraceTimeout(t, runner, 3*time.Second, fn)
 }
 
 // waitForTraceTimeout behaves like waitForTrace but allows a customizable wait time.
-func waitForTraceTimeout(t *testing.T, runner *test.Runner, wait time.Duration, fn func(pb.TracePayload)) {
+func waitForTraceTimeout(t *testing.T, runner *test.Runner, wait time.Duration, fn func(pb.AgentPayload)) {
 	timeout := time.After(wait)
 	out := runner.Out()
 	for {
 		select {
 		case p := <-out:
-			if v, ok := p.(pb.TracePayload); ok {
+			if v, ok := p.(pb.AgentPayload); ok {
 				fn(v)
 				return
 			}

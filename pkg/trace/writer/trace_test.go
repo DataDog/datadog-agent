@@ -125,14 +125,14 @@ func randomSampledSpans(spans, events int) *SampledChunks {
 // payloadsContain checks that the given payloads contain the given set of sampled spans.
 func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledChunks) {
 	t.Helper()
-	var all pb.TracePayload
+	var all pb.AgentPayload
 	for _, p := range payloads {
 		assert := assert.New(t)
 		gzipr, err := gzip.NewReader(p.body)
 		assert.NoError(err)
 		slurp, err := ioutil.ReadAll(gzipr)
 		assert.NoError(err)
-		var payload pb.TracePayload
+		var payload pb.AgentPayload
 		err = proto.Unmarshal(slurp, &payload)
 		assert.NoError(err)
 		assert.Equal(payload.HostName, testHostname)

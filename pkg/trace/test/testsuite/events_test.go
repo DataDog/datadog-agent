@@ -59,7 +59,7 @@ func TestAPMEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		waitForTrace(t, &runner, func(v pb.TracePayload) {
+		waitForTrace(t, &runner, func(v pb.AgentPayload) {
 			if n := countEvents(&v); n != 0 {
 				t.Fatalf("expected no events, got %d", n)
 			}
@@ -78,7 +78,7 @@ func TestAPMEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		waitForTrace(t, &runner, func(v pb.TracePayload) {
+		waitForTrace(t, &runner, func(v pb.AgentPayload) {
 			if n := countEvents(&v); n != 1 {
 				t.Fatalf("expected 1 event, got %d", n)
 			}
@@ -95,7 +95,7 @@ func TestAPMEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		waitForTrace(t, &runner, func(v pb.TracePayload) {
+		waitForTrace(t, &runner, func(v pb.AgentPayload) {
 			if n := countEvents(&v); n != 5 {
 				t.Fatalf("expected 5 event, got %d", n)
 			}
@@ -103,7 +103,7 @@ func TestAPMEvents(t *testing.T) {
 	})
 }
 
-func countEvents(p *pb.TracePayload) int {
+func countEvents(p *pb.AgentPayload) int {
 	n := 0
 	for _, tp := range p.TracerPayloads {
 		for _, chunk := range tp.Chunks {

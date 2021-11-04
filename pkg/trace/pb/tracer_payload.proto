@@ -23,5 +23,6 @@ message TracerPayload {
 	repeated TraceChunk chunks = 6; // List of chunks.
 	map<string, string> tags = 7; // Agent payload level tags - tags common in all `chunks`.
 	string env = 8; // `env` tag that set with the tracer.
-	string appVersion = 9; // `version` tag that set with the tracer.
+	string hostname = 9; // hostname of were the trace is running
+	string appVersion = 10; // `version` tag that set with the tracer.
 }

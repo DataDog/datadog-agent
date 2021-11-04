@@ -89,7 +89,7 @@ func (s *Runner) KillAgent() {
 }
 
 // Out returns a channel which will provide payloads received by the fake backend.
-// They can be of type pb.TracePayload or agent.StatsPayload.
+// They can be of type pb.AgentPayload or agent.StatsPayload.
 func (s *Runner) Out() <-chan interface{} {
 	if s.backend == nil {
 		closedCh := make(chan interface{})
