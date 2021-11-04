@@ -40,13 +40,18 @@ Describe or link instructions to set up environment for testing, if the process
 requires more than just running the agent on one of the supported platforms.
 -->
 
-### Checklist
-<!-- Place an '[x]' (no spaces) in all applicable fields. Please remove unrelated fields. -->
+### Reviewer's Checklist
+<!--
+Authors can use this list as a reference to ensure that there are no problems
+during the review but the signing off on the list is to be done by the
+reviewer(s).
+
+Note: Adding GitHub labels is only possible for contributors with write access.
+-->
 
 - [ ] A [release note](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno) has been added or the `changelog/no-changelog` label has been applied.
 - [ ] The `need-change/operator` and `need-change/helm` labels has been applied if applicable.
+- [ ] Adequate QA/testing plan information is provided if the `qa/skip-qa` label is not applied.
 - [ ] The appropriate `team/..` label has been applied, if known.
 - [ ] If known, an appropriate milestone has been selected; otherwise the `Triage` milestone is set.
 - [ ] The [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated if applicable.
-
-Note: Adding GitHub labels is only possible for contributors with write access.
