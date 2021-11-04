@@ -32,6 +32,9 @@ VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 
 REPOSITORY_NAME = "DataDog/datadog-agent"
 
+UNFREEZE_REPO_AGENT = "datadog-agent"
+UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby"]
+
 
 @task
 def add_prelude(ctx, version):
@@ -1380,6 +1383,23 @@ def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upst
         print(color_message("Branching out to {}".format(release_branch), "bold"))
         ctx.run("git checkout -b {}".format(release_branch))
 
+        if repo == UNFREEZE_REPO_AGENT:
+            rj = _load_release_json()
+            rj["base_branch"] = release_branch
+            _save_release_json(rj)
+            ctx.run("git add release.json")
+            ok = try_git_command(ctx, "git commit -m 'Set base_branch to {}'".format(release_branch))
+            if not ok:
+                raise Exit(
+                    color_message(
+                        "Could not create commit. Please commit manually and push the commit to the {} branch.".format(
+                            release_branch
+                        ),
+                        "red",
+                    ),
+                    code=1,
+                )
+
         # Step 2 - Push newly created release branch to the remote repository
 
         print(color_message("Pushing new branch to the upstream repository", "bold"))
@@ -1426,8 +1446,6 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     release_branch = current.branch()
     devel_tag = str(next)
 
-    repos = ["datadog-agent", "omnibus-software", "omnibus-ruby"]
-
     # Step 0: checks
 
     print(color_message("Checking repository state", "bold"))
@@ -1444,7 +1462,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     if not yes_no_question(
         "This task will create new branches with the name '{}' in repositories: {}. Is this OK?".format(
-            release_branch, ", ".join(repos)
+            release_branch, ", ".join(UNFREEZE_REPOS)
         ),
         color="orange",
         default=False,
@@ -1452,7 +1470,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         raise Exit(color_message("Aborting.", "red"), code=1)
 
     # Step 1: Create release branch
-    for repo in repos:
+    for repo in UNFREEZE_REPOS:
         create_release_branch(ctx, repo, release_branch, base_directory=base_directory)
 
     print(color_message("Creating empty commit for devel tags", "bold"))
