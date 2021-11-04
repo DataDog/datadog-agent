@@ -507,9 +507,6 @@ class TestProfiler:
     def flush(self):
         sys.stdout.flush()
 
-    def reset(self):
-        self.out_buffer = ""
-
     def print_sorted(self, limit=0):
         if self.times:
             sorted_times = sorted(self.times, key=operator.itemgetter(1), reverse=True)
