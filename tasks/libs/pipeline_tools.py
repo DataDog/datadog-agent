@@ -1,6 +1,7 @@
 import datetime
 import functools
 import platform
+import sys
 from time import sleep, time
 
 from tasks.utils import DEFAULT_BRANCH
@@ -24,16 +25,12 @@ def get_running_pipelines_on_same_ref(gitlab, ref, sha=None):
     return running_pipelines
 
 
-def parse_datetime(dt, retry=False):
-    # UTC hack
-    try:
-        return datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%f%z")
-    except ValueError as e:
-        if retry:
-            raise e
+def parse_datetime(dt):
+    # before python 3.7, the Z shorthand for UTC timezone was not accepted
+    if sys.version_info.major < 3 or sys.version_info.minor < 7:
         if dt.endswith("Z"):
             dt = dt[:-1] + "+00:00"
-        return parse_datetime(dt, True)
+    return datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%f%z")
 
 
 def cancel_pipelines_with_confirmation(gitlab, pipelines):
@@ -48,13 +45,17 @@ def cancel_pipelines_with_confirmation(gitlab, pipelines):
             ),
         )
 
-        print(
-            "{} {:%c} ({})".format(
-                color_message("Started at", "blue"),
-                parse_datetime(pipeline['created_at']).astimezone(),
-                pipeline['created_at'],
+        try:
+            pipeline_creation_date = pipeline['created_at']
+            print(
+                "{} {:%c} ({})".format(
+                    color_message("Started at", "blue"),
+                    parse_datetime(pipeline_creation_date).astimezone(),
+                    pipeline_creation_date,
+                )
             )
-        )
+        except ValueError:
+            pass
 
         print(
             color_message("Commit:", "blue"),
