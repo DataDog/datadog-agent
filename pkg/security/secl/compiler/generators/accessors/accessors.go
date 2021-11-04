@@ -185,14 +185,16 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						continue
 					}
 
+					var opOverride string
 					var fields []seclField
 					fieldType, isPointer, isArray := getFieldIdent(field)
 
 					var weight int64
 					if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
-						for _, fieldTag := range tags.Tags() {
-							if fieldTag.Key == "field" {
-								splitted := strings.SplitN(fieldTag.Value(), ",", 3)
+						for _, tag := range tags.Tags() {
+							switch tag.Key {
+							case "field":
+								splitted := strings.SplitN(tag.Value(), ",", 3)
 								alias := splitted[0]
 								if alias == "-" {
 									continue FIELD
@@ -206,6 +208,8 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								}
 
 								fields = append(fields, field)
+							case "op_override":
+								opOverride = tag.Value()
 							}
 						}
 					} else {
@@ -220,6 +224,8 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						}
 
 						if iterator := seclField.iterator; iterator != "" {
+							// TODO(safchain) what to do with iterator
+
 							qualifiedType := func(t string) string {
 								switch t {
 								case "int", "string", "bool":
@@ -261,6 +267,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								IsArray:     isArray,
 								Weight:      weight,
 								CommentText: fieldCommentText,
+								OpOverride:  opOverride,
 							}
 
 							module.EventTypes[event] = true

@@ -34,4 +34,5 @@ type StructField struct {
 	Iterator      *StructField
 	Weight        int64
 	CommentText   string
+	OpOverride    string
 }
