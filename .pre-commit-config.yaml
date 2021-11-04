@@ -17,6 +17,11 @@ repos:
   rev: 5.9.3
   hooks:
     - id: isort
+- repo: https://github.com/jendrikseipp/vulture
+  rev: v2.3
+  hooks:
+    - id: vulture
+      args: ["--ignore-decorators @task", "--ignore-names 'test_*,Test*'", "tasks"]
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
   rev: 2.1.5
   hooks:
