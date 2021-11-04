@@ -45,17 +45,14 @@ def cancel_pipelines_with_confirmation(gitlab, pipelines):
             ),
         )
 
-        try:
-            pipeline_creation_date = pipeline['created_at']
-            print(
-                "{} {:%c} ({})".format(
-                    color_message("Started at", "blue"),
-                    parse_datetime(pipeline_creation_date).astimezone(),
-                    pipeline_creation_date,
-                )
+        pipeline_creation_date = pipeline['created_at']
+        print(
+            "{} {:%c} ({})".format(
+                color_message("Started at", "blue"),
+                parse_datetime(pipeline_creation_date).astimezone(),
+                pipeline_creation_date,
             )
-        except ValueError:
-            pass
+        )
 
         print(
             color_message("Commit:", "blue"),
