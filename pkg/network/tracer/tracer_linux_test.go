@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	netlinktest "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -449,7 +449,7 @@ func TestConntrackDelays(t *testing.T) {
 	defer tr.Stop()
 
 	// This will ensure that the first lookup for every connection fails, while the following ones succeed
-	tr.conntracker = netlinktest.NewDelayedConntracker(tr.conntracker, 1)
+	tr.conntracker = tracertest.NewDelayedConntracker(tr.conntracker, 1)
 
 	// Warm-up tracer state
 	_ = getConnections(t, tr)
