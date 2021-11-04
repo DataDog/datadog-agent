@@ -249,7 +249,7 @@ func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
 // IsShortLived returns true when a connection went through its whole lifecycle
 // between two connection checks
 func (c ConnectionStats) IsShortLived() bool {
-	return c.MonotonicTCPEstablished >= 1 && c.MonotonicTCPClosed >= 1
+	return c.LastTCPEstablished >= 1 && c.LastTCPClosed >= 1
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
