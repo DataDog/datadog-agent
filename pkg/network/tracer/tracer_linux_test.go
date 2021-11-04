@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	netlinktest "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
@@ -435,6 +436,50 @@ func TestConntrackExpiration(t *testing.T) {
 	_ = getConnections(t, tr)
 
 	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
+}
+
+// This test ensures that conntrack lookups are retried for short-lived
+// connections when the first lookup fails
+func TestConntrackDelays(t *testing.T) {
+	setupDNAT(t)
+	defer teardownDNAT(t)
+
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// This will ensure that the first lookup for every connection fails, while the following ones succeed
+	tr.conntracker = netlinktest.NewDelayedConntracker(tr.conntracker, 1)
+
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
+
+	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
+	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
+	rand.Seed(time.Now().UnixNano())
+	port := 5430 + rand.Intn(100)
+	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+		io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	defer close(doneChan)
+
+	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
+	require.NoError(t, err)
+	defer c.Close()
+	_, err = c.Write([]byte("ping"))
+	require.NoError(t, err)
+
+	// Give enough time for conntrack cache to be populated
+	time.Sleep(100 * time.Millisecond)
+
+	connections := getConnections(t, tr)
+	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
+	require.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "missing translation for connection")
 }
 
 func TestTranslationBindingRegression(t *testing.T) {
