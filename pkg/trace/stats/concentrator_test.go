@@ -103,7 +103,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(spans)
-	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans))
+	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")
 
 	testTrace := &EnvTrace{
 		Env:   "none",
@@ -228,7 +228,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(spans)
-	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans))
+	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")
 
 	t.Run("ok", func(t *testing.T) {
 		testTrace := &EnvTrace{
@@ -404,7 +404,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []pb.ClientGroupedStats{}
 
 	traceutil.ComputeTopLevel(spans)
-	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans))
+	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")
 
 	testTrace := &EnvTrace{
 		Env:   "none",
@@ -459,7 +459,7 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 		spans = append(spans, testSpan(uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0))
 	}
 	traceutil.ComputeTopLevel(spans)
-	c.addNow(&EnvTrace{Env: "none", Trace: NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans))}, "")
+	c.addNow(&EnvTrace{Env: "none", Trace: NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")}, "")
 	stats := c.flushNow(now.UnixNano() + c.bsize*int64(c.bufferLen))
 	expectedFlushedTs := alignedNow
 	assert.Len(stats.Stats, 1)

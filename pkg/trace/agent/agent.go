@@ -29,9 +29,12 @@ import (
 )
 
 const (
-	// These tags are deprecated. Use `Origin` and `Priority` fields in `TraceChunk`.
-	tagOrigin           = "_dd.origin"
+	// Deprecated. Use `Origin` in `TraceChunk`.
+	tagOrigin = "_dd.origin"
+	// Deprecated. Use `Priority` in `TraceChunk`.
 	tagSamplingPriority = "_sampling_priority_v1"
+	// Deprecated. Use `Hostname` in `TracerPayload`.
+	tagHostname = "_dd.hostname"
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -210,14 +213,22 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
+		// Trace chunks from endpoints older than v06 don't have `Priority` in their root.
 		if chunk.Priority == int32(sampler.PriorityNone) && root.Metrics != nil {
 			// if the priority is set in a metric on the root, use it for the whole chunk
 			if p, ok := root.Metrics[tagSamplingPriority]; ok {
 				chunk.Priority = int32(p)
 			}
 		}
+		// Trace chunks from endpoints older than v06 don't have `Origin` in their root.
 		if chunk.Origin == "" && root.Meta != nil {
 			chunk.Origin = root.Meta[tagOrigin]
+		}
+		// Tracer payloads from endpoints older than v06 don't have `Hostname` in their root.
+		if p.TracerPayload.Hostname == "" {
+			if tracerHostname, ok := root.Meta[tagHostname]; ok && tracerHostname != "" {
+				p.TracerPayload.Hostname = tracerHostname
+			}
 		}
 
 		if !a.Blacklister.Allows(root) {
@@ -276,7 +287,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 		pt := ProcessedTrace{
 			TraceChunk:       chunk,
-			WeightedTrace:    stats.NewWeightedTrace(chunk, root),
+			WeightedTrace:    stats.NewWeightedTrace(chunk, root, p.TracerPayload.Hostname),
 			Root:             root,
 			Env:              env,
 			ClientDroppedP0s: p.ClientDroppedP0s > 0,

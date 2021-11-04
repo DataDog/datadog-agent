@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	tagHostname   = "_dd.hostname"
 	tagStatusCode = "http.status_code"
 	tagVersion    = "version"
 	tagSynthetics = "synthetics"
@@ -54,9 +53,9 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin, env, agentHostname, containerID string) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin, env, agentHostname, tracerHostname, containerID string) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
-	hostname := traceutil.GetMetaDefault(s, tagHostname, "")
+	hostname := tracerHostname
 	if hostname == "" {
 		hostname = agentHostname
 	}

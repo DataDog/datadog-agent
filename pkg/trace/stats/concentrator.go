@@ -157,7 +157,7 @@ func (c *Concentrator) addNow(i *EnvTrace, containerID string) {
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, i.Trace.Origin, env, c.agentHostname, containerID)
+		b.HandleSpan(s, i.Trace.Origin, env, c.agentHostname, i.Trace.TracerHostname, containerID)
 	}
 }
 
