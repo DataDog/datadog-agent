@@ -1457,7 +1457,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     print(color_message("Creating empty commit for devel tags", "bold"))
     with ctx.cd("{}/datadog-agent".format(base_directory)):
-        ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags {}'")
+        ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags'")
         if not ok:
             raise Exit(
                 color_message(
