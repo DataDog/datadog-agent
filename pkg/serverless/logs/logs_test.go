@@ -273,21 +273,21 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 }
 
 func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
-	previousRequestId := "9397b299-cb43-5586-9188-641de46d10b0"
-	currentRequestId := "8286a188-ba32-4475-8077-530cd35c09a9"
+	previousRequestID := "9397b299-cb43-5586-9188-641de46d10b0"
+	currentRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 
 	message := logMessage{
 		logType: logTypePlatformRuntimeDone,
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
-			requestID: previousRequestId,
+			requestID: previousRequestID,
 			runtimeDoneItem: runtimeDoneItem{
 				status: "success",
 			},
 		},
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
-	lastRequestID := currentRequestId
+	lastRequestID := currentRequestID
 	metricTags := []string{"functionname:test-function"}
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
