@@ -53,6 +53,7 @@ var allowedEnvvarNames = []string{
 	"DD_APM_MAX_EPS",
 	"DD_APM_TPS", //deprecated
 	"DD_APM_MAX_TPS",
+	"DD_APM_ERROR_TPS",
 	"DD_APM_MAX_MEMORY",
 	"DD_APM_MAX_CPU_PERCENT",
 	"DD_APM_FEATURES",

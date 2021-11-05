@@ -623,7 +623,7 @@ func TestSampling(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg := &config.AgentConfig{}
-			sampledCfg := &config.AgentConfig{ExtraSampleRate: 1}
+			sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, ErrorTPS: 10}
 			a := &Agent{
 				NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 				ErrorsSampler:     sampler.NewErrorsSampler(cfg),
