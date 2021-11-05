@@ -288,7 +288,8 @@ func setEnforceStatus(status string) error {
 }
 
 func cleanAndWait(test *testModule, t *testing.T, trigger func() error) {
-	test.WaitSignal(t, func() error {
+	// if there is no signal, then we continue nevertheless
+	_ = test.GetSignal(t, func() error {
 		if err := trigger(); err != nil {
 			t.Errorf("failed to cleanup: %v", err)
 		}
