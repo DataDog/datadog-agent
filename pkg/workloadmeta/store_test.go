@@ -129,7 +129,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:    EventTypeSet,
-							Sources: []string{fooSource},
+							Sources: []Source{fooSource},
 							Entity:  fooContainer,
 						},
 					},
@@ -143,7 +143,7 @@ func TestSubscribe(t *testing.T) {
 			// the filter. entities that don't match the filter at
 			// all should not generate an event.
 			name:   "receive events for entities in the store pre-subscription with filter",
-			filter: NewFilter(nil, []string{fooSource}),
+			filter: NewFilter(nil, []Source{fooSource}),
 			preEvents: []CollectorEvent{
 				// set container with two sources, delete one source
 				{
@@ -187,12 +187,12 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:    EventTypeSet,
-							Sources: []string{fooSource},
+							Sources: []Source{fooSource},
 							Entity:  barContainer,
 						},
 						{
 							Type:    EventTypeSet,
-							Sources: []string{fooSource},
+							Sources: []Source{fooSource},
 							Entity:  fooContainer,
 						},
 					},
@@ -223,7 +223,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:    EventTypeSet,
-							Sources: []string{fooSource},
+							Sources: []Source{fooSource},
 							Entity: &Container{
 								EntityID: fooContainer.EntityID,
 								EntityMeta: EntityMeta{
@@ -238,7 +238,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:    EventTypeSet,
-							Sources: []string{barSource, fooSource},
+							Sources: []Source{barSource, fooSource},
 							Entity: &Container{
 								EntityID: fooContainer.EntityID,
 								EntityMeta: EntityMeta{
@@ -274,7 +274,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:    EventTypeSet,
-							Sources: []string{barSource, fooSource},
+							Sources: []Source{barSource, fooSource},
 							Entity: &Container{
 								EntityID: fooContainer.EntityID,
 								EntityMeta: EntityMeta{
@@ -311,7 +311,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:    EventTypeSet,
-							Sources: []string{fooSource},
+							Sources: []Source{fooSource},
 							Entity:  fooContainer,
 						},
 					},
@@ -320,7 +320,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:    EventTypeUnset,
-							Sources: []string{fooSource},
+							Sources: []Source{fooSource},
 							Entity:  fooContainer.GetID(),
 						},
 					},
@@ -332,7 +332,7 @@ func TestSubscribe(t *testing.T) {
 			// unsetting from only one (that matches the filter)
 			// correctly generates an unset event
 			name:   "sets and unsets an entity with source filters",
-			filter: NewFilter(nil, []string{fooSource}),
+			filter: NewFilter(nil, []Source{fooSource}),
 			postEvents: [][]CollectorEvent{
 				{
 					{
@@ -361,7 +361,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:    EventTypeSet,
-							Sources: []string{fooSource},
+							Sources: []Source{fooSource},
 							Entity:  fooContainer,
 						},
 					},
@@ -370,7 +370,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:    EventTypeUnset,
-							Sources: []string{fooSource},
+							Sources: []Source{fooSource},
 							Entity:  fooContainer.GetID(),
 						},
 					},

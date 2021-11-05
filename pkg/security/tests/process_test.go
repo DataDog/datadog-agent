@@ -129,7 +129,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			return f.Close()
-		}, func(event *sprobe.Event, rule *rules.Rule) {})
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			t.Errorf("got event: %s", event)
+		})
 		if err == nil {
 			t.Error("shouldn't get an event")
 		}
@@ -353,14 +355,7 @@ func TestProcessContext(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		executable := "/usr/bin/tail"
-		if resolved, err := os.Readlink(executable); err == nil {
-			executable = resolved
-		} else {
-			if os.IsNotExist(err) {
-				executable = "/bin/tail"
-			}
-		}
+		executable := which("tail")
 
 		test.WaitSignal(t, func() error {
 			var wg sync.WaitGroup
@@ -490,14 +485,7 @@ func TestProcessContext(t *testing.T) {
 }
 
 func TestProcessExecCTime(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
@@ -529,14 +517,7 @@ func TestProcessExecCTime(t *testing.T) {
 }
 
 func TestProcessExec(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -635,14 +616,7 @@ func TestProcessMetadata(t *testing.T) {
 }
 
 func TestProcessExecExit(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -1016,12 +990,6 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			}
 		})
 	})
-
-	// test_capset can be somewhat noisy and some events may leak to the next tests (there is a short delay between the
-	// reset of the maps and the reload of the rules, we can't move the reset after the reload either, otherwise the
-	// ruleset_reload test won't work => we would have reset the channel that contains the reload event).
-	// Load a fake new test module to empty the rules and properly cleanup the channels.
-	_, _ = newTestModule(t, nil, nil, testOpts{})
 }
 
 func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.Capabilities, t *testing.T) {

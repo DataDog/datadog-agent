@@ -5,14 +5,13 @@
 
 // +build linux
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -mock -tags linux -output accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -doc -output ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -vendor github.com/DataDog/datadog-agent/vendor/ -mock -tags linux -output accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -vendor github.com/DataDog/datadog-agent/vendor/ -tags linux -output ../../probe/accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -vendor github.com/DataDog/datadog-agent/vendor/ -tags linux -doc -output ../../../../docs/cloud-workload-security/secl.json
 
 package model
 
 import (
-	"bytes"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -49,6 +48,10 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 			errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
 
 			if value != path.Clean(value) {
+				return errAbs
+			}
+
+			if value == "*" {
 				return errAbs
 			}
 
@@ -393,7 +396,7 @@ type MountEvent struct {
 // GetFSType returns the filesystem type of the mountpoint
 func (m *MountEvent) GetFSType() string {
 	if len(m.FSType) == 0 {
-		m.FSType = string(bytes.Trim(m.FSTypeRaw[:], "\x00"))
+		m.FSType, _ = UnmarshalString(m.FSTypeRaw[:], 16)
 	}
 	return m.FSType
 }

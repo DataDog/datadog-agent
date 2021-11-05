@@ -9,8 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"strings"
 	"time"
 
@@ -111,33 +109,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	client := http.Client{
-		Transport: httputils.CreateHTTPTransport(),
-		Timeout:   timeout,
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Add("Metadata", "true")
-	res, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-
-	if res.StatusCode != 200 {
-		return "", fmt.Errorf("status code %d trying to GET %s", res.StatusCode, url)
-	}
-
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("error while reading response from azure metadata endpoint: %s", err)
-	}
-
-	return string(all), nil
+	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout)
 }
 
 // GetHostname returns hostname based on Azure instance metadata.

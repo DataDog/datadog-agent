@@ -33,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/mholt/archiver/v3"
 	"gopkg.in/yaml.v2"
@@ -62,7 +64,7 @@ var (
 	// own already redacted (we don't want to match: **************************abcde)
 	// Basically we allow many special chars while forbidding *
 	otherAPIKeysRx       = regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]+`)
-	otherAPIKeysReplacer = log.Replacer{
+	otherAPIKeysReplacer = scrubber.Replacer{
 		Regex: otherAPIKeysRx,
 		ReplFunc: func(b []byte) []byte {
 			return []byte("api_key: ********")
@@ -205,6 +207,11 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		err = zipTaggerList(tempDir, hostname)
 		if err != nil {
 			log.Errorf("Could not zip tagger list: %s", err)
+		}
+
+		err = zipWorkloadList(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not zip workload list: %s", err)
 		}
 	}
 
@@ -744,6 +751,53 @@ func zipTaggerList(tempDir, hostname string) error {
 	writer.Flush()
 
 	_, err = w.Write(b.Bytes())
+	return err
+}
+
+// workloadListURL allows mocking the agent HTTP server
+var workloadListURL string
+
+func zipWorkloadList(tempDir, hostname string) error {
+	f := filepath.Join(tempDir, hostname, "workload-list.log")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	if workloadListURL == "" {
+		workloadListURL = fmt.Sprintf("https://%v:%v/agent/workload-list/verbose", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	}
+
+	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+
+	r, err := apiutil.DoGet(c, workloadListURL)
+	if err != nil {
+		return err
+	}
+
+	workload := workloadmeta.WorkloadDumpResponse{}
+	err = json.Unmarshal(r, &workload)
+	if err != nil {
+		return err
+	}
+
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+	workload.Write(writer)
+	_ = writer.Flush()
+	_, err = w.Write(b.Bytes())
+
 	return err
 }
 

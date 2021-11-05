@@ -138,6 +138,7 @@ type inodeDiscarder struct {
 	Padding uint32
 }
 
+// inodeDiscarders is used to issue eRPC discarder requests
 type inodeDiscarders struct {
 	*lib.Map
 	erpc           *ERPC
@@ -176,6 +177,18 @@ func (id *inodeDiscarders) discardInode(eventType model.EventType, mountID uint3
 	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
 	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
 	model.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
+
+	return id.erpc.Request(&req)
+}
+
+// expireInodeDiscarder sends an eRPC request to expire a discarder
+func (id *inodeDiscarders) expireInodeDiscarder(mountID uint32, inode uint64) error {
+	req := ERPCRequest{
+		OP: ExpireInodeDiscarderOp,
+	}
+
+	model.ByteOrder.PutUint64(req.Data[0:8], inode)
+	model.ByteOrder.PutUint32(req.Data[8:12], mountID)
 
 	return id.erpc.Request(&req)
 }
@@ -223,11 +236,11 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 		return false, err
 	}
 
-	if !strings.HasSuffix(filenameField, ".path") {
+	if !strings.HasSuffix(filenameField, model.PathSuffix) {
 		return false, errors.New("path suffix not found")
 	}
 
-	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
+	basenameField := strings.Replace(filenameField, model.PathSuffix, model.NameSuffix, 1)
 	if _, err := event.GetFieldType(basenameField); err != nil {
 		return false, err
 	}
@@ -259,7 +272,7 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 						regexDir = entry.(*regexp.Regexp)
 					} else {
 						var err error
-						regexDir, err = regexp.Compile(valueDir)
+						regexDir, err = eval.PatternToRegexp(valueDir)
 						if err != nil {
 							return false, err
 						}

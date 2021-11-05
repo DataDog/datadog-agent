@@ -34,9 +34,10 @@ var (
 	}
 
 	eventCmd = &cobra.Command{
-		Use:   "event",
-		Short: "Issue logs to test Security Agent compliance events",
-		RunE:  eventRun,
+		Use:    "event",
+		Short:  "Issue logs to test Security Agent compliance events",
+		RunE:   eventRun,
+		Hidden: true,
 	}
 
 	eventArgs = struct {

@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
