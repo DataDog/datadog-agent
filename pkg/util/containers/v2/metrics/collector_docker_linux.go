@@ -42,6 +42,7 @@ func convertMemoryStats(memStats *types.MemoryStats) *ContainerMemStats {
 	containerMemStats := &ContainerMemStats{
 		UsageTotal: util.Float64Ptr(float64(memStats.Usage)),
 		Limit:      util.Float64Ptr(float64(memStats.Limit)),
+		OOMEvents:  util.Float64Ptr(float64(memStats.Failcnt)),
 	}
 
 	log.Infof("XXXXXXXXXXXX %#v\n", memStats.Stats)
@@ -52,6 +53,13 @@ func convertMemoryStats(memStats *types.MemoryStats) *ContainerMemStats {
 
 	if cache, found := memStats.Stats["cache"]; found {
 		containerMemStats.Cache = util.Float64Ptr(float64(cache))
+	}
+
+	// `kernel_stack` and `slab`, which are used to compute `KernelMemory` are available only with cgroup v2
+	if kernelStack, found := memStats.Stats["kernel_stack"]; found {
+		if slab, found := memStats.Stats["slab"]; found {
+			containerMemStats.KernelMemory = util.Float64Ptr(float64(kernelStack + slab))
+		}
 	}
 
 	return containerMemStats

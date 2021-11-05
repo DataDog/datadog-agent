@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/docker/docker/api/types"
@@ -38,6 +39,10 @@ type dockerCollector struct {
 }
 
 func newDockerCollector() (*dockerCollector, error) {
+	if !config.IsFeaturePresent(config.Docker) {
+		return nil, ErrPermaFail
+	}
+
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return nil, ErrNothingYet

@@ -64,18 +64,23 @@ func Test_convertMemoryStats(t *testing.T) {
 		{
 			name: "basic",
 			input: types.MemoryStats{
-				Usage: 42,
-				Limit: 43,
+				Usage:   42,
+				Limit:   43,
+				Failcnt: 44,
 				Stats: map[string]uint64{
-					"rss":   44,
-					"cache": 45,
+					"rss":          45,
+					"cache":        46,
+					"kernel_stack": 47,
+					"slab":         48,
 				},
 			},
 			expectedOutput: ContainerMemStats{
-				UsageTotal: util.Float64Ptr(42),
-				Limit:      util.Float64Ptr(43),
-				RSS:        util.Float64Ptr(44),
-				Cache:      util.Float64Ptr(45),
+				UsageTotal:   util.Float64Ptr(42),
+				KernelMemory: util.Float64Ptr(95),
+				Limit:        util.Float64Ptr(43),
+				OOMEvents:    util.Float64Ptr(44),
+				RSS:          util.Float64Ptr(45),
+				Cache:        util.Float64Ptr(46),
 			},
 		},
 	}
