@@ -101,7 +101,7 @@ compress :dmg do
   pkg_position '10, 10'
 end
 
-# Windows .msi specific flags
+# Windows .zip specific flags
 package :zip do
   if windows_arch_i386?
     skip_packager true
@@ -117,6 +117,7 @@ package :zip do
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\install-cmd.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\uninstall-cmd.exe"
       ]
@@ -145,6 +146,8 @@ package :msi do
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
+      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll",
+      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll",
       "#{install_dir}\\bin\\agent\\ddtray.exe"
     ]
   #if ENV['SIGN_WINDOWS']
