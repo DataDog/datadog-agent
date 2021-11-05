@@ -648,9 +648,17 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandl
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	var initLock sync.Mutex
+
 	tm.RegisterRuleEventHandler(func(e *sprobe.Event, r *rules.Rule) {
 		tb.Helper()
-		cb(e, r)
+		initLock.Lock()
+		defer initLock.Unlock()
+
+		if !tb.Failed() && !tb.Skipped() {
+			cb(e, r)
+		}
+
 		cancel()
 	})
 
@@ -658,10 +666,13 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandl
 		tm.RegisterRuleEventHandler(nil)
 	}()
 
+	initLock.Lock()
 	if err := action(); err != nil {
 		tb.Fatal(err)
+		initLock.Unlock()
 		return err
 	}
+	initLock.Unlock()
 
 	select {
 	case <-time.After(getEventTimeout):
