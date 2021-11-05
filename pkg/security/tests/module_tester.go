@@ -668,12 +668,14 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandl
 
 	actionWrapper := func() error {
 		err := action()
+		if err != nil {
+			tb.Fatal(err)
+		}
 		initWG.Done()
 		return err
 	}
 
 	if err := actionWrapper(); err != nil {
-		tb.Fatal(err)
 		return err
 	}
 
