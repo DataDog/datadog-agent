@@ -55,7 +55,9 @@ func TestSELinux(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to save enforce status")
 	}
-	defer setEnforceStatus(currentEnforceStatus)
+	defer cleanAndWait(test, t, func() error {
+		return setEnforceStatus(currentEnforceStatus)
+	})
 
 	savedBoolValue, err := getBoolValue(TestBoolName)
 	if err != nil {
