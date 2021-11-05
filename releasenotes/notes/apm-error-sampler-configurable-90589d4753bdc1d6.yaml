@@ -14,5 +14,5 @@ features:
     The TPS is spread to catch all combinations of service, name, resource, http.status and error.type.
 upgrade:
   - |
-    APM: The `apm_config. max_traces_per_second` setting no longer affects errors sampling.
+    APM: The `apm_config.max_traces_per_second` setting no longer affects errors sampling.
     To change the TPS for errors, use `apm_config.error_traces_per_second` instead.
