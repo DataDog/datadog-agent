@@ -33,7 +33,7 @@
   version was chosen.
 -->
 
-### Possible Drawbacks
+### Possible Drawbacks / Trade-offs
 
 <!--
 * What are the possible side-effects or negative impacts of the code change?
