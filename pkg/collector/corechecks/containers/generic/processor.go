@@ -71,7 +71,7 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 		entityID := containers.BuildTaggerEntityName(container.ID)
 		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
 		if err != nil {
-			log.Errorf("Could not collect tags for container %s: %s", container.ID[:12], err)
+			log.Errorf("Could not collect tags for container %q, err: %w", container.ID[:12], err)
 			continue
 		}
 		tags = p.metricsAdapter.AdaptTags(tags, container)
@@ -84,7 +84,7 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 
 		containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container stats for: %v not available through collector: %s", container, collector.ID())
+			log.Debugf("Container stats for: %v not available through collector %q, err: %w", container, collector.ID(), err)
 			continue
 		}
 

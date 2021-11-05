@@ -13,6 +13,8 @@ const (
 	ExperimentalOTLPTracePort      = experimentalOTLPPrefix + ".internal_traces_port"
 	ExperimentalOTLPMetricsEnabled = experimentalOTLPPrefix + ".metrics_enabled"
 	ExperimentalOTLPTracesEnabled  = experimentalOTLPPrefix + ".traces_enabled"
+
+	ExperimentalOTLPMetrics = experimentalOTLPPrefix + ".metrics"
 )
 
 // SetupOTLP related configuration.
@@ -20,6 +22,7 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(ExperimentalOTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(ExperimentalOTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(ExperimentalOTLPTracesEnabled, true)
+	config.SetKnown(ExperimentalOTLPMetrics)
 	config.BindEnv(ExperimentalOTLPHTTPPort, "DD_OTLP_HTTP_PORT")
 	config.BindEnv(ExperimentalOTLPgRPCPort, "DD_OTLP_GRPC_PORT")
 }

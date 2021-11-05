@@ -73,7 +73,7 @@ func (l *EnvironmentListener) createServices() {
 	// We're limited by the collectors in Metadata server on Linux.
 	// We're limited by the runtimes on Windows.
 	if runtime.GOOS == "linux" {
-		containerFeatures := []config.Feature{config.Docker, config.Containerd, config.Kubernetes}
+		containerFeatures := []config.Feature{config.Docker, config.Containerd, config.Kubernetes, config.ECSFargate}
 		for _, f := range containerFeatures {
 			if config.IsFeaturePresent(f) {
 				log.Infof("Listener created container service from environment")

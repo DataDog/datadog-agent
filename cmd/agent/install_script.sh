@@ -504,7 +504,8 @@ elif [ "$OS" = "SUSE" ]; then
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
 
   # ".32" is the latest version supported for OpenSUSE < 15 and SLES < 12
-  if [ "$DISTRIBUTION" == "openSUSE" ] && [ "$SUSE_VER" -lt 15 ]; then
+  # we explicitly test for SUSE11 = "yes", as some SUSE11 don't have /etc/os-release, thus SUSE_VER is empty
+  if [ "$DISTRIBUTION" == "openSUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 15 ]; }; then
       if [ -n "$agent_minor_version" ]; then
           if [ "$agent_minor_version" -ge "33" ]; then
               printf "\033[31mopenSUSE < 15 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
@@ -517,7 +518,7 @@ elif [ "$OS" = "SUSE" ]; then
           fi
       fi
   fi
-  if [ "$DISTRIBUTION" == "SUSE" ] && [ "$SUSE_VER" -lt 12 ]; then
+  if [ "$DISTRIBUTION" == "SUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 12 ]; }; then
       if [ -n "$agent_minor_version" ]; then
           if [ "$agent_minor_version" -ge "33" ]; then
               printf "\033[31mSLES < 12 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
