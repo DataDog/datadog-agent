@@ -645,7 +645,7 @@ func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
 	// The motivation here is to catch a race condition where the netlink event is processed
 	// after the connection is closed
 	for i, c := range connections {
-		if c.IsShortLived() && c.IPTranslation == nil {
+		if c.IPTranslation == nil && (c.Type == network.UDP || c.IsShortLived()) {
 			translation := t.conntracker.GetTranslationForConn(c)
 			if translation != nil {
 				connections[i].IPTranslation = translation
