@@ -1,7 +1,7 @@
 features:
   - |
-    Enable dual shipping of logs. Set `logs_config.logs_dd_backup_url` to 
-    a backup host and port and the agent will send all logs there as well. 
-    If one of the 2 endpoints goes down, logs will still be sent to the working 
-    one. If both endpoints go down, the pipeline is blocked until one recovers 
-    ensuring no logs are lost. 
+    Enable dual shipping of logs. Set `logs_config.logs_backup_api_key` to
+    a backup org and the agent will send all logs there as well. If one of the
+    2 endpoints goes down, logs will still be sent to the working one. If both
+    endpoints go down, the pipeline is blocked until one recovers ensuring no
+    logs are lost.

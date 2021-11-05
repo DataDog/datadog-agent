@@ -184,20 +184,7 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
-	var backup *Endpoint
-
-	if logsDDBackupURL, defined := logsConfig.logsDDURLBackup(); defined {
-		// Copy the main endpoint since all the settings are shared except the host + port
-		backupEndpoint := main
-		host, port, err := parseAddress(logsDDBackupURL)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsDDBackupURL, err)
-		}
-		backupEndpoint.Host = host
-		backupEndpoint.Port = port
-
-		backup = &backupEndpoint
-	}
+	backup := getBackupEndpoint(logsConfig, main)
 
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
@@ -252,20 +239,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
-	var backup *Endpoint
-
-	if logsDDBackupURL, logsDDURLDefined := logsConfig.logsDDURLBackup(); logsDDURLDefined {
-		// Copy the main endpoint since all the settings are shared except the host + port
-		backupEndpoint := main
-
-		host, port, err := parseAddress(logsDDBackupURL)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsDDBackupURL, err)
-		}
-		backupEndpoint.Host = host
-		backupEndpoint.Port = port
-		backup = &backupEndpoint
-	}
+	backup := getBackupEndpoint(logsConfig, main)
 
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
@@ -310,4 +284,27 @@ func TaggerWarmupDuration() time.Duration {
 // AggregationTimeout is used when performing aggregation operations
 func AggregationTimeout() time.Duration {
 	return defaultLogsConfigKeys().aggregationTimeout()
+}
+
+func getBackupEndpoint(logsConfig *LogsConfigKeys, main Endpoint) *Endpoint {
+	var backup *Endpoint
+	backupEndpoint := main
+
+	if logsDDBackupURL, logsDDURLDefined := logsConfig.logsDDURLBackup(); logsDDURLDefined {
+		// Copy the main endpoint since all the settings are shared except the host + port
+
+		host, port, err := parseAddress(logsDDBackupURL)
+		if err != nil {
+			return nil
+		}
+		backupEndpoint.Host = host
+		backupEndpoint.Port = port
+		backup = &backupEndpoint
+	}
+
+	if backupApiKey, defined := logsConfig.logsAPIKeyBackup(); defined {
+		backupEndpoint.APIKey = backupApiKey
+		backup = &backupEndpoint
+	}
+	return backup
 }

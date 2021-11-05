@@ -57,6 +57,11 @@ func (l *LogsConfigKeys) logsDDURL() (string, bool) {
 	return l.getConfig().GetString(configKey), l.isSetAndNotEmpty(configKey)
 }
 
+func (l *LogsConfigKeys) logsAPIKeyBackup() (string, bool) {
+	configKey := l.getConfigKey("logs_backup_api_key")
+	return l.getConfig().GetString(configKey), l.isSetAndNotEmpty(configKey)
+}
+
 func (l *LogsConfigKeys) logsDDURLBackup() (string, bool) {
 	configKey := l.getConfigKey("logs_backup_dd_url")
 	return l.getConfig().GetString(configKey), l.isSetAndNotEmpty(configKey)
