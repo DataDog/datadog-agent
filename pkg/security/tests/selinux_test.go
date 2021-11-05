@@ -55,9 +55,7 @@ func TestSELinux(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to save enforce status")
 	}
-	defer cleanAndWait(test, t, func() error {
-		return setEnforceStatus(currentEnforceStatus)
-	})
+	defer setEnforceStatus(currentEnforceStatus)
 
 	savedBoolValue, err := getBoolValue(TestBoolName)
 	if err != nil {
@@ -180,7 +178,9 @@ func TestSELinuxCommitBools(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to save bool state: %v", err)
 	}
-	defer setBoolValue(TestBoolName, savedBoolValue)
+	defer cleanAndWait(test, t, func() error {
+		return setBoolValue(TestBoolName, savedBoolValue)
+	})
 
 	t.Run("sel_commit_bools", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
