@@ -8,10 +8,11 @@
 ---
 features:
   - |
-    APM: Enable configuration of the error sampler. The target tps can be set with the env var
-    DD_APM_ERROR_TPS or the configuration `apm_config.error_traces_per_second`. The trace-agent 
-    defaults to 10 extra trace chunks sampled per second above the head base sampling.
-    The tps is spread to catch all combinations of (service, name, resource, http.status, error.type).
+    APM: The error sampler TPS can be configured using the environment variable DD_APM_ERROR_TPS
+    or the `apm_config.error_traces_per_second` configuration. It defaults to 10 extra trace chunks sampled 
+    per second on top of the base head sampling.
+    The TPS is spread to catch all combinations of service, name, resource, http.status and error.type.
 upgrade:
   - |
-    APM: Configuration `max_traces_per_second` does not affect anymore errors sampling.
+    APM: The `apm_config. max_traces_per_second` setting no longer affects errors sampling.
+    To change the TPS for errors, use `apm_config.error_traces_per_second` instead.
