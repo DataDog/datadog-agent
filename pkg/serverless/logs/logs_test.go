@@ -272,6 +272,40 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	assert.Equal(t, runtimeDoneCallbackWasCalled, true)
 }
 
+func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
+	previousRequestId := "9397b299-cb43-5586-9188-641de46d10b0"
+	currentRequestId := "8286a188-ba32-4475-8077-530cd35c09a9"
+
+	message := logMessage{
+		logType: logTypePlatformRuntimeDone,
+		time:    time.Now(),
+		objectRecord: platformObjectRecord{
+			requestID: previousRequestId,
+			runtimeDoneItem: runtimeDoneItem{
+				status: "success",
+			},
+		},
+	}
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := currentRequestId
+	metricTags := []string{"functionname:test-function"}
+
+	metricsChan := make(chan []metrics.MetricSample, 1)
+	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
+	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
+	computeEnhancedMetrics := true
+
+	runtimeDoneCallbackWasCalled := false
+	mockRuntimeDone := func() {
+		runtimeDoneCallbackWasCalled = true
+	}
+
+	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
+	assert.Equal(t, startTime, executionContext.StartTime)
+	// Runtime done callback should NOT be called if the log message was for a previous invocation
+	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
+}
+
 func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 	message := logMessage{
 		logType: logTypePlatformReport,
