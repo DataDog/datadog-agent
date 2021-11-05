@@ -44,24 +44,28 @@ func TestSELinux(t *testing.T) {
 		t.Skipf("SELinux is not available, skipping tests")
 	}
 
-	// initial setup
-	currentEnforceStatus, err := getEnforceStatus()
-	if err != nil {
-		t.Errorf("failed to save enforce status")
-	}
-	defer setEnforceStatus(currentEnforceStatus)
-
 	test, err := newTestModule(t, nil, ruleset, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
+	// initial setup
+	currentEnforceStatus, err := getEnforceStatus()
+	if err != nil {
+		t.Errorf("failed to save enforce status")
+	}
+	defer cleanAndWait(test, t, func() error {
+		return setEnforceStatus(currentEnforceStatus)
+	})
+
 	savedBoolValue, err := getBoolValue(TestBoolName)
 	if err != nil {
 		t.Errorf("failed to save bool state: %v", err)
 	}
-	defer setBoolValue(TestBoolName, savedBoolValue)
+	defer cleanAndWait(test, t, func() error {
+		return setBoolValue(TestBoolName, savedBoolValue)
+	})
 
 	t.Run("setenforce", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
@@ -281,4 +285,15 @@ func setEnforceStatus(status string) error {
 		return err
 	}
 	return nil
+}
+
+func cleanAndWait(test *testModule, t *testing.T, trigger func() error) {
+	test.WaitSignal(t, func() error {
+		if err := trigger(); err != nil {
+			t.Errorf("failed to cleanup: %v", err)
+		}
+		return nil
+	}, func(event *probe.Event, rule *rules.Rule) {
+		assert.Equal(t, "selinux", event.GetType(), "wrong event type")
+	})
 }
