@@ -51,7 +51,7 @@ func newEcsFargateCollector() (*ecsFargateCollector, error) {
 
 	client, err := metadata.V2()
 	if err != nil {
-		return nil, err
+		return nil, convertRetrierErr(err)
 	}
 
 	return &ecsFargateCollector{client: client}, nil
