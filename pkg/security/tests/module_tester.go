@@ -531,8 +531,8 @@ func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, e
 	return tm.st.swapLogLevel(logLevel)
 }
 
-func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
-	if !tm.module.GetRuleSet().ContainsRule(rule) {
+func (tm *testModule) RuleMatch(rule *rules.Rule, ruleSet *rules.RuleSet, event eval.Event) {
+	if tm.module.GetRuleSet() != ruleSet {
 		return
 	}
 

@@ -63,7 +63,7 @@ type Rule struct {
 // RuleSetListener describes the methods implemented by an object used to be
 // notified of events on a rule set.
 type RuleSetListener interface {
-	RuleMatch(rule *Rule, event eval.Event)
+	RuleMatch(rule *Rule, ruleSet *RuleSet, event eval.Event)
 	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field, eventType eval.EventType)
 }
 
@@ -268,7 +268,7 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
 func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event) {
 	for _, listener := range rs.listeners {
-		listener.RuleMatch(rule, event)
+		listener.RuleMatch(rule, rs, event)
 	}
 }
 
@@ -458,16 +458,6 @@ func (rs *RuleSet) generatePartials() error {
 // AddPolicyVersion adds the provided policy filename and version to the map of loaded policies
 func (rs *RuleSet) AddPolicyVersion(filename string, version string) {
 	rs.loadedPolicies[strings.ReplaceAll(filename, ".", "_")] = version
-}
-
-// ContainsRule check if the rule is contained in the rule set
-func (rs *RuleSet) ContainsRule(rule *Rule) bool {
-	for _, rsRule := range rs.rules {
-		if rsRule == rule {
-			return true
-		}
-	}
-	return false
 }
 
 // NewRuleSet returns a new ruleset for the specified data model
