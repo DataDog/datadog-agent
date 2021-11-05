@@ -69,17 +69,20 @@ func (l *EnvironmentListener) createServices() {
 	}
 
 	// Handle generic container check auto-activation.
-	// Currently only on Linux.
 	// We're limited by the collectors in Metadata server on Linux.
 	// We're limited by the runtimes on Windows.
+	var containerFeatures []config.Feature
 	if runtime.GOOS == "linux" {
-		containerFeatures := []config.Feature{config.Docker, config.Containerd, config.Kubernetes, config.ECSFargate}
-		for _, f := range containerFeatures {
-			if config.IsFeaturePresent(f) {
-				log.Infof("Listener created container service from environment")
-				l.newService <- &EnvironmentService{adIdentifier: "_container"}
-				break
-			}
+		containerFeatures = []config.Feature{config.Docker, config.Containerd, config.Kubernetes, config.ECSFargate}
+	} else if runtime.GOOS == "windows" {
+		containerFeatures = []config.Feature{config.Containerd}
+	}
+
+	for _, f := range containerFeatures {
+		if config.IsFeaturePresent(f) {
+			log.Infof("Listener created container service from environment")
+			l.newService <- &EnvironmentService{adIdentifier: "_container"}
+			break
 		}
 	}
 }

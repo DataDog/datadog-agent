@@ -5,10 +5,21 @@
 
 package metrics
 
-import "github.com/DataDog/datadog-agent/pkg/util"
+import (
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
+)
 
 func convertField(s *uint64, t **float64) {
 	if s != nil {
 		*t = util.Float64Ptr(float64(*s))
 	}
+}
+
+func convertRetrierErr(err error) *retry.Error {
+	if retry.IsErrPermaFail(err) {
+		return ErrPermaFail
+	}
+
+	return ErrNothingYet
 }
