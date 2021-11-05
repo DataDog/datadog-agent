@@ -302,8 +302,8 @@ func getBackupEndpoint(logsConfig *LogsConfigKeys, main Endpoint) *Endpoint {
 		backup = &backupEndpoint
 	}
 
-	if backupApiKey, defined := logsConfig.logsAPIKeyBackup(); defined {
-		backupEndpoint.APIKey = backupApiKey
+	if backupAPIKey, defined := logsConfig.logsAPIKeyBackup(); defined {
+		backupEndpoint.APIKey = backupAPIKey
 		backup = &backupEndpoint
 	}
 	return backup
