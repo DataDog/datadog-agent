@@ -32,9 +32,7 @@ const (
 	headerExtID      string = "Lambda-Extension-Identifier"
 	headerExtErrType string = "Lambda-Extension-Function-Error-Type"
 
-	requestTimeout     time.Duration = 5 * time.Second
-	clientReadyTimeout time.Duration = 2 * time.Second
-
+	requestTimeout      time.Duration = 5 * time.Second
 	safetyBufferTimeout time.Duration = 20 * time.Millisecond
 
 	// FatalNoAPIKey is the error reported to the AWS Extension environment when
