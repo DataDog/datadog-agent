@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -152,6 +153,11 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 		containerIdentifiers := map[string]struct{}{}
 		containerNames := map[string]struct{}{}
 		for _, podContainer := range pod.Containers {
+			container, err := k.workloadmetaStore.GetContainer(podContainer.ID)
+			if err != nil {
+				log.Debugf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
+				continue
+			}
 
 			adIdentifier := podContainer.Name
 
@@ -163,8 +169,9 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 			containerIdentifiers[adIdentifier] = struct{}{}
 			containerNames[podContainer.Name] = struct{}{}
 
+			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
 			c, errors := extractTemplatesFromMap(
-				podContainer.ID,
+				containerEntity,
 				pod.Annotations,
 				fmt.Sprintf(adExtractFormat, adIdentifier),
 			)
@@ -175,7 +182,7 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 			}
 
 			for idx := range c {
-				c[idx].Source = "kubelet:" + podContainer.ID
+				c[idx].Source = "kubelet:" + containerEntity
 			}
 
 			configs = append(configs, c...)
