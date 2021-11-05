@@ -216,12 +216,6 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	}
 
 	if daemon.ExecutionContext.Coldstart {
-		// ready := daemon.WaitUntilClientReady(clientReadyTimeout)
-		// if ready {
-		// 	log.Debug("Client library registered with extension")
-		// } else {
-		// 	log.Debug("Timed out waiting for client library to register with extension.")
-		// }
 		daemon.UpdateStrategy()
 	}
 
