@@ -244,6 +244,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
+	config.BindEnvAndSetDefault("remote_configuration.tracer_cache.size", 0)
+	config.BindEnvAndSetDefault("remote_configuration.tracer_cache.ttl_seconds", 0)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)

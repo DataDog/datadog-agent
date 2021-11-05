@@ -18,11 +18,12 @@ type Subscriber struct {
 	configs        pbgo.ConfigResponse
 	once           sync.Once
 	stopSubscriber context.CancelFunc
+	tracerInfos    chan *pbgo.TracerInfo
 }
 
 // NewSubscriber returns a new configuration store
 func NewSubscriber() *Subscriber {
-	return &Subscriber{}
+	return &Subscriber{tracerInfos: make(chan *pbgo.TracerInfo, 100)}
 }
 
 // Get returns the latest available configurations
@@ -31,6 +32,19 @@ func (s *Subscriber) Get(req *pbgo.GetConfigsRequest) (*pbgo.ConfigResponse, err
 		return nil, errors.New("not allowed")
 	}
 	s.once.Do(s.subscribe)
+FOO:
+	for {
+		select {
+		case s.tracerInfos <- req.TracerInfo:
+			break FOO
+		default:
+			select {
+			case <-s.tracerInfos:
+				log.Warnf("Cannot add more tracers. Dropping request.")
+			default: //
+			}
+		}
+	}
 	// No new configurations available in store
 	if req.CurrentConfigProductVersion >= s.getCurrentVersion() {
 		return nil, nil
@@ -72,7 +86,7 @@ func (s *Subscriber) getCurrentVersion() uint64 {
 }
 
 func (s *Subscriber) subscribe() {
-	close, err := service.NewGRPCSubscriber(pbgo.Product_LIVE_DEBUGGING, s.loadNewConfig)
+	close, err := service.NewTracerGRPCSubscriber(pbgo.Product_LIVE_DEBUGGING, s.loadNewConfig, s.tracerInfos)
 	if err != nil {
 		log.Errorf("Error when subscribing to remote config management %v", err)
 		return
