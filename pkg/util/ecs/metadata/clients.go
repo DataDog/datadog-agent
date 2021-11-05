@@ -8,6 +8,7 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ var globalUtil util
 type util struct {
 	// used to setup the ECSUtil
 	initRetryV1 retry.Retrier
+	initRetryV2 retry.Retrier
 	initRetryV3 retry.Retrier
 	initV1      sync.Once
 	initV2      sync.Once
@@ -68,8 +70,18 @@ func V2() (*v2.Client, error) {
 	}
 
 	globalUtil.initV2.Do(func() {
-		globalUtil.v2 = v2.NewDefaultClient()
+		_ = globalUtil.initRetryV2.SetupRetrier(&retry.Config{
+			Name:              "ecsutil-meta-v2",
+			AttemptMethod:     initV2,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
+		})
 	})
+	if err := globalUtil.initRetryV2.TriggerRetry(); err != nil {
+		log.Debugf("ECS metadata v2 client init error: %w", err)
+		return nil, err
+	}
 
 	return globalUtil.v2, nil
 }
@@ -124,6 +136,16 @@ func initV1() error {
 		return err
 	}
 	globalUtil.v1 = client
+	return nil
+}
+
+func initV2() error {
+	client := v2.NewDefaultClient()
+	if _, err := client.GetTask(context.TODO()); err != nil {
+		return err
+	}
+
+	globalUtil.v2 = client
 	return nil
 }
 

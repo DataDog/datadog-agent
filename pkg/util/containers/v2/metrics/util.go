@@ -16,10 +16,14 @@ func convertField(s *uint64, t **float64) {
 	}
 }
 
-func convertRetrierErr(err error) *retry.Error {
+func convertRetrierErr(err error) error {
 	if retry.IsErrPermaFail(err) {
 		return ErrPermaFail
 	}
 
-	return ErrNothingYet
+	if retry.IsErrWillRetry(err) {
+		return ErrNothingYet
+	}
+
+	return err
 }
