@@ -6,12 +6,13 @@
 //go:build docker && (linux || windows)
 // +build docker,linux docker,windows
 
-package metrics
+package docker
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,7 +21,7 @@ func Test_convertNetworkStats(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          map[string]types.NetworkStats
-		expectedOutput ContainerNetworkStats
+		expectedOutput metrics.ContainerNetworkStats
 	}{
 		{
 			name: "basic",
@@ -38,12 +39,12 @@ func Test_convertNetworkStats(t *testing.T) {
 					TxPackets: 49,
 				},
 			},
-			expectedOutput: ContainerNetworkStats{
+			expectedOutput: metrics.ContainerNetworkStats{
 				BytesSent:   util.Float64Ptr(92),
 				BytesRcvd:   util.Float64Ptr(88),
 				PacketsSent: util.Float64Ptr(94),
 				PacketsRcvd: util.Float64Ptr(90),
-				Interfaces: map[string]InterfaceNetStats{
+				Interfaces: map[string]metrics.InterfaceNetStats{
 					"eth0": {
 						BytesSent:   util.Float64Ptr(44),
 						BytesRcvd:   util.Float64Ptr(42),

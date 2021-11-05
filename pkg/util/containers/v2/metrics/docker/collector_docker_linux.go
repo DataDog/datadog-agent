@@ -6,7 +6,7 @@
 //go:build docker && linux
 // +build docker,linux
 
-package metrics
+package docker
 
 import (
 	"fmt"
@@ -14,12 +14,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/system"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 )
 
-func convertContainerStats(stats *types.Stats) *ContainerStats {
-	return &ContainerStats{
+func convertContainerStats(stats *types.Stats) *metrics.ContainerStats {
+	return &metrics.ContainerStats{
 		Timestamp: time.Now(),
 		CPU:       convertCPUStats(&stats.CPUStats),
 		Memory:    convertMemoryStats(&stats.MemoryStats),
@@ -28,8 +30,8 @@ func convertContainerStats(stats *types.Stats) *ContainerStats {
 	}
 }
 
-func convertCPUStats(cpuStats *types.CPUStats) *ContainerCPUStats {
-	return &ContainerCPUStats{
+func convertCPUStats(cpuStats *types.CPUStats) *metrics.ContainerCPUStats {
+	return &metrics.ContainerCPUStats{
 		Total:            util.Float64Ptr(float64(cpuStats.CPUUsage.TotalUsage)),
 		System:           util.Float64Ptr(float64(cpuStats.CPUUsage.UsageInKernelmode)),
 		User:             util.Float64Ptr(float64(cpuStats.CPUUsage.UsageInUsermode)),
@@ -38,14 +40,12 @@ func convertCPUStats(cpuStats *types.CPUStats) *ContainerCPUStats {
 	}
 }
 
-func convertMemoryStats(memStats *types.MemoryStats) *ContainerMemStats {
-	containerMemStats := &ContainerMemStats{
+func convertMemoryStats(memStats *types.MemoryStats) *metrics.ContainerMemStats {
+	containerMemStats := &metrics.ContainerMemStats{
 		UsageTotal: util.Float64Ptr(float64(memStats.Usage)),
 		Limit:      util.Float64Ptr(float64(memStats.Limit)),
 		OOMEvents:  util.Float64Ptr(float64(memStats.Failcnt)),
 	}
-
-	log.Infof("XXXXXXXXXXXX %#v\n", memStats.Stats)
 
 	if rss, found := memStats.Stats["rss"]; found {
 		containerMemStats.RSS = util.Float64Ptr(float64(rss))
@@ -65,17 +65,17 @@ func convertMemoryStats(memStats *types.MemoryStats) *ContainerMemStats {
 	return containerMemStats
 }
 
-func convertIOStats(ioStats *types.BlkioStats) *ContainerIOStats {
-	containerIOStats := ContainerIOStats{
+func convertIOStats(ioStats *types.BlkioStats) *metrics.ContainerIOStats {
+	containerIOStats := metrics.ContainerIOStats{
 		ReadBytes:       util.Float64Ptr(0),
 		WriteBytes:      util.Float64Ptr(0),
 		ReadOperations:  util.Float64Ptr(0),
 		WriteOperations: util.Float64Ptr(0),
-		Devices:         make(map[string]DeviceIOStats),
+		Devices:         make(map[string]metrics.DeviceIOStats),
 	}
 
 	procPath := config.Datadog.GetString("container_proc_root")
-	deviceMapping, err := getDiskDeviceMapping(procPath)
+	deviceMapping, err := system.GetDiskDeviceMapping(procPath)
 	if err != nil {
 		log.Debugf("Error while getting disk mapping, no disk metric will be present, err: %w", err)
 	}
@@ -83,7 +83,7 @@ func convertIOStats(ioStats *types.BlkioStats) *ContainerIOStats {
 	for _, blkioStatEntry := range ioStats.IoServiceBytesRecursive {
 		deviceName, found := deviceMapping[fmt.Sprintf("%d:%d", blkioStatEntry.Major, blkioStatEntry.Minor)]
 
-		var device DeviceIOStats
+		var device metrics.DeviceIOStats
 		if found {
 			device = containerIOStats.Devices[deviceName]
 		}
@@ -105,7 +105,7 @@ func convertIOStats(ioStats *types.BlkioStats) *ContainerIOStats {
 	for _, blkioStatEntry := range ioStats.IoServicedRecursive {
 		deviceName, found := deviceMapping[fmt.Sprintf("%d:%d", blkioStatEntry.Major, blkioStatEntry.Minor)]
 
-		var device DeviceIOStats
+		var device metrics.DeviceIOStats
 		if found {
 			device = containerIOStats.Devices[deviceName]
 		}
@@ -127,8 +127,8 @@ func convertIOStats(ioStats *types.BlkioStats) *ContainerIOStats {
 	return &containerIOStats
 }
 
-func convertPIDStats(pidStats *types.PidsStats) *ContainerPIDStats {
-	return &ContainerPIDStats{
+func convertPIDStats(pidStats *types.PidsStats) *metrics.ContainerPIDStats {
+	return &metrics.ContainerPIDStats{
 		ThreadCount: util.Float64Ptr(float64(pidStats.Current)),
 		ThreadLimit: util.Float64Ptr(float64(pidStats.Limit)),
 	}

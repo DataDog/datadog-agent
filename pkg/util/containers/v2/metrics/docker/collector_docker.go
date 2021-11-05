@@ -6,7 +6,7 @@
 //go:build docker && (linux || windows)
 // +build docker,linux docker,windows
 
-package metrics
+package docker
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/docker/docker/api/types"
 )
@@ -24,11 +25,11 @@ const (
 )
 
 func init() {
-	metricsProvider.registerCollector(collectorMetadata{
-		id:       dockerCollectorID,
-		priority: 1,
-		runtimes: []string{RuntimeNameDocker},
-		factory: func() (Collector, error) {
+	metrics.GetProvider().RegisterCollector(metrics.CollectorMetadata{
+		ID:       dockerCollectorID,
+		Priority: 1,
+		Runtimes: []string{metrics.RuntimeNameDocker},
+		Factory: func() (metrics.Collector, error) {
 			return newDockerCollector()
 		},
 	})
@@ -40,12 +41,12 @@ type dockerCollector struct {
 
 func newDockerCollector() (*dockerCollector, error) {
 	if !config.IsFeaturePresent(config.Docker) {
-		return nil, ErrPermaFail
+		return nil, metrics.ErrPermaFail
 	}
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		return nil, ErrNothingYet
+		return nil, metrics.ErrNothingYet
 	}
 
 	return &dockerCollector{
@@ -57,7 +58,7 @@ func (d *dockerCollector) ID() string {
 	return dockerCollectorID
 }
 
-func (d *dockerCollector) GetContainerStats(containerID string, caccheValidity time.Duration) (*ContainerStats, error) {
+func (d *dockerCollector) GetContainerStats(containerID string, caccheValidity time.Duration) (*metrics.ContainerStats, error) {
 	ctx := context.TODO()
 	stats, err := d.du.GetContainerStats(ctx, containerID)
 	if err != nil {
@@ -67,7 +68,7 @@ func (d *dockerCollector) GetContainerStats(containerID string, caccheValidity t
 	return convertContainerStats(&stats.Stats), nil
 }
 
-func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*ContainerNetworkStats, error) {
+func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*metrics.ContainerNetworkStats, error) {
 	ctx := context.TODO()
 	stats, err := d.du.GetContainerStats(ctx, containerID)
 	if err == nil {
@@ -76,13 +77,13 @@ func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheVali
 	return convertNetworkStats(stats.Networks), nil
 }
 
-func convertNetworkStats(networkStats map[string]types.NetworkStats) *ContainerNetworkStats {
-	containerNetworkStats := &ContainerNetworkStats{
+func convertNetworkStats(networkStats map[string]types.NetworkStats) *metrics.ContainerNetworkStats {
+	containerNetworkStats := &metrics.ContainerNetworkStats{
 		BytesSent:   util.Float64Ptr(0),
 		BytesRcvd:   util.Float64Ptr(0),
 		PacketsSent: util.Float64Ptr(0),
 		PacketsRcvd: util.Float64Ptr(0),
-		Interfaces:  make(map[string]InterfaceNetStats),
+		Interfaces:  make(map[string]metrics.InterfaceNetStats),
 	}
 
 	for ifname, netStats := range networkStats {
@@ -91,7 +92,7 @@ func convertNetworkStats(networkStats map[string]types.NetworkStats) *ContainerN
 		*containerNetworkStats.PacketsSent += float64(netStats.TxPackets)
 		*containerNetworkStats.PacketsRcvd += float64(netStats.RxPackets)
 
-		ifNetStats := InterfaceNetStats{
+		ifNetStats := metrics.InterfaceNetStats{
 			BytesSent:   util.Float64Ptr(float64(netStats.TxBytes)),
 			BytesRcvd:   util.Float64Ptr(float64(netStats.RxBytes)),
 			PacketsSent: util.Float64Ptr(float64(netStats.TxPackets)),

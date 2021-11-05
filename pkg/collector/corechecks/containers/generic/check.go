@@ -14,6 +14,9 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+
+	// Register all the metrics collectors
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/collectors"
 )
 
 const (

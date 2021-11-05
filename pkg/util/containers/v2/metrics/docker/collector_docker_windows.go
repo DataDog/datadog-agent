@@ -6,17 +6,18 @@
 //go:build docker && windows
 // +build docker,windows
 
-package metrics
+package docker
 
 import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/docker/docker/api/types"
 )
 
-func convertContainerStats(stats *types.Stats) *ContainerStats {
-	return &ContainerStats{
+func convertContainerStats(stats *types.Stats) *metrics.ContainerStats {
+	return &metrics.ContainerStats{
 		Timestamp: time.Now(),
 		CPU:       convertCPUStats(&stats.CPUStats),
 		Memory:    convertMemoryStats(&stats.MemoryStats),
@@ -25,16 +26,16 @@ func convertContainerStats(stats *types.Stats) *ContainerStats {
 	}
 }
 
-func convertCPUStats(cpuStats *types.CPUStats) *ContainerCPUStats {
-	return &ContainerCPUStats{
+func convertCPUStats(cpuStats *types.CPUStats) *metrics.ContainerCPUStats {
+	return &metrics.ContainerCPUStats{
 		Total:  util.Float64Ptr(float64(100 * cpuStats.CPUUsage.TotalUsage)),
 		System: util.Float64Ptr(float64(100 * cpuStats.CPUUsage.UsageInKernelmode)),
 		User:   util.Float64Ptr(float64(100 * cpuStats.CPUUsage.UsageInUsermode)),
 	}
 }
 
-func convertMemoryStats(memStats *types.MemoryStats) *ContainerMemStats {
-	return &ContainerMemStats{
+func convertMemoryStats(memStats *types.MemoryStats) *metrics.ContainerMemStats {
+	return &metrics.ContainerMemStats{
 		UsageTotal:        util.Float64Ptr(float64(memStats.Usage)),
 		Limit:             util.Float64Ptr(float64(memStats.Limit)),
 		PrivateWorkingSet: util.Float64Ptr(float64(memStats.PrivateWorkingSet)),
@@ -43,8 +44,8 @@ func convertMemoryStats(memStats *types.MemoryStats) *ContainerMemStats {
 	}
 }
 
-func convertIOStats(storageStats *types.StorageStats) *ContainerIOStats {
-	return &ContainerIOStats{
+func convertIOStats(storageStats *types.StorageStats) *metrics.ContainerIOStats {
+	return &metrics.ContainerIOStats{
 		ReadBytes:       util.Float64Ptr(float64(storageStats.ReadSizeBytes)),
 		WriteBytes:      util.Float64Ptr(float64(storageStats.WriteSizeBytes)),
 		ReadOperations:  util.Float64Ptr(float64(storageStats.ReadCountNormalized)),
@@ -52,8 +53,8 @@ func convertIOStats(storageStats *types.StorageStats) *ContainerIOStats {
 	}
 }
 
-func convertPIDStats(numProcs uint32) *ContainerPIDStats {
-	return &ContainerPIDStats{
+func convertPIDStats(numProcs uint32) *metrics.ContainerPIDStats {
+	return &metrics.ContainerPIDStats{
 		ThreadCount: util.Float64Ptr(float64(numProcs)),
 	}
 }

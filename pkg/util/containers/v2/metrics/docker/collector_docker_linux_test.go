@@ -6,7 +6,7 @@
 //go:build docker && linux
 // +build docker,linux
 
-package metrics
+package docker
 
 import (
 	"io/ioutil"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,7 +24,7 @@ func Test_convertCPUStats(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          types.CPUStats
-		expectedOutput ContainerCPUStats
+		expectedOutput metrics.ContainerCPUStats
 	}{
 		{
 			name: "basic",
@@ -38,7 +39,7 @@ func Test_convertCPUStats(t *testing.T) {
 					ThrottledTime:    46,
 				},
 			},
-			expectedOutput: ContainerCPUStats{
+			expectedOutput: metrics.ContainerCPUStats{
 				Total:            util.Float64Ptr(42),
 				System:           util.Float64Ptr(43),
 				User:             util.Float64Ptr(44),
@@ -59,7 +60,7 @@ func Test_convertMemoryStats(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          types.MemoryStats
-		expectedOutput ContainerMemStats
+		expectedOutput metrics.ContainerMemStats
 	}{
 		{
 			name: "basic",
@@ -74,7 +75,7 @@ func Test_convertMemoryStats(t *testing.T) {
 					"slab":         48,
 				},
 			},
-			expectedOutput: ContainerMemStats{
+			expectedOutput: metrics.ContainerMemStats{
 				UsageTotal:   util.Float64Ptr(42),
 				KernelMemory: util.Float64Ptr(95),
 				Limit:        util.Float64Ptr(43),
@@ -96,7 +97,7 @@ func Test_convertIOStats(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          types.BlkioStats
-		expectedOutput ContainerIOStats
+		expectedOutput metrics.ContainerIOStats
 	}{
 		{
 			name: "basic",
@@ -154,12 +155,12 @@ func Test_convertIOStats(t *testing.T) {
 					},
 				},
 			},
-			expectedOutput: ContainerIOStats{
+			expectedOutput: metrics.ContainerIOStats{
 				ReadBytes:       util.Float64Ptr(86),
 				WriteBytes:      util.Float64Ptr(88),
 				ReadOperations:  util.Float64Ptr(94),
 				WriteOperations: util.Float64Ptr(96),
-				Devices: map[string]DeviceIOStats{
+				Devices: map[string]metrics.DeviceIOStats{
 					"foo1": {
 						ReadBytes:       util.Float64Ptr(42),
 						WriteBytes:      util.Float64Ptr(43),
@@ -203,7 +204,7 @@ func Test_convetrPIDStats(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          types.PidsStats
-		expectedOutput ContainerPIDStats
+		expectedOutput metrics.ContainerPIDStats
 	}{
 		{
 			name: "basic",
@@ -211,7 +212,7 @@ func Test_convetrPIDStats(t *testing.T) {
 				Current: 42,
 				Limit:   43,
 			},
-			expectedOutput: ContainerPIDStats{
+			expectedOutput: metrics.ContainerPIDStats{
 				ThreadCount: util.Float64Ptr(42),
 				ThreadLimit: util.Float64Ptr(43),
 			},
