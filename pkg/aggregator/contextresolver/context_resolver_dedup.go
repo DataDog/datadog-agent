@@ -1,6 +1,7 @@
 package contextresolver
 
 import (
+	"bytes"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/contextresolver/dedup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -96,34 +97,38 @@ type ContextDedup struct {
 	ss *dedup.StringSet
 	// All the pointers are pointers to strings from the StringSet
 	Host *string
-	Name   *string
-	Keys   []*string
-	Values []*string
+	Name *string
+	Keys   *string
+	Values []string
 }
 
 func NewContextDedup(host, name string, tags []string, ss *dedup.StringSet) *ContextDedup {
 	// We split Keys and Values from the tags to get optimal deduplication since the
 	// Keys are way more likely to be duplicated than the Values.
 
-	keys := make([]*string, len(tags))
-	values := make([]*string, len(tags))
+	keys := bytes.Buffer{}
+	keys.Grow(len(tags) * 16) // This is how much it's likely to take to avoid further grow() calls
+	values := make([]string, 30)
 
 	for i, tag := range tags {
+		if tag == "" {
+			continue
+		}
 		n := strings.IndexRune(tag, ':')
 		if n == -1 {
-			keys[i] = ss.Get(tag)
-			values[i] = nil
+			keys.WriteString(tag)
 		} else {
-			keys[i] = ss.Get(tag[0:n+1])
-			values[i] = ss.Get(tag[n+1:])
+			keys.WriteString(tag[0:n+1])
+			values[i] = tag[n+1:]
 		}
+		keys.WriteByte(':') // Use ':' as a separator because we know it cannot be used.
 	}
 
 	return &ContextDedup{
 		ss:     ss,
 		Host:   ss.Get(host),
 		Name:   ss.Get(name),
-		Keys:   keys,
+		Keys:   ss.Get(keys.String()),
 		Values: values,
 	}
 }
@@ -131,25 +136,28 @@ func NewContextDedup(host, name string, tags []string, ss *dedup.StringSet) *Con
 func (c *ContextDedup) Drop() {
 	c.ss.Dec(c.Name)
 	c.ss.Dec(c.Host)
-	for _, k := range c.Keys {
-		c.ss.Dec(k)
-	}
-	for _, v := range c.Values {
-		c.ss.Dec(v)
-	}
+	c.ss.Dec(c.Keys)
 }
 
 func (c *ContextDedup) Context() *Context {
-	tags := make([]string, len(c.Keys))
+	tags := make([]string, len(c.Values))
+	k := 0
 
 	// re-building the tags
-	for i, k := range c.Keys {
+	for i, v := range c.Values {
 		var b strings.Builder
 
-		b.WriteString(*k)
-		if c.Values[i] != nil {
-			b.WriteString(*c.Values[i])
+		// Find the end of the current tag
+		e := strings.IndexRune((*c.Keys)[k:], ':')
+		// If the next char is a ':' then we want a ':' at the end
+		if (*c.Keys)[k+e+1] == ':' {
+			e++
 		}
+		b.WriteString((*c.Keys)[k:k+e])
+		k += e + 1
+
+		b.WriteString(v)
+
 		tags[i] = b.String()
 	}
 

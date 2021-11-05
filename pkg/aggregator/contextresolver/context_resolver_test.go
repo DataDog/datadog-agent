@@ -8,12 +8,17 @@
 package contextresolver
 
 import (
+	"bytes"
 	// stdlib
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"runtime"
+	"runtime/debug"
+	"runtime/pprof"
+	"strconv"
 	"testing"
 
 	// 3p
@@ -200,8 +205,12 @@ func genTags(count int64, seed int64) []string {
 	tags := make([]string, count)
 
 	for i := int64(0); i < count; i++ {
-		tag := fmt.Sprintf("tagname%d:tagvalue%d", i, i * seed * 12345 + seed)
-		tags[i] = tag
+		buffer := bytes.Buffer{}
+		buffer.WriteString("tagkey")
+		buffer.WriteString(strconv.FormatInt(i, 10))
+		buffer.WriteString(":tagvalue")
+		buffer.WriteString(strconv.FormatInt(i * seed * 12345 + seed, 10))
+		tags[i] = buffer.String()
 	}
 
 	return tags
@@ -241,7 +250,7 @@ func benchmarkContextResolverTrackContextManyMetrics(resolver ContextResolver, b
 // Run this with -test.benchtime=5s otherwise it won't generate all the contexts!
 func benchmarkContextResolverTrackContextManyTags(resolver ContextResolver, b *testing.B) {
 	// track 2M contexts with one metrics and 30 tags with unique values
-	for contextsCount := int64(1 << 15); contextsCount < int64(2<<21); contextsCount *= 2 {
+	for contextsCount := int64(1 << 21); contextsCount < int64(2<<21); contextsCount *= 2 {
 		resolver.Clear()
 
 		j := int64(0)
@@ -250,13 +259,14 @@ func benchmarkContextResolverTrackContextManyTags(resolver ContextResolver, b *t
 			b.ReportAllocs()
 			for n := 0; n < b.N; n++ {
 				var key ckey.ContextKey
-				{
+				func(){
 					sample := &metrics.MetricSample{
-						Name: "metric.name",
+						Host: "mylittlehost",
+						Name: "my.metric.name",
 						Tags: genTags(30, j),
 					}
 					key = resolver.TrackContext(sample)
-				}
+				}()
 				j++
 				if j >= contextsCount {
 					j = 0
@@ -266,8 +276,24 @@ func benchmarkContextResolverTrackContextManyTags(resolver ContextResolver, b *t
 			}
 			ReportMemStats(b)
 		})
-		fmt.Printf("test")
-		break
+		func() {
+			if (resolver.Size() != 0) {
+				runtime.GC()
+				runtime.GC()
+				f, err := os.Create("heap.dump")
+				defer f.Close()
+				if err != nil {
+					panic(err)
+				}
+				debug.WriteHeapDump(f.Fd())
+				f, err = os.Create("heap.prof")
+				defer f.Close()
+				if err != nil {
+					panic(err)
+				}
+				pprof.WriteHeapProfile(f)
+			}
+		}()
 	}
 }
 
