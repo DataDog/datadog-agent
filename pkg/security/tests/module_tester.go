@@ -532,6 +532,10 @@ func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, e
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
+	if !tm.module.GetRuleSet().ContainsRule(rule) {
+		return
+	}
+
 	tm.ruleHandler.RLock()
 	callback := tm.ruleHandler.callback
 	tm.ruleHandler.RUnlock()

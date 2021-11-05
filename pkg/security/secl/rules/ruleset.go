@@ -460,6 +460,16 @@ func (rs *RuleSet) AddPolicyVersion(filename string, version string) {
 	rs.loadedPolicies[strings.ReplaceAll(filename, ".", "_")] = version
 }
 
+// ContainsRule check if the rule is contained in the rule set
+func (rs *RuleSet) ContainsRule(rule *Rule) bool {
+	for _, rsRule := range rs.rules {
+		if rsRule == rule {
+			return true
+		}
+	}
+	return false
+}
+
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *RuleSet {
 	return &RuleSet{
