@@ -522,19 +522,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				},
 			{{- else}}
 				{{- $ArrayPrefix := ""}}
+				{{- $ReturnType := $Field.ReturnType}}
 				{{- if $Field.IsArray}}
+					{{- if eq $ReturnType "string" }}
+					{{- $ReturnType = "StringValues" }}
+					{{- else }}
 					{{$ArrayPrefix = "[]"}}
+					{{end -}}
 				{{end}}
 				{{- if and $Field.OpOverride (not $Mock)}}
 				OpOverride: $Field.OpOverride,
 				{{- end}}
-				EvalFnc: func(ctx *eval.Context) {{$ArrayPrefix}}{{$Field.ReturnType}} {
+				EvalFnc: func(ctx *eval.Context) {{$ArrayPrefix}}{{$ReturnType}} {
 					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
 					{{- if and (ne $Field.Handler "") (not $Mock)}}
 						{{$Return = print "(*Event)(ctx.Object)." $Field.Handler "(&(*Event)(ctx.Object)." $Field.Prefix ")"}}
 					{{end}}
 
-					{{- if eq $Field.ReturnType "int"}}
+					{{- if eq $ReturnType "int"}}
 						{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
 							result := make([]int, len({{$Return}}))
 							for i, v := range {{$Return}} {
