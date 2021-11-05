@@ -12,6 +12,6 @@ features:
     DD_APM_ERROR_TPS or the configuration `apm_config.error_traces_per_second`. The trace-agent 
     defaults to 10 extra trace chunks sampled per second above the head base sampling.
     The tps is spread to catch all combinations of (service, name, resource, http.status, error.type).
-upgrades:
+upgrade:
   - |
     APM: Configuration `max_traces_per_second` does not affect anymore errors sampling.
