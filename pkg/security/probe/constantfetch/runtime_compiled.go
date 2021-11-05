@@ -104,9 +104,10 @@ func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf
 	provider := &constantFetcherRCProvider{
 		cCode: cCode,
 	}
-	telemetry := runtime.NewRuntimeCompilationTelemetry()
-	reader, err := runtime.RuntimeCompileObjectFile(config, additionalFlags, provider, &telemetry)
+	runtimeCompiler := runtime.NewRuntimeCompiler()
+	reader, err := runtimeCompiler.CompileObjectFile(config, additionalFlags, "constant_fetcher.c", provider)
 
+	telemetry := runtimeCompiler.GetRCTelemetry()
 	if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
 		log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
 	}
@@ -171,10 +172,6 @@ var additionalFlags = []string{
 
 type constantFetcherRCProvider struct {
 	cCode string
-}
-
-func (p *constantFetcherRCProvider) GetInputFilename() string {
-	return "constant_fetcher.c"
 }
 
 func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runtime.RuntimeCompilationTelemetry) (io.Reader, error) {

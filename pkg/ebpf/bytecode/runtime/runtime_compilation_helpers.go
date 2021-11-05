@@ -102,71 +102,84 @@ func (tm *RuntimeCompilationTelemetry) SendMetrics(client *statsd.Client) error 
 }
 
 type RuntimeCompilationFileProvider interface {
-	GetInputFilename() string
 	GetInputReader(config *ebpf.Config, tm *RuntimeCompilationTelemetry) (io.Reader, error)
 	GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *RuntimeCompilationTelemetry) (string, error)
 }
 
-func RuntimeCompileObjectFile(config *ebpf.Config, cflags []string, provider RuntimeCompilationFileProvider, tm *RuntimeCompilationTelemetry) (CompiledOutput, error) {
+type RuntimeCompiler struct {
+	telemetry RuntimeCompilationTelemetry
+}
+
+func NewRuntimeCompiler() *RuntimeCompiler {
+	return &RuntimeCompiler{
+		telemetry: NewRuntimeCompilationTelemetry(),
+	}
+}
+
+func (rc *RuntimeCompiler) GetRCTelemetry() RuntimeCompilationTelemetry {
+	return rc.telemetry
+}
+
+func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []string, inputFileName string, provider RuntimeCompilationFileProvider) (CompiledOutput, error) {
 	start := time.Now()
 	defer func() {
-		tm.compilationDuration = time.Since(start)
-		tm.compilationEnabled = true
+		rc.telemetry.compilationDuration = time.Since(start)
+		rc.telemetry.compilationEnabled = true
 	}()
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
-		tm.compilationResult = kernelVersionErr
+		rc.telemetry.compilationResult = kernelVersionErr
 		return nil, fmt.Errorf("unable to get kernel version: %w", err)
 	}
 
-	inputReader, err := provider.GetInputReader(config, tm)
+	inputReader, err := provider.GetInputReader(config, &rc.telemetry)
 	if err != nil {
 		return nil, err
 	}
 
 	if err := os.MkdirAll(config.RuntimeCompilerOutputDir, 0755); err != nil {
-		tm.compilationResult = outputDirErr
+		rc.telemetry.compilationResult = outputDirErr
 		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", config.RuntimeCompilerOutputDir, err)
 	}
 
 	flags, flagHash := ComputeFlagsAndHash(cflags)
 
-	outputFile, err := provider.GetOutputFilePath(config, kv, flagHash, tm)
+	outputFile, err := provider.GetOutputFilePath(config, kv, flagHash, &rc.telemetry)
 	if err != nil {
 		return nil, err
 	}
 
 	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
-			tm.compilationResult = outputFileErr
+			rc.telemetry.compilationResult = outputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
 		dirs, res, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.AptConfigDir, config.YumReposDir, config.ZypperReposDir)
-		tm.headerFetchResult = res
+		rc.telemetry.headerFetchResult = res
 		if err != nil {
-			tm.compilationResult = headerFetchErr
+			rc.telemetry.compilationResult = headerFetchErr
 			return nil, fmt.Errorf("unable to find kernel headers: %w", err)
 		}
 		comp, err := compiler.NewEBPFCompiler(dirs, config.BPFDebug)
 		if err != nil {
-			tm.compilationResult = newCompilerErr
+			rc.telemetry.compilationResult = newCompilerErr
 			return nil, fmt.Errorf("failed to create compiler: %w", err)
 		}
 		defer comp.Close()
 
 		if err := comp.CompileToObjectFile(inputReader, outputFile, flags); err != nil {
-			tm.compilationResult = compilationErr
-			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", provider.GetInputFilename(), err)
+			rc.telemetry.compilationResult = compilationErr
+			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", inputFileName, err)
 		}
-		tm.compilationResult = compilationSuccess
+		rc.telemetry.compilationResult = compilationSuccess
 	} else {
-		tm.compilationResult = compiledOutputFound
+		rc.telemetry.compilationResult = compiledOutputFound
 	}
 
 	out, err := os.Open(outputFile)
 	if err != nil {
-		tm.compilationResult = resultReadErr
+		rc.telemetry.compilationResult = resultReadErr
 	}
 	return out, err
 }

@@ -49,7 +49,7 @@ type RuntimeAsset struct {
 	filename string
 	hash     string
 
-	telemetry RuntimeCompilationTelemetry
+	runtimeCompiler *RuntimeCompiler
 }
 
 func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
@@ -57,7 +57,7 @@ func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
 		filename: filename,
 		hash:     hash,
 
-		telemetry: NewRuntimeCompilationTelemetry(),
+		runtimeCompiler: NewRuntimeCompiler(),
 	}
 }
 
@@ -86,11 +86,7 @@ func (a *RuntimeAsset) Verify(dir string) (io.Reader, string, error) {
 
 // Compile compiles the runtime asset if necessary and returns the resulting file.
 func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOutput, error) {
-	return RuntimeCompileObjectFile(config, cflags, a, &a.telemetry)
-}
-
-func (a *RuntimeAsset) GetInputFilename() string {
-	return a.filename
+	return a.runtimeCompiler.CompileObjectFile(config, cflags, a.filename, a)
 }
 
 func (a *RuntimeAsset) GetInputReader(config *ebpf.Config, tm *RuntimeCompilationTelemetry) (io.Reader, error) {
@@ -112,5 +108,6 @@ func (a *RuntimeAsset) GetOutputFilePath(config *ebpf.Config, kernelVersion kern
 }
 
 func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
-	return a.telemetry.GetTelemetry()
+	telemetry := a.runtimeCompiler.GetRCTelemetry()
+	return telemetry.GetTelemetry()
 }
