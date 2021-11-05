@@ -23,11 +23,12 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/loader"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc"
 )
 
 const (
@@ -45,11 +46,17 @@ var (
 	program   *loader.Program
 	packages  map[string]*types.Package
 	buildTags string
+	vendor    string
 )
 
 var module *common.Module
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
+	if typePackage, found := packages[pkg]; found {
+		return typePackage.Scope().Lookup(symbol), nil
+	}
+
+	pkg = path.Join(vendor, pkg)
 	if typePackage, found := packages[pkg]; found {
 		return typePackage.Scope().Lookup(symbol), nil
 	}
@@ -775,5 +782,6 @@ func init() {
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")
 	flag.StringVar(&output, "output", "", "Go generated file")
+	flag.StringVar(&vendor, "vendor", "", "vendor prefix")
 	flag.Parse()
 }
