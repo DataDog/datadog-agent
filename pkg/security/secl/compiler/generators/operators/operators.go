@@ -39,7 +39,7 @@ package	eval
 
 {{ range .Operators }}
 
-func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
+func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -171,7 +171,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 {{ range .ArrayOperators }}
 
-func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
+func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {

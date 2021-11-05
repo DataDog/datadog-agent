@@ -51,7 +51,7 @@ func (s *State) Events() []EventType {
 	return events
 }
 
-func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *state {
+func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
 	if macros == nil {
 		macros = make(map[MacroID]*MacroEvaluator)
 	}

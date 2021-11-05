@@ -2,7 +2,7 @@
 
 package eval
 
-func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -122,7 +122,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 	}, nil
 }
 
-func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -242,7 +242,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 	}, nil
 }
 
-func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -312,7 +312,7 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 	}, nil
 }
 
-func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEvaluator, error) {
+func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -382,7 +382,7 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 	}, nil
 }
 
-func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEvaluator, error) {
+func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -452,7 +452,7 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 	}, nil
 }
 
-func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEvaluator, error) {
+func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*IntEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -522,7 +522,7 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 	}, nil
 }
 
-func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -592,7 +592,7 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 	}, nil
 }
 
-func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -662,7 +662,7 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 	}, nil
 }
 
-func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -732,7 +732,7 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 	}, nil
 }
 
-func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -802,7 +802,7 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 	}, nil
 }
 
-func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -872,7 +872,7 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 	}, nil
 }
 
-func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -942,7 +942,7 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 	}, nil
 }
 
-func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -1012,7 +1012,7 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, sta
 	}, nil
 }
 
-func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -1082,7 +1082,7 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *st
 	}, nil
 }
 
-func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -1152,7 +1152,7 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, st
 	}, nil
 }
 
-func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
@@ -1229,7 +1229,7 @@ func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *st
 	}, nil
 }
 
-func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a bool, b []bool) bool {
@@ -1306,7 +1306,7 @@ func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state 
 	}, nil
 }
 
-func ArrayIntGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayIntGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
@@ -1383,7 +1383,7 @@ func ArrayIntGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, stat
 	}, nil
 }
 
-func ArrayIntGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayIntGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
@@ -1460,7 +1460,7 @@ func ArrayIntGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opt
 	}, nil
 }
 
-func ArrayIntLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayIntLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
@@ -1537,7 +1537,7 @@ func ArrayIntLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state
 	}, nil
 }
 
-func ArrayIntLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayIntLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {

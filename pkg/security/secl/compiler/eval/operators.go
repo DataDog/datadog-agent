@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func isPartialLeaf(a Evaluator, b Evaluator, state *state) bool {
+func isPartialLeaf(a Evaluator, b Evaluator, state *State) bool {
 	partialA, partialB := a.IsPartial(), b.IsPartial()
 
 	if a.IsScalar() || (a.GetField() != "" && a.GetField() != state.field) {
@@ -28,7 +28,7 @@ func isPartialLeaf(a Evaluator, b Evaluator, state *state) bool {
 }
 
 // IntNot - ^int operator
-func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
+func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
@@ -56,7 +56,7 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 }
 
 // StringEquals evaluates string
-func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -151,7 +151,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 }
 
 // Not - !true operator
-func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
+func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
@@ -185,7 +185,7 @@ func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 }
 
 // Minus - -int operator
-func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
+func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
@@ -213,7 +213,7 @@ func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 }
 
 // ArrayStringContains evaluates array of strings against a value
-func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -309,7 +309,7 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 }
 
 // ArrayStringMatches weak comparison, a least one element of a should be in b. a can't contain regexp
-func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -412,7 +412,7 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 }
 
 // ArrayIntMatches weak comparison, a least one element of a should be in b
-func ArrayIntMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayIntMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -506,7 +506,7 @@ func ArrayIntMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, sta
 }
 
 // ArrayBoolContains evaluates array of bool against a value
-func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {

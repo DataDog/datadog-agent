@@ -40,7 +40,7 @@ func (f *FieldValue) Compile() error {
 			return fmt.Errorf("invalid pattern `%v`", f.Value)
 		}
 
-		reg, err := patternToRegexp(value)
+		reg, err := PatternToRegexp(value)
 		if err != nil {
 			return fmt.Errorf("invalid pattern `%s`: %s", value, err)
 		}

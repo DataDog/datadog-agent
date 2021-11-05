@@ -128,7 +128,7 @@ func (s *StringEvaluator) IsScalar() bool {
 func (s *StringEvaluator) Compile() error {
 	switch s.ValueType {
 	case PatternValueType:
-		reg, err := patternToRegexp(s.Value)
+		reg, err := PatternToRegexp(s.Value)
 		if err != nil {
 			return fmt.Errorf("invalid pattern '%s': %s", s.Value, err)
 		}
