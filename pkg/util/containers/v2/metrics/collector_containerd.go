@@ -25,7 +25,6 @@ import (
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -58,11 +57,7 @@ func newContainerdCollector() (*containerdCollector, error) {
 
 	client, err := cutil.GetContainerdUtil()
 	if err != nil {
-		if retry.IsErrPermaFail(err) {
-			return nil, ErrPermaFail
-		}
-
-		return nil, ErrNothingYet
+		return nil, convertRetrierErr(err)
 	}
 
 	return &containerdCollector{client: client}, nil
