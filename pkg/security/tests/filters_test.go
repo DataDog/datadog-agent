@@ -357,7 +357,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 		if err := waitForProbeEvent(test, nil, "utimes.file.path", testFile, model.FileUtimesEventType); err != nil {
-			t.Fatal("shoud get a utimes event")
+			t.Fatal("should get a utimes event")
 		}
 
 		// wait a bit and ensure utimes event has been discarded
@@ -367,7 +367,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 		if err := waitForProbeEvent(test, nil, "utimes.file.path", testFile, model.FileUtimesEventType); err == nil {
-			t.Fatal("shoudn't get a utimes event")
+			t.Fatal("shouldn't get a utimes event")
 		}
 
 		// not check that we still have the open allowed

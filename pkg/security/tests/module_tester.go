@@ -154,6 +154,7 @@ type testModule struct {
 	config                *config.Config
 	opts                  testOpts
 	st                    *simpleTest
+	t                     testing.TB
 	module                *module.Module
 	probe                 *sprobe.Probe
 	probeHandler          *testProbeHandler
@@ -456,6 +457,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		if opts.Equal(testMod.opts) {
 			testMod.st = st
 			testMod.cmdWrapper = cmdWrapper
+			testMod.t = t
 			return testMod, testMod.reloadConfiguration()
 		}
 		testMod.probeHandler.SetModule(nil)
@@ -490,6 +492,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		config:       config,
 		opts:         opts,
 		st:           st,
+		t:            t,
 		module:       mod.(*module.Module),
 		probe:        mod.(*module.Module).GetProbe(),
 		probeHandler: &testProbeHandler{module: mod.(*module.Module)},
@@ -971,7 +974,11 @@ func (tm *testModule) cleanup() {
 }
 
 func (tm *testModule) Close() {
-	if !useReload {
+	if useReload {
+		if _, err := newTestModule(tm.t, nil, nil, tm.opts); err != nil {
+			tm.t.Errorf("couldn't reload module with an empty policy: %v", err)
+		}
+	} else {
 		tm.cleanup()
 	}
 }
