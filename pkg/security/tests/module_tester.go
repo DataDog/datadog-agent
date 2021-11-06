@@ -196,6 +196,7 @@ type testcustomEventHandler struct {
 
 type testProbeHandler struct {
 	sync.RWMutex
+	reloading          sync.RWMutex
 	module             *module.Module
 	eventHandler       *testEventHandler
 	customEventHandler *testcustomEventHandler
@@ -208,6 +209,9 @@ func (h *testProbeHandler) HandleEvent(event *sprobe.Event) {
 	if h.module == nil {
 		return
 	}
+
+	h.reloading.Lock()
+	defer h.reloading.Unlock()
 
 	h.module.HandleEvent(event)
 
@@ -458,6 +462,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			testMod.st = st
 			testMod.cmdWrapper = cmdWrapper
 			testMod.t = t
+			testMod.probeHandler.reloading.Lock()
+			defer testMod.probeHandler.reloading.Unlock()
 			return testMod, testMod.reloadConfiguration()
 		}
 		testMod.probeHandler.SetModule(nil)
