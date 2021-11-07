@@ -316,7 +316,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 		},
 		{
 			ID:         "test_mask_utimes_rule",
-			Expression: `utimes.file.path =~ "{{.Root}}/test-mask-aaa-*"`,
+			Expression: `utimes.file.path == "{{.Root}}/do_not_match/test-mask"`,
 		},
 	}
 

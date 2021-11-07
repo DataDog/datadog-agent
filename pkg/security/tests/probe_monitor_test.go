@@ -133,7 +133,7 @@ func TestNoisyProcess(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID: "path_test",
 		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
-		Expression: `open.file.path =~ "{{.Root}}/no-test-open*" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path == "{{.Root}}/do_not_match/test-open"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
