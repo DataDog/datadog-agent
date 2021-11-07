@@ -123,6 +123,7 @@ func Test_convertNetworkStats(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          map[string]types.NetworkStats
+		networks       map[string]string
 		expectedOutput metrics.ContainerNetworkStats
 	}{
 		{
@@ -141,6 +142,9 @@ func Test_convertNetworkStats(t *testing.T) {
 					TxPackets: 49,
 				},
 			},
+			networks: map[string]string{
+				"eth1": "custom_iface",
+			},
 			expectedOutput: metrics.ContainerNetworkStats{
 				BytesSent:   util.Float64Ptr(92),
 				BytesRcvd:   util.Float64Ptr(88),
@@ -153,7 +157,7 @@ func Test_convertNetworkStats(t *testing.T) {
 						PacketsSent: util.Float64Ptr(45),
 						PacketsRcvd: util.Float64Ptr(43),
 					},
-					"eth1": {
+					"custom_iface": {
 						BytesSent:   util.Float64Ptr(48),
 						BytesRcvd:   util.Float64Ptr(46),
 						PacketsSent: util.Float64Ptr(49),
@@ -166,7 +170,7 @@ func Test_convertNetworkStats(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, &test.expectedOutput, convertNetworkStats(test.input))
+			assert.Equal(t, &test.expectedOutput, convertNetworkStats(test.input, test.networks))
 		})
 	}
 }

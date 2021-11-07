@@ -88,7 +88,7 @@ func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheVali
 		return nil, err
 	}
 
-	return convertNetworkStats(stats.Networks), nil
+	return convertNetworkStats(stats.Networks, networks), nil
 }
 
 // stats returns stats by container ID, it uses an in-memory cache to reduce the number of api calls.
@@ -114,7 +114,7 @@ func (d *dockerCollector) stats(containerID string, cacheValidity time.Duration,
 	return stats, nil
 }
 
-func convertNetworkStats(networkStats map[string]types.NetworkStats) *metrics.ContainerNetworkStats {
+func convertNetworkStats(networkStats map[string]types.NetworkStats, networks map[string]string) *metrics.ContainerNetworkStats {
 	containerNetworkStats := &metrics.ContainerNetworkStats{
 		BytesSent:   util.Float64Ptr(0),
 		BytesRcvd:   util.Float64Ptr(0),
@@ -124,6 +124,10 @@ func convertNetworkStats(networkStats map[string]types.NetworkStats) *metrics.Co
 	}
 
 	for ifname, netStats := range networkStats {
+		if new, found := networks[ifname]; found {
+			ifname = new
+		}
+
 		*containerNetworkStats.BytesSent += float64(netStats.TxBytes)
 		*containerNetworkStats.BytesRcvd += float64(netStats.RxBytes)
 		*containerNetworkStats.PacketsSent += float64(netStats.TxPackets)
