@@ -13,11 +13,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/docker/docker/api/types"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -26,7 +28,8 @@ const (
 
 func init() {
 	metrics.GetProvider().RegisterCollector(metrics.CollectorMetadata{
-		ID:       dockerCollectorID,
+		ID: dockerCollectorID,
+		// This collector has a lower priority than the system collector
 		Priority: 1,
 		Runtimes: []string{metrics.RuntimeNameDocker},
 		Factory: func() (metrics.Collector, error) {
@@ -46,6 +49,9 @@ func newDockerCollector() (*dockerCollector, error) {
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
+		if retry.IsErrPermaFail(err) {
+			return nil, metrics.ErrPermaFail
+		}
 		return nil, metrics.ErrNothingYet
 	}
 
@@ -58,6 +64,7 @@ func (d *dockerCollector) ID() string {
 	return dockerCollectorID
 }
 
+// GetContainerStats returns stats by container ID.
 func (d *dockerCollector) GetContainerStats(containerID string, caccheValidity time.Duration) (*metrics.ContainerStats, error) {
 	ctx := context.TODO()
 	stats, err := d.du.GetContainerStats(ctx, containerID)
@@ -68,6 +75,7 @@ func (d *dockerCollector) GetContainerStats(containerID string, caccheValidity t
 	return convertContainerStats(&stats.Stats), nil
 }
 
+// GetContainerNetworkStats returns network stats by container ID.
 func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*metrics.ContainerNetworkStats, error) {
 	ctx := context.TODO()
 	stats, err := d.du.GetContainerStats(ctx, containerID)
@@ -93,10 +101,10 @@ func convertNetworkStats(networkStats map[string]types.NetworkStats) *metrics.Co
 		*containerNetworkStats.PacketsRcvd += float64(netStats.RxPackets)
 
 		ifNetStats := metrics.InterfaceNetStats{
-			BytesSent:   util.Float64Ptr(float64(netStats.TxBytes)),
-			BytesRcvd:   util.Float64Ptr(float64(netStats.RxBytes)),
-			PacketsSent: util.Float64Ptr(float64(netStats.TxPackets)),
-			PacketsRcvd: util.Float64Ptr(float64(netStats.RxPackets)),
+			BytesSent:   util.UIntToFloatPtr(netStats.TxBytes),
+			BytesRcvd:   util.UIntToFloatPtr(netStats.RxBytes),
+			PacketsSent: util.UIntToFloatPtr(netStats.TxPackets),
+			PacketsRcvd: util.UIntToFloatPtr(netStats.RxPackets),
 		}
 		containerNetworkStats.Interfaces[ifname] = ifNetStats
 	}

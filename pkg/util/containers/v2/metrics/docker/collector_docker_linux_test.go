@@ -13,11 +13,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/docker/docker/api/types"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
-	"github.com/docker/docker/api/types"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_convertCPUStats(t *testing.T) {

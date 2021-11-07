@@ -12,12 +12,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/system"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/docker/docker/api/types"
 )
 
 func convertContainerStats(stats *types.Stats) *metrics.ContainerStats {
@@ -32,33 +33,33 @@ func convertContainerStats(stats *types.Stats) *metrics.ContainerStats {
 
 func convertCPUStats(cpuStats *types.CPUStats) *metrics.ContainerCPUStats {
 	return &metrics.ContainerCPUStats{
-		Total:            util.Float64Ptr(float64(cpuStats.CPUUsage.TotalUsage)),
-		System:           util.Float64Ptr(float64(cpuStats.CPUUsage.UsageInKernelmode)),
-		User:             util.Float64Ptr(float64(cpuStats.CPUUsage.UsageInUsermode)),
-		ThrottledPeriods: util.Float64Ptr(float64(cpuStats.ThrottlingData.ThrottledPeriods)),
-		ThrottledTime:    util.Float64Ptr(float64(cpuStats.ThrottlingData.ThrottledTime)),
+		Total:            util.UIntToFloatPtr(cpuStats.CPUUsage.TotalUsage),
+		System:           util.UIntToFloatPtr(cpuStats.CPUUsage.UsageInKernelmode),
+		User:             util.UIntToFloatPtr(cpuStats.CPUUsage.UsageInUsermode),
+		ThrottledPeriods: util.UIntToFloatPtr(cpuStats.ThrottlingData.ThrottledPeriods),
+		ThrottledTime:    util.UIntToFloatPtr(cpuStats.ThrottlingData.ThrottledTime),
 	}
 }
 
 func convertMemoryStats(memStats *types.MemoryStats) *metrics.ContainerMemStats {
 	containerMemStats := &metrics.ContainerMemStats{
-		UsageTotal: util.Float64Ptr(float64(memStats.Usage)),
-		Limit:      util.Float64Ptr(float64(memStats.Limit)),
-		OOMEvents:  util.Float64Ptr(float64(memStats.Failcnt)),
+		UsageTotal: util.UIntToFloatPtr(memStats.Usage),
+		Limit:      util.UIntToFloatPtr(memStats.Limit),
+		OOMEvents:  util.UIntToFloatPtr(memStats.Failcnt),
 	}
 
 	if rss, found := memStats.Stats["rss"]; found {
-		containerMemStats.RSS = util.Float64Ptr(float64(rss))
+		containerMemStats.RSS = util.UIntToFloatPtr(rss)
 	}
 
 	if cache, found := memStats.Stats["cache"]; found {
-		containerMemStats.Cache = util.Float64Ptr(float64(cache))
+		containerMemStats.Cache = util.UIntToFloatPtr(cache)
 	}
 
 	// `kernel_stack` and `slab`, which are used to compute `KernelMemory` are available only with cgroup v2
 	if kernelStack, found := memStats.Stats["kernel_stack"]; found {
 		if slab, found := memStats.Stats["slab"]; found {
-			containerMemStats.KernelMemory = util.Float64Ptr(float64(kernelStack + slab))
+			containerMemStats.KernelMemory = util.UIntToFloatPtr(kernelStack + slab)
 		}
 	}
 
@@ -90,10 +91,10 @@ func convertIOStats(ioStats *types.BlkioStats) *metrics.ContainerIOStats {
 
 		switch blkioStatEntry.Op {
 		case "Read":
-			device.ReadBytes = util.Float64Ptr(float64(blkioStatEntry.Value))
+			device.ReadBytes = util.UIntToFloatPtr(blkioStatEntry.Value)
 			*containerIOStats.ReadBytes += *device.ReadBytes
 		case "Write":
-			device.WriteBytes = util.Float64Ptr(float64(blkioStatEntry.Value))
+			device.WriteBytes = util.UIntToFloatPtr(blkioStatEntry.Value)
 			*containerIOStats.WriteBytes += *device.WriteBytes
 		}
 
@@ -112,10 +113,10 @@ func convertIOStats(ioStats *types.BlkioStats) *metrics.ContainerIOStats {
 
 		switch blkioStatEntry.Op {
 		case "Read":
-			device.ReadOperations = util.Float64Ptr(float64(blkioStatEntry.Value))
+			device.ReadOperations = util.UIntToFloatPtr(blkioStatEntry.Value)
 			*containerIOStats.ReadOperations += *device.ReadOperations
 		case "Write":
-			device.WriteOperations = util.Float64Ptr(float64(blkioStatEntry.Value))
+			device.WriteOperations = util.UIntToFloatPtr(blkioStatEntry.Value)
 			*containerIOStats.WriteOperations += *device.WriteOperations
 		}
 
@@ -129,7 +130,7 @@ func convertIOStats(ioStats *types.BlkioStats) *metrics.ContainerIOStats {
 
 func convertPIDStats(pidStats *types.PidsStats) *metrics.ContainerPIDStats {
 	return &metrics.ContainerPIDStats{
-		ThreadCount: util.Float64Ptr(float64(pidStats.Current)),
-		ThreadLimit: util.Float64Ptr(float64(pidStats.Limit)),
+		ThreadCount: util.UIntToFloatPtr(pidStats.Current),
+		ThreadLimit: util.UIntToFloatPtr(pidStats.Limit),
 	}
 }
