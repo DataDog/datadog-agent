@@ -462,9 +462,18 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			testMod.st = st
 			testMod.cmdWrapper = cmdWrapper
 			testMod.t = t
+
 			testMod.probeHandler.reloading.Lock()
 			defer testMod.probeHandler.reloading.Unlock()
-			return testMod, testMod.reloadConfiguration()
+
+			if err = testMod.reloadConfiguration(); err != nil {
+				return testMod, err
+			}
+
+			if ruleDefs != nil {
+				t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
+			}
+			return testMod, nil
 		}
 		testMod.probeHandler.SetModule(nil)
 		testMod.cleanup()
@@ -520,6 +529,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.Wrap(err, "failed to start module")
 	}
 
+	t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
 	return testMod, nil
 }
 
@@ -638,7 +648,7 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 
 	status = fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1))
 
-	for i := model.UnknownEventType; i < model.MaxEventType; i++ {
+	for i := model.UnknownEventType + 1; i < model.MaxEventType; i++ {
 		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
 		status = fmt.Sprintf("%s, %s user:%d kernel:%d lost:%d", status, i, stats.Count, kernelStats.Count, kernelStats.Lost)
 	}
@@ -980,6 +990,8 @@ func (tm *testModule) cleanup() {
 }
 
 func (tm *testModule) Close() {
+	tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetStatusMetrics(tm.probe))
+
 	if useReload {
 		if _, err := newTestModule(tm.t, nil, nil, tm.opts); err != nil {
 			tm.t.Errorf("couldn't reload module with an empty policy: %v", err)
