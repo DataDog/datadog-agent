@@ -8,7 +8,9 @@
 
 package system
 
-import "github.com/DataDog/datadog-agent/pkg/util"
+import (
+	"github.com/DataDog/datadog-agent/pkg/util"
+)
 
 func convertField(s *uint64, t **float64) {
 	if s != nil {

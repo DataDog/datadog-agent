@@ -59,7 +59,6 @@ function report(){
    printf "A notification has been sent to Datadog with the contents of $logfile\n"
   else
     printf "Unable to send the notification (curl v7.18 or newer is required)"
-    fallback_msg
   fi
 }
 
@@ -98,7 +97,12 @@ Troubleshooting and basic usage information for the Agent are available at:
       fallback_msg
       exit 1;
     fi
-    
+
+    if [ "$site" == "ddog-gov.com" ]; then
+      fallback_msg
+      exit 1;
+    fi
+
     while true; do
         read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error
         case $yn in
@@ -106,9 +110,8 @@ Troubleshooting and basic usage information for the Agent are available at:
             get_email
             if [[ -n "$isEmailValid" ]]; then
               report
-            else
-              fallback_msg
             fi
+            fallback_msg
             break;;
           [Nn]*|"" )
             fallback_msg
@@ -249,6 +252,9 @@ else
 fi
 
 report_failure_url="https://api.datadoghq.com/agent_stats/report_failure"
+if [ -n "$DD_SITE" ]; then
+    report_failure_url="https://api.${DD_SITE}/agent_stats/report_failure"
+fi
 if [ -n "$TESTING_REPORT_URL" ]; then
   report_failure_url=$TESTING_REPORT_URL
 fi

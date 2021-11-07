@@ -195,7 +195,7 @@ func TestProcessMessageValid(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
 	select {
 	case received := <-metricsChan:
@@ -206,7 +206,7 @@ func TestProcessMessageValid(t *testing.T) {
 
 	metricsChan = make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics = false
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
 	select {
 	case <-metricsChan:
@@ -231,8 +231,79 @@ func TestProcessMessageStartValid(t *testing.T) {
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}
 	computeEnhancedMetrics := true
-	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan)
+
+	runtimeDoneCallbackWasCalled := false
+	mockRuntimeDone := func() {
+		runtimeDoneCallbackWasCalled = true
+	}
+
+	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
 	assert.Equal(t, lastRequestID, executionContext.LastLogRequestID)
+	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
+}
+
+func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
+	message := logMessage{
+		logType: logTypePlatformRuntimeDone,
+		time:    time.Now(),
+		objectRecord: platformObjectRecord{
+			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+			runtimeDoneItem: runtimeDoneItem{
+				status: "success",
+			},
+		},
+	}
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+
+	metricsChan := make(chan []metrics.MetricSample, 1)
+	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
+	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
+	computeEnhancedMetrics := true
+
+	runtimeDoneCallbackWasCalled := false
+	mockRuntimeDone := func() {
+		runtimeDoneCallbackWasCalled = true
+	}
+
+	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
+	assert.Equal(t, startTime, executionContext.StartTime)
+	assert.Equal(t, runtimeDoneCallbackWasCalled, true)
+}
+
+func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
+	previousRequestID := "9397b299-cb43-5586-9188-641de46d10b0"
+	currentRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+
+	message := logMessage{
+		logType: logTypePlatformRuntimeDone,
+		time:    time.Now(),
+		objectRecord: platformObjectRecord{
+			requestID: previousRequestID,
+			runtimeDoneItem: runtimeDoneItem{
+				status: "success",
+			},
+		},
+	}
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := currentRequestID
+	metricTags := []string{"functionname:test-function"}
+
+	metricsChan := make(chan []metrics.MetricSample, 1)
+	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
+	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
+	computeEnhancedMetrics := true
+
+	runtimeDoneCallbackWasCalled := false
+	mockRuntimeDone := func() {
+		runtimeDoneCallbackWasCalled = true
+	}
+
+	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
+	assert.Equal(t, startTime, executionContext.StartTime)
+	// Runtime done callback should NOT be called if the log message was for a previous invocation
+	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
 }
 
 func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
@@ -254,7 +325,7 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: "", LastRequestID: ""}, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, &ExecutionContext{ARN: "", LastRequestID: ""}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
 	select {
 	case <-metricsChan:
@@ -277,7 +348,7 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
 	select {
 	case <-metricsChan:
@@ -300,7 +371,7 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
 	select {
 	case received := <-metricsChan:
@@ -315,7 +386,7 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
-	logCollection := &CollectionRouteInfo{
+	logCollection := &LambdaLogsCollector{
 		ExecutionContext: &ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
@@ -354,7 +425,7 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
-	logCollection := &CollectionRouteInfo{
+	logCollection := &LambdaLogsCollector{
 		ExecutionContext: &ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
@@ -390,7 +461,7 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 func TestServeHTTPInvalidPayload(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
-	logCollection := &CollectionRouteInfo{
+	logCollection := &LambdaLogsCollector{
 		ExecutionContext: &ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
@@ -412,7 +483,7 @@ func TestServeHTTPInvalidPayload(t *testing.T) {
 func TestServeHTTPSuccess(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
-	logCollection := &CollectionRouteInfo{
+	logCollection := &LambdaLogsCollector{
 		ExecutionContext: &ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
@@ -507,29 +578,6 @@ func TestUnmarshalJSONLogTypeIncorrectReportNotFatalReport(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
-}
-
-func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
-	message := logMessage{
-		logType: logTypePlatformRuntimeDone,
-		time:    time.Now(),
-		objectRecord: platformObjectRecord{
-			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
-			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
-			},
-		},
-	}
-	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
-	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	metricTags := []string{"functionname:test-function"}
-
-	metricsChan := make(chan []metrics.MetricSample, 1)
-	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
-	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
-	computeEnhancedMetrics := true
-	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan)
-	assert.Equal(t, startTime, executionContext.StartTime)
 }
 
 func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {

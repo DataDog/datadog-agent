@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -56,15 +55,10 @@ func newDockerCollector() (*dockerCollector, error) {
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		if retry.IsErrPermaFail(err) {
-			return nil, metrics.ErrPermaFail
-		}
-		return nil, metrics.ErrNothingYet
+		return nil, metrics.ConvertRetrierErr(err)
 	}
 
-	return &dockerCollector{
-		du: du,
-	}, nil
+	return &dockerCollector{du: du}, nil
 }
 
 func (d *dockerCollector) ID() string {
