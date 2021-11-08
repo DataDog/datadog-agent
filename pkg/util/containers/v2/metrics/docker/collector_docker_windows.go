@@ -57,6 +57,6 @@ func convertIOStats(storageStats *types.StorageStats) *metrics.ContainerIOStats 
 
 func convertPIDStats(numProcs uint32) *metrics.ContainerPIDStats {
 	return &metrics.ContainerPIDStats{
-		ThreadCount: util.UIntToFloatPtr(numProcs),
+		ThreadCount: util.UIntToFloatPtr(uint64(numProcs)),
 	}
 }
