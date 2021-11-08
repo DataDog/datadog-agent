@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package listeners
@@ -72,7 +73,7 @@ func (l *KubeletListener) processPod(
 			continue
 		}
 
-		l.createContainerService(pod, podContainer, container, creationTime)
+		l.createContainerService(pod, &podContainer, container, creationTime)
 
 		containers = append(containers, container)
 	}
@@ -115,7 +116,7 @@ func (l *KubeletListener) createPodService(
 
 func (l *KubeletListener) createContainerService(
 	pod *workloadmeta.KubernetesPod,
-	podContainer workloadmeta.OrchestratorContainer,
+	podContainer *workloadmeta.OrchestratorContainer,
 	container *workloadmeta.Container,
 	creationTime integration.CreationTime,
 ) {
