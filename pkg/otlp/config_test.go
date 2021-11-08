@@ -69,6 +69,7 @@ func TestFromAgentConfigPort(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
+				Metrics:            map[string]interface{}{},
 			},
 		},
 		{
@@ -78,6 +79,7 @@ func TestFromAgentConfigPort(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
+				Metrics:            map[string]interface{}{},
 			},
 		},
 		{
@@ -99,6 +101,7 @@ func TestFromAgentConfigPort(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
+				Metrics:            map[string]interface{}{},
 			},
 		},
 		{
@@ -135,6 +138,48 @@ func TestFromAgentConfigPort(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+			},
+		},
+	}
+
+	for _, testInstance := range tests {
+		t.Run(testInstance.path, func(t *testing.T) {
+			cfg, err := loadConfig("./testdata/" + testInstance.path)
+			require.NoError(t, err)
+			pcfg, err := FromAgentConfig(cfg)
+			if err != nil || testInstance.err != "" {
+				assert.Equal(t, testInstance.err, err.Error())
+			} else {
+				assert.Equal(t, testInstance.cfg, pcfg)
+			}
+		})
+	}
+}
+
+func TestFromAgentConfigMetrics(t *testing.T) {
+	tests := []struct {
+		path string
+		cfg  PipelineConfig
+		err  string
+	}{
+		{
+			path: "metrics/allconfig.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+				Metrics: map[string]interface{}{
+					"delta_ttl":                                2400,
+					"report_quantiles":                         false,
+					"send_monotonic_counter":                   true,
+					"resource_attributes_as_tags":              true,
+					"instrumentation_library_metadata_as_tags": true,
+					"histograms": map[string]interface{}{
+						"mode":                   "counters",
+						"send_count_sum_metrics": true,
+					},
+				},
 			},
 		},
 	}

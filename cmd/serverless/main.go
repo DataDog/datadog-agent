@@ -77,8 +77,7 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 )
 
 const (
-	// loggerName is the name of the serverless agent logger
-	loggerName config.LoggerName = "SAGENT"
+	loggerName config.LoggerName = "DD_EXTENSION"
 
 	runtimeAPIEnvVar = "AWS_LAMBDA_RUNTIME_API"
 
@@ -93,7 +92,7 @@ const (
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
 	logsAPICollectionRoute     = "/lambda/logs"
-	logsAPITimeout             = 1000
+	logsAPITimeout             = 25
 	logsAPIMaxBytes            = 262144
 	logsAPIMaxItems            = 1000
 )

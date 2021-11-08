@@ -15,6 +15,7 @@ const (
 	ExperimentalOTLPTracesEnabled   = ExperimentalOTLPSection + ".traces_enabled"
 	ReceiverSubSectionKey           = "receiver"
 	ExperimentalOTLPReceiverSection = ExperimentalOTLPSection + ReceiverSubSectionKey
+	ExperimentalOTLPMetrics         = ExperimentalOTLPSection + ".metrics"
 )
 
 // SetupOTLP related configuration.
@@ -22,6 +23,7 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(ExperimentalOTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(ExperimentalOTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(ExperimentalOTLPTracesEnabled, true)
+	config.SetKnown(ExperimentalOTLPMetrics)
 	config.BindEnv(ExperimentalOTLPHTTPPort, "DD_OTLP_HTTP_PORT")
 	config.BindEnv(ExperimentalOTLPgRPCPort, "DD_OTLP_GRPC_PORT")
 	config.SetKnown(ExperimentalOTLPReceiverSection)

@@ -163,43 +163,22 @@ func TestIsParentDiscarder(t *testing.T) {
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileOpenEventType, "open.file.path", "/tmp/token"); !is {
 		t.Error("should be a parent discarder")
 	}
-}
 
-func TestApproverAncestors1(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
-	addRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
+	addRuleExpr(t, rs, `open.file.path =~ "*/token"`, `open.file.path == "/etc/secret"`)
 
-	capabilities, exists := allCapabilities["open"]
-	if !exists {
-		t.Fatal("no capabilities for open")
-	}
-
-	approvers, err := rs.GetEventApprovers("open", capabilities.GetFieldCapabilities())
+	is, err := isParentPathDiscarder(rs, regexCache, model.FileOpenEventType, "open.file.path", "/tmp/token")
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+	}
+	if is {
+		t.Error("shouldn't be a parent discarder")
 	}
 
-	if values, exists := approvers["open.file.path"]; !exists || len(values) != 2 {
-		t.Fatalf("expected approver not found: %v", values)
-	}
-}
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
+	addRuleExpr(t, rs, `open.file.path =~ "/tmp/dir/no-approver-*"`)
 
-func TestApproverAncestors2(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
-	addRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
-	capabilities, exists := allCapabilities["open"]
-	if !exists {
-		t.Fatal("no capabilities for open")
-	}
-	approvers, err := rs.GetEventApprovers("open", capabilities.GetFieldCapabilities())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if values, exists := approvers["open.file.path"]; !exists || len(values) != 2 {
-		t.Fatalf("expected approver not found: %v", values)
+	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileOpenEventType, "open.file.path", "/tmp/dir/a/test"); !is {
+		t.Error("should be a parent discarder")
 	}
 }

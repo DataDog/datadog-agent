@@ -70,6 +70,7 @@ type AgentConfig struct {
 	// Sampler configuration
 	ExtraSampleRate float64
 	TargetTPS       float64
+	ErrorTPS        float64
 	MaxEPS          float64
 
 	// Receiver
@@ -160,6 +161,7 @@ func New() *AgentConfig {
 
 		ExtraSampleRate: 1.0,
 		TargetTPS:       10,
+		ErrorTPS:        10,
 		MaxEPS:          200,
 
 		ReceiverHost:    "localhost",
