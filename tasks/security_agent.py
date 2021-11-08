@@ -445,7 +445,7 @@ RUN apt-get update -y \
 
 
 @task
-def generate_documentation(ctx, go_generate=False):
+def generate_cws_documentation(ctx, go_generate=False):
     if go_generate:
         cws_go_generate(ctx)
 
