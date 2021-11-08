@@ -157,7 +157,7 @@ func (c *kubeClient) ClusterID() (string, error) {
 }
 
 // WithKubernetesClient allows specific Kubernetes client
-func WithKubernetesClient(cli env.KubeClient, clusterID string) BuilderOption {
+func WithKubernetesClient(cli dynamic.Interface, clusterID string) BuilderOption {
 	return func(b *builder) error {
 		b.kubeClient = &kubeClient{Interface: cli, clusterID: clusterID}
 		return nil

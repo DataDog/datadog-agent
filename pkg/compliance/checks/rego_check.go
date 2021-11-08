@@ -239,7 +239,7 @@ func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, i
 func (r *regoCheck) buildContextInput(env env.Env) eval.RegoInputMap {
 	context := make(map[string]interface{})
 	context["hostname"] = env.Hostname()
-
+	context["kubernetes_cluster"], _ = env.KubeClient().ClusterID()
 	if r.ruleScope == compliance.KubernetesNodeScope {
 		context["kubernetes_node_labels"] = env.NodeLabels()
 	}

@@ -9,6 +9,10 @@ raw_finding(status, resource_type, resource_id, event_data) = f {
 	}
 }
 
+kubernetes_cluster_resource_id = id {
+	id := sprintf("%s_kubernetes_cluster", [input.context.kubernetes_cluster])
+}
+
 docker_container_resource_id(c) = id {
 	id := sprintf("%s_%s", [input.context.hostname, cast_string(c.id)])
 }
