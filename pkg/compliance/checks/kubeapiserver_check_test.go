@@ -141,7 +141,11 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 
 	defer env.AssertExpectations(t)
 
-	kubeClient := fake.NewSimpleDynamicClient(scheme, f.objects...)
+	fakeClient := fake.NewSimpleDynamicClient(scheme, f.objects...)
+	kubeClient := &mocks.KubeClientProxy{
+		FakeClient: fakeClient,
+		MockClient: mocks.KubeClient{},
+	}
 	env.On("KubeClient").Return(kubeClient)
 
 	kubeCheck, err := newResourceCheck(env, "rule-id", f.resource)
