@@ -13,23 +13,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func loadConfig(path string) (config.Config, error) {
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	config.SetupOTLP(cfg)
-	cfg.SetConfigFile(path)
-	err := cfg.ReadInConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	return cfg, nil
-}
 
 func TestIsEnabled(t *testing.T) {
 	tests := []struct {
@@ -45,11 +32,12 @@ func TestIsEnabled(t *testing.T) {
 		{path: "receiver/noprotocols.yaml", enabled: true},
 		{path: "receiver/portandreceiver.yaml", enabled: true},
 		{path: "receiver/simple.yaml", enabled: true},
+		{path: "receiver/advanced.yaml", enabled: true},
 	}
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := loadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.enabled, IsEnabled(cfg))
 		})
@@ -143,11 +131,39 @@ func TestFromAgentConfigPort(t *testing.T) {
 				Metrics:        map[string]interface{}{},
 			},
 		},
+		{
+			path: "receiver/advanced.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint":               "0.0.0.0:5678",
+							"max_concurrent_streams": 16,
+							"transport":              "tcp",
+							"keepalive": map[string]interface{}{
+								"enforcement_policy": map[string]interface{}{
+									"min_time": "10m",
+								},
+							},
+						},
+						"http": map[string]interface{}{
+							"endpoint":             "localhost:1234",
+							"cors_allowed_origins": []interface{}{"http://test.com"},
+							"cors_allowed_headers": []interface{}{"ExampleHeader"},
+						},
+					},
+				},
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				Metrics:        map[string]interface{}{},
+			},
+		},
 	}
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := loadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
@@ -189,7 +205,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := loadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
