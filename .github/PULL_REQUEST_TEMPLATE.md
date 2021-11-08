@@ -56,12 +56,9 @@ Note: Adding GitHub labels is only possible for contributors with write access.
 
 - [ ] If known, an appropriate milestone has been selected; otherwise the `Triage` milestone is set.
 - [ ] The appropriate `team/..` label has been applied, if known.
-- [ ] A [release note](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno)
-  has been added or the `changelog/no-changelog` label has been applied.
+- [ ] A [release note](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno) has been added or the `changelog/no-changelog` label has been applied.
 - [ ] Changed code has automated tests for its functionality.
 - [ ] Adequate QA/testing plan information is provided if the `qa/skip-qa` label is not applied.
-- [ ] If applicable, docs team has been notified or
-  [an issue has been opened on the documentation repo](https://github.com/DataDog/documentation/issues/new).
+- [ ] If applicable, docs team has been notified or [an issue has been opened on the documentation repo](https://github.com/DataDog/documentation/issues/new).
 - [ ] If applicable, the `need-change/operator` and `need-change/helm` labels have been applied.
-- [ ] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml)
-  has been updated.
+- [ ] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.
