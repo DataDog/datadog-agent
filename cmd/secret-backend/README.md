@@ -4,9 +4,18 @@
 
 > **datadog-secret-backend** is an implementation of the [Datadog Agent Secrets Management](https://docs.datadoghq.com/agent/guide/secrets-management/?tab=linux) executable supporting multiple backend secret providers.
 
+## Supported Backends
+
+| Backend | Provider | Description |
+| :-- | :-- | :-- |
+| [aws.secrets](docs/aws/secrets.md) | [aws](docs/aws/README.md) | Datadog secrets in AWS Secrets Manager |
+| [aws.ssm](docs/aws/ssm.md) | [aws](docs/aws/README.md) | Datadog secrets in AWS Systems Manager Parameter Store |
+| [file.json](docs/file/json.md) | file | Datadog secrets in local JSON files|
+| [file.yaml](docs/file/yaml.md) | file | Datadog secrets in local YAML files|
+
 ## Installation
 
-1) Make a new folder in `/etc/` to hold all the files required for this module in one place:
+1. Make a new folder in `/etc/` to hold all the files required for this module in one place:
 
     ```
     ## Linux
@@ -16,7 +25,7 @@
     mkdir 'C:\Program Files\rapdev-datadog\'
     ```
 
-2) Download the most recent version of the secret backend module by hitting the latest release endpoint from the `rapdev-io` repo by running one of the commands below:
+2. Download the most recent version of the secret backend module by hitting the latest release endpoint from the `rapdev-io` repo by running one of the commands below:
 
     ```
     ## Linux (amd64)
@@ -36,7 +45,7 @@
     -OutFile 'C:\Program Files\rapdev-datadog\'
     ```
 
-3) Once you have the file from the github repo, you'll need to unzip it to get the executable:
+3. Once you have the file from the github repo, you'll need to unzip it to get the executable:
 
     ```
     ## Linux (amd64, change end of filename to "386" if needed)
@@ -48,7 +57,7 @@
     -C 'C:\Program Files\rapdev-datadog\'
     ```
 
-4) (Optional) Remove the old tar'd file:
+4. (Optional) Remove the old tar'd file:
 
     ```
     ## Linux
@@ -58,8 +67,7 @@
     del /f 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-amd64.tar.gz'
     ```
 
-5) Update the executable to have the required permissions. Datadog agent expects the executable to only
-be used by the `dd-agent` user for Linux and `ddagentuser` for Windows.
+5. Update the executable to have the required permissions. Datadog agent expects the executable to only be used by the `dd-agent` user for Linux and `ddagentuser` for Windows.
 
     ```
     ## Linux
