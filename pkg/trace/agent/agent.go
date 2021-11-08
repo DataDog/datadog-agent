@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -32,6 +33,8 @@ const (
 	// tagContainersTags specifies the name of the tag which holds key/value
 	// pairs representing information about the container (Docker, EC2, etc).
 	tagContainersTags = "_dd.tags.container"
+	tagGitCommitSha = "git.commit.sha"
+	tagVersion = "version"
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -221,6 +224,7 @@ func (a *Agent) Process(p *api.Payload) {
 			continue
 		}
 
+		traceCommitSha, _ := getCommitSha(p.ContainerTags)
 		// Extra sanitization steps of the trace.
 		for _, span := range t {
 			for k, v := range a.conf.GlobalTags {
@@ -230,6 +234,16 @@ func (a *Agent) Process(p *api.Payload) {
 			Truncate(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
+			}
+			if commitSha, ok := traceutil.GetMeta(span, tagGitCommitSha); ok {
+				if _, hasVersion := traceutil.GetMeta(span, tagVersion); !hasVersion {
+					traceutil.SetMeta(span, tagVersion, commitSha)
+				}
+			}
+			if traceCommitSha != "" && (traceutil.IsMeasured(span) || traceutil.HasTopLevel(span)) {
+				if _, hasVersion := traceutil.GetMeta(span, tagVersion); !hasVersion {
+					traceutil.SetMeta(span, tagVersion, traceCommitSha)
+				}
 			}
 		}
 		a.Replacer.Replace(t)
@@ -456,4 +470,18 @@ func newEventProcessor(conf *config.AgentConfig) *event.Processor {
 // SetGlobalTagsUnsafe sets global tags to the agent configuration. Unsafe for concurrent use.
 func (a *Agent) SetGlobalTagsUnsafe(tags map[string]string) {
 	a.conf.GlobalTags = tags
+}
+
+func getCommitSha(containerTags string) (commitSha string, ok bool) {
+	tags := strings.Split(containerTags, ",")
+	for _, t := range tags {
+		kv := strings.Split(t, ":")
+		if len(kv) < 2 {
+			continue
+		}
+		if kv[0] == tagGitCommitSha {
+			return t[len(tagGitCommitSha)+1:], true
+		}
+	}
+	return "", false
 }
