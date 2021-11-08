@@ -409,7 +409,44 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	endpoints, err := buildTCPEndpoints(defaultLogsConfigKeys())
 
 	suite.Nil(err)
+	suite.Nil(expectedEndpoints.Backup)
 	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestBackupEndpoint() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
+	suite.config.Set("logs_config.logs_secondary_dd_url", "backup-http-intake.logs.datadoghq.com:443")
+	suite.config.Set("logs_config.logs_secondary_api_key", "abc")
+	suite.config.Set("logs_config.logs_no_ssl", false)
+	suite.config.Set("logs_config.socks5_proxy_address", "proxy.test:3128")
+	suite.config.Set("logs_config.dev_mode_use_proto", true)
+	suite.config.Set("logs_config.dev_mode_use_proto", true)
+
+	expectedMainEndpoint := Endpoint{
+		APIKey:           "123",
+		Host:             "agent-http-intake.logs.datadoghq.com",
+		Port:             443,
+		UseSSL:           true,
+		UseCompression:   false,
+		CompressionLevel: 0,
+		ProxyAddress:     "proxy.test:3128"}
+	expectedBackupEndpoint := Endpoint{
+		APIKey:           "abc",
+		Host:             "backup-http-intake.logs.datadoghq.com",
+		Port:             443,
+		UseSSL:           true,
+		UseCompression:   false,
+		CompressionLevel: 0,
+		ProxyAddress:     "proxy.test:3128"}
+
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, &expectedBackupEndpoint, nil, true, false)
+	endpoints, err := buildTCPEndpoints(defaultLogsConfigKeys())
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+
+	suite.Equal(*expectedEndpoints.Backup, expectedBackupEndpoint)
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {

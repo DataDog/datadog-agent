@@ -141,8 +141,8 @@ func TestStatusEndpoints(t *testing.T) {
 
 func TestStatusEndpointsWithBackup(t *testing.T) {
 	defer Clear()
-	defer ddconfig.Datadog.Set("logs_config.logs_backup_dd_url", "")
-	ddconfig.Datadog.Set("logs_config.logs_backup_dd_url", "foobar:1234")
+	defer ddconfig.Datadog.Set("logs_config.logs_secondary_dd_url", "")
+	ddconfig.Datadog.Set("logs_config.logs_secondary_dd_url", "foobar:1234")
 	initStatus()
 
 	status := Get()

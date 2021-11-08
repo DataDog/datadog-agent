@@ -290,7 +290,7 @@ func getBackupEndpoint(logsConfig *LogsConfigKeys, main Endpoint) *Endpoint {
 	var backup *Endpoint
 	backupEndpoint := main
 
-	if logsDDBackupURL, logsDDURLDefined := logsConfig.logsDDURLBackup(); logsDDURLDefined {
+	if logsDDBackupURL, logsDDURLDefined := logsConfig.logsSecondaryDDURL(); logsDDURLDefined {
 		// Copy the main endpoint since all the settings are shared except the host + port
 
 		host, port, err := parseAddress(logsDDBackupURL)
@@ -302,7 +302,7 @@ func getBackupEndpoint(logsConfig *LogsConfigKeys, main Endpoint) *Endpoint {
 		backup = &backupEndpoint
 	}
 
-	if backupAPIKey, defined := logsConfig.logsAPIKeyBackup(); defined {
+	if backupAPIKey, defined := logsConfig.logsSecondaryAPIKey(); defined {
 		backupEndpoint.APIKey = backupAPIKey
 		backup = &backupEndpoint
 	}
