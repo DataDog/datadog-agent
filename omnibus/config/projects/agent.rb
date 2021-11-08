@@ -117,10 +117,12 @@ package :zip do
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\install-cmd.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\uninstall-cmd.exe"
       ]
+      if with_python_runtime? "2"
+        additional_sign_files.append("#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll")
+      end
     if ENV['SIGN_PFX']
       signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
     end
@@ -147,9 +149,11 @@ package :msi do
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll",
       "#{install_dir}\\bin\\agent\\ddtray.exe"
     ]
+    if with_python_runtime? "2"
+      additional_sign_files.append("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll")
+    end
   #if ENV['SIGN_WINDOWS']
   #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
   #end
