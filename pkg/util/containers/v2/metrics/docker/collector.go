@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,12 +32,12 @@ const (
 type dockerStatsFunc func(ctx context.Context, id string) (*types.StatsJSON, error)
 
 func init() {
-	metrics.GetProvider().RegisterCollector(metrics.CollectorMetadata{
+	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
 		ID: dockerCollectorID,
 		// This collector has a lower priority than the system collector
 		Priority: 1,
-		Runtimes: []string{metrics.RuntimeNameDocker},
-		Factory: func() (metrics.Collector, error) {
+		Runtimes: []string{provider.RuntimeNameDocker},
+		Factory: func() (provider.Collector, error) {
 			return newDockerCollector()
 		},
 	})
@@ -50,12 +50,12 @@ type dockerCollector struct {
 
 func newDockerCollector() (*dockerCollector, error) {
 	if !config.IsFeaturePresent(config.Docker) {
-		return nil, metrics.ErrPermaFail
+		return nil, provider.ErrPermaFail
 	}
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		return nil, metrics.ConvertRetrierErr(err)
+		return nil, provider.ConvertRetrierErr(err)
 	}
 
 	return &dockerCollector{du: du}, nil
@@ -66,7 +66,7 @@ func (d *dockerCollector) ID() string {
 }
 
 // GetContainerStats returns stats by container ID.
-func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*metrics.ContainerStats, error) {
+func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := d.stats(containerID, cacheValidity, d.du.GetContainerStats)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity ti
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*metrics.ContainerNetworkStats, error) {
+func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
 	stats, err := d.stats(containerID, cacheValidity, d.du.GetContainerStats)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheVali
 }
 
 // stats returns stats by container ID, it uses an in-memory cache to reduce the number of api calls.
-// Cache expires every 2 minutes and can also be invalidated using the cacheValidity argument.
+// Cache expires every 10 seconds and can also be invalidated using the cacheValidity argument.
 func (d *dockerCollector) stats(containerID string, cacheValidity time.Duration, clientFunc dockerStatsFunc) (*types.StatsJSON, error) {
 	refreshRequired := d.lastScrapeTime.Add(cacheValidity).Before(time.Now())
 	cacheKey := fmt.Sprintf(statsCacheKey, containerID)
@@ -108,13 +108,13 @@ func (d *dockerCollector) stats(containerID string, cacheValidity time.Duration,
 	return stats, nil
 }
 
-func convertNetworkStats(networkStats map[string]types.NetworkStats, networks map[string]string) *metrics.ContainerNetworkStats {
-	containerNetworkStats := &metrics.ContainerNetworkStats{
+func convertNetworkStats(networkStats map[string]types.NetworkStats, networks map[string]string) *provider.ContainerNetworkStats {
+	containerNetworkStats := &provider.ContainerNetworkStats{
 		BytesSent:   util.Float64Ptr(0),
 		BytesRcvd:   util.Float64Ptr(0),
 		PacketsSent: util.Float64Ptr(0),
 		PacketsRcvd: util.Float64Ptr(0),
-		Interfaces:  make(map[string]metrics.InterfaceNetStats),
+		Interfaces:  make(map[string]provider.InterfaceNetStats),
 	}
 
 	for ifname, netStats := range networkStats {
@@ -127,7 +127,7 @@ func convertNetworkStats(networkStats map[string]types.NetworkStats, networks ma
 		*containerNetworkStats.PacketsSent += float64(netStats.TxPackets)
 		*containerNetworkStats.PacketsRcvd += float64(netStats.RxPackets)
 
-		ifNetStats := metrics.InterfaceNetStats{
+		ifNetStats := provider.InterfaceNetStats{
 			BytesSent:   util.UIntToFloatPtr(netStats.TxBytes),
 			BytesRcvd:   util.UIntToFloatPtr(netStats.RxBytes),
 			PacketsSent: util.UIntToFloatPtr(netStats.TxPackets),

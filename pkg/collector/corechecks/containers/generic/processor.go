@@ -16,9 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
-
-	// Register all the metrics collectors
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/collectors"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 

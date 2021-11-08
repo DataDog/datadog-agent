@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,11 +28,11 @@ const (
 
 var diskMappingCacheKey = cache.BuildAgentKey("containers", "disk_mapping")
 
-func buildIOStats(procPath string, cgs *cgroups.IOStats) *metrics.ContainerIOStats {
+func buildIOStats(procPath string, cgs *cgroups.IOStats) *provider.ContainerIOStats {
 	if cgs == nil {
 		return nil
 	}
-	cs := &metrics.ContainerIOStats{}
+	cs := &provider.ContainerIOStats{}
 
 	convertField(cgs.ReadBytes, &cs.ReadBytes)
 	convertField(cgs.WriteBytes, &cs.WriteBytes)
@@ -45,10 +45,10 @@ func buildIOStats(procPath string, cgs *cgroups.IOStats) *metrics.ContainerIOSta
 		return cs
 	}
 
-	csDevicesStats := make(map[string]metrics.DeviceIOStats, len(deviceMapping))
+	csDevicesStats := make(map[string]provider.DeviceIOStats, len(deviceMapping))
 	for deviceID, deviceStats := range cgs.Devices {
 		if deviceName, found := deviceMapping[deviceID]; found {
-			targetDeviceStats := metrics.DeviceIOStats{}
+			targetDeviceStats := provider.DeviceIOStats{}
 			convertField(deviceStats.ReadBytes, &targetDeviceStats.ReadBytes)
 			convertField(deviceStats.ReadBytes, &targetDeviceStats.ReadBytes)
 			convertField(deviceStats.WriteBytes, &targetDeviceStats.WriteBytes)

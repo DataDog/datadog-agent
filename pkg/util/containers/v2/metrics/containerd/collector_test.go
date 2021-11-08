@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 )
 
 type mockedContainerdClient struct {
@@ -175,23 +175,23 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 	tests := []struct {
 		name                   string
 		containerdMetrics      *types.Metric
-		expectedContainerStats *metrics.ContainerStats
+		expectedContainerStats *provider.ContainerStats
 	}{
 		{
 			name: "Linux metrics",
 			containerdMetrics: &types.Metric{
 				Data: linuxMetricsAny,
 			},
-			expectedContainerStats: &metrics.ContainerStats{
+			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
-				CPU: &metrics.ContainerCPUStats{
+				CPU: &provider.ContainerCPUStats{
 					Total:            util.Float64Ptr(1000),
 					System:           util.Float64Ptr(600),
 					User:             util.Float64Ptr(400),
 					ThrottledPeriods: util.Float64Ptr(1),
 					ThrottledTime:    util.Float64Ptr(100),
 				},
-				Memory: &metrics.ContainerMemStats{
+				Memory: &provider.ContainerMemStats{
 					UsageTotal:   util.Float64Ptr(1000),
 					KernelMemory: util.Float64Ptr(500),
 					Limit:        util.Float64Ptr(2000),
@@ -199,12 +199,12 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 					Cache:        util.Float64Ptr(20),
 					Swap:         util.Float64Ptr(10),
 				},
-				IO: &metrics.ContainerIOStats{
+				IO: &provider.ContainerIOStats{
 					ReadBytes:       util.Float64Ptr(60),
 					WriteBytes:      util.Float64Ptr(20),
 					ReadOperations:  util.Float64Ptr(6),
 					WriteOperations: util.Float64Ptr(3),
-					Devices: map[string]metrics.DeviceIOStats{
+					Devices: map[string]provider.DeviceIOStats{
 						"1:1": {
 							ReadBytes:       util.Float64Ptr(10),
 							WriteBytes:      util.Float64Ptr(15),
@@ -227,19 +227,19 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			containerdMetrics: &types.Metric{
 				Data: windowsMetricsAny,
 			},
-			expectedContainerStats: &metrics.ContainerStats{
+			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
-				CPU: &metrics.ContainerCPUStats{
+				CPU: &provider.ContainerCPUStats{
 					Total:  util.Float64Ptr(1000),
 					System: util.Float64Ptr(600),
 					User:   util.Float64Ptr(400),
 				},
-				Memory: &metrics.ContainerMemStats{
+				Memory: &provider.ContainerMemStats{
 					PrivateWorkingSet: util.Float64Ptr(100),
 					CommitBytes:       util.Float64Ptr(1000),
 					CommitPeakBytes:   util.Float64Ptr(1500),
 				},
-				IO: &metrics.ContainerIOStats{
+				IO: &provider.ContainerIOStats{
 					ReadBytes:       util.Float64Ptr(20),
 					WriteBytes:      util.Float64Ptr(10),
 					ReadOperations:  util.Float64Ptr(2),
@@ -299,19 +299,19 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 		name                 string
 		containerdMetrics    *types.Metric
 		interfaceMapping     map[string]string
-		expectedNetworkStats *metrics.ContainerNetworkStats
+		expectedNetworkStats *provider.ContainerNetworkStats
 	}{
 		{
 			name: "Linux with no interface mapping",
 			containerdMetrics: &types.Metric{
 				Data: linuxMetricsAny,
 			},
-			expectedNetworkStats: &metrics.ContainerNetworkStats{
+			expectedNetworkStats: &provider.ContainerNetworkStats{
 				BytesSent:   util.Float64Ptr(220),
 				BytesRcvd:   util.Float64Ptr(110),
 				PacketsSent: util.Float64Ptr(22),
 				PacketsRcvd: util.Float64Ptr(11),
-				Interfaces: map[string]metrics.InterfaceNetStats{
+				Interfaces: map[string]provider.InterfaceNetStats{
 					"interface-1": {
 						BytesSent:   util.Float64Ptr(20),
 						BytesRcvd:   util.Float64Ptr(10),
@@ -336,12 +336,12 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 				"interface-1": "custom-1",
 				"interface-2": "custom-2",
 			},
-			expectedNetworkStats: &metrics.ContainerNetworkStats{
+			expectedNetworkStats: &provider.ContainerNetworkStats{
 				BytesSent:   util.Float64Ptr(220),
 				BytesRcvd:   util.Float64Ptr(110),
 				PacketsSent: util.Float64Ptr(22),
 				PacketsRcvd: util.Float64Ptr(11),
-				Interfaces: map[string]metrics.InterfaceNetStats{
+				Interfaces: map[string]provider.InterfaceNetStats{
 					"custom-1": {
 						BytesSent:   util.Float64Ptr(20),
 						BytesRcvd:   util.Float64Ptr(10),

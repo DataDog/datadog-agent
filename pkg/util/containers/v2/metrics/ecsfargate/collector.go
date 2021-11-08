@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,11 +29,11 @@ const (
 )
 
 func init() {
-	metrics.GetProvider().RegisterCollector(metrics.CollectorMetadata{
+	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
 		ID:       ecsFargateCollectorID,
 		Priority: 0,
-		Runtimes: metrics.AllLinuxRuntimes,
-		Factory:  func() (metrics.Collector, error) { return newEcsFargateCollector() },
+		Runtimes: provider.AllLinuxRuntimes,
+		Factory:  func() (provider.Collector, error) { return newEcsFargateCollector() },
 	})
 }
 
@@ -48,12 +48,12 @@ type ecsStatsFunc func(ctx context.Context, id string) (*v2.ContainerStats, erro
 // newEcsFargateCollector returns a new *ecsFargateCollector.
 func newEcsFargateCollector() (*ecsFargateCollector, error) {
 	if !config.IsFeaturePresent(config.ECSFargate) {
-		return nil, metrics.ErrPermaFail
+		return nil, provider.ErrPermaFail
 	}
 
 	client, err := metadata.V2()
 	if err != nil {
-		return nil, metrics.ConvertRetrierErr(err)
+		return nil, provider.ConvertRetrierErr(err)
 	}
 
 	return &ecsFargateCollector{client: client}, nil
@@ -63,7 +63,7 @@ func newEcsFargateCollector() (*ecsFargateCollector, error) {
 func (e *ecsFargateCollector) ID() string { return ecsFargateCollectorID }
 
 // GetContainerStats returns stats by container ID.
-func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*metrics.ContainerStats, error) {
+func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := e.stats(containerID, cacheValidity, e.client.GetContainerStats)
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidit
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*metrics.ContainerNetworkStats, error) {
+func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
 	stats, err := e.stats(containerID, cacheValidity, e.client.GetContainerStats)
 	if err != nil {
 		return nil, err
@@ -105,12 +105,12 @@ func (e *ecsFargateCollector) stats(containerID string, cacheValidity time.Durat
 	return stats, nil
 }
 
-func convertEcsStats(ecsStats *v2.ContainerStats) *metrics.ContainerStats {
+func convertEcsStats(ecsStats *v2.ContainerStats) *provider.ContainerStats {
 	if ecsStats == nil {
 		return nil
 	}
 
-	return &metrics.ContainerStats{
+	return &provider.ContainerStats{
 		Timestamp: time.Now(),
 		CPU:       convertCPUStats(&ecsStats.CPU),
 		Memory:    convertMemoryStats(&ecsStats.Memory),
@@ -118,24 +118,24 @@ func convertEcsStats(ecsStats *v2.ContainerStats) *metrics.ContainerStats {
 	}
 }
 
-func convertCPUStats(cpuStats *v2.CPUStats) *metrics.ContainerCPUStats {
+func convertCPUStats(cpuStats *v2.CPUStats) *provider.ContainerCPUStats {
 	if cpuStats == nil {
 		return nil
 	}
 
-	return &metrics.ContainerCPUStats{
+	return &provider.ContainerCPUStats{
 		Total:  util.UIntToFloatPtr(cpuStats.Usage.Total),
 		System: util.UIntToFloatPtr(cpuStats.Usage.Kernelmode),
 		User:   util.UIntToFloatPtr(cpuStats.Usage.Usermode),
 	}
 }
 
-func convertMemoryStats(memStats *v2.MemStats) *metrics.ContainerMemStats {
+func convertMemoryStats(memStats *v2.MemStats) *provider.ContainerMemStats {
 	if memStats == nil {
 		return nil
 	}
 
-	return &metrics.ContainerMemStats{
+	return &provider.ContainerMemStats{
 		Limit:      util.UIntToFloatPtr(memStats.Limit),
 		UsageTotal: util.UIntToFloatPtr(memStats.Usage),
 		RSS:        util.UIntToFloatPtr(memStats.Details.RSS),
@@ -143,7 +143,7 @@ func convertMemoryStats(memStats *v2.MemStats) *metrics.ContainerMemStats {
 	}
 }
 
-func convertIOStats(ioStats *v2.IOStats) *metrics.ContainerIOStats {
+func convertIOStats(ioStats *v2.IOStats) *provider.ContainerIOStats {
 	if ioStats == nil {
 		return nil
 	}
@@ -172,7 +172,7 @@ func convertIOStats(ioStats *v2.IOStats) *metrics.ContainerIOStats {
 		}
 	}
 
-	return &metrics.ContainerIOStats{
+	return &provider.ContainerIOStats{
 		ReadBytes:       util.UIntToFloatPtr(readBytes),
 		WriteBytes:      util.UIntToFloatPtr(writeBytes),
 		ReadOperations:  util.UIntToFloatPtr(readOp),
@@ -180,16 +180,16 @@ func convertIOStats(ioStats *v2.IOStats) *metrics.ContainerIOStats {
 	}
 }
 
-func convertNetworkStats(netStats v2.NetStatsMap, networks map[string]string) *metrics.ContainerNetworkStats {
-	stats := &metrics.ContainerNetworkStats{}
-	stats.Interfaces = make(map[string]metrics.InterfaceNetStats)
+func convertNetworkStats(netStats v2.NetStatsMap, networks map[string]string) *provider.ContainerNetworkStats {
+	stats := &provider.ContainerNetworkStats{}
+	stats.Interfaces = make(map[string]provider.InterfaceNetStats)
 	var totalPacketsRcvd, totalPacketsSent, totalBytesRcvd, totalBytesSent uint64
 	for iface, statsPerInterface := range netStats {
 		if new, found := networks[iface]; found {
 			iface = new
 		}
 
-		iStats := metrics.InterfaceNetStats{
+		iStats := provider.InterfaceNetStats{
 			BytesSent:   util.UIntToFloatPtr(statsPerInterface.TxBytes),
 			PacketsSent: util.UIntToFloatPtr(statsPerInterface.TxPackets),
 			BytesRcvd:   util.UIntToFloatPtr(statsPerInterface.RxBytes),

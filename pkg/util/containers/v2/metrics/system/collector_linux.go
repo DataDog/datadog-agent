@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	utilsystem "github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -25,11 +25,11 @@ const (
 )
 
 func init() {
-	metrics.GetProvider().RegisterCollector(metrics.CollectorMetadata{
+	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
 		ID:       systemCollectorID,
 		Priority: 0,
-		Runtimes: metrics.AllLinuxRuntimes,
-		Factory: func() (metrics.Collector, error) {
+		Runtimes: provider.AllLinuxRuntimes,
+		Factory: func() (provider.Collector, error) {
 			return newCgroupCollector()
 		},
 	})
@@ -58,7 +58,7 @@ func newCgroupCollector() (*cgroupCollector, error) {
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
 		log.Errorf("Unable to initialize cgroup provider (cgroups not mounted?), err: %v", err)
-		return nil, metrics.ErrPermaFail
+		return nil, provider.ErrPermaFail
 	}
 
 	return &cgroupCollector{
@@ -71,7 +71,7 @@ func (c *cgroupCollector) ID() string {
 	return systemCollectorID
 }
 
-func (c *cgroupCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*metrics.ContainerStats, error) {
+func (c *cgroupCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (c *cgroupCollector) GetContainerStats(containerID string, cacheValidity ti
 	return c.buildContainerMetrics(stats), nil
 }
 
-func (c *cgroupCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*metrics.ContainerNetworkStats, error) {
+func (c *cgroupCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -118,8 +118,8 @@ func (c *cgroupCollector) getCgroup(containerID string, cacheValidity time.Durat
 	return cg, nil
 }
 
-func (c *cgroupCollector) buildContainerMetrics(cgs cgroups.Stats) *metrics.ContainerStats {
-	cs := &metrics.ContainerStats{
+func (c *cgroupCollector) buildContainerMetrics(cgs cgroups.Stats) *provider.ContainerStats {
+	cs := &provider.ContainerStats{
 		Timestamp: time.Now(),
 		Memory:    buildMemoryStats(cgs.Memory),
 		CPU:       buildCPUStats(cgs.CPU),
@@ -130,11 +130,11 @@ func (c *cgroupCollector) buildContainerMetrics(cgs cgroups.Stats) *metrics.Cont
 	return cs
 }
 
-func buildMemoryStats(cgs *cgroups.MemoryStats) *metrics.ContainerMemStats {
+func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	if cgs == nil {
 		return nil
 	}
-	cs := &metrics.ContainerMemStats{}
+	cs := &provider.ContainerMemStats{}
 
 	convertField(cgs.UsageTotal, &cs.UsageTotal)
 	convertField(cgs.KernelMemory, &cs.KernelMemory)
@@ -148,11 +148,11 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *metrics.ContainerMemStats {
 	return cs
 }
 
-func buildCPUStats(cgs *cgroups.CPUStats) *metrics.ContainerCPUStats {
+func buildCPUStats(cgs *cgroups.CPUStats) *provider.ContainerCPUStats {
 	if cgs == nil {
 		return nil
 	}
-	cs := &metrics.ContainerCPUStats{}
+	cs := &provider.ContainerCPUStats{}
 
 	// Copy basid fields
 	convertField(cgs.Total, &cs.Total)
@@ -189,11 +189,11 @@ func computeCPULimitPct(cgs *cgroups.CPUStats) *float64 {
 	return &limitPct
 }
 
-func buildPIDStats(cgs *cgroups.PIDStats) *metrics.ContainerPIDStats {
+func buildPIDStats(cgs *cgroups.PIDStats) *provider.ContainerPIDStats {
 	if cgs == nil {
 		return nil
 	}
-	cs := &metrics.ContainerPIDStats{}
+	cs := &provider.ContainerPIDStats{}
 
 	cs.PIDs = cgs.PIDs
 	convertField(cgs.HierarchicalThreadCount, &cs.ThreadCount)

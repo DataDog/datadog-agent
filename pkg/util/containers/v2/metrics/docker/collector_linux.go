@@ -16,13 +16,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/system"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func convertContainerStats(stats *types.Stats) *metrics.ContainerStats {
-	return &metrics.ContainerStats{
+func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
+	return &provider.ContainerStats{
 		Timestamp: time.Now(),
 		CPU:       convertCPUStats(&stats.CPUStats),
 		Memory:    convertMemoryStats(&stats.MemoryStats),
@@ -31,8 +31,8 @@ func convertContainerStats(stats *types.Stats) *metrics.ContainerStats {
 	}
 }
 
-func convertCPUStats(cpuStats *types.CPUStats) *metrics.ContainerCPUStats {
-	return &metrics.ContainerCPUStats{
+func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
+	return &provider.ContainerCPUStats{
 		Total:            util.UIntToFloatPtr(cpuStats.CPUUsage.TotalUsage),
 		System:           util.UIntToFloatPtr(cpuStats.CPUUsage.UsageInKernelmode),
 		User:             util.UIntToFloatPtr(cpuStats.CPUUsage.UsageInUsermode),
@@ -41,8 +41,8 @@ func convertCPUStats(cpuStats *types.CPUStats) *metrics.ContainerCPUStats {
 	}
 }
 
-func convertMemoryStats(memStats *types.MemoryStats) *metrics.ContainerMemStats {
-	containerMemStats := &metrics.ContainerMemStats{
+func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats {
+	containerMemStats := &provider.ContainerMemStats{
 		UsageTotal: util.UIntToFloatPtr(memStats.Usage),
 		Limit:      util.UIntToFloatPtr(memStats.Limit),
 		OOMEvents:  util.UIntToFloatPtr(memStats.Failcnt),
@@ -66,13 +66,13 @@ func convertMemoryStats(memStats *types.MemoryStats) *metrics.ContainerMemStats 
 	return containerMemStats
 }
 
-func convertIOStats(ioStats *types.BlkioStats) *metrics.ContainerIOStats {
-	containerIOStats := metrics.ContainerIOStats{
+func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
+	containerIOStats := provider.ContainerIOStats{
 		ReadBytes:       util.Float64Ptr(0),
 		WriteBytes:      util.Float64Ptr(0),
 		ReadOperations:  util.Float64Ptr(0),
 		WriteOperations: util.Float64Ptr(0),
-		Devices:         make(map[string]metrics.DeviceIOStats),
+		Devices:         make(map[string]provider.DeviceIOStats),
 	}
 
 	procPath := config.Datadog.GetString("container_proc_root")
@@ -84,7 +84,7 @@ func convertIOStats(ioStats *types.BlkioStats) *metrics.ContainerIOStats {
 	for _, blkioStatEntry := range ioStats.IoServiceBytesRecursive {
 		deviceName, found := deviceMapping[fmt.Sprintf("%d:%d", blkioStatEntry.Major, blkioStatEntry.Minor)]
 
-		var device metrics.DeviceIOStats
+		var device provider.DeviceIOStats
 		if found {
 			device = containerIOStats.Devices[deviceName]
 		}
@@ -106,7 +106,7 @@ func convertIOStats(ioStats *types.BlkioStats) *metrics.ContainerIOStats {
 	for _, blkioStatEntry := range ioStats.IoServicedRecursive {
 		deviceName, found := deviceMapping[fmt.Sprintf("%d:%d", blkioStatEntry.Major, blkioStatEntry.Minor)]
 
-		var device metrics.DeviceIOStats
+		var device provider.DeviceIOStats
 		if found {
 			device = containerIOStats.Devices[deviceName]
 		}
@@ -128,8 +128,8 @@ func convertIOStats(ioStats *types.BlkioStats) *metrics.ContainerIOStats {
 	return &containerIOStats
 }
 
-func convertPIDStats(pidStats *types.PidsStats) *metrics.ContainerPIDStats {
-	return &metrics.ContainerPIDStats{
+func convertPIDStats(pidStats *types.PidsStats) *provider.ContainerPIDStats {
+	return &provider.ContainerPIDStats{
 		ThreadCount: util.UIntToFloatPtr(pidStats.Current),
 		ThreadLimit: util.UIntToFloatPtr(pidStats.Limit),
 	}

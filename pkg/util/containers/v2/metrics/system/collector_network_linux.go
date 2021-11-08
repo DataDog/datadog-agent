@@ -20,12 +20,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func buildNetworkStats(procPath string, networks map[string]string, cgs *cgroups.PIDStats) (*metrics.ContainerNetworkStats, error) {
+func buildNetworkStats(procPath string, networks map[string]string, cgs *cgroups.PIDStats) (*provider.ContainerNetworkStats, error) {
 	if len(cgs.PIDs) > 0 {
 		return collectNetworkStats(procPath, cgs.PIDs[0], networks)
 	}
@@ -36,7 +36,7 @@ func buildNetworkStats(procPath string, networks map[string]string, cgs *cgroups
 // collectNetworkStats retrieves the network statistics for a given pid.
 // The networks map allows to optionnaly map interface name to user-friendly
 // network names. If not found in the map, the interface name is used.
-func collectNetworkStats(procPath string, pid int, networks map[string]string) (*metrics.ContainerNetworkStats, error) {
+func collectNetworkStats(procPath string, pid int, networks map[string]string) (*provider.ContainerNetworkStats, error) {
 	procNetFile := filepath.Join(procPath, strconv.Itoa(pid), "net", "dev")
 	if !filesystem.FileExists(procNetFile) {
 		log.Debugf("Unable to read %s for pid %d", procNetFile, pid)
@@ -52,7 +52,7 @@ func collectNetworkStats(procPath string, pid int, networks map[string]string) (
 	}
 
 	var totalRcvd, totalSent, totalPktRcvd, totalPktSent uint64
-	ifaceStats := make(map[string]metrics.InterfaceNetStats)
+	ifaceStats := make(map[string]provider.InterfaceNetStats)
 
 	// Format:
 	//
@@ -68,7 +68,7 @@ func collectNetworkStats(procPath string, pid int, networks map[string]string) (
 		}
 		iface := strings.TrimSuffix(fields[0], ":")
 
-		var stat metrics.InterfaceNetStats
+		var stat provider.InterfaceNetStats
 		var networkName string
 
 		if nw, ok := networks[iface]; ok {
@@ -96,7 +96,7 @@ func collectNetworkStats(procPath string, pid int, networks map[string]string) (
 	}
 
 	if len(ifaceStats) > 0 {
-		netStats := metrics.ContainerNetworkStats{Interfaces: ifaceStats}
+		netStats := provider.ContainerNetworkStats{Interfaces: ifaceStats}
 		convertField(&totalRcvd, &netStats.BytesRcvd)
 		convertField(&totalSent, &netStats.BytesSent)
 		convertField(&totalPktRcvd, &netStats.PacketsRcvd)

@@ -14,11 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 )
 
 func TestStats(t *testing.T) {
@@ -124,7 +125,7 @@ func Test_convertNetworkStats(t *testing.T) {
 		name           string
 		input          map[string]types.NetworkStats
 		networks       map[string]string
-		expectedOutput metrics.ContainerNetworkStats
+		expectedOutput provider.ContainerNetworkStats
 	}{
 		{
 			name: "basic",
@@ -145,12 +146,12 @@ func Test_convertNetworkStats(t *testing.T) {
 			networks: map[string]string{
 				"eth1": "custom_iface",
 			},
-			expectedOutput: metrics.ContainerNetworkStats{
+			expectedOutput: provider.ContainerNetworkStats{
 				BytesSent:   util.Float64Ptr(92),
 				BytesRcvd:   util.Float64Ptr(88),
 				PacketsSent: util.Float64Ptr(94),
 				PacketsRcvd: util.Float64Ptr(90),
-				Interfaces: map[string]metrics.InterfaceNetStats{
+				Interfaces: map[string]provider.InterfaceNetStats{
 					"eth0": {
 						BytesSent:   util.Float64Ptr(44),
 						BytesRcvd:   util.Float64Ptr(42),
