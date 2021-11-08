@@ -115,6 +115,7 @@ func TestFromAgentConfigPort(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
+				Metrics:            map[string]interface{}{},
 			},
 		},
 		{
@@ -124,6 +125,7 @@ func TestFromAgentConfigPort(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
+				Metrics:            map[string]interface{}{},
 			},
 		},
 		{
@@ -138,6 +140,7 @@ func TestFromAgentConfigPort(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				Metrics:        map[string]interface{}{},
 			},
 		},
 	}

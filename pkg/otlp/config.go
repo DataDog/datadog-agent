@@ -46,7 +46,7 @@ func isSetExperimentalReceiver(cfg config.Config) bool {
 	//
 	// IsSet won't work here: it will return false if the section is present but empty.
 	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
-	_, ok := cfg.GetStringMap(config.ExperimentalOTLPSection)[config.ExperimentalOTLPReceiverSection]
+	_, ok := cfg.GetStringMap(config.ExperimentalOTLPSection)[config.ReceiverSubSectionKey]
 	return ok
 }
 

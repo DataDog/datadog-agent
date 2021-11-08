@@ -14,7 +14,7 @@ const (
 	ExperimentalOTLPMetricsEnabled  = ExperimentalOTLPSection + ".metrics_enabled"
 	ExperimentalOTLPTracesEnabled   = ExperimentalOTLPSection + ".traces_enabled"
 	ReceiverSubSectionKey           = "receiver"
-	ExperimentalOTLPReceiverSection = ExperimentalOTLPSection + ReceiverSubSectionKey
+	ExperimentalOTLPReceiverSection = ExperimentalOTLPSection + "." + ReceiverSubSectionKey
 	ExperimentalOTLPMetrics         = ExperimentalOTLPSection + ".metrics"
 )
 
