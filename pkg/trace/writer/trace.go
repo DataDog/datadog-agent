@@ -223,13 +223,13 @@ func (w *TraceWriter) flush() {
 	defer w.resetBuffer()
 
 	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
-	tracePayload := pb.AgentPayload{
+	p := pb.AgentPayload{
 		AgentVersion:   version.AgentVersion,
 		HostName:       w.hostname,
 		Env:            w.env,
 		TracerPayloads: w.tracerPayloads,
 	}
-	b, err := proto.Marshal(&tracePayload)
+	b, err := proto.Marshal(&p)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return

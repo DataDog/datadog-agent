@@ -86,7 +86,7 @@ func TestProcessor(t *testing.T) {
 
 			testSpans := createTestSpans("test", "test")
 			numSpans := len(testSpans)
-			testChunk := testutil.GetTraceChunkWithSpans(testSpans)
+			testChunk := testutil.TraceChunkWithSpans(testSpans)
 			root := testSpans[0]
 			sampler.SetPreSampleRate(root, testPreSampleRate)
 			sampler.SetClientRate(root, testClientSampleRate)

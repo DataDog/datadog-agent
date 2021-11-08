@@ -140,31 +140,47 @@ func GetTestTraceChunks(traceN, size int, realisticIDs bool) []*pb.TraceChunk {
 	return traceChunks
 }
 
-// GetTraceChunkWithSpan wraps a `span` with pb.TraceChunk
-func GetTraceChunkWithSpan(span *pb.Span) *pb.TraceChunk {
+// TraceChunkWithSpan wraps a `span` with pb.TraceChunk
+func TraceChunkWithSpan(span *pb.Span) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Spans:    []*pb.Span{span},
 		Priority: int32(sampler.PriorityNone),
 	}
 }
 
-// GetTraceChunkWithSpans wraps `spans` with pb.TraceChunk
-func GetTraceChunkWithSpans(spans []*pb.Span) *pb.TraceChunk {
+// TraceChunkWithSpans wraps `spans` with pb.TraceChunk
+func TraceChunkWithSpans(spans []*pb.Span) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Spans:    spans,
 		Priority: int32(sampler.PriorityNone),
 	}
 }
 
-// GetTracerPayloadWithChunk wraps `chunk` with pb.TraceChunk
-func GetTracerPayloadWithChunk(chunk *pb.TraceChunk) *pb.TracerPayload {
+// TraceChunkWithSpanAndPriority wraps a `span` and `priority` with pb.TraceChunk
+func TraceChunkWithSpanAndPriority(span *pb.Span, priority int32) *pb.TraceChunk {
+	return &pb.TraceChunk{
+		Spans:    []*pb.Span{span},
+		Priority: priority,
+	}
+}
+
+// TraceChunkWithSpansAndPriority wraps `spans` and `priority` with pb.TraceChunk
+func TraceChunkWithSpansAndPriority(spans []*pb.Span, priority int32) *pb.TraceChunk {
+	return &pb.TraceChunk{
+		Spans:    spans,
+		Priority: priority,
+	}
+}
+
+// TracerPayloadWithChunk wraps `chunk` with pb.TraceChunk
+func TracerPayloadWithChunk(chunk *pb.TraceChunk) *pb.TracerPayload {
 	return &pb.TracerPayload{
 		Chunks: []*pb.TraceChunk{chunk},
 	}
 }
 
-// GetTracerPayloadWithChunks wraps `chunks` with pb.TraceChunk
-func GetTracerPayloadWithChunks(chunks []*pb.TraceChunk) *pb.TracerPayload {
+// TracerPayloadWithChunks wraps `chunks` with pb.TraceChunk
+func TracerPayloadWithChunks(chunks []*pb.TraceChunk) *pb.TracerPayload {
 	return &pb.TracerPayload{
 		Chunks: chunks,
 	}

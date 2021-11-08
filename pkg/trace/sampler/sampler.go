@@ -43,7 +43,7 @@ const (
 	// KeyErrorType is the key of the error type in the meta map
 	KeyErrorType = "error.type"
 
-	// KeyAnalyzedSpans is the key of the metric key holding a flag tells if span is analyzed
+	// KeyAnalyzedSpans is the metric key which specifies if a span is analyzed.
 	KeyAnalyzedSpans = "_dd.analyzed"
 
 	// KeyHTTPStatusCode is the key of the http status code in the meta map

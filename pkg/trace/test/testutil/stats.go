@@ -11,10 +11,9 @@ import (
 )
 
 const (
-	defaultEnv            = "none"
-	defaultHostname       = "hostname"
-	defaultTracerHostname = ""
-	defaultContainerID    = "container-id"
+	defaultEnv         = "none"
+	defaultHostname    = "hostname"
+	defaultContainerID = "container-id"
 )
 
 // BucketWithSpans returns a stats bucket populated with spans stats
@@ -23,7 +22,7 @@ func BucketWithSpans(spans []*stats.WeightedSpan) pb.ClientStatsBucket {
 	for _, s := range spans {
 		// override version to ensure all buckets will have the same payload key.
 		s.Meta["version"] = ""
-		srb.HandleSpan(s, "", defaultEnv, defaultHostname, defaultTracerHostname, defaultContainerID)
+		srb.HandleSpan(s, "", defaultEnv, defaultHostname, defaultContainerID)
 	}
 	buckets := srb.Export()
 	if len(buckets) != 1 {

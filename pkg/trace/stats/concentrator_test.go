@@ -86,6 +86,26 @@ func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []
 	assert.Equal(t, expectedM, actualM)
 }
 
+// TestTracerHostname tests if `Concentrator` uses the tracer hostname rather than agent hostname, if there is one.
+func TestTracerHostname(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	spans := []*pb.Span{
+		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
+	}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := &EnvTrace{
+		Env:   "none",
+		Trace: NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "tracer-hostname"),
+	}
+	c := NewTestConcentrator(now)
+	c.addNow(testTrace, "")
+
+	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	assert.Equal("tracer-hostname", stats.Stats[0].Hostname)
+}
+
 // TestConcentratorOldestTs tests that the Agent doesn't report time buckets from a
 // time before its start
 func TestConcentratorOldestTs(t *testing.T) {

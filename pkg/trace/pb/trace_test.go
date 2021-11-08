@@ -65,6 +65,7 @@ func TestCut(t *testing.T) {
 			},
 		})
 	})
+
 	t.Run("lower-boundary", func(t *testing.T) {
 		tp := &TracerPayload{
 			Tags: map[string]string{
@@ -106,6 +107,7 @@ func TestCut(t *testing.T) {
 			},
 		})
 	})
+
 	t.Run("upper-boundary", func(t *testing.T) {
 		tp := &TracerPayload{
 			Tags: map[string]string{

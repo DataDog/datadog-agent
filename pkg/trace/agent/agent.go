@@ -29,11 +29,8 @@ import (
 )
 
 const (
-	// Deprecated. Use `Origin` in `TraceChunk`.
-	tagOrigin = "_dd.origin"
-	// Deprecated. Use `Priority` in `TraceChunk`.
-	tagSamplingPriority = "_sampling_priority_v1"
-	// Deprecated. Use `Hostname` in `TracerPayload`.
+	// tagHostname specifies the hostname of the tracer.
+	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
 	tagHostname = "_dd.hostname"
 )
 
@@ -213,22 +210,10 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
-		// Trace chunks from endpoints older than v06 don't have `Priority` in their root.
-		if chunk.Priority == int32(sampler.PriorityNone) && root.Metrics != nil {
-			// if the priority is set in a metric on the root, use it for the whole chunk
-			if p, ok := root.Metrics[tagSamplingPriority]; ok {
-				chunk.Priority = int32(p)
-			}
-		}
-		// Trace chunks from endpoints older than v06 don't have `Origin` in their root.
-		if chunk.Origin == "" && root.Meta != nil {
-			chunk.Origin = root.Meta[tagOrigin]
-		}
-		// Tracer payloads from endpoints older than v06 don't have `Hostname` in their root.
+		normalizeChunk(chunk, root)
 		if p.TracerPayload.Hostname == "" {
-			if tracerHostname, ok := root.Meta[tagHostname]; ok && tracerHostname != "" {
-				p.TracerPayload.Hostname = tracerHostname
-			}
+			// Older tracers set tracer hostname in the root span.
+			p.TracerPayload.Hostname = root.Meta[tagHostname]
 		}
 
 		if !a.Blacklister.Allows(root) {
@@ -292,8 +277,6 @@ func (a *Agent) Process(p *api.Payload) {
 			Env:              env,
 			ClientDroppedP0s: p.ClientDroppedP0s > 0,
 		}
-
-		numEvents, keep := a.sample(ts, pt)
 		if !p.ClientComputedStats {
 			if envtraces == nil {
 				envtraces = make([]stats.EnvTrace, 0, len(p.Chunks()))
@@ -304,13 +287,13 @@ func (a *Agent) Process(p *api.Payload) {
 			})
 		}
 
-		if !keep {
-			// the trace was dropped and no analyzed span was kept
+		numEvents, keep := a.sample(ts, pt)
+		if !keep && numEvents == 0 {
+			// the trace was dropped and no analyzed span were kept
 			p.RemoveChunk(i)
 			continue
 		}
 
-		// TODO(piochelepiotr): Maybe we can skip some computation if stats are computed in the tracer and the trace is droped.
 		if !chunk.DroppedTrace {
 			ss.SpanCount += int64(len(chunk.Spans))
 		}
@@ -396,8 +379,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
-// sample decides whether the trace will be kept and extracts any APM events
-// from it.
+// sample reports the number of events found in pt and whether the chunk should be kept as a trace.
 func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (numEvents int64, keep bool) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
@@ -418,7 +400,7 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (numEvents int64, k
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
 	atomic.AddInt64(&ts.EventsSampled, numEvents)
 
-	return numEvents, sampled || numEvents > 0
+	return numEvents, sampled
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision

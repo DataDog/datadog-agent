@@ -83,9 +83,8 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		numEvents++
 	}
 
-	// If `DroppedTrace` is false, we will just mark spans as analyzed in-place.
-	// If `DroppedTrace` is true, we will store analyzed spans in `events`, then replaces chunk's `Spans` with it.
 	if t.DroppedTrace {
+		// we are not keeping anything out of this trace, except the events
 		t.Spans = events
 	}
 

@@ -6,23 +6,38 @@ import "span.proto";
 
 // TraceChunk represents a list of spans with the same trace id.
 message TraceChunk {
-	int32 priority = 1; // Sampling priority. Example: AutoDrop(0), AutoKeep(1), UserKeep(2), etc.
-	string origin = 2; // Origin product. Example: "lambda", "rum", "ciapp-test", etc.
-	repeated Span spans = 3; // List of spans.
-	map<string, string> tags = 4; // Trace level tags - tags common in all `spans`.
-	bool droppedTrace = 5; // If true, the trace chunk was dropped, but some spans were kept by Event Processor.
+	// priority specifies sampling priority of the trace.
+	int32 priority = 1;
+	// origin specifies origin product ("lambda", "rum", etc.) of the trace.
+	string origin = 2;
+	// spans specifies list of containing spans.
+	repeated Span spans = 3;
+	// tags specifies tags common in all `spans`.
+	map<string, string> tags = 4;
+	// droppedTrace specifies whether the trace was dropped by samplers or not.
+	bool droppedTrace = 5;
 }
 
 // TracerPayload represents a payload the trace agent receives from tracers.
 message TracerPayload {
-	string containerID = 1; // ID of the container where the tracer is running on.
-	string languageName = 2; // Language of the tracer.
-	string languageVersion = 3; // Language version of the tracer.
-	string tracerVersion = 4; // Tracer's version.
-	string runtimeID = 5; // V4 UUID that represents a tracer session.
-	repeated TraceChunk chunks = 6; // List of chunks.
-	map<string, string> tags = 7; // Agent payload level tags - tags common in all `chunks`.
-	string env = 8; // `env` tag that set with the tracer.
-	string hostname = 9; // hostname of were the trace is running
-	string appVersion = 10; // `version` tag that set with the tracer.
+	// containerID specifies the ID of the container where the tracer is running on.
+	string containerID = 1;
+	// languageName specifies language of the tracer.
+	string languageName = 2;
+	// languageVersion specifies language version of the tracer.
+	string languageVersion = 3;
+	// tracerVersion specifies version of the tracer.
+	string tracerVersion = 4;
+	// runtimeID specifies V4 UUID representation of a tracer session.
+	string runtimeID = 5;
+	// chunks specifies list of containing trace chunks.
+	repeated TraceChunk chunks = 6;
+	// tags specifies tags common in all `chunks`.
+	map<string, string> tags = 7;
+	// env specifies `env` tag that set with the tracer.
+	string env = 8;
+	// hostname specifies hostname of where the tracer is running.
+	string hostname = 9;
+	// version specifies `version` tag that set with the tracer.
+	string appVersion = 10;
 }
