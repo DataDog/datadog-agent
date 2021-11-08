@@ -13,7 +13,10 @@ import (
 
 func TestUnmarshalString(t *testing.T) {
 	array := []byte{65, 66, 67, 0, 0, 0, 65, 66}
-	str, _ := UnmarshalString(array, 8)
+	str, err := UnmarshalString(array, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Equal(t, "ABC", str)
 }
