@@ -155,7 +155,7 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 		for _, podContainer := range pod.Containers {
 			container, err := k.workloadmetaStore.GetContainer(podContainer.ID)
 			if err != nil {
-				log.Debugf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
+				log.Debugf("Pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
 				continue
 			}
 
