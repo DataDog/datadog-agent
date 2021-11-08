@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const regoEvaluator = "rego"
+
 type regoCheck struct {
 	ruleID            string
 	ruleScope         compliance.RuleScope
@@ -254,9 +256,10 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 		}
 
 		report := &compliance.Report{
-			Resource: reportResource,
-			Passed:   finding.Status,
-			Data:     finding.Data,
+			Resource:  reportResource,
+			Passed:    finding.Status,
+			Data:      finding.Data,
+			Evaluator: regoEvaluator,
 		}
 
 		reports = append(reports, report)
@@ -275,7 +278,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	} else {
 		normalInput, err := r.buildNormalInput(env)
 		if err != nil {
-			return []*compliance.Report{compliance.BuildReportForError(err)}
+			return buildErrorReports(err)
 		}
 
 		input = normalInput
@@ -291,7 +294,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	ctx := context.TODO()
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
-		return []*compliance.Report{compliance.BuildReportForError(err)}
+		return buildErrorReports(err)
 	} else if len(results) == 0 {
 		return nil
 	}
@@ -299,16 +302,12 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	log.Debugf("%s: rego evaluation done => %+v\n", r.ruleID, results)
 
 	if len(results) == 0 || len(results[0].Expressions) == 0 {
-		return []*compliance.Report{
-			compliance.BuildReportForError(
-				errors.New("failed to collect result expression"),
-			),
-		}
+		return buildErrorReports(errors.New("failed to collect result expression"))
 	}
 
 	findings, err := parseFindings(results[0].Expressions[0].Value)
 	if err != nil {
-		return []*compliance.Report{compliance.BuildReportForError(err)}
+		return buildErrorReports(err)
 	}
 
 	reports := findingsToReports(findings)
@@ -390,4 +389,10 @@ func checkFindingsRequiredFields(metadata *mapstructure.Metadata) error {
 	}
 
 	return nil
+}
+
+func buildErrorReports(err error) []*compliance.Report {
+	report := compliance.BuildReportForError(err)
+	report.Evaluator = regoEvaluator
+	return []*compliance.Report{report}
 }
