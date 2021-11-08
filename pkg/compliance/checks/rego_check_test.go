@@ -128,6 +128,7 @@ func TestRegoProcessCheck(t *testing.T) {
 						ID:   "42",
 						Type: "process",
 					},
+					Evaluator: "rego",
 				},
 			},
 		},
