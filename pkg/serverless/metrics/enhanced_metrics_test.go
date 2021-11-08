@@ -20,9 +20,17 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 	go GenerateEnhancedMetricsFromFunctionLog("JavaScript heap out of memory", reportLogTime, tags, metricsChan)
 
 	generatedMetrics := <-metricsChan
-
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       OutOfMemoryMetric,
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLogTime.UnixNano()),
+	}})
+	generatedMetrics = <-metricsChan
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
+		Name:       errorsMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
