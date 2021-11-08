@@ -34,16 +34,16 @@ func NewFactory(s serializer.MetricSerializer) component.ExporterFactory {
 	)
 }
 
-func (f *factory) createMetricExporter(_ context.Context, params component.ExporterCreateSettings, cfg config.Exporter) (component.MetricsExporter, error) {
-	exp, err := newExporter(params.Logger, f.s)
+func (f *factory) createMetricExporter(_ context.Context, params component.ExporterCreateSettings, c config.Exporter) (component.MetricsExporter, error) {
+	cfg := c.(*exporterConfig)
+
+	exp, err := newExporter(params.Logger, f.s, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
 	return exporterhelper.NewMetricsExporter(cfg, params, exp.ConsumeMetrics,
-		exporterhelper.WithQueue(exporterhelper.DefaultQueueSettings()),
-		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithQueue(cfg.QueueSettings),
+		exporterhelper.WithTimeout(cfg.TimeoutSettings),
 	)
 }

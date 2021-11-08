@@ -103,9 +103,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	//needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
-	// should be the above, but HTTP is lacking a runtime version right now, so always do offset guessing
-	needsOffsets := true
+	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
 		for i := 0; i < 5; i++ {

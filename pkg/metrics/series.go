@@ -16,9 +16,11 @@ import (
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/richardartoul/molecule"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -58,11 +60,6 @@ type Serie struct {
 
 // Series represents a list of Serie ready to be serialize
 type Series []*Serie
-
-// Marshal serialize timeseries using protobuf
-func (series Series) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("Series payload serialization is not implemented")
-}
 
 // MarshalStrings converts the timeseries to a sorted slice of string slices
 func (series Series) MarshalStrings() ([]string, [][]string) {
@@ -153,7 +150,7 @@ func (series Series) MarshalJSON() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into, at least, "times" number of pieces
-func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (series Series) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	seriesExpvar.Add("TimesSplit", 1)
 	tlmSeries.Inc("times_split")
 
@@ -177,7 +174,7 @@ func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 
 	nbSeriesPerPayload := len(series) / times
 
-	payloads := []marshaler.Marshaler{}
+	payloads := []marshaler.AbstractMarshaler{}
 	current := Series{}
 	for _, m := range metricsPerName {
 		// If on metric is bigger than the targeted size we directly
@@ -205,9 +202,207 @@ func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	return payloads, nil
 }
 
-// MarshalSplitCompress not implemented
+// seriesAPIV2Enum returns the enumeration value for MetricPayload.MetricType in
+// https://github.com/DataDog/agent-payload/blob/master/proto/metrics/agent_payload.proto
+func (a APIMetricType) seriesAPIV2Enum() int32 {
+	switch a {
+	case APIGaugeType:
+		return 0
+	case APIRateType:
+		return 2
+	case APICountType:
+		return 1
+	default:
+		panic("unknown APIMetricType")
+	}
+}
+
+// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
+// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
+// compressed protobuf marshaled MetricPayload objects.
 func (series Series) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return nil, fmt.Errorf("Series MarshalSplitCompress is not implemented")
+	var err error
+	var compressor *stream.Compressor
+	buf := bufferContext.PrecompressionBuf
+	ps := molecule.NewProtoStream(buf)
+	payloads := []*[]byte{}
+
+	// constants for the protobuf data we will be writing, taken from MetricPayload in
+	// https://github.com/DataDog/agent-payload/blob/master/proto/metrics/agent_payload.proto
+	const payloadSeries = 1
+	const seriesResources = 1
+	const seriesMetric = 2
+	const seriesTags = 3
+	const seriesPoints = 4
+	const seriesType = 5
+	const seriesSourceTypeName = 7
+	const seriesInterval = 8
+	const resourceType = 1
+	const resourceName = 2
+	const pointValue = 1
+	const pointTimestamp = 2
+
+	// Prepare to write the next payload
+	startPayload := func() error {
+		var err error
+
+		bufferContext.CompressorInput.Reset()
+		bufferContext.CompressorOutput.Reset()
+
+		compressor, err = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, []byte{}, []byte{})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	finishPayload := func() error {
+		var payload []byte
+		// Since the compression buffer is full - flush it and rotate
+		payload, err = compressor.Close()
+		if err != nil {
+			return err
+		}
+
+		payloads = append(payloads, &payload)
+
+		return nil
+	}
+
+	// start things off
+	err = startPayload()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, serie := range series {
+		buf.Reset()
+		err = ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
+			var err error
+
+			err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
+				err = ps.String(resourceType, "host")
+				if err != nil {
+					return err
+				}
+
+				err = ps.String(resourceName, serie.Host)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+
+			err = ps.String(seriesMetric, serie.Name)
+			if err != nil {
+				return err
+			}
+
+			for _, tag := range serie.Tags {
+				err = ps.String(seriesTags, tag)
+				if err != nil {
+					return err
+				}
+			}
+
+			err = ps.Int32(seriesType, serie.MType.seriesAPIV2Enum())
+			if err != nil {
+				return err
+			}
+
+			err = ps.String(seriesSourceTypeName, serie.SourceTypeName)
+			if err != nil {
+				return err
+			}
+
+			err = ps.Int64(seriesInterval, serie.Interval)
+			if err != nil {
+				return err
+			}
+
+			// (Unit is omitted)
+
+			for _, p := range serie.Points {
+				err = ps.Embedded(seriesPoints, func(ps *molecule.ProtoStream) error {
+					err = ps.Int64(pointTimestamp, int64(p.Ts))
+					if err != nil {
+						return err
+					}
+
+					err = ps.Double(pointValue, p.Value)
+					if err != nil {
+						return err
+					}
+
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// Compress the protobuf metadata and the marshaled series
+		err = compressor.AddItem(buf.Bytes())
+		switch err {
+		case stream.ErrPayloadFull:
+			expvarsPayloadFull.Add(1)
+			tlmPayloadFull.Inc()
+
+			err = finishPayload()
+			if err != nil {
+				return nil, err
+			}
+
+			err = startPayload()
+			if err != nil {
+				return nil, err
+			}
+
+			// Add it to the new compression buffer
+			err = compressor.AddItem(buf.Bytes())
+			if err == stream.ErrItemTooBig {
+				// Item was too big, drop it
+				expvarsItemTooBig.Add(1)
+				tlmItemTooBig.Inc()
+				continue
+			}
+			if err != nil {
+				// Unexpected error bail out
+				expvarsUnexpectedItemDrops.Add(1)
+				tlmUnexpectedItemDrops.Inc()
+				return nil, err
+			}
+		case stream.ErrItemTooBig:
+			// Item was too big, drop it
+			expvarsItemTooBig.Add(1)
+			tlmItemTooBig.Add(1)
+		case nil:
+			continue
+		default:
+			// Unexpected error bail out
+			expvarsUnexpectedItemDrops.Add(1)
+			tlmUnexpectedItemDrops.Inc()
+			return nil, err
+		}
+	}
+
+	err = finishPayload()
+	if err != nil {
+		return nil, err
+	}
+
+	return payloads, nil
 }
 
 // UnmarshalJSON is a custom unmarshaller for Point (used for testing)

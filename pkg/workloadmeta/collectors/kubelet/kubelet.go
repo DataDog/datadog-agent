@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubelet
@@ -134,7 +135,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 
 		events = append(events, containerEvents...)
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: collectorID,
+			Source: workloadmeta.SourceKubelet,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: entity,
 		})
@@ -180,7 +181,7 @@ func (c *collector) parsePodContainers(
 
 			podContainer.Image, err = workloadmeta.NewContainerImage(containerSpec.Image)
 			if err != nil {
-				log.Warnf("cannot split image name %q: %s", containerSpec.Image, err)
+				log.Debugf("cannot split image name %q: %s", containerSpec.Image, err)
 			}
 
 			podContainer.Image.ID = container.ImageID
@@ -209,7 +210,7 @@ func (c *collector) parsePodContainers(
 
 		podContainers = append(podContainers, podContainer)
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: collectorID,
+			Source: workloadmeta.SourceKubelet,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
@@ -277,7 +278,7 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEv
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: collectorID,
+			Source: workloadmeta.SourceKubelet,
 			Type:   workloadmeta.EventTypeUnset,
 			Entity: workloadmeta.EntityID{
 				Kind: kind,

@@ -32,6 +32,7 @@ func TestRulesetLoaded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
 		if err := test.GetProbeCustomEvent(t, func() error {
@@ -61,6 +62,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	truncatedParentsFile, _, err := test.Path(truncatedParents)
 	if err != nil {
@@ -122,14 +124,16 @@ func TestTruncatedParentsERPC(t *testing.T) {
 
 func TestNoisyProcess(t *testing.T) {
 	rule := &rules.RuleDefinition{
-		ID:         "path_test",
-		Expression: `open.file.path =~ "*do-not-match/test-open" && open.flags & O_CREAT != 0`,
+		ID: "path_test",
+		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
+		Expression: `open.file.path =~ "{{.Root}}/no-test-open*" && open.flags & O_CREAT != 0`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	file, _, err := test.Path("test-open")
 	if err != nil {

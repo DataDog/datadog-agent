@@ -96,19 +96,31 @@ func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 
 // Configure configures the snmp checks
 func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	// Must be called before c.CommonConfigure
-	c.BuildID(rawInstance, rawInitConfig)
-
-	err := c.CommonConfigure(rawInstance, source)
-	if err != nil {
-		return fmt.Errorf("common configure failed: %s", err)
-	}
+	var err error
 
 	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
 		return fmt.Errorf("build config failed: %s", err)
 	}
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
+
+	if c.config.Name == "" {
+		// Set 'name' field of the instance if not already defined in rawInstance config.
+		// The name/device_id will be used by Check.BuildID for building the check id.
+		// Example of check id: `snmp:<DEVICE_ID>:a3ec59dfb03e4457`
+		setNameErr := rawInstance.SetNameForInstance(c.config.DeviceID)
+		if setNameErr != nil {
+			log.Debugf("error setting device_id as name: %s", setNameErr)
+		}
+	}
+
+	// Must be called before c.CommonConfigure
+	c.BuildID(rawInstance, rawInitConfig)
+
+	err = c.CommonConfigure(rawInstance, source)
+	if err != nil {
+		return fmt.Errorf("common configure failed: %s", err)
+	}
 
 	if c.config.IsDiscovery() {
 		c.discovery = discovery.NewDiscovery(c.config)

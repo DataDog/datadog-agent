@@ -24,7 +24,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	d.SetClientReady(false)
 	d.WaitForDaemon()
 
-	d.StartInvocation()
+	d.TellDaemonRuntimeStarted()
 
 	//deadline = current time + 20 ms
 	deadlineMs := (time.Now().UnixNano())/1000000 + 20
