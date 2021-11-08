@@ -6,7 +6,10 @@
 package health
 
 import (
+	"encoding/json"
 	"errors"
+	"expvar"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"time"
 )
 
@@ -45,6 +48,63 @@ func GetReady() (ret Status) {
 	return
 }
 
+func GetRunnersStatus(runnersName []string) (ret Status) {
+	runnerStatsJSON := []byte(expvar.Get("runner").String())
+	runnerStats := make(map[string]interface{})
+	err := json.Unmarshal(runnerStatsJSON, &runnerStats)
+	if err != nil {
+		_ = log.Errorf("Failed to get runners status. %w", err)
+		ret.Unhealthy = append(ret.Unhealthy, "agent")
+		return
+	}
+
+	checks := runnerStats["Checks"].(map[string]interface{})
+
+	for _, runnerName := range runnersName {
+		healthy := isRunnerHealthy(checks, runnerName)
+		if healthy {
+			ret.Healthy = append(ret.Healthy, runnerName)
+		} else {
+			ret.Unhealthy = append(ret.Unhealthy, runnerName)
+		}
+	}
+
+	return
+}
+
+func isRunnerHealthy(checks map[string]interface{}, runnerName string) bool {
+	val, ok := checks[runnerName]
+	if !ok {
+		_ = log.Errorf("Failed to get runner status. Runner with %s name is not registered", runnerName)
+		return false
+	}
+	runnerInstance := val.(map[string]interface{})
+	for _, v := range runnerInstance {
+		lastError := v.(map[string]interface{})["LastError"]
+		if lastError != "" {
+			return false
+		}
+	}
+	return true
+}
+
+// todo remove code duplication
+func getStatusNonBlockingArguments(getStatus func([]string) Status, args []string) (Status, error) {
+	// Run the health status in a goroutine
+	ch := make(chan Status, 1)
+	go func() {
+		ch <- getStatus(args)
+	}()
+
+	// Only wait 500ms before returning
+	select {
+	case status := <-ch:
+		return status, nil
+	case <-time.After(500 * time.Millisecond):
+		return Status{}, errors.New("timeout when getting health status")
+	}
+}
+
 // getStatusNonBlocking allows to query the health status of the agent
 // and is guaranteed to return under 500ms.
 func getStatusNonBlocking(getStatus func() Status) (Status, error) {
@@ -71,4 +131,9 @@ func GetLiveNonBlocking() (Status, error) {
 // GetReadyNonBlocking returns the health of all components registered for both readiness and liveness with a 500ms timeout
 func GetReadyNonBlocking() (Status, error) {
 	return getStatusNonBlocking(GetReady)
+}
+
+// todo desc
+func GetRunnersNonBlocking(runnerName []string) (Status, error) {
+	return getStatusNonBlockingArguments(GetRunnersStatus, runnerName)
 }

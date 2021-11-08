@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -37,6 +38,7 @@ func Serve(ctx context.Context, port int) error {
 	r := mux.NewRouter()
 	r.HandleFunc("/live", liveHandler)
 	r.HandleFunc("/ready", readyHandler)
+	r.HandleFunc("/runners/{runners-name}", runnerHandler)
 	// Default route for backward compatibility
 	r.NewRoute().HandlerFunc(liveHandler)
 
@@ -60,6 +62,32 @@ func closeOnContext(ctx context.Context, srv *http.Server) {
 	timeout, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	srv.Shutdown(timeout) //nolint:errcheck
+}
+
+//todo remove code duplication
+func runnerHealthHandler(getStatusNonBlocking func([]string) (health.Status, error), args []string, w http.ResponseWriter, _ *http.Request) {
+	runnersStatus, err := getStatusNonBlocking(args)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	if len(runnersStatus.Unhealthy) > 0 {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Infof("Healthcheck failed on: %v", runnersStatus.Unhealthy)
+		if config.Datadog.GetBool("log_all_goroutines_when_unhealthy") {
+			log.Infof("Goroutines stack: \n%s\n", allStack())
+		}
+	}
+
+	jsonHealth, err := json.Marshal(runnersStatus)
+	if err != nil {
+		log.Errorf("Error marshalling status. Error: %v", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonHealth)
 }
 
 func healthHandler(getStatusNonBlocking func() (health.Status, error), w http.ResponseWriter, _ *http.Request) {
@@ -93,4 +121,10 @@ func liveHandler(w http.ResponseWriter, r *http.Request) {
 
 func readyHandler(w http.ResponseWriter, r *http.Request) {
 	healthHandler(health.GetReadyNonBlocking, w, r)
+}
+
+func runnerHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	runners := strings.Split(vars["runners-name"], ",")
+	runnerHealthHandler(health.GetRunnersNonBlocking, runners, w, r)
 }
