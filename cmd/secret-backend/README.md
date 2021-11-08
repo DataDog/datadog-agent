@@ -10,8 +10,8 @@
 | :-- | :-- | :-- |
 | [aws.secrets](docs/aws/secrets.md) | [aws](docs/aws/README.md) | Datadog secrets in AWS Secrets Manager |
 | [aws.ssm](docs/aws/ssm.md) | [aws](docs/aws/README.md) | Datadog secrets in AWS Systems Manager Parameter Store |
-| [file.json](docs/file/json.md) | file | Datadog secrets in local JSON files|
-| [file.yaml](docs/file/yaml.md) | file | Datadog secrets in local YAML files|
+| [file.json](docs/file/json.md) | [file](docs/file/README.md) | Datadog secrets in local JSON files|
+| [file.yaml](docs/file/yaml.md) | [file](docs/file/README.md) | Datadog secrets in local YAML files|
 
 ## Installation
 
@@ -83,7 +83,7 @@
 
 ## Usage
 
-## Contributing
+Reference each supported backend type's documentation on specific usage examples and configuration options.
 
 ## License
 
