@@ -556,6 +556,11 @@ void set_obfuscate_sql_exec_plan_cb(rtloader_t *rtloader, cb_obfuscate_sql_exec_
     AS_TYPE(RtLoader, rtloader)->setObfuscateSqlExecPlanCb(cb);
 }
 
+void set_get_process_start_time_cb(rtloader_t *rtloader, cb_get_process_start_time_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetProcessStartTimeCb(cb);
+}
+
 /*
  * _util API
  */

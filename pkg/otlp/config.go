@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	colConfig "go.opentelemetry.io/collector/config"
 	"go.uber.org/multierr"
 )
 
@@ -32,9 +33,18 @@ func getReceiverHost(cfg config.Config) (receiverHost string) {
 	return
 }
 
-// isSetExperimental checks if the experimental config is set.
-func isSetExperimental(cfg config.Config) bool {
+// isSetExperimentalPort checks if the experimental port config is set.
+func isSetExperimentalPort(cfg config.Config) bool {
 	return cfg.IsSet(config.ExperimentalOTLPHTTPPort) || cfg.IsSet(config.ExperimentalOTLPgRPCPort)
+}
+
+// isSetExperimentalMetrics checks if the experimental metrics config is set.
+func isSetExperimentalMetrics(cfg config.Config) bool {
+	return cfg.IsSet(config.ExperimentalOTLPMetrics)
+}
+
+func isSetExperimental(cfg config.Config) bool {
+	return isSetExperimentalPort(cfg)
 }
 
 func portToUint(v int) (port uint, err error) {
@@ -45,18 +55,47 @@ func portToUint(v int) (port uint, err error) {
 	return
 }
 
-// fromExperimentalConfig builds a PipelineConfig from the experimental configuration.
-func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
+func fromExperimentalPortReceiverConfig(cfg config.Config, otlpConfig *colConfig.Map) error {
 	var errs []error
 
 	httpPort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPHTTPPort))
 	if err != nil {
-		errs = append(errs, fmt.Errorf("http port is invalid: %w", err))
+		errs = append(errs, fmt.Errorf("HTTP port is invalid: %w", err))
 	}
 
 	gRPCPort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPgRPCPort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("gRPC port is invalid: %w", err))
+	}
+
+	bindHost := getReceiverHost(cfg)
+
+	if gRPCPort > 0 {
+		otlpConfig.Set(
+			buildKey("protocols", "grpc", "endpoint"),
+			fmt.Sprintf("%s:%d", bindHost, gRPCPort),
+		)
+	}
+
+	if httpPort > 0 {
+		otlpConfig.Set(
+			buildKey("protocols", "http", "endpoint"),
+			fmt.Sprintf("%s:%d", bindHost, httpPort),
+		)
+	}
+
+	return multierr.Combine(errs...)
+}
+
+// fromExperimentalConfig builds a PipelineConfig from the experimental configuration.
+func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
+	var errs []error
+	otlpConfig := colConfig.NewMap()
+	if isSetExperimentalPort(cfg) {
+		err := fromExperimentalPortReceiverConfig(cfg, otlpConfig)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("OTLP receiver port-based configuration is invalid: %w", err))
+		}
 	}
 
 	tracePort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPTracePort))
@@ -70,13 +109,17 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
 
+	metrics := map[string]interface{}{}
+	if isSetExperimentalMetrics(cfg) {
+		metrics = cfg.GetStringMap(config.ExperimentalOTLPMetrics)
+	}
+
 	return PipelineConfig{
-		BindHost:       getReceiverHost(cfg),
-		HTTPPort:       httpPort,
-		GRPCPort:       gRPCPort,
-		TracePort:      tracePort,
-		MetricsEnabled: metricsEnabled,
-		TracesEnabled:  tracesEnabled,
+		OTLPReceiverConfig: otlpConfig.ToStringMap(),
+		TracePort:          tracePort,
+		MetricsEnabled:     metricsEnabled,
+		TracesEnabled:      tracesEnabled,
+		Metrics:            metrics,
 	}, multierr.Combine(errs...)
 }
 

@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -248,7 +250,8 @@ func RunAgent(ctx context.Context) (err error) {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	opts := aggregator.DefaultDemultiplexerOptions(keysPerDomain)
+
+	opts := aggregator.DefaultDemultiplexerOptions(forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain)))
 	opts.NoEventPlatformForwarder = true
 	opts.NoOrchestratorForwarder = true
 	opts.StartForwarders = true // will only run the default forwarder
@@ -314,6 +317,9 @@ func handleSignals(stopCh chan struct{}) {
 			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
+
+			_ = tagger.Stop()
+
 			stopCh <- struct{}{}
 			return
 		}

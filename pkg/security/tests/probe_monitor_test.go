@@ -8,7 +8,6 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -17,10 +16,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestRulesetLoaded(t *testing.T) {
@@ -34,13 +32,14 @@ func TestRulesetLoaded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
 		if err := test.GetProbeCustomEvent(t, func() error {
 			test.reloadConfiguration()
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, probe.RulesetLoadedRuleID, rule.ID, "wrong rule")
+			assert.Equal(t, sprobe.RulesetLoadedRuleID, rule.ID, "wrong rule")
 			return true
 		}, model.CustomRulesetLoadedEventType); err != nil {
 			t.Error(err)
@@ -63,8 +62,9 @@ func truncatedParents(t *testing.T, opts testOpts) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
-	truncatedParentsFile, _, err := test.Path(fmt.Sprintf("%s", truncatedParents))
+	truncatedParentsFile, _, err := test.Path(truncatedParents)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,14 +83,14 @@ func truncatedParents(t *testing.T, opts testOpts) {
 			}
 			return f.Close()
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, probe.AbnormalPathRuleID, rule.ID, "wrong rule")
+			assert.Equal(t, sprobe.AbnormalPathRuleID, rule.ID, "wrong rule")
 			return true
 		}, model.CustomTruncatedParentsEventType)
 		if err != nil {
 			t.Error(err)
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 			if err != nil {
 				t.Fatal(err)
@@ -111,9 +111,6 @@ func truncatedParents(t *testing.T, opts testOpts) {
 				assert.Equal(t, model.MaxPathDepth, len(splittedFilepath), "invalid path depth")
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }
 
@@ -127,14 +124,16 @@ func TestTruncatedParentsERPC(t *testing.T) {
 
 func TestNoisyProcess(t *testing.T) {
 	rule := &rules.RuleDefinition{
-		ID:         "path_test",
-		Expression: `open.file.path =~ "*do-not-match/test-open" && open.flags & O_CREAT != 0`,
+		ID: "path_test",
+		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
+		Expression: `open.file.path =~ "{{.Root}}/no-test-open*" && open.flags & O_CREAT != 0`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	file, _, err := test.Path("test-open")
 	if err != nil {
@@ -154,7 +153,7 @@ func TestNoisyProcess(t *testing.T) {
 			}
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, probe.NoisyProcessRuleID, rule.ID, "wrong rule")
+			assert.Equal(t, sprobe.NoisyProcessRuleID, rule.ID, "wrong rule")
 			return true
 		}, model.CustomNoisyProcessEventType)
 		if err != nil {

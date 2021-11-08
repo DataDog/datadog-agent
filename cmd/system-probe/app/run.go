@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // ErrNotEnabled represents the case in which system-probe is not enabled
@@ -164,8 +163,8 @@ func StartSystemProbe() error {
 		return ErrNotEnabled
 	}
 
-	if cfg.ProfilingEnabled {
-		if err := enableProfiling(cfg); err != nil {
+	if cfg.ProfilingSettings != nil {
+		if err := profiling.Start(*cfg.ProfilingSettings); err != nil {
 			log.Warnf("failed to enable profiling: %s", err)
 		}
 	}
@@ -196,31 +195,4 @@ func StopSystemProbe() {
 	profiling.Stop()
 	_ = os.Remove(pidfilePath)
 	log.Flush()
-}
-
-func enableProfiling(cfg *config.Config) error {
-	var site string
-	v, _ := version.Agent()
-
-	// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
-	if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
-		site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
-	} else {
-		site = fmt.Sprintf(profiling.ProfileURLTemplate, cfg.ProfilingSite)
-		if cfg.ProfilingURL != "" {
-			site = cfg.ProfilingURL
-		}
-	}
-
-	return profiling.Start(
-		site,
-		cfg.ProfilingEnvironment,
-		"system-probe",
-		cfg.ProfilingPeriod,
-		cfg.ProfilingCPUDuration,
-		cfg.ProfilingMutexFraction,
-		cfg.ProfilingBlockRate,
-		cfg.ProfilingWithGoroutines,
-		fmt.Sprintf("version:%v", v),
-	)
 }

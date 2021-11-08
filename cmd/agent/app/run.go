@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -58,6 +59,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
@@ -360,10 +362,11 @@ func StartAgent() error {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
-	opts := aggregator.DefaultDemultiplexerOptions(keysPerDomain)
+	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
+	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.StartForwarders = true
 	// Enable core agent specific features like persistence-to-disk
-	opts.Forwarder.EnabledFeatures = forwarder.SetFeature(opts.Forwarder.EnabledFeatures, forwarder.CoreFeatures)
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 	// start dogstatsd

@@ -7,9 +7,21 @@ package tag
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
+
+func setupConfig(tags []string) (*config.MockConfig, time.Time) {
+	mockConfig := config.Mock()
+
+	startTime := config.StartTime
+	config.StartTime = time.Now()
+
+	mockConfig.Set("tags", tags)
+
+	return mockConfig, startTime
+}
 
 func BenchmarkProviderExpectedTags(b *testing.B) {
 	b.ReportAllocs()

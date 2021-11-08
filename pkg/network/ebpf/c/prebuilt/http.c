@@ -262,6 +262,7 @@ int kprobe__do_sys_open(struct pt_regs* ctx) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    path.pid = pid_tgid >> 32;
     bpf_map_update_elem(&open_at_args, &pid_tgid, &path, BPF_ANY);
     return 0;
 }

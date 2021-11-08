@@ -67,6 +67,9 @@ apm_config:
       enabled: true
     memcached:
       enabled: true
+    credit_cards:
+      enabled: true 
+      luhn: true
 experimental:
   otlp:
     http_port: 50051

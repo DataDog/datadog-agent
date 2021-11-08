@@ -3,7 +3,7 @@ package encoding
 import (
 	"sync"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -34,7 +34,7 @@ func newDNSFormatter(conns *network.Connections, ipc ipCache) *dnsFormatter {
 		domainSet:         make(map[string]int),
 		seen:              make(map[dns.Key]struct{}),
 		queryTypeEnabled:  config.Datadog.GetBool("network_config.enable_dns_by_querytype"),
-		dnsDomainsEnabled: config.Datadog.GetBool("network_config.collect_dns_domains"),
+		dnsDomainsEnabled: config.Datadog.GetBool("system_probe_config.collect_dns_domains"),
 	}
 }
 
@@ -76,11 +76,15 @@ func (f *dnsFormatter) FormatConnectionDNS(nc network.ConnectionStats, mc *model
 	}
 
 	if f.queryTypeEnabled {
+		mc.DnsStatsByDomain = nil
 		mc.DnsStatsByDomainByQueryType = formatDNSStatsByDomainByQueryType(stats, f.domainSet)
 	} else {
 		// downconvert to simply by domain
 		mc.DnsStatsByDomain = formatDNSStatsByDomain(stats, f.domainSet)
+		mc.DnsStatsByDomainByQueryType = nil
 	}
+	mc.DnsStatsByDomainOffsetByQueryType = nil
+
 }
 
 func (f *dnsFormatter) DNS() map[string]*model.DNSEntry {

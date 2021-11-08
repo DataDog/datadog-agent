@@ -37,6 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -209,8 +211,9 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
-	opts := aggregator.DefaultDemultiplexerOptions(keysPerDomain)
-	opts.Forwarder.DisableAPIKeyChecking = true
+	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+	forwarderOpts.DisableAPIKeyChecking = true
+	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.NoEventPlatformForwarder = true
 	opts.StartForwarders = true
 	opts.StartupTelemetry = fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion)

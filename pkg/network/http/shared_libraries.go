@@ -48,12 +48,16 @@ type soRule struct {
 
 // soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
 type soWatcher struct {
-	procRoot     string
-	pathResolver *psfilepath.Resolver
-	all          *regexp.Regexp
-	rules        []soRule
-	registered   map[string]func(string) error
-	loadEvents   *ddebpf.PerfHandler
+	procRoot   string
+	hostMount  string
+	all        *regexp.Regexp
+	rules      []soRule
+	registered map[string]func(string) error
+	loadEvents *ddebpf.PerfHandler
+}
+
+type seenKey struct {
+	pid, path string
 }
 
 func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
@@ -64,17 +68,18 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 
 	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
 	return &soWatcher{
-		procRoot:     procRoot,
-		pathResolver: psfilepath.NewResolver(procRoot),
-		all:          all,
-		rules:        rules,
-		loadEvents:   perfHandler,
+		procRoot:   procRoot,
+		hostMount:  os.Getenv("HOST_ROOT"),
+		all:        all,
+		rules:      rules,
+		loadEvents: perfHandler,
 	}
 }
 
 // Start consuming shared-library events
 func (w *soWatcher) Start() {
-	sharedLibraries := getSharedLibraries(w.procRoot, w.all)
+	seen := make(map[seenKey]struct{})
+	sharedLibraries := w.getSharedLibraries()
 	w.sync(sharedLibraries)
 	go func() {
 		ticker := time.NewTicker(soSyncInterval)
@@ -84,7 +89,8 @@ func (w *soWatcher) Start() {
 		for {
 			select {
 			case <-ticker.C:
-				sharedLibraries := getSharedLibraries(w.procRoot, w.all)
+				seen = make(map[seenKey]struct{})
+				sharedLibraries := w.getSharedLibraries()
 				w.sync(sharedLibraries)
 			case event, ok := <-w.loadEvents.DataChannel:
 				if !ok {
@@ -103,15 +109,25 @@ func (w *soWatcher) Start() {
 				for _, r := range w.rules {
 					if r.re.Match(path) {
 						var (
-							libPath  = string(path)
-							pidPath  = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
-							hostPath = w.pathResolver.LoadPIDMounts(pidPath).Resolve(libPath)
+							libPath = string(path)
+							pidPath = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
 						)
 
-						if hostPath != "" {
+						// resolving paths is expensive so we cache the libraries we've already seen
+						k := seenKey{pidPath, libPath}
+						if _, ok := seen[k]; ok {
+							break
+						}
+						seen[k] = struct{}{}
+
+						// resolve namespaced path to host path
+						pathResolver := psfilepath.NewResolver(w.procRoot)
+						pathResolver.LoadPIDMounts(pidPath)
+						if hostPath := pathResolver.Resolve(libPath); hostPath != "" {
 							libPath = hostPath
 						}
 
+						libPath = w.canonicalizePath(libPath)
 						if _, registered := w.registered[libPath]; registered {
 							break
 						}
@@ -132,26 +148,28 @@ func (w *soWatcher) sync(libraries []so.Library) {
 	old := w.registered
 	w.registered = make(map[string]func(string) error)
 
-OuterLoop:
 	for _, lib := range libraries {
+		path := lib.HostPath
+		if callback, ok := old[path]; ok {
+			w.registered[path] = callback
+			delete(old, path)
+			continue
+		}
+
 		for _, r := range w.rules {
-			path := lib.HostPath
-
-			if callback, ok := old[path]; ok {
-				w.registered[path] = callback
-				delete(old, path)
-				continue OuterLoop
-			}
-
 			if r.re.MatchString(path) {
 				w.register(path, r)
-				continue OuterLoop
+				break
 			}
 		}
 	}
 
 	// Now we call the unregister callback for every shared library that is no longer mapped into memory
 	for path, unregisterCB := range old {
+		if unregisterCB == nil {
+			continue
+		}
+
 		log.Debugf("unregistering library=%s", path)
 		unregisterCB(path)
 	}
@@ -160,8 +178,9 @@ OuterLoop:
 func (w *soWatcher) register(libPath string, r soRule) {
 	err := r.registerCB(libPath)
 	if err != nil {
-		log.Errorf("error registering library=%s: %s", libPath, err)
+		log.Debugf("error registering library=%s: %s", libPath, err)
 		r.unregisterCB(libPath)
+		w.registered[libPath] = nil
 		return
 	}
 
@@ -169,29 +188,50 @@ func (w *soWatcher) register(libPath string, r soRule) {
 	w.registered[libPath] = r.unregisterCB
 }
 
-func getSharedLibraries(procRoot string, filter *regexp.Regexp) []so.Library {
+func (w *soWatcher) canonicalizePath(path string) string {
+	if w.hostMount != "" {
+		path = filepath.Join(w.hostMount, path)
+	}
+
+	return followSymlink(path)
+}
+
+func (w *soWatcher) getSharedLibraries() []so.Library {
 	// libraries will include all host-resolved library paths mapped into memory
-	libraries := so.FindProc(procRoot, filter)
+	libraries := so.FindProc(w.procRoot, w.all)
 
 	// TODO: should we ensure all entries are unique in the `so` package instead?
 	seen := make(map[string]struct{}, len(libraries))
 	i := 0
-	for j, lib := range libraries {
-		if _, ok := seen[lib.HostPath]; !ok {
-			libraries[i] = libraries[j]
-			seen[lib.HostPath] = struct{}{}
-			i++
+	for _, lib := range libraries {
+		originalPath := lib.HostPath
+		if _, ok := seen[originalPath]; ok {
+			continue
 		}
-	}
-	libraries = libraries[0:i]
+		seen[originalPath] = struct{}{}
 
-	// prepend everything with the HOST_FS, which designates where the underlying
-	// host file system is mounted. This is intended for internal testing only.
-	if hostFS := os.Getenv("HOST_FS"); hostFS != "" {
-		for i, lib := range libraries {
-			libraries[i].HostPath = filepath.Join(hostFS, lib.HostPath)
+		// this ensures that all symlinks are resolved only once
+		canonicalPath := w.canonicalizePath(originalPath)
+		if canonicalPath != originalPath {
+			if _, ok := seen[canonicalPath]; ok {
+				continue
+			} else {
+				seen[canonicalPath] = struct{}{}
+				lib.HostPath = canonicalPath
+			}
 		}
+
+		libraries[i] = lib
+		i++
 	}
 
-	return libraries
+	return libraries[0:i]
+}
+
+func followSymlink(path string) string {
+	if withoutSymLinks, err := filepath.EvalSymlinks(path); err == nil {
+		return withoutSymLinks
+	}
+
+	return path
 }

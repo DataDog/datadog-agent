@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -138,12 +139,13 @@ type Server struct {
 	health                    *health.Handle
 	metricPrefix              string
 	metricPrefixBlacklist     []string
+	metricBlocklist           []string
 	defaultHostname           string
 	histToDist                bool
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
-	debugTagsBuilder          *util.HashingTagsBuilder
+	debugTagsAccumulator      *tagset.HashingTagsAccumulator
 	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
 	eolTerminationUDP         bool
@@ -272,7 +274,9 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
 		metricPrefix = metricPrefix + "."
 	}
+
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
+	metricBlocklist := config.Datadog.GetStringSlice("statsd_metric_blocklist")
 
 	defaultHostname, err := util.GetHostname(context.TODO())
 	if err != nil {
@@ -318,6 +322,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		health:                    health.RegisterLiveness("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
 		metricPrefixBlacklist:     metricPrefixBlacklist,
+		metricBlocklist:           metricBlocklist,
 		defaultHostname:           defaultHostname,
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
@@ -437,8 +442,8 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 	}
 }
 
-// Flush flushes all the data to the aggregator to them send it to the Datadog intake.
-func (s *Server) Flush() {
+// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
+func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
 	// make all workers flush their aggregated data (in the batcher) to the aggregator.
 	for _, w := range s.workers {
@@ -446,7 +451,9 @@ func (s *Server) Flush() {
 	}
 	// flush the aggregator to have the serializer/forwarder send data to the backend.
 	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
-	s.demultiplexer.FlushAggregatedData(time.Now().Add(time.Second*10), true)
+	agg := s.demultiplexer.Aggregator()
+	agg.ServerlessFlush <- true
+	<-agg.ServerlessFlushDone
 }
 
 // dropCR drops a terminal \r from the data.
@@ -636,7 +643,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
+	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlocklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
@@ -708,21 +715,21 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
-	if s.debugTagsBuilder == nil {
-		s.debugTagsBuilder = util.NewHashingTagsBuilder()
+	if s.debugTagsAccumulator == nil {
+		s.debugTagsAccumulator = tagset.NewHashingTagsAccumulator()
 	}
 
 	// key
-	defer s.debugTagsBuilder.Reset()
-	s.debugTagsBuilder.Append(sample.Tags...)
-	key := s.Debug.keyGen.Generate(sample.Name, "", s.debugTagsBuilder)
+	defer s.debugTagsAccumulator.Reset()
+	s.debugTagsAccumulator.Append(sample.Tags...)
+	key := s.Debug.keyGen.Generate(sample.Name, "", s.debugTagsAccumulator)
 
 	// store
 	ms := s.Debug.Stats[key]
 	ms.Count++
 	ms.LastSeen = now
 	ms.Name = sample.Name
-	ms.Tags = strings.Join(s.debugTagsBuilder.Get(), " ") // we don't want/need to share the underlying array
+	ms.Tags = strings.Join(s.debugTagsAccumulator.Get(), " ") // we don't want/need to share the underlying array
 	s.Debug.Stats[key] = ms
 
 	s.Debug.metricsCounts.metricChan <- struct{}{}

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/agent-payload/v5/process"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
@@ -23,10 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/heartbeat"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -35,7 +33,6 @@ import (
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	// register all workloadmeta collectors
@@ -222,22 +219,6 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	// Initialize system-probe heartbeats
-	sysprobeMonitor, err := heartbeat.NewModuleMonitor(heartbeat.Options{
-		KeysPerDomain:      apicfg.KeysPerDomains(cfg.APIEndpoints),
-		SysprobeSocketPath: cfg.SystemProbeAddress,
-		HostName:           cfg.HostName,
-		TagVersion:         Version,
-		TagRevision:        GitCommit,
-	})
-	defer sysprobeMonitor.Stop()
-
-	if err != nil {
-		log.Warnf("failed to initialize system-probe monitor: %s", err)
-	} else {
-		sysprobeMonitor.Every(15 * time.Second)
-	}
-
 	// Exit if agent is not enabled and we're not debugging a check.
 	if !cfg.Enabled && opts.check == "" {
 		log.Infof(agent6DisabledMessage)
@@ -258,8 +239,8 @@ func runAgent(exit chan struct{}) {
 	// we just pass down empty string
 	updateDockerSocket(dockerSock)
 
-	if cfg.ProfilingEnabled {
-		if err := enableProfiling(cfg); err != nil {
+	if cfg.ProfilingSettings != nil {
+		if err := profiling.Start(*cfg.ProfilingSettings); err != nil {
 			log.Warnf("failed to enable profiling: %s", err)
 		} else {
 			log.Info("start profiling process-agent")
@@ -427,21 +408,4 @@ func cleanupAndExit(status int) {
 	}
 
 	os.Exit(status)
-}
-
-func enableProfiling(cfg *config.AgentConfig) error {
-	// allow full url override for development use
-	s := ddconfig.DefaultSite
-	if cfg.ProfilingSite != "" {
-		s = cfg.ProfilingSite
-	}
-
-	site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
-	if cfg.ProfilingURL != "" {
-		site = cfg.ProfilingURL
-	}
-
-	v, _ := version.Agent()
-
-	return profiling.Start(site, cfg.ProfilingEnvironment, "process-agent", cfg.ProfilingPeriod, cfg.ProfilingCPUDuration, cfg.ProfilingMutexFraction, cfg.ProfilingBlockRate, cfg.ProfilingWithGoroutines, fmt.Sprintf("version:%v", v))
 }

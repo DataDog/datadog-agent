@@ -71,32 +71,26 @@ func getComponents(s serializer.MetricSerializer) (
 }
 
 func getBuildInfo() (component.BuildInfo, error) {
-	version, err := version.Agent()
-	if err != nil {
-		return component.BuildInfo{}, err
-	}
-
 	return component.BuildInfo{
 		Command:     flavor.GetFlavor(),
 		Description: flavor.GetFlavor(),
-		Version:     version.String(),
+		Version:     version.AgentVersion,
 	}, nil
 }
 
 // PipelineConfig is the config struct for an OTLP pipeline.
 type PipelineConfig struct {
-	// BindHost is the bind host for the OTLP receiver.
-	BindHost string
-	// GRPCPort is the OTLP receiver gRPC port.
-	GRPCPort uint
-	// HTTPPort is the OTLP receiver HTTP port.
-	HTTPPort uint
+	// OTLPReceiverConfig is the OTLP receiver configuration.
+	OTLPReceiverConfig map[string]interface{}
 	// TracePort is the trace Agent OTLP port.
 	TracePort uint
 	// MetricsEnabled states whether OTLP metrics support is enabled.
 	MetricsEnabled bool
 	// TracesEnabled states whether OTLP traces support is enabled.
 	TracesEnabled bool
+
+	// Metrics contains configuration options for the serializer metrics exporter
+	Metrics map[string]interface{}
 }
 
 // Pipeline is an OTLP pipeline.
@@ -122,25 +116,18 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 	}),
 	}
 
-	parser, err := newMap(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build parser: %w", err)
-	}
-
 	col, err := service.New(service.CollectorSettings{
 		Factories:               factories,
 		BuildInfo:               buildInfo,
 		DisableGracefulShutdown: true,
-		ParserProvider:          parserProvider(*parser),
+		ConfigMapProvider:       newMapProvider(cfg),
 		LoggingOptions:          options,
 	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	// HACK: ensure flags are not-nil
-	// TODO: fix this upstream.
-	_ = service.NewCommand(col)
 	return &Pipeline{col}, nil
 }
 

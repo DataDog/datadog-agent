@@ -7,31 +7,28 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/ebpf/manager"
 )
 
-const closedConnectionChanSize = 100
+const (
+	perfReceivedStat = "perf_recv"
+	perfLostStat     = "perf_lost"
+)
 
 type tcpCloseConsumer struct {
 	perfHandler  *ddebpf.PerfHandler
 	batchManager *perfBatchManager
-	requests     chan requestPayload
+	requests     chan chan struct{}
+	buffer       *network.ConnectionBuffer
 
 	// Telemetry
 	perfReceived int64
 	perfLost     int64
 }
 
-type requestPayload struct {
-	buffer       *network.ConnectionBuffer
-	responseChan chan struct{}
-}
-
-func newTCPCloseConsumer(cfg *config.Config, m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*tcpCloseConsumer, error) {
+func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*tcpCloseConsumer, error) {
 	connCloseEventMap, _, err := m.GetMap(string(probes.ConnCloseEventMap))
 	if err != nil {
 		return nil, err
@@ -50,31 +47,26 @@ func newTCPCloseConsumer(cfg *config.Config, m *manager.Manager, perfHandler *dd
 	c := &tcpCloseConsumer{
 		perfHandler:  perfHandler,
 		batchManager: batchManager,
-		requests:     make(chan requestPayload),
+		requests:     make(chan chan struct{}),
+		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
 	}
 	return c, nil
 }
 
-func (c *tcpCloseConsumer) GetPendingConns() *connection.ClosedBatch {
+func (c *tcpCloseConsumer) FlushPending() {
 	if c == nil {
-		return nil
+		return
 	}
 
-	responseBatch := connection.GetBatch()
-	request := requestPayload{
-		buffer:       responseBatch.Buffer,
-		responseChan: make(chan struct{}),
-	}
-
-	c.requests <- request
-	<-request.responseChan
-	return responseBatch
+	wait := make(chan struct{})
+	c.requests <- wait
+	<-wait
 }
 
 func (c *tcpCloseConsumer) GetStats() map[string]int64 {
 	return map[string]int64{
-		"perf_recv": atomic.SwapInt64(&c.perfReceived, 0),
-		"perf_lost": atomic.SwapInt64(&c.perfLost, 0),
+		perfReceivedStat: atomic.SwapInt64(&c.perfReceived, 0),
+		perfLostStat:     atomic.SwapInt64(&c.perfLost, 0),
 	}
 }
 
@@ -86,14 +78,12 @@ func (c *tcpCloseConsumer) Stop() {
 	close(c.requests)
 }
 
-func (c *tcpCloseConsumer) Start() <-chan *connection.ClosedBatch {
+func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 	if c == nil {
-		return nil
+		return
 	}
 
-	out := make(chan *connection.ClosedBatch, closedConnectionChanSize)
 	go func() {
-		defer close(out)
 		for {
 			select {
 			case batchData, ok := <-c.perfHandler.DataChannel:
@@ -101,11 +91,10 @@ func (c *tcpCloseConsumer) Start() <-chan *connection.ClosedBatch {
 					return
 				}
 				atomic.AddInt64(&c.perfReceived, 1)
-
-				connBatch := connection.GetBatch()
 				batch := netebpf.ToBatch(batchData.Data)
-				c.batchManager.ExtractBatchInto(connBatch.Buffer, batch, batchData.CPU)
-				out <- connBatch
+				c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
+				callback(c.buffer.Connections())
+				c.buffer.Reset()
 			case lostCount, ok := <-c.perfHandler.LostChannel:
 				if !ok {
 					return
@@ -116,10 +105,11 @@ func (c *tcpCloseConsumer) Start() <-chan *connection.ClosedBatch {
 					return
 				}
 
-				c.batchManager.GetPendingConns(request.buffer)
-				close(request.responseChan)
+				oneTimeBuffer := network.NewConnectionBuffer(32, 32)
+				c.batchManager.GetPendingConns(oneTimeBuffer)
+				callback(oneTimeBuffer.Connections())
+				close(request)
 			}
 		}
 	}()
-	return out
 }

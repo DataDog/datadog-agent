@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -52,7 +52,7 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 		NumCpus:     calculateNumCores(d.info),
 		TotalMemory: d.info.TotalMemory,
 	}
-	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs, host), cfg.MaxPerMessage)
+	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs), cfg.MaxPerMessage)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 	for i, procDiscoveryChunk := range procDiscoveryChunks {
 		payload[i] = &model.CollectorProcDiscovery{
@@ -67,13 +67,12 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 	return payload, nil
 }
 
-func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, host *model.Host) []*model.ProcessDiscovery {
+func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process) []*model.ProcessDiscovery {
 	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))
 	for _, proc := range pidMap {
 		pd = append(pd, &model.ProcessDiscovery{
 			Pid:        proc.Pid,
 			NsPid:      proc.NsPid,
-			Host:       host,
 			Command:    formatCommand(proc),
 			User:       formatUser(proc),
 			CreateTime: proc.Stats.CreateTime,

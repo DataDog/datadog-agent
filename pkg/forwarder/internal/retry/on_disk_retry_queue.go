@@ -156,7 +156,7 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 	for len(s.filenames) > 0 && s.currentSizeInBytes+bufferSize > maxStorageInBytes {
 		index := 0
 		filename := s.filenames[index]
-		log.Infof("Maximum disk space for retry transactions is reached. Removing %s", filename)
+		log.Errorf("Maximum disk space for retry transactions is reached. Removing %s", filename)
 		if err := s.removeFileAt(index); err != nil {
 			return err
 		}

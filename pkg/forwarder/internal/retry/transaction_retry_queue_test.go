@@ -3,6 +3,7 @@ package retry
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/stretchr/testify/assert"
@@ -131,7 +132,7 @@ func newOnDiskRetryQueueTest(a *assert.Assertions) (*onDiskRetryQueue, func()) {
 			Total:     10000,
 		}}
 	diskUsageLimit := newDiskUsageLimit("", disk, 1000, 1)
-	q, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer("", nil), path, diskUsageLimit, newOnDiskRetryQueueTelemetry("domain"))
+	q, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver("", nil)), path, diskUsageLimit, newOnDiskRetryQueueTelemetry("domain"))
 	a.NoError(err)
 	return q, clean
 }

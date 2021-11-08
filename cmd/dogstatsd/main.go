@@ -184,7 +184,7 @@ func runAgent(ctx context.Context) (err error) {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 	opts := aggregator.DemultiplexerOptions{
-		Forwarder:                  forwarder.NewOptions(keysPerDomain),
+		ForwarderOptions:           forwarder.NewOptions(keysPerDomain),
 		NoopEventPlatformForwarder: false,
 		NoOrchestratorForwarder:    true,
 		FlushInterval:              aggregator.DefaultFlushInterval,

@@ -310,6 +310,21 @@ func TestLoadEnv(t *testing.T) {
 	}
 
 	for _, envKey := range []string{
+		"DD_APM_ERROR_TPS",
+	} {
+		t.Run(envKey, func(t *testing.T) {
+			defer cleanConfig()()
+			assert := assert.New(t)
+			err := os.Setenv(envKey, "12")
+			assert.NoError(err)
+			defer os.Unsetenv(envKey)
+			cfg, err := Load("./testdata/full.yaml")
+			assert.NoError(err)
+			assert.Equal(12., cfg.ErrorTPS)
+		})
+	}
+
+	for _, envKey := range []string{
 		"DD_MAX_EPS", // deprecated
 		"DD_APM_MAX_EPS",
 	} {
@@ -363,6 +378,18 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal("my-site.com", config.Datadog.GetString("apm_config.debugger_dd_url"))
 	})
 
+	env = "DD_APM_DEBUGGER_API_KEY"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "my-key")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal("my-key", config.Datadog.GetString("apm_config.debugger_api_key"))
+	})
+
 	env = "DD_OTLP_HTTP_PORT"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
@@ -385,6 +412,30 @@ func TestLoadEnv(t *testing.T) {
 		_, err = Load("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(50066, config.Datadog.GetInt(config.ExperimentalOTLPgRPCPort))
+	})
+
+	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "false")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(config.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled"))
+	})
+
+	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "false")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(config.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn"))
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"

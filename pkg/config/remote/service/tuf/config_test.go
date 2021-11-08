@@ -58,11 +58,7 @@ func TestConfigRemoteStore(t *testing.T) {
 		},
 	}
 
-	rootContent, err := getConfigRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	rootContent := getConfigRoot()
 	content, err := readMeta(remote, "root.json")
 	if err != nil {
 		t.Fatal(err)

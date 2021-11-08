@@ -3,7 +3,7 @@ package checks
 import (
 	"testing"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,7 +23,9 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	for _, elem := range result {
 		assert.IsType(t, &model.CollectorProcDiscovery{}, elem)
 		collectorProcDiscovery := elem.(*model.CollectorProcDiscovery)
-
+		for _, proc := range collectorProcDiscovery.ProcessDiscoveries {
+			assert.Empty(t, proc.Host)
+		}
 		if len(collectorProcDiscovery.ProcessDiscoveries) > cfg.MaxPerMessage {
 			t.Errorf("Expected less than %d messages in chunk, got %d",
 				cfg.MaxPerMessage, len(collectorProcDiscovery.ProcessDiscoveries))

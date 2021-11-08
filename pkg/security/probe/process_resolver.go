@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -556,7 +556,7 @@ func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 
 func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry, data []byte) (int, error) {
 	// unmarshal container ID first
-	id, err := model.UnmarshalString(data, 64)
+	id, err := model.UnmarshalPrintableString(data, 64)
 	if err != nil {
 		return 0, err
 	}
@@ -813,7 +813,7 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 
 	for {
 		select {
-		case _ = <-ticker.C:
+		case <-ticker.C:
 			var pids []uint32
 
 			p.RLock()

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
@@ -73,6 +74,21 @@ type ObfuscationConfig struct {
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
 	Memcached Enablable `mapstructure:"memcached"`
+
+	// CreditCards holds the configuration for obfuscating credit cards.
+	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
+}
+
+// CreditCardsConfig holds the configuration for credit card obfuscation in
+// (Meta) tags.
+type CreditCardsConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// Luhn specifies whether Luhn checksum validation should be enabled.
+	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
+	// It reduces false positives, but increases the CPU time X3.
+	Luhn bool `mapstructure:"luhn"`
 }
 
 // HTTPObfuscationConfig holds the configuration settings for HTTP obfuscation.
@@ -244,6 +260,10 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.max_traces_per_second") {
 		c.TargetTPS = config.Datadog.GetFloat64("apm_config.max_traces_per_second")
 	}
+	if config.Datadog.IsSet("apm_config.errors_per_second") {
+		c.ErrorTPS = config.Datadog.GetFloat64("apm_config.errors_per_second")
+	}
+
 	if k := "apm_config.ignore_resources"; config.Datadog.IsSet(k) {
 		c.Ignore["resource"] = config.Datadog.GetStringSlice(k)
 	}
@@ -289,6 +309,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
 
+	c.Obfuscation = new(ObfuscationConfig)
 	if config.Datadog.IsSet("apm_config.obfuscation") {
 		var o ObfuscationConfig
 		err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &o)
@@ -297,6 +318,17 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			if c.Obfuscation.RemoveStackTraces {
 				c.addReplaceRule("error.stack", `(?s).*`, "?")
 			}
+		}
+	}
+	{
+		// TODO(x): There is an issue with config.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
+		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
+		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
+		if config.Datadog.IsSet("apm_config.obfuscation.credit_cards.enabled") {
+			c.Obfuscation.CreditCards.Enabled = config.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled")
+		}
+		if config.Datadog.IsSet("apm_config.obfuscation.credit_cards.luhn") {
+			c.Obfuscation.CreditCards.Luhn = config.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn")
 		}
 	}
 
@@ -381,6 +413,29 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		// set by the user, disable it
 		c.LogThrottling = false
 	}
+
+	if config.Datadog.GetBool("apm_config.internal_profiling.enabled") {
+		profilingSite := config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if profilingSite == "" {
+			profilingSite = site
+		}
+
+		c.ProfilingSettings = &profiling.Settings{
+			Site: profilingSite,
+
+			// remaining configuration parameters use the top-level `internal_profiling` config
+			Period:               config.Datadog.GetDuration("internal_profiling.period"),
+			CPUDuration:          config.Datadog.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     config.Datadog.GetInt("internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+
+			// NOTE: Tags cannot be set here, because it is based on
+			// info.Version and leads to a package reference loop. It is set
+			// from Run, instead.
+		}
+	}
+
 	return nil
 }
 

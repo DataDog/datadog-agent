@@ -80,7 +80,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.ClientLatestConfig
 	response := &pbgo.LatestConfigsResponse{}
 	err = msgp.Decode(bytes.NewBuffer(body), response)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode request: %w", err)
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	return response, err

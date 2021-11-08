@@ -37,7 +37,7 @@ type provider struct {
 	endpoints                 *config.Endpoints
 
 	pipelines            []*Pipeline
-	currentPipelineIndex int32
+	currentPipelineIndex uint32
 	destinationsContext  *client.DestinationsContext
 
 	serverless bool
@@ -72,7 +72,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, i)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}
@@ -96,8 +96,7 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	if pipelinesLen == 0 {
 		return nil
 	}
-	index := int(p.currentPipelineIndex+1) % pipelinesLen
-	defer atomic.StoreInt32(&p.currentPipelineIndex, int32(index))
+	index := atomic.AddUint32(&p.currentPipelineIndex, uint32(1)) % uint32(pipelinesLen)
 	nextPipeline := p.pipelines[index]
 	return nextPipeline.InputChan
 }

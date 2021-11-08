@@ -39,17 +39,17 @@ func (s *MockSerializer) SendSketch(sketches marshaler.Marshaler) error {
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
-func (s *MockSerializer) SendMetadata(m marshaler.Marshaler) error {
+func (s *MockSerializer) SendMetadata(m marshaler.JSONMarshaler) error {
 	return s.Called(m).Error(0)
 }
 
 // SendHostMetadata serializes a host metadata payload and sends it to the forwarder
-func (s *MockSerializer) SendHostMetadata(m marshaler.Marshaler) error {
+func (s *MockSerializer) SendHostMetadata(m marshaler.JSONMarshaler) error {
 	return s.Called(m).Error(0)
 }
 
 // SendAgentchecksMetadata serializes a metadata payload and sends it to the forwarder
-func (s *MockSerializer) SendAgentchecksMetadata(m marshaler.Marshaler) error {
+func (s *MockSerializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 	return s.Called(m).Error(0)
 }
 

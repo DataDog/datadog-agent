@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -17,7 +19,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
-	options := DefaultDemultiplexerOptions(map[string][]string{"hello": {"world"}})
+	options := DefaultDemultiplexerOptions(forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}})))
 	demux := InitAndStartAgentDemultiplexer(options, "hostname")
 	defer demux.Stop(true)
 

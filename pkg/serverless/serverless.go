@@ -205,6 +205,15 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	log.Debug("Received invocation event...")
 	daemon.SetExecutionContext(arn, requestID)
 	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+
+	if daemon.MetricAgent != nil {
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
+		metricsChan := daemon.MetricAgent.GetMetricChannel()
+		metrics.SendInvocationEnhancedMetric(metricTags, metricsChan)
+	} else {
+		log.Error("Could not send the invocation enhanced metric")
+	}
+
 	if daemon.ExecutionContext.Coldstart {
 		ready := daemon.WaitUntilClientReady(clientReadyTimeout)
 		if ready {

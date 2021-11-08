@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -78,7 +79,7 @@ type AgentDemultiplexer struct {
 
 // DemultiplexerOptions are the options used to initialize a Demultiplexer.
 type DemultiplexerOptions struct {
-	Forwarder                  *forwarder.Options
+	ForwarderOptions           *forwarder.Options
 	NoopEventPlatformForwarder bool
 	NoEventPlatformForwarder   bool
 	NoOrchestratorForwarder    bool
@@ -100,9 +101,13 @@ type output struct {
 }
 
 // DefaultDemultiplexerOptions returns the default options to initialize a Demultiplexer.
-func DefaultDemultiplexerOptions(keysPerDomain map[string][]string) DemultiplexerOptions {
+func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOptions {
+	if options == nil {
+		options = forwarder.NewOptions(nil)
+	}
+
 	return DemultiplexerOptions{
-		Forwarder:        forwarder.NewOptions(keysPerDomain),
+		ForwarderOptions: options,
 		FlushInterval:    DefaultFlushInterval,
 		StartupTelemetry: version.AgentVersion,
 	}
@@ -127,7 +132,7 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
 	}
 
-	sharedForwarder := forwarder.NewDefaultForwarder(options.Forwarder)
+	sharedForwarder := forwarder.NewDefaultForwarder(options.ForwarderOptions)
 
 	// prepare the serializer
 	// ----------------------
@@ -284,8 +289,8 @@ type ServerlessDemultiplexer struct {
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, hostname string, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
-	forwarder := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
+func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, hostname string, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
+	forwarder := forwarder.NewSyncForwarder(domainResolvers, forwarderTimeout)
 	serializer := serializer.NewSerializer(forwarder, nil)
 	// TODO(remy): what about the flush interval here?
 	aggregator := InitAggregator(serializer, nil, hostname)

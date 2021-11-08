@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
@@ -69,6 +70,7 @@ type AgentConfig struct {
 	// Sampler configuration
 	ExtraSampleRate float64
 	TargetTPS       float64
+	ErrorTPS        float64
 	MaxEPS          float64
 
 	// Receiver
@@ -131,6 +133,9 @@ type AgentConfig struct {
 
 	// OTLPReceiver holds the configuration for OpenTelemetry receiver.
 	OTLPReceiver *OTLP
+
+	// Profiling settings, or nil if profiling is disabled
+	ProfilingSettings *profiling.Settings
 }
 
 // Tag represents a key/value pair.
@@ -156,6 +161,7 @@ func New() *AgentConfig {
 
 		ExtraSampleRate: 1.0,
 		TargetTPS:       10,
+		ErrorTPS:        10,
 		MaxEPS:          200,
 
 		ReceiverHost:    "localhost",

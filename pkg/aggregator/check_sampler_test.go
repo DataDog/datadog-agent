@@ -9,7 +9,7 @@ package aggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	// stdlib
 	"math"
@@ -26,7 +26,7 @@ import (
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	k := ckey.NewKeyGenerator()
-	tb := util.NewHashingTagsBuilder()
+	tb := tagset.NewHashingTagsAccumulator()
 	sample.GetTags(tb)
 	return k.Generate(sample.GetName(), sample.GetHost(), tb)
 }

@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 var (
@@ -56,7 +56,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 
 	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
 	perfBufferMonitor.GetAndResetLostCount("events", -1)
-	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
+	perfBufferMonitor.GetKernelLostCount("events", -1)
 
 	fnc := func() error {
 		f, err := os.Create(testFile)
@@ -100,7 +100,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetAndResetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
@@ -202,7 +202,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
 	perfBufferMonitor.GetAndResetLostCount("events", -1)
-	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
+	perfBufferMonitor.GetKernelLostCount("events", -1)
 
 	fnc := func() error {
 		cmd := exec.Command(executable, testFile)
@@ -237,7 +237,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	time.Sleep(2 * time.Second)
 
 	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetAndResetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
@@ -258,14 +258,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 // this benchmark generate syscall but without having kprobe installed
 
 func TestStress_E2EOExecNoKprobe(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	stressExec(t, nil, "folder1/folder2/folder1/folder2/test", executable)
 }
@@ -273,14 +266,7 @@ func TestStress_E2EOExecNoKprobe(t *testing.T) {
 // goal: measure the impact of an event catched and passed from the kernel to the userspace
 // this benchmark generate event that passs from the kernel to the userspace
 func TestStress_E2EExecEvent(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -320,7 +306,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		return syscall.Close(int(fd))
+		return syscall.Close(fd)
 	}, func(event *sprobe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
@@ -389,12 +375,15 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		return syscall.Close(int(fd))
+		return syscall.Close(fd)
 	}, func(event *sprobe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID
 	})
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
 	resolver, err := probe.NewDentryResolver(test.probe)
@@ -455,12 +444,15 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		return syscall.Close(int(fd))
+		return syscall.Close(fd)
 	}, func(event *sprobe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID
 	})
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
 	resolver, err := probe.NewDentryResolver(test.probe)
@@ -521,12 +513,15 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		return syscall.Close(int(fd))
+		return syscall.Close(fd)
 	}, func(event *sprobe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID
 	})
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
 	resolver, err := probe.NewDentryResolver(test.probe)
