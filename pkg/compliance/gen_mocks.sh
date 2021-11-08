@@ -10,6 +10,7 @@ interfaces=(
 	"Evaluatable"
 	"Iterator"
 	"KubeClient"
+	"RegoConfiguration"
 	"Reporter"
 	"Scheduler"
 )
