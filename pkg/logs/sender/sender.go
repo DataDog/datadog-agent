@@ -171,7 +171,6 @@ func sendMessage(hasError bool, sender *Sender, message *message.Message) bool {
 		select {
 		case sender.inputChan <- message:
 		default:
-			break
 		}
 	}
 	return hasError

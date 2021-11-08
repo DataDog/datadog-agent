@@ -61,9 +61,9 @@ func (m *mockStrategy) Send(inputChan chan *message.Message, outputChan chan *me
 	for msg := range inputChan {
 		if send(msg.Content) == nil {
 			outputChan <- msg
-		} else {
-			m.sendFailed <- true
+			continue
 		}
+		m.sendFailed <- true
 	}
 }
 
