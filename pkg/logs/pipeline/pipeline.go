@@ -29,27 +29,32 @@ type Pipeline struct {
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
 	mainDestinations := getMainDestinations(endpoints, destinationsContext)
-	var backupDestinations *client.Destinations
-	if endpoints.Backup != nil {
-		backupDestinations = getBackupDestinations(endpoints, destinationsContext)
-	}
+	// var backupDestinations *client.Destinations
+	// if endpoints.Backup != nil {
+	// 	backupDestinations = getBackupDestinations(endpoints, destinationsContext)
+	// }
 
-	senderChan := make(chan *message.Message, config.ChanSize)
+	strategyInput := make(chan *message.Message, config.ChanSize)
+	senderInput := make(chan *sender.Payload, 1)
 
 	var mainSender *sender.Sender
 	var backupSender *sender.Sender
 
-	// If there is a backup endpoint - we are dual-shipping so we need to spawn an additional sender.
-	if backupDestinations != nil {
-		mainSenderChannel := make(chan *message.Message, config.ChanSize)
-		backupSenderChannel := make(chan *message.Message, config.ChanSize)
+	strategy := getStrategy(endpoints, serverless, pipelineID)
+	strategy.Start(strategyInput, senderInput)
+	mainSender = sender.NewSender(senderInput, outputChan, mainDestinations)
 
-		mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
-		backupSender = sender.NewSender(backupSenderChannel, outputChan, backupDestinations, getStrategy(endpoints, serverless, pipelineID))
-		sender.SplitSenders(senderChan, mainSender, backupSender)
-	} else {
-		mainSender = sender.NewSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
-	}
+	// // If there is a backup endpoint - we are dual-shipping so we need to spawn an additional sender.
+	// if backupDestinations != nil {
+	// 	mainSenderChannel := make(chan *message.Message, config.ChanSize)
+	// 	backupSenderChannel := make(chan *message.Message, config.ChanSize)
+
+	// 	mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
+	// 	backupSender = sender.NewSender(backupSenderChannel, outputChan, backupDestinations, getStrategy(endpoints, serverless, pipelineID))
+	// 	sender.SplitSenders(senderChan, mainSender, backupSender)
+	// } else {
+	// 	mainSender = sender.NewSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
+	// }
 
 	var encoder processor.Encoder
 	if serverless {
@@ -63,7 +68,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	}
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, senderChan, processingRules, encoder, diagnosticMessageReceiver)
+	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver)
 
 	return &Pipeline{
 		InputChan:    inputChan,
@@ -128,7 +133,13 @@ func getBackupDestinations(endpoints *config.Endpoints, destinationsContext *cli
 
 func getStrategy(endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
-		return sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", pipelineID)
+		var encoder sender.ContentEncoding
+		if endpoints.Main.UseCompression { // TODO move off the endpoint so it can be more reasonables ahred
+			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+		} else {
+			encoder = sender.IdentityContentType
+		}
+		return sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", pipelineID, encoder)
 	}
 	return sender.StreamStrategy
 }

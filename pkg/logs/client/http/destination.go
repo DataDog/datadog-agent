@@ -43,7 +43,6 @@ type Destination struct {
 	apiKey              string
 	contentType         string
 	host                string
-	contentEncoding     ContentEncoding
 	client              *httputils.ResetClient
 	destinationsContext *client.DestinationsContext
 	once                sync.Once
@@ -82,7 +81,6 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		url:                 buildURL(endpoint),
 		apiKey:              endpoint.APIKey,
 		contentType:         contentType,
-		contentEncoding:     buildContentEncoding(endpoint),
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
@@ -130,14 +128,14 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 
 	ctx := d.destinationsContext.Context()
 
-	encodedPayload, err := d.contentEncoding.encode(payload)
+	// encodedPayload, err := d.contentEncoding.encode(payload)
 	if err != nil {
 		return err
 	}
 	metrics.BytesSent.Add(int64(len(payload)))
-	metrics.EncodedBytesSent.Add(int64(len(encodedPayload)))
+	metrics.EncodedBytesSent.Add(int64(len(payload)))
 
-	req, err := http.NewRequest("POST", d.url, bytes.NewReader(encodedPayload))
+	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload))
 	if err != nil {
 		// the request could not be built,
 		// this can happen when the method or the url are valid.
@@ -145,7 +143,7 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	}
 	req.Header.Set("DD-API-KEY", d.apiKey)
 	req.Header.Set("Content-Type", d.contentType)
-	req.Header.Set("Content-Encoding", d.contentEncoding.name())
+	// req.Header.Set("Content-Encoding", d.contentEncoding.name()) // TODO: Fixme
 	if d.protocol != "" {
 		req.Header.Set("DD-PROTOCOL", string(d.protocol))
 	}
@@ -261,13 +259,6 @@ func buildURL(endpoint config.Endpoint) string {
 		url.Path = "/v1/input"
 	}
 	return url.String()
-}
-
-func buildContentEncoding(endpoint config.Endpoint) ContentEncoding {
-	if endpoint.UseCompression {
-		return NewGzipContentEncoding(endpoint.CompressionLevel)
-	}
-	return IdentityContentType
 }
 
 // CheckConnectivity check if sending logs through HTTP works

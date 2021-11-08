@@ -185,12 +185,24 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	destinations := client.NewDestinations(main, additionals)
 	inputChan := make(chan *message.Message, 100)
-	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, pipelineID)
+	senderInput := make(chan *sender.Payload, 100)
+
+	var encoder sender.ContentEncoding
+	if endpoints.Main.UseCompression {
+		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+	} else {
+		encoder = sender.IdentityContentType
+	}
+
+	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, pipelineID, encoder)
+
+	strategy.Start(inputChan, senderInput)
+
 	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
 		desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
 	return &passthroughPipeline{
-		sender:  sender.NewSender(inputChan, a.Channel(), destinations, strategy),
+		sender:  sender.NewSender(senderInput, a.Channel(), destinations),
 		in:      inputChan,
 		auditor: a,
 	}, nil
