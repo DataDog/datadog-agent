@@ -81,6 +81,7 @@ func (q *WeightedQueue) Weight() int64 {
 // nil, false if the WeightedQueue is stopped.
 func (q *WeightedQueue) Poll() (WeightedItem, bool) {
 	q.mu.Lock()
+	defer q.mu.Unlock()
 
 	// If the queue is empty and we aren't stopped, wait for a signal
 	for q.queue.Len() == 0 && !q.stop {
@@ -95,8 +96,6 @@ func (q *WeightedQueue) Poll() (WeightedItem, bool) {
 	item := e.Value.(WeightedItem)
 	q.queue.Remove(e)
 	q.currentWeight -= item.Weight()
-
-	q.mu.Unlock()
 
 	return item, true
 }
