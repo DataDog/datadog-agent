@@ -21,7 +21,7 @@
 
 <!--
 * What inspired you to submit this pull request?
-* Link any related GitHub issues here.
+* Link any related GitHub issues or PRs here.
 -->
 
 ### Additional Notes
