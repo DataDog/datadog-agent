@@ -463,7 +463,7 @@ func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Head
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
