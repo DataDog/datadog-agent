@@ -1338,6 +1338,7 @@ core,k8s.io/client-go/discovery/fake,Apache-2.0,Cloud Native Computing Foundatio
 core,k8s.io/client-go/dynamic,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/client-go/dynamic/dynamicinformer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/client-go/dynamic/dynamiclister,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/dynamic/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/client-go/informers,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/client-go/informers/admissionregistration,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/client-go/informers/admissionregistration/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
