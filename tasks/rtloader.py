@@ -23,11 +23,8 @@ def get_dev_path():
     return os.path.abspath(os.path.join(here, '..', 'dev'))
 
 
-def run_make_command(ctx, command="", sub_folder=""):
-    build_path = get_rtloader_build_path()
-    if sub_folder != "":
-        build_path = os.path.join(build_path, sub_folder)
-    ctx.run("cmake --build {} --target {}".format(build_path, command))
+def run_make_command(ctx, command=""):
+    ctx.run("cmake --build {} --target {}".format(get_rtloader_build_path(), command))
 
 
 def get_cmake_cache_path(rtloader_path):
@@ -128,7 +125,7 @@ def install(ctx):
 
 @task
 def test(ctx):
-    run_make_command(ctx, "run", sub_folder="test")
+    run_make_command(ctx, "run")
 
 
 @task
