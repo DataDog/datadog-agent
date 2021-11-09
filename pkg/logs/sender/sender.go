@@ -198,7 +198,7 @@ func (s *DualSender) Stop() {
 	s.backupSender.Stop()
 }
 
-// Flush sends synchronously the messages that this sender has to send.
+// Flush sends synchronously the messages that the child senders have to send
 func (s *DualSender) Flush(ctx context.Context) {
 	s.mainSender.Flush(ctx)
 	s.backupSender.Flush(ctx)

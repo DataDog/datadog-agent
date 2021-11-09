@@ -229,7 +229,6 @@ func TestSingleFailsThenRecovers(t *testing.T) {
 
 	mainSender.Start()
 
-	// Test both output's get the line
 	input <- newMessage([]byte("fake line"), source, "")
 	<-mainOutput
 
