@@ -311,7 +311,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				default:
 					return NE, []byte("!~")
 				}
-			case c == '`' || c == '\'' || c == '"' || unicode.IsSpace(c) || isLetter(c) || isDigit(c):
+			case isValidCharAfterOperator(c):
 				return Not, tkn.bytes()
 			default:
 				tkn.setErr(`unexpected char "%c" (%d) after "!"`, tkn.lastChar, tkn.lastChar)
@@ -779,4 +779,9 @@ func runeBytes(r rune) []byte {
 	buf := make([]byte, utf8.UTFMax)
 	n := utf8.EncodeRune(buf, r)
 	return buf[:n]
+}
+
+// isValidCharAfterOperator returns true if c is a valid character after an operator
+func isValidCharAfterOperator(c rune) bool {
+	return c == '(' || c == '`' || c == '\'' || c == '"' || unicode.IsSpace(c) || isLetter(c) || isDigit(c)
 }

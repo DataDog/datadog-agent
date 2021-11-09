@@ -500,6 +500,36 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				tables: "test",
 				obfuscated: "select * from test where ! is_good",
 			},
+			{
+				query: "select * from test where ! is_good;",
+				tables: "test",
+				obfuscated: "select * from test where ! is_good",
+			},
+			{
+				query: "select * from test where !45;",
+				tables: "test",
+				obfuscated: "select * from test where ! ?",
+			},
+			{
+				query: "select * from test where !(select is_good from good_things);",
+				tables: "test,good_things",
+				obfuscated: "select * from test where ! ( select is_good from good_things )",
+			},
+			{
+				query: "select * from test where !'weird_query'",
+				tables: "test",
+				obfuscated: "select * from test where ! ?",
+			},
+			{
+				query: "select * from test where !\"weird_query\"",
+				tables: "test",
+				obfuscated: "select * from test where ! weird_query",
+			},
+			{
+				query: "select * from test where !`weird_query`",
+				tables: "test",
+				obfuscated: "select * from test where ! weird_query",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
