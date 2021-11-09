@@ -44,7 +44,8 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	// this test IS USING globals (demultiplexerInstance holding the senders)
 	// -
 
-	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance := getAggregator()
+	aggregatorInstance.tlmContainerTagsEnabled = false
 	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
 
 	s, err := GetDefaultSender()
@@ -63,7 +64,7 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	// this test IS USING globals (demultiplexerInstance holding the senders)
 	// -
 
-	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance := getAggregator()
 	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
 	demultiplexerInstance.cleanSenders()
 
@@ -90,8 +91,8 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	// this test IS USING globals (demultiplexerInstance holding the senders)
 	// -
 
+	aggregatorInstance := getAggregator()
 	demux := demultiplexerInstance.(*AgentDemultiplexer)
-	aggregatorInstance := demultiplexerInstance.Aggregator()
 	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
 	demux.cleanSenders()
 
@@ -112,7 +113,7 @@ func TestDestroySender(t *testing.T) {
 	// this test IS USING globals (demultiplexerInstance holding the senders)
 	// -
 
-	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance := getAggregator()
 	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
 	demultiplexerInstance.cleanSenders()
 
@@ -132,7 +133,7 @@ func TestGetAndSetSender(t *testing.T) {
 	// this test IS USING globals (demultiplexerInstance holding the senders)
 	// -
 
-	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance := getAggregator()
 	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
 	demultiplexerInstance.cleanSenders()
 
@@ -156,7 +157,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	// this test IS USING globals (demultiplexerInstance holding the senders)
 	// -
 
-	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance := getAggregator()
 	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
 	demultiplexerInstance.cleanSenders()
 

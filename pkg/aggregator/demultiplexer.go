@@ -185,7 +185,10 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 	demultiplexerInstance = demux
 
 	go demux.Run()
-	agg.AddAgentStartupTelemetry(options.StartupTelemetry)
+
+	if options.StartupTelemetry != "" {
+		agg.AddAgentStartupTelemetry(options.StartupTelemetry)
+	}
 
 	return demux
 }

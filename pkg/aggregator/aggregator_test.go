@@ -37,19 +37,32 @@ const defaultHostname = "hostname"
 const altDefaultHostname = "althostname"
 
 func init() {
+	initF()
+}
+
+func initF() {
 	demultiplexerInstance = nil
 	opts := DefaultDemultiplexerOptions(nil)
 	opts.FlushInterval = 1 * time.Hour
-	InitAndStartAgentDemultiplexer(opts, defaultHostname)
+	opts.StartupTelemetry = ""
+	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
+	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
 	recurrentSeries = metrics.Series{}
 	tagsetTlm.reset()
+}
+
+func getAggregator() *BufferedAggregator {
+	if demultiplexerInstance == nil {
+		initF()
+	}
+	return demultiplexerInstance.Aggregator()
 }
 
 func TestRegisterCheckSampler(t *testing.T) {
 	// this test IS USING globals
 	// -
 
-	agg := demultiplexerInstance.Aggregator()
+	agg := getAggregator()
 	agg.checkSamplers = make(map[check.ID]*CheckSampler)
 
 	err := agg.registerSender(checkID1)
@@ -69,7 +82,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	// this test IS USING globals
 	// -
 
-	agg := demultiplexerInstance.Aggregator()
+	agg := getAggregator()
 	agg.checkSamplers = make(map[check.ID]*CheckSampler)
 
 	agg.registerSender(checkID1)
@@ -169,7 +182,7 @@ func TestSetHostname(t *testing.T) {
 	// this test IS USING globals
 	// -
 
-	agg := demultiplexerInstance.Aggregator()
+	agg := getAggregator()
 	agg.checkSamplers = make(map[check.ID]*CheckSampler)
 
 	assert.Equal(t, "hostname", agg.hostname)
