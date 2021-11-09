@@ -70,7 +70,7 @@ func TestConsideredSpans(t *testing.T) {
 	}
 }
 
-func TestExceptionSamplerRace(t *testing.T) {
+func TestRareSamplerRace(t *testing.T) {
 	e := NewRareSampler()
 	e.Stop()
 	for i := 0; i < 2; i++ {

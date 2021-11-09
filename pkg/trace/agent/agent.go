@@ -404,6 +404,9 @@ func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
 	if traceContainsError(pt.Trace) {
 		return a.ErrorsSampler.Sample(pt.Trace, pt.Root, pt.Env)
 	}
+	if a.conf.DisableRareSampler {
+		return false
+	}
 	return a.RareSampler.Sample(pt.Trace, pt.Root, pt.Env)
 }
 
