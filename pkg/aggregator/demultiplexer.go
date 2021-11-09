@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	orch "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -131,7 +130,10 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 
 	log.Debugf("Starting forwarders")
 	// orchestrator forwarder
-	orchestratorForwarder := orch.NewOrchestratorForwarder()
+	var orchestratorForwarder *forwarder.DefaultForwarder
+	if !options.NoOrchestratorForwarder {
+		orchestratorForwarder = buildOrchestratorForwarder()
+	}
 
 	// event platform forwarder
 	var eventPlatformForwarder epforwarder.EventPlatformForwarder
