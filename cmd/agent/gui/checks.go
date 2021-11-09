@@ -20,6 +20,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -189,7 +190,12 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	var file []byte
 	var e error
 	for _, path := range configPaths {
-		file, e = ioutil.ReadFile(filepath.Join(path, fileName))
+		filePath, err := securejoin.SecureJoin(path, fileName)
+		if err != nil {
+			log.Errorf("Error: Unable to join config path with the file name: %s", fileName)
+			continue
+		}
+		file, e = ioutil.ReadFile(filePath)
 		if e == nil {
 			break
 		}
@@ -250,13 +256,21 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Attempt to write new configs to custom checks directory
-		path := filepath.Join(checkConfFolderPath, fileName)
+		path, err := securejoin.SecureJoin(checkConfFolderPath, fileName)
+		if err != nil {
+			log.Errorf("Error: Unable to join conf folder path with the file name: %s", fileName)
+			return
+		}
 		os.MkdirAll(checkConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 		e = ioutil.WriteFile(path, data, 0600)
 
 		// If the write didn't work, try writing to the default checks directory
 		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
-			path = filepath.Join(defaultCheckConfFolderPath, fileName)
+			path, err = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
+			if err != nil {
+				log.Errorf("Error: Unable to join conf folder path with the file name: %s", fileName)
+				return
+			}
 			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 			e = ioutil.WriteFile(path, data, 0600)
 		}
@@ -271,12 +285,20 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Success"))
 	} else if r.Method == "DELETE" {
 		// Attempt to write new configs to custom checks directory
-		path := filepath.Join(checkConfFolderPath, fileName)
+		path, err := securejoin.SecureJoin(checkConfFolderPath, fileName)
+		if err != nil {
+			log.Errorf("Error: Unable to join conf folder path with the file name: %s", fileName)
+			return
+		}
 		e := os.Rename(path, path+".disabled")
 
 		// If the move didn't work, try writing to the dev checks directory
 		if e != nil {
-			path = filepath.Join(defaultCheckConfFolderPath, fileName)
+			path, err = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
+			if err != nil {
+				log.Errorf("Error: Unable to join conf folder path with the file name: %s", fileName)
+				return
+			}
 			e = os.Rename(path, path+".disabled")
 		}
 

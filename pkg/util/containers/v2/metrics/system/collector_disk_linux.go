@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package metrics
+package system
 
 import (
 	"bufio"
@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,27 +28,27 @@ const (
 
 var diskMappingCacheKey = cache.BuildAgentKey("containers", "disk_mapping")
 
-func buildIOStats(procPath string, cgs *cgroups.IOStats) *ContainerIOStats {
+func buildIOStats(procPath string, cgs *cgroups.IOStats) *provider.ContainerIOStats {
 	if cgs == nil {
 		return nil
 	}
-	cs := &ContainerIOStats{}
+	cs := &provider.ContainerIOStats{}
 
 	convertField(cgs.ReadBytes, &cs.ReadBytes)
 	convertField(cgs.WriteBytes, &cs.WriteBytes)
 	convertField(cgs.ReadOperations, &cs.ReadOperations)
 	convertField(cgs.WriteOperations, &cs.WriteOperations)
 
-	deviceMapping, err := getDiskDeviceMapping(procPath)
+	deviceMapping, err := GetDiskDeviceMapping(procPath)
 	if err != nil {
 		log.Debugf("Error while getting disk mapping, no disk metrics will be present, err:  %w", err)
 		return cs
 	}
 
-	csDevicesStats := make(map[string]DeviceIOStats, len(deviceMapping))
+	csDevicesStats := make(map[string]provider.DeviceIOStats, len(deviceMapping))
 	for deviceID, deviceStats := range cgs.Devices {
 		if deviceName, found := deviceMapping[deviceID]; found {
-			targetDeviceStats := DeviceIOStats{}
+			targetDeviceStats := provider.DeviceIOStats{}
 			convertField(deviceStats.ReadBytes, &targetDeviceStats.ReadBytes)
 			convertField(deviceStats.ReadBytes, &targetDeviceStats.ReadBytes)
 			convertField(deviceStats.WriteBytes, &targetDeviceStats.WriteBytes)
@@ -65,7 +66,7 @@ func buildIOStats(procPath string, cgs *cgroups.IOStats) *ContainerIOStats {
 	return cs
 }
 
-// getDiskDeviceMapping scrapes /proc/diskstats to build a mapping from
+// GetDiskDeviceMapping scrapes /proc/diskstats to build a mapping from
 // "major:minor" device numbers to device name.
 // It is cached for 1 minute
 // Format:
@@ -74,7 +75,7 @@ func buildIOStats(procPath string, cgs *cgroups.IOStats) *ContainerIOStats {
 // 8       0 sda 24398 2788 1317975 40488 25201 46267 1584744 142336 0 22352 182660
 // 8       1 sda1 24232 2788 1312025 40376 25201 46267 1584744 142336 0 22320 182552
 // 8      16 sdb 189 0 4063 220 0 0 0 0 0 112 204
-func getDiskDeviceMapping(procPath string) (map[string]string, error) {
+func GetDiskDeviceMapping(procPath string) (map[string]string, error) {
 	// Cache lookup
 	if cached, hit := cache.Cache.Get(diskMappingCacheKey); hit {
 		if mapping, ok := cached.(map[string]string); ok {

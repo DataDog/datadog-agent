@@ -5,7 +5,7 @@
 
 // +build containerd
 
-package metrics
+package containerd
 
 import (
 	"fmt"
@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -35,11 +36,11 @@ const (
 )
 
 func init() {
-	metricsProvider.registerCollector(collectorMetadata{
-		id:       containerdCollectorID,
-		priority: 1, // Less than the "system" collector, so we can rely on cgroups directly if possible
-		runtimes: []string{RuntimeNameContainerd},
-		factory: func() (Collector, error) {
+	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
+		ID:       containerdCollectorID,
+		Priority: 1, // Less than the "system" collector, so we can rely on cgroups directly if possible
+		Runtimes: []string{provider.RuntimeNameContainerd},
+		Factory: func() (provider.Collector, error) {
 			return newContainerdCollector()
 		},
 	})
@@ -52,12 +53,12 @@ type containerdCollector struct {
 
 func newContainerdCollector() (*containerdCollector, error) {
 	if !config.IsFeaturePresent(config.Containerd) {
-		return nil, ErrPermaFail
+		return nil, provider.ErrPermaFail
 	}
 
 	client, err := cutil.GetContainerdUtil()
 	if err != nil {
-		return nil, convertRetrierErr(err)
+		return nil, provider.ConvertRetrierErr(err)
 	}
 
 	return &containerdCollector{client: client}, nil
@@ -69,7 +70,7 @@ func (c *containerdCollector) ID() string {
 }
 
 // GetContainerStats returns stats by container ID.
-func (c *containerdCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
+func (c *containerdCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	metrics, err := c.getContainerdMetrics(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -112,7 +113,7 @@ func (c *containerdCollector) GetContainerStats(containerID string, cacheValidit
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (c *containerdCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*ContainerNetworkStats, error) {
+func (c *containerdCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
 	metrics, err := c.getContainerdMetrics(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -161,14 +162,14 @@ func (c *containerdCollector) getContainerdMetrics(containerID string, cacheVali
 	return metrics, nil
 }
 
-func getContainerdStatsLinux(metrics *v1.Metrics, container containers.Container, OCISpec *oci.Spec, processes []containerd.ProcessInfo) *ContainerStats {
+func getContainerdStatsLinux(metrics *v1.Metrics, container containers.Container, OCISpec *oci.Spec, processes []containerd.ProcessInfo) *provider.ContainerStats {
 	if metrics == nil {
 		return nil
 	}
 
 	currentTime := time.Now()
 
-	return &ContainerStats{
+	return &provider.ContainerStats{
 		Timestamp: currentTime,
 		CPU:       getContainerdCPUStatsLinux(metrics.CPU, currentTime, container.CreatedAt, OCISpec),
 		Memory:    getContainerdMemoryStatsLinux(metrics.Memory),
@@ -176,12 +177,12 @@ func getContainerdStatsLinux(metrics *v1.Metrics, container containers.Container
 	}
 }
 
-func getContainerdCPUStatsLinux(cpuStat *v1.CPUStat, currentTime time.Time, startTime time.Time, OCISpec *oci.Spec) *ContainerCPUStats {
+func getContainerdCPUStatsLinux(cpuStat *v1.CPUStat, currentTime time.Time, startTime time.Time, OCISpec *oci.Spec) *provider.ContainerCPUStats {
 	if cpuStat == nil {
 		return nil
 	}
 
-	res := ContainerCPUStats{}
+	res := provider.ContainerCPUStats{}
 
 	if cpuStat.Usage != nil {
 		res.Total = util.UIntToFloatPtr(cpuStat.Usage.Total)
@@ -199,12 +200,12 @@ func getContainerdCPUStatsLinux(cpuStat *v1.CPUStat, currentTime time.Time, star
 	return &res
 }
 
-func getContainerdMemoryStatsLinux(memStat *v1.MemoryStat) *ContainerMemStats {
+func getContainerdMemoryStatsLinux(memStat *v1.MemoryStat) *provider.ContainerMemStats {
 	if memStat == nil {
 		return nil
 	}
 
-	res := ContainerMemStats{
+	res := provider.ContainerMemStats{
 		RSS:   util.UIntToFloatPtr(memStat.RSS),
 		Cache: util.UIntToFloatPtr(memStat.Cache),
 	}
@@ -225,17 +226,17 @@ func getContainerdMemoryStatsLinux(memStat *v1.MemoryStat) *ContainerMemStats {
 	return &res
 }
 
-func getContainerdIOStatsLinux(blkioStat *v1.BlkIOStat, processes []containerd.ProcessInfo) *ContainerIOStats {
+func getContainerdIOStatsLinux(blkioStat *v1.BlkIOStat, processes []containerd.ProcessInfo) *provider.ContainerIOStats {
 	if blkioStat == nil {
 		return nil
 	}
 
-	result := ContainerIOStats{
+	result := provider.ContainerIOStats{
 		ReadBytes:       util.Float64Ptr(0),
 		WriteBytes:      util.Float64Ptr(0),
 		ReadOperations:  util.Float64Ptr(0),
 		WriteOperations: util.Float64Ptr(0),
-		Devices:         make(map[string]DeviceIOStats),
+		Devices:         make(map[string]provider.DeviceIOStats),
 	}
 
 	for _, blkioStatEntry := range blkioStat.IoServiceBytesRecursive {
@@ -282,13 +283,13 @@ func getContainerdIOStatsLinux(blkioStat *v1.BlkIOStat, processes []containerd.P
 	return &result
 }
 
-func getContainerdNetworkStatsLinux(networkStats []*v1.NetworkStat, networksMapping map[string]string) *ContainerNetworkStats {
-	containerNetworkStats := ContainerNetworkStats{
+func getContainerdNetworkStatsLinux(networkStats []*v1.NetworkStat, networksMapping map[string]string) *provider.ContainerNetworkStats {
+	containerNetworkStats := provider.ContainerNetworkStats{
 		BytesSent:   util.Float64Ptr(0),
 		BytesRcvd:   util.Float64Ptr(0),
 		PacketsSent: util.Float64Ptr(0),
 		PacketsRcvd: util.Float64Ptr(0),
-		Interfaces:  make(map[string]InterfaceNetStats),
+		Interfaces:  make(map[string]provider.InterfaceNetStats),
 	}
 
 	for _, stats := range networkStats {
@@ -302,7 +303,7 @@ func getContainerdNetworkStatsLinux(networkStats []*v1.NetworkStat, networksMapp
 			interfaceName = customName
 		}
 
-		containerNetworkStats.Interfaces[interfaceName] = InterfaceNetStats{
+		containerNetworkStats.Interfaces[interfaceName] = provider.InterfaceNetStats{
 			BytesSent:   util.UIntToFloatPtr(stats.TxBytes),
 			BytesRcvd:   util.UIntToFloatPtr(stats.RxBytes),
 			PacketsSent: util.UIntToFloatPtr(stats.TxPackets),
@@ -334,12 +335,12 @@ func getContainerdCPULimit(currentTime time.Time, startTime time.Time, OCISpec *
 	return &limit
 }
 
-func getContainerdStatsWindows(windowsStats *wstats.WindowsContainerStatistics) *ContainerStats {
+func getContainerdStatsWindows(windowsStats *wstats.WindowsContainerStatistics) *provider.ContainerStats {
 	if windowsStats == nil {
 		return nil
 	}
 
-	return &ContainerStats{
+	return &provider.ContainerStats{
 		Timestamp: windowsStats.Timestamp,
 		CPU:       getContainerdCPUStatsWindows(windowsStats.Processor),
 		Memory:    getContainerdMemoryStatsWindows(windowsStats.Memory),
@@ -347,36 +348,36 @@ func getContainerdStatsWindows(windowsStats *wstats.WindowsContainerStatistics) 
 	}
 }
 
-func getContainerdCPUStatsWindows(procStats *wstats.WindowsContainerProcessorStatistics) *ContainerCPUStats {
+func getContainerdCPUStatsWindows(procStats *wstats.WindowsContainerProcessorStatistics) *provider.ContainerCPUStats {
 	if procStats == nil {
 		return nil
 	}
 
-	return &ContainerCPUStats{
+	return &provider.ContainerCPUStats{
 		Total:  util.UIntToFloatPtr(procStats.TotalRuntimeNS),
 		System: util.UIntToFloatPtr(procStats.RuntimeKernelNS),
 		User:   util.UIntToFloatPtr(procStats.RuntimeUserNS),
 	}
 }
 
-func getContainerdMemoryStatsWindows(memStats *wstats.WindowsContainerMemoryStatistics) *ContainerMemStats {
+func getContainerdMemoryStatsWindows(memStats *wstats.WindowsContainerMemoryStatistics) *provider.ContainerMemStats {
 	if memStats == nil {
 		return nil
 	}
 
-	return &ContainerMemStats{
+	return &provider.ContainerMemStats{
 		PrivateWorkingSet: util.UIntToFloatPtr(memStats.MemoryUsagePrivateWorkingSetBytes),
 		CommitBytes:       util.UIntToFloatPtr(memStats.MemoryUsageCommitBytes),
 		CommitPeakBytes:   util.UIntToFloatPtr(memStats.MemoryUsageCommitPeakBytes),
 	}
 }
 
-func getContainerdIOStatsWindows(ioStats *wstats.WindowsContainerStorageStatistics) *ContainerIOStats {
+func getContainerdIOStatsWindows(ioStats *wstats.WindowsContainerStorageStatistics) *provider.ContainerIOStats {
 	if ioStats == nil {
 		return nil
 	}
 
-	return &ContainerIOStats{
+	return &provider.ContainerIOStats{
 		ReadBytes:       util.UIntToFloatPtr(ioStats.ReadSizeBytes),
 		WriteBytes:      util.UIntToFloatPtr(ioStats.WriteSizeBytes),
 		ReadOperations:  util.UIntToFloatPtr(ioStats.ReadCountNormalized),

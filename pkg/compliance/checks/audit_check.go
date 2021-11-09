@@ -62,13 +62,20 @@ func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Re
 			}
 
 			log.Debugf("%s: audit check - match %s", ruleID, path)
+			auditPermissions := auditPermissionsString(auditRule)
 			instances = append(instances, newResolvedInstance(
 				eval.NewInstance(
 					eval.VarMap{
 						compliance.AuditFieldPath:        path,
 						compliance.AuditFieldEnabled:     true,
-						compliance.AuditFieldPermissions: auditPermissionsString(auditRule),
-					}, nil,
+						compliance.AuditFieldPermissions: auditPermissions,
+					},
+					nil,
+					eval.RegoInputMap{
+						"path":        path,
+						"enabled":     true,
+						"permissions": auditPermissions,
+					},
 				),
 				auditRule.Path, "audit"),
 			)

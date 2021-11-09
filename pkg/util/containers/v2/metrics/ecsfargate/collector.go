@@ -6,7 +6,7 @@
 //go:build docker
 // +build docker
 
-package metrics
+package ecsfargate
 
 import (
 	"context"
@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,11 +29,11 @@ const (
 )
 
 func init() {
-	metricsProvider.registerCollector(collectorMetadata{
-		id:       ecsFargateCollectorID,
-		priority: 0,
-		runtimes: allLinuxRuntimes,
-		factory:  func() (Collector, error) { return newEcsFargateCollector() },
+	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
+		ID:       ecsFargateCollectorID,
+		Priority: 0,
+		Runtimes: provider.AllLinuxRuntimes,
+		Factory:  func() (provider.Collector, error) { return newEcsFargateCollector() },
 	})
 }
 
@@ -46,12 +48,12 @@ type ecsStatsFunc func(ctx context.Context, id string) (*v2.ContainerStats, erro
 // newEcsFargateCollector returns a new *ecsFargateCollector.
 func newEcsFargateCollector() (*ecsFargateCollector, error) {
 	if !config.IsFeaturePresent(config.ECSFargate) {
-		return nil, ErrPermaFail
+		return nil, provider.ErrPermaFail
 	}
 
 	client, err := metadata.V2()
 	if err != nil {
-		return nil, convertRetrierErr(err)
+		return nil, provider.ConvertRetrierErr(err)
 	}
 
 	return &ecsFargateCollector{client: client}, nil
@@ -61,7 +63,7 @@ func newEcsFargateCollector() (*ecsFargateCollector, error) {
 func (e *ecsFargateCollector) ID() string { return ecsFargateCollectorID }
 
 // GetContainerStats returns stats by container ID.
-func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
+func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := e.stats(containerID, cacheValidity, e.client.GetContainerStats)
 	if err != nil {
 		return nil, err
@@ -71,13 +73,13 @@ func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidit
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*ContainerNetworkStats, error) {
+func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
 	stats, err := e.stats(containerID, cacheValidity, e.client.GetContainerStats)
 	if err != nil {
 		return nil, err
 	}
 
-	return convertEcsNetworkStats(stats.Networks, networks), nil
+	return convertNetworkStats(stats.Networks, networks), nil
 }
 
 // stats returns stats by container ID, it uses an in-memory cache to reduce the number of api calls.
@@ -103,12 +105,12 @@ func (e *ecsFargateCollector) stats(containerID string, cacheValidity time.Durat
 	return stats, nil
 }
 
-func convertEcsStats(ecsStats *v2.ContainerStats) *ContainerStats {
+func convertEcsStats(ecsStats *v2.ContainerStats) *provider.ContainerStats {
 	if ecsStats == nil {
 		return nil
 	}
 
-	return &ContainerStats{
+	return &provider.ContainerStats{
 		Timestamp: time.Now(),
 		CPU:       convertCPUStats(&ecsStats.CPU),
 		Memory:    convertMemoryStats(&ecsStats.Memory),
@@ -116,39 +118,36 @@ func convertEcsStats(ecsStats *v2.ContainerStats) *ContainerStats {
 	}
 }
 
-func convertCPUStats(cpuStats *v2.CPUStats) *ContainerCPUStats {
+func convertCPUStats(cpuStats *v2.CPUStats) *provider.ContainerCPUStats {
 	if cpuStats == nil {
 		return nil
 	}
 
-	stats := &ContainerCPUStats{}
-	convertField(&cpuStats.Usage.Total, &stats.Total)
-	convertField(&cpuStats.Usage.Kernelmode, &stats.System)
-	convertField(&cpuStats.Usage.Usermode, &stats.User)
-
-	return stats
+	return &provider.ContainerCPUStats{
+		Total:  util.UIntToFloatPtr(cpuStats.Usage.Total),
+		System: util.UIntToFloatPtr(cpuStats.Usage.Kernelmode),
+		User:   util.UIntToFloatPtr(cpuStats.Usage.Usermode),
+	}
 }
 
-func convertMemoryStats(memStats *v2.MemStats) *ContainerMemStats {
+func convertMemoryStats(memStats *v2.MemStats) *provider.ContainerMemStats {
 	if memStats == nil {
 		return nil
 	}
 
-	stats := &ContainerMemStats{}
-	convertField(&memStats.Limit, &stats.Limit)
-	convertField(&memStats.Usage, &stats.UsageTotal)
-	convertField(&memStats.Details.RSS, &stats.RSS)
-	convertField(&memStats.Details.Cache, &stats.Cache)
-
-	return stats
+	return &provider.ContainerMemStats{
+		Limit:      util.UIntToFloatPtr(memStats.Limit),
+		UsageTotal: util.UIntToFloatPtr(memStats.Usage),
+		RSS:        util.UIntToFloatPtr(memStats.Details.RSS),
+		Cache:      util.UIntToFloatPtr(memStats.Details.Cache),
+	}
 }
 
-func convertIOStats(ioStats *v2.IOStats) *ContainerIOStats {
+func convertIOStats(ioStats *v2.IOStats) *provider.ContainerIOStats {
 	if ioStats == nil {
 		return nil
 	}
 
-	stats := &ContainerIOStats{}
 	var readBytes, writeBytes uint64
 	for _, stat := range ioStats.BytesPerDeviceAndKind {
 		switch stat.Kind {
@@ -160,9 +159,6 @@ func convertIOStats(ioStats *v2.IOStats) *ContainerIOStats {
 			continue
 		}
 	}
-
-	convertField(&readBytes, &stats.ReadBytes)
-	convertField(&writeBytes, &stats.WriteBytes)
 
 	var readOp, writeOp uint64
 	for _, stat := range ioStats.OPPerDeviceAndKind {
@@ -176,26 +172,29 @@ func convertIOStats(ioStats *v2.IOStats) *ContainerIOStats {
 		}
 	}
 
-	convertField(&readOp, &stats.ReadOperations)
-	convertField(&writeOp, &stats.WriteOperations)
-
-	return stats
+	return &provider.ContainerIOStats{
+		ReadBytes:       util.UIntToFloatPtr(readBytes),
+		WriteBytes:      util.UIntToFloatPtr(writeBytes),
+		ReadOperations:  util.UIntToFloatPtr(readOp),
+		WriteOperations: util.UIntToFloatPtr(writeOp),
+	}
 }
 
-func convertEcsNetworkStats(netStats v2.NetStatsMap, networks map[string]string) *ContainerNetworkStats {
-	stats := &ContainerNetworkStats{}
-	stats.Interfaces = make(map[string]InterfaceNetStats)
+func convertNetworkStats(netStats v2.NetStatsMap, networks map[string]string) *provider.ContainerNetworkStats {
+	stats := &provider.ContainerNetworkStats{}
+	stats.Interfaces = make(map[string]provider.InterfaceNetStats)
 	var totalPacketsRcvd, totalPacketsSent, totalBytesRcvd, totalBytesSent uint64
 	for iface, statsPerInterface := range netStats {
 		if new, found := networks[iface]; found {
 			iface = new
 		}
 
-		iStats := InterfaceNetStats{}
-		convertField(&statsPerInterface.TxBytes, &iStats.BytesSent)
-		convertField(&statsPerInterface.TxPackets, &iStats.PacketsSent)
-		convertField(&statsPerInterface.RxBytes, &iStats.BytesRcvd)
-		convertField(&statsPerInterface.RxPackets, &iStats.PacketsRcvd)
+		iStats := provider.InterfaceNetStats{
+			BytesSent:   util.UIntToFloatPtr(statsPerInterface.TxBytes),
+			PacketsSent: util.UIntToFloatPtr(statsPerInterface.TxPackets),
+			BytesRcvd:   util.UIntToFloatPtr(statsPerInterface.RxBytes),
+			PacketsRcvd: util.UIntToFloatPtr(statsPerInterface.RxPackets),
+		}
 		stats.Interfaces[iface] = iStats
 
 		totalPacketsRcvd += statsPerInterface.RxPackets
@@ -204,10 +203,10 @@ func convertEcsNetworkStats(netStats v2.NetStatsMap, networks map[string]string)
 		totalBytesSent += statsPerInterface.TxBytes
 	}
 
-	convertField(&totalPacketsRcvd, &stats.PacketsRcvd)
-	convertField(&totalPacketsSent, &stats.PacketsSent)
-	convertField(&totalBytesRcvd, &stats.BytesRcvd)
-	convertField(&totalBytesSent, &stats.BytesSent)
+	stats.PacketsRcvd = util.UIntToFloatPtr(totalPacketsRcvd)
+	stats.PacketsSent = util.UIntToFloatPtr(totalPacketsSent)
+	stats.BytesRcvd = util.UIntToFloatPtr(totalBytesRcvd)
+	stats.BytesSent = util.UIntToFloatPtr(totalBytesSent)
 
 	return stats
 }

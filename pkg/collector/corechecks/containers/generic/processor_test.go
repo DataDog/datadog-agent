@@ -30,8 +30,8 @@ func (l *mockContainerLister) List() ([]*workloadmeta.Container, error) {
 func createTestProcessor(listerContainers []*workloadmeta.Container, listerError error, metricsContainers map[string]metrics.MockContainerEntry) (*mocksender.MockSender, *Processor) {
 	mockProvider := metrics.NewMockMetricsProvider()
 	mockCollector := metrics.NewMockCollector("testCollector")
-	mockProvider.RegisterCollector("docker", mockCollector)
-	mockProvider.RegisterCollector("containerd", mockCollector)
+	mockProvider.RegisterConcreteCollector("docker", mockCollector)
+	mockProvider.RegisterConcreteCollector("containerd", mockCollector)
 	for cID, entry := range metricsContainers {
 		mockCollector.SetContainerEntry(cID, entry)
 	}

@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2021-present Datadog, Inc.
 
-package metrics
+package provider
 
 import (
 	"errors"
@@ -43,14 +43,16 @@ var (
 		RetryStatus:   retry.PermaFail,
 	}
 
+	// AllLinuxRuntimes lists all runtimes available on Linux
 	// nolint: deadcode, unused
-	allLinuxRuntimes = []string{
+	AllLinuxRuntimes = []string{
 		RuntimeNameDocker,
 		RuntimeNameContainerd,
 		RuntimeNameCRIO,
 	}
+	// AllWindowsRuntimes lists all runtimes available on Windows
 	// nolint: deadcode, unused
-	allWindowsRuntimes = []string{
+	AllWindowsRuntimes = []string{
 		RuntimeNameDocker,
 		RuntimeNameContainerd,
 	}
@@ -59,15 +61,17 @@ var (
 // Provider interface allows to mock the metrics provider
 type Provider interface {
 	GetCollector(runtime string) Collector
+	RegisterCollector(collectorMeta CollectorMetadata)
 }
 
 type collectorFactory func() (Collector, error)
 
-type collectorMetadata struct {
-	id       string
-	priority int // lowest gets higher priority (0 more prioritary than 1)
-	runtimes []string
-	factory  collectorFactory
+// CollectorMetadata contains the characteristics of a collector to be registered with RegisterCollector
+type CollectorMetadata struct {
+	ID       string
+	Priority int // lowest gets higher priority (0 more prioritary than 1)
+	Runtimes []string
+	Factory  collectorFactory
 }
 
 type collectorReference struct {
@@ -78,7 +82,7 @@ type collectorReference struct {
 
 // GenericProvider offers an interface to retrieve a metrics collector
 type GenericProvider struct {
-	collectors          map[string]collectorMetadata // key is catalogEntry.id
+	collectors          map[string]CollectorMetadata // key is catalogEntry.id
 	collectorsLock      sync.Mutex
 	effectiveCollectors map[string]*collectorReference // key is runtime
 	effectiveLock       sync.RWMutex
@@ -95,7 +99,7 @@ func GetProvider() Provider {
 
 func newProvider() *GenericProvider {
 	return &GenericProvider{
-		collectors:          make(map[string]collectorMetadata),
+		collectors:          make(map[string]CollectorMetadata),
 		effectiveCollectors: make(map[string]*collectorReference),
 	}
 }
@@ -108,11 +112,12 @@ func (mp *GenericProvider) GetCollector(runtime string) Collector {
 	return mp.getCollector(runtime)
 }
 
-func (mp *GenericProvider) registerCollector(collectorMeta collectorMetadata) {
+// RegisterCollector registers a collector
+func (mp *GenericProvider) RegisterCollector(collectorMeta CollectorMetadata) {
 	mp.collectorsLock.Lock()
 	defer mp.collectorsLock.Unlock()
 
-	mp.collectors[collectorMeta.id] = collectorMeta
+	mp.collectors[collectorMeta.ID] = collectorMeta
 	atomic.StoreUint32(&mp.remainingCandidates, uint32(len(mp.collectors)))
 }
 
@@ -143,13 +148,13 @@ func (mp *GenericProvider) retryCollectors(cacheValidity time.Duration) {
 	mp.lastRetryTimestamp = time.Now()
 
 	for _, collectorEntry := range mp.collectors {
-		collector, err := collectorEntry.factory()
+		collector, err := collectorEntry.Factory()
 		if err == nil {
 			mp.updateEffectiveCollectors(collector, collectorEntry)
-			delete(mp.collectors, collectorEntry.id)
+			delete(mp.collectors, collectorEntry.ID)
 		} else {
 			if errors.Is(err, ErrPermaFail) {
-				delete(mp.collectors, collectorEntry.id)
+				delete(mp.collectors, collectorEntry.ID)
 				log.Debugf("Metrics collector: %s went into PermaFail, removed from candidates")
 			}
 		}
@@ -158,22 +163,22 @@ func (mp *GenericProvider) retryCollectors(cacheValidity time.Duration) {
 	atomic.StoreUint32(&mp.remainingCandidates, uint32(len(mp.collectors)))
 }
 
-func (mp *GenericProvider) updateEffectiveCollectors(newCollector Collector, newCollectorDesc collectorMetadata) {
+func (mp *GenericProvider) updateEffectiveCollectors(newCollector Collector, newCollectorDesc CollectorMetadata) {
 	mp.effectiveLock.Lock()
 	defer mp.effectiveLock.Unlock()
 
 	newRef := collectorReference{
-		id:        newCollectorDesc.id,
-		priority:  newCollectorDesc.priority,
+		id:        newCollectorDesc.ID,
+		priority:  newCollectorDesc.Priority,
 		collector: newCollector,
 	}
 
-	for _, runtime := range newCollectorDesc.runtimes {
+	for _, runtime := range newCollectorDesc.Runtimes {
 		currentCollector := mp.effectiveCollectors[runtime]
 		if currentCollector == nil {
 			log.Infof("Using metrics collector: %s for runtime: %s", newRef.id, runtime)
 			mp.effectiveCollectors[runtime] = &newRef
-		} else if currentCollector.priority > newCollectorDesc.priority { // do not replace on same priority to favor consistency
+		} else if currentCollector.priority > newCollectorDesc.Priority { // do not replace on same priority to favor consistency
 			log.Infof("Replaced old collector: %s by new collector: %s for runtime: %s", currentCollector.id, newRef.id, runtime)
 			mp.effectiveCollectors[runtime] = &newRef
 		}

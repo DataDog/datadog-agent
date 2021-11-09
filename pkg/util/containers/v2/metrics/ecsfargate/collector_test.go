@@ -6,7 +6,7 @@
 //go:build docker
 // +build docker
 
-package metrics
+package ecsfargate
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 
 	"github.com/stretchr/testify/assert"
@@ -127,7 +128,7 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want *ContainerNetworkStats
+		want *provider.ContainerNetworkStats
 	}{
 		{
 			name: "nominal case",
@@ -135,8 +136,8 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 				netStats: v2.NetStatsMap{"eth1": v2.NetStats{RxBytes: 2398415937, RxPackets: 1898631, TxBytes: 1259037719, TxPackets: 428002}},
 				networks: map[string]string{},
 			},
-			want: &ContainerNetworkStats{
-				Interfaces:  map[string]InterfaceNetStats{"eth1": {BytesRcvd: util.UIntToFloatPtr(2398415937), PacketsRcvd: util.UIntToFloatPtr(1898631), BytesSent: util.UIntToFloatPtr(1259037719), PacketsSent: util.UIntToFloatPtr(428002)}},
+			want: &provider.ContainerNetworkStats{
+				Interfaces:  map[string]provider.InterfaceNetStats{"eth1": {BytesRcvd: util.UIntToFloatPtr(2398415937), PacketsRcvd: util.UIntToFloatPtr(1898631), BytesSent: util.UIntToFloatPtr(1259037719), PacketsSent: util.UIntToFloatPtr(428002)}},
 				BytesRcvd:   util.UIntToFloatPtr(2398415937),
 				PacketsRcvd: util.UIntToFloatPtr(1898631),
 				BytesSent:   util.UIntToFloatPtr(1259037719),
@@ -149,8 +150,8 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 				netStats: v2.NetStatsMap{"eth1": v2.NetStats{RxBytes: 2398415937, RxPackets: 1898631, TxBytes: 1259037719, TxPackets: 428002}},
 				networks: map[string]string{"eth1": "custom_iface"},
 			},
-			want: &ContainerNetworkStats{
-				Interfaces:  map[string]InterfaceNetStats{"custom_iface": {BytesRcvd: util.UIntToFloatPtr(2398415937), PacketsRcvd: util.UIntToFloatPtr(1898631), BytesSent: util.UIntToFloatPtr(1259037719), PacketsSent: util.UIntToFloatPtr(428002)}},
+			want: &provider.ContainerNetworkStats{
+				Interfaces:  map[string]provider.InterfaceNetStats{"custom_iface": {BytesRcvd: util.UIntToFloatPtr(2398415937), PacketsRcvd: util.UIntToFloatPtr(1898631), BytesSent: util.UIntToFloatPtr(1259037719), PacketsSent: util.UIntToFloatPtr(428002)}},
 				BytesRcvd:   util.UIntToFloatPtr(2398415937),
 				PacketsRcvd: util.UIntToFloatPtr(1898631),
 				BytesSent:   util.UIntToFloatPtr(1259037719),
@@ -166,8 +167,8 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 				},
 				networks: map[string]string{},
 			},
-			want: &ContainerNetworkStats{
-				Interfaces: map[string]InterfaceNetStats{
+			want: &provider.ContainerNetworkStats{
+				Interfaces: map[string]provider.InterfaceNetStats{
 					"eth0": {BytesRcvd: util.UIntToFloatPtr(2398415937), PacketsRcvd: util.UIntToFloatPtr(1898631), BytesSent: util.UIntToFloatPtr(1259037719), PacketsSent: util.UIntToFloatPtr(428002)},
 					"eth1": {BytesSent: util.UIntToFloatPtr(2398415936), PacketsSent: util.UIntToFloatPtr(1898630), BytesRcvd: util.UIntToFloatPtr(1259037718), PacketsRcvd: util.UIntToFloatPtr(428001)},
 				},
@@ -180,7 +181,7 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.EqualValues(t, tt.want, convertEcsNetworkStats(tt.args.netStats, tt.args.networks))
+			assert.EqualValues(t, tt.want, convertNetworkStats(tt.args.netStats, tt.args.networks))
 		})
 	}
 }
@@ -193,7 +194,7 @@ func TestConvertEcsStats(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want *ContainerStats
+		want *provider.ContainerStats
 	}{
 		{
 			name: "nominal case",
@@ -268,11 +269,25 @@ func TestConvertEcsStats(t *testing.T) {
 					},
 				},
 			},
-			want: &ContainerStats{
+			want: &provider.ContainerStats{
 				Timestamp: constTime,
-				CPU:       &ContainerCPUStats{Total: util.UIntToFloatPtr(1137691504), System: util.UIntToFloatPtr(80000000), User: util.UIntToFloatPtr(810000000)},
-				Memory:    &ContainerMemStats{Limit: util.UIntToFloatPtr(9223372036854772000), UsageTotal: util.UIntToFloatPtr(6504448), RSS: util.UIntToFloatPtr(4669440), Cache: util.UIntToFloatPtr(651264)},
-				IO:        &ContainerIOStats{ReadBytes: util.UIntToFloatPtr(638976), WriteBytes: util.UIntToFloatPtr(0), ReadOperations: util.UIntToFloatPtr(12), WriteOperations: util.UIntToFloatPtr(0)},
+				CPU: &provider.ContainerCPUStats{
+					Total:  util.UIntToFloatPtr(1137691504),
+					System: util.UIntToFloatPtr(80000000),
+					User:   util.UIntToFloatPtr(810000000),
+				},
+				Memory: &provider.ContainerMemStats{
+					Limit:      util.UIntToFloatPtr(9223372036854772000),
+					UsageTotal: util.UIntToFloatPtr(6504448),
+					RSS:        util.UIntToFloatPtr(4669440),
+					Cache:      util.UIntToFloatPtr(651264),
+				},
+				IO: &provider.ContainerIOStats{
+					ReadBytes:       util.UIntToFloatPtr(638976),
+					WriteBytes:      util.UIntToFloatPtr(0),
+					ReadOperations:  util.UIntToFloatPtr(12),
+					WriteOperations: util.UIntToFloatPtr(0),
+				},
 			},
 		},
 	}

@@ -75,7 +75,7 @@ func (l *EnvironmentListener) createServices() {
 	if runtime.GOOS == "linux" {
 		containerFeatures = []config.Feature{config.Docker, config.Containerd, config.Kubernetes, config.ECSFargate}
 	} else if runtime.GOOS == "windows" {
-		containerFeatures = []config.Feature{config.Containerd}
+		containerFeatures = []config.Feature{config.Docker, config.Containerd}
 	}
 
 	for _, f := range containerFeatures {

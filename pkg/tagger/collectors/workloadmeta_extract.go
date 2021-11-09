@@ -21,10 +21,38 @@ import (
 )
 
 const (
+	// OrchestratorScopeEntityID defines the orchestrator scope entity ID
+	OrchestratorScopeEntityID = "internal://orchestrator-scope-entity-id"
+
 	podAnnotationPrefix              = "ad.datadoghq.com/"
 	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
 	podTagsAnnotation                = podAnnotationPrefix + "tags"
 	podStandardLabelPrefix           = "tags.datadoghq.com/"
+
+	// Standard tag - Tag keys
+	tagKeyEnv     = "env"
+	tagKeyVersion = "version"
+	tagKeyService = "service"
+
+	// Standard K8s labels - Tag keys
+	tagKeyKubeAppName      = "kube_app_name"
+	tagKeyKubeAppInstance  = "kube_app_instance"
+	tagKeyKubeAppVersion   = "kube_app_version"
+	tagKeyKubeAppComponent = "kube_app_component"
+	tagKeyKubeAppPartOf    = "kube_app_part_of"
+	tagKeyKubeAppManagedBy = "kube_app_managed_by"
+
+	// Standard tag - Environment variables
+	envVarEnv     = "DD_ENV"
+	envVarVersion = "DD_VERSION"
+	envVarService = "DD_SERVICE"
+
+	// Docker label keys
+	dockerLabelEnv     = "com.datadoghq.tags.env"
+	dockerLabelVersion = "com.datadoghq.tags.version"
+	dockerLabelService = "com.datadoghq.tags.service"
+
+	autodiscoveryLabelTagsKey = "com.datadoghq.ad.tags"
 )
 
 var (
@@ -534,4 +562,21 @@ func parseJSONValue(value string, tags *utils.TagList) error {
 	}
 
 	return nil
+}
+
+func parseContainerADTagsLabels(tags *utils.TagList, labelValue string) {
+	tagNames := []string{}
+	err := json.Unmarshal([]byte(labelValue), &tagNames)
+	if err != nil {
+		log.Debugf("Cannot unmarshal AD tags: %s", err)
+	}
+	for _, tag := range tagNames {
+		tagParts := strings.Split(tag, ":")
+		// skip if tag is not in expected k:v format
+		if len(tagParts) != 2 {
+			log.Debugf("Tag '%s' is not in k:v format", tag)
+			continue
+		}
+		tags.AddHigh(tagParts[0], tagParts[1])
+	}
 }
