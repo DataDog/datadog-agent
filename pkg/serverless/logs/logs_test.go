@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -376,7 +377,7 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 	select {
 	case received := <-metricsChan:
 		assert.Equal(t, len(received), 1)
-		assert.Equal(t, "aws.lambda.enhanced.out_of_memory", received[0].Name)
+		assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
 	case <-time.After(100 * time.Millisecond):
 		assert.Fail(t, "We should have received metrics")
 	}
