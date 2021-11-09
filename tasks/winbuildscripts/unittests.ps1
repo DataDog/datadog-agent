@@ -44,7 +44,7 @@ if($err -ne 0){
 
 & inv -e deps
 
-& inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
+& inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-generator="Unix Makefiles" --arch $archflag
 $err = $LASTEXITCODE
 Write-Host Build result is $err
 if($err -ne 0){
