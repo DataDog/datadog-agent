@@ -73,9 +73,7 @@ var workloadListCommand = &cobra.Command{
 			return err
 		}
 
-		workload.Write(color.Output)
-
-		return nil
+		return workload.Write(color.Output)
 	},
 }
 

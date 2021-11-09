@@ -12,6 +12,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // WorkloadDumpResponse is used to dump the store content.
@@ -26,18 +27,25 @@ type WorkloadEntity struct {
 
 // Write writes the stores content in a given writer.
 // Useful for agent's CLI and Flare.
-func (wdr WorkloadDumpResponse) Write(writer io.Writer) {
+func (wdr WorkloadDumpResponse) Write(writer io.Writer) error {
 	if writer != color.Output {
 		color.NoColor = true
 	}
 
 	for kind, entities := range wdr.Entities {
 		for entity, info := range entities.Infos {
+			scrubbedInfo, err := scrubber.ScrubBytes([]byte(info))
+			if err != nil {
+				return fmt.Errorf("error while writing info: %s", err)
+			}
+
 			fmt.Fprintf(writer, "\n=== Entity %s %s ===\n", color.GreenString(kind), color.GreenString(entity))
-			fmt.Fprint(writer, info)
+			fmt.Fprint(writer, string(scrubbedInfo))
 			fmt.Fprintln(writer, "===")
 		}
 	}
+
+	return nil
 }
 
 // Dump lists the content of the store.
