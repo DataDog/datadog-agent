@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -280,6 +281,10 @@ func RunAgent(ctx context.Context) (err error) {
 		return err
 	}
 
+	if err = initRuntimeSettings(); err != nil {
+		return err
+	}
+
 	// start runtime security agent
 	runtimeAgent, err := startRuntimeSecurity(hostname, stopper, statsdClient)
 	if err != nil {
@@ -298,6 +303,10 @@ func RunAgent(ctx context.Context) (err error) {
 	log.Infof("Datadog Security Agent is now running.")
 
 	return
+}
+
+func initRuntimeSettings() error {
+	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{})
 }
 
 // handleSignals handles OS signals, and sends a message on stopCh when an interrupt
