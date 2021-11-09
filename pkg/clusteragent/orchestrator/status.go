@@ -88,7 +88,7 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 		} else {
 			for _, node := range state.Nodes {
 				for _, c := range node.Configs {
-					if c.Name == orchestrator.OrchestratorCheckName { // use name
+					if c.Name == orchestrator.CheckName { // use name
 						if c.NodeName != "" {
 							dispatchedNodes = append(dispatchedNodes, clcNode{
 								Node:   c.NodeName,

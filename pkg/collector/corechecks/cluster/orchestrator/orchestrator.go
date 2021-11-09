@@ -64,7 +64,7 @@ var (
 )
 
 func init() {
-	core.RegisterCheck(orchestrator.OrchestratorCheckName, OrchestratorFactory)
+	core.RegisterCheck(orchestrator.CheckName, OrchestratorFactory)
 }
 
 // OrchestratorInstance is the config of the orchestrator check instance.
@@ -124,7 +124,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 // OrchestratorFactory returns the orchestrator check
 func OrchestratorFactory() check.Check {
 	return newOrchestratorCheck(
-		core.NewCheckBase(orchestrator.OrchestratorCheckName),
+		core.NewCheckBase(orchestrator.CheckName),
 		&OrchestratorInstance{},
 	)
 }
