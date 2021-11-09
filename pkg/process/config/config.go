@@ -196,7 +196,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		LogLevel:     "info",
 		LogToConsole: false,
 
-		// Allow buffering up to 75 megabytes of payload data in total
+		// Allow buffering up to 60 megabytes of payload data in total
 		ProcessQueueBytes: 60 * 1000 * 1000,
 		// This can be fairly high as the input should get throttled by queue bytes first.
 		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
