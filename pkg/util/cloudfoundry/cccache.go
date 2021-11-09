@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net/url"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,22 +21,28 @@ import (
 // CCCacheI is an interface for a structure that caches and automatically refreshes data from Cloud Foundry API
 // it's useful mostly to be able to mock CCCache during unit tests
 type CCCacheI interface {
+	// LastUpdated return the last time the cache was updated
 	LastUpdated() time.Time
-	GetPollAttempts() int
-	GetPollSuccesses() int
+
+	// UpdatedOnce returns a channel that is closed once the cache has been updated
+	// successfully at least once.  Successive calls to UpdatedOnce return the
+	// same channel.  If the cache's context ends before an update occurs, this channel
+	// will never close.
+	UpdatedOnce() <-chan struct{}
+
+	// GetApp looksf or an app with the given GUID in the cache
 	GetApp(string) (*cfclient.V3App, error)
 }
 
 // CCCache is a simple structure that caches and automatically refreshes data from Cloud Foundry API
 type CCCache struct {
 	sync.RWMutex
-	pollAttempts  int64
-	pollSuccesses int64
 	cancelContext context.Context
 	configured    bool
 	ccAPIClient   CCClientI
 	pollInterval  time.Duration
 	lastUpdated   time.Time
+	updatedOnce   chan struct{}
 	appsByGUID    map[string]*CFApp
 	orgsByGUID    map[string]*CFOrg
 	spacesByGUID  map[string]*CFSpace
@@ -80,6 +85,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 	globalCCCache.pollInterval = pollInterval
 	globalCCCache.appsBatchSize = appsBatchSize
 	globalCCCache.lastUpdated = time.Time{} // zero time
+	globalCCCache.updatedOnce = make(chan struct{})
 	globalCCCache.cancelContext = ctx
 	globalCCCache.configured = true
 
@@ -105,16 +111,15 @@ func (ccc *CCCache) LastUpdated() time.Time {
 	return ccc.lastUpdated
 }
 
-// GetPollAttempts returns the number of times the cache queried the CC API
-func (ccc *CCCache) GetPollAttempts() int64 {
-	return atomic.LoadInt64(&ccc.pollAttempts)
+// UpdatedOnce returns a channel that is closed once the cache has been updated
+// successfully at least once.  Successive calls to UpdatedOnce return the
+// same channel.  If the cache's context ends before an update occurs, this channel
+// will never close.
+func (ccc *CCCache) UpdatedOnce() <-chan struct{} {
+	return ccc.updatedOnce
 }
 
-// GetPollSuccesses returns the number of times the cache successfully queried the CC API
-func (ccc *CCCache) GetPollSuccesses() int64 {
-	return atomic.LoadInt64(&ccc.pollSuccesses)
-}
-
+// GetApp looksf or an app with the given GUID in the cache
 func (ccc *CCCache) GetApp(guid string) (*CFApp, error) {
 	ccc.RLock()
 	defer ccc.RUnlock()
@@ -161,7 +166,6 @@ func (ccc *CCCache) start() {
 
 func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
-	atomic.AddInt64(&ccc.pollAttempts, 1)
 	var wg sync.WaitGroup
 
 	// List applications
@@ -225,6 +229,9 @@ func (ccc *CCCache) readData() {
 	ccc.appsByGUID = appsByGUID
 	ccc.spacesByGUID = spacesByGUID
 	ccc.orgsByGUID = orgsByGUID
-	atomic.AddInt64(&ccc.pollSuccesses, 1)
+	firstUpdate := ccc.lastUpdated.IsZero()
 	ccc.lastUpdated = time.Now()
+	if firstUpdate {
+		close(ccc.updatedOnce)
+	}
 }

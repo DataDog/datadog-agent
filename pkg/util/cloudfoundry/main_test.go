@@ -32,11 +32,7 @@ func TestMain(m *testing.M) {
 	bc, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, []*regexp.Regexp{}, []*regexp.Regexp{}, &testBBSClient{})
 	<-bc.UpdatedOnce()
 	cc, _ = ConfigureGlobalCCCache(ctx, "url", "", "", false, time.Second, 1, &testCCClient{})
-	for i := 1; i <= 10; i++ {
-		if cc.GetPollSuccesses() == 0 {
-			time.Sleep(time.Second)
-		}
-	}
+	<-cc.UpdatedOnce()
 	code := m.Run()
 	os.Exit(code)
 }
