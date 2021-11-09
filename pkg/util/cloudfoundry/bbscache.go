@@ -24,13 +24,28 @@ import (
 // BBSCacheI is an interface for a structure that caches and automatically refreshes data from Cloud Foundry BBS API
 // it's useful mostly to be able to mock BBSCache during unit tests
 type BBSCacheI interface {
+	// LastUpdated return the last time the cache was updated
 	LastUpdated() time.Time
-	GetPollAttempts() int
-	GetPollSuccesses() int
+
+	// UpdatedOnce returns a channel that is closed once the cache has been updated
+	// successfully at least once.  Successive calls to UpdatedOnce return the
+	// same channel.  If the cache's context ends before an update occurs, this channel
+	// will never close.
+	UpdatedOnce() <-chan struct{}
+
+	// GetActualLRPsForProcessGUID returns slice of pointers to ActualLRP objects for given App GUID
 	GetActualLRPsForProcessGUID(appGUID string) ([]*ActualLRP, error)
+
+	// GetActualLRPsForCell returns slice of pointers to ActualLRP objects for given App GUID
 	GetActualLRPsForCell(cellID string) ([]*ActualLRP, error)
+
+	// GetDesiredLRPFor returns DesiredLRP for a specific process GUID
 	GetDesiredLRPFor(appGUID string) (DesiredLRP, error)
+
+	// GetAllLRPs returns all Actual LRPs (in mapping {appGuid: []ActualLRP}) and all Desired LRPs
 	GetAllLRPs() (map[string][]*ActualLRP, map[string]*DesiredLRP)
+
+	// GetTagsForNode returns tags for all container running on specified node
 	GetTagsForNode(nodename string) (map[string][]string, error)
 }
 
@@ -42,8 +57,6 @@ type BBSCache struct {
 	bbsAPIClient       bbs.Client
 	bbsAPIClientLogger lager.Logger
 	pollInterval       time.Duration
-	pollAttempts       int
-	pollSuccesses      int
 	envIncludeList     []*regexp.Regexp
 	envExcludeList     []*regexp.Regexp
 	// maps Desired LRPs' AppGUID to list of ActualLRPs (IOW this is list of running containers per app)
@@ -52,6 +65,7 @@ type BBSCache struct {
 	desiredLRPs             map[string]*DesiredLRP
 	tagsByCellID            map[string]map[string][]string
 	lastUpdated             time.Time
+	updatedOnce             chan struct{}
 }
 
 var (
@@ -94,6 +108,7 @@ func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyf
 	globalBBSCache.bbsAPIClientLogger = lager.NewLogger("bbs")
 	globalBBSCache.pollInterval = pollInterval
 	globalBBSCache.lastUpdated = time.Time{} // zero time
+	globalBBSCache.updatedOnce = make(chan struct{})
 	globalBBSCache.cancelContext = ctx
 	globalBBSCache.envIncludeList = includeList
 	globalBBSCache.envExcludeList = excludeList
@@ -118,18 +133,12 @@ func (bc *BBSCache) LastUpdated() time.Time {
 	return bc.lastUpdated
 }
 
-// GetPollAttempts returns the number of times the cache queried the BBS API
-func (bc *BBSCache) GetPollAttempts() int {
-	bc.RLock()
-	defer bc.RUnlock()
-	return bc.pollAttempts
-}
-
-// GetPollSuccesses returns the number of times the cache successfully queried the BBS API
-func (bc *BBSCache) GetPollSuccesses() int {
-	bc.RLock()
-	defer bc.RUnlock()
-	return bc.pollSuccesses
+// UpdatedOnce returns a channel that is closed once the cache has been updated
+// successfully at least once.  Successive calls to UpdatedOnce return the
+// same channel.  If the cache's context ends before an update occurs, this channel
+// will never close.
+func (bc *BBSCache) UpdatedOnce() <-chan struct{} {
+	return bc.updatedOnce
 }
 
 // GetActualLRPsForProcessGUID returns slice of pointers to ActualLRP objects for given App GUID
@@ -196,7 +205,6 @@ func (bc *BBSCache) start() {
 func (bc *BBSCache) readData() {
 	log.Debug("Reading data from BBS API")
 	bc.Lock()
-	bc.pollAttempts++
 	bc.Unlock()
 	var wg sync.WaitGroup
 	var actualLRPsByProcessGUID map[string][]*ActualLRP
@@ -236,8 +244,11 @@ func (bc *BBSCache) readData() {
 		tagsByCellID[cellID] = bc.extractNodeTags(alrps, desiredLRPs)
 	}
 	bc.tagsByCellID = tagsByCellID
+	firstUpdate := bc.lastUpdated.IsZero()
 	bc.lastUpdated = time.Now()
-	bc.pollSuccesses++
+	if firstUpdate {
+		close(bc.updatedOnce)
+	}
 }
 
 func (bc *BBSCache) readActualLRPs() (map[string][]*ActualLRP, map[string][]*ActualLRP, error) {
