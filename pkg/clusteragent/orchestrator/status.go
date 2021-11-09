@@ -88,13 +88,12 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 		} else {
 			for _, node := range state.Nodes {
 				for _, c := range node.Configs {
-					if c.Name == orchestrator.CheckName { // use name
-						if c.NodeName != "" {
-							dispatchedNodes = append(dispatchedNodes, clcNode{
-								Node:   c.NodeName,
-								Source: c.Source,
-							})
-						}
+					if c.Name == orchestrator.CheckName {
+						dispatchedNodes = append(dispatchedNodes, clcNode{
+							// as we rely on a non endpoint check, we can use the node.Name not c.NodeName
+							Node:   node.Name,
+							Source: c.Source,
+						})
 					}
 				}
 			}
@@ -103,6 +102,7 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 		status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
 		status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
 	}
+
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
 		status["ContainerScrubbing"] = "Container scrubbing: enabled"

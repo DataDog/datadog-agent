@@ -43,3 +43,8 @@ func (h *Handler) Run(_ context.Context) error {
 func GetStats() (*types.Stats, error) {
 	return nil, ErrNotCompiled
 }
+
+// GetState not implemented
+func GetState() (*types.StateResponse, error) {
+	return nil, ErrNotCompiled
+}
