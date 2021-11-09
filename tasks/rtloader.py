@@ -60,7 +60,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_generator='Unix Ma
     dev_path = get_dev_path()
 
     if cmake_generator != "":
-        cmake_options += " -G \"{}\"".format(cmake_generator)
+        cmake_options = "-G \"{}\" ".format(cmake_generator) + cmake_options
 
     cmake_args = cmake_options + " -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={}".format(
         install_prefix or dev_path
