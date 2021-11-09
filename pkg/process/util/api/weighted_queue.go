@@ -171,7 +171,8 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 func (q *WeightedQueue) Stop() {
 	q.mu.Lock()
 	q.stop = true
-	q.cv.Signal()
+	// broadcast to all pending Poll operations
+	q.cv.Broadcast()
 	q.mu.Unlock()
 }
 

@@ -33,17 +33,30 @@ func TestWeightedQueue(t *testing.T) {
 	wg.Wait()
 }
 
-func TestWeightedQueuePollInterrupt(t *testing.T) {
+func TestWeightedQueuePollInterruptMultiple(t *testing.T) {
 	q := NewWeightedQueue(3, math.MaxInt64)
 
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		q.Stop()
-	}()
+	results := make(chan bool)
+	poll := func() {
+		item, ok := q.Poll()
+		results <- !ok && item == nil
+	}
 
-	item, ok := q.Poll()
-	assert.False(t, ok)
-	assert.Nil(t, item)
+	// queue up three Poll calls
+	go poll()
+	go poll()
+	go poll()
+
+	// give them time to start
+	time.Sleep(500 * time.Millisecond)
+
+	// stop the queue
+	q.Stop()
+
+	// wait for them to finish
+	assert.Equal(t, true, <-results)
+	assert.Equal(t, true, <-results)
+	assert.Equal(t, true, <-results)
 }
 
 func TestWeightedQueuePollBlocking(t *testing.T) {
