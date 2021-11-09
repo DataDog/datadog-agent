@@ -88,7 +88,7 @@ func TestSender(t *testing.T) {
 	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
 	destinations := client.NewDestinations(destination, nil)
 
-	sender := NewSender(input, output, destinations, StreamStrategy, false)
+	sender := NewSingleSender(input, output, destinations, StreamStrategy)
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -121,7 +121,7 @@ func TestSenderNotBlockedByAdditional(t *testing.T) {
 	additionalDestination := tcp.NewDestination(config.Endpoint{Host: "dont.exist.local", Port: 0}, true, destinationsCtx)
 	destinations := client.NewDestinations(mainDestination, []client.Destination{additionalDestination})
 
-	sender := NewSender(input, output, destinations, StreamStrategy, false)
+	sender := NewSingleSender(input, output, destinations, StreamStrategy)
 	sender.Start()
 
 	expectedMessage1 := newMessage([]byte("fake line"), source, "")
@@ -157,13 +157,11 @@ func TestDualShipEndpoints(t *testing.T) {
 	mainMockStrategy := newMockStrategy()
 	backupMockStrategy := newMockStrategy()
 
-	mainSender := NewSender(mainInput, mainOutput, mainDests, mainMockStrategy, true)
-	backupSender := NewSender(backupInput, backupOutput, backupDests, backupMockStrategy, true)
+	mainSender := NewSingleSender(mainInput, mainOutput, mainDests, mainMockStrategy)
+	backupSender := NewSingleSender(backupInput, backupOutput, backupDests, backupMockStrategy)
 
-	SplitSenders(input, mainSender, backupSender)
-
-	mainSender.Start()
-	backupSender.Start()
+	dualSender := NewDualSender(input, mainSender, backupSender)
+	dualSender.Start()
 
 	// Scenario 1: Both senders fail, and then both recover
 
@@ -227,7 +225,7 @@ func TestSingleFailsThenRecovers(t *testing.T) {
 
 	mainMockStrategy := newMockStrategy()
 
-	mainSender := NewSender(input, mainOutput, mainDests, mainMockStrategy, false)
+	mainSender := NewSingleSender(input, mainOutput, mainDests, mainMockStrategy)
 
 	mainSender.Start()
 

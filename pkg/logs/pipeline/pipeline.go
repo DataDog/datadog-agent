@@ -20,10 +20,9 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan    chan *message.Message
-	processor    *processor.Processor
-	mainSender   *sender.Sender
-	backupSender *sender.Sender
+	InputChan chan *message.Message
+	processor *processor.Processor
+	sender    sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
@@ -33,19 +32,16 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 
 	senderChan := make(chan *message.Message, config.ChanSize)
 
-	var mainSender *sender.Sender
-	var backupSender *sender.Sender
+	var logSender sender.Sender
 
 	// If there is a backup endpoint - we are dual-shipping so we need to spawn an additional sender.
 	if backupDestinations != nil {
-		mainSenderChannel := make(chan *message.Message, config.ChanSize)
-		backupSenderChannel := make(chan *message.Message, config.ChanSize)
+		mainSender := sender.NewSingleSender(make(chan *message.Message, config.ChanSize), outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
+		backupSender := sender.NewSingleSender(make(chan *message.Message, config.ChanSize), outputChan, backupDestinations, getStrategy(endpoints, serverless, pipelineID))
 
-		mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID), true)
-		backupSender = sender.NewSender(backupSenderChannel, outputChan, backupDestinations, getStrategy(endpoints, serverless, pipelineID), true)
-		sender.SplitSenders(senderChan, mainSender, backupSender)
+		logSender = sender.NewDualSender(senderChan, mainSender, backupSender)
 	} else {
-		mainSender = sender.NewSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID), false)
+		logSender = sender.NewSingleSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
 	}
 
 	var encoder processor.Encoder
@@ -63,38 +59,28 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	processor := processor.New(inputChan, senderChan, processingRules, encoder, diagnosticMessageReceiver)
 
 	return &Pipeline{
-		InputChan:    inputChan,
-		processor:    processor,
-		mainSender:   mainSender,
-		backupSender: backupSender,
+		InputChan: inputChan,
+		processor: processor,
+		sender:    logSender,
 	}
 }
 
 // Start launches the pipeline
 func (p *Pipeline) Start() {
-	p.mainSender.Start()
-	if p.backupSender != nil {
-		p.backupSender.Start()
-	}
+	p.sender.Start()
 	p.processor.Start()
 }
 
 // Stop stops the pipeline
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
-	p.mainSender.Stop()
-	if p.backupSender != nil {
-		p.backupSender.Stop()
-	}
+	p.sender.Stop()
 }
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
-	p.processor.Flush(ctx)  // flush messages in the processor into the sender
-	p.mainSender.Flush(ctx) // flush the sender
-	if p.backupSender != nil {
-		p.backupSender.Flush(ctx)
-	}
+	p.processor.Flush(ctx) // flush messages in the processor into the sender
+	p.sender.Flush(ctx)    // flush the sender
 }
 
 func getMainDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
