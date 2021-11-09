@@ -36,6 +36,18 @@ func TestNewMetricsExporter(t *testing.T) {
 	assert.NotNil(t, exp)
 }
 
+func TestNewMetricsExporterInvalid(t *testing.T) {
+	factory := NewFactory(&serializer.MockSerializer{})
+	cfg := factory.CreateDefaultConfig()
+
+	expCfg := cfg.(*exporterConfig)
+	expCfg.Metrics.HistConfig.Mode = "InvalidMode"
+
+	set := componenttest.NewNopExporterCreateSettings()
+	_, err := factory.CreateMetricsExporter(context.Background(), set, cfg)
+	assert.Error(t, err)
+}
+
 func TestNewTracesExporter(t *testing.T) {
 	factory := NewFactory(&serializer.MockSerializer{})
 	cfg := factory.CreateDefaultConfig()

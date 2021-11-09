@@ -284,12 +284,13 @@ def run(
 
 
 @task
-def follow(ctx, id=None, git_ref=None, here=False):
+def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent"):
     """
     Follow a pipeline's progress in the CLI.
     Use --here to follow the latest pipeline on your current branch.
     Use --git-ref to follow the latest pipeline on a given tag or branch.
     Use --id to follow a specific pipeline.
+    Use --project-name to specify a repo other than DataDog/datadog-agent (default)
 
     Examples:
     inv pipeline.follow --git-ref my-branch
@@ -297,7 +298,6 @@ def follow(ctx, id=None, git_ref=None, here=False):
     inv pipeline.follow --id 1234567
     """
 
-    project_name = "DataDog/datadog-agent"
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
@@ -372,12 +372,14 @@ def generate_failure_messages(base):
 
 
 @task
-def trigger_child_pipeline(_, git_ref, project_name, variables=""):
+def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
     """
     Trigger a child pipeline on a target repository and git ref.
     Used in CI jobs only (requires CI_JOB_TOKEN).
 
     Use --variables to specify the environment variables that should be passed to the child pipeline, as a comma-separated list.
+
+    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
 
     Examples:
     inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "RELEASE_VERSION"
@@ -388,9 +390,13 @@ def trigger_child_pipeline(_, git_ref, project_name, variables=""):
     if not os.environ.get('CI_JOB_TOKEN'):
         raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
 
-    # The Gitlab lib requires `GITLAB_TOKEN` to be set, though
-    # we won't use it here
-    os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
+    if not os.environ.get('GITLAB_TOKEN'):
+        if follow:
+            raise Exit("GITLAB_TOKEN variable needed to follow child pipelines.", 1)
+        else:
+            # The Gitlab lib requires `GITLAB_TOKEN` to be
+            # set, but trigger_pipeline doesn't use it
+            os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
 
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
 
@@ -409,12 +415,25 @@ def trigger_child_pipeline(_, git_ref, project_name, variables=""):
     res = gitlab.trigger_pipeline(data)
 
     if 'id' not in res:
-        raise Exit("Failed to create child pipeline: {}".format(res), 1)
+        raise Exit("Failed to create child pipeline: {}".format(res), code=1)
 
-    print("Created a child pipeline with id={}, url={}".format(res['id'], res['web_url']))
+    pipeline_id = res['id']
+    pipeline_url = res['web_url']
+    print("Created a child pipeline with id={}, url={}".format(pipeline_id, pipeline_url))
 
-    # TODO: Add mode where we follow the pipeline, for jobs that need to depend on the child
-    # pipeline.
+    if follow:
+        print("Waiting for child pipeline to finish...")
+
+        wait_for_pipeline(gitlab, pipeline_id)
+
+        # Check pipeline status
+        pipeline = gitlab.pipeline(pipeline_id)
+        pipestatus = pipeline["status"].lower().strip()
+
+        if pipestatus != "success":
+            raise Exit("Error: child pipeline status {}".format(pipestatus.title()), code=1)
+
+        print("Child pipeline finished successfully")
 
 
 @task

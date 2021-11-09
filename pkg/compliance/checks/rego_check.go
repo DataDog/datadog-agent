@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,7 +13,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/open-policy-agent/opa/ast"
@@ -27,11 +25,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const regoEvaluator = "rego"
+
 type regoCheck struct {
 	ruleID            string
 	ruleScope         compliance.RuleScope
-	resources         []compliance.RegoResource
+	inputs            []compliance.RegoInput
 	preparedEvalQuery rego.PreparedEvalQuery
+}
+
+func importModule(importPath, parentDir string, required bool) (string, error) {
+	// look for relative file if we have a source
+	if parentDir != "" {
+		importPath = filepath.Join(parentDir, importPath)
+	}
+
+	mod, err := os.ReadFile(importPath)
+	if err != nil {
+		if required {
+			return "", err
+		}
+		return "", nil
+	}
+	return string(mod), nil
 }
 
 func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.SuiteMeta) ([]func(*rego.Rego), string, error) {
@@ -54,26 +70,44 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 		}
 	}
 
+	if query == "" {
+		query = "data.datadog.findings"
+		log.Infof("defaulting rego query to `%s`", query)
+	}
+
 	var parentDir string
 	if meta.Source != "" {
 		parentDir = filepath.Dir(meta.Source)
 	}
 
+	alreadyImported := make(map[string]bool)
+
+	// import rego file with the same name as the rule id
+	imp := fmt.Sprintf("%s.rego", rule.ID)
+	mod, err := importModule(imp, parentDir, false)
+	if err != nil {
+		return nil, "", err
+	}
+	if mod != "" {
+		options = append(options, rego.Module(imp, mod))
+	}
+	alreadyImported[imp] = true
+
+	// import explicitly required imports
 	for _, imp := range rule.Imports {
-		if imp == "" {
+		if imp == "" || alreadyImported[imp] {
 			continue
 		}
 
-		// look for relative file if we have a source
-		if parentDir != "" {
-			imp = filepath.Join(parentDir, imp)
-		}
-
-		mod, err := os.ReadFile(imp)
+		mod, err := importModule(imp, parentDir, true)
 		if err != nil {
 			return nil, "", err
 		}
-		options = append(options, rego.Module(imp, string(mod)))
+
+		if mod != "" {
+			options = append(options, rego.Module(imp, mod))
+		}
+		alreadyImported[imp] = true
 	}
 
 	return options, query, nil
@@ -111,22 +145,15 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 	return nil
 }
 
-func (r *regoCheck) normalizeInputMap(vars map[string]interface{}) map[string]interface{} {
-	normalized := make(map[string]interface{})
-	for k, v := range vars {
-		ps := strings.Split(k, ".")
-		name := ps[len(ps)-1]
-		normalized[name] = v
-	}
+func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
+	objectsPerTags := make(map[string]interface{})
+	arraysPerTags := make(map[string][]interface{})
 
-	return normalized
-}
+	contextInput := r.buildContextInput(env)
+	objectsPerTags["context"] = contextInput
 
-func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error) {
-	inputPerTags := make(map[string][]interface{})
-
-	for _, resource := range r.resources {
-		resolve, _, err := resourceKindToResolverAndFields(env, r.ruleID, resource.Kind())
+	for _, input := range r.inputs {
+		resolve, _, err := resourceKindToResolverAndFields(env, r.ruleID, input.Kind())
 		if err != nil {
 			return nil, err
 		}
@@ -134,19 +161,47 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		resolved, err := resolve(ctx, env, r.ruleID, resource.ResourceCommon)
+		resolved, err := resolve(ctx, env, r.ruleID, input.ResourceCommon)
 		if err != nil {
 			continue
 		}
 
-		if resource.TagName == "" {
-			return nil, errors.New("no tag name found for resource")
+		tagName := input.TagName
+		if tagName == "" {
+			tagName = string(input.Kind())
+		}
+
+		inputType, err := input.ValidateInputType()
+		if err != nil {
+			return nil, err
+		}
+
+		if _, present := objectsPerTags[tagName]; present {
+			return nil, fmt.Errorf("already defined tag: `%s`", tagName)
 		}
 
 		switch res := resolved.(type) {
 		case resolvedInstance:
-			r.appendInstance(inputPerTags, resource.TagName, res)
+			switch inputType {
+			case "array":
+				r.appendInstance(arraysPerTags, tagName, res)
+			case "object":
+				objectsPerTags[tagName] = res.RegoInput()
+			default:
+				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
+			}
 		case eval.Iterator:
+			if inputType != "array" {
+				return nil, fmt.Errorf("the input kind `%s` does not support the `%s` type", string(input.Kind()), inputType)
+			}
+
+			// create an empty array as a base
+			// this is useful if the iterator is empty for example, as it will ensure we at least
+			// export an empty array to the rego input
+			if _, present := arraysPerTags[tagName]; !present {
+				arraysPerTags[tagName] = []interface{}{}
+			}
+
 			it := res
 			for !it.Done() {
 				instance, err := it.Next()
@@ -154,23 +209,34 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error
 					return nil, err
 				}
 
-				r.appendInstance(inputPerTags, resource.TagName, instance)
+				r.appendInstance(arraysPerTags, tagName, instance)
 			}
 		}
 	}
 
-	context := r.buildContextInput(env)
-
 	input := make(map[string]interface{})
-	for k, v := range inputPerTags {
+	for k, v := range objectsPerTags {
 		input[k] = v
 	}
-	input["context"] = context
+	for k, v := range arraysPerTags {
+		if _, present := input[k]; present {
+			return nil, fmt.Errorf("multiple definitions of tag: `%s`", k)
+		}
+		input[k] = v
+	}
 
 	return input, nil
 }
 
-func (r *regoCheck) buildContextInput(env env.Env) map[string]interface{} {
+func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, instance eval.Instance) {
+	vars, exists := input[key]
+	if !exists {
+		vars = []interface{}{}
+	}
+	input[key] = append(vars, instance.RegoInput())
+}
+
+func (r *regoCheck) buildContextInput(env env.Env) eval.RegoInputMap {
 	context := make(map[string]interface{})
 	context["hostname"] = env.Hostname()
 
@@ -181,54 +247,41 @@ func (r *regoCheck) buildContextInput(env env.Env) map[string]interface{} {
 	return context
 }
 
+func findingsToReports(findings []regoFinding) []*compliance.Report {
+	var reports []*compliance.Report
+	for _, finding := range findings {
+		reportResource := compliance.ReportResource{
+			ID:   finding.ResourceID,
+			Type: finding.ResourceType,
+		}
+
+		report := &compliance.Report{
+			Resource:  reportResource,
+			Passed:    finding.Status,
+			Data:      finding.Data,
+			Evaluator: regoEvaluator,
+		}
+
+		reports = append(reports, report)
+	}
+	return reports
+}
+
 func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	log.Debugf("%s: rego check starting", r.ruleID)
 
-	var resultFinalizer func([]regoFinding) []*compliance.Report
-
-	var input map[string]interface{}
+	var input eval.RegoInputMap
 	providedInput := env.ProvidedInput(r.ruleID)
 
 	if providedInput != nil {
 		input = providedInput
-
-		resultFinalizer = func(findings []regoFinding) []*compliance.Report {
-			for _, finding := range findings {
-				jsonData, err := prettyPrintJSON(finding.asMap())
-				if err != nil {
-					log.Warnf("failed to pretty-print finding %v", finding)
-					continue
-				}
-				log.Infof("finding: %v", string(jsonData))
-			}
-			return nil
-		}
 	} else {
 		normalInput, err := r.buildNormalInput(env)
 		if err != nil {
-			return []*compliance.Report{compliance.BuildReportForError(err)}
+			return buildErrorReports(err)
 		}
 
 		input = normalInput
-
-		resultFinalizer = func(findings []regoFinding) []*compliance.Report {
-			var reports []*compliance.Report
-			for _, finding := range findings {
-				reportResource := compliance.ReportResource{
-					ID:   finding.ResourceID,
-					Type: finding.ResourceType,
-				}
-
-				report := &compliance.Report{
-					Resource: reportResource,
-					Passed:   finding.Status,
-					Data:     finding.Data,
-				}
-
-				reports = append(reports, report)
-			}
-			return reports
-		}
 	}
 
 	log.Debugf("rego eval input: %+v", input)
@@ -241,7 +294,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	ctx := context.TODO()
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
-		return []*compliance.Report{compliance.BuildReportForError(err)}
+		return buildErrorReports(err)
 	} else if len(results) == 0 {
 		return nil
 	}
@@ -249,36 +302,18 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	log.Debugf("%s: rego evaluation done => %+v\n", r.ruleID, results)
 
 	if len(results) == 0 || len(results[0].Expressions) == 0 {
-		return []*compliance.Report{
-			compliance.BuildReportForError(
-				errors.New("failed to collect result expression"),
-			),
-		}
+		return buildErrorReports(errors.New("failed to collect result expression"))
 	}
 
 	findings, err := parseFindings(results[0].Expressions[0].Value)
 	if err != nil {
-		return []*compliance.Report{compliance.BuildReportForError(err)}
+		return buildErrorReports(err)
 	}
 
-	reports := resultFinalizer(findings)
+	reports := findingsToReports(findings)
 
 	log.Debugf("reports: %v", reports)
 	return reports
-}
-
-func prettyPrintJSON(data interface{}) ([]byte, error) {
-	unformatted, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	var buffer bytes.Buffer
-	if err := json.Indent(&buffer, unformatted, "", "\t"); err != nil {
-		return nil, err
-	}
-
-	return buffer.Bytes(), nil
 }
 
 func dumpInputToFile(ruleID, path string, input interface{}) error {
@@ -292,7 +327,7 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 
 	currentData[ruleID] = input
 
-	jsonData, err := prettyPrintJSON(currentData)
+	jsonData, err := PrettyPrintJSON(currentData, "\t")
 	if err != nil {
 		return err
 	}
@@ -300,35 +335,11 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 	return ioutil.WriteFile(path, jsonData, 0644)
 }
 
-func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, instance eval.Instance) {
-	vars, exists := input[key]
-	if !exists {
-		vars = []interface{}{}
-	}
-	normalized := r.normalizeInputMap(instance.Vars().GoMap())
-	input[key] = append(vars, normalized)
-}
-
 type regoFinding struct {
 	Status       bool       `mapstructure:"status"`
 	ResourceType string     `mapstructure:"resource_type"`
 	ResourceID   string     `mapstructure:"resource_id"`
 	Data         event.Data `mapstructure:"data"`
-}
-
-func (f *regoFinding) asMap() map[string]interface{} {
-	res := map[string]interface{}{
-		"resource_type": f.ResourceType,
-		"resource_id":   f.ResourceID,
-		"data":          f.Data,
-	}
-	if f.Status {
-		res["status"] = "passed"
-	} else {
-		res["status"] = "failing"
-	}
-
-	return res
 }
 
 func parseFindings(regoData interface{}) ([]regoFinding, error) {
@@ -378,4 +389,10 @@ func checkFindingsRequiredFields(metadata *mapstructure.Metadata) error {
 	}
 
 	return nil
+}
+
+func buildErrorReports(err error) []*compliance.Report {
+	report := compliance.BuildReportForError(err)
+	report.Evaluator = regoEvaluator
+	return []*compliance.Report{report}
 }

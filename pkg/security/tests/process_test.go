@@ -129,7 +129,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			return f.Close()
-		}, func(event *sprobe.Event, rule *rules.Rule) {})
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			t.Errorf("got event: %s", event)
+		})
 		if err == nil {
 			t.Error("shouldn't get an event")
 		}
@@ -988,12 +990,6 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			}
 		})
 	})
-
-	// test_capset can be somewhat noisy and some events may leak to the next tests (there is a short delay between the
-	// reset of the maps and the reload of the rules, we can't move the reset after the reload either, otherwise the
-	// ruleset_reload test won't work => we would have reset the channel that contains the reload event).
-	// Load a fake new test module to empty the rules and properly cleanup the channels.
-	_, _ = newTestModule(t, nil, nil, testOpts{})
 }
 
 func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.Capabilities, t *testing.T) {

@@ -29,16 +29,16 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 	// WaitForDaemon blocks if the client library has registered with the extension's /hello route
 	d.clientLibReady = true
 
-	d.StartInvocation()
+	d.TellDaemonRuntimeStarted()
 
 	complete := false
 	go func() {
 		<-time.After(100 * time.Millisecond)
 		complete = true
-		d.FinishInvocation()
+		d.TellDaemonRuntimeDone()
 	}()
 	d.WaitForDaemon()
-	assert.Equal(complete, true, "daemon didn't block until FinishInvocation")
+	assert.Equal(complete, true, "daemon didn't block until TellDaemonRuntimeDone")
 }
 
 func TestWaitUntilReady(t *testing.T) {
@@ -54,36 +54,36 @@ func GetValueSyncOnce(so *sync.Once) uint64 {
 	return reflect.ValueOf(so).Elem().FieldByName("done").Uint()
 }
 
-func TestFinishInvocationOnceStartOnly(t *testing.T) {
+func TestTellDaemonRuntimeDoneOnceStartOnly(t *testing.T) {
 	assert := assert.New(t)
 	d := StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
-	d.StartInvocation()
-	assert.Equal(uint64(0), GetValueSyncOnce(&d.finishInvocationOnce))
+	d.TellDaemonRuntimeStarted()
+	assert.Equal(uint64(0), GetValueSyncOnce(&d.TellDaemonRuntimeDoneOnce))
 }
 
-func TestFinishInvocationOnceStartAndEnd(t *testing.T) {
+func TestTellDaemonRuntimeDoneOnceStartAndEnd(t *testing.T) {
 	assert := assert.New(t)
 	d := StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
-	d.StartInvocation()
-	d.FinishInvocation()
+	d.TellDaemonRuntimeStarted()
+	d.TellDaemonRuntimeDone()
 
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
+	assert.Equal(uint64(1), GetValueSyncOnce(&d.TellDaemonRuntimeDoneOnce))
 }
 
-func TestFinishInvocationOnceStartAndEndAndTimeout(t *testing.T) {
+func TestTellDaemonRuntimeDoneOnceStartAndEndAndTimeout(t *testing.T) {
 	assert := assert.New(t)
 	d := StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
-	d.StartInvocation()
-	d.FinishInvocation()
-	d.FinishInvocation()
+	d.TellDaemonRuntimeStarted()
+	d.TellDaemonRuntimeDone()
+	d.TellDaemonRuntimeDone()
 
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
+	assert.Equal(uint64(1), GetValueSyncOnce(&d.TellDaemonRuntimeDoneOnce))
 }
 
 func TestSetTraceTagNoop(t *testing.T) {

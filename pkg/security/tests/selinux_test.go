@@ -148,7 +148,8 @@ func TestSELinux(t *testing.T) {
 		if err == nil {
 			t.Error("expected error")
 		} else {
-			assert.Equal(t, "timeout", err.Error(), "wrong error type, expected timeout")
+			_, ok := err.(ErrTimeout)
+			assert.Equal(t, true, ok, "wrong error type, expected ErrTimeout")
 		}
 	})
 }
