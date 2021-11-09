@@ -3,7 +3,6 @@
 package kernel
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,14 +45,13 @@ func GetMountPoint(path string) (*mountinfo.Info, error) {
 		path = filepath.Dir(path)
 	}
 
-	return nil, nil
+	return nil, fmt.Errorf("no matching mountpoint found")
 }
 
 // IsDebugFSMounted would test the existence of file /sys/kernel/debug/tracing/kprobe_events to determine if debugfs is mounted or not
 // returns a boolean and a possible error message
 func IsDebugFSMounted() (bool, error) {
 	_, err := os.Stat("/sys/kernel/debug/tracing/kprobe_events")
-
 	if err != nil {
 		if os.IsPermission(err) {
 			return false, fmt.Errorf("eBPF not supported, does not have permission to access debugfs")
@@ -66,7 +64,7 @@ func IsDebugFSMounted() (bool, error) {
 
 	mi, err := GetMountPoint("/sys/kernel/debug/tracing/kprobe_events")
 	if err != nil {
-		return false, errors.New("unable to detect debugfs mount point")
+		return false, fmt.Errorf("unable to detect debugfs mount point: %w", err)
 	}
 
 	if mi.FSType != "tracefs" && mi.FSType != "debugfs" {
