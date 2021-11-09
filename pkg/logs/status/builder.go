@@ -63,10 +63,7 @@ func (b *Builder) getUseHTTP() bool {
 
 func (b *Builder) getEndpoints() []string {
 	result := make([]string, 0)
-	result = append(result, b.formatEndpoint(b.endpoints.Main, "Primary: "))
-	if b.endpoints.Backup != nil {
-		result = append(result, b.formatEndpoint(*b.endpoints.Backup, "Backup: "))
-	}
+	result = append(result, b.formatEndpoint(b.endpoints.Main, ""))
 	for _, additional := range b.endpoints.Additionals {
 		result = append(result, b.formatEndpoint(additional, "Additional: "))
 	}

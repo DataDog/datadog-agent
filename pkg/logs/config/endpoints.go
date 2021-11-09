@@ -40,6 +40,7 @@ type Endpoint struct {
 	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
 	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
+	IsReliable              bool
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -57,7 +58,6 @@ type Endpoint struct {
 // Endpoints holds the main endpoint and additional ones to dualship logs.
 type Endpoints struct {
 	Main                   Endpoint
-	Backup                 *Endpoint
 	Additionals            []Endpoint
 	UseProto               bool
 	UseHTTP                bool
@@ -68,10 +68,9 @@ type Endpoints struct {
 }
 
 // NewEndpoints returns a new endpoints composite with default batching settings
-func NewEndpoints(main Endpoint, backup *Endpoint, additionals []Endpoint, useProto bool, useHTTP bool) *Endpoints {
+func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
-		Backup:                 backup,
 		Additionals:            additionals,
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
@@ -83,10 +82,9 @@ func NewEndpoints(main Endpoint, backup *Endpoint, additionals []Endpoint, usePr
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
-func NewEndpointsWithBatchSettings(main Endpoint, backup *Endpoint, additionals []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int) *Endpoints {
+func NewEndpointsWithBatchSettings(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
-		Backup:                 backup,
 		Additionals:            additionals,
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
@@ -95,4 +93,27 @@ func NewEndpointsWithBatchSettings(main Endpoint, backup *Endpoint, additionals 
 		BatchMaxSize:           batchMaxSize,
 		BatchMaxContentSize:    batchMaxContentSize,
 	}
+}
+
+// GetReliableAdditionals returns additional endpoints that can be failed over to and block the pipeline in the
+// event of an outage and will retry errors. These endpoints are treated the same as the main endpoint.
+func (e *Endpoints) GetReliableAdditionals() []*Endpoint {
+	endpoints := []*Endpoint{}
+	for _, endpoint := range e.Additionals {
+		if endpoint.IsReliable {
+			endpoints = append(endpoints, &endpoint)
+		}
+	}
+	return endpoints
+}
+
+// GetUnReliableAdditionals returns additional endpoints that do not guarantee logs are received in the event of an error.
+func (e *Endpoints) GetUnReliableAdditionals() []*Endpoint {
+	endpoints := []*Endpoint{}
+	for _, endpoint := range e.Additionals {
+		if !endpoint.IsReliable {
+			endpoints = append(endpoints, &endpoint)
+		}
+	}
+	return endpoints
 }

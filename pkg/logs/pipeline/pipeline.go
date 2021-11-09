@@ -29,10 +29,7 @@ type Pipeline struct {
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
 	mainDestinations := getMainDestinations(endpoints, destinationsContext)
-	var backupDestinations *client.Destinations
-	if endpoints.Backup != nil {
-		backupDestinations = getBackupDestinations(endpoints, destinationsContext)
-	}
+	backupDestinations := getBackupDestinations(endpoints, destinationsContext)
 
 	senderChan := make(chan *message.Message, config.ChanSize)
 
@@ -104,25 +101,34 @@ func getMainDestinations(endpoints *config.Endpoints, destinationsContext *clien
 	if endpoints.UseHTTP {
 		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
 		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+		for _, endpoint := range endpoints.GetUnReliableAdditionals() {
+			additionals = append(additionals, http.NewDestination(*endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
 		}
 		return client.NewDestinations(main, additionals)
 	}
 	main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
 	additionals := []client.Destination{}
-	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
+	for _, endpoint := range endpoints.GetUnReliableAdditionals() {
+		additionals = append(additionals, tcp.NewDestination(*endpoint, endpoints.UseProto, destinationsContext))
 	}
 	return client.NewDestinations(main, additionals)
 }
 
 func getBackupDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
+	reliableEndpoints := endpoints.GetReliableAdditionals()
+	var backupEndpoint config.Endpoint
+
+	if len(reliableEndpoints) >= 1 {
+		backupEndpoint = *reliableEndpoints[0]
+	} else {
+		return nil
+	}
+
 	if endpoints.UseHTTP {
-		backup := http.NewDestination(*endpoints.Backup, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
+		backup := http.NewDestination(backupEndpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
 		return client.NewDestinations(backup, []client.Destination{})
 	}
-	backup := tcp.NewDestination(*endpoints.Backup, endpoints.UseProto, destinationsContext)
+	backup := tcp.NewDestination(backupEndpoint, endpoints.UseProto, destinationsContext)
 	return client.NewDestinations(backup, []client.Destination{})
 }
 
