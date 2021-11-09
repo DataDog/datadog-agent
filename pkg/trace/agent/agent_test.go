@@ -628,6 +628,7 @@ func TestSampling(t *testing.T) {
 				NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 				ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 				PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+				RareSampler:       sampler.NewRareSampler(cfg),
 			}
 			if tt.errorsSampled {
 				a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg)

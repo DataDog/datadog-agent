@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -43,15 +44,18 @@ type RareSampler struct {
 	tickStats *time.Ticker
 	limiter   *rate.Limiter
 	seen      map[Signature]*seenSpans
+
+	disabled bool
 }
 
 // NewRareSampler returns a NewRareSampler that ensures that we sample combinations
 // of env, service, name, resource, http-status, error type for each top level or measured spans
-func NewRareSampler() *RareSampler {
+func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 	e := &RareSampler{
 		limiter:   rate.NewLimiter(rareSamplerTPS, rareSamplerBurst),
 		seen:      make(map[Signature]*seenSpans),
 		tickStats: time.NewTicker(10 * time.Second),
+		disabled:  conf.DisableRareSampler,
 	}
 	go func() {
 		for range e.tickStats.C {
@@ -63,6 +67,9 @@ func NewRareSampler() *RareSampler {
 
 // Sample a trace and returns true if trace was sampled (should be kept)
 func (e *RareSampler) Sample(t pb.Trace, root *pb.Span, env string) bool {
+	if e.disabled {
+		return false
+	}
 	return e.sample(time.Now(), env, root, t)
 }
 
