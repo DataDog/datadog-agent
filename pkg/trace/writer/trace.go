@@ -51,13 +51,15 @@ type TraceWriter struct {
 	// Channel should only be received from when testing.
 	In chan *SampledChunks
 
-	hostname string
-	env      string
-	senders  []*sender
-	stop     chan struct{}
-	stats    *info.TraceWriterInfo
-	wg       sync.WaitGroup // waits for gzippers
-	tick     time.Duration  // flush frequency
+	hostname  string
+	env       string
+	targetTPS float64
+	errorTPS  float64
+	senders   []*sender
+	stop      chan struct{}
+	stats     *info.TraceWriterInfo
+	wg        sync.WaitGroup // waits for gzippers
+	tick      time.Duration  // flush frequency
 
 	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
 	bufferedSize   int                 // estimated buffer size
@@ -76,6 +78,8 @@ func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 		In:        make(chan *SampledChunks, 1000),
 		hostname:  cfg.Hostname,
 		env:       cfg.DefaultEnv,
+		targetTPS: cfg.TargetTPS,
+		errorTPS:  cfg.ErrorTPS,
 		stats:     &info.TraceWriterInfo{},
 		stop:      make(chan struct{}),
 		flushChan: make(chan chan struct{}),
@@ -227,6 +231,8 @@ func (w *TraceWriter) flush() {
 		AgentVersion:   version.AgentVersion,
 		HostName:       w.hostname,
 		Env:            w.env,
+		TargetTPS:      w.targetTPS,
+		ErrorTPS:       w.errorTPS,
 		TracerPayloads: w.tracerPayloads,
 	}
 	b, err := proto.Marshal(&p)

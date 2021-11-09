@@ -18,4 +18,8 @@ message AgentPayload {
         map<string, string> tags = 6;
         // agentVersion specifies version of the agent.
         string agentVersion = 7;
+        // targetTPS holds `TargetTPS` value in AgentConfig.
+        double targetTPS = 8;
+        // errorTPS holds `ErrorTPS` value in AgentConfig.
+        double errorTPS = 9;
 }
