@@ -224,7 +224,7 @@ require (
 	k8s.io/client-go v0.21.5
 	k8s.io/cri-api v0.21.5
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
-	k8s.io/klog/v2 v2.8.0
+	k8s.io/klog/v2 v2.9.0
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/kube-state-metrics/v2 v2.1.1
 	k8s.io/metrics v0.21.5
@@ -236,8 +236,10 @@ replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompat
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30.0
 
-// Internal code requires adaptation to support changes introduced in https://github.com/kubernetes/kube-state-metrics/commit/83887f16116cbf9ecc34a32e4ad8b4d8e782348d
-replace k8s.io/kube-state-metrics/v2 => github.com/ahmed-mez/kube-state-metrics/v2 v2.1.0-rc.0.0.20210629115837-e46f17606d22
+// Include bug fixes not released upstream (yet)
+// - https://github.com/kubernetes/kube-state-metrics/pull/1610
+// - https://github.com/kubernetes/kube-state-metrics/pull/1584
+replace k8s.io/kube-state-metrics/v2 => github.com/DataDog/kube-state-metrics/v2 v2.1.2-0.20211109105526-c17162ee2798
 
 // Exclude this version of containerd because it depends on github.com/Microsoft/hcsshim@v0.8.7 which depends on k8s.io/kubernetes which is a dependency we’d like to avoid
 exclude github.com/containerd/containerd v1.5.0-beta.1
