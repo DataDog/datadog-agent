@@ -501,19 +501,19 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts 
 	}, nil
 }
 
-// ArrayIntMatches weak comparison, a least one element of a should be in b
-func ArrayIntMatches(a *IntArrayEvaluator, b *IntValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+// IntArrayMatches weak comparison, a least one element of a should be in b
+func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.EvalFnc == nil {
+	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
 
-	if a.Field != "" {
+	if a.Field != "" && b.Field != "" {
 		isPartialLeaf = true
 	}
 

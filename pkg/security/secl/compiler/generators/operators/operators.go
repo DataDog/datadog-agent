@@ -171,7 +171,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 {{ range .ArrayOperators }}
 
-func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
+func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {
@@ -412,7 +412,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 		},
 		ArrayOperators: []Operator{
 			{
-				FuncName:       "IntEquals",
+				FuncName:       "IntArrayEquals",
 				Arg1Type:       "IntEvaluator",
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
@@ -422,7 +422,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "BoolEquals",
+				FuncName:       "BoolArrayEquals",
 				Arg1Type:       "BoolEvaluator",
 				Arg2Type:       "BoolArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
@@ -432,7 +432,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "IntGreaterThan",
+				FuncName:       "IntArrayGreaterThan",
 				Arg1Type:       "IntEvaluator",
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
@@ -442,7 +442,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "IntGreaterOrEqualThan",
+				FuncName:       "IntArrayGreaterOrEqualThan",
 				Arg1Type:       "IntEvaluator",
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
@@ -452,7 +452,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "IntLesserThan",
+				FuncName:       "IntArrayLesserThan",
 				Arg1Type:       "IntEvaluator",
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
@@ -462,7 +462,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "IntLesserOrEqualThan",
+				FuncName:       "IntArrayLesserOrEqualThan",
 				Arg1Type:       "IntEvaluator",
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",

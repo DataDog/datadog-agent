@@ -288,37 +288,8 @@ func (i *IntArrayEvaluator) IsScalar() bool {
 	return i.EvalFnc == nil
 }
 
-// IntValuesEvaluator returns an array of int
-type IntValuesEvaluator struct {
-	EvalFnc func(ctx *Context) []int
-	Values  []int
-	Weight  int
-
-	isPartial bool
-}
-
-// Eval returns the result of the evaluation
-func (i *IntValuesEvaluator) Eval(ctx *Context) interface{} {
-	return i.EvalFnc(ctx)
-}
-
-// IsPartial returns whether the evaluator is partial
-func (i *IntValuesEvaluator) IsPartial() bool {
-	return i.isPartial
-}
-
-// GetField returns field name used by this evaluator
-func (i *IntValuesEvaluator) GetField() string {
-	return ""
-}
-
-// IsScalar returns whether the evaluator is a scalar
-func (i *IntValuesEvaluator) IsScalar() bool {
-	return i.EvalFnc == nil
-}
-
 // AppendValues to the array evaluator
-func (i *IntValuesEvaluator) AppendValues(values ...int) {
+func (i *IntArrayEvaluator) AppendValues(values ...int) {
 	i.Values = append(i.Values, values...)
 }
 

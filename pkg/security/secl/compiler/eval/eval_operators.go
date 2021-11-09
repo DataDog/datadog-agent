@@ -1152,7 +1152,7 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, st
 	}, nil
 }
 
-func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
@@ -1306,7 +1306,7 @@ func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state 
 	}, nil
 }
 
-func ArrayIntGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
@@ -1383,7 +1383,7 @@ func ArrayIntGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, stat
 	}, nil
 }
 
-func ArrayIntGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
@@ -1460,7 +1460,7 @@ func ArrayIntGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opt
 	}, nil
 }
 
-func ArrayIntLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
@@ -1537,7 +1537,7 @@ func ArrayIntLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state
 	}, nil
 }
 
-func ArrayIntLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a int, b []int) bool {
