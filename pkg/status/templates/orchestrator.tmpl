@@ -37,7 +37,7 @@ Orchestrator Explorer
       - {{ . }}
   {{- end}}
   {{- else}}
-  {{$key}} - API Key ending with: {{index $values 0}}
+    {{$key}} - API Key ending with: {{index $values 0}}
   {{- end}}
   {{- end}}
 
@@ -54,18 +54,19 @@ Orchestrator Explorer
     {{ $element.NodeType }}
       Last Run: (Hits: {{$element.CacheHits}} Miss: {{$element.CacheMiss}}) | Total: (Hits: {{$element.TotalHits}} Miss: {{$element.TotalMiss}})
 {{end}}
-  {{- if .CLCEnabled }}
-	  ===========
+{{- if .CLCEnabled }}
+  ===========
   Dispatched Configurations on CLCRunners
-	  ===========
-  {{- if .CLCRunnerError }}
+  ===========
+{{- if .CLCRunnerError }}
     CLCRunner Error: {{.CLCRunnerError}}
-  {{else}}
-      {{range $index, $element := .CLCRunners}}
-          {{ $element }}
-      {{end}}
+{{else}}
+ {{range $index, $element := .CLCRunners}}
+    Server: {{ $element.Node }}
+    Configuration: {{ $element.Source }}
   {{end}}
-  {{end}}
+ {{end}}
+{{end}}
 {{else}}
 {{- if .LeaderName }}
   Status: Follower, cluster agent leader is: {{ .LeaderName }}

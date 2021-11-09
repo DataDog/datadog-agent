@@ -31,6 +31,11 @@ type stats struct {
 	TotalMiss int64
 }
 
+type clcNode struct {
+	Node   string
+	Source string
+}
+
 // GetStatus returns status info for the orchestrator explorer.
 func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
@@ -74,7 +79,7 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	// rewriting DCA Mode in case we are running in cluster check mode.
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		status["CLCEnabled"] = true
-		var dispatchedNodes []string
+		var dispatchedNodes []clcNode
 		state, err := clusterchecks.GetState()
 		if err != nil {
 			status["CLCRunnerError"] = err.Error()
@@ -85,7 +90,10 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 				for _, c := range node.Configs {
 					if c.Name == orchestrator.OrchestratorCheckName { // use name
 						if c.NodeName != "" {
-							dispatchedNodes = append(dispatchedNodes, c.NodeName)
+							dispatchedNodes = append(dispatchedNodes, clcNode{
+								Node:   c.NodeName,
+								Source: c.Source,
+							})
 						}
 					}
 				}
