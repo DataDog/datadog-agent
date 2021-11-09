@@ -395,9 +395,6 @@ type MountEvent struct {
 
 // GetFSType returns the filesystem type of the mountpoint
 func (m *MountEvent) GetFSType() string {
-	if len(m.FSType) == 0 {
-		m.FSType, _ = UnmarshalString(m.FSTypeRaw[:], 16)
-	}
 	return m.FSType
 }
 
