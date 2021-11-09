@@ -59,8 +59,9 @@ type Resource struct {
 // RegoInput describes supported resource types observed by a Rego Rule
 type RegoInput struct {
 	ResourceCommon `yaml:",inline"`
-	TagName        string `yaml:"tag"`
+	TagName        string `yaml:"tag,omitempty"`
 	Type           string `yaml:"type"`
+	AllowError     bool   `yaml:"allowError,omitempty"`
 }
 
 // ValidateInputType returns the validated input type or an error

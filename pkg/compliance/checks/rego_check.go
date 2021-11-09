@@ -170,8 +170,12 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 
 		resolved, err := resolve(ctx, env, r.ruleID, input.ResourceCommon)
 		if err != nil {
-			log.Warnf("failed to resolve input: %v", err)
-			continue
+			if input.AllowError {
+				log.Warnf("failed to resolve input: %v", err)
+				continue
+			} else {
+				return nil, err
+			}
 		}
 
 		tagName := input.TagName
