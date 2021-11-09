@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -376,7 +377,7 @@ func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
 
 // SetExecutionContext sets the current context to the daemon
 func (d *Daemon) SetExecutionContext(arn string, requestID string) {
-	d.ExecutionContext.ARN = arn
+	d.ExecutionContext.ARN = strings.ToLower(arn)
 	d.ExecutionContext.LastRequestID = requestID
 	if len(d.ExecutionContext.ColdstartRequestID) == 0 {
 		d.ExecutionContext.Coldstart = true
