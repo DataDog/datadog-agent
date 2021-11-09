@@ -47,7 +47,9 @@ var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_d
 	nil, "Dogstatsd UDP origin detection error count")
 
 // Init must be called once config is available, call it in your cmd
-func Init() {
+func Init() error {
+	var initErr error
+
 	initOnce.Do(func() {
 		var err error
 		checkCard := config.Datadog.GetString("checks_tag_cardinality")
@@ -58,6 +60,7 @@ func Init() {
 			log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
 			ChecksCardinality = collectors.LowCardinality
 		}
+
 		DogstatsdCardinality, err = collectors.StringToTagCardinality(dsdCard)
 		if err != nil {
 			log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
@@ -69,11 +72,10 @@ func Init() {
 			return
 		}
 
-		err = defaultTagger.Init()
-		if err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
+		initErr = defaultTagger.Init()
 	})
+
+	return initErr
 }
 
 // GetEntity returns the hash for the provided entity id.

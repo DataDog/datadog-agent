@@ -206,7 +206,10 @@ func runAgent(exit chan struct{}) {
 		t = local.NewTagger(collectors.DefaultCatalog)
 	}
 	tagger.SetDefaultTagger(t)
-	tagger.Init()
+	err = tagger.Init()
+	if err != nil {
+		log.Errorf("failed to start the tagger: %s", err)
+	}
 	defer tagger.Stop() //nolint:errcheck
 
 	err = initInfo(cfg)
