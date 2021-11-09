@@ -39,13 +39,16 @@ func GetMountPoint(path string) (*mountinfo.Info, error) {
 		return nil, err
 	}
 
-	for path != "" {
+	for {
 		for _, m := range mi {
 			if path == m.Mountpoint {
 				return m, nil
 			}
 		}
 
+		if path == "/" {
+			break
+		}
 		path = filepath.Dir(path)
 	}
 
