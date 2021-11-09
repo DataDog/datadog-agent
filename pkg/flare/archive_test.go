@@ -421,6 +421,8 @@ instances:
 	require.Equal(t, len(clear), n)
 	err = w.Flush()
 	require.NoError(t, err)
+	err = w.Close()
+	require.NoError(t, err)
 
 	got, err := ioutil.ReadFile(filename)
 	require.NoError(t, err)

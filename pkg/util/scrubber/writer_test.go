@@ -41,7 +41,7 @@ func TestWriter(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(input), n)
 
-	err = w.Flush()
+	err = w.Close()
 	require.NoError(t, err)
 
 	got, err := ioutil.ReadFile(filename)
@@ -65,7 +65,7 @@ func TestWriterWriteFromFile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(input), n)
 
-	err = w.Flush()
+	err = w.Close()
 	require.NoError(t, err)
 
 	got, err := ioutil.ReadFile(dst)
@@ -105,7 +105,7 @@ log_level: info`
 	require.NoError(t, err)
 	require.Equal(t, len(input), n)
 
-	err = w.Flush()
+	err = w.Close()
 	require.NoError(t, err)
 
 	got, err := ioutil.ReadFile(filename)
@@ -128,7 +128,7 @@ log_level: info`
 	require.NoError(t, err)
 	require.Equal(t, n, len(content))
 
-	err = w.Flush()
+	err = w.Close()
 	require.NoError(t, err)
 
 	got, err := ioutil.ReadFile(filename)
