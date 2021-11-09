@@ -1231,11 +1231,7 @@ func GetMultipleEndpoints() (map[string][]string, error) {
 }
 
 func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
-	// Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
-	config.BindEnv(prefix + "logs_dd_url")
-	// Send the logs to an alternative intake. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
-	config.BindEnv(prefix + "logs_secondary_dd_url")
-	config.BindEnv(prefix + "logs_secondary_api_key") // Send the logs to an alternative org
+	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
 	config.BindEnv(prefix + "additional_endpoints")
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
