@@ -101,10 +101,6 @@ func (l *LogsConfigKeys) useCompression() bool {
 	return l.getConfig().GetBool(l.getConfigKey("use_compression"))
 }
 
-func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
-	return len(l.getAdditionalEndpoints()) > 0
-}
-
 // getLogsAPIKey provides the dd api key used by the main logs agent sender.
 func (l *LogsConfigKeys) getLogsAPIKey() string {
 	if configKey := l.getConfigKey("api_key"); l.isSetAndNotEmpty(configKey) {
