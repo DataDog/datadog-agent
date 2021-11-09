@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package metrics
+package system
 
 import (
 	"fmt"
@@ -15,8 +15,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
+	utilsystem "github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 const (
@@ -24,11 +25,11 @@ const (
 )
 
 func init() {
-	metricsProvider.registerCollector(collectorMetadata{
-		id:       systemCollectorID,
-		priority: 0,
-		runtimes: allLinuxRuntimes,
-		factory: func() (Collector, error) {
+	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
+		ID:       systemCollectorID,
+		Priority: 0,
+		Runtimes: provider.AllLinuxRuntimes,
+		Factory: func() (provider.Collector, error) {
 			return newCgroupCollector()
 		},
 	})
@@ -57,7 +58,7 @@ func newCgroupCollector() (*cgroupCollector, error) {
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
 		log.Errorf("Unable to initialize cgroup provider (cgroups not mounted?), err: %v", err)
-		return nil, ErrPermaFail
+		return nil, provider.ErrPermaFail
 	}
 
 	return &cgroupCollector{
@@ -70,7 +71,7 @@ func (c *cgroupCollector) ID() string {
 	return systemCollectorID
 }
 
-func (c *cgroupCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
+func (c *cgroupCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -85,7 +86,7 @@ func (c *cgroupCollector) GetContainerStats(containerID string, cacheValidity ti
 	return c.buildContainerMetrics(stats), nil
 }
 
-func (c *cgroupCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*ContainerNetworkStats, error) {
+func (c *cgroupCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -117,8 +118,8 @@ func (c *cgroupCollector) getCgroup(containerID string, cacheValidity time.Durat
 	return cg, nil
 }
 
-func (c *cgroupCollector) buildContainerMetrics(cgs cgroups.Stats) *ContainerStats {
-	cs := &ContainerStats{
+func (c *cgroupCollector) buildContainerMetrics(cgs cgroups.Stats) *provider.ContainerStats {
+	cs := &provider.ContainerStats{
 		Timestamp: time.Now(),
 		Memory:    buildMemoryStats(cgs.Memory),
 		CPU:       buildCPUStats(cgs.CPU),
@@ -129,11 +130,11 @@ func (c *cgroupCollector) buildContainerMetrics(cgs cgroups.Stats) *ContainerSta
 	return cs
 }
 
-func buildMemoryStats(cgs *cgroups.MemoryStats) *ContainerMemStats {
+func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	if cgs == nil {
 		return nil
 	}
-	cs := &ContainerMemStats{}
+	cs := &provider.ContainerMemStats{}
 
 	convertField(cgs.UsageTotal, &cs.UsageTotal)
 	convertField(cgs.KernelMemory, &cs.KernelMemory)
@@ -147,11 +148,11 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *ContainerMemStats {
 	return cs
 }
 
-func buildCPUStats(cgs *cgroups.CPUStats) *ContainerCPUStats {
+func buildCPUStats(cgs *cgroups.CPUStats) *provider.ContainerCPUStats {
 	if cgs == nil {
 		return nil
 	}
-	cs := &ContainerCPUStats{}
+	cs := &provider.ContainerCPUStats{}
 
 	// Copy basid fields
 	convertField(cgs.Total, &cs.Total)
@@ -183,16 +184,16 @@ func computeCPULimitPct(cgs *cgroups.CPUStats) *float64 {
 	// If no limit is available, setting the limit to number of CPUs.
 	// Always reporting a limit allows to compute CPU % accurately.
 	if limitPct == 0 {
-		limitPct = float64(system.HostCPUCount()) * 100
+		limitPct = float64(utilsystem.HostCPUCount()) * 100
 	}
 	return &limitPct
 }
 
-func buildPIDStats(cgs *cgroups.PIDStats) *ContainerPIDStats {
+func buildPIDStats(cgs *cgroups.PIDStats) *provider.ContainerPIDStats {
 	if cgs == nil {
 		return nil
 	}
-	cs := &ContainerPIDStats{}
+	cs := &provider.ContainerPIDStats{}
 
 	cs.PIDs = cgs.PIDs
 	convertField(cgs.HierarchicalThreadCount, &cs.ThreadCount)

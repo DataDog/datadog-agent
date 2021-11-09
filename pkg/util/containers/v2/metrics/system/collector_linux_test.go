@@ -6,14 +6,15 @@
 //go:build linux
 // +build linux
 
-package metrics
+package system
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	utilsystem "github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,12 +23,12 @@ func TestBuildContainerMetrics(t *testing.T) {
 	tests := []struct {
 		name string
 		cgs  cgroups.Stats
-		want *ContainerStats
+		want *provider.ContainerStats
 	}{
 		{
 			name: "everything empty",
 			cgs:  cgroups.Stats{},
-			want: &ContainerStats{},
+			want: &provider.ContainerStats{},
 		},
 		{
 			name: "structs with all stats",
@@ -75,8 +76,8 @@ func TestBuildContainerMetrics(t *testing.T) {
 					HierarchicalThreadLimit: util.UInt64Ptr(20),
 				},
 			},
-			want: &ContainerStats{
-				CPU: &ContainerCPUStats{
+			want: &provider.ContainerStats{
+				CPU: &provider.ContainerCPUStats{
 					Total:            util.Float64Ptr(100),
 					System:           util.Float64Ptr(200),
 					User:             util.Float64Ptr(300),
@@ -86,7 +87,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 					ThrottledPeriods: util.Float64Ptr(0),
 					ThrottledTime:    util.Float64Ptr(100),
 				},
-				Memory: &ContainerMemStats{
+				Memory: &provider.ContainerMemStats{
 					UsageTotal:   util.Float64Ptr(100),
 					KernelMemory: util.Float64Ptr(40),
 					Limit:        util.Float64Ptr(42000),
@@ -96,13 +97,13 @@ func TestBuildContainerMetrics(t *testing.T) {
 					Swap:         util.Float64Ptr(0),
 					OOMEvents:    util.Float64Ptr(10),
 				},
-				IO: &ContainerIOStats{
+				IO: &provider.ContainerIOStats{
 					ReadBytes:       util.Float64Ptr(100),
 					WriteBytes:      util.Float64Ptr(200),
 					ReadOperations:  util.Float64Ptr(10),
 					WriteOperations: util.Float64Ptr(20),
 				},
-				PID: &ContainerPIDStats{
+				PID: &provider.ContainerPIDStats{
 					PIDs:        []int{4, 2},
 					ThreadCount: util.Float64Ptr(10),
 					ThreadLimit: util.Float64Ptr(20),
@@ -116,8 +117,8 @@ func TestBuildContainerMetrics(t *testing.T) {
 					CPUCount: util.UInt64Ptr(10),
 				},
 			},
-			want: &ContainerStats{
-				CPU: &ContainerCPUStats{
+			want: &provider.ContainerStats{
+				CPU: &provider.ContainerCPUStats{
 					Limit: util.Float64Ptr(1000),
 				},
 			},
@@ -127,9 +128,9 @@ func TestBuildContainerMetrics(t *testing.T) {
 			cgs: cgroups.Stats{
 				CPU: &cgroups.CPUStats{},
 			},
-			want: &ContainerStats{
-				CPU: &ContainerCPUStats{
-					Limit: util.Float64Ptr(float64(system.HostCPUCount()) * 100),
+			want: &provider.ContainerStats{
+				CPU: &provider.ContainerCPUStats{
+					Limit: util.Float64Ptr(float64(utilsystem.HostCPUCount()) * 100),
 				},
 			},
 		},

@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package metrics
+package system
 
 import (
 	"io/ioutil"
@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -36,8 +37,8 @@ func TestCollectNetworkStats(t *testing.T) {
 		name       string
 		dev        string
 		networks   map[string]string
-		stat       ContainerNetworkStats
-		summedStat *InterfaceNetStats
+		stat       provider.ContainerNetworkStats
+		summedStat *provider.InterfaceNetStats
 	}{
 		{
 			pid:  1245,
@@ -51,8 +52,8 @@ func TestCollectNetworkStats(t *testing.T) {
 			networks: map[string]string{
 				"eth0": "bridge",
 			},
-			stat: ContainerNetworkStats{
-				Interfaces: map[string]InterfaceNetStats{
+			stat: provider.ContainerNetworkStats{
+				Interfaces: map[string]provider.InterfaceNetStats{
 					"bridge": {
 						BytesRcvd:   util.Float64Ptr(1345),
 						PacketsRcvd: util.Float64Ptr(10),
@@ -80,8 +81,8 @@ func TestCollectNetworkStats(t *testing.T) {
 				"eth0": "bridge",
 				"eth1": "test",
 			},
-			stat: ContainerNetworkStats{
-				Interfaces: map[string]InterfaceNetStats{
+			stat: provider.ContainerNetworkStats{
+				Interfaces: map[string]provider.InterfaceNetStats{
 					"bridge": {
 						BytesRcvd:   util.Float64Ptr(648),
 						PacketsRcvd: util.Float64Ptr(8),
@@ -114,8 +115,8 @@ func TestCollectNetworkStats(t *testing.T) {
 			networks: map[string]string{
 				"eth1": "test",
 			},
-			stat: ContainerNetworkStats{
-				Interfaces: map[string]InterfaceNetStats{
+			stat: provider.ContainerNetworkStats{
+				Interfaces: map[string]provider.InterfaceNetStats{
 					"eth0": {
 						BytesRcvd:   util.Float64Ptr(648),
 						PacketsRcvd: util.Float64Ptr(8),
@@ -146,8 +147,8 @@ func TestCollectNetworkStats(t *testing.T) {
                     lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
             `),
 			networks: nil,
-			stat: ContainerNetworkStats{
-				Interfaces: map[string]InterfaceNetStats{
+			stat: provider.ContainerNetworkStats{
+				Interfaces: map[string]provider.InterfaceNetStats{
 					"eth0": {
 						BytesRcvd:   util.Float64Ptr(1111),
 						PacketsRcvd: util.Float64Ptr(2),

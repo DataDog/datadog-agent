@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package metrics
+package system
 
 import (
 	"testing"
@@ -55,7 +55,7 @@ func (s *DiskMappingTestSuite) TestParsing() {
 		"8:16": "sdb",
 	}
 
-	mapping, err := getDiskDeviceMapping(s.proc.RootPath)
+	mapping, err := GetDiskDeviceMapping(s.proc.RootPath)
 	assert.NoError(s.T(), err)
 	assert.Equal(s.T(), expectedMap, mapping)
 
@@ -65,7 +65,7 @@ func (s *DiskMappingTestSuite) TestParsing() {
 }
 
 func (s *DiskMappingTestSuite) TestNotFound() {
-	mapping, err := getDiskDeviceMapping(s.proc.RootPath)
+	mapping, err := GetDiskDeviceMapping(s.proc.RootPath)
 	require.Error(s.T(), err)
 	assert.Contains(s.T(), err.Error(), "no such file or directory")
 	assert.Nil(s.T(), mapping)
@@ -78,7 +78,7 @@ func (s *DiskMappingTestSuite) TestCached() {
 	}
 	cache.Cache.Set(diskMappingCacheKey, cachedMapping, time.Minute)
 
-	mapping, err := getDiskDeviceMapping(s.proc.RootPath)
+	mapping, err := GetDiskDeviceMapping(s.proc.RootPath)
 	require.NoError(s.T(), err)
 	assert.Equal(s.T(), cachedMapping, mapping)
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metrics
+package provider
 
 import (
 	"fmt"
@@ -36,31 +36,31 @@ func TestMetricsProvider(t *testing.T) {
 	c.retryCollectors(0)
 	assert.Equal(t, nil, c.getCollector("foo"))
 
-	c.registerCollector(collectorMetadata{
-		id:       "dummy1",
-		priority: 10,
-		runtimes: []string{"foo", "bar", "baz"},
-		factory: func() (Collector, error) {
+	c.RegisterCollector(CollectorMetadata{
+		ID:       "dummy1",
+		Priority: 10,
+		Runtimes: []string{"foo", "bar", "baz"},
+		Factory: func() (Collector, error) {
 			return dummyCollector{
 				id: "dummy1",
 			}, nil
 		},
 	})
-	c.registerCollector(collectorMetadata{
-		id:       "dummy2",
-		priority: 9,
-		runtimes: []string{"foo"},
-		factory: func() (Collector, error) {
+	c.RegisterCollector(CollectorMetadata{
+		ID:       "dummy2",
+		Priority: 9,
+		Runtimes: []string{"foo"},
+		Factory: func() (Collector, error) {
 			return nil, ErrPermaFail
 		},
 	})
 
 	var dummy3Retries int
-	c.registerCollector(collectorMetadata{
-		id:       "dummy3",
-		priority: 9,
-		runtimes: []string{"baz"},
-		factory: func() (Collector, error) {
+	c.RegisterCollector(CollectorMetadata{
+		ID:       "dummy3",
+		Priority: 9,
+		Runtimes: []string{"baz"},
+		Factory: func() (Collector, error) {
 			if dummy3Retries < 2 {
 				dummy3Retries++
 				return nil, fmt.Errorf("not yet okay")
@@ -111,11 +111,11 @@ func TestMetricsProvider(t *testing.T) {
 	assert.Equal(t, "dummy3", bazCollector.(dummyCollector).id)
 
 	// Registering a new collector
-	c.registerCollector(collectorMetadata{
-		id:       "dummy4",
-		priority: 8,
-		runtimes: []string{"foo"},
-		factory: func() (Collector, error) {
+	c.RegisterCollector(CollectorMetadata{
+		ID:       "dummy4",
+		Priority: 8,
+		Runtimes: []string{"foo"},
+		Factory: func() (Collector, error) {
 			return dummyCollector{
 				id: "dummy4",
 			}, nil
