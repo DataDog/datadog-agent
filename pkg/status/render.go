@@ -3,16 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/shuLhan/go-bindata/cmd/go-bindata -pkg status -prefix templates -o ./templates.go templates/...
-//go:generate go fmt ./templates.go
-
 package status
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
+	"path"
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -201,8 +200,11 @@ func renderAutodiscoveryStats(w io.Writer, adEnabledFeatures interface{}, adConf
 	renderStatusTemplate(w, "/autodiscovery.tmpl", autodiscoveryStats)
 }
 
+//go:embed templates
+var templatesFS embed.FS
+
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {
-	tmpl, tmplErr := Asset(templateName)
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", templateName))
 	if tmplErr != nil {
 		fmt.Println(tmplErr)
 		return
