@@ -55,10 +55,6 @@ type Daemon struct {
 	// through configuration.
 	useAdaptiveFlush bool
 
-	// clientLibReady indicates whether the datadog client library has initialised
-	// and called the /hello route on the agent
-	clientLibReady bool
-
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
 
@@ -102,7 +98,6 @@ func StartDaemon(addr string) *Daemon {
 		FlushWg:           &sync.WaitGroup{},
 		lastInvocations:   make([]time.Time, 0),
 		useAdaptiveFlush:  true,
-		clientLibReady:    false,
 		flushStrategy:     &flush.AtTheEnd{},
 		ExtraTags:         &serverlessLog.Tags{},
 		ExecutionContext:  &serverlessLog.ExecutionContext{},
@@ -114,7 +109,7 @@ func StartDaemon(addr string) *Daemon {
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
-	// start the HTTP server used to communicate with the clients
+	// start the HTTP server used to communicate with the runtime and the Lambda platform
 	go func() {
 		_ = daemon.httpServer.ListenAndServe()
 	}()
@@ -122,8 +117,8 @@ func StartDaemon(addr string) *Daemon {
 	return daemon
 }
 
-// Hello implements the basic Hello route, creating a way for the Datadog Lambda Library
-// to know that the serverless agent is running. It is blocking until the DogStatsD daemon is ready.
+// Hello is a route called by the Lambda Library when it starts.
+// It is no longer used, but the route is maintained for backwards compatibility.
 type Hello struct {
 	daemon *Daemon
 }
@@ -131,11 +126,9 @@ type Hello struct {
 // ServeHTTP - see type Hello comment.
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
-	// if the DogStatsD daemon isn't ready, wait for it.
-	h.daemon.SetClientReady(true)
 }
 
-// Flush is a route called by the Lambda Library when the runtime is done.
+// Flush is a route called by the Lambda Library when the runtime is done handling an invocation.
 // It is no longer used, but the route is maintained for backwards compatibility.
 type Flush struct {
 	daemon *Daemon
@@ -144,11 +137,6 @@ type Flush struct {
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
-}
-
-// SetClientReady indicates that the client library has initialised and called the /hello route on the agent
-func (d *Daemon) SetClientReady(isReady bool) {
-	d.clientLibReady = isReady
 }
 
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
@@ -348,31 +336,15 @@ func (d *Daemon) TellDaemonRuntimeDone() {
 
 // WaitForDaemon waits until the daemon has finished handling the current invocation
 func (d *Daemon) WaitForDaemon() {
-	if d.clientLibReady {
-		// We always want to wait for any in-progress flush to complete
-		d.FlushWg.Wait()
+	// We always want to wait for any in-progress flush to complete
+	d.FlushWg.Wait()
 
-		// If we are flushing at the end of the invocation, we need to wait for the invocation itself to end
-		// before we finish handling it. Otherwise, the daemon does not actually need to wait for the runtime to
-		// complete the invocation before it is done.
-		if d.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
-			d.RuntimeWg.Wait()
-		}
+	// If we are flushing at the end of the invocation, we need to wait for the invocation itself to end
+	// before we finish handling it. Otherwise, the daemon does not actually need to wait for the runtime to
+	// complete the invocation before it is done.
+	if d.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
+		d.RuntimeWg.Wait()
 	}
-}
-
-// WaitUntilClientReady will wait until the client library has called the /hello route, or timeout
-func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
-	checkInterval := 10 * time.Millisecond
-	for timeout > checkInterval {
-		if d.clientLibReady {
-			return true
-		}
-		<-time.After(checkInterval)
-		timeout -= checkInterval
-	}
-	<-time.After(timeout)
-	return d.clientLibReady
 }
 
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
