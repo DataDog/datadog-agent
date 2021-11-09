@@ -1593,7 +1593,6 @@ core,k8s.io/kube-state-metrics/v2/pkg/allowdenylist,Apache-2.0,Cloud Native Comp
 core,k8s.io/kube-state-metrics/v2/pkg/builder,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/builder/types,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/constant,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
-core,k8s.io/kube-state-metrics/v2/pkg/listwatch,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/metric,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/metric_generator,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/metrics_store,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
