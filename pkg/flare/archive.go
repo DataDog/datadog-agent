@@ -386,7 +386,7 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -476,7 +476,7 @@ func zipExpVar(tempDir, hostname string) error {
 			return err
 		}
 
-		w, err := newScrubberWriter(f, os.ModePerm, true)
+		w, err := newScrubberWriter(f, os.ModePerm)
 		if err != nil {
 			return err
 		}
@@ -493,7 +493,7 @@ func zipExpVar(tempDir, hostname string) error {
 		apmPort = config.Datadog.GetString("apm_config.receiver_port")
 	}
 	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
-	w, err := newScrubberWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -527,7 +527,7 @@ func zipExpVar(tempDir, hostname string) error {
 func zipSystemProbeStats(tempDir, hostname string) error {
 	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
-	sysProbeWriter, err := newScrubberWriter(sysProbeFile, os.ModePerm, true)
+	sysProbeWriter, err := newScrubberWriter(sysProbeFile, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -553,7 +553,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -610,7 +610,7 @@ func zipSecrets(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -633,7 +633,7 @@ func zipDiagnose(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -709,7 +709,7 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -729,7 +729,7 @@ func zipTaggerList(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -775,7 +775,7 @@ func zipWorkloadList(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -828,7 +828,7 @@ func zipHealth(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -877,7 +877,7 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -928,7 +928,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 					return err
 				}
 
-				w, err := newScrubberWriter(f, os.ModePerm, true)
+				w, err := newScrubberWriter(f, os.ModePerm)
 				if err != nil {
 					return err
 				}
@@ -968,8 +968,8 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 // newScrubberWriter creates a new scrubber.Writer, configured to always buffer
 // output and with additional replacers added to scrub third-party credentials
-// likely to be seen in flares.  The `buffered` argument is ignored.
-func newScrubberWriter(f string, p os.FileMode, buffered bool) (*scrubber.Writer, error) {
+// likely to be seen in flares.
+func newScrubberWriter(f string, p os.FileMode) (*scrubber.Writer, error) {
 	return flareScrubber.NewWriter(f, os.ModePerm)
 }
 
@@ -1011,7 +1011,7 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 			return err
 		}
 
-		w, err := newScrubberWriter(f, os.ModePerm, true)
+		w, err := newScrubberWriter(f, os.ModePerm)
 		if err != nil {
 			return err
 		}

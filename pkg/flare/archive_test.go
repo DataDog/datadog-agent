@@ -413,7 +413,7 @@ instances:
   api_key: ********
   version: 4 # omit this line if you're running pdns_recursor version 3.x`
 
-	w, err := newScrubberWriter(filename, os.ModePerm, true)
+	w, err := newScrubberWriter(filename, os.ModePerm)
 	require.NoError(t, err)
 
 	n, err := w.Write([]byte(clear))
