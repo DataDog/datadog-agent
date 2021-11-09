@@ -6,6 +6,8 @@ require "./lib/ostools.rb"
 
 name 'agent'
 package_name 'datadog-agent'
+license "Apache-2.0"
+license_file "../LICENSE"
 
 homepage 'http://www.datadoghq.com'
 
