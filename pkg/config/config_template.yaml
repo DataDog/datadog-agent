@@ -1818,6 +1818,7 @@ api_key:
 # log_format_rfc3339: false
 
 ## @param log_all_goroutines_when_unhealthy - boolean - optional - default false
+## @env DD_LOG_ALL_GOROUTINES_WHEN_UNHEALTHY - boolean - optional - default false
 ## If enabled, when the health probe of an internal component fails, the stack traces
 ## of all the goroutines are logged.
 #
