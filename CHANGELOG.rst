@@ -63,10 +63,9 @@ New Features
   switches to the MultiLineHandler with the pattern matching
   the timestamp format. The pattern chosen is saved in the log
   config and is reused if the file rotates.  Use the new global config 
-  parameter: ``logs_config.auto_multi_line_detection`` to enable
-  the feature.  New per log integration config parameters:
-  * ``auto_multi_line_detection`` to enable the feature on a case
-    by case basis
+  parameter ``logs_config.auto_multi_line_detection`` to enable
+  the feature for the whole agent, or the per log integration config parameter ``auto_multi_line_detection``
+  to enable the feature on a case by case basis.
 
 - Added *experimental* support for OTLP metrics via
   experimental.otlp.{http_port,grpc_port} or their corresponding
