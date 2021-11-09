@@ -183,20 +183,17 @@ func runAgent(ctx context.Context) (err error) {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	opts := aggregator.DemultiplexerOptions{
-		ForwarderOptions:           forwarder.NewOptions(keysPerDomain),
-		NoopEventPlatformForwarder: false,
-		NoOrchestratorForwarder:    true,
-		FlushInterval:              aggregator.DefaultFlushInterval,
-		StartForwarders:            true,
-	}
+
+	forwarderOpts := forwarder.NewOptions(keysPerDomain)
+	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts.NoOrchestratorForwarder = true
+	opts.StartForwarders = true
 	hname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
 		hname = ""
 	}
 	log.Debugf("Using hostname: %s", hname)
-
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
 
 	// setup the metadata collector

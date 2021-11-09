@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
-// senders are the sender used and provided by the Demultiplexer for check
+// senders are the sender used and provided by the Demultiplexer for checks
 // to send metrics.
 type senders struct {
 	senderInit    sync.Once

@@ -251,7 +251,8 @@ func RunAgent(ctx context.Context) (err error) {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
-	opts := aggregator.DefaultDemultiplexerOptions(forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain)))
+	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.NoEventPlatformForwarder = true
 	opts.NoOrchestratorForwarder = true
 	opts.StartForwarders = true // will only run the default forwarder

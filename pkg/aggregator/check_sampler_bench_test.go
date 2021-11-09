@@ -19,7 +19,8 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
-	options := DefaultDemultiplexerOptions(forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}})))
+	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	options := DefaultDemultiplexerOptions(forwarderOpts)
 	demux := InitAndStartAgentDemultiplexer(options, "hostname")
 	defer demux.Stop(true)
 
