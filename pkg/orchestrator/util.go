@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const OrchestratorCheckName   = "orchestrator"
+
 // NodeType represents a kind of resource used by a container orchestrator.
 type NodeType int
 

@@ -33,6 +33,23 @@ func GetStats() (*types.Stats, error) {
 	return handler.getStats(), nil
 }
 
+// GetState retrieves the stats of the latest started handler.
+// It is used for the agent status command.
+func GetState() (*types.StateResponse, error) {
+	key := cache.BuildAgentKey(handlerCacheKey)
+	x, found := cache.Cache.Get(key)
+	if !found {
+		return nil, errors.New("Clusterchecks not running")
+	}
+
+	handler, ok := x.(*Handler)
+	if !ok {
+		return nil, errors.New("Cache entry is not a valid handler")
+	}
+	state, err := handler.GetState()
+	return &state, err
+}
+
 func (h *Handler) getStats() *types.Stats {
 	h.m.RLock()
 	defer h.m.RUnlock()

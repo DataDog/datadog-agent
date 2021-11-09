@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -69,8 +70,28 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	status["OrchestratorEndpoints"] = endpoints
 	setCacheInformationDCAMode(status)
 	setCollectionIsWorkingDCAMode(status)
+
 	// rewriting DCA Mode in case we are running in cluster check mode.
 	if config.Datadog.GetBool("cluster_checks.enabled") {
+		status["CLCEnabled"] = true
+		var dispatchedNodes []string
+		state, err := clusterchecks.GetState()
+		if err != nil {
+			status["CLCRunnerError"] = err.Error()
+		} else if state.Warmup {
+			status["CLCRunnerError"] = "CLC is still warming up, no configuration dispatched yet"
+		} else {
+			for _, node := range state.Nodes {
+				for _, c := range node.Configs {
+					if c.Name == orchestrator.OrchestratorCheckName { // use name
+						if c.NodeName != "" {
+							dispatchedNodes = append(dispatchedNodes, c.NodeName)
+						}
+					}
+				}
+			}
+			status["CLCRunners"] = dispatchedNodes
+		}
 		status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
 		status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
 	}
