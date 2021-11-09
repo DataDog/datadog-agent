@@ -144,17 +144,29 @@ func Run(ctx context.Context) {
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	var t tagger.Tagger
-	if coreconfig.Datadog.GetBool("apm_config.remote_tagger") {
-		t = remote.NewTagger()
-	} else {
+	remoteTagger := coreconfig.Datadog.GetBool("apm_config.remote_tagger")
+	if remoteTagger {
+		tagger.SetDefaultTagger(remote.NewTagger())
+		err = tagger.Init()
+		if err != nil {
+			log.Infof("starting remote tagger failed. falling back to local tagger: %s", err)
+			remoteTagger = false
+		}
+	}
+
+	// starts the local tagger if apm_config says so, or if starting the
+	// remote tagger has failed.
+	if !remoteTagger {
 		// Start workload metadata store before tagger
 		workloadmeta.GetGlobalStore().Start(context.Background())
 
-		t = local.NewTagger(collectors.DefaultCatalog)
+		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+		err = tagger.Init()
+		if err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
 	}
-	tagger.SetDefaultTagger(t)
-	tagger.Init()
+
 	defer func() {
 		err := tagger.Stop()
 		if err != nil {
