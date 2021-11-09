@@ -29,10 +29,11 @@ type Sender struct {
 	strategy     Strategy
 	done         chan struct{}
 	lastError    error
+	trackErrors  bool
 }
 
 // NewSender returns a new sender.
-func NewSender(inputChan chan *message.Message, outputChan chan *message.Message, destinations *client.Destinations, strategy Strategy) *Sender {
+func NewSender(inputChan chan *message.Message, outputChan chan *message.Message, destinations *client.Destinations, strategy Strategy, trackErrors bool) *Sender {
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
@@ -40,6 +41,7 @@ func NewSender(inputChan chan *message.Message, outputChan chan *message.Message
 		destinations: destinations,
 		strategy:     strategy,
 		done:         make(chan struct{}),
+		trackErrors:  trackErrors,
 	}
 }
 
@@ -74,7 +76,7 @@ func (s *Sender) send(payload []byte) error {
 	for {
 		err := s.destinations.Main.Send(payload)
 		if err != nil {
-			if s.lastError == nil {
+			if s.trackErrors && s.lastError == nil {
 				s.hasError <- true
 			}
 			s.lastError = err
@@ -89,7 +91,7 @@ func (s *Sender) send(payload []byte) error {
 			}
 			return err
 		}
-		if s.lastError != nil {
+		if s.trackErrors && s.lastError != nil {
 			s.lastError = nil
 			s.hasError <- false
 		}

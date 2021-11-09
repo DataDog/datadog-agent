@@ -41,11 +41,11 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 		mainSenderChannel := make(chan *message.Message, config.ChanSize)
 		backupSenderChannel := make(chan *message.Message, config.ChanSize)
 
-		mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
-		backupSender = sender.NewSender(backupSenderChannel, outputChan, backupDestinations, getStrategy(endpoints, serverless, pipelineID))
+		mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID), true)
+		backupSender = sender.NewSender(backupSenderChannel, outputChan, backupDestinations, getStrategy(endpoints, serverless, pipelineID), true)
 		sender.SplitSenders(senderChan, mainSender, backupSender)
 	} else {
-		mainSender = sender.NewSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
+		mainSender = sender.NewSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID), false)
 	}
 
 	var encoder processor.Encoder
