@@ -30,9 +30,10 @@ const (
 	podStandardLabelPrefix           = "tags.datadoghq.com/"
 
 	// Standard tag - Tag keys
-	tagKeyEnv     = "env"
-	tagKeyVersion = "version"
-	tagKeyService = "service"
+	tagKeyEnv          = "env"
+	tagKeyVersion      = "version"
+	tagKeyService      = "service"
+	tagKeyGitCommitSha = "git.commit.sha"
 
 	// Standard K8s labels - Tag keys
 	tagKeyKubeAppName      = "kube_app_name"
@@ -48,9 +49,10 @@ const (
 	envVarService = "DD_SERVICE"
 
 	// Docker label keys
-	dockerLabelEnv     = "com.datadoghq.tags.env"
-	dockerLabelVersion = "com.datadoghq.tags.version"
-	dockerLabelService = "com.datadoghq.tags.service"
+	dockerLabelEnv      = "com.datadoghq.tags.env"
+	dockerLabelVersion  = "com.datadoghq.tags.version"
+	dockerLabelService  = "com.datadoghq.tags.service"
+	dockerLabelRevision = "org.opencontainers.image.revision"
 
 	autodiscoveryLabelTagsKey = "com.datadoghq.ad.tags"
 )
@@ -78,9 +80,10 @@ var (
 	}
 
 	standardDockerLabels = map[string]string{
-		dockerLabelEnv:     tagKeyEnv,
-		dockerLabelVersion: tagKeyVersion,
-		dockerLabelService: tagKeyService,
+		dockerLabelEnv:      tagKeyEnv,
+		dockerLabelVersion:  tagKeyVersion,
+		dockerLabelService:  tagKeyService,
+		dockerLabelRevision: tagKeyGitCommitSha,
 	}
 
 	lowCardOrchestratorLabels = map[string]string{
