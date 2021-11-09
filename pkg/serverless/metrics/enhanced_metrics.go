@@ -28,10 +28,11 @@ const (
 	durationMetric        = "aws.lambda.enhanced.duration"
 	estimatedCostMetric   = "aws.lambda.enhanced.estimated_cost"
 	initDurationMetric    = "aws.lambda.enhanced.init_duration"
-	OutOfMemoryMetric     = "aws.lambda.enhanced.out_of_memory"
-	timeoutsMetric        = "aws.lambda.enhanced.timeouts"
-	errorsMetric          = "aws.lambda.enhanced.errors"
-	invocationsMetric     = "aws.lambda.enhanced.invocations"
+	// OutOfMemoryMetric is the name of the out of memory enhanced Lambda metric
+	OutOfMemoryMetric = "aws.lambda.enhanced.out_of_memory"
+	timeoutsMetric    = "aws.lambda.enhanced.timeouts"
+	errorsMetric      = "aws.lambda.enhanced.errors"
+	invocationsMetric = "aws.lambda.enhanced.invocations"
 )
 
 func getOutOfMemorySubstrings() []string {
