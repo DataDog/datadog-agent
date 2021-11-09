@@ -53,11 +53,11 @@ def clear_cmake_cache(rtloader_path, settings):
 
 
 @task
-def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="x64"):
+def make(ctx, install_prefix=None, python_runtimes='3', cmake_generator='Unix Makefiles', cmake_options='', arch="x64"):
     dev_path = get_dev_path()
 
-    if cmake_options.find("-G") == -1:
-        cmake_options += " -G \"Unix Makefiles\""
+    if cmake_generator != "":
+        cmake_options += " -G \"{}\"".format(cmake_generator)
 
     cmake_args = cmake_options + " -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={}".format(
         install_prefix or dev_path
