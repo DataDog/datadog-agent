@@ -30,7 +30,11 @@ func ParseMountInfoFile(pid int32) ([]*mountinfo.Info, error) {
 
 // GetMountPoint returns the mount point of the given path
 func GetMountPoint(path string) (*mountinfo.Info, error) {
-	mi, err := ParseMountInfoFile(int32(os.Getpid()))
+	if path == "" {
+		return nil, fmt.Errorf("empty path")
+	}
+
+	mi, err := mountinfo.GetMounts(nil)
 	if err != nil {
 		return nil, err
 	}
