@@ -561,6 +561,9 @@ func TestSampling(t *testing.T) {
 		// noPrioritySampled, errorsSampled, prioritySampled are the sample decisions of the mock samplers
 		noPrioritySampled, errorsSampled, prioritySampled bool
 
+		// disableRareSampler disables the rare sampler by configuration
+		disableRareSampler bool
+
 		// wantSampled is the expected result
 		wantSampled bool
 	}{
@@ -573,9 +576,10 @@ func TestSampling(t *testing.T) {
 			wantSampled:       true,
 		},
 		"prio-unsampled": {
-			hasPriority:     true,
-			prioritySampled: false,
-			wantSampled:     false,
+			hasPriority:        true,
+			prioritySampled:    false,
+			disableRareSampler: true,
+			wantSampled:        false,
 		},
 		"prio-sampled": {
 			hasPriority:     true,
@@ -620,15 +624,26 @@ func TestSampling(t *testing.T) {
 			prioritySampled: false,
 			wantSampled:     false,
 		},
+		"rare-sampler-catch": {
+			hasPriority: true,
+			wantSampled: true,
+		},
+		"rare-sampler-disabled": {
+			hasPriority:        true,
+			disableRareSampler: true,
+			wantSampled:        false,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			cfg := &config.AgentConfig{}
-			sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, ErrorTPS: 10}
+			cfg := &config.AgentConfig{DisableRareSampler: tt.disableRareSampler}
+			sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, ErrorTPS: 10, DisableRareSampler: tt.disableRareSampler}
+
 			a := &Agent{
 				NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 				ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 				PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-				RareSampler:       sampler.NewRareSampler(cfg),
+				RareSampler:       sampler.NewRareSampler(),
+				conf:              cfg,
 			}
 			if tt.errorsSampled {
 				a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg)
@@ -641,7 +656,7 @@ func TestSampling(t *testing.T) {
 				Service:  "serv1",
 				Start:    time.Now().UnixNano(),
 				Duration: (100 * time.Millisecond).Nanoseconds(),
-				Metrics:  map[string]float64{},
+				Metrics:  map[string]float64{"_top_level": 1},
 			}
 
 			if tt.hasErrors {
