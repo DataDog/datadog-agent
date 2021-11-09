@@ -56,6 +56,7 @@ const (
 	LE
 	GE
 	NE
+	Not
 	As
 	From
 	Update
@@ -108,6 +109,7 @@ var tokenKindStrings = map[TokenKind]string{
 	LE:                           "LE",
 	GE:                           "GE",
 	NE:                           "NE",
+	Not:                          "NOT",
 	As:                           "As",
 	From:                         "From",
 	Update:                       "Update",
@@ -296,11 +298,11 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			}
 			return TokenKind(ch), tkn.bytes()
 		case '!':
-			switch tkn.lastChar {
-			case '=':
+			switch c := tkn.lastChar; {
+			case c == '=':
 				tkn.advance()
 				return NE, []byte("!=")
-			case '~':
+			case c == '~':
 				tkn.advance()
 				switch tkn.lastChar {
 				case '*':
@@ -309,8 +311,10 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				default:
 					return NE, []byte("!~")
 				}
+			case c == '`' || c == '\'' || c == '"' || unicode.IsSpace(c) || isLetter(c) || isDigit(c):
+				return Not, tkn.bytes()
 			default:
-				tkn.setErr(`expected "=" after "!", got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
+				tkn.setErr(`unexpected char "%c" (%d) after "!"`, tkn.lastChar, tkn.lastChar)
 				return LexError, tkn.bytes()
 			}
 		case '\'':

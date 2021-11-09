@@ -495,6 +495,11 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				"people",
 				"SELECT name FROM people WHERE person_id = ?",
 			},
+			{
+				query: "select * from test where !is_good;",
+				tables: "test",
+				obfuscated: "select * from test where ! is_good",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
@@ -1272,7 +1277,7 @@ func TestSQLErrors(t *testing.T) {
 
 		{
 			"SELECT a FROM b WHERE a.x !* 2",
-			`at position 27: expected "=" after "!", got "*" (42)`,
+			`at position 27: unexpected char "*" (42) after "!"`,
 		},
 
 		{
