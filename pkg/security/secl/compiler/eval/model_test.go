@@ -237,15 +237,15 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	case "process.list.value":
 
 		return &StringArrayEvaluator{
-			EvalFnc: func(ctx *Context) StringValues {
+			EvalFnc: func(ctx *Context) []string {
 				// to test optimisation
 				(*testEvent)(ctx.Object).listEvaluated = true
 
-				var values StringValues
+				var values []string
 
 				el := (*testEvent)(ctx.Object).process.list.Front()
 				for el != nil {
-					values.AppendValue(el.Value.(*testItem).value)
+					values = append(values, el.Value.(*testItem).value)
 					el = el.Next()
 				}
 
@@ -295,11 +295,11 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	case "process.array.value":
 
 		return &StringArrayEvaluator{
-			EvalFnc: func(ctx *Context) StringValues {
-				var values StringValues
+			EvalFnc: func(ctx *Context) []string {
+				var values []string
 
 				for _, el := range (*testEvent)(ctx.Object).process.array {
-					values.AppendValue(el.value)
+					values = append(values, el.value)
 				}
 
 				return values
@@ -351,7 +351,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 						return nil, errors.New("non scalar overriden is not supported")
 					}
 
-					evaluator := StringArrayEvaluator{
+					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) StringValues {
 							process := &(*testEvent)(ctx.Object).process
 
@@ -363,7 +363,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 						},
 					}
 
-					return ArrayStringContains(a, &evaluator, opts, state)
+					return StringValuesContains(a, &evaluator, opts, state)
 				},
 			},
 		}, nil

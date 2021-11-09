@@ -10,7 +10,6 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
-	"github.com/pkg/errors"
 )
 
 // Evaluator is the interface of an evaluator
@@ -84,11 +83,6 @@ func (i *IntEvaluator) IsScalar() bool {
 	return i.EvalFnc == nil
 }
 
-// AppendMembers to the array evaluator
-func (i *IntArrayEvaluator) AppendMembers(members ...int) {
-	i.Values = append(i.Values, members...)
-}
-
 // StringEvaluator returns a string as result of the evaluation
 type StringEvaluator struct {
 	EvalFnc     func(ctx *Context) string
@@ -143,97 +137,15 @@ func (s *StringEvaluator) Compile() error {
 	return nil
 }
 
-// StringValues describes a set of string values, either regex or scalar
-type StringValues struct {
-	fieldValues []FieldValue
-	values      []string
-	scalars     map[string]bool
-	regexps     []*regexp.Regexp
-}
-
-// AppendFieldValue append a FieldValue
-func (s *StringValues) AppendFieldValue(value FieldValue) error {
-	if s.scalars == nil {
-		s.scalars = make(map[string]bool)
-	}
-
-	switch value.Type {
-	case PatternValueType:
-		if err := value.Compile(); err != nil {
-			return err
-		}
-
-		s.regexps = append(s.regexps, value.Regexp)
-		s.fieldValues = append(s.fieldValues, value)
-	case RegexpValueType:
-		if err := value.Compile(); err != nil {
-			return err
-		}
-
-		s.regexps = append(s.regexps, value.Regexp)
-		s.fieldValues = append(s.fieldValues, value)
-	default:
-		str := value.Value.(string)
-		s.values = append(s.values, str)
-		s.scalars[str] = true
-		s.fieldValues = append(s.fieldValues, value)
-	}
-
-	return nil
-}
-
-// SetFieldValues apply field values
-func (s *StringValues) SetFieldValues(values ...FieldValue) error {
-	s.fieldValues = []FieldValue{}
-
-	// reset internal caches
-	s.regexps = []*regexp.Regexp{}
-	s.scalars = nil
-
-	for _, value := range values {
-		if err := s.AppendFieldValue(value); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// AppendValue append a string value
-func (s *StringValues) AppendValue(value string) {
-	if s.scalars == nil {
-		s.scalars = make(map[string]bool)
-	}
-
-	s.values = append(s.values, value)
-	s.scalars[value] = true
-	s.fieldValues = append(s.fieldValues, FieldValue{Value: value})
-}
-
-// AppendStringEvaluator append a string evalutator
-func (s *StringValues) AppendStringEvaluator(evaluator *StringEvaluator) error {
-	if evaluator.EvalFnc == nil {
-		return errors.New("only scalar evaluator are supported")
-	}
-
-	fieldValue := FieldValue{
-		Value: evaluator.Value,
-		Type:  evaluator.ValueType,
-	}
-
-	return s.AppendFieldValue(fieldValue)
-}
-
 // StringArrayEvaluator returns an array of strings
 type StringArrayEvaluator struct {
-	EvalFnc     func(ctx *Context) StringValues
+	EvalFnc     func(ctx *Context) []string
+	Values      []string
 	Field       Field
 	Weight      int
 	OpOverrides *OpOverrides
 
 	isPartial bool
-
-	stringValues StringValues
 }
 
 // Eval returns the result of the evaluation
@@ -256,10 +168,44 @@ func (s *StringArrayEvaluator) IsScalar() bool {
 	return s.EvalFnc == nil
 }
 
+// IsScalar returns whether the evaluator is a scalar
+func (s *StringArrayEvaluator) AppendValue(value string) {
+	s.Values = append(s.Values, value)
+}
+
+// StringValuesEvaluator returns an array of strings
+type StringValuesEvaluator struct {
+	EvalFnc func(ctx *Context) StringValues
+	Values  StringValues
+	Weight  int
+
+	isPartial bool
+}
+
+// Eval returns the result of the evaluation
+func (s *StringValuesEvaluator) Eval(ctx *Context) interface{} {
+	return s.EvalFnc(ctx)
+}
+
+// IsPartial returns whether the evaluator is partial
+func (s *StringValuesEvaluator) IsPartial() bool {
+	return s.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (s *StringValuesEvaluator) GetField() string {
+	return ""
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (s *StringValuesEvaluator) IsScalar() bool {
+	return s.EvalFnc == nil
+}
+
 // AppendFieldValues append field values
-func (s *StringArrayEvaluator) AppendFieldValues(values ...FieldValue) error {
+func (s *StringValuesEvaluator) AppendFieldValues(values ...FieldValue) error {
 	for _, value := range values {
-		if err := s.stringValues.AppendFieldValue(value); err != nil {
+		if err := s.Values.AppendFieldValue(value); err != nil {
 			return err
 		}
 	}
@@ -268,12 +214,12 @@ func (s *StringArrayEvaluator) AppendFieldValues(values ...FieldValue) error {
 }
 
 // SetFieldValues apply field values
-func (s *StringArrayEvaluator) SetFieldValues(values ...FieldValue) error {
-	return s.stringValues.SetFieldValues(values...)
+func (s *StringValuesEvaluator) SetFieldValues(values ...FieldValue) error {
+	return s.Values.SetFieldValues(values...)
 }
 
 // AppendMembers add members to the evaluator
-func (s *StringArrayEvaluator) AppendMembers(members ...ast.StringMember) error {
+func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) error {
 	var values []FieldValue
 	var value FieldValue
 
@@ -301,9 +247,9 @@ func (s *StringArrayEvaluator) AppendMembers(members ...ast.StringMember) error 
 }
 
 // AppendStringEvaluator add string evaluator to the evaluator
-func (s *StringArrayEvaluator) AppendStringEvaluator(evaluators ...*StringEvaluator) error {
+func (s *StringValuesEvaluator) AppendStringEvaluator(evaluators ...*StringEvaluator) error {
 	for _, evaluator := range evaluators {
-		if err := s.stringValues.AppendStringEvaluator(evaluator); err != nil {
+		if err := s.Values.AppendStringEvaluator(evaluator); err != nil {
 
 		}
 	}
@@ -340,6 +286,40 @@ func (i *IntArrayEvaluator) GetField() string {
 // IsScalar returns whether the evaluator is a scalar
 func (i *IntArrayEvaluator) IsScalar() bool {
 	return i.EvalFnc == nil
+}
+
+// IntValuesEvaluator returns an array of int
+type IntValuesEvaluator struct {
+	EvalFnc func(ctx *Context) []int
+	Values  []int
+	Weight  int
+
+	isPartial bool
+}
+
+// Eval returns the result of the evaluation
+func (i *IntValuesEvaluator) Eval(ctx *Context) interface{} {
+	return i.EvalFnc(ctx)
+}
+
+// IsPartial returns whether the evaluator is partial
+func (i *IntValuesEvaluator) IsPartial() bool {
+	return i.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (i *IntValuesEvaluator) GetField() string {
+	return ""
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (i *IntValuesEvaluator) IsScalar() bool {
+	return i.EvalFnc == nil
+}
+
+// AppendValues to the array evaluator
+func (i *IntValuesEvaluator) AppendValues(values ...int) {
+	i.Values = append(i.Values, values...)
 }
 
 // BoolArrayEvaluator returns an array of bool
