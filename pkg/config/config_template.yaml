@@ -1372,7 +1372,6 @@ api_key:
   # enabled: false
 
   ## @param fim_enabled - boolean - optional - default: false
-  ## @env DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED - boolean - optional - default: false
   ## Set to true to enable the File Integrity Monitoring (FIM) feature of Cloud Workload Security (CWS).
   #
   # fim_enabled: false
