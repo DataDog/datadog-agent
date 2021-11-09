@@ -24,7 +24,10 @@ def get_dev_path():
 
 
 def run_make_command(ctx, command=""):
-    ctx.run("cmake --build {} --target {}".format(get_rtloader_build_path(), command))
+    target_arg = ""
+    if command != "":
+        target_arg = "--target \"{}\"".format(command)
+    ctx.run("cmake --build {} {}".format(get_rtloader_build_path(), target_arg))
 
 
 def get_cmake_cache_path(rtloader_path):
