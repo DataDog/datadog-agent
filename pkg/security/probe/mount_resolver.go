@@ -35,11 +35,7 @@ const (
 	deleteDelayTime = 5 * time.Second
 )
 
-// newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
-func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) {
-	var err error
-	var groupID uint64
-
+func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	// Has optional fields, which is a space separated list of values.
 	// Example: shared:2 master:7
 	if len(mnt.Optional) > 0 {
@@ -48,12 +44,20 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) 
 			if len(optionSplit) == 2 {
 				target, value := optionSplit[0], optionSplit[1]
 				if target == "shared" || target == "master" {
-					if groupID, err = strconv.ParseUint(value, 10, 64); err != nil {
-						return nil, err
-					}
+					groupID, err := strconv.ParseUint(value, 10, 32)
+					return uint32(groupID), err
 				}
 			}
 		}
+	}
+	return 0, nil
+}
+
+// newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
+func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) {
+	groupID, err := parseGroupID(mnt)
+	if err != nil {
+		return nil, err
 	}
 
 	// create a MountEvent out of the parsed MountInfo
@@ -62,7 +66,7 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) 
 		MountPointStr: mnt.Mountpoint,
 		RootStr:       mnt.Root,
 		MountID:       uint32(mnt.ID),
-		GroupID:       uint32(groupID),
+		GroupID:       groupID,
 		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
 		FSType:        mnt.FSType,
 	}, nil
