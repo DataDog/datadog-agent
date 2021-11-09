@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/coreos/go-systemd/dbus"
+	"github.com/coreos/go-systemd/v22/dbus"
 	"gopkg.in/yaml.v2"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
