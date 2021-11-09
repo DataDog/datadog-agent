@@ -525,8 +525,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				{{- $ReturnType := $Field.ReturnType}}
 				{{- if $Field.IsArray}}
 					{{- if eq $ReturnType "string" }}
-					{{- $ReturnType = "StringValues" }}
-					{{- else }}
 					{{$ArrayPrefix = "[]"}}
 					{{end -}}
 				{{end}}
