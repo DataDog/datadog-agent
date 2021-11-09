@@ -44,7 +44,7 @@ func TestIsEnabled(t *testing.T) {
 	}
 }
 
-func TestFromAgentConfigPort(t *testing.T) {
+func TestFromAgentConfigReceiver(t *testing.T) {
 	tests := []struct {
 		path string
 		cfg  PipelineConfig
