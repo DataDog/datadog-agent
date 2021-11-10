@@ -170,7 +170,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 
 		resolved, err := resolve(ctx, env, r.ruleID, input.ResourceCommon)
 		if err != nil {
-			if input.AllowError {
+			if input.Optional {
 				log.Warnf("failed to resolve input: %v", err)
 				continue
 			} else {

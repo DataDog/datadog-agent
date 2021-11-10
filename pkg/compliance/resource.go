@@ -61,7 +61,7 @@ type RegoInput struct {
 	ResourceCommon `yaml:",inline"`
 	TagName        string `yaml:"tag,omitempty"`
 	Type           string `yaml:"type"`
-	AllowError     bool   `yaml:"allowError,omitempty"`
+	Optional       bool   `yaml:"optional,omitempty"`
 }
 
 // ValidateInputType returns the validated input type or an error
