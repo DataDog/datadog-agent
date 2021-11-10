@@ -36,7 +36,7 @@ type BBSCacheI interface {
 	// GetActualLRPsForProcessGUID returns slice of pointers to ActualLRP objects for given App GUID
 	GetActualLRPsForProcessGUID(appGUID string) ([]*ActualLRP, error)
 
-	// GetActualLRPsForCell returns slice of pointers to ActualLRP objects for given App GUID
+	// GetActualLRPsForCell returns slice of pointers to ActualLRP objects for given Cell ID
 	GetActualLRPsForCell(cellID string) ([]*ActualLRP, error)
 
 	// GetDesiredLRPFor returns DesiredLRP for a specific process GUID
@@ -151,7 +151,7 @@ func (bc *BBSCache) GetActualLRPsForProcessGUID(processGUID string) ([]*ActualLR
 	return []*ActualLRP{}, fmt.Errorf("actual LRPs for app %s not found", processGUID)
 }
 
-// GetActualLRPsForCell returns slice of pointers to ActualLRP objects for given App GUID
+// GetActualLRPsForCell returns slice of pointers to ActualLRP objects for given Cell ID
 func (bc *BBSCache) GetActualLRPsForCell(cellID string) ([]*ActualLRP, error) {
 	bc.RLock()
 	defer bc.RUnlock()
