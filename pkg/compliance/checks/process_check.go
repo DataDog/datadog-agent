@@ -69,6 +69,10 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 		instances = append(instances, newResolvedInstance(instance, strconv.Itoa(int(mp.Pid)), "process"))
 	}
 
+	if len(instances) == 0 {
+		return nil, fmt.Errorf("no process found for process check %q", process.Name)
+	}
+
 	// NOTE(safchain) workaround to allow fallback on all this resource if there is only one file
 	if len(instances) == 1 {
 		return instances[0].(*_resolvedInstance), nil
