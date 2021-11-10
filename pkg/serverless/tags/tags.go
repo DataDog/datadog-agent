@@ -160,7 +160,7 @@ func getRuntimeFromOsReleaseFile(osReleasePath string) string {
 	result := regExp.FindAll(bytesRead, -1)
 	if len(result) == 1 {
 		log.Error(string(bytesRead))
-		log.Error(result)
+		log.Error(fmt.Sprintf("%s/os-release", osReleasePath))
 		runtime = "provided.al2"
 	}
 	return runtime
