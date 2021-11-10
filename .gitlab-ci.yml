@@ -228,7 +228,7 @@ variables:
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
 
 .if_deploy_on_stable_repo_branch: &if_deploy_on_stable_repo_branch
-  if: $DEPLOY_AGENT == "true" && $DEB_RPM_BUCKET_BRANCH == "stable"
+  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "stable"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
