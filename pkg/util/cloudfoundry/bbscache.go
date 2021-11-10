@@ -204,8 +204,6 @@ func (bc *BBSCache) start() {
 
 func (bc *BBSCache) readData() {
 	log.Debug("Reading data from BBS API")
-	bc.Lock()
-	bc.Unlock()
 	var wg sync.WaitGroup
 	var actualLRPsByProcessGUID map[string][]*ActualLRP
 	var actualLRPsByCellID map[string][]*ActualLRP
