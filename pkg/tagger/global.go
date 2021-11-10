@@ -25,6 +25,7 @@ import (
 // defaultTagger is the shared tagger instance backing the global Tag and Init functions
 var defaultTagger Tagger
 var initOnce sync.Once
+var initErr error
 
 // captureTagger is a tagger instance that contains a tagger that will contain the tagger
 // state when replaying a capture scenario
@@ -48,8 +49,6 @@ var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_d
 
 // Init must be called once config is available, call it in your cmd
 func Init() error {
-	var initErr error
-
 	initOnce.Do(func() {
 		var err error
 		checkCard := config.Datadog.GetString("checks_tag_cardinality")
