@@ -677,7 +677,6 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 // If the owner is a job, it tries to get the kube_cronjob tag in addition to kube_job.
 func ownerTags(kind, name string) []string {
 	if kind == "" || name == "" {
-		log.Debugf("Empty kind: %q or name: %q", kind, name)
 		return nil
 	}
 
