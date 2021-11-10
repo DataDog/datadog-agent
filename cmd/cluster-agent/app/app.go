@@ -220,9 +220,8 @@ func start(cmd *cobra.Command, args []string) error {
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.NoEventPlatformForwarder = true
 	opts.StartForwarders = true
-	opts.StartupTelemetry = fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion)
-
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {

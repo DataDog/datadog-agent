@@ -44,7 +44,6 @@ func initF() {
 	demultiplexerInstance = nil
 	opts := DefaultDemultiplexerOptions(nil)
 	opts.FlushInterval = 1 * time.Hour
-	opts.StartupTelemetry = ""
 	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
 	recurrentSeries = metrics.Series{}

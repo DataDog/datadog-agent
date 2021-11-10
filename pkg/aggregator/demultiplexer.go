@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // DemultiplexerInstance is a shared global demultiplexer instance.
@@ -93,7 +92,6 @@ type DemultiplexerOptions struct {
 	NoEventPlatformForwarder   bool
 	NoOrchestratorForwarder    bool
 	FlushInterval              time.Duration
-	StartupTelemetry           string
 	StartForwarders            bool // unit tests don't need the forwarders to be instanciated
 }
 
@@ -117,7 +115,6 @@ func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOption
 	return DemultiplexerOptions{
 		ForwarderOptions: options,
 		FlushInterval:    DefaultFlushInterval,
-		StartupTelemetry: version.AgentVersion,
 	}
 }
 
@@ -185,11 +182,6 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 	demultiplexerInstance = demux
 
 	go demux.Run()
-
-	if options.StartupTelemetry != "" {
-		agg.AddAgentStartupTelemetry(options.StartupTelemetry)
-	}
-
 	return demux
 }
 
@@ -215,6 +207,13 @@ func (d *AgentDemultiplexer) Run() {
 	}
 
 	d.aggregator.run() // this is the blocking call
+}
+
+// AddAgentStartupTelemetry adds a startup event and count to be sent on the next flush
+func (d *AgentDemultiplexer) AddAgentStartupTelemetry(str string) {
+	if str != "" {
+		d.aggregator.AddAgentStartupTelemetry(str)
+	}
 }
 
 // Stop stops the demultiplexer

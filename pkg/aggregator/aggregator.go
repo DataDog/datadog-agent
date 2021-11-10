@@ -320,7 +320,6 @@ func (agg *BufferedAggregator) SetHostname(hostname string) {
 
 // AddAgentStartupTelemetry adds a startup event and count to be sent on the next flush
 func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
-
 	metric := &metrics.MetricSample{
 		Name:       fmt.Sprintf("datadog.%s.started", agg.agentName),
 		Value:      1,

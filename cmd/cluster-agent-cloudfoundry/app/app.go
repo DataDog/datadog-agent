@@ -170,8 +170,8 @@ func run(cmd *cobra.Command, args []string) error {
 	opts.NoEventPlatformForwarder = true
 	opts.NoOrchestratorForwarder = true
 	opts.StartForwarders = true
-	opts.StartupTelemetry = fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion)
-	aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
 

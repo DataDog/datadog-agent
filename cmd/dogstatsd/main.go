@@ -195,6 +195,7 @@ func runAgent(ctx context.Context) (err error) {
 	}
 	log.Debugf("Using hostname: %s", hname)
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
+	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector
 	metaScheduler = metadata.NewScheduler(demux)

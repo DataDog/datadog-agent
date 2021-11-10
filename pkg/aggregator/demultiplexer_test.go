@@ -30,7 +30,6 @@ func resetDemuxInstance(require *require.Assertions) {
 
 func demuxTestOptions() DemultiplexerOptions {
 	opts := DefaultDemultiplexerOptions(nil)
-	opts.StartupTelemetry = ""
 	opts.FlushInterval = time.Hour
 	return opts
 }
