@@ -26,6 +26,14 @@ docker_daemon_resource_id = id {
 	id := sprintf("%s_daemon", [input.context.hostname])
 }
 
+kubernetes_master_node_resource_id = id {
+	id := sprintf("%s_kubernetes_master_node", [input.context.hostname])
+}
+
+kubernetes_worker_node_resource_id = id {
+	id := sprintf("%s_kubernetes_worker_node", [input.context.hostname])
+}
+
 docker_network_resource_id(n) = id {
 	id := sprintf("%s_%s", [input.context.hostname, cast_string(n.id)])
 }
