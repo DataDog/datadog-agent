@@ -1229,7 +1229,7 @@ func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *St
 	}, nil
 }
 
-func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a bool, b []bool) bool {

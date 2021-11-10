@@ -1017,22 +1017,32 @@ func TestDuration(t *testing.T) {
 	}
 }
 
-func TestOpOverride(t *testing.T) {
+func TestOpOverrides(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
-			overriden: "abc",
+			ovName: "abc",
 		},
 	}
 
-	event.process.overrideFnc = func(evaluator *StringEvaluator) {
-		event.process.overridenValues.AppendValue("abc")
+	event.process.array = []*testItem{
+		{key: 1000, value: "abc", flag: true},
+	}
+
+	// values that will be returned by the operator override
+	event.process.ovNameValues = func() StringValues {
+		var values StringValues
+		values.AppendValue("abc")
+		return values
 	}
 
 	tests := []struct {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.overriden == "not"`, Expected: true},
+		{Expr: `process.ov_name == "not"`, Expected: true},
+		{Expr: `process.ov_name in ["not"]`, Expected: true},
+		{Expr: `process.array.value == "not"]`, Expected: true},
+		{Expr: `process.array.value in ["not"]`, Expected: true},
 	}
 
 	for _, test := range tests {

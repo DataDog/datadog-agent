@@ -33,10 +33,10 @@ type testProcess struct {
 	list      *list.List
 	array     []*testItem
 	createdAt int64
-	overriden string
 
-	overrideFnc     func(evaluator *StringEvaluator)
-	overridenValues StringValues
+	// overriden values
+	ovName       string
+	ovNameValues func() StringValues
 }
 
 type testItemListIterator struct {
@@ -333,33 +333,27 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			Field: field,
 		}, nil
 
-	case "process.overriden":
+	case "process.ov_name":
 
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string {
-				return (*testEvent)(ctx.Object).process.overriden
+				return (*testEvent)(ctx.Object).process.ovName
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
-					var scalar *StringEvaluator
-					if a.EvalFnc == nil {
-						scalar = a
-					} else if b.EvalFnc == nil {
-						scalar = b
-					} else {
-						return nil, errors.New("non scalar overriden is not supported")
-					}
-
+				StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) StringValues {
-							process := &(*testEvent)(ctx.Object).process
+							return (*testEvent)(ctx.Object).process.ovNameValues()
+						},
+					}
 
-							if process.overrideFnc != nil {
-								process.overrideFnc(scalar)
-							}
-
-							return process.overridenValues
+					return StringValuesContains(a, &evaluator, opts, state)
+				},
+				StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+					evaluator := StringValuesEvaluator{
+						EvalFnc: func(ctx *Context) StringValues {
+							return (*testEvent)(ctx.Object).process.ovNameValues()
 						},
 					}
 

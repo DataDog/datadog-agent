@@ -63,11 +63,6 @@ type VariableValue struct {
 	StringFnc func(ctx *Context) string
 }
 
-// OpOverride defines a operator override function suite
-type OpOverrides struct {
-	StringEquals func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
-}
-
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
@@ -298,7 +293,25 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 	}, pos, nil
 }
 
-func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, lexer.Position, error) {
+func stringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+	var evaluator *BoolEvaluator
+	var err error
+
+	if a.OpOverrides != nil && a.OpOverrides.StringEquals != nil {
+		evaluator, err = a.OpOverrides.StringEquals(a, b, opts, state)
+	} else if b.OpOverrides != nil && b.OpOverrides.StringEquals != nil {
+		evaluator, err = b.OpOverrides.StringEquals(a, b, opts, state)
+	} else {
+		evaluator, err = StringEquals(a, b, opts, state)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return evaluator, nil
+}
+
+func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, lexer.Position, error) {
 	var err error
 	var boolEvaluator *BoolEvaluator
 	var pos lexer.Position
@@ -422,17 +435,24 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 			case *StringEvaluator:
 				switch nextString := next.(type) {
 				case *StringArrayEvaluator:
-					boolEvaluator, err = StringArrayContains(unary, nextString, opts, state)
+					if unary.OpOverrides != nil && unary.OpOverrides.StringArrayContains != nil {
+						boolEvaluator, err = unary.OpOverrides.StringArrayContains(unary, nextString, opts, state)
+					} else {
+						boolEvaluator, err = StringArrayContains(unary, nextString, opts, state)
+					}
 					if err != nil {
 						return nil, pos, err
 					}
 				case *StringValuesEvaluator:
-					boolEvaluator, err = StringValuesContains(unary, nextString, opts, state)
+					if unary.OpOverrides != nil && unary.OpOverrides.StringValuesContains != nil {
+						boolEvaluator, err = unary.OpOverrides.StringValuesContains(unary, nextString, opts, state)
+					} else {
+						boolEvaluator, err = StringValuesContains(unary, nextString, opts, state)
+					}
 					if err != nil {
 						return nil, pos, err
 					}
 				default:
-					fmt.Printf("AAAAA\n")
 					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.String)
 				}
 				if *obj.ArrayComparison.Op == "notin" {
@@ -443,6 +463,20 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				switch nextStringArray := next.(type) {
 				case *StringArrayEvaluator:
 					boolEvaluator, err = StringArrayMatches(nextStringArray, unary, opts, state)
+					if err != nil {
+						return nil, pos, err
+					}
+					if *obj.ArrayComparison.Op == "notin" {
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+					return boolEvaluator, obj.Pos, nil
+				default:
+					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.String)
+				}
+			case *StringArrayEvaluator:
+				switch nextStringArray := next.(type) {
+				case *StringValuesEvaluator:
+					boolEvaluator, err = StringArrayMatches(unary, nextStringArray, opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -520,13 +554,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					boolEvaluator, err = ArrayBoolEquals(nextBool, unary, opts, state)
+					boolEvaluator, err = BoolArrayEquals(nextBool, unary, opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
 					return Not(boolEvaluator, opts, state), obj.Pos, nil
 				case "==":
-					boolEvaluator, err = ArrayBoolEquals(nextBool, unary, opts, state)
+					boolEvaluator, err = BoolArrayEquals(nextBool, unary, opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -541,7 +575,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					boolEvaluator, err = StringEquals(unary, nextString, opts, state)
+					boolEvaluator, err = stringEquals(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -561,13 +595,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					return Not(boolEvaluator, opts, state), obj.Pos, nil
 				case "==":
-					if unary.OpOverrides != nil && unary.OpOverrides.StringEquals != nil {
-						boolEvaluator, err = unary.OpOverrides.StringEquals(unary, nextString, opts, state)
-					} else if nextString.OpOverrides != nil && nextString.OpOverrides.StringEquals != nil {
-						boolEvaluator, err = nextString.OpOverrides.StringEquals(unary, nextString, opts, state)
-					} else {
-						boolEvaluator, err = StringEquals(unary, nextString, opts, state)
-					}
+					boolEvaluator, err = stringEquals(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}

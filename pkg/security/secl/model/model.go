@@ -239,7 +239,7 @@ type Process struct {
 	Pid uint32 `field:"pid"` // Process ID of the process (also called thread group ID)
 	Tid uint32 `field:"tid"` // Thread ID of the thread
 
-	PathnameStr         string `field:"file.path" op_override:"OverridePathnames"`       // Path of the process executable
+	PathnameStr         string `field:"file.path"`       // Path of the process executable
 	BasenameStr         string `field:"file.name"`       // Basename of the path of the process executable
 	Filesystem          string `field:"file.filesystem"` // FileSystem of the process executable
 	PathResolutionError error  `field:"-"`
@@ -330,7 +330,7 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr string `field:"path,ResolveFilePath"`             // File's path
+	PathnameStr string `field:"path,ResolveFilePath" op_override:"OverridePathnames"`             // File's path
 	BasenameStr string `field:"name,ResolveFileBasename"`         // File's basename
 	Filesytem   string `field:"filesystem,ResolveFileFilesystem"` // File's filesystem
 

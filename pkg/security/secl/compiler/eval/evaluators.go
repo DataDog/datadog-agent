@@ -118,6 +118,14 @@ func (s *StringEvaluator) IsScalar() bool {
 	return s.EvalFnc == nil
 }
 
+// IsScalar returns whether the evaluator is a scalar
+func (s *StringEvaluator) GetValue(ctx *Context) string {
+	if s.EvalFnc == nil {
+		return s.Value
+	}
+	return s.EvalFnc(ctx)
+}
+
 // Compile compile internal object
 func (s *StringEvaluator) Compile() error {
 	switch s.ValueType {

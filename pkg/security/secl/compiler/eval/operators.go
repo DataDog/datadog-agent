@@ -7,6 +7,14 @@ package eval
 
 import "regexp"
 
+// OpOverride defines a operator override function suite
+type OpOverrides struct {
+	StringEquals         func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
+	StringValuesContains func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
+	StringArrayContains  func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
+	StringArrayMatches   func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
+}
+
 func isPartialLeaf(a Evaluator, b Evaluator, state *State) bool {
 	partialA, partialB := a.IsPartial(), b.IsPartial()
 
@@ -557,7 +565,7 @@ func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, sta
 
 		if a.Field != "" {
 			for _, value := range b.Values {
-				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value}); err != nil {
 					return nil, err
 				}
 			}
@@ -640,7 +648,7 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, stat
 
 		if a.Field != "" {
 			for _, value := range eb {
-				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value}); err != nil {
 					return nil, err
 				}
 			}
@@ -660,7 +668,7 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, stat
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea}); err != nil {
 			return nil, err
 		}
 	}

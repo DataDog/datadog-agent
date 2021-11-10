@@ -17,25 +17,31 @@ var (
 	// OverridePathnames is used to add symlinks to pathnames
 	OverridePathnames = &eval.OpOverrides{
 		StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
-			var scalar *eval.StringEvaluator
-			if a.EvalFnc == nil {
-				scalar = a
-			} else if b.EvalFnc == nil {
-				scalar = b
+			var value string
+			if a.IsScalar() {
+				value = a.Value
+			} else if b.IsScalar() {
+				value = b.Value
 			} else {
 				return nil, errors.New("non scalar overriden is not supported")
 			}
 
-			evaluator := eval.StringArrayEvaluator{
+			evaluator := eval.StringValuesEvaluator{
 				EvalFnc: func(ctx *eval.Context) eval.StringValues {
+					event := (*Event)(ctx.Object)
+
 					values := eval.StringValues{}
-					values.AppendEvaluator(scalar)
+					values.AppendValue(value)
+
+					if dest, err := event.resolvers.SymlinkResolver.Resolve(value); err == nil {
+						values.AppendValue(dest)
+					}
 
 					return values
 				},
 			}
 
-			return eval.ArrayStringContains(a, &evaluator, opts, state)
+			return eval.StringValuesContains(a, &evaluator, opts, state)
 		},
 	}
 )
