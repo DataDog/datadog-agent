@@ -263,11 +263,31 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 			Type: finding.ResourceType,
 		}
 
-		report := &compliance.Report{
-			Resource:  reportResource,
-			Passed:    finding.Status,
-			Data:      finding.Data,
-			Evaluator: regoEvaluator,
+		var report *compliance.Report
+		switch finding.Status {
+		case "error":
+			errMsg := finding.Data["error"]
+			if errMsg == nil {
+				errMsg = ""
+			}
+			err := fmt.Errorf("%v", errMsg)
+			report = buildReportForError(err)
+		case "passed":
+			report = &compliance.Report{
+				Resource:  reportResource,
+				Passed:    true,
+				Data:      finding.Data,
+				Evaluator: regoEvaluator,
+			}
+		case "failing":
+			report = &compliance.Report{
+				Resource:  reportResource,
+				Passed:    false,
+				Data:      finding.Data,
+				Evaluator: regoEvaluator,
+			}
+		default:
+			return buildErrorReports(fmt.Errorf("unknown finding status: %s", finding.Status))
 		}
 
 		reports = append(reports, report)
@@ -344,7 +364,7 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 }
 
 type regoFinding struct {
-	Status       bool       `mapstructure:"status"`
+	Status       string     `mapstructure:"status"`
 	ResourceType string     `mapstructure:"resource_type"`
 	ResourceID   string     `mapstructure:"resource_id"`
 	Data         event.Data `mapstructure:"data"`
@@ -370,7 +390,11 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 			return nil, err
 		}
 
-		if err := checkFindingsRequiredFields(&decodeMetadata); err != nil {
+		if err := checkFindingRequiredFields(&decodeMetadata); err != nil {
+			return nil, err
+		}
+
+		if err := checkFindingStatus(&finding); err != nil {
 			return nil, err
 		}
 
@@ -380,7 +404,16 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 	return res, nil
 }
 
-func checkFindingsRequiredFields(metadata *mapstructure.Metadata) error {
+func checkFindingStatus(finding *regoFinding) error {
+	switch finding.Status {
+	case "passed", "failing", "error":
+		return nil
+	default:
+		return fmt.Errorf("unknown finding status: %s", finding.Status)
+	}
+}
+
+func checkFindingRequiredFields(metadata *mapstructure.Metadata) error {
 	requiredFields := make(map[string]bool)
 	requiredFields["status"] = false
 
@@ -399,10 +432,14 @@ func checkFindingsRequiredFields(metadata *mapstructure.Metadata) error {
 	return nil
 }
 
-func buildErrorReports(err error) []*compliance.Report {
+func buildReportForError(err error) *compliance.Report {
 	report := compliance.BuildReportForError(err)
 	report.Evaluator = regoEvaluator
-	return []*compliance.Report{report}
+	return report
+}
+
+func buildErrorReports(err error) []*compliance.Report {
+	return []*compliance.Report{buildReportForError(err)}
 }
 
 type regoPrintHook struct{}
