@@ -100,7 +100,8 @@ func NewListenerConfig() (ListenerConfig, error) {
 			return newData, nil
 		},
 	)
-
+	// Set defaults before unmarshalling
+	snmpConfig.CollectDeviceMetadata = true
 	if err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
 		return snmpConfig, err
 	}
@@ -170,6 +171,7 @@ func (c *Config) Digest(address string) string {
 	h.Write([]byte(c.ContextEngineID))         //nolint:errcheck
 	h.Write([]byte(c.ContextName))             //nolint:errcheck
 	h.Write([]byte(c.Loader))                  //nolint:errcheck
+	h.Write([]byte(c.Namespace))               //nolint:errcheck
 
 	// Sort the addresses to get a stable digest
 	addresses := make([]string, 0, len(c.IgnoredIPAddresses))

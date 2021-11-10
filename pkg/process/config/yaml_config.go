@@ -16,6 +16,8 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -99,8 +101,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// and uses a different unit of time
 	a.initProcessDiscoveryCheck()
 
-	if a.CheckIntervals[ProcessCheckName] <= a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
-		// Process check interval must be greater than RTProcess check interval and the intervals must be divisible
+	if a.CheckIntervals[ProcessCheckName] < a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
+		// Process check interval must be greater or equal to RTProcess check interval and the intervals must be divisible
 		// in order to be run on the same goroutine
 		log.Warnf(
 			"Invalid process check interval overrides [%s,%s], resetting to defaults [%s,%s]",
@@ -240,15 +242,28 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
 	if config.Datadog.IsSet(key(ns, "internal_profiling.enabled")) {
-		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "internal_profiling.enabled"))
-		a.ProfilingSite = config.Datadog.GetString("site")
-		a.ProfilingURL = config.Datadog.GetString("internal_profiling.profile_dd_url")
-		a.ProfilingEnvironment = config.Datadog.GetString("env")
-		a.ProfilingPeriod = config.Datadog.GetDuration("internal_profiling.period")
-		a.ProfilingCPUDuration = config.Datadog.GetDuration("internal_profiling.cpu_duration")
-		a.ProfilingMutexFraction = config.Datadog.GetInt("internal_profiling.mutex_profile_fraction")
-		a.ProfilingBlockRate = config.Datadog.GetInt("internal_profiling.block_profile_rate")
-		a.ProfilingWithGoroutines = config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
+		// allow full url override for development use
+		site := config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if site == "" {
+			s := config.Datadog.GetString("site")
+			if s == "" {
+				s = config.DefaultSite
+			}
+			site = fmt.Sprintf(profiling.ProfileURLTemplate, s)
+		}
+
+		v, _ := version.Agent()
+		a.ProfilingSettings = &profiling.Settings{
+			Site:                 site,
+			Env:                  config.Datadog.GetString("env"),
+			Service:              "process-agent",
+			Period:               config.Datadog.GetDuration("internal_profiling.period"),
+			CPUDuration:          config.Datadog.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     config.Datadog.GetInt("internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+		}
 	}
 
 	// Used to override container source auto-detection
@@ -290,7 +305,7 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 	}
 
 	if interval := config.Datadog.GetInt(k); interval != 0 {
-		log.Infof("Overriding container check interval to %ds", interval)
+		log.Infof("Overriding %s check interval to %ds", checkKey, interval)
 		a.CheckIntervals[checkKey] = time.Duration(interval) * time.Second
 	}
 }

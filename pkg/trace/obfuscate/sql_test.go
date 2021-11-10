@@ -83,6 +83,30 @@ func TestKeepSQLAlias(t *testing.T) {
 	})
 }
 
+func TestCanObfuscateAutoVacuum(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct{ in, out string }{
+		{
+			in:  "autovacuum: VACUUM ANALYZE fake.table",
+			out: "autovacuum : VACUUM ANALYZE fake.table",
+		},
+		{
+			in:  "autovacuum: VACUUM ANALYZE fake.table_downtime",
+			out: "autovacuum : VACUUM ANALYZE fake.table_downtime",
+		},
+		{
+			in:  "autovacuum: VACUUM fake.big_table (to prevent wraparound)",
+			out: "autovacuum : VACUUM fake.big_table ( to prevent wraparound )",
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
+		})
+	}
+}
+
 func TestDollarQuotedFunc(t *testing.T) {
 	q := `SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users`
 
@@ -274,7 +298,7 @@ func TestSQLReplaceDigits(t *testing.T) {
 			},
 			{`SELECT daily_values1529.*, LEAST((5040000 - @runtot), value1830) AS value1830,
 (@runtot := @runtot + daily_values1529.value1830) AS total
-FROM (SELECT @runtot:=0) AS n, 
+FROM (SELECT @runtot:=0) AS n,
 daily_values1529 WHERE daily_values1529.subject_id = 12345 AND daily_values1592.subject_type = 'Skippity'
 AND (daily_values1529.date BETWEEN '2018-05-09' AND '2018-06-19') HAVING value >= 0 ORDER BY date`,
 				"SELECT daily_values?.*, LEAST ( ( ? - @runtot ), value? ), ( @runtot := @runtot + daily_values?.value? ) FROM ( SELECT @runtot := ? ), daily_values? WHERE daily_values?.subject_id = ? AND daily_values?.subject_type = ? AND ( daily_values?.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date",
@@ -340,7 +364,7 @@ GROUP BY sales1828.product_key`,
 			},
 			{`SELECT daily_values1529.*, LEAST((5040000 - @runtot), value1830) AS value1830,
 (@runtot := @runtot + daily_values1529.value1830) AS total
-FROM (SELECT @runtot:=0) AS n, 
+FROM (SELECT @runtot:=0) AS n,
 daily_values1529 WHERE daily_values1529.subject_id = 12345 AND daily_values1592.subject_type = 'Skippity'
 AND (daily_values1529.date BETWEEN '2018-05-09' AND '2018-06-19') HAVING value >= 0 ORDER BY date`,
 				"SELECT daily_values1529.*, LEAST ( ( ? - @runtot ), value1830 ), ( @runtot := @runtot + daily_values1529.value1830 ) FROM ( SELECT @runtot := ? ), daily_values1529 WHERE daily_values1529.subject_id = ? AND daily_values1592.subject_type = ? AND ( daily_values1529.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date",
@@ -913,6 +937,10 @@ LIMIT 1
 		{
 			query:    `SELECT nspname FROM pg_class where nspname ~* '.*matchingInsensitive.*'`,
 			expected: `SELECT nspname FROM pg_class where nspname ~* ?`,
+		},
+		{
+			query:    `SELECT * FROM dbo.Items WHERE id = 1 or /*!obfuscation*/ 1 = 1`,
+			expected: `SELECT * FROM dbo.Items WHERE id = ? or ? = ?`,
 		},
 	}
 

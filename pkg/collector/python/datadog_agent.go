@@ -432,3 +432,8 @@ var defaultSQLPlanObfuscateSettings = traceconfig.JSONObfuscationConfig{
 	}, defaultSQLPlanNormalizeSettings.KeepValues...),
 	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }
+
+//export getProcessStartTime
+func getProcessStartTime() float64 {
+	return float64(config.StartTime.Unix())
+}

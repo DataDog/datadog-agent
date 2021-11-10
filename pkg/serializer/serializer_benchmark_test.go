@@ -55,7 +55,7 @@ func benchmarkSplit(b *testing.B, numberOfSeries int) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		results, _ = split.Payloads(series, true, split.MarshalJSON)
+		results, _ = split.Payloads(series, true, split.JSONMarshalFct)
 	}
 }
 

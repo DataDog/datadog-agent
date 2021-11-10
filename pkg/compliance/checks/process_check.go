@@ -59,6 +59,12 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 				compliance.ProcessFuncFlag:    processFlag(flagValues),
 				compliance.ProcessFuncHasFlag: processHasFlag(flagValues),
 			},
+			eval.RegoInputMap{
+				"name":    mp.Name,
+				"exe":     mp.Exe,
+				"cmdLine": mp.Cmdline,
+				"flags":   flagValues,
+			},
 		)
 		instances = append(instances, newResolvedInstance(instance, strconv.Itoa(int(mp.Pid)), "process"))
 	}

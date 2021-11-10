@@ -28,6 +28,7 @@ const (
 type Conntracker interface {
 	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
 	DeleteTranslation(network.ConnectionStats)
+	IsSampling() bool
 	GetStats() map[string]int64
 	Close()
 }
@@ -212,6 +213,10 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	if ctr.cache.Remove(k) {
 		atomic.AddInt64(&ctr.stats.unregisters, 1)
 	}
+}
+
+func (ctr *realConntracker) IsSampling() bool {
+	return ctr.consumer.GetStats()[samplingPct] < 100
 }
 
 func (ctr *realConntracker) Close() {

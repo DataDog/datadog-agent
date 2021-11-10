@@ -13,9 +13,8 @@ scan_nightly-dogstatsd:
     - docker_build_dogstatsd_amd64
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
-    IMG_DESTINATIONS: dogstatsd-scan:${DEB_RPM_BUCKET_BRANCH}
+    IMG_DESTINATIONS: dogstatsd-scan:${BUCKET_BRANCH}
 
 scan_nightly-a6:
   extends: .docker_publish_job_definition
@@ -27,13 +26,12 @@ scan_nightly-a6:
     - docker_build_agent6_jmx
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
-        IMG_DESTINATIONS: agent-scan:${DEB_RPM_BUCKET_BRANCH}-py2
+        IMG_DESTINATIONS: agent-scan:${BUCKET_BRANCH}-py2
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64
-        IMG_DESTINATIONS: agent-scan:${DEB_RPM_BUCKET_BRANCH}-py2-jmx
+        IMG_DESTINATIONS: agent-scan:${BUCKET_BRANCH}-py2-jmx
 
 scan_nightly-a7:
   extends: .docker_publish_job_definition
@@ -45,13 +43,12 @@ scan_nightly-a7:
     - docker_build_agent7_jmx
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
-        IMG_DESTINATIONS: agent-scan:${DEB_RPM_BUCKET_BRANCH}-py3
+        IMG_DESTINATIONS: agent-scan:${BUCKET_BRANCH}-py3
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64
-        IMG_DESTINATIONS: agent-scan:${DEB_RPM_BUCKET_BRANCH}-py3-jmx
+        IMG_DESTINATIONS: agent-scan:${BUCKET_BRANCH}-py3-jmx
 
 dca_scan_nightly:
   extends: .docker_publish_job_definition
@@ -61,9 +58,8 @@ dca_scan_nightly:
   needs: ["docker_build_cluster_agent_amd64"]
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
     IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
-    IMG_DESTINATIONS: cluster-agent-scan:${DEB_RPM_BUCKET_BRANCH}
+    IMG_DESTINATIONS: cluster-agent-scan:${BUCKET_BRANCH}
 
 # push on master to docker hub agent-scan repo
 scan_master-dogstatsd:
@@ -75,7 +71,6 @@ scan_master-dogstatsd:
     - docker_build_dogstatsd_amd64
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
     IMG_DESTINATIONS: dogstatsd-scan:master
 
@@ -89,7 +84,6 @@ scan_master-a6:
     - docker_build_agent6_jmx
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
@@ -107,7 +101,6 @@ scan_master-a7:
     - docker_build_agent7_jmx
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
@@ -123,6 +116,5 @@ dca_scan_master:
   needs: ["docker_build_cluster_agent_amd64"]
   variables:
     IMG_REGISTRIES: dev
-    IMG_SIGNING: "false"
     IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
     IMG_DESTINATIONS: cluster-agent-scan:master

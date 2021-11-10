@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -27,6 +27,7 @@ import (
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"google.golang.org/grpc"
 )
 
@@ -111,15 +112,10 @@ type AgentConfig struct {
 	StatsdHost                string
 	StatsdPort                int
 	ProcessExpVarPort         int
-	ProfilingEnabled          bool
-	ProfilingSite             string
-	ProfilingURL              string
-	ProfilingEnvironment      string
-	ProfilingPeriod           time.Duration
-	ProfilingCPUDuration      time.Duration
-	ProfilingMutexFraction    int
-	ProfilingBlockRate        int
-	ProfilingWithGoroutines   bool
+
+	// profiling settings, or nil if profiling is not enabled
+	ProfilingSettings *profiling.Settings
+
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
@@ -200,7 +196,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		LogLevel:     "info",
 		LogToConsole: false,
 
-		// Allow buffering up to 75 megabytes of payload data in total
+		// Allow buffering up to 60 megabytes of payload data in total
 		ProcessQueueBytes: 60 * 1000 * 1000,
 		// This can be fairly high as the input should get throttled by queue bytes first.
 		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
@@ -429,6 +425,7 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS", "process_config.windows.use_perf_counters"},
+		{"DD_PROCESS_AGENT_DISCOVERY_ENABLED", "process_config.process_discovery.enabled"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},

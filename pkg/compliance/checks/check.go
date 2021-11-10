@@ -133,6 +133,11 @@ func (c *complianceCheck) Run() error {
 		}
 		resourceQuadIDs[quadID] = true
 
+		evaluator := report.Evaluator
+		if evaluator == "" {
+			evaluator = "legacy"
+		}
+
 		e := &event.Event{
 			AgentRuleID:      quadID.AgentRuleID,
 			AgentFrameworkID: quadID.AgentFrameworkID,
@@ -141,6 +146,8 @@ func (c *complianceCheck) Run() error {
 			ResourceType:     quadID.ResourceType,
 			Result:           result,
 			Data:             data,
+			Evaluator:        evaluator,
+			ExpireAt:         c.computeExpireAt(),
 		}
 
 		log.Debugf("%s: reporting [%s] [%s] [%s]", c.ruleID, e.Result, e.ResourceID, e.ResourceType)
@@ -152,6 +159,16 @@ func (c *complianceCheck) Run() error {
 	}
 
 	return err
+}
+
+// ExpireAtIntervalFactor represents the amount of intervals between a check and its expiration
+const ExpireAtIntervalFactor = 3
+
+func (c *complianceCheck) computeExpireAt() time.Time {
+	base := time.Now().Add(c.interval * ExpireAtIntervalFactor).UTC()
+	// remove sub-second precision
+	truncated := base.Truncate(1 * time.Second)
+	return truncated
 }
 
 func reportToEventData(report *compliance.Report) (event.Data, string) {

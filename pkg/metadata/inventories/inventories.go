@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -258,7 +258,7 @@ func initializeConfig(cfg config.Config) {
 	clean := func(s string) string {
 		// Errors come from internal use of a Reader interface.  Since we are
 		// reading from a buffer, no errors are possible.
-		cleanBytes, _ := log.CredentialsCleanerBytes([]byte(s))
+		cleanBytes, _ := scrubber.ScrubBytes([]byte(s))
 		return string(cleanBytes)
 	}
 

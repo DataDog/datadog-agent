@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -build_tags linux $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -no_std_marshalers -build_tags linux $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -13,10 +13,11 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/hashicorp/go-multierror"
+	"github.com/mailru/easyjson"
 )
 
 const (
@@ -40,26 +41,26 @@ func AllCustomRuleIDs() []string {
 	}
 }
 
-func newCustomEvent(eventType model.EventType, marshalFunc func() ([]byte, error)) *CustomEvent {
+func newCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler) *CustomEvent {
 	return &CustomEvent{
-		eventType:   eventType,
-		marshalFunc: marshalFunc,
+		eventType: eventType,
+		marshaler: marshaler,
 	}
 }
 
 // CustomEvent is used to send custom security events to Datadog
 type CustomEvent struct {
-	eventType   model.EventType
-	tags        []string
-	marshalFunc func() ([]byte, error)
+	eventType model.EventType
+	tags      []string
+	marshaler easyjson.Marshaler
 }
 
 // Clone returns a copy of the current CustomEvent
 func (ce *CustomEvent) Clone() CustomEvent {
 	return CustomEvent{
-		eventType:   ce.eventType,
-		tags:        ce.tags,
-		marshalFunc: ce.marshalFunc,
+		eventType: ce.eventType,
+		tags:      ce.tags,
+		marshaler: ce.marshaler,
 	}
 }
 
@@ -80,7 +81,7 @@ func (ce *CustomEvent) GetEventType() model.EventType {
 
 // MarshalJSON is the JSON marshaller function of the custom event
 func (ce *CustomEvent) MarshalJSON() ([]byte, error) {
-	return ce.marshalFunc()
+	return easyjson.Marshal(ce.marshaler)
 }
 
 // String returns the string representation of a custom event
@@ -115,7 +116,7 @@ func NewEventLostReadEvent(mapName string, lost float64) (*rules.Rule, *CustomEv
 			Name:      mapName,
 			Lost:      lost,
 			Timestamp: time.Now(),
-		}.MarshalJSON)
+		})
 }
 
 // EventLostWrite is the event used to report lost events detected from kernel space
@@ -134,7 +135,7 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*
 			Name:      mapName,
 			Lost:      perEventPerCPU,
 			Timestamp: time.Now(),
-		}.MarshalJSON)
+		})
 }
 
 // RuleIgnored defines a ignored
@@ -259,18 +260,18 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 			PoliciesLoaded:  policies,
 			PoliciesIgnored: &PoliciesIgnored{Errors: err},
 			MacrosLoaded:    rs.ListMacroIDs(),
-		}.MarshalJSON)
+		})
 }
 
 // NoisyProcessEvent is used to report that a noisy process was temporarily discarded
 // easyjson:json
 type NoisyProcessEvent struct {
-	Timestamp      time.Time                 `json:"date"`
-	Count          uint64                    `json:"pid_count"`
-	Threshold      int64                     `json:"threshold"`
-	ControlPeriod  time.Duration             `json:"control_period"`
-	DiscardedUntil time.Time                 `json:"discarded_until"`
-	Process        *ProcessContextSerializer `json:"process"`
+	Timestamp      time.Time                `json:"date"`
+	Count          uint64                   `json:"pid_count"`
+	Threshold      int64                    `json:"threshold"`
+	ControlPeriod  time.Duration            `json:"control_period"`
+	DiscardedUntil time.Time                `json:"discarded_until"`
+	Process        ProcessContextSerializer `json:"process"`
 }
 
 // NewNoisyProcessEvent returns the rule and a populated custom event for a noisy_process event
@@ -281,6 +282,8 @@ func NewNoisyProcessEvent(count uint64,
 	process *model.ProcessCacheEntry,
 	resolvers *Resolvers,
 	timestamp time.Time) (*rules.Rule, *CustomEvent) {
+
+	processSerializer := newProcessContextSerializer(process, nil, resolvers)
 	return newRule(&rules.RuleDefinition{
 			ID: NoisyProcessRuleID,
 		}), newCustomEvent(model.CustomNoisyProcessEventType, NoisyProcessEvent{
@@ -289,8 +292,8 @@ func NewNoisyProcessEvent(count uint64,
 			Threshold:      threshold,
 			ControlPeriod:  controlPeriod,
 			DiscardedUntil: discardedUntil,
-			Process:        newProcessContextSerializer(process, nil, resolvers),
-		}.MarshalJSON)
+			Process:        processSerializer,
+		})
 }
 
 func resolutionErrorToEventType(err error) model.EventType {
@@ -318,5 +321,5 @@ func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule,
 			Timestamp:           event.ResolveEventTimestamp(),
 			Event:               NewEventSerializer(event),
 			PathResolutionError: pathResolutionError.Error(),
-		}.MarshalJSON)
+		})
 }

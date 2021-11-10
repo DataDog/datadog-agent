@@ -87,6 +87,8 @@ tags:
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -114,57 +116,141 @@ tags:
 		},
 	}
 
-	bulkPacket := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.14.1",
-				Type:  gosnmp.Integer,
-				Value: 141,
-			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.2.1",
-				Type:  gosnmp.OctetString,
-				Value: []byte("desc1"),
-			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.20.1",
-				Type:  gosnmp.Integer,
-				Value: 201,
-			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.14.2",
-				Type:  gosnmp.Integer,
-				Value: 142,
-			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.2.2",
-				Type:  gosnmp.OctetString,
-				Value: []byte("desc2"),
-			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.20.2",
-				Type:  gosnmp.Integer,
-				Value: 202,
+	bulkPackets := []gosnmp.SnmpPacket{
+		{
+			Variables: []gosnmp.SnmpPDU{
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.14.1",
+					Type:  gosnmp.Integer,
+					Value: 141,
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.2.1",
+					Type:  gosnmp.OctetString,
+					Value: []byte("desc1"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.20.1",
+					Type:  gosnmp.Integer,
+					Value: 201,
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.6.1",
+					Type:  gosnmp.OctetString,
+					Value: []byte("00:00:00:00:00:01"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.7.1",
+					Type:  gosnmp.Integer,
+					Value: 1,
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.14.2",
+					Type:  gosnmp.Integer,
+					Value: 142,
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.2.2",
+					Type:  gosnmp.OctetString,
+					Value: []byte("desc2"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.20.2",
+					Type:  gosnmp.Integer,
+					Value: 202,
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.6.2",
+					Type:  gosnmp.OctetString,
+					Value: []byte("00:00:00:00:00:02"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.7.2",
+					Type:  gosnmp.Integer,
+					Value: 3,
+				},
 			},
 		},
-	}
-
-	bulkPacket2 := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.15.1",
-				Type:  gosnmp.Integer,
-				Value: 141,
+		{
+			Variables: []gosnmp.SnmpPDU{
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.15.1",
+					Type:  gosnmp.Integer,
+					Value: 141,
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.3.2",
+					Type:  gosnmp.OctetString,
+					Value: []byte("none"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.21.1",
+					Type:  gosnmp.Integer,
+					Value: 201,
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.7.2",
+					Type:  gosnmp.Integer,
+					Value: 3,
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.8.2",
+					Type:  gosnmp.Integer,
+					Value: 1,
+				},
 			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.3.2",
-				Type:  gosnmp.OctetString,
-				Value: []byte("none"),
+		},
+		{
+			Variables: []gosnmp.SnmpPDU{
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.8.1",
+					Type:  gosnmp.Integer,
+					Value: 1,
+				},
+				{
+					Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
+					Type:  gosnmp.OctetString,
+					Value: []byte("nameRow1"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
+					Type:  gosnmp.OctetString,
+					Value: []byte("descRow1"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.8.2",
+					Type:  gosnmp.Integer,
+					Value: 1,
+				},
+				{
+					Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
+					Type:  gosnmp.OctetString,
+					Value: []byte("nameRow2"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
+					Type:  gosnmp.OctetString,
+					Value: []byte("descRow2"),
+				},
 			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.21.1",
-				Type:  gosnmp.Integer,
-				Value: 201,
+		},
+		{
+			Variables: []gosnmp.SnmpPDU{
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.9.2",
+					Type:  gosnmp.TimeTicks,
+					Value: 123,
+				},
+				{
+					Name:  "1.3.6.1.2.1.31.1.1.1.2.2",
+					Type:  gosnmp.Integer,
+					Value: 596,
+				},
+				{
+					Name:  "1.3.6.1.2.1.31.1.1.1.19.2",
+					Type:  gosnmp.TimeTicks,
+					Value: 707,
+				},
 			},
 		},
 	}
@@ -172,8 +258,10 @@ tags:
 	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", mock.Anything).Return(&packet, nil)
 	sess.On("Get", mock.Anything).Return(&packet, nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2", "1.3.6.1.2.1.2.2.1.6.2", "1.3.6.1.2.1.2.2.1.7.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[2], nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8.2", "1.3.6.1.2.1.31.1.1.1.1.2", "1.3.6.1.2.1.31.1.1.1.18.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[3], nil)
 
 	err = chk.Run()
 	assert.Nil(t, err)
@@ -208,6 +296,7 @@ func TestSupportedMetricTypes(t *testing.T) {
 	chk := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
+collect_device_metadata: false
 ip_address: 1.2.3.4
 community_string: public
 metrics:
@@ -582,6 +671,7 @@ func TestServiceCheckFailures(t *testing.T) {
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
+collect_device_metadata: false
 ip_address: 1.2.3.4
 community_string: public
 `)
@@ -610,6 +700,7 @@ func TestCheckID(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	check1 := snmpFactory()
 	check2 := snmpFactory()
+	check3 := snmpFactory()
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -620,15 +711,23 @@ community_string: abc
 ip_address: 2.2.2.2
 community_string: abc
 `)
+	// language=yaml
+	rawInstanceConfig3 := []byte(`
+ip_address: 3.3.3.3
+community_string: abc
+namespace: ns3
+`)
 
 	err := check1.Configure(rawInstanceConfig1, []byte(``), "test")
 	assert.Nil(t, err)
-
 	err = check2.Configure(rawInstanceConfig2, []byte(``), "test")
 	assert.Nil(t, err)
+	err = check3.Configure(rawInstanceConfig3, []byte(``), "test")
+	assert.Nil(t, err)
 
-	assert.Equal(t, check.ID("snmp:ed97702503abb6ec"), check1.ID())
-	assert.Equal(t, check.ID("snmp:e4bdb13416d918f4"), check2.ID())
+	assert.Equal(t, check.ID("snmp:default:1.1.1.1:a3ec59dfb03e4457"), check1.ID())
+	assert.Equal(t, check.ID("snmp:default:2.2.2.2:3979cd473e4beb3f"), check2.ID())
+	assert.Equal(t, check.ID("snmp:ns3:3.3.3.3:819516f4c3986cc6"), check3.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }
 
@@ -810,6 +909,7 @@ func TestCheck_Run(t *testing.T) {
 
 			// language=yaml
 			rawInstanceConfig := []byte(`
+collect_device_metadata: false
 ip_address: 1.2.3.4
 community_string: public
 `)
@@ -869,6 +969,7 @@ func TestCheck_Run_sessionCloseError(t *testing.T) {
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
+collect_device_metadata: false
 ip_address: 1.2.3.4
 community_string: public
 metrics:
@@ -1547,6 +1648,7 @@ func TestDiscovery_CheckError(t *testing.T) {
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
+collect_device_metadata: false
 network_address: 10.10.0.0/30
 community_string: public
 metrics:

@@ -16,6 +16,9 @@ allowlist:
   - NewBSD
   - FreeBSD
 
+overrides: {}
+  # format is `package: licence`
+
 exceptions:
   - "golang.org/x/mobile/..."
   - "golang.org/x/tools/..."

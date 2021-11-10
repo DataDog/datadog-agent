@@ -37,11 +37,7 @@ func (b *bbsCacheFake) LastUpdated() time.Time {
 	return b.Updated
 }
 
-func (b *bbsCacheFake) GetPollAttempts() int {
-	panic("implement me")
-}
-
-func (b *bbsCacheFake) GetPollSuccesses() int {
+func (b *bbsCacheFake) UpdatedOnce() <-chan struct{} {
 	panic("implement me")
 }
 

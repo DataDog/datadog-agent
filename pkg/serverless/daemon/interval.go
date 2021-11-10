@@ -12,7 +12,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const maxInvocationsStored = 10
+const (
+	// maxInvocationsStored is the number of invocations stored in order
+	// to determine whether to flush during every invocation or periodically.
+	maxInvocationsStored = 10
+
+	// defaultFlushInterval is the default interval between flushes when
+	// the extension is flushing telemetry periodically.
+	defaultFlushInterval = 20 * time.Second
+)
 
 // StoreInvocationTime stores the given invocation time in the list of previous
 // invocations. It is used to compute the invocation interval of the current function.
@@ -54,14 +62,9 @@ func (d *Daemon) InvocationInterval() time.Duration {
 // AutoSelectStrategy uses the invocation interval of the function to select the
 // best flush strategy.
 // This function doesn't mind if the flush strategy has been overridden through
-// configuration / environment var, the caller is responsible of that.
+// configuration / environment var, the caller is responsible for that.
 func (d *Daemon) AutoSelectStrategy() flush.Strategy {
-	flushInterval := 10 * time.Second
 	freq := d.InvocationInterval()
-
-	if !d.clientLibReady {
-		return flush.NewPeriodically(flushInterval)
-	}
 
 	// when not enough data is available, fallback on flush.AtTheEnd strategy
 	if freq == time.Duration(0) {
@@ -69,10 +72,9 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 	}
 
 	// if running more than 1 time every 5 minutes, we can switch to the flush strategy
-	// flushing at least every 10 seconds (at the start of the invocation)
-	// TODO(remy): compute a proper interval instead of hard-coding 10 seconds
+	// of flushing at least every 20 seconds (at the start of the invocation)
 	if freq.Seconds() < 60*5 {
-		return flush.NewPeriodically(flushInterval)
+		return flush.NewPeriodically(defaultFlushInterval)
 	}
 
 	return &flush.AtTheEnd{}

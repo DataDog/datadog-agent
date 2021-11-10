@@ -29,13 +29,15 @@ var (
 func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	bc, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, []*regexp.Regexp{}, []*regexp.Regexp{}, &testBBSClient{})
+
+	// the BBSCache depends on the CCCache, so initialize the CCache first.  In
+	// production code, any discrepancies would work out after a few polls;
+	// this is just needed for tests.
 	cc, _ = ConfigureGlobalCCCache(ctx, "url", "", "", false, time.Second, 1, &testCCClient{})
-	for i := 1; i <= 10; i++ {
-		if cc.GetPollSuccesses() == 0 || bc.GetPollSuccesses() == 0 {
-			time.Sleep(time.Second)
-		}
-	}
+	<-cc.UpdatedOnce()
+	bc, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, []*regexp.Regexp{}, []*regexp.Regexp{}, &testBBSClient{})
+	<-bc.UpdatedOnce()
+
 	code := m.Run()
 	os.Exit(code)
 }

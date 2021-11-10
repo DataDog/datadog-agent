@@ -6,7 +6,10 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
+
+	"github.com/twmb/murmur3"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -36,9 +39,6 @@ const (
 	// probe used for streaming shared library events
 	doSysOpen    = "kprobe/do_sys_open"
 	doSysOpenRet = "kretprobe/do_sys_open"
-
-	// UID used to create the base probes
-	baseUID = "base"
 )
 
 type openSSLProgram struct {
@@ -85,17 +85,6 @@ func (o *openSSLProgram) ConfigureManager(m *manager.Manager) {
 			&manager.Probe{Section: doSysOpen, KProbeMaxActive: maxActive},
 			&manager.Probe{Section: doSysOpenRet, KProbeMaxActive: maxActive},
 		)
-	}
-
-	// Load SSL & Crypto "base" probes
-	var extraProbes []string
-	extraProbes = append(extraProbes, sslProbes...)
-	extraProbes = append(extraProbes, cryptoProbes...)
-	for _, sec := range extraProbes {
-		m.Probes = append(m.Probes, &manager.Probe{
-			Section: sec,
-			UID:     baseUID,
-		})
 	}
 }
 
@@ -164,7 +153,7 @@ func (o *openSSLProgram) Stop() {
 
 func addHooks(m *manager.Manager, probes []string) func(string) error {
 	return func(libPath string) error {
-		uid := libPath
+		uid := getUID(libPath)
 		for _, sec := range probes {
 			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
 			if found {
@@ -184,7 +173,7 @@ func addHooks(m *manager.Manager, probes []string) func(string) error {
 				UID:        uid,
 			}
 
-			err := m.AddHook(baseUID, newProbe)
+			err := m.AddHook("", newProbe)
 			if err != nil {
 				return err
 			}
@@ -196,13 +185,18 @@ func addHooks(m *manager.Manager, probes []string) func(string) error {
 
 func removeHooks(m *manager.Manager, probes []string) func(string) error {
 	return func(libPath string) error {
-		uid := libPath
+		uid := getUID(libPath)
 		for _, sec := range probes {
 			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
 			if !found {
 				continue
 			}
-			p.Detach()
+
+			program := p.Program()
+			m.DetachHook(sec, uid)
+			if program != nil {
+				program.Close()
+			}
 		}
 
 		return nil
@@ -211,4 +205,14 @@ func removeHooks(m *manager.Manager, probes []string) func(string) error {
 
 func runningOnARM() bool {
 	return strings.HasPrefix(runtime.GOARCH, "arm")
+}
+
+func getUID(libPath string) string {
+	sum := murmur3.StringSum64(libPath)
+	hash := strconv.FormatInt(int64(sum), 16)
+	if len(hash) >= 5 {
+		return hash[len(hash)-5:]
+	}
+
+	return libPath
 }

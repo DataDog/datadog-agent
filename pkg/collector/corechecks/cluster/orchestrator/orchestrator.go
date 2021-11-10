@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -86,45 +86,29 @@ func (c *OrchestratorInstance) parse(data []byte) error {
 // OrchestratorCheck wraps the config and the informers needed to run the check
 type OrchestratorCheck struct {
 	core.CheckBase
-	orchestratorConfig               *orchcfg.OrchestratorConfig
-	instance                         *OrchestratorInstance
-	stopCh                           chan struct{}
-	clusterID                        string
-	groupID                          int32
-	isCLCRunner                      bool
-	apiClient                        *apiserver.APIClient
-	unassignedPodLister              corelisters.PodLister
-	unassignedPodListerSync          cache.InformerSynced
-	deployLister                     appslisters.DeploymentLister
-	deployListerSync                 cache.InformerSynced
-	rsLister                         appslisters.ReplicaSetLister
-	rsListerSync                     cache.InformerSynced
-	serviceLister                    corelisters.ServiceLister
-	serviceListerSync                cache.InformerSynced
-	nodesLister                      corelisters.NodeLister
-	nodesListerSync                  cache.InformerSynced
-	jobsLister                       batchlisters.JobLister
-	jobsListerSync                   cache.InformerSynced
-	cronJobsLister                   batchlistersBeta1.CronJobLister
-	cronJobsListerSync               cache.InformerSynced
-	daemonSetsLister                 appslisters.DaemonSetLister
-	daemonSetsListerSync             cache.InformerSynced
-	statefulSetsLister               appslisters.StatefulSetLister
-	statefulSetsListerSync           cache.InformerSynced
-	persistentVolumesLister          corelisters.PersistentVolumeLister
-	persistentVolumesListerSync      cache.InformerSynced
-	persistentVolumeClaimsLister     corelisters.PersistentVolumeClaimLister
-	persistentVolumeClaimsListerSync cache.InformerSynced
-	rolesLister                      rbaclisters.RoleLister
-	rolesListerSync                  cache.InformerSynced
-	roleBindingsLister               rbaclisters.RoleBindingLister
-	roleBindingsListerSync           cache.InformerSynced
-	clusterRolesLister               rbaclisters.ClusterRoleLister
-	clusterRolesListerSync           cache.InformerSynced
-	clusterRoleBindingsLister        rbaclisters.ClusterRoleBindingLister
-	clusterRoleBindingsListerSync    cache.InformerSynced
-	serviceAccountsLister            corelisters.ServiceAccountLister
-	serviceAccountsListerSync        cache.InformerSynced
+	orchestratorConfig           *orchcfg.OrchestratorConfig
+	instance                     *OrchestratorInstance
+	stopCh                       chan struct{}
+	clusterID                    string
+	groupID                      int32
+	isCLCRunner                  bool
+	apiClient                    *apiserver.APIClient
+	unassignedPodLister          corelisters.PodLister
+	deployLister                 appslisters.DeploymentLister
+	rsLister                     appslisters.ReplicaSetLister
+	serviceLister                corelisters.ServiceLister
+	nodesLister                  corelisters.NodeLister
+	jobsLister                   batchlisters.JobLister
+	cronJobsLister               batchlistersBeta1.CronJobLister
+	daemonSetsLister             appslisters.DaemonSetLister
+	statefulSetsLister           appslisters.StatefulSetLister
+	persistentVolumesLister      corelisters.PersistentVolumeLister
+	persistentVolumeClaimsLister corelisters.PersistentVolumeClaimLister
+	rolesLister                  rbaclisters.RoleLister
+	roleBindingsLister           rbaclisters.RoleBindingLister
+	clusterRolesLister           rbaclisters.ClusterRoleLister
+	clusterRoleBindingsLister    rbaclisters.ClusterRoleBindingLister
+	serviceAccountsLister        corelisters.ServiceAccountLister
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
@@ -214,90 +198,78 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		case "pods":
 			podInformer := apiCl.UnassignedPodInformerFactory.Core().V1().Pods()
 			o.unassignedPodLister = podInformer.Lister()
-			o.unassignedPodListerSync = podInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sPod.String())] = podInformer.Informer()
 		case "deployments":
 			deployInformer := apiCl.InformerFactory.Apps().V1().Deployments()
 			o.deployLister = deployInformer.Lister()
-			o.deployListerSync = deployInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sDeployment.String())] = deployInformer.Informer()
 		case "replicasets":
 			rsInformer := apiCl.InformerFactory.Apps().V1().ReplicaSets()
 			o.rsLister = rsInformer.Lister()
-			o.rsListerSync = rsInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sReplicaSet.String())] = rsInformer.Informer()
 		case "services":
 			serviceInformer := apiCl.InformerFactory.Core().V1().Services()
 			o.serviceLister = serviceInformer.Lister()
-			o.serviceListerSync = serviceInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sService.String())] = serviceInformer.Informer()
 		case "nodes":
 			nodesInformer := apiCl.InformerFactory.Core().V1().Nodes()
 			o.nodesLister = nodesInformer.Lister()
-			o.nodesListerSync = nodesInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sNode.String())] = nodesInformer.Informer()
 		case "jobs":
 			jobsInformer := apiCl.InformerFactory.Batch().V1().Jobs()
 			o.jobsLister = jobsInformer.Lister()
-			o.jobsListerSync = jobsInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sJob.String())] = jobsInformer.Informer()
 		case "cronjobs":
 			cronJobsInformer := apiCl.InformerFactory.Batch().V1beta1().CronJobs()
 			o.cronJobsLister = cronJobsInformer.Lister()
-			o.cronJobsListerSync = cronJobsInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sCronJob.String())] = cronJobsInformer.Informer()
 		case "daemonsets":
 			daemonSetsInformer := apiCl.InformerFactory.Apps().V1().DaemonSets()
 			o.daemonSetsLister = daemonSetsInformer.Lister()
-			o.daemonSetsListerSync = daemonSetsInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sDaemonSet.String())] = daemonSetsInformer.Informer()
 		case "statefulsets":
 			statefulSetsInformer := apiCl.InformerFactory.Apps().V1().StatefulSets()
 			o.statefulSetsLister = statefulSetsInformer.Lister()
-			o.statefulSetsListerSync = statefulSetsInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sStatefulSet.String())] = statefulSetsInformer.Informer()
 		case "persistentvolumes":
 			persistentVolumesInformer := apiCl.InformerFactory.Core().V1().PersistentVolumes()
 			o.persistentVolumesLister = persistentVolumesInformer.Lister()
-			o.persistentVolumesListerSync = persistentVolumesInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sPersistentVolume.String())] = persistentVolumesInformer.Informer()
 		case "persistentvolumeclaims":
 			persistentVolumeClaimsInformer := apiCl.InformerFactory.Core().V1().PersistentVolumeClaims()
 			o.persistentVolumeClaimsLister = persistentVolumeClaimsInformer.Lister()
-			o.persistentVolumeClaimsListerSync = persistentVolumeClaimsInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sPersistentVolumeClaim.String())] = persistentVolumeClaimsInformer.Informer()
 		case "roles":
 			rolesInformer := apiCl.InformerFactory.Rbac().V1().Roles()
 			o.rolesLister = rolesInformer.Lister()
-			o.rolesListerSync = rolesInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sRole.String())] = rolesInformer.Informer()
 		case "rolebindings":
 			roleBindingsInformer := apiCl.InformerFactory.Rbac().V1().RoleBindings()
 			o.roleBindingsLister = roleBindingsInformer.Lister()
-			o.roleBindingsListerSync = roleBindingsInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sRoleBinding.String())] = roleBindingsInformer.Informer()
 		case "clusterroles":
 			clusterRolesInformer := apiCl.InformerFactory.Rbac().V1().ClusterRoles()
 			o.clusterRolesLister = clusterRolesInformer.Lister()
-			o.clusterRolesListerSync = clusterRolesInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sClusterRole.String())] = clusterRolesInformer.Informer()
 		case "clusterrolebindings":
 			clusterRoleBindingsInformer := apiCl.InformerFactory.Rbac().V1().ClusterRoleBindings()
 			o.clusterRoleBindingsLister = clusterRoleBindingsInformer.Lister()
-			o.clusterRoleBindingsListerSync = clusterRoleBindingsInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sClusterRoleBinding.String())] = clusterRoleBindingsInformer.Informer()
 		case "serviceaccounts":
 			serviceAccountsInformer := apiCl.InformerFactory.Core().V1().ServiceAccounts()
 			o.serviceAccountsLister = serviceAccountsInformer.Lister()
-			o.serviceAccountsListerSync = serviceAccountsInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sServiceAccount.String())] = serviceAccountsInformer.Informer()
 		default:
 			_ = o.Warnf("Unsupported collector: %s", v)
 		}
 	}
 
-	apiCl.UnassignedPodInformerFactory.Start(o.stopCh)
-	apiCl.InformerFactory.Start(o.stopCh)
+	// we run each enabled informer individually as starting them through the factory
+	// would prevent us to restarting them again if the check is unscheduled/rescheduled
+	// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
+	for _, informer := range informersToSync {
+		go informer.Run(o.stopCh)
+	}
 
 	return apiserver.SyncInformers(informersToSync)
 }

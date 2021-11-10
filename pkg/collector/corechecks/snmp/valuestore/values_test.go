@@ -59,3 +59,22 @@ func Test_resultValueStore_GetColumnIndexes(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"1", "2", "3"}, indexes)
 }
+
+func TestResultValueStoreAsString(t *testing.T) {
+	store := &ResultValueStore{
+		ScalarValues: ScalarResultValuesType{
+			"1.1.1.1.0": {Value: float64(10)}, // a float value
+		},
+		ColumnValues: ColumnResultValuesType{
+			"1.1.1": {
+				"1": ResultValue{Value: float64(10)}, // a float value
+			},
+		},
+	}
+	str := ResultValueStoreAsString(store)
+	assert.Equal(t, "{\"scalar_values\":{\"1.1.1.1.0\":{\"value\":10}},\"column_values\":{\"1.1.1\":{\"1\":{\"value\":10}}}}", str)
+
+	str = ResultValueStoreAsString(nil)
+	assert.Equal(t, "", str)
+
+}

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package serializer
@@ -116,8 +117,8 @@ func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContex
 	payloads = append(payloads, &payload)
 	return payloads, nil
 }
-func (p *testPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
-	return []marshaler.Marshaler{}, nil
+func (p *testPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
+	return []marshaler.AbstractMarshaler{}, nil
 }
 
 func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
@@ -139,8 +140,8 @@ type testErrorPayload struct{}
 
 func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, fmt.Errorf("some error") }
 func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Errorf("some error") }
-func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
-	return []marshaler.Marshaler{}, fmt.Errorf("some error")
+func (p *testErrorPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
+	return []marshaler.AbstractMarshaler{}, fmt.Errorf("some error")
 }
 func (p *testErrorPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return nil, fmt.Errorf("some error")
@@ -178,13 +179,13 @@ type testEventsPayload struct {
 	mock.Mock
 }
 
-func createTestEventsPayloadMock(marshaler marshaler.StreamJSONMarshaler) *testEventsPayload {
+func createTestEventsPayloadMock(marshaler marshaler.Marshaler) *testEventsPayload {
 	p := &testEventsPayload{}
 	p.Marshaler = marshaler
 	return p
 }
 
-func createTestEventsPayload(marshaler marshaler.StreamJSONMarshaler) *testEventsPayload {
+func createTestEventsPayload(marshaler marshaler.Marshaler) *testEventsPayload {
 	p := createTestEventsPayloadMock(marshaler)
 	p.On("CreateSingleMarshaler").Return(marshaler)
 	return p
@@ -293,31 +294,29 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendServiceChecks(t *testing.T) {
-	mockConfig := config.Mock()
-
-	f := &forwarder.MockedForwarder{}
-	f.On("SubmitServiceChecks", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	mockConfig.Set("use_v2_api.service_checks", true)
-	defer mockConfig.Set("use_v2_api.service_checks", nil)
-
-	s := NewSerializer(f, nil)
-
-	payload := &testPayload{}
-	err := s.SendServiceChecks(payload)
-	require.Nil(t, err)
-	f.AssertExpectations(t)
-
-	errPayload := &testErrorPayload{}
-	err = s.SendServiceChecks(errPayload)
-	require.NotNil(t, err)
-}
-
 func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("enable_stream_payload_serialization", false)
 	defer config.Datadog.Set("enable_stream_payload_serialization", nil)
+
+	s := NewSerializer(f, nil)
+
+	payload := &testPayload{}
+	err := s.SendSeries(payload)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	errPayload := &testErrorPayload{}
+	err = s.SendSeries(errPayload)
+	require.NotNil(t, err)
+}
+
+func TestSendSeries(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
+	config.Datadog.Set("use_v2_api.series", true)
+	defer config.Datadog.Set("use_v2_api.series", false)
 
 	s := NewSerializer(f, nil)
 

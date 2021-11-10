@@ -30,9 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -72,6 +73,8 @@ type Probe struct {
 	inodeDiscarders    *inodeDiscarders
 	flushingDiscarders int64
 	approvers          map[eval.EventType]activeApprovers
+
+	inodeDiscardersCounters map[model.EventType]*int64
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -250,8 +253,24 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	}
 }
 
+func (p *Probe) countNewInodeDiscarder(eventType model.EventType) {
+	atomic.AddInt64(p.inodeDiscardersCounters[eventType], 1)
+}
+
+func (p *Probe) sendDiscardersStats() {
+	for eventType, value := range p.inodeDiscardersCounters {
+		val := atomic.SwapInt64(value, 0)
+		if val > 0 {
+			tag := fmt.Sprintf("event_type:%s", eventType)
+			_ = p.statsdClient.Count(metrics.MetricInodeDiscardersAdded, val, []string{tag}, 1.0)
+		}
+	}
+}
+
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
+	p.sendDiscardersStats()
+
 	return p.monitor.SendStats()
 }
 
@@ -718,7 +737,6 @@ func (p *Probe) FlushDiscarders() error {
 	if !atomic.CompareAndSwapInt64(&p.flushingDiscarders, 0, 1) {
 		return errors.New("already flushing discarders")
 	}
-	time.Sleep(100 * time.Millisecond)
 
 	var discardedInodes []inodeDiscarder
 	var mapValue [256]byte
@@ -746,7 +764,7 @@ func (p *Probe) FlushDiscarders() error {
 		log.Debugf("Flushing discarders")
 
 		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.Delete(unsafe.Pointer(&inode)); err != nil {
+			if err := p.inodeDiscarders.expireInodeDiscarder(inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
 				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
@@ -856,6 +874,15 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
+	}
+
+	// discarders stats
+	p.inodeDiscardersCounters = make(map[model.EventType]*int64)
+	for eventType := range allDiscarderHandlers {
+		value := int64(0)
+
+		evt := model.ParseEvalEventType(eventType)
+		p.inodeDiscardersCounters[evt] = &value
 	}
 
 	if p.config.SyscallMonitor {

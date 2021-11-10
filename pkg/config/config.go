@@ -161,6 +161,14 @@ type Warnings struct {
 	TraceMallocEnabledWithPy2 bool
 }
 
+// DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
+type DataType string
+
+const (
+	// Metrics type covers series & sketches
+	Metrics DataType = "metrics"
+)
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -225,6 +233,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
 	config.BindEnvAndSetDefault("remote_configuration.endpoint", "")
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
+	config.BindEnv("remote_configuration.api_key")
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 60) // in seconds
@@ -369,6 +378,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
 
 	config.BindEnvAndSetDefault("use_v2_api.events", false)
+	config.BindEnvAndSetDefault("use_v2_api.series", false)
 	config.BindEnvAndSetDefault("use_v2_api.service_checks", false)
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.BindEnvAndSetDefault("enable_payloads.events", true)
@@ -464,6 +474,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
+	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
@@ -508,6 +519,7 @@ func InitConfig(config Config) {
 	// We only support containerd in Kubernetes. By default containerd cri uses `k8s.io` https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
 	config.BindEnvAndSetDefault("containerd_namespace", "k8s.io")
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
@@ -705,7 +717,7 @@ func InitConfig(config Config) {
 	// Enable the agent to use files to collect container logs on standalone docker environment, containers
 	// with an existing registry offset will continue to be tailed from the docker socket unless
 	// logs_config.docker_container_force_use_file is set to true.
-	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", false)
+	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", true)
 	// Force tailing from file for all docker container, even the ones with an existing registry entry
 	config.BindEnvAndSetDefault("logs_config.docker_container_force_use_file", false)
 	// While parsing Kubernetes pod logs, use /var/log/containers to validate that
@@ -743,6 +755,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
+
+	// If true, the agent looks for container logs in the location used by podman, rather
+	// than docker.  This is a temporary configuration parameter to support podman logs until
+	// a more substantial refactor of autodiscovery is made to determine this automatically.
+	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
 
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
@@ -952,6 +969,9 @@ func InitConfig(config Config) {
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
+	// Vector integration
+	bindVectorOptions(config, Metrics)
+
 	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
@@ -1081,6 +1101,26 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
+func findUnknownEnvVars(config Config) []string {
+	var unknownVars []string
+
+	knownVars := map[string]struct{}{}
+	for _, key := range config.GetEnvVars() {
+		knownVars[key] = struct{}{}
+	}
+
+	for _, equality := range os.Environ() {
+		key := strings.SplitN(equality, "=", 2)[0]
+		if !strings.HasPrefix(key, "DD_") {
+			continue
+		}
+		if _, known := knownVars[key]; !known {
+			unknownVars = append(unknownVars, key)
+		}
+	}
+	return unknownVars
+}
+
 func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
@@ -1104,6 +1144,10 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	for _, key := range findUnknownKeys(config) {
 		log.Warnf("Unknown key in config file: %v", key)
+	}
+
+	for _, v := range findUnknownEnvVars(config) {
+		log.Warnf("Unknown environment variable: %v", v)
 	}
 
 	if loadSecret {
@@ -1516,4 +1560,26 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 	combined = append(combined, dsdTags...)
 
 	return combined
+}
+
+func bindVectorOptions(config Config, datatype DataType) {
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
+}
+
+// GetVectorURL returns the URL under the 'vector.' prefix for the given datatype
+func GetVectorURL(datatype DataType) (string, error) {
+	if Datadog.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
+		vectorURL := Datadog.GetString(fmt.Sprintf("vector.%s.url", datatype))
+		if vectorURL == "" {
+			log.Errorf("vector.%s.enabled is set to true, but vector.%s.url is empty", datatype, datatype)
+			return "", nil
+		}
+		_, err := url.Parse(vectorURL)
+		if err != nil {
+			return "", fmt.Errorf("could not parse vector %s endpoint: %s", datatype, err)
+		}
+		return vectorURL, nil
+	}
+	return "", nil
 }

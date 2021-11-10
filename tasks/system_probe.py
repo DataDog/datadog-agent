@@ -49,6 +49,7 @@ def build(
     compile_ebpf=True,
     nikos_embedded_path=None,
     bundle_ebpf=False,
+    parallel_build=True,
 ):
     """
     Build the system_probe
@@ -84,7 +85,7 @@ def build(
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx)
+        build_object_files(ctx, parallel_build=parallel_build)
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
@@ -129,6 +130,7 @@ def test(
     skip_linters=False,
     run=None,
     windows=is_windows,
+    parallel_build=True,
 ):
     """
     Run tests on eBPF parts
@@ -148,7 +150,7 @@ def test(
         clang_tidy(ctx)
 
     if not skip_object_files and not windows:
-        build_object_files(ctx)
+        build_object_files(ctx, parallel_build=parallel_build)
 
     build_tags = [NPM_TAG]
     if not windows:
@@ -263,11 +265,11 @@ def kitchen_test(ctx, target=None, arch="x86_64"):
 
 
 @task
-def nettop(ctx, incremental_build=False, go_mod="mod"):
+def nettop(ctx, incremental_build=False, go_mod="mod", parallel_build=True):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx)
+    build_object_files(ctx, parallel_build=parallel_build)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
@@ -304,11 +306,7 @@ def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
         targets = get_ebpf_targets()
 
     # remove externally maintained files
-    ignored_files = [
-        "pkg/ebpf/c/bpf_helpers.h",
-        "pkg/ebpf/c/bpf_endian.h",
-        "pkg/ebpf/compiler/clang-stdarg.h",
-    ]
+    ignored_files = ["pkg/ebpf/c/bpf_helpers.h", "pkg/ebpf/c/bpf_endian.h", "pkg/ebpf/compiler/clang-stdarg.h"]
     for f in ignored_files:
         if f in targets:
             targets.remove(f)
@@ -371,9 +369,9 @@ def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False):
 
 
 @task
-def object_files(ctx):
+def object_files(ctx, parallel_build=True):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx)
+    build_object_files(ctx, parallel_build=parallel_build)
 
 
 def get_ebpf_c_files():
@@ -488,35 +486,78 @@ def get_ebpf_build_flags():
     return flags
 
 
-def build_network_ebpf_files(ctx, build_dir):
+def build_network_ebpf_compile_file(ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags):
+    src_file = os.path.join(network_prebuilt_dir, "{}.c".format(p))
+    if not debug:
+        bc_file = os.path.join(build_dir, "{}.bc".format(p))
+        return ctx.run(
+            CLANG_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file),
+            asynchronous=parallel_build,
+        )
+    else:
+        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
+        return ctx.run(
+            CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file),
+            asynchronous=parallel_build,
+        )
+
+
+def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags):
+    if not debug:
+        bc_file = os.path.join(build_dir, "{}.bc".format(p))
+        obj_file = os.path.join(build_dir, "{}.o".format(p))
+        return ctx.run(
+            LLC_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file),
+            asynchronous=parallel_build,
+        )
+    else:
+        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
+        debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
+        return ctx.run(
+            LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file),
+            asynchronous=parallel_build,
+        )
+
+
+def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    compiled_programs = [
-        "tracer",
-        "offset-guess",
-        "http",
-        "dns",
-    ]
+    compiled_programs = ["dns", "http", "offset-guess", "tracer"]
 
     network_flags = get_ebpf_build_flags()
     network_flags.append("-I{}".format(network_c_dir))
-    for p in compiled_programs:
-        # Build both the standard and debug version
-        src_file = os.path.join(network_prebuilt_dir, "{}.c".format(p))
-        bc_file = os.path.join(build_dir, "{}.bc".format(p))
-        obj_file = os.path.join(build_dir, "{}.o".format(p))
-        ctx.run(CLANG_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file))
-        ctx.run(LLC_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file))
 
-        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
-        debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
-        ctx.run(CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
-        ctx.run(LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
+    flavor = []
+    for prog in compiled_programs:
+        for debug in [False, True]:
+            flavor.append((prog, debug))
+
+    promises = []
+    for p, debug in flavor:
+        promises.append(
+            build_network_ebpf_compile_file(
+                ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags
+            )
+        )
+        if not parallel_build:
+            build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags)
+
+    if not parallel_build:
+        return
+
+    promises_link = []
+    for i, promise in enumerate(promises):
+        promise.join()
+        (p, debug) = flavor[i]
+        promises_link.append(build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags))
+
+    for promise in promises_link:
+        promise.join()
 
 
-def build_security_ebpf_files(ctx, build_dir):
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
@@ -526,35 +567,63 @@ def build_security_ebpf_files(ctx, build_dir):
     security_flags = get_ebpf_build_flags()
     security_flags.append("-I{}".format(security_agent_c_dir))
 
-    ctx.run(
-        CLANG_CMD.format(
-            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
-            c_file=security_c_file,
-            bc_file=security_bc_file,
+    # compile
+    promises = []
+    promises.append(
+        ctx.run(
+            CLANG_CMD.format(
+                flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
+                c_file=security_c_file,
+                bc_file=security_bc_file,
+            ),
+            asynchronous=parallel_build,
         )
     )
-    ctx.run(LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
-
     security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
+    promises.append(
+        ctx.run(
+            CLANG_CMD.format(
+                flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
+                c_file=security_c_file,
+                bc_file=security_agent_syscall_wrapper_bc_file,
+            ),
+            asynchronous=parallel_build,
+        )
+    )
+
+    if parallel_build:
+        for p in promises:
+            p.join()
+
+    # link
+    promises = []
+    promises.append(
+        ctx.run(
+            LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file),
+            asynchronous=parallel_build,
+        )
+    )
+
     security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
-    ctx.run(
-        CLANG_CMD.format(
-            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
-            c_file=security_c_file,
-            bc_file=security_agent_syscall_wrapper_bc_file,
+    promises.append(
+        ctx.run(
+            LLC_CMD.format(
+                flags=" ".join(security_flags),
+                bc_file=security_agent_syscall_wrapper_bc_file,
+                obj_file=security_agent_syscall_wrapper_obj_file,
+            ),
+            asynchronous=parallel_build,
         )
     )
-    ctx.run(
-        LLC_CMD.format(
-            flags=" ".join(security_flags),
-            bc_file=security_agent_syscall_wrapper_bc_file,
-            obj_file=security_agent_syscall_wrapper_obj_file,
-        )
-    )
+
+    if parallel_build:
+        for p in promises:
+            p.join()
+
     return [security_agent_obj_file, security_agent_syscall_wrapper_obj_file]
 
 
-def build_object_files(ctx):
+def build_object_files(ctx, parallel_build):
     """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
@@ -569,8 +638,8 @@ def build_object_files(ctx):
     ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
 
     bindata_files = []
-    build_network_ebpf_files(ctx, build_dir=build_dir)
-    bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir))
+    build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
+    bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build))
 
     generate_runtime_files(ctx)
 
@@ -583,6 +652,7 @@ def generate_runtime_files(ctx):
     runtime_compiler_files = [
         "./pkg/collector/corechecks/ebpf/probe/oom_kill.go",
         "./pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go",
+        "./pkg/network/http/compile.go",
         "./pkg/network/tracer/compile.go",
         "./pkg/network/tracer/connection/kprobe/compile.go",
         "./pkg/security/probe/compile.go",
@@ -591,13 +661,29 @@ def generate_runtime_files(ctx):
         ctx.run("go generate -mod=mod -tags {tags} {file}".format(file=f, tags=BPF_TAG))
 
 
+def replace_cgo_tag_absolute_path(file_path, absolute_path, relative_path):
+    # read
+    f = open(file_path)
+    lines = []
+    for line in f:
+        if line.startswith("// cgo -godefs"):
+            lines.append(line.replace(absolute_path, relative_path))
+        else:
+            lines.append(line)
+    f.close()
+
+    # write
+    f = open(file_path, "w")
+    res = "".join(lines)
+    f.write(res)
+    f.close()
+
+
 @task
-def generate_cgo_types(ctx, windows=is_windows):
+def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
     if windows:
         platform = "windows"
-        def_files = [
-            "./pkg/network/driver/types.go",
-        ]
+        def_files = ["./pkg/network/driver/types.go"]
     else:
         platform = "linux"
         def_files = [
@@ -609,14 +695,17 @@ def generate_cgo_types(ctx, windows=is_windows):
 
     for f in def_files:
         fdir, file = os.path.split(f)
+        absolute_input_file = os.path.abspath(f)
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
+            output_file = "{base}_{platform}.go".format(base=base, platform=platform)
             ctx.run(
-                "go tool cgo -godefs -- -fsigned-char {file} > {base}_{platform}.go".format(
-                    file=file, base=base, platform=platform
-                )
+                "go tool cgo -godefs -- -fsigned-char {file} > {output_file}".format(file=file, output_file=output_file)
             )
-            ctx.run("gofmt -w -s {base}_{platform}.go".format(base=base, platform=platform))
+            ctx.run("gofmt -w -s {output_file}".format(output_file=output_file))
+            if replace_absolutes:
+                # replace absolute path with relative ones in generated file
+                replace_cgo_tag_absolute_path(os.path.join(fdir, output_file), absolute_input_file, file)
 
 
 def is_root():

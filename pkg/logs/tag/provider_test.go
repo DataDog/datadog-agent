@@ -10,52 +10,55 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/stretchr/testify/assert"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/benbjohnson/clock"
+	"github.com/stretchr/testify/require"
 )
 
-func setupConfig(tags []string) (*config.MockConfig, time.Time) {
-	mockConfig := config.Mock()
-
-	startTime := config.StartTime
-	config.StartTime = time.Now()
-
-	mockConfig.Set("tags", tags)
-
-	return mockConfig, startTime
-}
-
 func TestProviderExpectedTags(t *testing.T) {
+	m := coreConfig.Mock()
+	clock := clock.NewMock()
 
-	tags := []string{"tag1:value1", "tag2", "tag3"}
-	m, start := setupConfig(tags)
+	oldStartTime := coreConfig.StartTime
+	coreConfig.StartTime = clock.Now()
 	defer func() {
-		config.StartTime = start
+		coreConfig.StartTime = oldStartTime
 	}()
 
+	tags := []string{"tag1:value1", "tag2", "tag3"}
+	m.Set("tags", tags)
 	defer m.Set("tags", nil)
 
-	// Setting a test-friendly value for the deadline
+	m.Set("logs_config.tagger_warmup_duration", "2")
+
+	expectedTagsDuration := 5 * time.Second
 	m.Set("logs_config.expected_tags_duration", "5s")
 	defer m.Set("logs_config.expected_tags_duration", 0)
 
-	p := NewProvider("foo")
+	p := newProviderWithClock("foo", clock)
 	pp := p.(*provider)
 
-	// Is provider expected?
-	d := m.GetDuration("logs_config.expected_tags_duration")
-	l := pp.localTagProvider
-	ll := l.(*localProvider)
+	var tt []string
 
-	assert.InDelta(t, config.StartTime.Add(d).Unix(), ll.expectedTagsDeadline.Unix(), 1)
+	// this will block for two (mock) seconds, so do it in a goroutine
+	gotTags := make(chan struct{})
+	go func() {
+		tt = pp.GetTags()
+		close(gotTags)
+	}()
 
-	tt := pp.GetTags()
+	clock.Add(time.Second)
+	require.Empty(t, tt) // still waiting..
+
+	clock.Add(2 * time.Second)
+	<-gotTags // got the tags now!
 	sort.Strings(tags)
 	sort.Strings(tt)
-	assert.Equal(t, tags, tt)
+	require.Equal(t, tags, tt)
 
-	// let the deadline expire + a little grace period
-	<-time.After(time.Until(ll.expectedTagsDeadline.Add(2 * time.Second)))
+	// let the deadline expire
+	clock.Add(expectedTagsDuration)
 
-	assert.Empty(t, pp.GetTags())
+	// tags are now empty
+	require.Empty(t, pp.GetTags())
 }

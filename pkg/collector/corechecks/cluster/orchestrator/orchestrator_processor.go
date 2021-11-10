@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -676,8 +676,8 @@ func processPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int3
 
 func addAdditionalPVTags(pvModel *model.PersistentVolume) {
 	// additional tags
-	pvPhaseTag := "pv_phase" + pvModel.Status.Phase
-	pvTypeTag := "pv_type" + pvModel.Spec.PersistentVolumeType
+	pvPhaseTag := "pv_phase:" + strings.ToLower(pvModel.Status.Phase)
+	pvTypeTag := "pv_type:" + strings.ToLower(pvModel.Spec.PersistentVolumeType)
 	pvModel.Tags = append(pvModel.Tags, pvPhaseTag)
 	pvModel.Tags = append(pvModel.Tags, pvTypeTag)
 }

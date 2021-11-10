@@ -16,3 +16,8 @@ import (
 func GetHostAlias(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("Kubernetes support not build: couldn't extract a host alias from the kubelet")
 }
+
+// GetMetaClusterNameText returns the clusterName text for the agent status output
+func GetMetaClusterNameText(ctx context.Context, hostname string) string {
+	return ""
+}

@@ -13,7 +13,7 @@ const (
 )
 
 func TestFilterMatch(t *testing.T) {
-	ev := Event{
+	ev := CollectorEvent{
 		Source: fooSource,
 		Entity: EntityID{
 			Kind: KindContainer,
@@ -23,7 +23,7 @@ func TestFilterMatch(t *testing.T) {
 	tests := []struct {
 		name     string
 		filter   *Filter
-		event    Event
+		event    CollectorEvent
 		expected bool
 	}{
 		{
@@ -65,7 +65,7 @@ func TestFilterMatch(t *testing.T) {
 			name: "matching single source",
 			filter: NewFilter(
 				nil,
-				[]string{fooSource},
+				[]Source{fooSource},
 			),
 			event:    ev,
 			expected: true,
@@ -74,7 +74,7 @@ func TestFilterMatch(t *testing.T) {
 			name: "matching one of sources",
 			filter: NewFilter(
 				nil,
-				[]string{fooSource, barSource},
+				[]Source{fooSource, barSource},
 			),
 			event:    ev,
 			expected: true,
@@ -83,7 +83,7 @@ func TestFilterMatch(t *testing.T) {
 			name: "matching no source",
 			filter: NewFilter(
 				nil,
-				[]string{barSource},
+				[]Source{barSource},
 			),
 			event:    ev,
 			expected: false,
@@ -93,7 +93,7 @@ func TestFilterMatch(t *testing.T) {
 			name: "matching source but not kind",
 			filter: NewFilter(
 				[]Kind{KindKubernetesPod},
-				[]string{fooSource},
+				[]Source{fooSource},
 			),
 			event:    ev,
 			expected: false,
@@ -102,7 +102,7 @@ func TestFilterMatch(t *testing.T) {
 			name: "matching kind but not source",
 			filter: NewFilter(
 				[]Kind{KindContainer},
-				[]string{barSource},
+				[]Source{barSource},
 			),
 			event:    ev,
 			expected: false,
@@ -111,7 +111,7 @@ func TestFilterMatch(t *testing.T) {
 			name: "matching both kind and source",
 			filter: NewFilter(
 				[]Kind{KindContainer},
-				[]string{fooSource},
+				[]Source{fooSource},
 			),
 			event:    ev,
 			expected: true,

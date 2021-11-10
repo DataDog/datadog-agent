@@ -20,6 +20,10 @@ func (*noOpConntracker) DeleteTranslation(c network.ConnectionStats) {
 
 }
 
+func (*noOpConntracker) IsSampling() bool {
+	return false
+}
+
 func (*noOpConntracker) Close() {}
 
 func (*noOpConntracker) GetStats() map[string]int64 {

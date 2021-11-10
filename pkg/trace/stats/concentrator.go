@@ -140,7 +140,7 @@ func (c *Concentrator) addNow(i *EnvTrace, containerID string) {
 	if env == "" {
 		env = c.agentEnv
 	}
-	for _, s := range i.Trace {
+	for _, s := range i.Trace.Spans {
 		if !(s.TopLevel || s.Measured) {
 			continue
 		}
@@ -157,7 +157,11 @@ func (c *Concentrator) addNow(i *EnvTrace, containerID string) {
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, env, c.agentHostname, containerID)
+		hostname := i.Trace.TracerHostname
+		if hostname == "" {
+			hostname = c.agentHostname
+		}
+		b.HandleSpan(s, i.Trace.Origin, env, hostname, containerID)
 	}
 }
 

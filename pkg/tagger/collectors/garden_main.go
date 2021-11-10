@@ -7,7 +7,6 @@ package collectors
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
@@ -83,20 +82,6 @@ func (c *GardenCollector) Pull(ctx context.Context) error {
 	}
 	c.infoOut <- tagInfo
 	return nil
-}
-
-// Fetch gets the tags for a specific entity
-func (c *GardenCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
-	_, cid := containers.SplitEntityName(entity)
-	tagsByInstanceGUID, err := c.extractTags(config.Datadog.GetString("bosh_id"))
-	if err != nil {
-		return []string{}, []string{}, []string{}, err
-	}
-	tags, ok := tagsByInstanceGUID[cid]
-	if !ok {
-		return []string{}, []string{}, []string{}, fmt.Errorf("could not find tags for app %s", cid)
-	}
-	return []string{}, []string{}, tags, nil
 }
 
 func gardenFactory() Collector {
