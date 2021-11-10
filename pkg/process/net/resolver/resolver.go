@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

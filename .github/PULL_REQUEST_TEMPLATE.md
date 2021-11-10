@@ -1,31 +1,64 @@
+<!--
+* New contributors are highly encouraged to read our
+  [CONTRIBUTING](/CONTRIBUTING.md) documentation.
+* The pull request:
+  * Should only fix one issue or add one feature at a time.
+  * Must update the test suite for the relevant functionality.
+  * Should pass all status checks before being reviewed or merged.
+* Commit titles should be prefixed with general area of pull request's change.
+* Draft PRs should be prefixed with `[WIP]` in their title.
+
+-->
 ### What does this PR do?
 
-A brief description of the change being made with this pull request.
+<!--
+* A brief description of the change being made with this pull request.
+* If the description here cannot be expressed in a succint form, consider
+  opening multiple pull requests instead of a single one.
+-->
 
 ### Motivation
 
-What inspired you to submit this pull request?
+<!--
+* What inspired you to submit this pull request?
+* Link any related GitHub issues or PRs here.
+-->
 
 ### Additional Notes
 
-Anything else we should know when reviewing?
+<!--
+* Anything else we should know when reviewing?
+* Include benchmarking information here whenever possible.
+* Include info about alternatives that were considered and why the proposed
+  version was chosen.
+-->
 
-### Describe how to test your changes
+### Possible Drawbacks / Trade-offs
 
-Write here in detail how you have tested your changes
-and instructions on how this should be tested in QA.
+<!--
+* What are the possible side-effects or negative impacts of the code change?
+-->
 
-Describe or link instructions to set up environment 
-for testing, if the process requires more than just
-running the agent on one of the supported platforms.
+### Describe how to test/QA your changes
 
-### Checklist
-<!-- Place an '[x]' (no spaces) in all applicable fields. Please remove unrelated fields. -->
+<!--
+* Write here in detail or link to detailed instructions on how this change can
+  be tested/QAd/validated, including any environment setup.
+-->
 
-- [ ] A [release note](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno) has been added or the `changelog/no-changelog` label has been applied.
-- [ ] The `need-change/operator` and `need-change/helm` labels has been applied if applicable.
-- [ ] The appropriate `team/..` label has been applied, if known.
-- [ ] If known, an appropriate milestone has been selected; otherwise the `Triage` milestone is set.
-- [ ] The [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated if applicable.
+### Reviewer's Checklist
+<!--
+* Authors can use this list as a reference to ensure that there are no problems
+  during the review but the signing off is to be done by the reviewer(s).
 
 Note: Adding GitHub labels is only possible for contributors with write access.
+-->
+
+- [ ] If known, an appropriate milestone has been selected; otherwise the `Triage` milestone is set.
+- [ ] The appropriate `team/..` label has been applied, if known.
+- [ ] A [release note](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno) has been added or the `changelog/no-changelog` label has been applied.
+- [ ] Changed code has automated tests for its functionality.
+- [ ] Adequate QA/testing plan information is provided if the `qa/skip-qa` label is not applied.
+- [ ] If applicable, docs team has been notified or [an issue has been opened on the documentation repo](https://github.com/DataDog/documentation/issues/new).
+- [ ] If applicable, the `need-change/operator` and `need-change/helm` labels have been applied.
+- [ ] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.

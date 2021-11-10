@@ -223,6 +223,10 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				tkn.advance()
 				return ColonCast, []byte("::")
 			}
+			if unicode.IsSpace(tkn.lastChar) {
+				// example scenario: "autovacuum: VACUUM ANALYZE fake.table"
+				return TokenKind(ch), tkn.bytes()
+			}
 			if tkn.lastChar != '=' {
 				return tkn.scanBindVar()
 			}

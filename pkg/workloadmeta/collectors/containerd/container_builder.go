@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -14,6 +15,7 @@ import (
 	"github.com/containerd/containerd/errdefs"
 
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -44,9 +46,10 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		return workloadmeta.Container{}, err
 	}
 
-	image, err := workloadmeta.NewContainerImage(containerdImage.Name())
+	imageName := containerdImage.Name()
+	image, err := workloadmeta.NewContainerImage(imageName)
 	if err != nil {
-		return workloadmeta.Container{}, err
+		log.Debugf("cannot split image name %q: %s", imageName, err)
 	}
 
 	status, err := containerdClient.Status(container)

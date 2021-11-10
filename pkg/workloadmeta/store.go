@@ -35,9 +35,9 @@ type subscriber struct {
 	filter *Filter
 }
 
-type sourceToEntity map[string]Entity
+type sourceToEntity map[Source]Entity
 
-func (s sourceToEntity) merge(sources []string) Entity {
+func (s sourceToEntity) merge(sources []Source) Entity {
 	if len(sources) == 0 {
 		sources = s.sources()
 	}
@@ -59,14 +59,14 @@ func (s sourceToEntity) merge(sources []string) Entity {
 	return merged
 }
 
-func (s sourceToEntity) sources() []string {
-	sources := make([]string, 0, len(s))
+func (s sourceToEntity) sources() []Source {
+	sources := make([]Source, 0, len(s))
 
 	for source := range s {
 		sources = append(sources, source)
 	}
 
-	sort.Strings(sources)
+	sort.SliceStable(sources, func(i, j int) bool { return sources[i] < sources[j] })
 
 	return sources
 }
@@ -109,16 +109,36 @@ func NewStore(catalog map[string]collectorFactory) Store {
 
 // Start starts the workload metadata store.
 func (s *store) Start(ctx context.Context) {
-	retryTicker := time.NewTicker(retryCollectorInterval)
-	pullTicker := time.NewTicker(pullCollectorInterval)
-	health := health.RegisterLiveness("workloadmeta-store")
-
-	pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
-
-	// Start processing events before starting collectors, as in some cases
-	// they may be able to generate more events than what fits in eventCh's
-	// buffer, and the store will deadlock.
 	go func() {
+		health := health.RegisterLiveness("workloadmeta-store")
+		for {
+			select {
+			case <-health.C:
+
+			case evs := <-s.eventCh:
+				s.handleEvents(evs)
+
+			case <-ctx.Done():
+				err := health.Deregister()
+				if err != nil {
+					log.Warnf("error de-registering health check: %s", err)
+				}
+
+				return
+			}
+		}
+	}()
+
+	go func() {
+		retryTicker := time.NewTicker(retryCollectorInterval)
+		pullTicker := time.NewTicker(pullCollectorInterval)
+		health := health.RegisterLiveness("workloadmeta-puller")
+		pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
+
+		// Start a pull immediately to fill the store without waiting for the
+		// next tick.
+		s.pull(pullCtx)
+
 		for {
 			select {
 			case <-health.C:
@@ -132,9 +152,6 @@ func (s *store) Start(ctx context.Context) {
 				pullCtx, pullCancel = context.WithTimeout(ctx, pullCollectorInterval)
 				s.pull(pullCtx)
 
-			case evs := <-s.eventCh:
-				s.handleEvents(evs)
-
 			case <-retryTicker.C:
 				stop := s.startCandidates(ctx)
 
@@ -146,6 +163,8 @@ func (s *store) Start(ctx context.Context) {
 				retryTicker.Stop()
 				pullTicker.Stop()
 
+				pullCancel()
+
 				err := health.Deregister()
 				if err != nil {
 					log.Warnf("error de-registering health check: %s", err)
@@ -156,12 +175,7 @@ func (s *store) Start(ctx context.Context) {
 		}
 	}()
 
-	// Start collectors immediately
 	s.startCandidates(ctx)
-
-	// Start a pull immediately to fill the store without waiting for the
-	// next tick.
-	s.pull(pullCtx)
 
 	log.Info("workloadmeta store initialized successfully")
 }
@@ -248,6 +262,22 @@ func (s *store) GetContainer(id string) (*Container, error) {
 	}
 
 	return entity.(*Container), nil
+}
+
+// ListContainers returns metadata about all known containers.
+func (s *store) ListContainers() ([]*Container, error) {
+	entities, err := s.listEntitiesByKind(KindContainer)
+	if err != nil {
+		return nil, err
+	}
+
+	// Not very efficient
+	containers := make([]*Container, 0, len(entities))
+	for _, entity := range entities {
+		containers = append(containers, entity.(*Container))
+	}
+
+	return containers, nil
 }
 
 // GetKubernetesPod returns metadata about a Kubernetes pod.
@@ -397,7 +427,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		for _, ev := range evs {
 			entityID := ev.Entity.GetID()
-			evSources, ok := filter.SelectSources([]string{ev.Source})
+			evSources, ok := filter.SelectSources([]Source{ev.Source})
 
 			if !filter.MatchKind(entityID.Kind) || !ok {
 				// event should be filtered out because it
@@ -443,7 +473,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
-		return nil, errors.NewNotFound(id)
+		return nil, errors.NewNotFound(string(kind))
 	}
 
 	s.storeMut.RLock()
@@ -455,6 +485,23 @@ func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 	}
 
 	return entity.merge(nil), nil
+}
+
+func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
+	entitiesOfKind, ok := s.store[kind]
+	if !ok {
+		return nil, errors.NewNotFound(string(kind))
+	}
+
+	entities := make([]Entity, 0, len(entitiesOfKind))
+	for _, entity := range entitiesOfKind {
+		entities = append(entities, entity.merge(nil))
+	}
+
+	return entities, nil
 }
 
 func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {

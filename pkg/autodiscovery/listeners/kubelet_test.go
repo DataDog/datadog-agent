@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package listeners
@@ -344,7 +345,12 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newKubeletListener(t)
 
-			listener.createContainerService(tt.pod, tt.container, integration.After)
+			podContainer := &workloadmeta.OrchestratorContainer{
+				ID:    tt.container.ID,
+				Image: tt.container.Image,
+			}
+
+			listener.createContainerService(tt.pod, podContainer, tt.container, integration.After)
 
 			wlm.assertServices(tt.expectedServices)
 		})

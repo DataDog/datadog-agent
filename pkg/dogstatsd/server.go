@@ -136,6 +136,7 @@ type Server struct {
 	health                    *health.Handle
 	metricPrefix              string
 	metricPrefixBlacklist     []string
+	metricBlocklist           []string
 	defaultHostname           string
 	histToDist                bool
 	histToDistPrefix          string
@@ -270,7 +271,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
 		metricPrefix = metricPrefix + "."
 	}
+
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
+	metricBlocklist := config.Datadog.GetStringSlice("statsd_metric_blocklist")
 
 	defaultHostname, err := util.GetHostname(context.TODO())
 	if err != nil {
@@ -316,6 +319,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		health:                    health.RegisterLiveness("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
 		metricPrefixBlacklist:     metricPrefixBlacklist,
+		metricBlocklist:           metricBlocklist,
 		defaultHostname:           defaultHostname,
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
@@ -435,16 +439,15 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 	}
 }
 
-// Flush flushes all the data to the aggregator to them send it to the Datadog intake.
-func (s *Server) Flush() {
+// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
+func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
 	// make all workers flush their aggregated data (in the batcher) to the aggregator.
 	for _, w := range s.workers {
 		w.flush()
 	}
-	// flush the aggregator to have the serializer/forwarder send data to the backend.
-	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
-	s.aggregator.Flush(time.Now().Add(time.Second*10), true)
+	s.aggregator.ServerlessFlush <- true
+	<-s.aggregator.ServerlessFlushDone
 }
 
 // dropCR drops a terminal \r from the data.
@@ -634,7 +637,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
+	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlocklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)

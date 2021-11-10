@@ -246,6 +246,12 @@ func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
 	return buf[:n], nil
 }
 
+// IsShortLived returns true when a connection went through its whole lifecycle
+// between two connection checks
+func (c ConnectionStats) IsShortLived() bool {
+	return c.LastTCPEstablished >= 1 && c.LastTCPClosed >= 1
+}
+
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 
 // BeautifyKey returns a human readable byte key (used for debugging purposes)

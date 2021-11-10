@@ -31,9 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -737,7 +737,6 @@ func (p *Probe) FlushDiscarders() error {
 	if !atomic.CompareAndSwapInt64(&p.flushingDiscarders, 0, 1) {
 		return errors.New("already flushing discarders")
 	}
-	time.Sleep(100 * time.Millisecond)
 
 	var discardedInodes []inodeDiscarder
 	var mapValue [256]byte
@@ -765,7 +764,7 @@ func (p *Probe) FlushDiscarders() error {
 		log.Debugf("Flushing discarders")
 
 		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.Delete(unsafe.Pointer(&inode)); err != nil {
+			if err := p.inodeDiscarders.expireInodeDiscarder(inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
 				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 

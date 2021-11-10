@@ -7,6 +7,7 @@ package collectors
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -43,6 +44,14 @@ func TestHandleKubePod(t *testing.T) {
 	fullyFleshedContainerTaggerEntityID := fmt.Sprintf("container_id://%s", fullyFleshedContainerID)
 	noEnvContainerTaggerEntityID := fmt.Sprintf("container_id://%s", noEnvContainerID)
 
+	image := workloadmeta.ContainerImage{
+		ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		Name:      "datadog/agent",
+		ShortName: "agent",
+		Tag:       "latest",
+	}
+
 	store := workloadmetatesting.NewStore()
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -52,13 +61,7 @@ func TestHandleKubePod(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: containerName,
 		},
-		Image: workloadmeta.ContainerImage{
-			ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-			RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-			Name:      "datadog/agent",
-			ShortName: "agent",
-			Tag:       "latest",
-		},
+		Image: image,
 		EnvVars: map[string]string{
 			"DD_ENV":     env,
 			"DD_SERVICE": svc,
@@ -201,8 +204,9 @@ func TestHandleKubePod(t *testing.T) {
 				},
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
-						ID:   fullyFleshedContainerID,
-						Name: containerName,
+						ID:    fullyFleshedContainerID,
+						Name:  containerName,
+						Image: image,
 					},
 				},
 			},
@@ -1004,5 +1008,66 @@ func TestParseJSONValue(t *testing.T) {
 			low, _, _, _ := tags.Compute()
 			assert.ElementsMatch(t, tt.want, low)
 		})
+	}
+}
+
+func Test_mergeMaps(t *testing.T) {
+	tests := []struct {
+		name   string
+		first  map[string]string
+		second map[string]string
+		want   map[string]string
+	}{
+		{
+			name:   "no conflict",
+			first:  map[string]string{"first-k1": "first-v1", "first-k2": "first-v2"},
+			second: map[string]string{"second-k1": "second-v1", "second-k2": "second-v2"},
+			want: map[string]string{
+				"first-k1":  "first-v1",
+				"first-k2":  "first-v2",
+				"second-k1": "second-v1",
+				"second-k2": "second-v2",
+			},
+		},
+		{
+			name:   "conflict",
+			first:  map[string]string{"first-k1": "first-v1", "first-k2": "first-v2"},
+			second: map[string]string{"first-k2": "second-v1", "second-k2": "second-v2"},
+			want: map[string]string{
+				"first-k1":  "first-v1",
+				"first-k2":  "first-v2",
+				"second-k2": "second-v2",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.EqualValues(t, tt.want, mergeMaps(tt.first, tt.second))
+		})
+	}
+}
+
+func assertTagInfoEqual(t *testing.T, expected *TagInfo, item *TagInfo) bool {
+	t.Helper()
+	sort.Strings(expected.LowCardTags)
+	sort.Strings(item.LowCardTags)
+
+	sort.Strings(expected.OrchestratorCardTags)
+	sort.Strings(item.OrchestratorCardTags)
+
+	sort.Strings(expected.HighCardTags)
+	sort.Strings(item.HighCardTags)
+
+	sort.Strings(expected.StandardTags)
+	sort.Strings(item.StandardTags)
+
+	return assert.Equal(t, expected, item)
+}
+
+func assertTagInfoListEqual(t *testing.T, expectedUpdates []*TagInfo, updates []*TagInfo) {
+	t.Helper()
+	assert.Equal(t, len(expectedUpdates), len(updates))
+	for i := 0; i < len(expectedUpdates); i++ {
+		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
 	}
 }

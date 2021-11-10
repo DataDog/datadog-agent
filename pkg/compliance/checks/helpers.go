@@ -26,8 +26,48 @@ import (
 // getter applies jq query to get string value from json or yaml raw data
 type getter func([]byte, string) (string, error)
 
+type contentParser func([]byte) (interface{}, error)
+
+func parseJSONContent(data []byte) (interface{}, error) {
+	var content interface{}
+
+	if err := json.Unmarshal(data, &content); err != nil {
+		return nil, err
+	}
+
+	return content, nil
+}
+
+func parseYAMLContent(data []byte) (interface{}, error) {
+	var content interface{}
+
+	if err := yaml.Unmarshal(data, &content); err != nil {
+		return nil, err
+	}
+
+	return content, nil
+}
+
+var contentParsers = map[string]contentParser{
+	"json": parseJSONContent,
+	"yaml": parseYAMLContent,
+}
+
+func validateParserKind(parser string) (string, error) {
+
+	if parser == "" {
+		return "", nil
+	}
+
+	normParser := strings.ToLower(parser)
+	if _, ok := contentParsers[normParser]; !ok {
+		return "", fmt.Errorf("undefined file content parser %s", parser)
+	}
+	return normParser, nil
+}
+
 // readContent unmarshal file
-func readContent(filePath string) (interface{}, error) {
+func readContent(filePath, parser string) (interface{}, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -39,14 +79,12 @@ func readContent(filePath string) (interface{}, error) {
 		return "", err
 	}
 
-	var content interface{}
-	if err := json.Unmarshal(data, &content); err != nil {
-		if err := yaml.Unmarshal(data, &content); err != nil {
-			return string(data), err
-		}
+	parserFunc := contentParsers[parser]
+	if parserFunc != nil {
+		return parserFunc(data)
 	}
 
-	return content, nil
+	return string(data), nil
 }
 
 // jsonGetter retrieves a property from a JSON file (jq style syntax)

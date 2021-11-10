@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubelet
@@ -50,7 +51,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 	c.store = store
 	c.lastExpire = time.Now()
 	c.expireFreq = expireFreq
-	c.watcher, err = kubelet.NewPodWatcher(expireFreq, true)
+	c.watcher, err = kubelet.NewPodWatcher(expireFreq)
 	if err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 
 		events = append(events, containerEvents...)
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: collectorID,
+			Source: workloadmeta.SourceKubelet,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: entity,
 		})
@@ -159,23 +160,31 @@ func (c *collector) parsePodContainers(
 		}
 
 		var env map[string]string
-		var image workloadmeta.ContainerImage
 		var ports []workloadmeta.ContainerPort
 
+		image, err := workloadmeta.NewContainerImage(container.Image)
+		if err != nil {
+			log.Warnf("cannot split image name %q: %s", container.Image, err)
+		}
+
+		image.ID = container.ImageID
+
 		runtime, containerID := containers.SplitEntityName(container.ID)
-		podContainers = append(podContainers, workloadmeta.OrchestratorContainer{
+		podContainer := workloadmeta.OrchestratorContainer{
 			ID:   containerID,
 			Name: container.Name,
-		})
+		}
 
 		containerSpec := findContainerSpec(container.Name, containerSpecs)
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
-			var err error
-			image, err = workloadmeta.NewContainerImage(containerSpec.Image)
+
+			podContainer.Image, err = workloadmeta.NewContainerImage(containerSpec.Image)
 			if err != nil {
-				log.Warnf("cannot split image name %q: %s", containerSpec.Image, err)
+				log.Debugf("cannot split image name %q: %s", containerSpec.Image, err)
 			}
+
+			podContainer.Image.ID = container.ImageID
 
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
@@ -189,8 +198,6 @@ func (c *collector) parsePodContainers(
 			log.Debugf("cannot find spec for container %q", container.Name)
 		}
 
-		image.ID = container.ImageID
-
 		containerState := workloadmeta.ContainerState{}
 		if st := container.State.Running; st != nil {
 			containerState.Running = true
@@ -201,8 +208,9 @@ func (c *collector) parsePodContainers(
 			containerState.FinishedAt = st.FinishedAt
 		}
 
+		podContainers = append(podContainers, podContainer)
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: collectorID,
+			Source: workloadmeta.SourceKubelet,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
@@ -270,7 +278,7 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEv
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: collectorID,
+			Source: workloadmeta.SourceKubelet,
 			Type:   workloadmeta.EventTypeUnset,
 			Entity: workloadmeta.EntityID{
 				Kind: kind,

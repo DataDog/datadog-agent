@@ -33,10 +33,10 @@ import (
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -150,13 +150,13 @@ func (m *Module) Start() error {
 		return errors.Wrap(err, "failed to start probe")
 	}
 
-	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
-	// context is ready when we start the probes
-	if err := m.probe.Snapshot(); err != nil {
+	if err := m.Reload(); err != nil {
 		return err
 	}
 
-	if err := m.Reload(); err != nil {
+	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
+	// context is ready when we start the probes
+	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
 
@@ -452,6 +452,10 @@ func (m *Module) metricsSender() {
 	for {
 		select {
 		case <-statsTicker.C:
+			if os.Getenv("RUNTIME_SECURITY_TESTSUITE") == "true" {
+				continue
+			}
+
 			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}

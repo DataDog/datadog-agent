@@ -8,8 +8,6 @@ package gce
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"strings"
 	"time"
 
@@ -217,38 +215,17 @@ func getResponse(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	client := http.Client{
-		Transport: httputils.CreateHTTPTransport(),
-		Timeout:   time.Duration(config.Datadog.GetInt("gce_metadata_timeout")) * time.Millisecond,
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	res, err := httputils.Get(ctx, url, map[string]string{"Metadata-Flavor": "Google"}, config.Datadog.GetDuration("gce_metadata_timeout")*time.Millisecond)
 	if err != nil {
-		return "", err
-	}
-
-	req.Header.Add("Metadata-Flavor", "Google")
-	res, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-
-	if res.StatusCode != 200 {
-		return "", fmt.Errorf("status code %d trying to GET %s", res.StatusCode, url)
-	}
-
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("GCE hostname, error reading response body: %s", err)
+		return "", fmt.Errorf("GCE metadata API error: %s", err)
 	}
 
 	// Some cloud platforms will respond with an empty body, causing the agent to assume a faulty hostname
-	if len(all) <= 0 {
+	if len(res) <= 0 {
 		return "", fmt.Errorf("empty response body")
 	}
 
-	return string(all), nil
+	return res, nil
 }
 
 // HostnameProvider GCE implementation of the HostnameProvider

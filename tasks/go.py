@@ -93,7 +93,12 @@ def lint(ctx, targets):
 
     # add the /... suffix to the targets
     targets_list = ["{}/...".format(t) for t in targets]
-    result = ctx.run("revive {}".format(' '.join(targets_list)), hide=True)
+    cmd = "revive {}".format(' '.join(targets_list))
+    if ctx.config.run.echo:
+        # Hack so the command is printed if invoke -e is used
+        # We use hide=True later to hide the output, but it also hides the command
+        ctx.run(cmd, dry=True)
+    result = ctx.run(cmd, hide=True)
     if result.stdout:
         files = set()
         skipped_files = set()
@@ -261,7 +266,12 @@ def misspell(ctx, targets):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    result = ctx.run("misspell " + " ".join(targets), hide=True)
+    cmd = "misspell " + " ".join(targets)
+    if ctx.config.run.echo:
+        # Hack so the command is printed if invoke -e is used
+        # We use hide=True later to hide the output, but it also hides the command
+        ctx.run(cmd, dry=True)
+    result = ctx.run(cmd, hide=True)
     legit_misspells = []
     for found_misspell in result.stdout.split("\n"):
         if len(found_misspell.strip()) > 0:

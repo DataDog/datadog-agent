@@ -73,7 +73,7 @@ func (d *dummyMarshaller) Marshal() ([]byte, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (d *dummyMarshaller) SplitPayload(int) ([]marshaler.Marshaler, error) {
+func (d *dummyMarshaller) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

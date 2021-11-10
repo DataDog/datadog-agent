@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func runHardlinkTests(t *testing.T, opts testOpts) {
@@ -43,7 +43,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	}
 	defer os.Remove(testOrigExecutable)
 
-	if err := copyFile(executable, testOrigExecutable, 0755); err != nil {
+	if err = copyFile(executable, testOrigExecutable, 0755); err != nil {
 		t.Fatal(err)
 	}
 

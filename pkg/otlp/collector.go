@@ -80,18 +80,17 @@ func getBuildInfo() (component.BuildInfo, error) {
 
 // PipelineConfig is the config struct for an OTLP pipeline.
 type PipelineConfig struct {
-	// BindHost is the bind host for the OTLP receiver.
-	BindHost string
-	// GRPCPort is the OTLP receiver gRPC port.
-	GRPCPort uint
-	// HTTPPort is the OTLP receiver HTTP port.
-	HTTPPort uint
+	// OTLPReceiverConfig is the OTLP receiver configuration.
+	OTLPReceiverConfig map[string]interface{}
 	// TracePort is the trace Agent OTLP port.
 	TracePort uint
 	// MetricsEnabled states whether OTLP metrics support is enabled.
 	MetricsEnabled bool
 	// TracesEnabled states whether OTLP traces support is enabled.
 	TracesEnabled bool
+
+	// Metrics contains configuration options for the serializer metrics exporter
+	Metrics map[string]interface{}
 }
 
 // Pipeline is an OTLP pipeline.
@@ -124,6 +123,7 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 		ConfigMapProvider:       newMapProvider(cfg),
 		LoggingOptions:          options,
 	})
+
 	if err != nil {
 		return nil, err
 	}

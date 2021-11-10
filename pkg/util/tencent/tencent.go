@@ -8,12 +8,11 @@ package tencent
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -87,38 +86,9 @@ func getMetadataItem(ctx context.Context, endpoint string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	res, err := getResponse(ctx, endpoint)
+	res, err := httputils.Get(ctx, endpoint, nil, timeout)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch Tencent Metadata API, %s", err)
 	}
-
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("unable to read response body, %s", err)
-	}
-
-	return string(all), nil
-}
-
-func getResponse(ctx context.Context, url string) (*http.Response, error) {
-	client := http.Client{
-		Timeout: timeout,
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("status code %d trying to fetch %s", res.StatusCode, url)
-	}
-
 	return res, nil
 }

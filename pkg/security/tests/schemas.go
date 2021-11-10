@@ -21,7 +21,7 @@ import (
 //go:embed schemas
 var schemaAssetFS embed.FS
 
-// Define the format inode checker
+// ValidInodeFormatChecker defines the format inode checker
 type ValidInodeFormatChecker struct{}
 
 // IsFormat check inode format
@@ -49,7 +49,8 @@ func validateSchema(t *testing.T, event *sprobe.Event, path string) bool {
 
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return false
 	}
 
 	if !result.Valid() {
