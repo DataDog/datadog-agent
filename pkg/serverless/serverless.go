@@ -32,9 +32,7 @@ const (
 	headerExtID      string = "Lambda-Extension-Identifier"
 	headerExtErrType string = "Lambda-Extension-Function-Error-Type"
 
-	requestTimeout     time.Duration = 5 * time.Second
-	clientReadyTimeout time.Duration = 2 * time.Second
-
+	requestTimeout      time.Duration = 5 * time.Second
 	safetyBufferTimeout time.Duration = 20 * time.Millisecond
 
 	// FatalNoAPIKey is the error reported to the AWS Extension environment when
@@ -172,6 +170,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
 			metricsChan := daemon.MetricAgent.GetMetricChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
+			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), metricsChan)
 		}
 		daemon.Stop()
 		stopCh <- struct{}{}
@@ -216,12 +215,6 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	}
 
 	if daemon.ExecutionContext.Coldstart {
-		ready := daemon.WaitUntilClientReady(clientReadyTimeout)
-		if ready {
-			log.Debug("Client library registered with extension")
-		} else {
-			log.Debug("Timed out waiting for client library to register with extension.")
-		}
 		daemon.UpdateStrategy()
 	}
 

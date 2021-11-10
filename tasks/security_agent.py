@@ -144,8 +144,25 @@ def gen_mocks(ctx):
     Generate mocks.
     """
 
+    interfaces = [
+        "AuditClient",
+        "Builder",
+        "Clients",
+        "Configuration",
+        "DockerClient",
+        "Env",
+        "Evaluatable",
+        "Iterator",
+        "KubeClient",
+        "RegoConfiguration",
+        "Reporter",
+        "Scheduler",
+    ]
+
+    interface_regex = "|".join(f"^{i}$" for i in interfaces)
+
     with ctx.cd("./pkg/compliance"):
-        ctx.run("./gen_mocks.sh")
+        ctx.run("mockery --case snake -r --name=\"{}\"".format(interface_regex))
 
 
 @task

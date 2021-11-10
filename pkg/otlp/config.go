@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	colConfig "go.opentelemetry.io/collector/config"
 	"go.uber.org/multierr"
 )
@@ -38,13 +39,24 @@ func isSetExperimentalPort(cfg config.Config) bool {
 	return cfg.IsSet(config.ExperimentalOTLPHTTPPort) || cfg.IsSet(config.ExperimentalOTLPgRPCPort)
 }
 
+// isSetExperimentalReceiver checks it the experimental receiver section is set.
+func isSetExperimentalReceiver(cfg config.Config) bool {
+	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
+	// from unmarshaling/validation done by the Collector code.
+	//
+	// IsSet won't work here: it will return false if the section is present but empty.
+	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
+	_, ok := cfg.GetStringMap(config.ExperimentalOTLPSection)[config.ReceiverSubSectionKey]
+	return ok
+}
+
 // isSetExperimentalMetrics checks if the experimental metrics config is set.
 func isSetExperimentalMetrics(cfg config.Config) bool {
 	return cfg.IsSet(config.ExperimentalOTLPMetrics)
 }
 
 func isSetExperimental(cfg config.Config) bool {
-	return isSetExperimentalPort(cfg)
+	return isSetExperimentalPort(cfg) || isSetExperimentalReceiver(cfg)
 }
 
 func portToUint(v int) (port uint, err error) {
@@ -53,6 +65,12 @@ func portToUint(v int) (port uint, err error) {
 	}
 	port = uint(v)
 	return
+}
+
+func fromExperimentalReceiverSectionConfig(cfg config.Config) *colConfig.Map {
+	return colConfig.NewMapFromStringMap(
+		cfg.GetStringMap(config.ExperimentalOTLPReceiverSection),
+	)
 }
 
 func fromExperimentalPortReceiverConfig(cfg config.Config, otlpConfig *colConfig.Map) error {
@@ -66,6 +84,14 @@ func fromExperimentalPortReceiverConfig(cfg config.Config, otlpConfig *colConfig
 	gRPCPort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPgRPCPort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("gRPC port is invalid: %w", err))
+	}
+
+	if len(errs) == 0 {
+		log.Infoc(
+			"Overriding OTLP receiver endpoints with port-based configuration",
+			"grpc_port", gRPCPort,
+			"http_port", httpPort,
+		)
 	}
 
 	bindHost := getReceiverHost(cfg)
@@ -91,6 +117,10 @@ func fromExperimentalPortReceiverConfig(cfg config.Config, otlpConfig *colConfig
 func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := colConfig.NewMap()
+
+	if isSetExperimentalReceiver(cfg) {
+		otlpConfig = fromExperimentalReceiverSectionConfig(cfg)
+	}
 	if isSetExperimentalPort(cfg) {
 		err := fromExperimentalPortReceiverConfig(cfg, otlpConfig)
 		if err != nil {

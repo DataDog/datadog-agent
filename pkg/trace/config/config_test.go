@@ -329,6 +329,7 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal(0.33, c.ExtraSampleRate)
 	assert.Equal(100.0, c.TargetTPS)
 	assert.Equal(37.0, c.ErrorTPS)
+	assert.Equal(true, c.DisableRareSampler)
 	assert.Equal(1000.0, c.MaxEPS)
 	assert.Equal(25, c.ReceiverPort)
 	assert.Equal(120*time.Second, c.ConnectionResetInterval)

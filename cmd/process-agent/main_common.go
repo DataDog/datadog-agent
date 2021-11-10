@@ -71,7 +71,7 @@ var (
 	configCommand = cmdconfig.Config(getSettingsClient)
 )
 
-func getSettingsClient() (settings.Client, error) {
+func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 	// Set up the config so we can get the port later
 	// We set this up differently from the main process-agent because this way is quieter
 	cfg := config.NewDefaultAgentConfig(false)

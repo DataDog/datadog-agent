@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: OTLP traces now supports semantic conventions from version 1.5.0 of the OpenTelemetry specification.
+    The experimental OTLP endpoint now can be configured through the ``experimental.otlp.receiver`` section and supports the same settings as the OpenTelemetry Collector OTLP receiver v0.38.0.

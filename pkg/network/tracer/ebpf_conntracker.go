@@ -240,6 +240,10 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	}
 }
 
+func (*ebpfConntracker) IsSampling() bool {
+	return false
+}
+
 func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTuple {
 	dst := tuplePool.Get().(*netebpf.ConntrackTuple)
 	if err := e.ctMap.Lookup(unsafe.Pointer(src), unsafe.Pointer(dst)); err != nil {
