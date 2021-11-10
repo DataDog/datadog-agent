@@ -1560,8 +1560,9 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	defer tr.Stop()
 
 	// Spin-up HTTPS server
-	enableTLS := true
-	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", enableTLS)
+	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+		EnableTLS: true,
+	})
 	defer serverDoneFn()
 
 	// Run wget once to make sure the OpenSSL is detected and uprobes are attached

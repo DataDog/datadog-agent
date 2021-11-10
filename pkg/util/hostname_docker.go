@@ -29,7 +29,6 @@ func getContainerHostname(ctx context.Context) string {
 
 	// Node-agent logic: docker or kubelet
 	if config.IsFeaturePresent(config.Docker) {
-		log.Debug("GetHostname trying Docker API...")
 		name, err := hostname.GetHostname(ctx, "docker", nil)
 		if err == nil {
 			return name
