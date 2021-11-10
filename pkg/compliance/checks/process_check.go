@@ -28,7 +28,7 @@ var processReportedFields = []string{
 	compliance.ProcessFieldCmdLine,
 }
 
-func resolveProcess(_ context.Context, e env.Env, id string, res compliance.ResourceCommon) (resolved, error) {
+func resolveProcess(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, optional bool) (resolved, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
@@ -67,6 +67,10 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 			},
 		)
 		instances = append(instances, newResolvedInstance(instance, strconv.Itoa(int(mp.Pid)), "process"))
+	}
+
+	if len(instances) == 0 && !optional {
+		return nil, fmt.Errorf("no process found for process check %q", process.Name)
 	}
 
 	// NOTE(safchain) workaround to allow fallback on all this resource if there is only one file
