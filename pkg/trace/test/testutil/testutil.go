@@ -20,16 +20,26 @@ import (
 	"testing"
 )
 
-// FreeTCPPort returns a free TCP port.
-func FreeTCPPort(t *testing.T) int {
+// FindTCPPort finds a free TCP port and returns it. If it fails, error will be non-nil.
+func FindTCPPort() (int, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {
-		t.Fatal(err)
+		return 0, err
 	}
 	l, err := net.ListenTCP("tcp", addr)
 	if err != nil {
-		t.Fatal(err)
+		return 0, err
 	}
 	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+// FreeTCPPort returns a free TCP port. Upon encountering an error, it uses t to fail
+// the test and report it.
+func FreeTCPPort(t *testing.T) int {
+	p, err := FindTCPPort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
 }
