@@ -51,7 +51,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	assert.Equal(t, "functionname:my-function", d.ExtraTags.Tags[10])
 	assert.Equal(t, "region:us-east-1", d.ExtraTags.Tags[11])
 	assert.Equal(t, "resource:my-function", d.ExtraTags.Tags[12])
-	assert.True(t, d.ExtraTags.Tags[13] == "unknown" || d.ExtraTags.Tags[13] == "provided2.al2")
+	assert.True(t, d.ExtraTags.Tags[13] == "unknown" || d.ExtraTags.Tags[13] == "provided.al2")
 
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", d.ExecutionContext.ARN)
 	assert.Equal(t, "myRequestID", d.ExecutionContext.LastRequestID)
