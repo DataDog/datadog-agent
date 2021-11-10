@@ -147,8 +147,7 @@ func Run(ctx context.Context) {
 	remoteTagger := coreconfig.Datadog.GetBool("apm_config.remote_tagger")
 	if remoteTagger {
 		tagger.SetDefaultTagger(remote.NewTagger())
-		err = tagger.Init()
-		if err != nil {
+		if err := tagger.Init(); err != nil {
 			log.Infof("starting remote tagger failed. falling back to local tagger: %s", err)
 			remoteTagger = false
 		}
@@ -161,8 +160,7 @@ func Run(ctx context.Context) {
 		workloadmeta.GetGlobalStore().Start(context.Background())
 
 		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-		err = tagger.Init()
-		if err != nil {
+		if err := tagger.Init(); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
