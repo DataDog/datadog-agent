@@ -26,8 +26,7 @@ func (t testBBSClient) DesiredLRPs(lager.Logger, models.DesiredLRPFilter) ([]*mo
 }
 
 func TestBBSCachePolling(t *testing.T) {
-	assert.NotZero(t, bc.GetPollAttempts())
-	assert.NotZero(t, bc.GetPollSuccesses())
+	assert.NotZero(t, bc.LastUpdated())
 }
 
 func TestBBSCache_GetDesiredLRPFor(t *testing.T) {
