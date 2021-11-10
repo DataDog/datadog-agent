@@ -31,8 +31,6 @@ var (
 	SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/beta/sketches", Name: "sketches_v2"}
 	// HostMetadataEndpoint is the v2 endpoint used to send host medatada
 	HostMetadataEndpoint = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
-	// MetadataEndpoint is the v2 endpoint used to send other metadata
-	MetadataEndpoint = transaction.Endpoint{Route: "/api/v2/metadata", Name: "metadata_v2"}
 
 	// ProcessesEndpoint is a v1 endpoint used to send processes checks
 	ProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
