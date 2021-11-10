@@ -26,9 +26,6 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	device := buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus)
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
-	if len(interfaces) == 0 {
-		return
-	}
 
 	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces)
 
