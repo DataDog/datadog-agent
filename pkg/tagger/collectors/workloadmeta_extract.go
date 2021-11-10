@@ -71,6 +71,8 @@ var (
 		"NOMAD_TASK_NAME":  "nomad_task",
 		"NOMAD_JOB_NAME":   "nomad_job",
 		"NOMAD_GROUP_NAME": "nomad_group",
+		"NOMAD_NAMESPACE":  "nomad_namespace",
+		"NOMAD_DC":         "nomad_dc",
 	}
 
 	orchCardOrchestratorEnvKeys = map[string]string{
