@@ -208,7 +208,7 @@ func newReverseDNS(supported bool, c *config.Config) dns.ReverseDNS {
 	rdns, err := dns.NewReverseDNS(c)
 	if err != nil {
 		log.Errorf("could not instantiate dns inspector: %s", err)
-		return nil
+		return dns.NewNullReverseDNS()
 	}
 
 	log.Info("dns inspection enabled")
