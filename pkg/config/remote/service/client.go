@@ -73,6 +73,15 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.ClientLatestConfig
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		body, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response: %w", err)
+		}
+		log.Debugf("Non-200 response. Response body: %s", string(body))
+		return nil, fmt.Errorf("non-200 response code: %d", resp.StatusCode)
+	}
+
 	body, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
@@ -81,6 +90,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.ClientLatestConfig
 	response := &pbgo.LatestConfigsResponse{}
 	err = msgp.Decode(bytes.NewBuffer(body), response)
 	if err != nil {
+		log.Debugf("Error decoding response, %w, response body: %s", err, string(body))
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
