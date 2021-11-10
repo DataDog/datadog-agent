@@ -59,17 +59,8 @@ var (
 	// Filter to clean the directory name from invalid file name characters
 	directoryNameFilter = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
-	// Match other services api keys
-	// It is a best effort to match the api key field without matching our
-	// own already redacted (we don't want to match: **************************abcde)
-	// Basically we allow many special chars while forbidding *
-	otherAPIKeysRx       = regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]+`)
-	otherAPIKeysReplacer = scrubber.Replacer{
-		Regex: otherAPIKeysRx,
-		ReplFunc: func(b []byte) []byte {
-			return []byte("api_key: ********")
-		},
-	}
+	// specialized scrubber for flare content
+	flareScrubber *scrubber.Scrubber
 )
 
 // SearchPaths is just an alias for a map of strings
@@ -88,6 +79,26 @@ type filePermsInfo struct {
 
 // ProfileData maps (pprof) profile names to the profile data.
 type ProfileData map[string][]byte
+
+func init() {
+	flareScrubber = scrubber.New()
+	scrubber.AddDefaultReplacers(flareScrubber)
+
+	// The default scrubber doesn't deal with api keys of other services, for
+	// example powerDNS which has an "api_key" field in its YAML configuration.
+	// We add a replacer to scrub even those credentials.
+	//
+	// It is a best effort to match the api key field without matching our
+	// own already scrubbed (we don't want to match: **************************abcde)
+	// Basically we allow many special chars while forbidding *
+	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]+`)
+	flareScrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+		Regex: otherAPIKeysRx,
+		ReplFunc: func(b []byte) []byte {
+			return []byte("api_key: ********")
+		},
+	})
+}
 
 // CreatePerformanceProfile adds a set of heap and CPU profiles into target, using cpusec as the CPU
 // profile duration, debugURL as the target URL for fetching the profiles and prefix as a prefix for
@@ -375,7 +386,7 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -465,7 +476,7 @@ func zipExpVar(tempDir, hostname string) error {
 			return err
 		}
 
-		w, err := newRedactingWriter(f, os.ModePerm, true)
+		w, err := newScrubberWriter(f, os.ModePerm)
 		if err != nil {
 			return err
 		}
@@ -482,7 +493,7 @@ func zipExpVar(tempDir, hostname string) error {
 		apmPort = config.Datadog.GetString("apm_config.receiver_port")
 	}
 	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -516,7 +527,7 @@ func zipExpVar(tempDir, hostname string) error {
 func zipSystemProbeStats(tempDir, hostname string) error {
 	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
-	sysProbeWriter, err := newRedactingWriter(sysProbeFile, os.ModePerm, true)
+	sysProbeWriter, err := newScrubberWriter(sysProbeFile, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -542,7 +553,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -599,7 +610,7 @@ func zipSecrets(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -622,7 +633,7 @@ func zipDiagnose(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -698,7 +709,7 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -718,7 +729,7 @@ func zipTaggerList(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -764,7 +775,7 @@ func zipWorkloadList(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -817,7 +828,7 @@ func zipHealth(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -866,7 +877,7 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -917,13 +928,16 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 					return err
 				}
 
-				w, err := newRedactingWriter(f, os.ModePerm, true)
+				w, err := newScrubberWriter(f, os.ModePerm)
 				if err != nil {
 					return err
 				}
 				defer w.Close()
 
 				if _, err = w.WriteFromFile(src); err != nil {
+					if os.IsNotExist(err) {
+						log.Warnf("the specified path: %s does not exist", filePath)
+					}
 					return err
 				}
 
@@ -952,19 +966,11 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 	return nil
 }
 
-func newRedactingWriter(f string, p os.FileMode, buffered bool) (*RedactingWriter, error) {
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
-	if err != nil {
-		return nil, err
-	}
-
-	// The original RedactingWriter use the log/strip.go implementation
-	// to scrub some credentials.
-	// It doesn't deal with api keys of other services, for example powerDNS
-	// which has an "api_key" field in its YAML configuration.
-	// We add this replacer to scrub even those credentials.
-	w.RegisterReplacer(otherAPIKeysReplacer)
-	return w, nil
+// newScrubberWriter creates a new scrubber.Writer, configured to always buffer
+// output and with additional replacers added to scrub third-party credentials
+// likely to be seen in flares.
+func newScrubberWriter(f string, p os.FileMode) (*scrubber.Writer, error) {
+	return flareScrubber.NewWriter(f, os.ModePerm)
 }
 
 func ensureParentDirsExist(p string) error {
@@ -1005,7 +1011,7 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 			return err
 		}
 
-		w, err := newRedactingWriter(f, os.ModePerm, true)
+		w, err := newScrubberWriter(f, os.ModePerm)
 		if err != nil {
 			return err
 		}

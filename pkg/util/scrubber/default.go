@@ -7,6 +7,7 @@ package scrubber
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -17,6 +18,13 @@ import (
 var DefaultScrubber = &Scrubber{}
 
 func init() {
+	AddDefaultReplacers(DefaultScrubber)
+}
+
+// AddDefaultReplacers to a scrubber. This is called automatically for
+// DefaultScrubber, but can be used to initialize other, custom scrubbers with
+// the default replacers.
+func AddDefaultReplacers(scrubber *Scrubber) {
 	hintedAPIKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
 		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
@@ -63,15 +71,15 @@ func init() {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
-	DefaultScrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, apiKeyReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, appKeyReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, uriPasswordReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, passwordReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, tokenReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, snmpReplacer)
-	DefaultScrubber.AddReplacer(MultiLine, certReplacer)
+	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
+	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
+	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
+	scrubber.AddReplacer(SingleLine, appKeyReplacer)
+	scrubber.AddReplacer(SingleLine, uriPasswordReplacer)
+	scrubber.AddReplacer(SingleLine, passwordReplacer)
+	scrubber.AddReplacer(SingleLine, tokenReplacer)
+	scrubber.AddReplacer(SingleLine, snmpReplacer)
+	scrubber.AddReplacer(MultiLine, certReplacer)
 }
 
 func matchYAMLKeyPart(part string) *regexp.Regexp {
@@ -126,4 +134,10 @@ func AddStrippedKeys(strippedKeys []string) {
 		}
 		DefaultScrubber.AddReplacer(SingleLine, configReplacer)
 	}
+}
+
+// NewWriter instantiates a Writer to the given file path with the given
+// permissions, using the default scrubber.
+func NewWriter(path string, perms os.FileMode) (*Writer, error) {
+	return newWriterWithScrubber(path, perms, DefaultScrubber)
 }

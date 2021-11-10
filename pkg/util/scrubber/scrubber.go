@@ -107,6 +107,12 @@ func (c *Scrubber) ScrubURL(message string) string {
 	return string(c.scrub([]byte(message), c.singleLineReplacers))
 }
 
+// NewWriter creates a new Writer tied to this scrubber.  The writer will write
+// scrubbed data to the given file path with the given permissions.
+func (c *Scrubber) NewWriter(path string, perms os.FileMode) (*Writer, error) {
+	return newWriterWithScrubber(path, perms, c)
+}
+
 // scrubReader applies the cleaning algorithm to a Reader
 func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	var cleanedFile []byte
