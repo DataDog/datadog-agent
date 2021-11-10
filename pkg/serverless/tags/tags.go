@@ -7,10 +7,13 @@ package tags
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -54,7 +57,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 
 	tags = setIfNotEmpty(tags, architectureKey, architecture)
 
-	tags = setIfNotEmpty(tags, runtimeKey, getRuntime("/proc/", runtimeVar))
+	tags = setIfNotEmpty(tags, runtimeKey, getRuntime("/proc", "/etc", runtimeVar))
 	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
 
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
@@ -146,10 +149,30 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 	return tagMap
 }
 
-func getRuntime(procPath string, varName string) string {
-	value := proc.SearchProcsForEnvVariable(procPath, varName)
-	if len(value) > 0 {
-		return strings.Replace(value, "AWS_Lambda_", "", 1)
+func getRuntimeFromOsReleaseFile(osReleasePath string) string {
+	runtime := ""
+	bytesRead, err := ioutil.ReadFile(fmt.Sprintf("%s/os-release", osReleasePath))
+	if err != nil {
+		log.Debug("could not read os-release file")
+		return ""
 	}
-	return "custom"
+	regExp := regexp.MustCompile(`PRETTY_NAME="Amazon Linux 2"`)
+	result := regExp.FindAll(bytesRead, -1)
+	if len(result) > 0 {
+		runtime = "provided.al2"
+	}
+	return runtime
+}
+
+func getRuntime(procPath string, osReleasePath string, varName string) string {
+	value := proc.SearchProcsForEnvVariable(procPath, varName)
+	value = strings.Replace(value, "AWS_Lambda_", "", 1)
+	if len(value) == 0 {
+		value = getRuntimeFromOsReleaseFile(osReleasePath)
+	}
+	if len(value) == 0 {
+		log.Debug("could not find a valid runtime, defaulting to unknown")
+		value = "unknown"
+	}
+	return value
 }

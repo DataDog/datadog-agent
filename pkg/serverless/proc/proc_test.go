@@ -20,7 +20,7 @@ func TestGetPidListInvalid(t *testing.T) {
 }
 
 func TestGetPidListValid(t *testing.T) {
-	pids := getPidList("./testData/")
+	pids := getPidList("./testData")
 	sort.Ints(pids)
 	assert.Equal(t, 2, len(pids))
 	assert.Equal(t, 13, pids[0])
@@ -28,12 +28,12 @@ func TestGetPidListValid(t *testing.T) {
 }
 
 func TestSearchProcsForEnvVariableFromPidIncorrect(t *testing.T) {
-	envVars := getEnvVariablesFromPid("./testData/", 999)
+	envVars := getEnvVariablesFromPid("./testData", 999)
 	assert.Equal(t, 0, len(envVars))
 }
 
 func TestSearchProcsForEnvVariableFromPidCorrect(t *testing.T) {
-	envVars := getEnvVariablesFromPid("./testData/", 13)
+	envVars := getEnvVariablesFromPid("./testData", 13)
 	assert.Equal(t, "value0", envVars["env0"])
 	assert.Equal(t, "value1", envVars["env1"])
 	assert.Equal(t, "AWS_Lambda_nodejs14.x", envVars["AWS_EXECUTION_ENV"])
@@ -42,10 +42,10 @@ func TestSearchProcsForEnvVariableFromPidCorrect(t *testing.T) {
 }
 
 func TestSearchProcsForEnvVariableFound(t *testing.T) {
-	result := SearchProcsForEnvVariable("./testData/", "env1")
+	result := SearchProcsForEnvVariable("./testData", "env1")
 	assert.Equal(t, "value1", result)
 }
 func TestSearchProcsForEnvVariableNotFound(t *testing.T) {
-	result := SearchProcsForEnvVariable("./testData/", "xxx")
+	result := SearchProcsForEnvVariable("./testData", "xxx")
 	assert.Equal(t, "", result)
 }
