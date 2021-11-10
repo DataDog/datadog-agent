@@ -53,7 +53,7 @@ func buildMetadata(metadataConfigs checkconfig.MetadataConfig, values *valuestor
 					metadataStore.AddScalarValue(fieldFullName, valuestore.ResultValue{Value: field.Value})
 				}
 				if field.Symbol.OID != "" {
-					value, err := values.GetScalarValue(field.Symbol.OID)
+					value, err := getScalarValueFromSymbol(values, field.Symbol)
 					if err != nil {
 						log.Debugf("error getting scalar value: %v", err)
 						continue
@@ -61,7 +61,7 @@ func buildMetadata(metadataConfigs checkconfig.MetadataConfig, values *valuestor
 					metadataStore.AddScalarValue(fieldFullName, value)
 				}
 			} else {
-				metricValues, err := values.GetColumnValues(field.Symbol.OID)
+				metricValues, err := getColumnValueFromSymbol(values, field.Symbol)
 				if err != nil {
 					continue
 				}
@@ -72,11 +72,12 @@ func buildMetadata(metadataConfigs checkconfig.MetadataConfig, values *valuestor
 		}
 		indexOid := metadata.GetIndexOIDForResource(resourceName)
 		if indexOid != "" {
-			metricValues, err := values.GetColumnValues(indexOid)
+			indexes, err := values.GetColumnIndexes(indexOid)
 			if err != nil {
 				continue
 			}
-			for fullIndex := range metricValues {
+			for _, fullIndex := range indexes {
+				// TODO: apply extract value
 				idTags := metadataConfig.IDTags.GetTags(fullIndex, values)
 				metadataStore.AddIDTags(resourceName, fullIndex, idTags)
 			}

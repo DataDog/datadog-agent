@@ -104,6 +104,7 @@ func (mtcl MetricTagConfigList) GetTags(fullIndex string, values *valuestore.Res
 		}
 		// get tag using another column value
 		if metricTag.Column.OID != "" {
+			// TODO: apply extract value
 			columnValues, err := values.GetColumnValues(metricTag.Column.OID)
 			if err != nil {
 				log.Debugf("error getting column value: %v", err)

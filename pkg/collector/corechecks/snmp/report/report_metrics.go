@@ -41,6 +41,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.Metr
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
+		// TODO: Use getScalarValueFromSymbol() to support extract value
 		value, err := values.GetScalarValue(metricTag.OID)
 		if err != nil {
 			continue
@@ -56,7 +57,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.Metr
 }
 
 func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
-	value, err := values.GetScalarValue(metric.Symbol.OID)
+	value, err := getScalarValueFromSymbol(values, metric.Symbol)
 	if err != nil {
 		log.Debugf("report scalar: error getting scalar value: %v", err)
 		return
@@ -70,7 +71,7 @@ func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, va
 func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	rowTagsCache := make(map[string][]string)
 	for _, symbol := range metricConfig.Symbols {
-		metricValues, err := values.GetColumnValues(symbol.OID)
+		metricValues, err := getColumnValueFromSymbol(values, symbol)
 		if err != nil {
 			continue
 		}
@@ -87,14 +88,15 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 }
 
 func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, forcedType string, options checkconfig.MetricsConfigOption, extractValuePattern *regexp.Regexp) {
-	if extractValuePattern != nil {
-		extractedValue, err := value.ExtractStringValue(extractValuePattern)
-		if err != nil {
-			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, extractValuePattern, err)
-			return
-		}
-		value = extractedValue
-	}
+	// TODO: remove extractValuePattern param
+	//if extractValuePattern != nil {
+	//	extractedValue, err := value.ExtractStringValue(extractValuePattern)
+	//	if err != nil {
+	//		log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, extractValuePattern, err)
+	//		return
+	//	}
+	//	value = extractedValue
+	//}
 
 	metricFullName := "snmp." + metricName
 	if forcedType == "" {

@@ -28,11 +28,11 @@ func validateEnrichMetrics(metrics []MetricsConfig) []string {
 			errors = append(errors, fmt.Sprintf("table symbol and scalar symbol cannot be both provided: %#v", metricConfig))
 		}
 		if metricConfig.IsScalar() {
-			errors = append(errors, validateEnrichSymbol(&metricConfig.Symbol, metricConfig)...)
+			errors = append(errors, validateEnrichSymbol(&metricConfig.Symbol)...)
 		}
 		if metricConfig.IsColumn() {
 			for j := range metricConfig.Symbols {
-				errors = append(errors, validateEnrichSymbol(&metricConfig.Symbols[j], metricConfig)...)
+				errors = append(errors, validateEnrichSymbol(&metricConfig.Symbols[j])...)
 			}
 			if len(metricConfig.MetricTags) == 0 {
 				errors = append(errors, fmt.Sprintf("column symbols %v doesn't have a 'metric_tags' section, all its metrics will use the same tags; "+
@@ -49,18 +49,34 @@ func validateEnrichMetrics(metrics []MetricsConfig) []string {
 	return errors
 }
 
-func validateEnrichSymbol(symbol *SymbolConfig, metricConfig *MetricsConfig) []string {
+// validateEnrichMetadata will validate MetadataConfig and enrich it.
+func validateEnrichMetadata(metadata MetadataConfig) []string {
+	// TODO: validate fields
+	// TODO: validate idtags
+	var errors []string
+	for resName := range metadata {
+		res := metadata[resName]
+		for fieldName := range metadata[resName].Fields {
+			field := res.Fields[fieldName]
+			errors = append(errors, validateEnrichSymbol(&field.Symbol)...)
+			res.Fields[fieldName] = field
+		}
+	}
+	return errors
+}
+
+func validateEnrichSymbol(symbol *SymbolConfig) []string {
 	var errors []string
 	if symbol.Name == "" {
-		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`: %#v", symbol.Name, symbol.OID, metricConfig))
+		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
 	}
 	if symbol.OID == "" {
-		errors = append(errors, fmt.Sprintf("symbol oid missing: name=`%s` oid=`%s`: %#v", symbol.Name, symbol.OID, metricConfig))
+		errors = append(errors, fmt.Sprintf("symbol oid missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
 	}
 	if symbol.ExtractValue != "" {
 		pattern, err := regexp.Compile(symbol.ExtractValue)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("cannot compile `extract_value` (%s): %s : %#v", symbol.ExtractValue, err.Error(), metricConfig))
+			errors = append(errors, fmt.Sprintf("cannot compile `extract_value` (%s): %s", symbol.ExtractValue, err.Error()))
 		} else {
 			symbol.ExtractValuePattern = pattern
 		}
@@ -70,7 +86,7 @@ func validateEnrichSymbol(symbol *SymbolConfig, metricConfig *MetricsConfig) []s
 func validateEnrichMetricTag(metricTag *MetricTagConfig, metricConfig *MetricsConfig) []string {
 	var errors []string
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
-		errors = append(errors, validateEnrichSymbol(&metricTag.Column, metricConfig)...)
+		errors = append(errors, validateEnrichSymbol(&metricTag.Column)...)
 	}
 	if metricTag.Match != "" {
 		pattern, err := regexp.Compile(metricTag.Match)

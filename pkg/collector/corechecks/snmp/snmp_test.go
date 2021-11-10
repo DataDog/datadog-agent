@@ -626,7 +626,7 @@ profiles:
       "index": 1,
       "name": "nameRow1",
       "alias": "descRow1",
-      "description": "nameRow1",
+      "description": "Row1",
       "mac_address": "00:00:00:00:00:01",
       "admin_status": 1,
       "oper_status": 1
@@ -637,7 +637,7 @@ profiles:
       "index": 2,
       "name": "nameRow2",
       "alias": "descRow2",
-      "description": "nameRow2",
+      "description": "Row2",
       "mac_address": "00:00:00:00:00:02",
       "admin_status": 1,
       "oper_status": 1
