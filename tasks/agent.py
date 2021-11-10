@@ -40,6 +40,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 
 AGENT_CORECHECKS = [
+    "container",
     "containerd",
     "cpu",
     "cri",

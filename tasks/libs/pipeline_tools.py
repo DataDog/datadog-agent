@@ -1,5 +1,7 @@
+import datetime
 import functools
 import platform
+import sys
 from time import sleep, time
 
 from tasks.utils import DEFAULT_BRANCH
@@ -23,6 +25,14 @@ def get_running_pipelines_on_same_ref(gitlab, ref, sha=None):
     return running_pipelines
 
 
+def parse_datetime(dt):
+    # before python 3.7, the Z shorthand for UTC timezone was not accepted
+    if sys.version_info.major < 3 or sys.version_info.minor < 7:
+        if dt.endswith("Z"):
+            dt = dt[:-1] + "+00:00"
+    return datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%f%z")
+
+
 def cancel_pipelines_with_confirmation(gitlab, pipelines):
     for pipeline in pipelines:
         commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, pipeline['id'])
@@ -35,7 +45,14 @@ def cancel_pipelines_with_confirmation(gitlab, pipelines):
             ),
         )
 
-        print(color_message("Started at", "blue"), pipeline['created_at'])
+        pipeline_creation_date = pipeline['created_at']
+        print(
+            "{} {:%c} ({})".format(
+                color_message("Started at", "blue"),
+                parse_datetime(pipeline_creation_date).astimezone(),
+                pipeline_creation_date,
+            )
+        )
 
         print(
             color_message("Commit:", "blue"),
@@ -157,14 +174,14 @@ def get_commit_for_pipeline(gitlab, pipeline_id):
 
 def loop_status(callable, timeout_sec):
     """
-    Utility to loop a function that takes and returns a status, until it returns True.
+    Utility to loop a function that takes a status and returns [done, status], until done is True.
     """
     start = time()
     status = dict()
     while True:
-        res, status = callable(status)
-        if res:
-            return res
+        done, status = callable(status)
+        if done:
+            return status
         if time() - start > timeout_sec:
             raise ErrorMsg("Timed out.")
         sleep(10)

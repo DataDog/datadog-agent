@@ -207,10 +207,10 @@ def get_payload_version():
             if len(whitespace_split) < 2:
                 continue
             pkgname = whitespace_split[0]
-            if pkgname == "github.com/DataDog/agent-payload":
+            if pkgname == "github.com/DataDog/agent-payload/v5":
                 # Example of line
-                # github.com/DataDog/agent-payload v4.40.0+incompatible
-                # github.com/DataDog/agent-payload v4.42.1-0.20200826134834-1ddcfb686e3f+incompatible
+                # github.com/DataDog/agent-payload/v5 v5.0.2
+                # github.com/DataDog/agent-payload/v5 v5.0.1-0.20200826134834-1ddcfb686e3f
                 version_split = re.split(r'[ +]', line)
                 if len(version_split) < 2:
                     raise Exception(

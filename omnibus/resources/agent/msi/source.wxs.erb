@@ -353,10 +353,11 @@
     <DirectoryRef Id="APPLICATIONDATADIRECTORY">
       <Component Id="datadog.yaml.example"
                  Guid="83461594-01AC-11E2-BE35-37EC6088709B"
-                 NeverOverwrite="yes"
-                 Permanent="yes">
+                 NeverOverwrite="no"
+                 Permanent="no">
         <File Id="datadog.yaml.example"
-            Name="datadog.yaml"
+            Name="datadog.yaml.example"
+            KeyPath="yes"
             Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
 
@@ -367,6 +368,7 @@
                  Permanent="yes">
           <File Id="system_probe.yaml.example"
             Name="system-probe.yaml"
+            KeyPath="yes"
             Source="$(var.EtcFiles)\system-probe.yaml.example"/>
         </Component>
       <?endif ?>

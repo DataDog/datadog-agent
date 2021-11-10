@@ -272,8 +272,8 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
 
 	return map[string]int64{
-		"closed_conn_polling_lost":     closeStats["lost"],
-		"closed_conn_polling_received": closeStats["rcvd"],
+		"closed_conn_polling_lost":     closeStats[perfLostStat],
+		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
 		"tcp_sent_miscounts":         int64(telemetry.Tcp_sent_miscounts),

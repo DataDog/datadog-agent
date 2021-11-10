@@ -8,12 +8,11 @@ package gce
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +22,7 @@ import (
 var (
 	metadataURL = "http://169.254.169.254/computeMetadata/v1"
 
-	// CloudProviderName contains the inventory name of for EC2
+	// CloudProviderName contains the inventory name of the cloud
 	CloudProviderName = "GCP"
 )
 
@@ -35,25 +34,25 @@ func IsRunningOn(ctx context.Context) bool {
 	return false
 }
 
+var hostnameFetcher = cachedfetch.Fetcher{
+	Name: "GCP Hostname",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		hostname, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/hostname",
+			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+		if err != nil {
+			return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
+		}
+		return hostname, nil
+	},
+}
+
 // GetHostname returns the hostname querying GCE Metadata api
 func GetHostname(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-	hostname, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/hostname",
-		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
-	if err != nil {
-		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
-	}
-	return hostname, nil
+	return hostnameFetcher.FetchString(ctx)
 }
 
 // GetHostAliases returns the host aliases from GCE
 func GetHostAliases(ctx context.Context) ([]string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return nil, fmt.Errorf("cloud provider is disabled by configuration")
-	}
-
 	aliases := []string{}
 
 	hostname, err := GetHostname(ctx)
@@ -72,9 +71,30 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 	return aliases, nil
 }
 
+var nameFetcher = cachedfetch.Fetcher{
+	Name: "GCP Instance Name",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		return getResponseWithMaxLength(ctx,
+			metadataURL+"/instance/name",
+			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	},
+}
+
+var projectIDFetcher = cachedfetch.Fetcher{
+	Name: "GCP Project ID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		projectID, err := getResponseWithMaxLength(ctx,
+			metadataURL+"/project/project-id",
+			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+		if err != nil {
+			return "", fmt.Errorf("unable to retrieve project ID from GCE: %s", err)
+		}
+		return projectID, err
+	},
+}
+
 func getInstanceAlias(ctx context.Context, hostname string) (string, error) {
-	instanceName, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/name",
-		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	instanceName, err := nameFetcher.FetchString(ctx)
 	if err != nil {
 		// If the endpoint is not reachable, fallback on the old way to get the alias.
 		// For instance, it happens in GKE, where the metadata server is only a subset
@@ -86,76 +106,87 @@ func getInstanceAlias(ctx context.Context, hostname string) (string, error) {
 		instanceName = strings.SplitN(hostname, ".", 2)[0]
 	}
 
-	projectID, err := getResponseWithMaxLength(ctx, metadataURL+"/project/project-id",
-		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	projectID, err := projectIDFetcher.FetchString(ctx)
 	if err != nil {
-		return "", fmt.Errorf("unable to retrieve project ID from GCE: %s", err)
+		return "", err
 	}
+
 	return fmt.Sprintf("%s.%s", instanceName, projectID), nil
+}
+
+var clusterNameFetcher = cachedfetch.Fetcher{
+	Name: "GCP Cluster Name",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		clusterName, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/attributes/cluster-name",
+			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+		if err != nil {
+			return "", fmt.Errorf("unable to retrieve clustername from GCE: %s", err)
+		}
+		return clusterName, nil
+	},
 }
 
 // GetClusterName returns the name of the cluster containing the current GCE instance
 func GetClusterName(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-	clusterName, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/attributes/cluster-name",
-		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
-	if err != nil {
-		return "", fmt.Errorf("unable to retrieve clustername from GCE: %s", err)
-	}
-	return clusterName, nil
+	return clusterNameFetcher.FetchString(ctx)
+}
+
+var publicIPv4Fetcher = cachedfetch.Fetcher{
+	Name: "GCP Public IP",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		publicIPv4, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/network-interfaces/0/access-configs/0/external-ip",
+			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+		if err != nil {
+			return "", fmt.Errorf("unable to retrieve public IPv4 from GCE: %s", err)
+		}
+		return publicIPv4, nil
+	},
 }
 
 // GetPublicIPv4 returns the public IPv4 address of the current GCE instance
 func GetPublicIPv4(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-	publicIPv4, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/network-interfaces/0/access-configs/0/external-ip",
-		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
-	if err != nil {
-		return "", fmt.Errorf("unable to retrieve public IPv4 from GCE: %s", err)
-	}
-	return publicIPv4, nil
+	return publicIPv4Fetcher.FetchString(ctx)
+}
+
+var networkIDFetcher = cachedfetch.Fetcher{
+	Name: "GCP Network ID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		resp, err := getResponse(ctx, metadataURL+"/instance/network-interfaces/")
+		if err != nil {
+			return "", fmt.Errorf("unable to retrieve network-interfaces from GCE: %s", err)
+		}
+
+		interfaceIDs := strings.Split(strings.TrimSpace(resp), "\n")
+		vpcIDs := common.NewStringSet()
+
+		for _, interfaceID := range interfaceIDs {
+			if interfaceID == "" {
+				continue
+			}
+			interfaceID = strings.TrimSuffix(interfaceID, "/")
+			id, err := getResponse(ctx, metadataURL+fmt.Sprintf("/instance/network-interfaces/%s/network", interfaceID))
+			if err != nil {
+				return "", err
+			}
+			vpcIDs.Add(id)
+		}
+
+		switch len(vpcIDs) {
+		case 0:
+			return "", fmt.Errorf("zero network interfaces detected")
+		case 1:
+			return vpcIDs.GetAll()[0], nil
+		default:
+			return "", fmt.Errorf("more than one network interface detected, cannot get network ID")
+		}
+	},
 }
 
 // GetNetworkID retrieves the network ID using the metadata endpoint. For
 // GCE instances, the the network ID is the VPC ID, if the instance is found to
 // be a part of exactly one VPC.
 func GetNetworkID(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-	resp, err := getResponse(ctx, metadataURL+"/instance/network-interfaces/")
-	if err != nil {
-		return "", fmt.Errorf("unable to retrieve network-interfaces from GCE: %s", err)
-	}
-
-	interfaceIDs := strings.Split(strings.TrimSpace(resp), "\n")
-	vpcIDs := common.NewStringSet()
-
-	for _, interfaceID := range interfaceIDs {
-		if interfaceID == "" {
-			continue
-		}
-		interfaceID = strings.TrimSuffix(interfaceID, "/")
-		id, err := getResponse(ctx, metadataURL+fmt.Sprintf("/instance/network-interfaces/%s/network", interfaceID))
-		if err != nil {
-			return "", err
-		}
-		vpcIDs.Add(id)
-	}
-
-	switch len(vpcIDs) {
-	case 0:
-		return "", fmt.Errorf("zero network interfaces detected")
-	case 1:
-		return vpcIDs.GetAll()[0], nil
-	default:
-		return "", fmt.Errorf("more than one network interface detected, cannot get network ID")
-	}
-
+	return networkIDFetcher.FetchString(ctx)
 }
 
 // GetNTPHosts returns the NTP hosts for GCE if it is detected as the cloud provider, otherwise an empty array.
@@ -180,38 +211,21 @@ func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength in
 }
 
 func getResponse(ctx context.Context, url string) (string, error) {
-	client := http.Client{
-		Transport: httputils.CreateHTTPTransport(),
-		Timeout:   time.Duration(config.Datadog.GetInt("gce_metadata_timeout")) * time.Millisecond,
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	res, err := httputils.Get(ctx, url, map[string]string{"Metadata-Flavor": "Google"}, config.Datadog.GetDuration("gce_metadata_timeout")*time.Millisecond)
 	if err != nil {
-		return "", err
-	}
-
-	req.Header.Add("Metadata-Flavor", "Google")
-	res, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-
-	if res.StatusCode != 200 {
-		return "", fmt.Errorf("status code %d trying to GET %s", res.StatusCode, url)
-	}
-
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("GCE hostname, error reading response body: %s", err)
+		return "", fmt.Errorf("GCE metadata API error: %s", err)
 	}
 
 	// Some cloud platforms will respond with an empty body, causing the agent to assume a faulty hostname
-	if len(all) <= 0 {
+	if len(res) <= 0 {
 		return "", fmt.Errorf("empty response body")
 	}
 
-	return string(all), nil
+	return res, nil
 }
 
 // HostnameProvider GCE implementation of the HostnameProvider

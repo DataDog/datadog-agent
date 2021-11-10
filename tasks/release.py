@@ -32,6 +32,9 @@ VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 
 REPOSITORY_NAME = "DataDog/datadog-agent"
 
+UNFREEZE_REPO_AGENT = "datadog-agent"
+UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby"]
+
 
 @task
 def add_prelude(ctx, version):
@@ -691,13 +694,6 @@ def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_f
     return win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum
 
 
-@task
-def get_variable(_, name, version='nightly'):
-    with open("release.json", "r") as release_json_stream:
-        release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
-    print(release_json[version][name])
-
-
 ##
 ## release_json object update function
 ##
@@ -877,13 +873,14 @@ def update_modules(ctx, agent_version, verify=True):
 
 
 @task
-def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True, push=True, force=False):
     """
     Create tags for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
 
     * --commit COMMIT will tag COMMIT with the tags (default HEAD)
     * --verify checks for correctness on the Agent version (on by default).
+    * --tag_modules tags Go modules in addition to the agent repository
     * --push will push the tags to the origin remote (on by default).
     * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
 
@@ -906,7 +903,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
             print("Continuing without the --force option.")
 
     for module in DEFAULT_MODULES.values():
-        if module.should_tag:
+        if (tag_modules or module.path == ".") and module.should_tag:
             for tag in module.tag(agent_version):
                 ok = try_git_command(
                     ctx,
@@ -1354,3 +1351,157 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
         repo_branch="beta",
         deploy=True,
     )
+
+
+@task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
+def get_release_json_value(_, key):
+
+    release_json = _load_release_json()
+
+    path = key.split('::')
+
+    for element in path:
+        if element not in release_json:
+            raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
+
+        release_json = release_json.get(element)
+
+    print(release_json)
+
+
+def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
+    # Perform branch out in all required repositories
+    with ctx.cd("{}/{}".format(base_directory, repo)):
+        # Step 1 - Create a local branch out from the default branch
+
+        print(color_message("Working repository: {}".format(repo), "bold"))
+        main_branch = ctx.run(
+            "git remote show {} | grep \"HEAD branch\" | sed 's/.*: //'".format(upstream)
+        ).stdout.strip()
+        ctx.run("git checkout {}".format(main_branch))
+        ctx.run("git pull")
+        print(color_message("Branching out to {}".format(release_branch), "bold"))
+        ctx.run("git checkout -b {}".format(release_branch))
+
+        if repo == UNFREEZE_REPO_AGENT:
+            rj = _load_release_json()
+            rj["base_branch"] = release_branch
+            _save_release_json(rj)
+            ctx.run("git add release.json")
+            ok = try_git_command(ctx, "git commit -m 'Set base_branch to {}'".format(release_branch))
+            if not ok:
+                raise Exit(
+                    color_message(
+                        "Could not create commit. Please commit manually and push the commit to the {} branch.".format(
+                            release_branch
+                        ),
+                        "red",
+                    ),
+                    code=1,
+                )
+
+        # Step 2 - Push newly created release branch to the remote repository
+
+        print(color_message("Pushing new branch to the upstream repository", "bold"))
+        res = ctx.run("git push --set-upstream {} {}".format(upstream, release_branch), warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    "Could not push branch {} to the upstream '{}'. Please push it manually.".format(
+                        release_branch,
+                        upstream,
+                    ),
+                    "red",
+                ),
+                code=1,
+            )
+
+
+@task(help={'upstream': "Remote repository name (default 'origin')"})
+def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin", redo=False):
+    """
+    Performs set of tasks required for the main branch unfreeze during the agent release cycle.
+    That includes:
+    - creates a release branch in datadog-agent, omnibus-ruby and omnibus-software repositories,
+    - pushes an empty commit on the datadog-agent main branch,
+    - creates devel tags in the datadog-agent repository on the empty commit from the last step.
+
+    Notes:
+    base_directory - path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
+    This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
+    with 'repo' permissions.
+    This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
+    release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
+    """
+    if sys.version_info[0] < 3:
+        return Exit(message="Must use Python 3 for this task", code=1)
+
+    list_major_versions = parse_major_versions(major_versions)
+
+    current = current_version(ctx, max(list_major_versions))
+    next = current.next_version(bump_minor=True)
+    next.devel = True
+
+    # Strings with proper branch/tag names
+    release_branch = current.branch()
+    devel_tag = str(next)
+
+    # Step 0: checks
+
+    print(color_message("Checking repository state", "bold"))
+    ctx.run("git fetch")
+
+    if check_uncommitted_changes(ctx):
+        raise Exit(
+            color_message(
+                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+
+    if not yes_no_question(
+        "This task will create new branches with the name '{}' in repositories: {}. Is this OK?".format(
+            release_branch, ", ".join(UNFREEZE_REPOS)
+        ),
+        color="orange",
+        default=False,
+    ):
+        raise Exit(color_message("Aborting.", "red"), code=1)
+
+    # Step 1: Create release branch
+    for repo in UNFREEZE_REPOS:
+        create_release_branch(ctx, repo, release_branch, base_directory=base_directory)
+
+    print(color_message("Creating empty commit for devel tags", "bold"))
+    with ctx.cd("{}/datadog-agent".format(base_directory)):
+        ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags'")
+        if not ok:
+            raise Exit(
+                color_message(
+                    "Could not create commit. Please commit manually, push the commit manually to the main branch.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        print(color_message("Pushing new commit", "bold"))
+        res = ctx.run("git push {}".format(upstream), warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    "Could not push commit to the upstream '{}'. Please push it manually.".format(
+                        upstream,
+                    ),
+                    "red",
+                ),
+                code=1,
+            )
+
+    # Step 3: Create tags for next version
+    print(color_message("Creating devel tags for agent version(s) {}".format(list_major_versions), "bold"))
+    print(
+        color_message("If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold")
+    )
+
+    tag_version(ctx, devel_tag, tag_modules=False, push=False, force=redo)

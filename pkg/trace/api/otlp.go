@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
@@ -327,12 +326,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 			sampler.KeySamplingPriority: float64(sampler.PriorityAutoKeep),
 		},
 	}
-	if features.Has("otlp_original_ids") {
-		// keep original IDs
-		span.Meta["otlp_ids.trace"] = hex.EncodeToString(in.TraceId)
-		span.Meta["otlp_ids.span"] = hex.EncodeToString(in.SpanId)
-		span.Meta["otlp_ids.parent"] = hex.EncodeToString(in.ParentSpanId)
-	}
+	span.Meta["otlp.trace_id"] = hex.EncodeToString(in.TraceId)
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			span.Meta["version"] = ver

@@ -21,6 +21,9 @@ type PSIStats struct {
 
 // MemoryStats - all metrics in bytes except if otherwise specified
 // All statistics are hierarchical (i.e. includes all descendants)
+// Meaning for each value can be checked at:
+// https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+// or https://www.kernel.org/doc/Documentation/cgroup-v2.txt
 // Source:
 // cgroupv1: memory controller
 // cgroupv2: memory controller

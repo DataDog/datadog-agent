@@ -46,7 +46,7 @@ func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, e
 	}
 
 	perm := 0o700
-	binPath, _, err := test.CreateWithOptions(binary, -1, -1, perm)
+	binPath, _, _ := test.CreateWithOptions(binary, -1, -1, perm)
 
 	f, err := os.OpenFile(binPath, os.O_WRONLY|os.O_CREATE, os.FileMode(perm))
 	if err != nil {

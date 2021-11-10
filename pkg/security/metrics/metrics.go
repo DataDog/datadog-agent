@@ -64,6 +64,11 @@ var (
 	// Tags: ret
 	MetricDentryERPC = newRuntimeMetric(".dentry_resolver.erpc")
 
+	// filtering metrics
+
+	// MetricInodeDiscardersAdded is the number of inode discarder added
+	MetricInodeDiscardersAdded = newRuntimeMetric(".discarders.inode.added")
+
 	// Perf buffer metrics
 
 	// MetricPerfBufferLostWrite is the name of the metric used to count the number of lost events, as reported by a

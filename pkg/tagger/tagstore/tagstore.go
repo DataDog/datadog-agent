@@ -8,7 +8,6 @@ package tagstore
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"time"
 
@@ -18,9 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/benbjohnson/clock"
 )
 
 const (
@@ -30,37 +31,6 @@ const (
 
 // ErrNotFound is returned when entity id is not found in the store.
 var ErrNotFound = errors.New("entity not found")
-
-// EntityTags holds the tag information for a given entity. It is not
-// thread-safe, so should not be shared outside of the store. Usage inside the
-// store is safe since it relies on a global lock.
-type EntityTags struct {
-	entityID           string
-	sourceTags         map[string]sourceTags
-	cacheValid         bool
-	cachedSource       []string
-	cachedAll          util.HashedTags // Low + orchestrator + high
-	cachedOrchestrator util.HashedTags // Low + orchestrator (subslice of cachedAll)
-	cachedLow          util.HashedTags // Sub-slice of cachedAll
-}
-
-func newEntityTags(entityID string) *EntityTags {
-	return &EntityTags{
-		entityID:   entityID,
-		sourceTags: make(map[string]sourceTags),
-		cacheValid: true,
-	}
-}
-
-// sourceTags holds the tags for a given entity collected from a single source,
-// grouped by their cardinality.
-type sourceTags struct {
-	lowCardTags          []string
-	orchestratorCardTags []string
-	highCardTags         []string
-	standardTags         []string
-	expiryDate           time.Time
-}
 
 // TagStore stores entity tags in memory and handles search and collation.
 // Queries should go through the Tagger for cache-miss handling
@@ -73,17 +43,21 @@ type TagStore struct {
 
 	subscriber *subscriber.Subscriber
 
-	clock clock
+	clock clock.Clock
 }
 
 // NewTagStore creates new TagStore.
 func NewTagStore() *TagStore {
+	return newTagStoreWithClock(clock.New())
+}
+
+func newTagStoreWithClock(clock clock.Clock) *TagStore {
 	return &TagStore{
 		telemetry:  make(map[string]map[string]float64),
 		store:      make(map[string]*EntityTags),
 		InfoIn:     make(chan []*collectors.TagInfo, tagInfoBufferSize),
 		subscriber: subscriber.NewSubscriber(),
-		clock:      realClock{},
+		clock:      clock,
 	}
 }
 
@@ -158,12 +132,6 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 		}
 
 		// TODO: check if real change
-
-		_, found := storedTags.sourceTags[info.Source]
-		if found && info.CacheMiss {
-			log.Tracef("ProcessTagInfo err: try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
-			continue
-		}
 
 		telemetry.UpdatedEntities.Inc()
 		updateStoredTags(storedTags, info)
@@ -300,13 +268,13 @@ func (s *TagStore) Prune() {
 // LookupHashed gets tags from the store and returns them as a HashedTags instance. It
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
-func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) (util.HashedTags, []string) {
+func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) tagset.HashedTags {
 	s.RLock()
 	defer s.RUnlock()
 	storedTags, present := s.store[entity]
 
 	if present == false {
-		return util.HashedTags{}, nil
+		return tagset.HashedTags{}
 	}
 	return storedTags.getHashedTags(cardinality)
 }
@@ -314,9 +282,8 @@ func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardina
 // Lookup gets tags from the store and returns them concatenated in a string slice. It
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
-func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) ([]string, []string) {
-	tags, sources := s.LookupHashed(entity, cardinality)
-	return tags.Get(), sources
+func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) []string {
+	return s.LookupHashed(entity, cardinality).Get()
 }
 
 // LookupStandard returns the standard tags recorded for a given entity
@@ -330,7 +297,7 @@ func (s *TagStore) LookupStandard(entityID string) ([]string, error) {
 	return storedTags.getStandard(), nil
 }
 
-// GetEntityTags returns the standard tags recorded for a given entity
+// GetEntityTags returns the EntityTags for a given entity
 func (s *TagStore) GetEntityTags(entityID string) (*EntityTags, error) {
 	s.RLock()
 	defer s.RUnlock()
@@ -341,54 +308,6 @@ func (s *TagStore) GetEntityTags(entityID string) (*EntityTags, error) {
 	}
 
 	return storedTags, nil
-}
-
-func (e *EntityTags) getStandard() []string {
-	tags := []string{}
-	for _, t := range e.sourceTags {
-		tags = append(tags, t.standardTags...)
-	}
-	return tags
-}
-
-type tagPriority struct {
-	tag         string                       // full tag
-	priority    collectors.CollectorPriority // collector priority
-	cardinality collectors.TagCardinality    // cardinality level of the tag (low, orchestrator, high)
-}
-
-func (e *EntityTags) get(cardinality collectors.TagCardinality) ([]string, []string) {
-	tags, sources := e.getHashedTags(cardinality)
-	return tags.Get(), sources
-}
-
-func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) (util.HashedTags, []string) {
-	e.computeCache()
-
-	if cardinality == collectors.HighCardinality {
-		return e.cachedAll, e.cachedSource
-	} else if cardinality == collectors.OrchestratorCardinality {
-		return e.cachedOrchestrator, e.cachedSource
-	}
-	return e.cachedLow, e.cachedSource
-}
-
-func (e *EntityTags) toEntity() types.Entity {
-	e.computeCache()
-
-	cachedAll := e.cachedAll.Get()
-	cachedOrchestrator := e.cachedOrchestrator.Get()
-	cachedLow := e.cachedLow.Get()
-
-	return types.Entity{
-		ID:           e.entityID,
-		StandardTags: e.getStandard(),
-		// cachedAll contains low, orchestrator and high cardinality tags, in this order.
-		// cachedOrchestrator and cachedLow are subslices of cachedAll, starting at index 0.
-		HighCardinalityTags:         cachedAll[len(cachedOrchestrator):],
-		OrchestratorCardinalityTags: cachedOrchestrator[len(cachedLow):],
-		LowCardinalityTags:          cachedLow,
-	}
 }
 
 // List returns full list of entities and their tags per source in an API format.
@@ -416,100 +335,6 @@ func (s *TagStore) List() response.TaggerListResponse {
 	}
 
 	return r
-}
-
-func (e *EntityTags) computeCache() {
-	if e.cacheValid {
-		return
-	}
-
-	var sources []string
-	tagPrioMapper := make(map[string][]tagPriority)
-
-	for source, tags := range e.sourceTags {
-		sources = append(sources, source)
-		insertWithPriority(tagPrioMapper, tags.lowCardTags, source, collectors.LowCardinality)
-		insertWithPriority(tagPrioMapper, tags.orchestratorCardTags, source, collectors.OrchestratorCardinality)
-		insertWithPriority(tagPrioMapper, tags.highCardTags, source, collectors.HighCardinality)
-	}
-
-	var lowCardTags []string
-	var orchestratorCardTags []string
-	var highCardTags []string
-	for _, tags := range tagPrioMapper {
-		for i := 0; i < len(tags); i++ {
-			insert := true
-			for j := 0; j < len(tags); j++ {
-				// if we find a duplicate tag with higher priority we do not insert the tag
-				if i != j && tags[i].priority < tags[j].priority {
-					insert = false
-					break
-				}
-			}
-			if !insert {
-				continue
-			}
-			if tags[i].cardinality == collectors.HighCardinality {
-				highCardTags = append(highCardTags, tags[i].tag)
-				continue
-			} else if tags[i].cardinality == collectors.OrchestratorCardinality {
-				orchestratorCardTags = append(orchestratorCardTags, tags[i].tag)
-				continue
-			}
-			lowCardTags = append(lowCardTags, tags[i].tag)
-		}
-	}
-
-	tags := append(lowCardTags, orchestratorCardTags...)
-	tags = append(tags, highCardTags...)
-
-	cached := util.NewHashedTagsFromSlice(tags)
-
-	// Write cache
-	e.cacheValid = true
-	e.cachedSource = sources
-	e.cachedAll = cached
-	e.cachedLow = cached.Slice(0, len(lowCardTags))
-	e.cachedOrchestrator = cached.Slice(0, len(lowCardTags)+len(orchestratorCardTags))
-}
-
-func (e *EntityTags) shouldRemove() bool {
-	for _, tags := range e.sourceTags {
-		if !tags.expiryDate.IsZero() || !tags.isEmpty() {
-			return false
-		}
-	}
-
-	return true
-}
-
-func (st *sourceTags) isEmpty() bool {
-	return len(st.lowCardTags) == 0 && len(st.orchestratorCardTags) == 0 && len(st.highCardTags) == 0 && len(st.standardTags) == 0
-}
-
-func (st *sourceTags) isExpired(t time.Time) bool {
-	if st.expiryDate.IsZero() {
-		return false
-	}
-
-	return st.expiryDate.Before(t)
-}
-
-func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, source string, cardinality collectors.TagCardinality) {
-	priority, found := collectors.CollectorPriorities[source]
-	if !found {
-		log.Warnf("Tagger: %s collector has no defined priority, assuming low", source)
-		priority = collectors.NodeRuntime
-	}
-
-	for _, t := range tags {
-		tagName := strings.Split(t, ":")[0]
-		tagPrioMapper[tagName] = append(tagPrioMapper[tagName], tagPriority{
-			tag:         t,
-			priority:    priority,
-			cardinality: cardinality,
-		})
-	}
 }
 
 // GetEntity returns the entity corresponding to the specified id and an error

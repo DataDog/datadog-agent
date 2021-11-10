@@ -96,19 +96,33 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 
 	instances := make([]resolvedInstance, len(resources))
 	for i, resource := range resources {
+		resourceKind := resource.GetObjectKind().GroupVersionKind().Kind
+		resourceGroup := resource.GetObjectKind().GroupVersionKind().Group
+		resourceVersion := resource.GetObjectKind().GroupVersionKind().Version
+		resourceNamespace := resource.GetNamespace()
+		resourceName := resource.GetName()
+
 		instances[i] = &kubeUnstructureResolvedResource{
 			KubeUnstructuredResource: compliance.KubeUnstructuredResource{Unstructured: resource},
 			Instance: eval.NewInstance(
 				eval.VarMap{
-					compliance.KubeResourceFieldKind:      resource.GetObjectKind().GroupVersionKind().Kind,
-					compliance.KubeResourceFieldGroup:     resource.GetObjectKind().GroupVersionKind().Group,
-					compliance.KubeResourceFieldVersion:   resource.GetObjectKind().GroupVersionKind().Version,
-					compliance.KubeResourceFieldNamespace: resource.GetNamespace(),
-					compliance.KubeResourceFieldName:      resource.GetName(),
+					compliance.KubeResourceFieldKind:      resourceKind,
+					compliance.KubeResourceFieldGroup:     resourceGroup,
+					compliance.KubeResourceFieldVersion:   resourceVersion,
+					compliance.KubeResourceFieldNamespace: resourceNamespace,
+					compliance.KubeResourceFieldName:      resourceName,
 					compliance.KubeResourceFieldResource:  resource,
 				},
 				eval.FunctionMap{
 					compliance.KubeResourceFuncJQ: kubeResourceJQ(resource),
+				},
+				eval.RegoInputMap{
+					"kind":      resourceKind,
+					"group":     resourceGroup,
+					"version":   resourceVersion,
+					"namespace": resourceNamespace,
+					"name":      resourceName,
+					"resource":  resource,
 				},
 			),
 		}

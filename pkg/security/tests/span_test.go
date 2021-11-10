@@ -14,9 +14,9 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,23 +67,22 @@ func TestSpan(t *testing.T) {
 		tls[offset] = 123
 		tls[offset+1] = 456
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			testFile, _, err := test.Create("test-span")
-			os.Remove(testFile)
-			return err
+			if err != nil {
+				return err
+			}
+			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_open")
 
 			if !validateSpanSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 
 			assert.Equal(t, uint64(123), event.SpanContext.SpanID)
 			assert.Equal(t, uint64(456), event.SpanContext.TraceID)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("exec", func(t *testing.T) {
@@ -96,20 +95,17 @@ func TestSpan(t *testing.T) {
 			}
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(t, syscallTester, "span-exec", "104", "204", executable, "/tmp/test_span_rule_exec")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_exec")
 
 			if !validateSpanSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 
 			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
 			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }

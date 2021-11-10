@@ -276,7 +276,7 @@ build do
 
     tasks_dir_in = windows_safe_path(Dir.pwd)
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
-    cache_branch = /^(7\.\d+\.x|main)$/.match(ENV.fetch('CI_COMMIT_BRANCH', ''))
+    cache_branch = `cd .. && inv release.get-release-json-value base_branch`.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
     awscli = if windows? then '"c:\program files\amazon\awscli\bin\aws"' else 'aws' end
     if cache_bucket != ''
@@ -400,8 +400,14 @@ build do
       # Patch applies to only one file: set it explicitly as a target, no need for -p
       if windows?
         patch :source => "create-regex-at-runtime.patch", :target => "#{python_2_embedded}/Lib/site-packages/yaml/reader.py"
+        patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{python_2_embedded}/Lib/site-packages/tuf/client/updater.py"
       else
         patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
+        patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/tuf/client/updater.py"
+      end
+
+      if linux?
+        patch :source => "psutil-pr2000.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/psutil/_pslinux.py"
       end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible

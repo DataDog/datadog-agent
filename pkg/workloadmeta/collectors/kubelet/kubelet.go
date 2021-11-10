@@ -3,18 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubelet
 
 import (
 	"context"
-	"errors"
 	"time"
 
-	"k8s.io/kubernetes/third_party/forked/golang/expansion"
+	"github.com/DataDog/datadog-agent/third_party/golang/expansion"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,13 +23,14 @@ import (
 )
 
 const (
-	collectorID = "kubelet"
-	expireFreq  = 15 * time.Second
+	collectorID   = "kubelet"
+	componentName = "workloadmeta-kubelet"
+	expireFreq    = 15 * time.Second
 )
 
 type collector struct {
 	watcher    *kubelet.PodWatcher
-	store      *workloadmeta.Store
+	store      workloadmeta.Store
 	lastExpire time.Time
 	expireFreq time.Duration
 }
@@ -39,9 +41,9 @@ func init() {
 	})
 }
 
-func (c *collector) Start(_ context.Context, store *workloadmeta.Store) error {
+func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Kubernetes) {
-		return errors.New("the Agent is not running in Kubernetes")
+		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
 	var err error
@@ -49,7 +51,7 @@ func (c *collector) Start(_ context.Context, store *workloadmeta.Store) error {
 	c.store = store
 	c.lastExpire = time.Now()
 	c.expireFreq = expireFreq
-	c.watcher, err = kubelet.NewPodWatcher(expireFreq, true)
+	c.watcher, err = kubelet.NewPodWatcher(expireFreq)
 	if err != nil {
 		return err
 	}
@@ -79,8 +81,8 @@ func (c *collector) Pull(ctx context.Context) error {
 	return err
 }
 
-func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
-	events := []workloadmeta.Event{}
+func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
+	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
 		podMeta := pod.Metadata
@@ -96,7 +98,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 		containerSpecs = append(containerSpecs, pod.Spec.InitContainers...)
 		containerSpecs = append(containerSpecs, pod.Spec.Containers...)
 
-		containerIDs, containerEvents := c.parsePodContainers(
+		podContainers, containerEvents := c.parsePodContainers(
 			containerSpecs,
 			pod.Status.GetAllContainers(),
 		)
@@ -111,7 +113,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 			})
 		}
 
-		entity := workloadmeta.KubernetesPod{
+		entity := &workloadmeta.KubernetesPod{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindKubernetesPod,
 				ID:   podMeta.UID,
@@ -124,7 +126,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 			},
 			Owners:                     owners,
 			PersistentVolumeClaimNames: pod.GetPersistentVolumeClaimNames(),
-			Containers:                 containerIDs,
+			Containers:                 podContainers,
 			Ready:                      kubelet.IsPodReady(pod),
 			Phase:                      pod.Status.Phase,
 			IP:                         pod.Status.PodIP,
@@ -132,8 +134,8 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 		}
 
 		events = append(events, containerEvents...)
-		events = append(events, workloadmeta.Event{
-			Source: collectorID,
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceKubelet,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: entity,
 		})
@@ -145,9 +147,9 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 func (c *collector) parsePodContainers(
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
-) ([]string, []workloadmeta.Event) {
-	containerIDs := make([]string, 0, len(containerStatuses))
-	events := make([]workloadmeta.Event, 0, len(containerStatuses))
+) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
+	podContainers := make([]workloadmeta.OrchestratorContainer, 0, len(containerStatuses))
+	events := make([]workloadmeta.CollectorEvent, 0, len(containerStatuses))
 
 	for _, container := range containerStatuses {
 		if container.ID == "" {
@@ -158,29 +160,43 @@ func (c *collector) parsePodContainers(
 		}
 
 		var env map[string]string
-		var image workloadmeta.ContainerImage
 		var ports []workloadmeta.ContainerPort
 
+		image, err := workloadmeta.NewContainerImage(container.Image)
+		if err != nil {
+			log.Warnf("cannot split image name %q: %s", container.Image, err)
+		}
+
+		image.ID = container.ImageID
+
 		runtime, containerID := containers.SplitEntityName(container.ID)
-		containerIDs = append(containerIDs, containerID)
+		podContainer := workloadmeta.OrchestratorContainer{
+			ID:   containerID,
+			Name: container.Name,
+		}
 
 		containerSpec := findContainerSpec(container.Name, containerSpecs)
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
-			image = buildImage(containerSpec.Image)
+
+			podContainer.Image, err = workloadmeta.NewContainerImage(containerSpec.Image)
+			if err != nil {
+				log.Debugf("cannot split image name %q: %s", containerSpec.Image, err)
+			}
+
+			podContainer.Image.ID = container.ImageID
 
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
 				ports = append(ports, workloadmeta.ContainerPort{
-					Name: port.Name,
-					Port: port.ContainerPort,
+					Name:     port.Name,
+					Port:     port.ContainerPort,
+					Protocol: port.Protocol,
 				})
 			}
 		} else {
 			log.Debugf("cannot find spec for container %q", container.Name)
 		}
-
-		image.ID = container.ImageID
 
 		containerState := workloadmeta.ContainerState{}
 		if st := container.State.Running; st != nil {
@@ -192,10 +208,11 @@ func (c *collector) parsePodContainers(
 			containerState.FinishedAt = st.FinishedAt
 		}
 
-		events = append(events, workloadmeta.Event{
-			Source: collectorID,
+		podContainers = append(podContainers, podContainer)
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceKubelet,
 			Type:   workloadmeta.EventTypeSet,
-			Entity: workloadmeta.Container{
+			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
 					ID:   containerID,
@@ -212,7 +229,7 @@ func (c *collector) parsePodContainers(
 		})
 	}
 
-	return containerIDs, events
+	return podContainers, events
 }
 
 func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.ContainerSpec {
@@ -247,32 +264,8 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	return env
 }
 
-func buildImage(imageSpec string) workloadmeta.ContainerImage {
-	image := workloadmeta.ContainerImage{
-		RawName: imageSpec,
-		Name:    imageSpec,
-	}
-
-	name, shortName, tag, err := containers.SplitImageName(imageSpec)
-	if err != nil {
-		log.Debugf("cannot split image name %q: %s", imageSpec, err)
-		return image
-	}
-
-	if tag == "" {
-		// k8s defaults to latest if tag is omitted
-		tag = "latest"
-	}
-
-	image.Name = name
-	image.ShortName = shortName
-	image.Tag = tag
-
-	return image
-}
-
-func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.Event {
-	events := make([]workloadmeta.Event, 0, len(expiredIDs))
+func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
 
 	for _, expiredID := range expiredIDs {
 		prefix, id := containers.SplitEntityName(expiredID)
@@ -284,8 +277,8 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.Event {
 			kind = workloadmeta.KindContainer
 		}
 
-		events = append(events, workloadmeta.Event{
-			Source: collectorID,
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceKubelet,
 			Type:   workloadmeta.EventTypeUnset,
 			Entity: workloadmeta.EntityID{
 				Kind: kind,

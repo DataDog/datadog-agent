@@ -16,6 +16,8 @@ const (
 	envEnvVar       = "DD_ENV"
 	versionEnvVar   = "DD_VERSION"
 	serviceEnvVar   = "DD_SERVICE"
+	runtimeVar      = "AWS_EXECUTION_ENV"
+	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
 
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
@@ -32,6 +34,9 @@ const (
 	envKey                   = "env"
 	versionKey               = "version"
 	serviceKey               = "service"
+	runtimeKey               = "runtime"
+	memorySizeKey            = "memorysize"
+	architectureKey          = "architecture"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -42,6 +47,14 @@ var currentExtensionVersion = "xxx"
 // BuildTagMap builds a map of tag based on the arn and user defined tags
 func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
+
+	architecture := ResolveRuntimeArch()
+	tags = setIfNotEmpty(tags, architectureKey, architecture)
+
+	cleanedRuntime := strings.Replace(os.Getenv(runtimeVar), "AWS_Lambda_", "", 1)
+
+	tags = setIfNotEmpty(tags, runtimeKey, cleanedRuntime)
+	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
 
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
 	tags = setIfNotEmpty(tags, versionKey, os.Getenv(versionEnvVar))

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestMacros(t *testing.T) {
@@ -47,15 +47,12 @@ func TestMacros(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = test.GetSignal(t, func() error {
-		if err := os.Mkdir(testFile, 0777); err != nil {
+	test.WaitSignal(t, func() error {
+		if err = os.Mkdir(testFile, 0777); err != nil {
 			return err
 		}
 		return os.Remove(testFile)
 	}, func(event *sprobe.Event, rule *rules.Rule) {
 		assert.Equal(t, "mkdir", event.GetType(), "wrong event type")
 	})
-	if err != nil {
-		t.Error(err)
-	}
 }

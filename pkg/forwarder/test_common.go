@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package forwarder
@@ -89,6 +90,11 @@ func (tf *MockedForwarder) Stop() {
 
 // SubmitV1Series updates the internal mock struct
 func (tf *MockedForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
+}
+
+// SubmitSeries updates the internal mock struct
+func (tf *MockedForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }
 

@@ -150,6 +150,9 @@ func (b *Builder) getIntegrations() []Integration {
 func (b *Builder) groupSourcesByName() map[string][]*config.LogSource {
 	sources := make(map[string][]*config.LogSource)
 	for _, source := range b.sources.GetSources() {
+		if source.IsHiddenFromStatus() {
+			continue
+		}
 		if _, exists := sources[source.Name]; !exists {
 			sources[source.Name] = []*config.LogSource{}
 		}

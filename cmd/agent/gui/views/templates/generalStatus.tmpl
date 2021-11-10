@@ -253,6 +253,25 @@
             </span>
           </span>
         {{- end}}
+      {{- end -}}
+      {{/* The subsection `On-disk storage` is not inside `{{- with .forwarderStats -}}` as it need to access `.config` */}}
+      <span class="stat_subtitle">On-disk storage</span>
+      <span class="stat_subdata">
+      {{- if .config.forwarder_storage_max_size_in_bytes }}
+        {{- if .forwarderStats.FileStorage.CurrentSizeInBytes }}
+        Disk usage in bytes: {{ .forwarderStats.FileStorage.CurrentSizeInBytes }}<br>
+        Number of files: {{ .forwarderStats.FileStorage.FilesCount }}<br>
+        Number of files dropped: {{ .forwarderStats.FileStorage.FilesRemovedCount }}<br>
+        Deserialization errors count: {{ .forwarderStats.FileStorage.DeserializeErrorsCount }}<br>
+        Outdated files removed at startup: {{ .forwarderStats.RemovalPolicy.OutdatedFilesCount }}<br>
+        {{- else }}
+        Enabled, not in-use.<br>
+        {{- end}}
+      {{- else }}
+        On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.<br>
+      {{- end}}
+      </span>
+      {{- with .forwarderStats -}}
         {{- if .APIKeyStatus}}
           <span class="stat_subtitle">API Keys Status</span>
           <span class="stat_subdata">

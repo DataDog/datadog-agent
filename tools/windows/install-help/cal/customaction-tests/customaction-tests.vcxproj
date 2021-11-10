@@ -39,7 +39,6 @@
     <ClCompile Include="CustomActionData_Init.cpp" />
     <ClCompile Include="CustomActionData_CanInstall.cpp" />
     <ClCompile Include="FinalizeInstall_InstallInfo.cpp" />
-    <ClCompile Include="FinalizeInstall_ShouldUpdateConfig.cpp" />
     <ClCompile Include="ReplaceYamlProperties_APMTests.cpp">
       <DependentUpon>ReplaceYamlProperties_Tests.cpp</DependentUpon>
     </ClCompile>

@@ -46,11 +46,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	threePods := sourcePods[:3]
 	remainingPods := sourcePods[3:]
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
 
 	changes, err := watcher.computeChanges(threePods)
 	require.Nil(suite.T(), err)
@@ -87,11 +83,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 6)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
 
 	changes, err := watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
@@ -128,11 +120,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 5)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
 
 	changes, err := watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
@@ -156,11 +144,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithShortLivedContainers() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 4)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
 
 	changes, err := watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
@@ -184,11 +168,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 5)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
 
 	changes, err := watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
@@ -212,13 +192,13 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
 
-	// the pod goes unready again, no changes
+	// the pod goes unready again, detect change
 	sourcePods, err = loadPodsFixture("./testdata/podlist_container_not_ready.json")
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 5)
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 1)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
@@ -238,13 +218,13 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
 
-	// no changes if it become ready again
+	// goes ready again, detect change
 	sourcePods, err = loadPodsFixture("./testdata/podlist_container_ready.json")
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 5)
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 1)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
@@ -257,7 +237,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Len(suite.T(), sourcePods, 5)
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 1)
 	require.Len(suite.T(), watcher.lastSeenReady, 5)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
@@ -285,11 +265,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireUnready() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 5)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
 
 	changes, err := watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
@@ -328,13 +304,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 7)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
-		oldPhase:       make(map[string]string),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
+
 	_, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
 	// 7 pods (including 2 statics) + 5 container statuses (static pods don't report these)
@@ -370,13 +341,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 7)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
-		oldPhase:       make(map[string]string),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
 
 	_, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
@@ -433,7 +398,7 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
 	mockConfig.Set("kubelet_tls_verify", false)
 
-	watcher, err := NewPodWatcher(5*time.Minute, false)
+	watcher, err := NewPodWatcher(5 * time.Minute)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), watcher)
 	<-kubelet.Requests // Throwing away the first /spec GET
@@ -450,13 +415,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherLabelsValueChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 7)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
-		oldPhase:       make(map[string]string),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
+
 	twoPods := sourcePods[:2]
 	changes, err := watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
@@ -493,13 +453,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherPhaseChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 7)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
-		oldPhase:       make(map[string]string),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
+
 	twoPods := sourcePods[:2]
 	changes, err := watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
@@ -511,41 +466,13 @@ func (suite *PodwatcherTestSuite) TestPodWatcherPhaseChange() {
 	require.Len(suite.T(), changes, 1)
 }
 
-// TestPodWatcherPhaseChangeNotRegistered test makes sure that we only check for
-// pod phases in the tagger and not for auto discovery
-func (suite *PodwatcherTestSuite) TestPodWatcherPhaseChangeNotRegistered() {
-	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
-	require.Nil(suite.T(), err)
-	require.Len(suite.T(), sourcePods, 7)
-
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		expiryDuration: 5 * time.Minute,
-	}
-	twoPods := sourcePods[:2]
-	changes, err := watcher.computeChanges(twoPods)
-	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 2)
-
-	twoPods[0].Status.Phase = "Succeeded"
-	changes, err = watcher.computeChanges(twoPods)
-	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
-}
-
 func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 7)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
-		oldPhase:       make(map[string]string),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
+
 	twoPods := sourcePods[:2]
 	changes, err := watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
@@ -577,34 +504,12 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 	require.Len(suite.T(), changes, 2)
 }
 
-func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreating() {
-	sourcePods, err := loadPodsFixture("./testdata/podlist_container_creating.json")
-	require.Nil(suite.T(), err)
-	require.Len(suite.T(), sourcePods, 1)
-
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		expiryDuration: 5 * time.Minute,
-	}
-
-	changes, err := watcher.computeChanges(sourcePods)
-	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
-}
-
 func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreatingTags() {
 	sourcePods, err := loadPodsFixture("./testdata/podlist_container_creating.json")
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 1)
 
-	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
-		oldPhase:       make(map[string]string),
-		expiryDuration: 5 * time.Minute,
-	}
+	watcher := newWatcher()
 
 	changes, err := watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
@@ -613,4 +518,15 @@ func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreatingTags() {
 
 func TestPodwatcherTestSuite(t *testing.T) {
 	suite.Run(t, new(PodwatcherTestSuite))
+}
+
+func newWatcher() *PodWatcher {
+	return &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		lastSeenReady:  make(map[string]time.Time),
+		tagsDigest:     make(map[string]string),
+		oldPhase:       make(map[string]string),
+		oldReadiness:   make(map[string]bool),
+		expiryDuration: 5 * time.Minute,
+	}
 }

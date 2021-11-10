@@ -74,6 +74,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	hook, hookok := MetaHook()
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -169,7 +170,11 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					err = msgp.WrapError(err, "Meta", za0001)
 					return
 				}
-				z.Meta[za0001] = za0002
+				if hookok {
+					z.Meta[za0001] = hook(za0001, za0002)
+				} else {
+					z.Meta[za0001] = za0002
+				}
 			}
 		case "metrics":
 			if msgp.IsNil(bts) {
