@@ -783,5 +783,5 @@ func runeBytes(r rune) []byte {
 
 // isValidCharAfterOperator returns true if c is a valid character after an operator
 func isValidCharAfterOperator(c rune) bool {
-	return c == '(' || c == '`' || c == '\'' || c == '"' || unicode.IsSpace(c) || isLetter(c) || isDigit(c)
+	return c == '(' || c == '`' || c == '\'' || c == '"' || c == '+' || c == '-' || unicode.IsSpace(c) || isLetter(c) || isDigit(c)
 }

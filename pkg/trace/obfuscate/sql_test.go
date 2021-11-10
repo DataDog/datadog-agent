@@ -530,6 +530,16 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				tables: "test",
 				obfuscated: "select * from test where ! weird_query",
 			},
+			{
+				query: "select !- 2",
+				tables: "",
+				obfuscated: "select ! - ?",
+			},
+			{
+				query: "select !+2",
+				tables: "",
+				obfuscated: "select ! + ?",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
@@ -1304,12 +1314,14 @@ func TestSQLErrors(t *testing.T) {
 			"",
 			"result is empty",
 		},
-
 		{
 			"SELECT a FROM b WHERE a.x !* 2",
 			`at position 27: unexpected char "*" (42) after "!"`,
 		},
-
+		{
+			"SELECT a FROM b WHERE a.x !& 2",
+			`at position 27: unexpected char "&" (38) after "!"`,
+		},
 		{
 			"SELECT 🥒",
 			`at position 11: unexpected byte 129362`,
