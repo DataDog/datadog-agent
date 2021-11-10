@@ -120,7 +120,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.Tagg
 	return &pb.TaggerStateResponse{Loaded: true}, nil
 }
 
-// StreamTags subscribes to added, removed, or changed entities in the Tagger
+// TaggerStreamEntities subscribes to added, removed, or changed entities in the Tagger
 // and streams them to clients as pb.StreamTagsResponse events. Filtering is as
 // of yet not implemented.
 func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecure_TaggerStreamEntitiesServer) error {
@@ -170,7 +170,7 @@ func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.Age
 	}
 }
 
-// FetchEntity fetches an entity from the Tagger with the desired cardinality tags.
+// TaggerFetchEntity fetches an entity from the Tagger with the desired cardinality tags.
 func (s *serverSecure) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
 	if in.Id == nil {
 		return nil, status.Errorf(codes.InvalidArgument, `missing "id" parameter`)
