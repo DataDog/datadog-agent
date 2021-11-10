@@ -14,7 +14,13 @@ import (
 
 // DefaultScrubber is the scrubber used by the package-level cleaning functions.
 //
-// It includes a set of agent-specific replacers defined in default.go.
+// It includes a set of agent-specific replacers.  It can scrub DataDog App
+// and API keys, passwords from URLs, and multi-line PEM-formatted TLS keys and
+// certificates.  It contains special handling for YAML-like content (with
+// lines of the form "key: value") and can scrub passwords, tokens, and SNMP
+// community strings in such content.
+//
+// See default.go for details of these replacers.
 var DefaultScrubber = &Scrubber{}
 
 func init() {
