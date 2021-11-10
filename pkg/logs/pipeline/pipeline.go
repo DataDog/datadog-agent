@@ -103,20 +103,20 @@ func getMainDestinations(endpoints *config.Endpoints, destinationsContext *clien
 
 func getReliableAdditionalDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
 	reliableEndpoints := endpoints.GetReliableAdditionals()
-	var backupEndpoint config.Endpoint
+	var reliableAdditionalEndpoint config.Endpoint
 
 	if len(reliableEndpoints) >= 1 {
 		log.Infof("Found an additional reliable endpoint. Only the first additional endpoint marked as reliable will be used at this time.")
-		backupEndpoint = *reliableEndpoints[0]
+		reliableAdditionalEndpoint = *reliableEndpoints[0]
 	} else {
 		return nil
 	}
 
 	if endpoints.UseHTTP {
-		backup := http.NewDestination(backupEndpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
+		backup := http.NewDestination(reliableAdditionalEndpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
 		return client.NewDestinations(backup, []client.Destination{})
 	}
-	backup := tcp.NewDestination(backupEndpoint, endpoints.UseProto, destinationsContext)
+	backup := tcp.NewDestination(reliableAdditionalEndpoint, endpoints.UseProto, destinationsContext)
 	return client.NewDestinations(backup, []client.Destination{})
 }
 
