@@ -174,9 +174,7 @@ func (ccc *CCCache) readData() {
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
-		ccc.RLock()
 		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-		ccc.RUnlock()
 		apps, err := ccc.ccAPIClient.ListV3AppsByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing apps from cloud controller: %v", err)
