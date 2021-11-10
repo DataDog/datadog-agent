@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix incorrect use of a namespaced PID with the host procfs when parsing mountinfo to ensure debugfs is mounted correctly.
+    This issue was preventing system-probe startup in AWS ECS. This issue could also surface in other containerized environments
+    where PID namespaces are in use and ``/host/proc`` is mounted.
