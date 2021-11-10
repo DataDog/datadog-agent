@@ -49,7 +49,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 		"functionname:my-function",
 		"region:us-east-1",
 		"resource:my-function",
-		"runtime:custom",
+		"runtime:unknown",
 	}
 
 	sort.Strings(d.ExtraTags.Tags)
