@@ -33,13 +33,13 @@ type BBSCacheI interface {
 	// will never close.
 	UpdatedOnce() <-chan struct{}
 
-	// GetActualLRPsForProcessGUID returns slice of pointers to ActualLRP objects for given App GUID
-	GetActualLRPsForProcessGUID(appGUID string) ([]*ActualLRP, error)
+	// GetActualLRPsForProcessGUID returns slice of pointers to ActualLRP objects for given process GUID
+	GetActualLRPsForProcessGUID(processGUID string) ([]*ActualLRP, error)
 
-	// GetActualLRPsForCell returns slice of pointers to ActualLRP objects for given Cell ID
+	// GetActualLRPsForCell returns slice of pointers to ActualLRP objects for given cell GUID
 	GetActualLRPsForCell(cellID string) ([]*ActualLRP, error)
 
-	// GetDesiredLRPFor returns DesiredLRP for a specific process GUID
+	// GetDesiredLRPFor returns DesiredLRP for a specific app GUID
 	GetDesiredLRPFor(appGUID string) (DesiredLRP, error)
 
 	// GetAllLRPs returns all Actual LRPs (in mapping {appGuid: []ActualLRP}) and all Desired LRPs
@@ -141,7 +141,7 @@ func (bc *BBSCache) UpdatedOnce() <-chan struct{} {
 	return bc.updatedOnce
 }
 
-// GetActualLRPsForProcessGUID returns slice of pointers to ActualLRP objects for given App GUID
+// GetActualLRPsForProcessGUID returns slice of pointers to ActualLRP objects for given process GUID
 func (bc *BBSCache) GetActualLRPsForProcessGUID(processGUID string) ([]*ActualLRP, error) {
 	bc.RLock()
 	defer bc.RUnlock()
@@ -151,7 +151,7 @@ func (bc *BBSCache) GetActualLRPsForProcessGUID(processGUID string) ([]*ActualLR
 	return []*ActualLRP{}, fmt.Errorf("actual LRPs for app %s not found", processGUID)
 }
 
-// GetActualLRPsForCell returns slice of pointers to ActualLRP objects for given Cell ID
+// GetActualLRPsForCell returns slice of pointers to ActualLRP objects for given cell GUID
 func (bc *BBSCache) GetActualLRPsForCell(cellID string) ([]*ActualLRP, error) {
 	bc.RLock()
 	defer bc.RUnlock()
@@ -161,14 +161,14 @@ func (bc *BBSCache) GetActualLRPsForCell(cellID string) ([]*ActualLRP, error) {
 	return []*ActualLRP{}, fmt.Errorf("actual LRPs for cell %s not found", cellID)
 }
 
-// GetDesiredLRPFor returns DesiredLRP for a specific process GUID
-func (bc *BBSCache) GetDesiredLRPFor(processGUID string) (DesiredLRP, error) {
+// GetDesiredLRPFor returns DesiredLRP for a specific app GUID
+func (bc *BBSCache) GetDesiredLRPFor(appGUID string) (DesiredLRP, error) {
 	bc.RLock()
 	defer bc.RUnlock()
-	if val, ok := bc.desiredLRPs[processGUID]; ok {
+	if val, ok := bc.desiredLRPs[appGUID]; ok {
 		return *val, nil
 	}
-	return DesiredLRP{}, fmt.Errorf("desired LRP for app %s not found", processGUID)
+	return DesiredLRP{}, fmt.Errorf("desired LRP for app %s not found", appGUID)
 }
 
 // GetAllLRPs returns all Actual LRPs (in mapping {appGuid: []ActualLRP}) and all Desired LRPs
