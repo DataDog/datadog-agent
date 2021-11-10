@@ -540,6 +540,11 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				tables: "",
 				obfuscated: "select ! + ?",
 			},
+			{
+				query: "select * from test where !- 2",
+				tables: "test",
+				obfuscated: "select * from test where ! - ?",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
