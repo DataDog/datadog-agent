@@ -69,6 +69,7 @@ instances:
 
     ## @param ok_exit_codes - list of integers - optional - default: [0, 143]
     ## Define the set of exit codes considered OK. It requires the collect_exit_codes parameter to be enabled.
+    ## Note: 143 is returned when docker sends a SIGTERM to stop a container.
     #
     # ok_exit_codes:
     #   - 0
