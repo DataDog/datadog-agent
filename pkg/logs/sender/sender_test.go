@@ -158,9 +158,9 @@ func TestDualShipEndpoints(t *testing.T) {
 	backupMockStrategy := newMockStrategy()
 
 	mainSender := NewSingleSender(mainInput, mainOutput, mainDests, mainMockStrategy)
-	backupSender := NewSingleSender(backupInput, backupOutput, backupDests, backupMockStrategy)
+	additionalSender := NewSingleSender(backupInput, backupOutput, backupDests, backupMockStrategy)
 
-	dualSender := NewDualSender(input, mainSender, backupSender)
+	dualSender := NewDualSender(input, mainSender, additionalSender)
 	dualSender.Start()
 
 	// Scenario 1: Both senders fail, and then both recover

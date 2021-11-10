@@ -121,38 +121,38 @@ func shouldStopSending(err error) bool {
 
 // DualSender wraps 2 single senders to manage sending logs to 2 primary destinations
 type DualSender struct {
-	inputChan    chan *message.Message
-	mainSender   *SingleSender
-	backupSender *SingleSender
-	done         chan struct{}
+	inputChan        chan *message.Message
+	mainSender       *SingleSender
+	additionalSender *SingleSender
+	done             chan struct{}
 }
 
 // NewDualSender creates a new dual sender
-func NewDualSender(inputChan chan *message.Message, mainSender *SingleSender, backupSender *SingleSender) Sender {
+func NewDualSender(inputChan chan *message.Message, mainSender *SingleSender, additionalSender *SingleSender) Sender {
 	mainSender.trackErrors = true
-	backupSender.trackErrors = true
+	additionalSender.trackErrors = true
 	return &DualSender{
-		inputChan:    inputChan,
-		mainSender:   mainSender,
-		backupSender: backupSender,
+		inputChan:        inputChan,
+		mainSender:       mainSender,
+		additionalSender: additionalSender,
 	}
 }
 
 // Start starts the child senders and manages any errors/back pressure.
 func (s *DualSender) Start() {
 	s.mainSender.Start()
-	s.backupSender.Start()
+	s.additionalSender.Start()
 
 	// Splits a single stream of message into 2 equal streams.
 	// Acts like an AND gate in that the input will only block if both outputs block.
 	// This ensures backpressure is propagated to the input to prevent loss of measages in the pipeline.
 	go func() {
 		mainSenderHasErr := false
-		backupSenderHasErr := false
+		additionalSenderHasErr := false
 
 		for message := range s.inputChan {
 			sentMain := false
-			sentBackup := false
+			sentAdditional := false
 
 			// First collect any errors from the senders
 			select {
@@ -161,19 +161,19 @@ func (s *DualSender) Start() {
 			}
 
 			select {
-			case backupSenderHasErr = <-s.backupSender.hasError:
+			case additionalSenderHasErr = <-s.additionalSender.hasError:
 			default:
 			}
 
 			// If both senders are failing, we want to block the pipeline until at least one succeeds
-			if mainSenderHasErr && backupSenderHasErr {
+			if mainSenderHasErr && additionalSenderHasErr {
 				select {
 				case s.mainSender.inputChan <- message:
 					sentMain = true
-				case s.backupSender.inputChan <- message:
-					sentBackup = true
+				case s.additionalSender.inputChan <- message:
+					sentAdditional = true
 				case mainSenderHasErr = <-s.mainSender.hasError:
-				case backupSenderHasErr = <-s.backupSender.hasError:
+				case additionalSenderHasErr = <-s.additionalSender.hasError:
 				}
 			}
 
@@ -181,8 +181,8 @@ func (s *DualSender) Start() {
 				mainSenderHasErr = sendMessage(mainSenderHasErr, s.mainSender, message)
 			}
 
-			if !sentBackup {
-				backupSenderHasErr = sendMessage(backupSenderHasErr, s.backupSender, message)
+			if !sentAdditional {
+				additionalSenderHasErr = sendMessage(additionalSenderHasErr, s.additionalSender, message)
 			}
 		}
 		s.done <- struct{}{}
@@ -195,13 +195,13 @@ func (s *DualSender) Stop() {
 	close(s.inputChan)
 	<-s.done
 	s.mainSender.Stop()
-	s.backupSender.Stop()
+	s.additionalSender.Stop()
 }
 
 // Flush sends synchronously the messages that the child senders have to send
 func (s *DualSender) Flush(ctx context.Context) {
 	s.mainSender.Flush(ctx)
-	s.backupSender.Flush(ctx)
+	s.additionalSender.Flush(ctx)
 }
 
 func sendMessage(hasError bool, sender *SingleSender, message *message.Message) bool {

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
 // Pipeline processes and sends messages to the backend
@@ -28,18 +29,18 @@ type Pipeline struct {
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
 	mainDestinations := getMainDestinations(endpoints, destinationsContext)
-	backupDestinations := getBackupDestinations(endpoints, destinationsContext)
+	reliableAdditionalDestinations := getReliableAdditionalDestinations(endpoints, destinationsContext)
 
 	senderChan := make(chan *message.Message, config.ChanSize)
 
 	var logSender sender.Sender
 
-	// If there is a backup endpoint - we are dual-shipping so we need to spawn an additional sender.
-	if backupDestinations != nil {
+	// If there is a reliable additional endpoint - we are dual-shipping so we need to spawn an additional sender.
+	if reliableAdditionalDestinations != nil {
 		mainSender := sender.NewSingleSender(make(chan *message.Message, config.ChanSize), outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
-		backupSender := sender.NewSingleSender(make(chan *message.Message, config.ChanSize), outputChan, backupDestinations, getStrategy(endpoints, serverless, pipelineID))
+		additionalSender := sender.NewSingleSender(make(chan *message.Message, config.ChanSize), outputChan, reliableAdditionalDestinations, getStrategy(endpoints, serverless, pipelineID))
 
-		logSender = sender.NewDualSender(senderChan, mainSender, backupSender)
+		logSender = sender.NewDualSender(senderChan, mainSender, additionalSender)
 	} else {
 		logSender = sender.NewSingleSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
 	}
@@ -100,11 +101,12 @@ func getMainDestinations(endpoints *config.Endpoints, destinationsContext *clien
 	return client.NewDestinations(main, additionals)
 }
 
-func getBackupDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
+func getReliableAdditionalDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
 	reliableEndpoints := endpoints.GetReliableAdditionals()
 	var backupEndpoint config.Endpoint
 
 	if len(reliableEndpoints) >= 1 {
+		log.Infof("Found an additional reliable endpoint. Only the first additional endpoint marked as reliable will be used at this time.")
 		backupEndpoint = *reliableEndpoints[0]
 	} else {
 		return nil
