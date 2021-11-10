@@ -21,7 +21,7 @@ func dummyErrorProvider(ctx context.Context, options map[string]interface{}) (st
 	return "", fmt.Errorf("Some error")
 }
 
-func dummyInvalideProvider(ctx context.Context, options map[string]interface{}) (string, error) {
+func dummyInvalidProvider(ctx context.Context, options map[string]interface{}) (string, error) {
 	return "some invalid hostname", nil
 }
 
@@ -61,7 +61,7 @@ func TestGetHostnameError(t *testing.T) {
 }
 
 func TestGetHostnameInvalid(t *testing.T) {
-	RegisterHostnameProvider("dummy", dummyInvalideProvider)
+	RegisterHostnameProvider("dummy", dummyInvalidProvider)
 	defer delete(providerCatalog, "dummy")
 
 	_, err := GetHostname(context.Background(), "dummy", nil)

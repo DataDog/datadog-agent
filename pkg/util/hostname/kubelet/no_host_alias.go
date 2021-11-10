@@ -5,7 +5,7 @@
 
 // +build !kubelet
 
-package hostinfo
+package kubelet
 
 import (
 	"context"
