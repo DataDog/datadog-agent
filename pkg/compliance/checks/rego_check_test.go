@@ -132,6 +132,55 @@ func TestRegoCheck(t *testing.T) {
 			},
 		},
 		{
+			name: "failing case",
+			inputs: []compliance.RegoInput{
+				{
+					ResourceCommon: compliance.ResourceCommon{
+						Process: &compliance.Process{
+							Name: "proc1",
+						},
+					},
+					TagName: "processes",
+					Type:    "array",
+				},
+			},
+			module: `
+				package test
+
+				import data.datadog as dd
+
+				default valid = false
+
+				findings[f] {
+					p := input.processes[_]
+					p.flags["--path"] == "foo"
+					f := dd.failing_finding("process", "42", dd.process_data(p))
+				}
+			`,
+			findings: "data.test.findings",
+			processes: processes{
+				42: {
+					Name:    "proc1",
+					Cmdline: []string{"arg1", "--path=foo"},
+				},
+			},
+			expectReports: []*compliance.Report{
+				{
+					Passed: false,
+					Data: event.Data{
+						"process.name":    "proc1",
+						"process.exe":     "",
+						"process.cmdLine": []interface{}{"arg1", "--path=foo"},
+					},
+					Resource: compliance.ReportResource{
+						ID:   "42",
+						Type: "process",
+					},
+					Evaluator: "rego",
+				},
+			},
+		},
+		{
 			name: "error case",
 			inputs: []compliance.RegoInput{
 				{

@@ -31,7 +31,7 @@ passed_finding(resource_type, resource_id, event_data) = f {
 }
 
 failing_finding(resource_type, resource_id, event_data) = f {
-	f := raw_finding("failed", resource_type, resource_id, event_data)
+	f := raw_finding("failing", resource_type, resource_id, event_data)
 }
 
 error_finding(resource_type, resource_id, error_msg) = f {
