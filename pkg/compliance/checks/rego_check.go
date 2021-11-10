@@ -271,7 +271,12 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 				errMsg = ""
 			}
 			err := fmt.Errorf("%v", errMsg)
-			report = buildReportForError(err)
+			report = &compliance.Report{
+				Resource:  reportResource,
+				Passed:    false,
+				Error:     err,
+				Evaluator: regoEvaluator,
+			}
 		case "passed":
 			report = &compliance.Report{
 				Resource:  reportResource,
@@ -432,14 +437,10 @@ func checkFindingRequiredFields(metadata *mapstructure.Metadata) error {
 	return nil
 }
 
-func buildReportForError(err error) *compliance.Report {
+func buildErrorReports(err error) []*compliance.Report {
 	report := compliance.BuildReportForError(err)
 	report.Evaluator = regoEvaluator
-	return report
-}
-
-func buildErrorReports(err error) []*compliance.Report {
-	return []*compliance.Report{buildReportForError(err)}
+	return []*compliance.Report{report}
 }
 
 type regoPrintHook struct{}
