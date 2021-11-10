@@ -27,11 +27,17 @@ docker_network_resource_id(n) = id {
 }
 
 passed_finding(resource_type, resource_id, event_data) = f {
-	f := raw_finding(true, resource_type, resource_id, event_data)
+	f := raw_finding("passed", resource_type, resource_id, event_data)
 }
 
 failing_finding(resource_type, resource_id, event_data) = f {
-	f := raw_finding(false, resource_type, resource_id, event_data)
+	f := raw_finding("failing", resource_type, resource_id, event_data)
+}
+
+error_finding(resource_type, resource_id, error_msg) = f {
+	f := raw_finding("error", resource_type, resource_id, {
+		"error": error_msg
+	})
 }
 
 docker_container_data(c) = d {
