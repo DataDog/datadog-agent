@@ -74,11 +74,14 @@ func TestOpenBasenameApproverFilterERPCDentryResolution(t *testing.T) {
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd1, err = openTestFile(test, testFile1, syscall.O_CREAT)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd1)
+		if err = syscall.Close(fd1); err != nil {
+			return err
+		}
+		return nil
 	}, testFile1); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	defer os.Remove(testFile2)
@@ -91,9 +94,12 @@ func TestOpenBasenameApproverFilterERPCDentryResolution(t *testing.T) {
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd2)
+		if err = syscall.Close(fd2); err != nil {
+			return err
+		}
+		return nil
 	}, testFile2); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
@@ -129,9 +135,12 @@ func TestOpenBasenameApproverFilterMapDentryResolution(t *testing.T) {
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd1, err = openTestFile(test, testFile1, syscall.O_CREAT)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd1)
+		if err = syscall.Close(fd1); err != nil {
+			return err
+		}
+		return nil
 	}, testFile1); err != nil {
 		t.Fatal(err)
 	}
@@ -146,11 +155,14 @@ func TestOpenBasenameApproverFilterMapDentryResolution(t *testing.T) {
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd2)
+		if err = syscall.Close(fd2); err != nil {
+			return err
+		}
+		return nil
 	}, testFile2); err == nil {
-		t.Fatalf("shouldn't get an event")
+		t.Fatal("shouldn't get an event")
 	}
 }
 
@@ -187,7 +199,9 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_ = syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
 		return nil
 	}, func(d *testDiscarder) bool {
 		e := d.event.(*probe.Event)
@@ -209,11 +223,14 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
+		return nil
 	}, testFile); err == nil {
-		t.Fatalf("shouldn't get an event")
+		t.Fatal("shouldn't get an event")
 	}
 }
 
@@ -250,7 +267,9 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_ = syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
 		return nil
 	}, func(d *testDiscarder) bool {
 		e := d.event.(*probe.Event)
@@ -278,11 +297,14 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
+		return nil
 	}, testFile); err == nil {
-		t.Fatalf("shouldn't get an event")
+		t.Fatal("shouldn't get an event")
 	}
 }
 
@@ -294,7 +316,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 		},
 		{
 			ID:         "test_mask_utimes_rule",
-			Expression: `utimes.file.path =~ "{{.Root}}/test-mask-aaa-*"`,
+			Expression: `utimes.file.path == "{{.Root}}/do_not_match/test-mask"`,
 		},
 	}
 
@@ -307,7 +329,6 @@ func TestDiscarderFilterMask(t *testing.T) {
 	t.Run("mask", ifSyscallSupported("SYS_UTIME", func(t *testing.T, syscallNB uintptr) {
 		var testFile string
 		var testFilePtr unsafe.Pointer
-		var err error
 
 		defer os.Remove(testFile)
 
@@ -320,7 +341,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 
 			testFile, testFilePtr, err = test.CreateWithOptions("test-mask", 98, 99, 0o447)
 			if err != nil {
-				t.Fatal(err)
+				return err
 			}
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
@@ -333,30 +354,31 @@ func TestDiscarderFilterMask(t *testing.T) {
 		}
 
 		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
-			t.Fatal(errno)
+			t.Fatal(error(errno))
 		}
 		if err := waitForProbeEvent(test, nil, "utimes.file.path", testFile, model.FileUtimesEventType); err != nil {
-			t.Error("shoud get a utimes event")
+			t.Fatal("should get a utimes event")
 		}
 
 		// wait a bit and ensure utimes event has been discarded
 		time.Sleep(2 * time.Second)
 
 		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
-			t.Fatal(errno)
+			t.Fatal(error(errno))
 		}
 		if err := waitForProbeEvent(test, nil, "utimes.file.path", testFile, model.FileUtimesEventType); err == nil {
-			t.Error("shoudn't get a utimes event")
+			t.Fatal("shouldn't get a utimes event")
 		}
 
 		// not check that we still have the open allowed
 		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
 			if err != nil {
-				t.Fatal(err)
+				return err
 			}
-			f.Close()
-
+			if err = f.Close(); err != nil {
+				return err
+			}
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
@@ -389,31 +411,40 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_NOCTTY)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
+		return nil
 	}, testFile); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_SYNC)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
+		return nil
 	}, testFile); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_RDONLY)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
+		return nil
 	}, testFile); err == nil {
-		t.Error("shouldn't get an event")
+		t.Fatal("shouldn't get an event")
 	}
 }
 
@@ -448,7 +479,9 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_ = syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
 		return nil
 	}, func(d *testDiscarder) bool {
 		e := d.event.(*probe.Event)
@@ -467,14 +500,15 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
-	defer os.Remove(testFile)
-
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_TRUNC)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
+		return nil
 	}, testFile); err == nil {
 		t.Fatalf("shouldn't get an event")
 	}
@@ -503,7 +537,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 	var fd int
 	var testFile string
 
-	testFile, _, err = test.Path("test-obc-2")
+	testFile, _, err = test.Path("to_be_discarded/test-obc-2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -519,8 +553,9 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_ = syscall.Close(fd)
-
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
 		return nil
 
 	}, func(d *testDiscarder) bool {
@@ -546,11 +581,14 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
+		return nil
 	}, testFile); err == nil {
-		t.Fatalf("shouldn't get an event")
+		t.Fatal("shouldn't get an event")
 	}
 
 	// check the retention, we should have event during the retention period
@@ -573,9 +611,12 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		if err := waitForOpenProbeEvent(test, func() error {
 			fd, err = openTestFile(test, newFile, syscall.O_CREAT|syscall.O_SYNC)
 			if err != nil {
-				t.Fatal(err)
+				return err
 			}
-			return syscall.Close(fd)
+			if err = syscall.Close(fd); err != nil {
+				return err
+			}
+			return nil
 		}, newFile); err != nil {
 			discarded = true
 			break
@@ -583,10 +624,10 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 	}
 
 	if !discarded {
-		t.Fatalf("should be discarded")
+		t.Fatal("should be discarded")
 	}
 
 	if diff := time.Since(start); uint64(diff) < uint64(probe.DiscardRetention)-uint64(time.Second) {
-		t.Errorf("discarder retention (%s) not reached: %s", time.Duration(uint64(probe.DiscardRetention)-uint64(time.Second)), diff)
+		t.Fatalf("discarder retention (%s) not reached: %s", time.Duration(uint64(probe.DiscardRetention)-uint64(time.Second)), diff)
 	}
 }

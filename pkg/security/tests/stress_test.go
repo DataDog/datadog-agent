@@ -304,7 +304,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	err = test.GetSignal(b, func() error {
 		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
 		if err != nil {
-			b.Fatal(err)
+			return err
 		}
 		return syscall.Close(fd)
 	}, func(event *sprobe.Event, _ *rules.Rule) {
@@ -373,7 +373,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	err = test.GetSignal(b, func() error {
 		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
 		if err != nil {
-			b.Fatal(err)
+			return err
 		}
 		return syscall.Close(fd)
 	}, func(event *sprobe.Event, _ *rules.Rule) {
@@ -442,9 +442,12 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	err = test.GetSignal(b, func() error {
 		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
 		if err != nil {
-			b.Fatal(err)
+			return err
 		}
-		return syscall.Close(fd)
+		if err = syscall.Close(fd); err != nil {
+			return err
+		}
+		return nil
 	}, func(event *sprobe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
@@ -511,7 +514,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	err = test.GetSignal(b, func() error {
 		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
 		if err != nil {
-			b.Fatal(err)
+			return err
 		}
 		return syscall.Close(fd)
 	}, func(event *sprobe.Event, _ *rules.Rule) {

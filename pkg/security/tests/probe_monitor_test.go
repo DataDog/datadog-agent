@@ -35,14 +35,21 @@ func TestRulesetLoaded(t *testing.T) {
 	defer test.Close()
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
-		if err := test.GetProbeCustomEvent(t, func() error {
-			test.reloadConfiguration()
+		if err = test.GetProbeCustomEvent(t, func() error {
+			// This test is an exception, we should never use any t.* method in the action function (especially within a
+			// goroutine). We don't have a choice here because we're not triggering a kernel space event: the same
+			// goroutine that calls test.reloadConfiguration will eventually call the callback.
+			go func() {
+				if err := test.reloadConfiguration(); err != nil {
+					t.Errorf("failed to reload configuration: %v", err)
+				}
+			}()
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
 			assert.Equal(t, sprobe.RulesetLoadedRuleID, rule.ID, "wrong rule")
 			return true
 		}, model.CustomRulesetLoadedEventType); err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 	})
 }
@@ -79,7 +86,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		err = test.GetProbeCustomEvent(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 			if err != nil {
-				t.Fatal(err)
+				return err
 			}
 			return f.Close()
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
@@ -87,13 +94,13 @@ func truncatedParents(t *testing.T, opts testOpts) {
 			return true
 		}, model.CustomTruncatedParentsEventType)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 
 		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 			if err != nil {
-				t.Fatal(err)
+				return err
 			}
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -126,7 +133,7 @@ func TestNoisyProcess(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID: "path_test",
 		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
-		Expression: `open.file.path =~ "{{.Root}}/no-test-open*" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path == "{{.Root}}/do_not_match/test-open"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
@@ -146,10 +153,14 @@ func TestNoisyProcess(t *testing.T) {
 			for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*2; i++ {
 				f, err := os.OpenFile(file, os.O_CREATE, 0755)
 				if err != nil {
-					t.Fatal(err)
+					return err
 				}
-				_ = f.Close()
-				_ = os.Remove(file)
+				if err = f.Close(); err != nil {
+					return err
+				}
+				if err = os.Remove(file); err != nil {
+					return err
+				}
 			}
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
@@ -157,7 +168,7 @@ func TestNoisyProcess(t *testing.T) {
 			return true
 		}, model.CustomNoisyProcessEventType)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 
 		// make sure the discarder has expired before moving on to other tests
