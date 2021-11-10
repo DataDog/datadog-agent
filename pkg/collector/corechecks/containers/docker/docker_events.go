@@ -69,6 +69,7 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 		tags, err := tagger.Tag(ev.ContainerEntityName(), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
+			tags = []string{}
 		}
 
 		tags = append(tags, "exit_code:"+exitCodeString)
