@@ -236,11 +236,11 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 		return false, err
 	}
 
-	if !strings.HasSuffix(filenameField, ".path") {
+	if !strings.HasSuffix(filenameField, model.PathSuffix) {
 		return false, errors.New("path suffix not found")
 	}
 
-	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
+	basenameField := strings.Replace(filenameField, model.PathSuffix, model.NameSuffix, 1)
 	if _, err := event.GetFieldType(basenameField); err != nil {
 		return false, err
 	}
@@ -272,7 +272,7 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 						regexDir = entry.(*regexp.Regexp)
 					} else {
 						var err error
-						regexDir, err = regexp.Compile(valueDir)
+						regexDir, err = eval.PatternToRegexp(valueDir)
 						if err != nil {
 							return false, err
 						}

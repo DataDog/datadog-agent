@@ -37,15 +37,6 @@ func EnableLogsCollection(
 	return subscribeLogs(id, registrationURL, registrationTimeout, payload)
 }
 
-// subscribeLogs subscribes to the logs collection on the platform.
-// We send a request to AWS to subscribe for logs, indicating on which port we
-// are opening an HTTP server, to receive logs from AWS.
-// When we are receiving logs on this HTTP server, we're pushing them in a channel
-// tailed by the Logs Agent pipeline, these logs then go through the regular
-// Logs Agent pipeline to finally be sent on the intake when we receive a FLUSH
-// call from the Lambda function / client.
-// logsType contains the type of logs for which we are subscribing, possible
-// value: platform, extension and function.
 func subscribeLogs(id ID, url string, timeout time.Duration, payload json.Marshaler) error {
 
 	jsonBytes, err := payload.MarshalJSON()

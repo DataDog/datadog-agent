@@ -86,13 +86,19 @@ func (f *groupFinder) findGroup(line []byte) (bool, error) {
 		log.Errorf("failed to parse group ID for %s: %v", f.groupName, err)
 	}
 
+	users := strings.Split(parts[3], ",")
 	f.instance = eval.NewInstance(
 		eval.VarMap{
 			compliance.GroupFieldName:  f.groupName,
-			compliance.GroupFieldUsers: strings.Split(parts[3], ","),
+			compliance.GroupFieldUsers: users,
 			compliance.GroupFieldID:    gid,
 		},
 		nil,
+		eval.RegoInputMap{
+			"name":  f.groupName,
+			"users": users,
+			"id":    gid,
+		},
 	)
 
 	return true, nil

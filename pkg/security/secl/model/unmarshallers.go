@@ -146,7 +146,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 	var ttyRaw [64]byte
 	SliceToArray(data[read:read+64], unsafe.Pointer(&ttyRaw))
-	ttyName, _ := UnmarshalString(ttyRaw[:], 64)
+	ttyName, err := UnmarshalString(ttyRaw[:], 64)
+	if err != nil {
+		return 0, err
+	}
 	if IsPrintableASCII(ttyName) {
 		e.TTYName = ttyName
 	}
@@ -154,7 +157,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 	var commRaw [16]byte
 	SliceToArray(data[read:read+16], unsafe.Pointer(&commRaw))
-	e.Comm, _ = UnmarshalString(commRaw[:], 16)
+	e.Comm, err = UnmarshalString(commRaw[:], 16)
+	if err != nil {
+		return 0, err
+	}
 	read += 16
 
 	// Unmarshal pid_cache_t
@@ -293,6 +299,10 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 	// Notes: bytes 36 to 40 are used to pad the structure
 
 	SliceToArray(data[40:56], unsafe.Pointer(&e.FSTypeRaw))
+	e.FSType, err = UnmarshalString(e.FSTypeRaw[:], 16)
+	if err != nil {
+		return 0, err
+	}
 
 	return 56, nil
 }

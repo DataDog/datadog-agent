@@ -144,8 +144,25 @@ def gen_mocks(ctx):
     Generate mocks.
     """
 
+    interfaces = [
+        "AuditClient",
+        "Builder",
+        "Clients",
+        "Configuration",
+        "DockerClient",
+        "Env",
+        "Evaluatable",
+        "Iterator",
+        "KubeClient",
+        "RegoConfiguration",
+        "Reporter",
+        "Scheduler",
+    ]
+
+    interface_regex = "|".join(f"^{i}$" for i in interfaces)
+
     with ctx.cd("./pkg/compliance"):
-        ctx.run("./gen_mocks.sh")
+        ctx.run("mockery --case snake -r --name=\"{}\"".format(interface_regex))
 
 
 @task
@@ -445,7 +462,7 @@ RUN apt-get update -y \
 
 
 @task
-def generate_documentation(ctx, go_generate=False):
+def generate_cws_documentation(ctx, go_generate=False):
     if go_generate:
         cws_go_generate(ctx)
 

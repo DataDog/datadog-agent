@@ -541,7 +541,7 @@ def lint_python(ctx):
 
 
 @task
-def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
+def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
     """
     Installs the requested version of shellcheck in the specified folder (by default /usr/local/bin).
     Required to run the shellcheck pre-commit hook.

@@ -25,7 +25,8 @@ import (
 func createOverlayLayer(t *testing.T, test *testModule, name string) string {
 	p, _, err := test.Path(name)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return ""
 	}
 
 	os.MkdirAll(p, os.ModePerm)
@@ -67,7 +68,7 @@ func TestOverlayFS(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_rmdir",
-			Expression: `rmdir.file.path == "{{.Root}}/bind/dir"`,
+			Expression: `rmdir.file.path in ["{{.Root}}/bind/dir", "{{.Root}}/bind/mkdir"]`,
 		},
 		{
 			ID:         "test_rule_chmod",
@@ -158,7 +159,9 @@ func TestOverlayFS(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	defer func() {
-		exec.Command("umount", testMerged).CombinedOutput()
+		if _, err := exec.Command("umount", testMerged).CombinedOutput(); err != nil {
+			t.Logf("failed to unmount %s: %v", testMerged, err)
+		}
 	}()
 
 	// open a file in lower in RDONLY and check that open/unlink inode are valid from userspace
@@ -179,19 +182,22 @@ func TestOverlayFS(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			inode = getInode(t, testFile)
-			assert.Equal(t, inode, event.Open.File.Inode, "wrong open inode")
 			inUpperLayer, _ := event.GetFieldValue("open.file.in_upper_layer")
-			assert.Equal(t, false, inUpperLayer, "should be in base layer")
+
+			success := assert.Equal(t, inode, event.Open.File.Inode, "wrong open inode")
+			success = assert.Equal(t, false, inUpperLayer, "should be in base layer") && success
+
+			if !success {
+				_ = os.Remove(testFile)
+			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
+
 			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
-			inUpperLayer, _ := event.GetFieldValue("open.file.in_upper_layer")
 			assert.Equal(t, false, inUpperLayer, "should be in base layer")
 		})
 	})
@@ -212,16 +218,22 @@ func TestOverlayFS(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			inode = getInode(t, testFile)
-			assert.Equal(t, event.Open.File.Inode, inode, "wrong open inode")
 			inUpperLayer, _ := event.GetFieldValue("open.file.in_upper_layer")
-			assert.Equal(t, false, inUpperLayer, "should be in base layer")
+
+			success := assert.Equal(t, event.Open.File.Inode, inode, "wrong open inode")
+			success = assert.Equal(t, false, inUpperLayer, "should be in base layer") && success
+
+			if !success {
+				_ = os.Remove(testFile)
+			}
 		})
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
 		})
 	})
@@ -242,16 +254,22 @@ func TestOverlayFS(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			inode = getInode(t, testFile)
-			assert.Equal(t, inode, event.Open.File.Inode, "wrong open inode")
 			inUpperLayer, _ := event.GetFieldValue("open.file.in_upper_layer")
-			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
+
+			success := assert.Equal(t, inode, event.Open.File.Inode, "wrong open inode")
+			success = assert.Equal(t, true, inUpperLayer, "should be in upper layer") && success
+
+			if !success {
+				_ = os.Remove(testFile)
+			}
 		})
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
 		})
 	})
@@ -272,24 +290,34 @@ func TestOverlayFS(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return os.Rename(oldFile, newFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			success := true
+
 			if value, _ := event.GetFieldValue("rename.file.path"); value.(string) != oldFile {
 				t.Errorf("expected filename not found %s != %s", value.(string), oldFile)
+				success = false
 			}
 
 			inode = getInode(t, newFile)
-			assert.Equal(t, inode, event.Rename.New.Inode, "wrong rename inode")
 			inUpperLayer, _ := event.GetFieldValue("rename.file.in_upper_layer")
-			assert.Equal(t, false, inUpperLayer, "should be in base layer")
+
+			success = assert.Equal(t, inode, event.Rename.New.Inode, "wrong rename inode") && success
+			success = assert.Equal(t, false, inUpperLayer, "should be in base layer") && success
 
 			inUpperLayer, _ = event.GetFieldValue("rename.file.destination.in_upper_layer")
-			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
+
+			success = assert.Equal(t, true, inUpperLayer, "should be in upper layer") && success
+
+			if !success {
+				_ = os.Remove(newFile)
+			}
 		})
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(newFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
 		})
 	})
@@ -305,8 +333,9 @@ func TestOverlayFS(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return os.Remove(testDir)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong rmdir inode")
 			inUpperLayer, _ := event.GetFieldValue("rmdir.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong rmdir inode")
 			assert.Equal(t, false, inUpperLayer, "should be in base layer")
 		})
 	})
@@ -323,16 +352,22 @@ func TestOverlayFS(t *testing.T) {
 			return os.Chmod(testFile, 0777)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			inode = getInode(t, testFile)
-			assert.Equal(t, inode, event.Chmod.File.Inode, "wrong chmod inode")
 			inUpperLayer, _ := event.GetFieldValue("chmod.file.in_upper_layer")
-			assert.Equal(t, false, inUpperLayer, "should be in base layer")
+
+			success := assert.Equal(t, inode, event.Chmod.File.Inode, "wrong chmod inode")
+			success = assert.Equal(t, false, inUpperLayer, "should be in base layer") && success
+
+			if !success {
+				_ = os.Remove(testFile)
+			}
 		})
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
 		})
 	})
@@ -343,12 +378,28 @@ func TestOverlayFS(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		var inode uint64
+
 		test.WaitSignal(t, func() error {
 			return syscall.Mkdir(testFile, 0777)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			inode := getInode(t, testFile)
-			assert.Equal(t, inode, event.Mkdir.File.Inode, "wrong mkdir inode")
+			inode = getInode(t, testFile)
 			inUpperLayer, _ := event.GetFieldValue("mkdir.file.in_upper_layer")
+
+			success := assert.Equal(t, inode, event.Mkdir.File.Inode, "wrong mkdir inode")
+			success = assert.Equal(t, true, inUpperLayer, "should be in upper layer") && success
+
+			if !success {
+				_ = os.Remove(testFile)
+			}
+		})
+
+		test.WaitSignal(t, func() error {
+			return os.Remove(testFile)
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			inUpperLayer, _ := event.GetFieldValue("rmdir.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong rmdir inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
 		})
 	})
@@ -365,16 +416,22 @@ func TestOverlayFS(t *testing.T) {
 			return os.Chtimes(testFile, time.Now(), time.Now())
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			inode = getInode(t, testFile)
-			assert.Equal(t, inode, event.Utimes.File.Inode, "wrong utimes inode")
 			inUpperLayer, _ := event.GetFieldValue("utimes.file.in_upper_layer")
-			assert.Equal(t, false, inUpperLayer, "should be in base layer")
+
+			success := assert.Equal(t, inode, event.Utimes.File.Inode, "wrong utimes inode")
+			success = assert.Equal(t, false, inUpperLayer, "should be in base layer") && success
+
+			if !success {
+				_ = os.Remove(testFile)
+			}
 		})
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
 		})
 	})
@@ -391,16 +448,22 @@ func TestOverlayFS(t *testing.T) {
 			return os.Chown(testFile, os.Getuid(), os.Getgid())
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			inode = getInode(t, testFile)
-			assert.Equal(t, inode, event.Chown.File.Inode, "wrong chown inode")
 			inUpperLayer, _ := event.GetFieldValue("chown.file.in_upper_layer")
-			assert.Equal(t, false, inUpperLayer, "should be in base layer")
+
+			success := assert.Equal(t, inode, event.Chown.File.Inode, "wrong chown inode")
+			success = assert.Equal(t, false, inUpperLayer, "should be in base layer") && success
+
+			if !success {
+				_ = os.Remove(testFile)
+			}
 		})
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
 		})
 	})
@@ -428,16 +491,22 @@ func TestOverlayFS(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			inode = getInode(t, testFile)
-			assert.Equal(t, inode, event.SetXAttr.File.Inode, "wrong setxattr inode")
 			inUpperLayer, _ := event.GetFieldValue("setxattr.file.in_upper_layer")
-			assert.Equal(t, false, inUpperLayer, "should be in base layer")
+
+			success := assert.Equal(t, inode, event.SetXAttr.File.Inode, "wrong setxattr inode")
+			success = assert.Equal(t, false, inUpperLayer, "should be in base layer") && success
+
+			if !success {
+				_ = os.Remove(testFile)
+			}
 		})
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
 		})
 	})
@@ -454,16 +523,22 @@ func TestOverlayFS(t *testing.T) {
 			return os.Truncate(testFile, 0)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			inode = getInode(t, testFile)
-			assert.Equal(t, inode, event.Open.File.Inode, "wrong open inode")
 			inUpperLayer, _ := event.GetFieldValue("open.file.in_upper_layer")
-			assert.Equal(t, false, inUpperLayer, "should be in base layer")
+
+			success := assert.Equal(t, inode, event.Open.File.Inode, "wrong open inode")
+			success = assert.Equal(t, false, inUpperLayer, "should be in base layer") && success
+
+			if !success {
+				_ = os.Remove(testFile)
+			}
 		})
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
 		})
 	})
@@ -485,28 +560,39 @@ func TestOverlayFS(t *testing.T) {
 			return os.Link(testSrc, testTarget)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			inode = getInode(t, testSrc)
-			assert.Equal(t, inode, event.Link.Source.Inode, "wrong link source inode")
+			success := assert.Equal(t, inode, event.Link.Source.Inode, "wrong link source inode")
 
 			inUpperLayer, _ := event.GetFieldValue("link.file.in_upper_layer")
-			assert.Equal(t, false, inUpperLayer, "should be in base layer")
+			success = assert.Equal(t, false, inUpperLayer, "should be in base layer") && success
 
 			inUpperLayer, _ = event.GetFieldValue("link.file.destination.in_upper_layer")
-			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
+			success = assert.Equal(t, true, inUpperLayer, "should be in upper layer") && success
+
+			if !success {
+				_ = os.Remove(testSrc)
+				_ = os.Remove(testTarget)
+			}
 		})
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testSrc)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
-			assert.Equal(t, true, inUpperLayer, "should be in base layer")
+
+			success := assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
+			success = assert.Equal(t, true, inUpperLayer, "should be in base layer") && success
+
+			if !success {
+				_ = os.Remove(testTarget)
+			}
 		})
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testTarget)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			inUpperLayer, _ := event.GetFieldValue("unlink.file.in_upper_layer")
+
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
 		})
 	})

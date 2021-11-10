@@ -11,10 +11,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"gotest.tools/assert"
 )
 
 func TestChown32(t *testing.T) {
@@ -82,7 +83,6 @@ func TestChown32(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -109,7 +109,6 @@ func TestChown32(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -136,7 +135,6 @@ func TestChown32(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -168,7 +166,6 @@ func TestChown32(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, uint16(0o777), "wrong initial mode")
 			assert.Equal(t, uint32(0), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -200,7 +197,6 @@ func TestChown32(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, uint16(0o777), "wrong initial mode")
 			assert.Equal(t, uint32(0), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -228,7 +224,6 @@ func TestChown32(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -255,7 +250,6 @@ func TestChown32(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 

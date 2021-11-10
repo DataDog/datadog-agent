@@ -303,7 +303,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 		return nil
 	}
 
-	const useV1API = true // v2 intake for series is not yet implemented
+	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
 	var seriesPayloads forwarder.Payloads
 	var extraHeaders http.Header
@@ -311,15 +311,21 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 
 	if useV1API && s.enableJSONStream {
 		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series, stream.DropItemOnErrItemTooBig)
-	} else {
+	} else if useV1API && !s.enableJSONStream {
 		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(series, true)
+	} else {
+		seriesPayloads, err = series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		extraHeaders = protobufExtraHeadersWithCompression
 	}
 
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
+	if useV1API {
+		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
+	}
+	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder

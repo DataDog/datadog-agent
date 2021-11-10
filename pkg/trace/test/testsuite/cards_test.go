@@ -53,9 +53,9 @@ apm_config:
 			if err := r.Post(p); err != nil {
 				t.Fatal(err)
 			}
-			waitForTrace(t, &r, func(v pb.TracePayload) {
+			waitForTrace(t, &r, func(v pb.AgentPayload) {
 				payloadsEqual(t, p, v)
-				assert.Equal(t, v.Traces[0].Spans[0].Meta["credit_card_number"], tt.out)
+				assert.Equal(t, v.TracerPayloads[0].Chunks[0].Spans[0].Meta["credit_card_number"], tt.out)
 			})
 		})
 	}

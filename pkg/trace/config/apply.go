@@ -260,6 +260,13 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.max_traces_per_second") {
 		c.TargetTPS = config.Datadog.GetFloat64("apm_config.max_traces_per_second")
 	}
+	if config.Datadog.IsSet("apm_config.errors_per_second") {
+		c.ErrorTPS = config.Datadog.GetFloat64("apm_config.errors_per_second")
+	}
+	if config.Datadog.IsSet("apm_config.disable_rare_sampler") {
+		c.DisableRareSampler = config.Datadog.GetBool("apm_config.disable_rare_sampler")
+	}
+
 	if k := "apm_config.ignore_resources"; config.Datadog.IsSet(k) {
 		c.Ignore["resource"] = config.Datadog.GetStringSlice(k)
 	}

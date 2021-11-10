@@ -44,8 +44,8 @@ func Example() {
 
 	// Assert the results.
 	switch v := (<-runner.Out()).(type) {
-	case pb.TracePayload:
-		fmt.Println("OK traces: ", len(v.Traces))
+	case pb.AgentPayload:
+		fmt.Println("OK tracer payloads: ", len(v.TracerPayloads))
 	case pb.StatsPayload:
 		fmt.Println("OK stats: ", len(v.Stats))
 	}

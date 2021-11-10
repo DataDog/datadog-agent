@@ -69,13 +69,15 @@ func TestSpan(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			testFile, _, err := test.Create("test-span")
-			os.Remove(testFile)
-			return err
+			if err != nil {
+				return err
+			}
+			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_open")
 
 			if !validateSpanSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 
 			assert.Equal(t, uint64(123), event.SpanContext.SpanID)
@@ -99,7 +101,7 @@ func TestSpan(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_span_rule_exec")
 
 			if !validateSpanSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 
 			assert.Equal(t, uint64(204), event.SpanContext.SpanID)

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 func TestParseKubeletPodlist(t *testing.T) {
@@ -54,17 +55,17 @@ func TestParseKubeletPodlist(t *testing.T) {
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
 						Name: "apache",
-						ID:   "container_id://3b8efe0c50e8",
+						ID:   "3b8efe0c50e8",
 					},
 				},
 			},
 			expectedCfg: []integration.Config{
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"container_id://3b8efe0c50e8"},
+					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					Source:        "kubelet:container_id://3b8efe0c50e8",
+					Source:        "kubelet:docker://3b8efe0c50e8",
 				},
 			},
 			expectedErr: nil,
@@ -85,28 +86,28 @@ func TestParseKubeletPodlist(t *testing.T) {
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
 						Name: "apache",
-						ID:   "container_id://3b8efe0c50e8",
+						ID:   "3b8efe0c50e8",
 					},
 					{
 						Name: "nginx",
-						ID:   "container_id://4ac8352d70bf1",
+						ID:   "4ac8352d70bf1",
 					},
 				},
 			},
 			expectedCfg: []integration.Config{
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"container_id://3b8efe0c50e8"},
+					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					Source:        "kubelet:container_id://3b8efe0c50e8",
+					Source:        "kubelet:docker://3b8efe0c50e8",
 				},
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"container_id://4ac8352d70bf1"},
+					ADIdentifiers: []string{"docker://4ac8352d70bf1"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
-					Source:        "kubelet:container_id://4ac8352d70bf1",
+					Source:        "kubelet:docker://4ac8352d70bf1",
 				},
 			},
 			expectedErr: nil,
@@ -124,24 +125,24 @@ func TestParseKubeletPodlist(t *testing.T) {
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
 						Name: "apache",
-						ID:   "container_id://3b8efe0c50e8",
+						ID:   "3b8efe0c50e8",
 					},
 				},
 			},
 			expectedCfg: []integration.Config{
 				{
 					Name:          "apache",
-					ADIdentifiers: []string{"container_id://3b8efe0c50e8"},
+					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
-					Source:        "kubelet:container_id://3b8efe0c50e8",
+					Source:        "kubelet:docker://3b8efe0c50e8",
 				},
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"container_id://3b8efe0c50e8"},
+					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					Source:        "kubelet:container_id://3b8efe0c50e8",
+					Source:        "kubelet:docker://3b8efe0c50e8",
 				},
 			},
 			expectedErr: nil,
@@ -160,17 +161,17 @@ func TestParseKubeletPodlist(t *testing.T) {
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
 						Name: "nginx",
-						ID:   "container_id://4ac8352d70bf1",
+						ID:   "4ac8352d70bf1",
 					},
 				},
 			},
 			expectedCfg: []integration.Config{
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"container_id://4ac8352d70bf1"},
+					ADIdentifiers: []string{"docker://4ac8352d70bf1"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
-					Source:        "kubelet:container_id://4ac8352d70bf1",
+					Source:        "kubelet:docker://4ac8352d70bf1",
 				},
 			},
 			expectedErr: nil,
@@ -190,11 +191,11 @@ func TestParseKubeletPodlist(t *testing.T) {
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
 						Name: "nginx",
-						ID:   "container_id://4ac8352d70bf1",
+						ID:   "4ac8352d70bf1",
 					},
 					{
 						Name: "apache",
-						ID:   "container_id://3b8efe0c50e8",
+						ID:   "3b8efe0c50e8",
 					},
 				},
 			},
@@ -207,8 +208,21 @@ func TestParseKubeletPodlist(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
+			store := workloadmetatesting.NewStore()
+
+			for _, c := range tc.pod.Containers {
+				store.Set(&workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   c.ID,
+					},
+					Runtime: workloadmeta.ContainerRuntimeDocker,
+				})
+			}
+
 			m := &KubeletConfigProvider{
-				configErrors: make(map[string]ErrorMsgSet),
+				workloadmetaStore: store,
+				configErrors:      make(map[string]ErrorMsgSet),
 				podCache: map[string]*workloadmeta.KubernetesPod{
 					tc.pod.GetID().ID: tc.pod,
 				},

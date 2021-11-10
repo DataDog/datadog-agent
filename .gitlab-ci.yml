@@ -107,7 +107,7 @@ variables:
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
   ANDROID_S3_BUCKET: dd-agent-androidtesting
-  DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to: 'nightly', 'oldnightly' or 'beta'
+  BUCKET_BRANCH: nightly  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
@@ -185,13 +185,13 @@ variables:
   if: $CI_COMMIT_TAG != null
 
 .if_not_nightly_repo_branch: &if_not_nightly_repo_branch
-  if: $DEB_RPM_BUCKET_BRANCH != "nightly" && $DEB_RPM_BUCKET_BRANCH != "oldnightly"
+  if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly"
 
 .if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
-  if: $DEB_RPM_BUCKET_BRANCH != "beta" && $DEB_RPM_BUCKET_BRANCH != "stable"
+  if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
 
 .if_not_stable_repo_branch: &if_not_stable_repo_branch
-  if: $DEB_RPM_BUCKET_BRANCH != "stable"
+  if: $BUCKET_BRANCH != "stable"
 
 # Rule to trigger all builds conditionally.
 # By default:
@@ -225,10 +225,10 @@ variables:
   if: $TESTING_CLEANUP == "true"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
-  if: $DEPLOY_AGENT == "true" && $DEB_RPM_BUCKET_BRANCH == "beta"
+  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
 
 .if_deploy_on_stable_repo_branch: &if_deploy_on_stable_repo_branch
-  if: $DEPLOY_AGENT == "true" && $DEB_RPM_BUCKET_BRANCH == "stable"
+  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "stable"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
@@ -236,7 +236,7 @@ variables:
 # need to check again if the pipeline is a deploy pipeline, but it doesn't hurt
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
-  if: $DEPLOY_AGENT == "true" && $DEB_RPM_BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
 #
 # List of rule blocks used in the pipeline

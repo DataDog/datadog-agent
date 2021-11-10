@@ -26,8 +26,7 @@ func (t testCCClient) ListV3SpacesByQuery(_ url.Values) ([]cfclient.V3Space, err
 }
 
 func TestCCCachePolling(t *testing.T) {
-	assert.NotZero(t, cc.GetPollAttempts())
-	assert.NotZero(t, cc.GetPollSuccesses())
+	assert.NotZero(t, cc.LastUpdated())
 }
 
 func TestCCCache_GetApp(t *testing.T) {

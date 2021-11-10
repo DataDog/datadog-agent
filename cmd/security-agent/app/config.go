@@ -8,71 +8,56 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
 func init() {
-	SecurityAgentCmd.AddCommand(configCommand)
+	SecurityAgentCmd.AddCommand(cmdconfig.Config(getSettingsClient))
 }
 
-var configCommand = &cobra.Command{
-	Use:   "config",
-	Short: "Print the runtime configuration of a running security agent",
-	Long:  ``,
-	RunE: func(cmd *cobra.Command, args []string) error {
+func setupConfig(cmd *cobra.Command) error {
+	if flagNoColor {
+		color.NoColor = true
+	}
 
-		if flagNoColor {
-			color.NoColor = true
-		}
+	// Read configuration files received from the command line arguments '-c'
+	err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+	if err != nil {
+		return err
+	}
 
-		// Read configuration files received from the command line arguments '-c'
-		err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
-		if err != nil {
-			return err
-		}
-		err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-		if err != nil {
-			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-			return err
-		}
+	err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	if err != nil {
+		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+		return err
+	}
 
-		err = util.SetAuthToken()
-		if err != nil {
-			return err
-		}
+	err = util.SetAuthToken()
+	if err != nil {
+		return err
+	}
 
-		runtimeConfig, err := requestConfig()
-		if err != nil {
-			return err
-		}
-
-		fmt.Println(runtimeConfig)
-		return nil
-	},
+	return nil
 }
 
-func requestConfig() (string, error) {
+func getSettingsClient(cmd *cobra.Command, _ []string) (settings.Client, error) {
+	err := setupConfig(cmd)
+	if err != nil {
+		return nil, err
+	}
+
 	c := util.GetClient(false)
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", config.Datadog.GetInt("security_agent.cmd_port"))
 
-	r, err := util.DoGet(c, apiConfigURL)
-	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap) //nolint:errcheck
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			return "", fmt.Errorf(e)
-		}
-
-		return "", fmt.Errorf("Could not reach security agent: %v \nMake sure the security agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
-	}
-
-	return string(r), nil
+	return settingshttp.NewClient(c, apiConfigURL, "security-agent"), nil
 }
