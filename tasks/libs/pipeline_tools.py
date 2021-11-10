@@ -111,7 +111,7 @@ def trigger_agent_pipeline(
         args["RELEASE_VERSION_7"] = release_version_7
 
     if branch is not None:
-        args["DEB_RPM_BUCKET_BRANCH"] = branch
+        args["BUCKET_BRANCH"] = branch
 
     print(
         "Creating pipeline for datadog-agent on branch/tag {} with args:\n{}".format(
