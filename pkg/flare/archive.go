@@ -489,7 +489,7 @@ func zipExpVar(tempDir, hostname string) error {
 	defer w.Close()
 	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/debug/vars", apmPort))
 	if err != nil {
-		_, err := w.Write([]byte(fmt.Sprintf("Error retrieving vars: %v", err)))
+		_, err := fmt.Fprintf(w, "Error retrieving vars: %v", err)
 		return err
 	}
 	defer resp.Body.Close()
@@ -498,7 +498,7 @@ func zipExpVar(tempDir, hostname string) error {
 		if err != nil {
 			return err
 		}
-		_, err = w.Write([]byte(fmt.Sprintf("Got response %s from /debug/vars:\n%s", resp.Status, string(slurp))))
+		_, err = fmt.Fprintf(w, "Got response %s from /debug/vars:\n%s", resp.Status, slurp)
 		return err
 	}
 	var all map[string]interface{}

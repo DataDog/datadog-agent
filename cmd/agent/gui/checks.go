@@ -152,7 +152,7 @@ func reloadCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
-	w.Write([]byte(fmt.Sprintf("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)))
+	fmt.Fprintf(w, "Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
 }
 
 func getPathComponentFromRequest(vars map[string]string, name string, allowEmpty bool) (string, error) {
