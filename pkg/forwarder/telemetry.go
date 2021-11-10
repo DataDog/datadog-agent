@@ -22,6 +22,7 @@ var (
 	v1IntakeEndpoint       = transaction.Endpoint{Route: "/intake/", Name: "intake"}
 	v1SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/v1/sketches", Name: "sketches_v1"} // nolint unused for now
 	v1ValidateEndpoint     = transaction.Endpoint{Route: "/api/v1/validate", Name: "validate_v1"}
+	v1MetadataEndpoint     = transaction.Endpoint{Route: "/api/v1/metadata", Name: "metadata_v1"}
 
 	seriesEndpoint        = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"}
 	eventsEndpoint        = transaction.Endpoint{Route: "/api/v2/events", Name: "events_v2"}
