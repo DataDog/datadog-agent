@@ -91,6 +91,81 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	assert.Contains(t, logs, "Unable to build interfaces metadata: no interface indexes found")
 }
 
+func Test_metricSender_reportNetworkDeviceMetadata_profileDeviceVendorFallback(t *testing.T) {
+	checkconfig.SetConfdPathAndCleanProfiles()
+
+	var storeWithoutIfName = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{},
+	}
+
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{
+		sender: sender,
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+namespace: my-ns
+profile: f5-big-ip
+tags:
+  - 'autodiscovery_subnet:127.0.0.0/29'
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+ f5-big-ip:
+   definition_file: f5-big-ip.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+
+	// language=json
+	event := []byte(`
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+    "devices": [
+        {
+            "id": "my-ns:1.2.3.4",
+            "id_tags": [
+                "device_namespace:my-ns",
+                "snmp_device:1.2.3.4"
+            ],
+            "name": "",
+            "description": "",
+            "ip_address": "1.2.3.4",
+            "sys_object_id": "",
+            "profile": "f5-big-ip",
+            "vendor": "f5",
+            "subnet": "127.0.0.0/29",
+            "tags": [
+                "tag1",
+                "tag2"
+            ],
+			"status":1
+        }
+    ],
+	"collect_timestamp":1415792726
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+}
+
 func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) {
 	var storeWithIfName = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{
@@ -112,6 +187,27 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
+		Metadata: checkconfig.MetadataConfig{
+			"interface": {
+				Fields: map[string]checkconfig.MetadataField{
+					"name": {
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "ifName",
+						},
+					},
+				},
+				IDTags: checkconfig.MetricTagConfigList{
+					checkconfig.MetricTagConfig{
+						Column: checkconfig.SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "interface",
+						},
+						Tag: "interface",
+					},
+				},
+			},
+		},
 	}
 
 	layout := "2006-01-02 15:04:05"

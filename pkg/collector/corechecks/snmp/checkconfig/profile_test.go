@@ -37,7 +37,7 @@ func mockProfilesDefinitions() profileDefinitionMap {
 	return profileDefinitionMap{"f5-big-ip": profileDefinition{
 		Metrics:      metrics,
 		Extends:      []string{"_base.yaml", "_generic-if.yaml"},
-		Device:       deviceMeta{Vendor: "f5"},
+		Device:       DeviceMeta{Vendor: "f5"},
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 		MetricTags: []MetricTagConfig{
 			{
@@ -52,6 +52,96 @@ func mockProfilesDefinitions() profileDefinitionMap {
 				},
 			},
 			{Tag: "snmp_host", Index: 0x0, Column: SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+		},
+		Metadata: MetadataConfig{
+			"device": {
+				Fields: map[string]MetadataField{
+					"vendor": {
+						Value: "f5",
+					},
+					"description": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.1.1.0",
+							Name: "sysDescr",
+						},
+					},
+					"name": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.1.5.0",
+							Name: "sysName",
+						},
+					},
+					"serial_number": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
+							Name: "sysGeneralChassisSerialNum",
+						},
+					},
+					"sys_object_id": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.1.2.0",
+							Name: "sysObjectID",
+						},
+					},
+				},
+			},
+			"interface": {
+				Fields: map[string]MetadataField{
+					"admin_status": {
+						Symbol: SymbolConfig{
+
+							OID:  "1.3.6.1.2.1.2.2.1.7",
+							Name: "ifAdminStatus",
+						},
+					},
+					"alias": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.18",
+							Name: "ifAlias",
+						},
+					},
+					"description": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "ifName",
+						},
+					},
+					"mac_address": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.6",
+							Name: "ifPhysAddress",
+						},
+					},
+					"name": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "ifName",
+						},
+					},
+					"oper_status": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.8",
+							Name: "ifOperStatus",
+						},
+					},
+				},
+				IDTags: MetricTagConfigList{
+					{
+						Tag: "custom-tag",
+						Column: SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "ifAlias",
+						},
+					},
+					{
+						Tag: "interface",
+						Column: SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "ifName",
+						},
+					},
+				},
+			},
 		},
 	}}
 }
@@ -362,5 +452,6 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to read profile definition `f5-big-ip-invalid`"), logs)
-	assert.Equal(t, mockProfilesDefinitions(), defaultProfiles)
+	assert.Contains(t, defaultProfiles, "f5-big-ip")
+	assert.NotContains(t, defaultProfiles, "f5-big-ip-invalid")
 }
