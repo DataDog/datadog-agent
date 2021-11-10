@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+features:
   - |
-    APM: OTLP traces now supports semantic conventions from version 1.5.0 of the OpenTelemetry specification.
+    CSPM: enable the usage of the print function in Rego rules.
