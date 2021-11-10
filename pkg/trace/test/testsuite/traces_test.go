@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
@@ -34,7 +33,7 @@ func TestTraces(t *testing.T) {
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
-		waitForTrace(t, &r, func(v pb.TracePayload) {
+		waitForTrace(t, &r, func(v pb.AgentPayload) {
 			if v.Env != "my-env" {
 				t.Fatalf("Expected env my-env, got: %q", v.Env)
 			}
@@ -55,13 +54,13 @@ func TestTraces(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			// user reject two traces
 			for _, span := range p[i] {
-				span.Metrics[sampler.KeySamplingPriority] = -1
+				span.Metrics["_sampling_priority_v1"] = -1
 			}
 		}
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
-		waitForTrace(t, &r, func(v pb.TracePayload) {
+		waitForTrace(t, &r, func(v pb.AgentPayload) {
 			payloadsEqual(t, p[2:], v)
 		})
 	})
@@ -83,7 +82,7 @@ func TestTraces(t *testing.T) {
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
-		waitForTrace(t, &r, func(v pb.TracePayload) {
+		waitForTrace(t, &r, func(v pb.AgentPayload) {
 			payloadsEqual(t, append(p[:2], p[3:]...), v)
 		})
 	})
@@ -122,23 +121,29 @@ func TestTraces(t *testing.T) {
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
-		waitForTrace(t, &r, func(v pb.TracePayload) {
+		waitForTrace(t, &r, func(v pb.AgentPayload) {
 			payloadsEqual(t, p[:2], v)
 		})
 	})
 }
 
 // payloadsEqual validates that the traces in from are the same as the ones in to.
-func payloadsEqual(t *testing.T, from pb.Traces, to pb.TracePayload) {
-	if want, got := len(from), len(to.Traces); want != got {
+func payloadsEqual(t *testing.T, from pb.Traces, to pb.AgentPayload) {
+	got := 0
+	for _, tracerPayload := range to.TracerPayloads {
+		got += len(tracerPayload.Chunks)
+	}
+	if want := len(from); want != got {
 		t.Fatalf("Expected %d traces, got %d", want, got)
 	}
 	var found int
 	for _, t1 := range from {
-		for _, t2 := range to.Traces {
-			if tracesEqual(t1, t2) {
-				found++
-				break
+		for _, tracerPayload := range to.TracerPayloads {
+			for _, t2 := range tracerPayload.Chunks {
+				if tracesEqual(t1, t2) {
+					found++
+					break
+				}
 			}
 		}
 	}
@@ -149,7 +154,7 @@ func payloadsEqual(t *testing.T, from pb.Traces, to pb.TracePayload) {
 
 // tracesEqual reports whether from and to are equal traces. The latter is allowed
 // to contain additional tags.
-func tracesEqual(from pb.Trace, to *pb.APITrace) bool {
+func tracesEqual(from pb.Trace, to *pb.TraceChunk) bool {
 	if want, got := len(from), len(to.Spans); want != got {
 		return false
 	}

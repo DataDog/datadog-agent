@@ -234,13 +234,29 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 		tags := tagstats.AsTags()
 		metrics.Count("datadog.trace_agent.otlp.spans", int64(len(rspans.InstrumentationLibrarySpans)), tags, 1)
 		metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
+		traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 		p := Payload{
-			Source:        tagstats,
-			ContainerTags: getContainerTags(fastHeaderGet(header, headerContainerID)),
-			Traces:        make(pb.Traces, 0, len(tracesByID)),
+			Source: tagstats,
 		}
-		for _, trace := range tracesByID {
-			p.Traces = append(p.Traces, trace)
+		for _, spans := range tracesByID {
+			traceChunks = append(traceChunks, &pb.TraceChunk{
+				// auto-keep all incoming traces; it was already chosen as a keeper on
+				// the client side.
+				Priority: int32(sampler.PriorityAutoKeep),
+				Spans:    spans,
+			})
+		}
+		p.TracerPayload = &pb.TracerPayload{
+			Chunks:          traceChunks,
+			ContainerID:     fastHeaderGet(header, headerContainerID),
+			LanguageName:    tagstats.Lang,
+			LanguageVersion: tagstats.LangVersion,
+			TracerVersion:   tagstats.TracerVersion,
+		}
+		if containerTags := getContainerTags(p.TracerPayload.ContainerID); containerTags != "" {
+			p.TracerPayload.Tags = map[string]string{
+				tagContainersTags: containerTags,
+			}
 		}
 		o.out <- &p
 	}
@@ -320,11 +336,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 		Service:  rattr[string(semconv.AttributeServiceName)],
 		Resource: in.Name,
 		Meta:     rattr,
-		Metrics: map[string]float64{
-			// auto-keep all incoming traces; it was already chosen as a keeper on
-			// the client side.
-			sampler.KeySamplingPriority: float64(sampler.PriorityAutoKeep),
-		},
+		Metrics:  map[string]float64{},
 	}
 	span.Meta["otlp.trace_id"] = hex.EncodeToString(in.TraceId)
 	if _, ok := span.Meta["version"]; !ok {
