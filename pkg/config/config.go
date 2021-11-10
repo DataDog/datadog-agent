@@ -929,6 +929,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
+	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
 
 	// Datadog security agent (runtime)
