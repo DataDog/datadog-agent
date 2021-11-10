@@ -17,6 +17,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/topdown/print"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
@@ -131,6 +132,12 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 	// rego builtins
 	moduleArgs = append(moduleArgs, regoBuiltins...)
 
+	moduleArgs = append(
+		moduleArgs,
+		rego.EnablePrintStatements(true),
+		rego.PrintHook(&regoPrintHook{}),
+	)
+
 	preparedEvalQuery, err := rego.New(
 		moduleArgs...,
 	).PrepareForEval(ctx)
@@ -163,6 +170,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 
 		resolved, err := resolve(ctx, env, r.ruleID, input.ResourceCommon)
 		if err != nil {
+			log.Warnf("failed to resolve input: %v", err)
 			continue
 		}
 
@@ -395,4 +403,11 @@ func buildErrorReports(err error) []*compliance.Report {
 	report := compliance.BuildReportForError(err)
 	report.Evaluator = regoEvaluator
 	return []*compliance.Report{report}
+}
+
+type regoPrintHook struct{}
+
+func (h *regoPrintHook) Print(_ print.Context, value string) error {
+	log.Infof("Rego print output: %s", value)
+	return nil
 }
