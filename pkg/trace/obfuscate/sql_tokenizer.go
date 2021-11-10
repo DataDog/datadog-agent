@@ -298,11 +298,11 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			}
 			return TokenKind(ch), tkn.bytes()
 		case '!':
-			switch c := tkn.lastChar; {
-			case c == '=':
+			switch tkn.lastChar {
+			case '=':
 				tkn.advance()
 				return NE, []byte("!=")
-			case c == '~':
+			case '~':
 				tkn.advance()
 				switch tkn.lastChar {
 				case '*':
@@ -311,9 +311,11 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				default:
 					return NE, []byte("!~")
 				}
-			case isValidCharAfterOperator(c):
-				return Not, tkn.bytes()
 			default:
+				if isValidCharAfterOperator(tkn.lastChar) {
+					return Not, tkn.bytes()
+				}
+
 				tkn.setErr(`unexpected char "%c" (%d) after "!"`, tkn.lastChar, tkn.lastChar)
 				return LexError, tkn.bytes()
 			}
