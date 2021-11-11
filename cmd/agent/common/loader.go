@@ -31,8 +31,7 @@ func LoadComponents(confdPath string) {
 	// start the tagger. must be done before autodiscovery, as it needs to
 	// be the first subscribed to metadata store to avoid race conditions.
 	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-	err := tagger.Init()
-	if err != nil {
+	if err := tagger.Init(); err != nil {
 		log.Errorf("failed to start the tagger: %s", err)
 	}
 
