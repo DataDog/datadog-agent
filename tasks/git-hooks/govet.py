@@ -1,44 +1,28 @@
 #!/usr/bin/env python3
 
-import os.path
 import subprocess
 import sys
+from os.path import dirname, exists, join, relpath
 
-# Exclude some folders since go vet fails there
-EXCLUDED_FOLDERS = {
-    "./cmd/agent/android",
-    "./cmd/agent/windows/service",
-    "./cmd/cluster-agent",
-    "./cmd/cluster-agent/app",
-    "./cmd/systray",
-    "./pkg/clusteragent/orchestrator",
-    "./pkg/process/config/testdata",
-    "./pkg/process/util/orchestrator",
-    "./pkg/trace/test/testsuite/testdata",
-    "./pkg/util/containerd",
-    "./pkg/util/containers/cri/crimock",
-    "./pkg/util/containers/providers/cgroup",
-    "./pkg/util/containers/providers/windows",
-    "./pkg/util/hostname/apiserver",
-    "./pkg/util/log",
-    "./pkg/util/log/zap",
-    "./pkg/util/scrubber",
-    "./pkg/otlp/model",
-    "./pkg/otlp/model/attributes",
-    "./pkg/otlp/model/attributes/azure",
-    "./pkg/otlp/model/attributes/ec2",
-    "./pkg/otlp/model/attributes/gcp",
-    "./pkg/otlp/model/internal",
-    "./pkg/otlp/model/internal/instrumentationlibrary",
-    "./pkg/otlp/model/internal/testutils",
-    "./pkg/otlp/model/internal/utils",
-    "./pkg/otlp/model/translator",
-    "./pkg/quantile",
-    "./pkg/quantile/summary",
-    "./pkg/util/winutil",
-    "./pkg/util/winutil/iphelper",
-    "./pkg/util/winutil/pdhutil",
-}
+
+def go_module_for_package(package_path):
+    """
+    Finds the go module containing the given package, and the package's path
+    relative to that module.  This only works for `./`-relative package paths,
+    in the current repository.  The returned module does not contain a trailing
+    `/` character.  If the package path does not exist, the return value is
+    `.`.
+    """
+    assert package_path.startswith('./')
+    module_path = package_path
+    while module_path != '.':
+        if exists(join(module_path, 'go.mod')):
+            break
+        module_path = dirname(module_path)
+    relative_package = relpath(package_path, start=module_path)
+    if relative_package != '.' and not relative_package[0].startswith('./'):
+        relative_package = "./" + relative_package
+    return module_path, relative_package
 
 
 def is_go_file(path):
@@ -47,21 +31,26 @@ def is_go_file(path):
 
 
 # Exclude non go files
+go_files = (path for path in sys.argv[1:] if is_go_file(path))
+
 # Get the package for each file
-targets = {"./" + os.path.dirname(path) for path in sys.argv[1:] if is_go_file(path)}
-
-# Exclude list above
-targets = targets - EXCLUDED_FOLDERS
-
-if len(targets) == 0:
+packages = {f'./{dirname(f)}' for f in go_files}
+if len(packages) == 0:
     sys.exit()
 
-# Call invoke command
-# We do this workaround since we can't do relative imports
-cmd = "inv -e vet --targets='{}'".format(",".join(targets))
+# separate those by module
 
-try:
-    subprocess.run(cmd, shell=True, check=True)
-except subprocess.CalledProcessError:
-    # Signal failure to pre-commit
-    sys.exit(-1)
+by_mod = {}
+for package_path in packages:
+    mod, pkg = go_module_for_package(package_path)
+    by_mod.setdefault(mod, set()).add(pkg)
+
+for module, packages in by_mod.items():
+    print(f"vet {packages} in {module}")
+    cmd = f"go vet {' '.join(packages)}"
+
+    try:
+        subprocess.run(cmd, shell=True, check=True, cwd=module)
+    except subprocess.CalledProcessError:
+        # Signal failure to pre-commit
+        sys.exit(-1)
