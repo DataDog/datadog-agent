@@ -1,10 +1,13 @@
 source_test_junit_upload:
   # rules:
   #   !reference [.on_main_or_release_branch]
+  when: always
   stage: source_test_junit_upload
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   allow_failure: true
+  variables:
+    DD_ENV: ci
   script:
     - python3 -m pip install -r requirements.txt
     - set +x
