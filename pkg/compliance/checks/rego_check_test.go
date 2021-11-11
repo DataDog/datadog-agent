@@ -225,6 +225,40 @@ func TestRegoCheck(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "empty case",
+			inputs: []compliance.RegoInput{
+				{
+					ResourceCommon: compliance.ResourceCommon{
+						Process: &compliance.Process{
+							Name: "proc2",
+						},
+					},
+					TagName: "processes",
+					Type:    "array",
+				},
+			},
+			module: `
+				package test
+
+				import data.datadog as dd
+
+				default valid = false
+
+				findings[f] {
+					p := input.processes[_]
+					f := dd.error_finding("process", "42", "error message")
+				}
+			`,
+			findings: "data.test.findings",
+			processes: processes{
+				42: {
+					Name:    "proc1",
+					Cmdline: []string{"arg1", "--path=foo"},
+				},
+			},
+			expectReports: nil,
+		},
 	}
 
 	for _, tt := range tests {
