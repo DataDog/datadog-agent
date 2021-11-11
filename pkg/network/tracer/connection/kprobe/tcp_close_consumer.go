@@ -3,6 +3,7 @@
 package kprobe
 
 import (
+	"sync"
 	"sync/atomic"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -22,6 +23,7 @@ type tcpCloseConsumer struct {
 	batchManager *perfBatchManager
 	requests     chan chan struct{}
 	buffer       *network.ConnectionBuffer
+	once         sync.Once
 
 	// Telemetry
 	perfReceived int64
@@ -75,7 +77,9 @@ func (c *tcpCloseConsumer) Stop() {
 		return
 	}
 	c.perfHandler.Stop()
-	close(c.requests)
+	c.once.Do(func() {
+		close(c.requests)
+	})
 }
 
 func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
