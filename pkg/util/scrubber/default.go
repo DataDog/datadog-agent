@@ -14,7 +14,13 @@ import (
 
 // DefaultScrubber is the scrubber used by the package-level cleaning functions.
 //
-// It includes a set of agent-specific replacers defined in default.go.
+// It includes a set of agent-specific replacers.  It can scrub DataDog App
+// and API keys, passwords from URLs, and multi-line PEM-formatted TLS keys and
+// certificates.  It contains special handling for YAML-like content (with
+// lines of the form "key: value") and can scrub passwords, tokens, and SNMP
+// community strings in such content.
+//
+// See default.go for details of these replacers.
 var DefaultScrubber = &Scrubber{}
 
 func init() {
@@ -117,10 +123,12 @@ func ScrubBytes(file []byte) ([]byte, error) {
 	return DefaultScrubber.ScrubBytes(file)
 }
 
-// ScrubURL sanitizes credentials from a message containing a URL, and returns
-// a string that can be logged safely, using the default scrubber.
-func ScrubURL(url string) string {
-	return DefaultScrubber.ScrubURL(url)
+// ScrubLine scrubs credentials from a single line of text, using the default
+// scrubber.  It can be safely applied to URLs or to strings containing URLs.
+// It does not run multi-line replacers, and should not be used on multi-line
+// inputs.
+func ScrubLine(url string) string {
+	return DefaultScrubber.ScrubLine(url)
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have

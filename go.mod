@@ -116,7 +116,7 @@ require (
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
 	github.com/go-ini/ini v1.63.2
 	github.com/go-ole/go-ole v1.2.5
-	github.com/go-openapi/spec v0.20.3
+	github.com/go-openapi/spec v0.20.4
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/go-test/deep v1.0.5 // indirect
 	github.com/gobwas/glob v0.2.3
@@ -162,7 +162,7 @@ require (
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
-	github.com/open-policy-agent/opa v0.34.1
+	github.com/open-policy-agent/opa v0.34.2
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
 	github.com/patrickmn/go-cache v2.1.0+incompatible

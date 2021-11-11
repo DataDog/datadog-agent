@@ -412,7 +412,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -442,7 +442,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(endpoints.MetadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		if v := atomic.AddInt64(&requests, 1); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
@@ -470,7 +470,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -500,7 +500,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(endpoints.MetadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusInternalServerError)
 	})
@@ -524,7 +524,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -583,10 +583,10 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
-	responses, err := f.submitProcessLikePayload(endpoints.MetadataEndpoint, payload, headers, true)
+	responses, err := f.submitProcessLikePayload(endpoints.SeriesEndpoint, payload, headers, true)
 	require.NoError(t, err)
 
 	_, ok := <-responses

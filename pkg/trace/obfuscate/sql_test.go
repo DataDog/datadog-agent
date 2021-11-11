@@ -495,6 +495,56 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				"people",
 				"SELECT name FROM people WHERE person_id = ?",
 			},
+			{
+				query:      "select * from test where !is_good;",
+				tables:     "test",
+				obfuscated: "select * from test where ! is_good",
+			},
+			{
+				query:      "select * from test where ! is_good;",
+				tables:     "test",
+				obfuscated: "select * from test where ! is_good",
+			},
+			{
+				query:      "select * from test where !45;",
+				tables:     "test",
+				obfuscated: "select * from test where ! ?",
+			},
+			{
+				query:      "select * from test where !(select is_good from good_things);",
+				tables:     "test,good_things",
+				obfuscated: "select * from test where ! ( select is_good from good_things )",
+			},
+			{
+				query:      "select * from test where !'weird_query'",
+				tables:     "test",
+				obfuscated: "select * from test where ! ?",
+			},
+			{
+				query:      "select * from test where !\"weird_query\"",
+				tables:     "test",
+				obfuscated: "select * from test where ! weird_query",
+			},
+			{
+				query:      "select * from test where !`weird_query`",
+				tables:     "test",
+				obfuscated: "select * from test where ! weird_query",
+			},
+			{
+				query:      "select !- 2",
+				tables:     "",
+				obfuscated: "select ! - ?",
+			},
+			{
+				query:      "select !+2",
+				tables:     "",
+				obfuscated: "select ! + ?",
+			},
+			{
+				query:      "select * from test where !- 2",
+				tables:     "test",
+				obfuscated: "select * from test where ! - ?",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
@@ -1269,12 +1319,14 @@ func TestSQLErrors(t *testing.T) {
 			"",
 			"result is empty",
 		},
-
 		{
 			"SELECT a FROM b WHERE a.x !* 2",
-			`at position 27: expected "=" after "!", got "*" (42)`,
+			`at position 27: unexpected char "*" (42) after "!"`,
 		},
-
+		{
+			"SELECT a FROM b WHERE a.x !& 2",
+			`at position 27: unexpected char "&" (38) after "!"`,
+		},
 		{
 			"SELECT 🥒",
 			`at position 11: unexpected byte 129362`,
