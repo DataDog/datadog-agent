@@ -105,6 +105,9 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 	}
 
 	if len(instances) == 0 {
+		if rego {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("no files found for file check %q", file.Path)
 	}
 

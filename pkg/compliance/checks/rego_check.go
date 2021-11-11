@@ -189,6 +189,15 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		}
 
 		switch res := resolved.(type) {
+		case nil:
+			switch inputType {
+			case "array":
+				r.appendInstance(arraysPerTags, tagName, nil)
+			case "object":
+				objectsPerTags[tagName] = &struct{}{}
+			default:
+				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
+			}
 		case resolvedInstance:
 			switch inputType {
 			case "array":
@@ -241,7 +250,10 @@ func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, i
 	if !exists {
 		vars = []interface{}{}
 	}
-	input[key] = append(vars, instance.RegoInput())
+
+	if instance != nil {
+		input[key] = append(vars, instance.RegoInput())
+	}
 }
 
 func (r *regoCheck) buildContextInput(env env.Env) eval.RegoInputMap {
