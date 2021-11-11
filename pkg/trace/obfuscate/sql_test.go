@@ -545,6 +545,21 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				tables:     "test",
 				obfuscated: "select * from test where ! - ?",
 			},
+			{
+				query:      "select count(*) as `count(*)` from test",
+				tables:     "test",
+				obfuscated: "select count ( * ) from test",
+			},
+			{
+				query:      "SELECT age as `age}` FROM profile",
+				tables:     "profile",
+				obfuscated: "SELECT age FROM profile",
+			},
+			{
+				query:      "SELECT age as `age``}` FROM profile",
+				tables:     "profile",
+				obfuscated: "SELECT age FROM profile",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
@@ -1331,11 +1346,6 @@ func TestSQLErrors(t *testing.T) {
 			"SELECT 🥒",
 			`at position 11: unexpected byte 129362`,
 		},
-		{
-			"SELECT name, `age}` FROM profile",
-			`at position 17: literal identifiers must end in "` + "`" + `", got "}" (125)`,
-		},
-
 		{
 			"SELECT %(asd)| FROM profile",
 			`at position 13: invalid character after variable identifier: "|" (124)`,
