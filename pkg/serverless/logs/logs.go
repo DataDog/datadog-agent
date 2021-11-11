@@ -284,7 +284,7 @@ func processLogMessages(c *CollectionRouteInfo, messages []logMessage) {
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
 			// Do not send messages without a stringRecord to the intake
-			if message.stringRecord == "" {
+			if message.stringRecord == "" && message.logType != logTypeFunction {
 				continue
 			}
 			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, c.ExecutionContext.ARN, c.ExecutionContext.LastRequestID)

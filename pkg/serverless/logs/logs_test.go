@@ -350,7 +350,7 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 	}
 }
 
-func TestProcessLogMessageNoStringRecord(t *testing.T) {
+func TestProcessLogMessageNoStringRecordPlatformLog(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
@@ -378,6 +378,39 @@ func TestProcessLogMessageNoStringRecord(t *testing.T) {
 		assert.Fail(t, "We should not have received logs")
 	case <-time.After(100 * time.Millisecond):
 		// nothing to do here
+	}
+}
+
+func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+
+	logCollection := &CollectionRouteInfo{
+		ExecutionContext: &ExecutionContext{
+			ARN:           "myARN",
+			LastRequestID: "myRequestID",
+		},
+		LogsEnabled: true,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+	}
+
+	logMessages := []logMessage{
+		{
+			logType: logTypeFunction,
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	select {
+	case received := <-logChannel:
+		assert.NotNil(t, received)
+		assert.Equal(t, "myARN", received.Lambda.ARN)
+		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
 	}
 }
 
