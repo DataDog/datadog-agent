@@ -32,7 +32,7 @@ Orchestrator Explorer
   ======================
   {{- range $key, $values := .OrchestratorEndpoints}}
   {{- if gt (len $values) 1}}
-				  {{$key}} - API Keys ending with:
+    {{$key}} - API Keys ending with:
   {{- range $values }}
       - {{ . }}
   {{- end}}
@@ -58,14 +58,7 @@ Orchestrator Explorer
   ===========
   Dispatched Configurations on CLCRunners
   ===========
-{{- if .CLCRunnerError }}
-    CLCRunner Error: {{.CLCRunnerError}}
-{{else}}
- {{range $index, $element := .CLCRunners}}
-    Server: {{ $element.Node }}
-    Configuration: {{ $element.Source }}
-  {{end}}
- {{end}}
+    To print orchestrator check details run agent clusterchecks --cluster-check-name orchestrator
 {{end}}
 {{else}}
 {{- if .LeaderName }}

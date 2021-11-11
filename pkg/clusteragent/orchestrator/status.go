@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -29,11 +28,6 @@ type stats struct {
 	NodeType  string
 	TotalHits int64
 	TotalMiss int64
-}
-
-type clcNode struct {
-	Node   string
-	Source string
 }
 
 // GetStatus returns status info for the orchestrator explorer.
@@ -79,26 +73,6 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	// rewriting DCA Mode in case we are running in cluster check mode.
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		status["CLCEnabled"] = true
-		var dispatchedNodes []clcNode
-		state, err := clusterchecks.GetState()
-		if err != nil {
-			status["CLCRunnerError"] = err.Error()
-		} else if state.Warmup {
-			status["CLCRunnerError"] = "CLC is still warming up, no configuration dispatched yet"
-		} else {
-			for _, node := range state.Nodes {
-				for _, c := range node.Configs {
-					if c.Name == orchestrator.CheckName {
-						dispatchedNodes = append(dispatchedNodes, clcNode{
-							// as we rely on a non endpoint check, we can use the node.Name not c.NodeName
-							Node:   node.Name,
-							Source: c.Source,
-						})
-					}
-				}
-			}
-			status["CLCRunners"] = dispatchedNodes
-		}
 		status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
 		status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
 	}
