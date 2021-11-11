@@ -134,7 +134,7 @@ def produce_junit_tar(files, result_path):
     }
     with tarfile.open(result_path, "w:gz") as tgz:
         for f in files:
-            tgz.add(f, arcname=f.replace("/", "-"))
+            tgz.add(f, arcname=f.replace(os.path.sep, "-"))
         tags_file = io.BytesIO()
         for k, v in tags.items():
             tags_file.write("--tags {}:{} ".format(k, v).encode("UTF-8"))
