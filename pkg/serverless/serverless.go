@@ -163,7 +163,8 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	}
 
 	if payload.EventType == Invoke {
-		callInvocationHandler(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
+		functionArn := functionArnWithoutAlias(payload.InvokedFunctionArn)
+		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
 	}
 	if payload.EventType == Shutdown {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
@@ -237,4 +238,15 @@ func buildURL(route string) string {
 func computeTimeout(now time.Time, deadlineMs int64, safetyBuffer time.Duration) time.Duration {
 	currentTimeInMs := now.UnixNano() / int64(time.Millisecond)
 	return time.Duration((deadlineMs-currentTimeInMs)*int64(time.Millisecond) - int64(safetyBuffer))
+}
+
+func functionArnWithoutAlias(functionArn string) string {
+	functionArnTokens := strings.Split(functionArn, ":")
+	tokenLength := len(functionArnTokens)
+
+	if tokenLength > 7 {
+		functionArnTokens = functionArnTokens[:tokenLength-1]
+		return strings.Join(functionArnTokens, ":")
+	}
+	return functionArn
 }
