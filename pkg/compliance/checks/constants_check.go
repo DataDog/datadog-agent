@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func resolveConstants(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon) (resolved, error) {
+func resolveConstants(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resolved, error) {
 	if res.Constants == nil {
 		return nil, fmt.Errorf("expecting constants resource in constants check")
 	}

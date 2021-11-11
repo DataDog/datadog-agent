@@ -168,7 +168,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		resolved, err := resolve(ctx, env, r.ruleID, input.ResourceCommon)
+		resolved, err := resolve(ctx, env, r.ruleID, input.ResourceCommon, true)
 		if err != nil {
 			log.Warnf("failed to resolve input: %v", err)
 			continue
