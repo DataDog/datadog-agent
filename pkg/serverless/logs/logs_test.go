@@ -350,6 +350,37 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 	}
 }
 
+func TestProcessLogMessageNoStringRecord(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+
+	logCollection := &CollectionRouteInfo{
+		ExecutionContext: &ExecutionContext{
+			ARN:           "myARN",
+			LastRequestID: "myRequestID",
+		},
+		LogsEnabled: true,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+	}
+
+	logMessages := []logMessage{
+		{
+			logType: logTypePlatformRuntimeDone,
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	select {
+	case <-logChannel:
+		assert.Fail(t, "We should not have received logs")
+	case <-time.After(100 * time.Millisecond):
+		// nothing to do here
+	}
+}
+
 func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
