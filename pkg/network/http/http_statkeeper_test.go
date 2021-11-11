@@ -162,4 +162,31 @@ func TestPathProcessing(t *testing.T) {
 		}
 	})
 
+	t.Run("chained rules", func(t *testing.T) {
+		rules := []*config.ReplaceRule{
+			{
+				Re:   regexp.MustCompile("/users/[A-z0-9]+"),
+				Repl: "/users/?",
+			},
+			{
+				Re:   regexp.MustCompile("/payment/[0-9]+"),
+				Repl: "/payment/?",
+			},
+		}
+
+		sk := setupStatKeeper(rules)
+		transactions := []httpTX{
+			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/ana/payment/123", statusCode, latency),
+			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/bob/payment/456", statusCode, latency),
+		}
+		sk.Process(transactions)
+		stats := sk.GetAndResetAllStats()
+
+		require.Len(t, stats, 1)
+		for key, metrics := range stats {
+			assert.Equal(t, "/users/?/payment/?", key.Path)
+			assert.Equal(t, 2, metrics[statusCode/100-1].Count)
+		}
+	})
+
 }

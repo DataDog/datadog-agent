@@ -143,9 +143,7 @@ func (h *httpStatKeeper) processHTTPPath(tx httpTX) (pathStr string, rejected bo
 				return "", true
 			}
 
-			// TODO: consider removing the `break` statement here so rules can be "chained"
 			path = r.Re.ReplaceAll(path, []byte(r.Repl))
-			break
 		}
 	}
 
