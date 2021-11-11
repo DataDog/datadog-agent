@@ -262,12 +262,11 @@ core,github.com/containerd/ttrpc,Apache-2.0,The containerd Authors
 core,github.com/containerd/typeurl,Apache-2.0,The containerd Authors
 core,github.com/coreos/go-semver/semver,Apache-2.0,CoreOS Project
 core,github.com/coreos/go-systemd/daemon,Apache-2.0,CoreOS Project
-core,github.com/coreos/go-systemd/dbus,Apache-2.0,CoreOS Project
 core,github.com/coreos/go-systemd/journal,Apache-2.0,CoreOS Project
-core,github.com/coreos/go-systemd/sdjournal,Apache-2.0,CoreOS Project
 core,github.com/coreos/go-systemd/v22/dbus,Apache-2.0,CoreOS Project
+core,github.com/coreos/go-systemd/v22/internal/dlopen,Apache-2.0,CoreOS Project
+core,github.com/coreos/go-systemd/v22/sdjournal,Apache-2.0,CoreOS Project
 core,github.com/coreos/pkg/capnslog,Apache-2.0,CoreOS Project
-core,github.com/coreos/pkg/dlopen,Apache-2.0,CoreOS Project
 core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Docker Inc & Go Authors | SUSE LLC
 core,github.com/davecgh/go-spew/spew,ISC,Dave Collins <dave@davec.name>
 core,github.com/dgraph-io/ristretto,Apache-2.0,"Dgraph Labs, Inc. and Contributors"
@@ -346,7 +345,6 @@ core,github.com/gobwas/glob/syntax/ast,MIT,Sergey Kamardin
 core,github.com/gobwas/glob/syntax/lexer,MIT,Sergey Kamardin
 core,github.com/gobwas/glob/util/runes,MIT,Sergey Kamardin
 core,github.com/gobwas/glob/util/strings,MIT,Sergey Kamardin
-core,github.com/godbus/dbus,BSD-2-Clause,"Georg Reinke (<guelfey at gmail dot com>), Google"
 core,github.com/godbus/dbus/v5,BSD-2-Clause,"Georg Reinke (<guelfey at gmail dot com>), Google"
 core,github.com/gogo/googleapis/google/rpc,Apache-2.0,GoGo Authors | Google Inc
 core,github.com/gogo/protobuf/gogoproto,BSD-3-Clause,The Go Authors | The GoGo Authors
