@@ -72,7 +72,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 
 	telemetry := newTelemetry()
-	statkeeper := newHTTPStatkeeper(c.MaxHTTPStatsBuffered, telemetry)
+	statkeeper := newHTTPStatkeeper(c, telemetry)
 
 	handler := func(transactions []httpTX) {
 		if statkeeper != nil {
