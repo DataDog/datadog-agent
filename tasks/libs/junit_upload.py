@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
-DATADOG_CI_COMMAND = ["echo", "datadog-ci", "junit", "upload"]
+DATADOG_CI_COMMAND = ["datadog-ci", "junit", "upload"]
 TAGS_FILE_NAME = "tags.txt"
 
 
@@ -89,7 +89,7 @@ def upload_junitxmls(output_dir, owners, additional_tags=None):
     for owner in owners:
         args = [
             "--service",
-            "datadog-agent-" + owner,
+            "datadog-agent",
             "--tags",
             'test.codeowners:["' + CODEOWNERS_ORG_PREFIX + owner + '"]',
         ]
