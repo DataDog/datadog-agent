@@ -283,7 +283,7 @@ func processLogMessages(c *CollectionRouteInfo, messages []logMessage) {
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
-			// Do not send messages without a stringRecord to the intake
+			// Do not send platform log messages without a stringRecord to the intake
 			if message.stringRecord == "" && message.logType != logTypeFunction {
 				continue
 			}
