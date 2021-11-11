@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -106,7 +106,7 @@ func TestTagBuilder(t *testing.T) {
 		},
 	})
 
-	tb := tagset.NewHashlessTagsAccumulator()
+	tb := oldtagset.NewHashlessTagsAccumulator()
 	err := tagger.AccumulateTagsFor("entity_name", collectors.HighCardinality, tb)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())

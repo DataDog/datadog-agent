@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	tagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 )
 
 func initTagger() *Tagger {

@@ -5,8 +5,6 @@
 
 package tagset
 
-import "github.com/DataDog/datadog-agent/pkg/util"
-
 // HashlessTagsAccumulator allows to build a slice of tags, in a context where the hashes for
 // those tags are not useful.
 //
@@ -49,7 +47,7 @@ func (h *HashlessTagsAccumulator) Get() []string {
 
 // SortUniq sorts and remove duplicate in place
 func (h *HashlessTagsAccumulator) SortUniq() {
-	h.data = util.SortUniqInPlace(h.data)
+	h.data = SortUniqInPlace(h.data)
 }
 
 // Reset resets the size of the builder to 0 without discaring the internal

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	tagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 	"github.com/stretchr/testify/assert"
 )
 

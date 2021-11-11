@@ -7,7 +7,7 @@ package metrics
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 )
 
 // MetricType is the representation of an aggregator metric type
@@ -63,7 +63,7 @@ func (m MetricType) String() string {
 type MetricSampleContext interface {
 	GetName() string
 	GetHost() string
-	GetTags(*tagset.HashingTagsAccumulator)
+	GetTags(*oldtagset.HashingTagsAccumulator)
 }
 
 // MetricSample represents a raw metric sample
@@ -95,7 +95,7 @@ func (m *MetricSample) GetHost() string {
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(tb *tagset.HashingTagsAccumulator) {
+func (m *MetricSample) GetTags(tb *oldtagset.HashingTagsAccumulator) {
 	tb.Append(m.Tags...)
 	tagger.EnrichTags(tb, m.OriginID, m.K8sOriginID, m.Cardinality)
 }

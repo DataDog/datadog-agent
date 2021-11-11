@@ -5,7 +5,7 @@
 
 package metrics
 
-import "github.com/DataDog/datadog-agent/pkg/tagset"
+import tagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 
 // HistogramBucket represents a prometheus/openmetrics histogram bucket
 type HistogramBucket struct {
