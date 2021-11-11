@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
 DATADOG_CI_COMMAND = ["datadog-ci", "junit", "upload"]
+JOB_URL_FILE_NAME = "job_url.txt"
 TAGS_FILE_NAME = "tags.txt"
 
 
@@ -46,11 +47,13 @@ def split_junitxml(xml_path, codeowners, output_dir):
     return list(output_xmls)
 
 
-def upload_junitxmls(output_dir, owners, additional_tags=None):
+def upload_junitxmls(output_dir, owners, additional_tags=None, job_url=""):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
     processes = []
+    process_env = os.environ.copy()
+    process_env["CI_JOB_URL"] = job_url
     for owner in owners:
         args = [
             "--service",
@@ -61,7 +64,7 @@ def upload_junitxmls(output_dir, owners, additional_tags=None):
         if additional_tags:
             args.extend(additional_tags)
         args.append(os.path.join(output_dir, owner + ".xml"))
-        processes.append(subprocess.Popen(DATADOG_CI_COMMAND + args, bufsize=-1))
+        processes.append(subprocess.Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env))
     for process in processes:
         exit_code = process.wait()
         if exit_code != 0:
@@ -84,12 +87,15 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         # read additional tags
         with open(os.path.join(unpack_dir, TAGS_FILE_NAME)) as tf:
             tags = tf.read().split()
+        # read job url (see comment in produce_junit_tar)
+        with open(os.path.join(unpack_dir, JOB_URL_FILE_NAME)) as jf:
+            job_url = jf.read()
 
         # for each unpacked xml file, split it and submit all parts
         for xmlfile in glob.glob("{}/*.xml".format(unpack_dir)):
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners = split_junitxml(xmlfile, codeowners, output_dir)
-                upload_junitxmls(output_dir, written_owners, tags)
+                upload_junitxmls(output_dir, written_owners, tags, job_url)
 
 
 def _normalize_architecture(architecture):
@@ -103,15 +109,19 @@ def produce_junit_tar(files, result_path):
     Produce a tgz file containing all given files JUnit XML files and add a special file
     with additional tags.
     """
+    # NOTE: for now, we can't pass CI_JOB_URL through `--tags`, because
+    # the parsing logic tags breaks on URLs, as they contain colons.
+    # Therefore we pass it through environment variable.
     tags = {
         "os.platform": platform.system().lower(),
         "os.architecture": _normalize_architecture(platform.machine()),
         "ci.job.name": os.environ.get("CI_JOB_NAME", ""),
-        "ci.job.url": os.environ.get("CI_JOB_URL", ""),
+        # "ci.job.url": os.environ.get("CI_JOB_URL", ""),
     }
     with tarfile.open(result_path, "w:gz") as tgz:
         for f in files:
             tgz.add(f, arcname=f.replace(os.path.sep, "-"))
+
         tags_file = io.BytesIO()
         for k, v in tags.items():
             tags_file.write("--tags {}:{} ".format(k, v).encode("UTF-8"))
@@ -119,3 +129,10 @@ def produce_junit_tar(files, result_path):
         tags_info.size = tags_file.getbuffer().nbytes
         tags_file.seek(0)
         tgz.addfile(tags_info, tags_file)
+
+        job_url_file = io.BytesIO()
+        job_url_file.write(os.environ.get("CI_JOB_URL", "").encode("UTF-8"))
+        job_url_info = tarfile.TarInfo(JOB_URL_FILE_NAME)
+        job_url_info.size = job_url_file.getbuffer().nbytes
+        job_url_file.seek(0)
+        tgz.addfile(job_url_info, job_url_file)
