@@ -315,7 +315,6 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				if isValidCharAfterOperator(tkn.lastChar) {
 					return Not, tkn.bytes()
 				}
-
 				tkn.setErr(`unexpected char "%c" (%d) after "!"`, tkn.lastChar, tkn.lastChar)
 				return LexError, tkn.bytes()
 			}
