@@ -22,10 +22,8 @@ type regoFixture struct {
 	inputs   []compliance.RegoInput
 	module   string
 	findings string
-	scope    compliance.RuleScope
 
 	processes     processes
-	useCache      bool
 	expectReports []*compliance.Report
 }
 
@@ -44,7 +42,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: f.inputs,
 	}
 
-	if err := regoCheck.compileRule(rule, f.scope, &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.compileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -55,9 +53,7 @@ func (f *regoFixture) run(t *testing.T) {
 	t.Helper()
 	assert := assert.New(t)
 
-	if !f.useCache {
-		cache.Cache.Delete(processCacheKey)
-	}
+	cache.Cache.Delete(processCacheKey)
 	processFetcher = func() (processes, error) {
 		for pid, p := range f.processes {
 			p.Pid = pid
