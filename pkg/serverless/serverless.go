@@ -163,7 +163,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	}
 
 	if payload.EventType == Invoke {
-		functionArn := functionArnWithoutAlias(payload.InvokedFunctionArn)
+		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
 		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
 	}
 	if payload.EventType == Shutdown {
@@ -240,7 +240,7 @@ func computeTimeout(now time.Time, deadlineMs int64, safetyBuffer time.Duration)
 	return time.Duration((deadlineMs-currentTimeInMs)*int64(time.Millisecond) - int64(safetyBuffer))
 }
 
-func functionArnWithoutAlias(functionArn string) string {
+func removeQualifierFromArn(functionArn string) string {
 	functionArnTokens := strings.Split(functionArn, ":")
 	tokenLength := len(functionArnTokens)
 

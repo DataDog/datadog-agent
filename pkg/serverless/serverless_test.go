@@ -66,15 +66,15 @@ func TestComputeTimeout(t *testing.T) {
 	assert.Equal(t, 7*time.Millisecond, computeTimeout(fakeCurrentTime, fakeDeadLineInMs, safetyBuffer))
 }
 
-func TestFunctionArnWithoutAliasWithAlias(t *testing.T) {
+func TestRemoveQualifierFromArnWithAlias(t *testing.T) {
 	invokedFunctionArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls:$latest"
-	functionArn := functionArnWithoutAlias(invokedFunctionArn)
+	functionArn := removeQualifierFromArn(invokedFunctionArn)
 	expectedArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls"
 	assert.Equal(t, functionArn, expectedArn)
 }
 
-func TestFunctionArnWithoutAliasWithoutAlias(t *testing.T) {
+func TestRemoveQualifierFromArnWithoutAlias(t *testing.T) {
 	invokedFunctionArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls"
-	functionArn := functionArnWithoutAlias(invokedFunctionArn)
-	assert.Equal(t, functionArn, functionArn)
+	functionArn := removeQualifierFromArn(invokedFunctionArn)
+	assert.Equal(t, functionArn, invokedFunctionArn)
 }
