@@ -103,19 +103,20 @@ func (s *Runner) Out() <-chan interface{} {
 // must be started using RunAgent.
 //
 // Example: r.PostMsgpack("/v0.5/stats", pb.ClientStatsPayload{})
-func (s *Runner) PostMsgpack(path string, data msgp.Encodable) error {
+func (s *Runner) PostMsgpack(path string, data msgp.Marshaler) (err error) {
 	if s.agent == nil {
 		return ErrNotStarted
 	}
 	if s.agent.PID() == 0 {
 		return errors.New("post: trace-agent not running")
 	}
-	var buf bytes.Buffer
-	if err := msgp.Encode(&buf, data); err != nil {
+	var b []byte
+	if b, err = data.MarshalMsg(nil); err != nil {
 		return err
 	}
+	buf := bytes.NewBuffer(b)
 	addr := fmt.Sprintf("http://%s%s", s.agent.Addr(), path)
-	req, err := http.NewRequest("POST", addr, &buf)
+	req, err := http.NewRequest("POST", addr, buf)
 	if err != nil {
 		return err
 	}
