@@ -11,8 +11,6 @@ import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 
-from codeowners import CodeOwners
-
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
 DATADOG_CI_COMMAND = ["datadog-ci", "junit", "upload"]
@@ -74,6 +72,8 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     """
     Upload all JUnit XML files contained in given tgz archive.
     """
+    from codeowners import CodeOwners
+
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
 
@@ -92,6 +92,12 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
                 upload_junitxmls(output_dir, written_owners, tags)
 
 
+def _normalize_architecture(architecture):
+    architecture = architecture.lower()
+    normalize_table = {"amd64": "x86_64"}
+    return normalize_table.get(architecture, architecture)
+
+
 def produce_junit_tar(files, result_path):
     """
     Produce a tgz file containing all given files JUnit XML files and add a special file
@@ -99,7 +105,7 @@ def produce_junit_tar(files, result_path):
     """
     tags = {
         "os.platform": platform.system().lower(),
-        "os.architecture": platform.machine(),
+        "os.architecture": _normalize_architecture(platform.machine()),
         "ci.job.name": os.environ.get("CI_JOB_NAME", ""),
         "ci.job.url": os.environ.get("CI_JOB_URL", ""),
     }
