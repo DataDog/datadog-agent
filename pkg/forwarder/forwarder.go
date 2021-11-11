@@ -489,7 +489,8 @@ func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload Payloads, extra htt
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
-	return f.submitV1IntakeWithTransactionsFactory(payload, extra, f.createHTTPTransactions)
+	transactions := f.createHTTPTransactions(endpoints.V1MetadataEndpoint, payload, false, extra)
+	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once

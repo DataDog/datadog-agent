@@ -20,6 +20,8 @@ var (
 	V1SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/v1/sketches", Name: "sketches_v1"} // nolint unused for now
 	// V1ValidateEndpoint is a v1 endpoint used to validate API keys
 	V1ValidateEndpoint = transaction.Endpoint{Route: "/api/v1/validate", Name: "validate_v1"}
+	// V1MetadataEndpoint is a v1 endpoint used for metadata (only used for inventory metadata for now)
+	V1MetadataEndpoint = transaction.Endpoint{Route: "/api/v1/metadata", Name: "metadata_v1"}
 
 	// SeriesEndpoint is the v2 endpoint used to send series
 	SeriesEndpoint = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"}

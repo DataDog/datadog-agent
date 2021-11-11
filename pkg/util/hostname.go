@@ -65,7 +65,7 @@ func Fqdn(hostname string) string {
 
 func setHostnameProvider(name string) {
 	hostnameProvider.Set(name)
-	inventories.SetAgentMetadata(inventories.HostnameSourceMetadataName, name)
+	inventories.SetAgentMetadata(inventories.AgentHostnameSource, name)
 }
 
 // isOSHostnameUsable returns `false` if it has the certainty that the agent is running
