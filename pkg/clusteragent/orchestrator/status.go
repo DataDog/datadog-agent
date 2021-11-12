@@ -79,12 +79,18 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 		if err != nil {
 			status["CLCError"] = err.Error()
 		} else {
-			for _, name := range getStats.CheckNames {
-				if name == orchestrator.CheckName {
-					status["CLCEnabled"] = true
-					status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
-					status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
-					break
+			// this and the cache section will only be shown on the DCA leader
+			if !getStats.Active {
+				status["CLCEnabled"] = true
+				status["CollectionWorking"] = "Clusterchecks are activated but still warming up, the collection could be running on CLC Runners. To verify that we need the clusterchecks to be warmed up."
+			} else {
+				for _, name := range getStats.CheckNames {
+					if name == orchestrator.CheckName {
+						status["CLCEnabled"] = true
+						status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
+						status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
+						break
+					}
 				}
 			}
 		}
