@@ -105,12 +105,8 @@ const (
 type logMessage struct {
 	time    time.Time
 	logType string
-<<<<<<< HEAD
 	// stringRecord is a string representation of the message's contents. It can be either received directly
 	// from the logs API or added by the extension after receiving it.
-=======
-	// "extension" / "function" log messages contain a record which is basically a log string
->>>>>>> main
 	stringRecord string
 	objectRecord platformObjectRecord
 }

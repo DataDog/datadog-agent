@@ -56,9 +56,8 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	architecture := ResolveRuntimeArch()
 	tags = setIfNotEmpty(tags, architectureKey, architecture)
 
-	cleanedRuntime := strings.Replace(os.Getenv(runtimeVar), "AWS_Lambda_", "", 1)
+	tags = setIfNotEmpty(tags, runtimeKey, getRuntime("/proc", "/etc", runtimeVar))
 
-	tags = setIfNotEmpty(tags, runtimeKey, cleanedRuntime)
 	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
 
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))

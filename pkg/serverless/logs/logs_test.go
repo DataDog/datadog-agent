@@ -646,29 +646,6 @@ func TestUnmarshalJSONLogTypeIncorrectReportNotFatalReport(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
-	message := logMessage{
-		logType: logTypePlatformRuntimeDone,
-		time:    time.Now(),
-		objectRecord: platformObjectRecord{
-			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
-			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
-			},
-		},
-	}
-	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
-	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	metricTags := []string{"functionname:test-function"}
-
-	metricsChan := make(chan []metrics.MetricSample, 1)
-	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
-	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
-	computeEnhancedMetrics := true
-	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan)
-	assert.Equal(t, startTime, executionContext.StartTime)
-}
-
 func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/platform_runtime_done_log_valid.json")
 	require.NoError(t, err)
