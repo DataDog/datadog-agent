@@ -75,22 +75,19 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	// rewriting DCA Mode in case we are running in cluster check mode.
 	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && config.Datadog.GetBool("cluster_checks.enabled") {
 		// we need to check first whether we have dispatched checks to CLC
-		getStats, err := clusterchecks.GetStats()
+		stats, err := clusterchecks.GetStats()
 		if err != nil {
 			status["CLCError"] = err.Error()
 		} else {
 			// this and the cache section will only be shown on the DCA leader
-			if !getStats.Active {
+			if !stats.Active {
 				status["CLCEnabled"] = true
 				status["CollectionWorking"] = "Clusterchecks are activated but still warming up, the collection could be running on CLC Runners. To verify that we need the clusterchecks to be warmed up."
 			} else {
-				for _, name := range getStats.CheckNames {
-					if name == orchestrator.CheckName {
-						status["CLCEnabled"] = true
-						status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
-						status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
-						break
-					}
+				if _, ok := stats.CheckNames[orchestrator.CheckName]; ok {
+					status["CLCEnabled"] = true
+					status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
+					status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
 				}
 			}
 		}

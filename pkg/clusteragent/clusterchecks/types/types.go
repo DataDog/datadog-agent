@@ -64,7 +64,7 @@ type Stats struct {
 	ActiveConfigs   int
 	DanglingConfigs int
 	TotalConfigs    int
-	CheckNames      []string
+	CheckNames      map[string]struct{}
 }
 
 // LeaderIPCallback describes the leader-election method we
