@@ -427,12 +427,10 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 			return nil, false, err
 		}
 		var tracerPayload pb.TracerPayload
-		err = tracerPayload.Unmarshal(buf.Bytes())
+		_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
 		return &tracerPayload, true, err
 	default:
 		var traces pb.Traces
-		var ranHook bool
-		var err error
 		if ranHook, err = decodeRequest(req, &traces); err != nil {
 			return nil, false, err
 		}
@@ -597,12 +595,11 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
-	containerTags := getContainerTags(tp.ContainerID)
-	if containerTags != "" {
+	if ctags := getContainerTags(tp.ContainerID); ctags != "" {
 		if tp.Tags == nil {
 			tp.Tags = make(map[string]string)
 		}
-		tp.Tags[tagContainersTags] = containerTags
+		tp.Tags[tagContainersTags] = ctags
 	}
 
 	payload := &Payload{

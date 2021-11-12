@@ -253,9 +253,9 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 			LanguageVersion: tagstats.LangVersion,
 			TracerVersion:   tagstats.TracerVersion,
 		}
-		if containerTags := getContainerTags(p.TracerPayload.ContainerID); containerTags != "" {
+		if ctags := getContainerTags(p.TracerPayload.ContainerID); ctags != "" {
 			p.TracerPayload.Tags = map[string]string{
-				tagContainersTags: containerTags,
+				tagContainersTags: ctags,
 			}
 		}
 		o.out <- &p
