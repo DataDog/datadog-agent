@@ -91,6 +91,9 @@ var (
 
 		"io.rancher.stack.name":         "rancher_stack",
 		"io.rancher.stack_service.name": "rancher_service",
+
+		// Automatically extract git commit sha from image for source code integration
+		"org.opencontainers.image.revision": "git.commit.sha",
 	}
 
 	highCardOrchestratorLabels = map[string]string{

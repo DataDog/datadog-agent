@@ -819,6 +819,31 @@ func TestHandleContainer(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "opencontainers image revision",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+					Labels: map[string]string{
+						"org.opencontainers.image.revision": "758691a28aa920070651d360814c559bc26af907",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source: containerSource,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{"git.commit.sha:758691a28aa920070651d360814c559bc26af907"},
+					StandardTags:         []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
