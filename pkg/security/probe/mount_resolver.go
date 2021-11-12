@@ -401,6 +401,8 @@ func getSizeOfStructInode(probe *Probe) uint64 {
 		sizeOf = 608
 	case skernel.Kernel5_0 <= probe.kernelVersion.Code && probe.kernelVersion.Code < skernel.Kernel5_1:
 		sizeOf = 584
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_13:
+		sizeOf = 592
 	}
 
 	return sizeOf
@@ -414,6 +416,66 @@ func getSuperBlockMagicOffset(probe *Probe) uint64 {
 	}
 
 	return sizeOf
+}
+
+func getVFSLinkDentryPosition(probe *Probe) uint64 {
+	position := uint64(2)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 3
+	}
+
+	return position
+}
+
+func getVFSMKDirDentryPosition(probe *Probe) uint64 {
+	position := uint64(2)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 3
+	}
+
+	return position
+}
+
+func getVFSLinkTargetDentryPosition(probe *Probe) uint64 {
+	position := uint64(3)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 4
+	}
+
+	return position
+}
+
+func getVFSSetxattrDentryPosition(probe *Probe) uint64 {
+	position := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 2
+	}
+
+	return position
+}
+
+func getVFSRemovexattrDentryPosition(probe *Probe) uint64 {
+	position := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 2
+	}
+
+	return position
+}
+
+func getVFSRenameInputType(probe *Probe) uint64 {
+	inputType := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		inputType = 2
+	}
+
+	return inputType
 }
 
 // NewMountResolver instantiates a new mount resolver
