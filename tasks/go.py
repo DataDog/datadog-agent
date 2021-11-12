@@ -373,21 +373,22 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
     new_licenses = get_licenses_list(ctx)
 
-    # check that all licenses have a non-"UNKNOWN" copyright
+    # check that all deps have a non-"UNKNOWN" copyright and license
     unknown_licenses = False
-    for license in new_licenses:
-        if license.endswith(',UNKNOWN'):
+    for line in new_licenses:
+        if ',UNKNOWN' in line:
             unknown_licenses = True
-            print("! {}".format(license))
+            print("! {}".format(line))
 
     if unknown_licenses:
         raise Exit(
             message=textwrap.dedent(
                 """\
-                At least one dependency's copyright could not be determined.
+                At least one dependency's license or copyright could not be determined.
 
-                Consult the dependency's source, update `.copyright-overrides.yml` accordingly, and
-                run `inv generate-licenses` to update {}."""
+                Consult the dependency's source, update
+                `.copyright-overrides.yml` or `.wwhrd.yml` accordingly, and run
+                `inv generate-licenses` to update {}."""
             ).format(filename),
             code=1,
         )

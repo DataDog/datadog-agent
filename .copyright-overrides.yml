@@ -103,7 +103,6 @@ github.com/modern-go/reflect2: taowen
 github.com/opencontainers/selinux/*: OpenContainers Authors
 github.com/spf13/afero: The Authors
 github.com/vito/go-sse/sse: The Authors
-github.com/wille/osutil: wille
 gomodules.xyz/jsonpatch: The Authors
 github.com/bytecodealliance/wasmtime-go: Bytecode Alliance
 github.com/OneOfOne/xxhash: OneOfOne (https://github.com/OneOfOne)
