@@ -54,10 +54,10 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
 	architecture := ResolveRuntimeArch()
-
 	tags = setIfNotEmpty(tags, architectureKey, architecture)
 
 	tags = setIfNotEmpty(tags, runtimeKey, getRuntime("/proc", "/etc", runtimeVar))
+
 	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
 
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))

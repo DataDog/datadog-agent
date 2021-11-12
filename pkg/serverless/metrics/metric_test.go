@@ -120,5 +120,4 @@ func TestBuildMetricBlocklist(t *testing.T) {
 	}
 	result := buildMetricBlocklist(userProvidedBlocklist)
 	assert.Equal(t, expected, result)
-
 }
