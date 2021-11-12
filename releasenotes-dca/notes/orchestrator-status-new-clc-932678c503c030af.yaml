@@ -9,3 +9,7 @@
 fixes:
   - |
     Add reworked status output for orchestrator section on CLC setups.
+
+features:
+  - |
+    Add the ability to filter for check names in the cluster checks output.
