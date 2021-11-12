@@ -18,7 +18,7 @@ import (
 var (
 	seclLexer = lexer.Must(ebnf.New(`
 Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
-IntVariable = "${" { "_" | alpha | digit } "}" .
+IntVariable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
 Duration = digit { digit } ("ms" | "s" | "m" | "h" | "d") .
 Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
