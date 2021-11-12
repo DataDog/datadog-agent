@@ -3,6 +3,7 @@ Docker related tasks
 """
 
 
+import operator
 import os
 import shutil
 import sys
@@ -135,7 +136,7 @@ def pull_base_images(ctx, dockerfile, signed_pull=True):
         print("Ignoring intermediate stage names: {}".format(", ".join(stages)))
         images -= stages
 
-    print("Pulling following base images: {}".format(", ".join(images)))
+    print("Pulling following base images: {} (content-trust:{})".format(", ".join(images),signed_pull))
 
     pull_env = {}
     if signed_pull:
