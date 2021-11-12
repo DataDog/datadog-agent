@@ -53,6 +53,7 @@ from .test import (
     install_shellcheck,
     install_tools,
     integration_tests,
+    junit_upload,
     lint_filenames,
     lint_milestone,
     lint_python,
@@ -91,6 +92,7 @@ ns.add_task(install_tools)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
 ns.add_task(generate_config)
+ns.add_task(junit_upload)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
