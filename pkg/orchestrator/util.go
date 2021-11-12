@@ -14,6 +14,8 @@ import (
 // NodeType represents a kind of resource used by a container orchestrator.
 type NodeType int
 
+var CheckName = "orchestrator"
+
 const (
 	// K8sDeployment represents a Kubernetes Deployment
 	K8sDeployment NodeType = iota

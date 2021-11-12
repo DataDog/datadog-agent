@@ -12,8 +12,8 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+
+	"k8s.io/client-go/kubernetes"
 )
 
 type stats struct {
@@ -71,10 +73,21 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	setCollectionIsWorkingDCAMode(status)
 
 	// rewriting DCA Mode in case we are running in cluster check mode.
-	if config.Datadog.GetBool("cluster_checks.enabled") {
-		status["CLCEnabled"] = true
-		status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
-		status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
+	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && config.Datadog.GetBool("cluster_checks.enabled") {
+		// we need to check first whether we have dispatched checks to CLC
+		getStats, err := clusterchecks.GetStats()
+		if err != nil {
+			status["CLCError"] = err.Error()
+		} else {
+			for _, name := range getStats.CheckNames {
+				if name == orchestrator.CheckName {
+					status["CLCEnabled"] = true
+					status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
+					status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
+					break
+				}
+			}
+		}
 	}
 
 	// get options
