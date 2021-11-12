@@ -5,6 +5,7 @@ package modules
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -22,7 +23,7 @@ var TCPQueueLength = module.Factory{
 			return nil, fmt.Errorf("unable to start the TCP queue length tracer: %w", err)
 		}
 
-		return &tcpQueueLengthModule{t}, nil
+		return &tcpQueueLengthModule{TCPQueueLengthTracer: t}, nil
 	},
 }
 
@@ -30,10 +31,12 @@ var _ module.Module = &tcpQueueLengthModule{}
 
 type tcpQueueLengthModule struct {
 	*probe.TCPQueueLengthTracer
+	lastCheck time.Time
 }
 
 func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
+		t.lastCheck = time.Now()
 		stats := t.TCPQueueLengthTracer.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
 	})
@@ -42,5 +45,7 @@ func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 }
 
 func (t *tcpQueueLengthModule) GetStats() map[string]interface{} {
-	return nil
+	return map[string]interface{}{
+		"last_check": t.lastCheck.Unix(),
+	}
 }

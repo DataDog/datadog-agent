@@ -60,6 +60,7 @@ type Tracer struct {
 	expiredTCPConns  int64
 	closedConns      int64
 	connStatsMapSize int64
+	lastCheck        time.Time
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -319,6 +320,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.getConnTelemetry(len(active))
 	rctm := t.getRuntimeCompilationTelemetry()
+	t.lastCheck = time.Now()
 
 	return &network.Connections{
 		BufferedData:                delta.BufferedData,
@@ -533,6 +535,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"conn_valid_skipped":  skipped, // Skipped connections (e.g. Local DNS requests)
 		"expired_tcp_conns":   expiredTCP,
 		"conn_stats_map_size": connStatsMapSize,
+		"last_check":          t.lastCheck.Unix(),
 	}
 	for k, v := range runtime.Tracer.GetTelemetry() {
 		tracerStats[k] = v
