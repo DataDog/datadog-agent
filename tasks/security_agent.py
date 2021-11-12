@@ -181,6 +181,17 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     ctx.run(cmd.format(**args))
 
 
+def build_go_syscall_tester(ctx, build_dir):
+    syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
+    syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
+    ctx.run(
+        "go build -o {} -tags syscalltesters {}/syscall_go_tester.go ".format(
+            syscall_tester_exe_file, syscall_tester_go_dir
+        )
+    )
+    return syscall_tester_exe_file
+
+
 def build_syscall_x86_tester(ctx, build_dir, static=True):
     syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
     syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_x86_tester.c")
@@ -209,9 +220,10 @@ def build_syscall_tester(ctx, build_dir, static=True):
 def build_embed_syscall_tester(ctx, static=True):
     syscall_tester_bin = build_syscall_tester(ctx, os.path.join(".", "bin"), static=static)
     syscall_x86_tester_bin = build_syscall_x86_tester(ctx, os.path.join(".", "bin"), static=static)
+    syscall_go_tester_bin = build_go_syscall_tester(ctx, os.path.join(".", "bin"))
     bundle_files(
         ctx,
-        [syscall_tester_bin, syscall_x86_tester_bin],
+        [syscall_tester_bin, syscall_x86_tester_bin, syscall_go_tester_bin],
         "bin",
         "pkg/security/tests/syscall_tester/bindata.go",
         "syscall_tester",

@@ -229,7 +229,6 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
         struct bpf_map_t *map = bpf_map_lookup_elem(&bpf_maps, &syscall->bpf.map_id);
         if (map != NULL) {
             event.map = *map;
-            // bpf_printk("cmd:%d map:%s\n", bpf_ctx->cmd, evt.map.name);
         }
     }
 
@@ -238,7 +237,6 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
         struct bpf_prog_t *prog = bpf_map_lookup_elem(&bpf_progs, &syscall->bpf.prog_id);
         if (prog != NULL) {
             event.prog = *prog;
-            // bpf_printk("cmd:%d prog:%s helpers:%lu\n", bpf_ctx->cmd, evt.prog.name, bpf_ctx->helpers[0]);
         }
     }
 

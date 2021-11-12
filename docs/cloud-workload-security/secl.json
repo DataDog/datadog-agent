@@ -390,11 +390,6 @@
           "definition": "BPF command name"
         },
         {
-          "name": "bpf.map.name",
-          "type": "string",
-          "definition": "Name of the eBPF map"
-        },
-        {
           "name": "bpf.map.type",
           "type": "int",
           "definition": "Type of the eBPF map"
@@ -403,11 +398,6 @@
           "name": "bpf.prog.attach_type",
           "type": "int",
           "definition": "Attach type of the eBPF program"
-        },
-        {
-          "name": "bpf.prog.name",
-          "type": "string",
-          "definition": "Name of the eBPF program"
         },
         {
           "name": "bpf.prog.type",

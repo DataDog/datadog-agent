@@ -587,7 +587,7 @@ type BPFEvent struct {
 type BPFMap struct {
 	ID   uint32 `field:"-"`    // ID of the eBPF map
 	Type uint32 `field:"type"` // Type of the eBPF map
-	Name string `field:"name"` // Name of the eBPF map
+	Name string `field:"-"`    // Name of the eBPF map
 }
 
 // BPFProgram represents a BPF program
@@ -596,5 +596,5 @@ type BPFProgram struct {
 	Type       uint32   `field:"type"`             // Type of the eBPF program
 	AttachType uint32   `field:"attach_type"`      // Attach type of the eBPF program
 	Helpers    []uint32 `field:"-,ResolveHelpers"` // eBPF helpers used by the eBPF program
-	Name       string   `field:"name"`             // Name of the eBPF program
+	Name       string   `field:"-"`                // Name of the eBPF program
 }
