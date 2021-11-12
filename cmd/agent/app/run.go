@@ -425,7 +425,18 @@ func StartAgent() error {
 		}
 	}
 
-	// start logs-agent
+	// Detect Cloud Provider
+	go cloudproviders.DetectCloudProvider(context.Background())
+
+	// Append version and timestamp to version history log file if this Agent is different than the last run version
+	util.LogVersionHistory()
+
+	// create and setup the Autoconfig instance
+	common.LoadComponents(config.Datadog.GetString("confd_path"))
+	// start the autoconfig, this will immediately run any configured check
+	common.StartAutoConfig()
+
+	// start logs-agent (this must be after autoconfig is started)
 	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
 		if config.Datadog.GetBool("log_enabled") {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -440,17 +451,6 @@ func StartAgent() error {
 	if err = common.SetupSystemProbeConfig(sysProbeConfFilePath); err != nil {
 		log.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
-
-	// Detect Cloud Provider
-	go cloudproviders.DetectCloudProvider(context.Background())
-
-	// Append version and timestamp to version history log file if this Agent is different than the last run version
-	util.LogVersionHistory()
-
-	// create and setup the Autoconfig instance
-	common.LoadComponents(config.Datadog.GetString("confd_path"))
-	// start the autoconfig, this will immediately run any configured check
-	common.StartAutoConfig()
 
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog()
