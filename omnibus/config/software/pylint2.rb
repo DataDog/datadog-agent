@@ -4,10 +4,10 @@ default_version "1.9.5"
 
 dependency "pip2"
 
-build do
-  # pylint is only called in a subprocess by the Agent, so the Agent doesn't have to be GPL as well
-  license "GPL-2.0"
+# pylint is only called in a subprocess by the Agent, so the Agent doesn't have to be GPL as well
+license "GPL-2.0"
 
+build do
   # aliases for the pips
   if windows?
     pip2 = "#{windows_safe_path(python_2_embedded)}\\Scripts\\pip.exe"

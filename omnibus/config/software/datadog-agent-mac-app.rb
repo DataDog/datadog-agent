@@ -4,6 +4,7 @@ description "Generate mac app manifest and assets"
 
 dependency "datadog-agent"
 
+license :project_license
 source path: "#{project.files_path}/#{name}"
 
 # This needs to be done in a separate software because we need to know the Agent Version to build the app

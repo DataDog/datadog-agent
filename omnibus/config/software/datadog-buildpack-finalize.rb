@@ -11,6 +11,8 @@ require './lib/ostools.rb'
 name "datadog-buildpack-finalize"
 description "steps required to finalize the CF build"
 default_version "1.0.0"
+
+license :project_license
 skip_transitive_dependency_licensing true
 
 build do

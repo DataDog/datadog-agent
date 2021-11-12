@@ -52,6 +52,9 @@ if integrations_core_version.nil? || integrations_core_version.empty?
 end
 default_version integrations_core_version
 
+license "BSD-3-Clause"
+license_file "./LICENSE"
+
 # folder names containing integrations from -core that won't be packaged with the Agent
 blacklist_folders = [
   'datadog_checks_base',           # namespacing package for wheels (NOT AN INTEGRATION)

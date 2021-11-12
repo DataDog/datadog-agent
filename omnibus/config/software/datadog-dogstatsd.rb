@@ -6,8 +6,7 @@ require 'pathname'
 
 name 'datadog-dogstatsd'
 
-license "Apache-2.0"
-license_file "LICENSE"
+license :project_license
 skip_transitive_dependency_licensing true
 
 source path: '..'

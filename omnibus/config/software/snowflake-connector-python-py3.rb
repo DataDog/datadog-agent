@@ -1,9 +1,10 @@
 name "snowflake-connector-python-py3"
+default_version "2.6.0"
 
 dependency "pip3"
 
-default_version "2.6.0"
-
+license "Apache-2.0"
+license_file "./LICENSE.txt"
 
 source :url => "https://github.com/snowflakedb/snowflake-connector-python/archive/refs/tags/v#{version}.tar.gz",
        :sha256 => "bb7af6933bdd6b8b105dac304de66fdb03e0b17378d588b5be6f1026b6ce3674",
@@ -21,7 +22,5 @@ build do
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
-  license "Apache-2.0"
-  license_file "https://raw.githubusercontent.com/snowflakedb/snowflake-connector-python/v#{version}/LICENSE.txt"
   command "#{pip} install ."
 end

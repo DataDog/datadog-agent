@@ -1,5 +1,7 @@
 name "setuptools2"
 default_version "40.9.0"
+
+license "Python-2.0"
 skip_transitive_dependency_licensing true
 
 dependency "python2"
@@ -19,7 +21,6 @@ build do
     python_prefix = "#{install_dir}/embedded"
   end
 
-  license "Python-2.0"
   command "#{python_bin} bootstrap.py"
   command "#{python_bin} setup.py install --prefix=#{python_prefix}"
 end

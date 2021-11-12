@@ -5,6 +5,8 @@
 
 name 'system-probe'
 
+license :project_license
+
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
