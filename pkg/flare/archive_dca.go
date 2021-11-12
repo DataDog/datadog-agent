@@ -210,7 +210,7 @@ func zipClusterAgentClusterChecks(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterChecks(writer) //nolint:errcheck
+	GetClusterChecks(writer, "") //nolint:errcheck
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "clusterchecks.log")
