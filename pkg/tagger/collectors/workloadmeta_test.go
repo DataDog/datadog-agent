@@ -836,7 +836,7 @@ func TestHandleContainer(t *testing.T) {
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags:          []string{"git.commit.sha:758691a28aa920070651d360814c559bc26af907"},
-					StandardTags:         []string{"git.commit.sha:758691a28aa920070651d360814c559bc26af907"},
+					StandardTags:         []string{},
 				},
 			},
 		},

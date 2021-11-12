@@ -1,4 +1,4 @@
 ---
 enhancements:
   - |
-    Automatically extract the org.opencontainers.image.revision docker label into the git.commit.sha standard tag.
+    Automatically extract the org.opencontainers.image.revision docker label into the git.commit.sha tag.
