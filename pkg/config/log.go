@@ -19,6 +19,7 @@ import (
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
 )
 
@@ -93,7 +94,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
-	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
+	scrubber.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
 	return nil
 }
 
@@ -350,10 +351,25 @@ func parseShortFilePath(params string) seelog.FormatterFunc {
 }
 
 func extractShortPathFromFullPath(fullPath string) string {
-	// We want to trim the part containing the path of the project
-	// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
-	slices := strings.Split(fullPath, "-agent/")
-	return slices[len(slices)-1]
+	shortPath := ""
+	if strings.Contains(fullPath, "-agent/") {
+		// We want to trim the part containing the path of the project
+		// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
+		slices := strings.Split(fullPath, "-agent/")
+		shortPath = slices[len(slices)-1]
+	} else {
+		// For logging from dependencies, we want to log e.g.
+		// "collector@v0.35.0/service/collector.go"
+		slices := strings.Split(fullPath, "/")
+		atSignIndex := len(slices) - 1
+		for ; atSignIndex > 0; atSignIndex-- {
+			if strings.Contains(slices[atSignIndex], "@") {
+				break
+			}
+		}
+		shortPath = strings.Join(slices[atSignIndex:], "/")
+	}
+	return shortPath
 }
 
 func createExtraJSONContext(params string) seelog.FormatterFunc {

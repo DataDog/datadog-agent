@@ -68,6 +68,45 @@ def get_multi_python_location(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 
+def get_nikos_linker_flags(nikos_libs_path):
+    nikos_libs = [
+        'dnf',
+        'gio-2.0',
+        'modulemd',
+        'gobject-2.0',
+        'ffi',
+        'yaml',
+        'gmodule-2.0',
+        'repo',
+        'glib-2.0',
+        'pcre',
+        'z',
+        'solvext',
+        'rpm',
+        'rpmio',
+        'bz2',
+        'solv',
+        'gpgme',
+        'assuan',
+        'gcrypt',
+        'gpg-error',
+        'sqlite3',
+        'curl',
+        'nghttp2',
+        'ssl',
+        'crypto',
+        'json-c',
+        'lzma',
+        'xml2',
+        'popt',
+        'zstd',
+    ]
+    # hardcode the path to each library to ensure we link against the version which was built by omnibus-nikos
+    linker_flags = map(lambda lib: nikos_libs_path + '/lib' + lib + '.a', nikos_libs)
+
+    return ' -L' + nikos_libs_path + ' ' + ' '.join(linker_flags) + ' -static-libstdc++ -pthread -ldl -lm'
+
+
 def has_both_python(python_runtimes):
     python_runtimes = python_runtimes.split(',')
     return '2' in python_runtimes and '3' in python_runtimes
@@ -89,6 +128,7 @@ def get_build_flags(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
+    nikos_embedded_path=None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -133,6 +173,11 @@ def get_build_flags(
         rtloader_headers, rtloader_common_headers
     )
 
+    # adding nikos libs to the env
+    if nikos_embedded_path:
+        env['PKG_CONFIG_PATH'] = env.get('PKG_CONFIG_PATH', '') + ':' + nikos_embedded_path + '/lib/pkgconfig'
+        env["CGO_LDFLAGS"] = env.get('CGO_LDFLAGS', '') + get_nikos_linker_flags(nikos_embedded_path + '/lib')
+
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
@@ -162,10 +207,10 @@ def get_payload_version():
             if len(whitespace_split) < 2:
                 continue
             pkgname = whitespace_split[0]
-            if pkgname == "github.com/DataDog/agent-payload":
+            if pkgname == "github.com/DataDog/agent-payload/v5":
                 # Example of line
-                # github.com/DataDog/agent-payload v4.40.0+incompatible
-                # github.com/DataDog/agent-payload v4.42.1-0.20200826134834-1ddcfb686e3f+incompatible
+                # github.com/DataDog/agent-payload/v5 v5.0.2
+                # github.com/DataDog/agent-payload/v5 v5.0.1-0.20200826134834-1ddcfb686e3f
                 version_split = re.split(r'[ +]', line)
                 if len(version_split) < 2:
                     raise Exception(
@@ -299,7 +344,7 @@ def get_version(
         ctx, git_sha_length, prefix, major_version_hint=major_version
     )
 
-    is_nightly = is_allowed_repo_nightly_branch(os.getenv("DEB_RPM_BUCKET_BRANCH"))
+    is_nightly = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
     if pre:
         version = "{0}-{1}".format(version, pre)
 
@@ -370,3 +415,18 @@ def bundle_files(ctx, bindata_files, dir_prefix, go_dir, pkg, tag, split=True):
         )
     )
     ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))
+
+
+##
+## release.json entry mapping functions
+##
+
+
+def nightly_entry_for(agent_major_version):
+    if agent_major_version == 6:
+        return "nightly"
+    return "nightly-a{}".format(agent_major_version)
+
+
+def release_entry_for(agent_major_version):
+    return "release-a{}".format(agent_major_version)

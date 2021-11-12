@@ -14,8 +14,9 @@ import (
 )
 
 func listenPipe(path string, secdec string, bufferSize int) (net.Listener, error) {
-	return winio.ListenPipe(path, &winio.PipeConfig{
+	ln, err := winio.ListenPipe(path, &winio.PipeConfig{
 		SecurityDescriptor: secdec,
 		InputBufferSize:    int32(bufferSize),
 	})
+	return NewMeasuredListener(ln, "pipe_connections"), err
 }

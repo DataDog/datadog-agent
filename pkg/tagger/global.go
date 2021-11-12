@@ -10,11 +10,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,6 +25,7 @@ import (
 // defaultTagger is the shared tagger instance backing the global Tag and Init functions
 var defaultTagger Tagger
 var initOnce sync.Once
+var initErr error
 
 // captureTagger is a tagger instance that contains a tagger that will contain the tagger
 // state when replaying a capture scenario
@@ -37,8 +40,15 @@ var ChecksCardinality collectors.TagCardinality
 // dogstatsd.
 var DogstatsdCardinality collectors.TagCardinality
 
+// we use to pull tagger metrics in dogstatsd. Pulling it later in the
+// pipeline improve memory allocation. We kept the old name to be
+// backward compatible and because origin detection only affect
+// dogstatsd metrics.
+var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",
+	nil, "Dogstatsd UDP origin detection error count")
+
 // Init must be called once config is available, call it in your cmd
-func Init() {
+func Init() error {
 	initOnce.Do(func() {
 		var err error
 		checkCard := config.Datadog.GetString("checks_tag_cardinality")
@@ -49,6 +59,7 @@ func Init() {
 			log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
 			ChecksCardinality = collectors.LowCardinality
 		}
+
 		DogstatsdCardinality, err = collectors.StringToTagCardinality(dsdCard)
 		if err != nil {
 			log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
@@ -60,11 +71,10 @@ func Init() {
 			return
 		}
 
-		err = defaultTagger.Init()
-		if err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
+		initErr = defaultTagger.Init()
 	})
+
+	return initErr
 }
 
 // GetEntity returns the hash for the provided entity id.
@@ -100,15 +110,15 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 	return defaultTagger.Tag(entity, cardinality)
 }
 
-// TagBuilder queries the defaultTagger to get entity tags from cache or
-// sources and appends them to the TagsBuilder.  It can return tags at high
+// AccumulateTagsFor queries the defaultTagger to get entity tags from cache or
+// sources and appends them to the TagAccumulator.  It can return tags at high
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
-func TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
+func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	//TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
 	if captureTagger != nil {
-		err := captureTagger.TagBuilder(entity, cardinality, tb)
+		err := captureTagger.AccumulateTagsFor(entity, cardinality, tb)
 		if err == nil {
 			mux.RUnlock()
 			return nil
@@ -116,7 +126,7 @@ func TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.T
 	}
 	mux.RUnlock()
 
-	return defaultTagger.TagBuilder(entity, cardinality, tb)
+	return defaultTagger.AccumulateTagsFor(entity, cardinality, tb)
 }
 
 // TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
@@ -181,11 +191,11 @@ func OrchestratorScopeTag() ([]string, error) {
 }
 
 // OrchestratorScopeTagBuilder queries tags for orchestrator scope (e.g.
-// task_arn in ECS Fargate) and appends them to the TagsBuilder
-func OrchestratorScopeTagBuilder(tb *util.TagsBuilder) error {
+// task_arn in ECS Fargate) and appends them to the TagAccumulator
+func OrchestratorScopeTagBuilder(tb tagset.TagAccumulator) error {
 	mux.RLock()
 	if captureTagger != nil {
-		err := captureTagger.TagBuilder(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+		err := captureTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
 
 		if err == nil {
 			mux.RUnlock()
@@ -194,7 +204,7 @@ func OrchestratorScopeTagBuilder(tb *util.TagsBuilder) error {
 	}
 	mux.RUnlock()
 
-	return defaultTagger.TagBuilder(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+	return defaultTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
 }
 
 // Stop queues a stop signal to the defaultTagger
@@ -235,4 +245,49 @@ func ResetCaptureTagger() {
 
 func init() {
 	SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+}
+
+// EnrichTags extends a tag list with origin detection tags
+// NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
+// enrichment, the metric and its tags is sent to the context key generator, which
+// is taking care of deduping the tags while generating the context key.
+func EnrichTags(tb tagset.TagAccumulator, origin string, k8sOriginID string, cardinalityName string) {
+	cardinality := taggerCardinality(cardinalityName)
+
+	if origin != packets.NoOrigin {
+		if err := AccumulateTagsFor(origin, cardinality, tb); err != nil {
+			log.Errorf(err.Error())
+		}
+	}
+
+	// Include orchestrator scope tags if the cardinality is set to orchestrator
+	if cardinality == collectors.OrchestratorCardinality {
+		if err := OrchestratorScopeTagBuilder(tb); err != nil {
+			log.Error(err.Error())
+		}
+	}
+
+	if k8sOriginID != "" {
+		if err := AccumulateTagsFor(k8sOriginID, cardinality, tb); err != nil {
+			tlmUDPOriginDetectionError.Inc()
+			log.Tracef("Cannot get tags for entity %s: %s", k8sOriginID, err)
+		}
+
+	}
+}
+
+// taggerCardinality converts tagger cardinality string to collectors.TagCardinality
+// It defaults to DogstatsdCardinality if the string is empty or unknown
+func taggerCardinality(cardinality string) collectors.TagCardinality {
+	if cardinality == "" {
+		return DogstatsdCardinality
+	}
+
+	taggerCardinality, err := collectors.StringToTagCardinality(cardinality)
+	if err != nil {
+		log.Tracef("Couldn't convert cardinality tag: %w", err)
+		return DogstatsdCardinality
+	}
+
+	return taggerCardinality
 }

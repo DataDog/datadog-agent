@@ -18,13 +18,14 @@ import (
 )
 
 var fileReportedFields = []string{
+	compliance.FileFieldGlob,
 	compliance.FileFieldPath,
 	compliance.FileFieldPermissions,
 	compliance.FileFieldUser,
 	compliance.FileFieldGroup,
 }
 
-func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
+func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resolved, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
@@ -33,11 +34,17 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 
 	log.Debugf("%s: running file check for %q", ruleID, file.Path)
 
+	fileContentParser, err := validateParserKind(file.Parser)
+	if err != nil {
+		return nil, err
+	}
+
 	path, err := resolvePath(e, file.Path)
 	if err != nil {
 		return nil, err
 	}
 
+	initialGlob := path
 	paths, err := filepath.Glob(e.NormalizeToHostRoot(path))
 	if err != nil {
 		return nil, err
@@ -55,19 +62,35 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 			continue
 		}
 
+		filePermissions := uint64(fi.Mode() & os.ModePerm)
 		vars := eval.VarMap{
+			compliance.FileFieldGlob:        initialGlob,
 			compliance.FileFieldPath:        relPath,
-			compliance.FileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
+			compliance.FileFieldPermissions: filePermissions,
+		}
+
+		regoInput := eval.RegoInputMap{
+			"glob":        initialGlob,
+			"path":        relPath,
+			"permissions": filePermissions,
+		}
+
+		content, err := readContent(path, fileContentParser)
+		if err == nil {
+			vars[compliance.FileFieldContent] = content
+			regoInput["content"] = content
 		}
 
 		user, err := getFileUser(fi)
 		if err == nil {
 			vars[compliance.FileFieldUser] = user
+			regoInput["user"] = user
 		}
 
 		group, err := getFileGroup(fi)
 		if err == nil {
 			vars[compliance.FileFieldGroup] = group
+			regoInput["group"] = group
 		}
 
 		functions := eval.FunctionMap{
@@ -76,12 +99,15 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 			compliance.FileFuncRegexp: fileRegexp(path),
 		}
 
-		instance := eval.NewInstance(vars, functions)
+		instance := eval.NewInstance(vars, functions, regoInput)
 
 		instances = append(instances, newResolvedInstance(instance, path, "file"))
 	}
 
 	if len(instances) == 0 {
+		if rego {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("no files found for file check %q", file.Path)
 	}
 

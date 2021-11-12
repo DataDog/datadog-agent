@@ -35,8 +35,42 @@ type SuiteMeta struct {
 
 // Suite represents a set of compliance checks reporting events
 type Suite struct {
-	Meta  SuiteMeta `yaml:",inline"`
-	Rules []Rule    `yaml:"rules,omitempty"`
+	Meta      SuiteMeta               `yaml:",inline"`
+	Rules     []ConditionFallbackRule `yaml:"rules,omitempty"`
+	RegoRules []RegoRule              `yaml:"regos,omitempty"`
+}
+
+type yamlSuite struct {
+	Meta  SuiteMeta                `yaml:",inline"`
+	Rules []map[string]interface{} `yaml:"rules,omitempty"`
+}
+
+func (ys *yamlSuite) toSuite() (*Suite, error) {
+	s := &Suite{}
+	s.Meta = ys.Meta
+
+	for _, rule := range ys.Rules {
+		buffer, err := yaml.Marshal(rule)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := rule["input"]; ok {
+			var regoRule RegoRule
+			if err := yaml.Unmarshal(buffer, &regoRule); err != nil {
+				return nil, err
+			}
+			s.RegoRules = append(s.RegoRules, regoRule)
+		} else {
+			var cfRule ConditionFallbackRule
+			if err := yaml.Unmarshal(buffer, &cfRule); err != nil {
+				return nil, err
+			}
+			s.Rules = append(s.Rules, cfRule)
+		}
+	}
+
+	return s, nil
 }
 
 // ParseSuite loads a single compliance suite
@@ -50,8 +84,14 @@ func ParseSuite(config string) (*Suite, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Suite{}
-	err = yaml.Unmarshal(f, s)
+
+	ys := &yamlSuite{}
+	err = yaml.Unmarshal(f, ys)
+	if err != nil {
+		return nil, err
+	}
+
+	s, err := ys.toSuite()
 	if err != nil {
 		return nil, err
 	}

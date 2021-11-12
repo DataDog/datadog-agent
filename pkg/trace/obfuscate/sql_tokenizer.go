@@ -56,6 +56,7 @@ const (
 	LE
 	GE
 	NE
+	Not
 	As
 	From
 	Update
@@ -108,6 +109,7 @@ var tokenKindStrings = map[TokenKind]string{
 	LE:                           "LE",
 	GE:                           "GE",
 	NE:                           "NE",
+	Not:                          "NOT",
 	As:                           "As",
 	From:                         "From",
 	Update:                       "Update",
@@ -223,6 +225,10 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				tkn.advance()
 				return ColonCast, []byte("::")
 			}
+			if unicode.IsSpace(tkn.lastChar) {
+				// example scenario: "autovacuum: VACUUM ANALYZE fake.table"
+				return TokenKind(ch), tkn.bytes()
+			}
 			if tkn.lastChar != '=' {
 				return tkn.scanBindVar()
 			}
@@ -306,7 +312,10 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 					return NE, []byte("!~")
 				}
 			default:
-				tkn.setErr(`expected "=" after "!", got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
+				if isValidCharAfterOperator(tkn.lastChar) {
+					return Not, tkn.bytes()
+				}
+				tkn.setErr(`unexpected char "%c" (%d) after "!"`, tkn.lastChar, tkn.lastChar)
 				return LexError, tkn.bytes()
 			}
 		case '\'':
@@ -314,7 +323,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 		case '"':
 			return tkn.scanString(ch, DoubleQuotedString)
 		case '`':
-			return tkn.scanLiteralIdentifier('`')
+			return tkn.scanString(ch, ID)
 		case '%':
 			if tkn.lastChar == '(' {
 				return tkn.scanVariableIdentifier('%')
@@ -431,25 +440,6 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	if keywordID, found := keywords[string(upper)]; found {
 		return keywordID, t
 	}
-	return ID, t
-}
-
-func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (TokenKind, []byte) {
-	tkn.bytes() // throw away initial quote
-	if !isLetter(tkn.lastChar) && !isDigit(tkn.lastChar) {
-		tkn.setErr(`unexpected character "%c" (%d) in literal identifier`, tkn.lastChar, tkn.lastChar)
-		return LexError, tkn.bytes()
-	}
-	for tkn.advance(); skipNonLiteralIdentifier(tkn.lastChar); tkn.advance() {
-	}
-
-	t := tkn.bytes()
-	// literals identifier are enclosed between quotes
-	if tkn.lastChar != quote {
-		tkn.setErr(`literal identifiers must end in "%c", got "%c" (%d)`, quote, tkn.lastChar, tkn.lastChar)
-		return LexError, t
-	}
-	tkn.advance()
 	return ID, t
 }
 
@@ -740,10 +730,6 @@ func (tkn *SQLTokenizer) bytes() []byte {
 	return ret
 }
 
-func skipNonLiteralIdentifier(ch rune) bool {
-	return isLetter(ch) || isDigit(ch) || '.' == ch || '-' == ch
-}
-
 func isLeadingLetter(ch rune) bool {
 	return unicode.IsLetter(ch) || ch == '_' || ch == '@'
 }
@@ -771,4 +757,9 @@ func runeBytes(r rune) []byte {
 	buf := make([]byte, utf8.UTFMax)
 	n := utf8.EncodeRune(buf, r)
 	return buf[:n]
+}
+
+// isValidCharAfterOperator returns true if c is a valid character after an operator
+func isValidCharAfterOperator(c rune) bool {
+	return c == '(' || c == '`' || c == '\'' || c == '"' || c == '+' || c == '-' || unicode.IsSpace(c) || isLetter(c) || isDigit(c)
 }

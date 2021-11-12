@@ -1,0 +1,13 @@
+experimental:
+  otlp:
+    http_port: 1234
+    grpc_port: 5678
+    metrics:
+      delta_ttl: 2400
+      report_quantiles: false
+      send_monotonic_counter: true
+      resource_attributes_as_tags: true
+      instrumentation_library_metadata_as_tags: true
+      histograms:
+        mode: counters
+        send_count_sum_metrics: true

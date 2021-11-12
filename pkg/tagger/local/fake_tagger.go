@@ -11,14 +11,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // FakeTagger implements the Tagger interface
 type FakeTagger struct {
 	errors map[string]error
-	store  *tagStore
+	store  *tagstore.TagStore
 	sync.RWMutex
 }
 
@@ -26,7 +27,7 @@ type FakeTagger struct {
 func NewFakeTagger() *FakeTagger {
 	return &FakeTagger{
 		errors: make(map[string]error),
-		store:  newTagStore(),
+		store:  tagstore.NewTagStore(),
 	}
 }
 
@@ -34,7 +35,7 @@ func NewFakeTagger() *FakeTagger {
 
 // SetTags allows to set tags in store for a given source, entity
 func (f *FakeTagger) SetTags(entity, source string, low, orch, high, std []string) {
-	f.store.processTagInfo([]*collectors.TagInfo{
+	f.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Source:               source,
 			Entity:               entity,
@@ -48,10 +49,10 @@ func (f *FakeTagger) SetTags(entity, source string, low, orch, high, std []strin
 
 // SetTagsFromInfo allows to set tags from list of TagInfo
 func (f *FakeTagger) SetTagsFromInfo(tags []*collectors.TagInfo) {
-	f.store.processTagInfo(tags)
+	f.store.ProcessTagInfo(tags)
 }
 
-// SetError allows to set an error to be returned when `Tag` or `TagBuilder` is called
+// SetError allows to set an error to be returned when `Tag` or `AccumulateTagsFor` is called
 // for this entity and cardinality
 func (f *FakeTagger) SetError(entity string, cardinality collectors.TagCardinality, err error) {
 	f.Lock()
@@ -74,7 +75,7 @@ func (f *FakeTagger) Stop() error {
 
 // Tag fake implementation
 func (f *FakeTagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-	tags, _ := f.store.lookup(entity, cardinality)
+	tags := f.store.Lookup(entity, cardinality)
 
 	key := f.getKey(entity, cardinality)
 	if err := f.errors[key]; err != nil {
@@ -84,8 +85,8 @@ func (f *FakeTagger) Tag(entity string, cardinality collectors.TagCardinality) (
 	return tags, nil
 }
 
-// TagBuilder fake implementation
-func (f *FakeTagger) TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
+// AccumulateTagsFor fake implementation
+func (f *FakeTagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	tags, err := f.Tag(entity, cardinality)
 	if err != nil {
 		return err
@@ -97,56 +98,27 @@ func (f *FakeTagger) TagBuilder(entity string, cardinality collectors.TagCardina
 
 // Standard fake implementation
 func (f *FakeTagger) Standard(entity string) ([]string, error) {
-	return f.store.lookupStandard(entity)
+	return f.store.LookupStandard(entity)
 }
 
 // GetEntity returns faked entity corresponding to the specified id and an error
 func (f *FakeTagger) GetEntity(entityID string) (*types.Entity, error) {
-
-	tags, err := f.store.getEntityTags(entityID)
-	if err != nil {
-		return nil, err
-	}
-
-	entity := tags.toEntity()
-	return &entity, nil
+	return f.store.GetEntity(entityID)
 }
 
 // List fake implementation
 func (f *FakeTagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
-	r := response.TaggerListResponse{
-		Entities: make(map[string]response.TaggerListEntity),
-	}
-
-	f.store.RLock()
-	defer f.store.RUnlock()
-
-	for entityID, et := range f.store.store {
-		entity := response.TaggerListEntity{
-			Tags: make(map[string][]string),
-		}
-
-		for source, sourceTags := range et.sourceTags {
-			tags := append([]string(nil), sourceTags.lowCardTags...)
-			tags = append(tags, sourceTags.orchestratorCardTags...)
-			tags = append(tags, sourceTags.highCardTags...)
-			entity.Tags[source] = tags
-		}
-
-		r.Entities[entityID] = entity
-	}
-
-	return r
+	return f.store.List()
 }
 
 // Subscribe fake implementation
 func (f *FakeTagger) Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
-	return f.store.subscribe(cardinality)
+	return f.store.Subscribe(cardinality)
 }
 
 // Unsubscribe fake implementation
 func (f *FakeTagger) Unsubscribe(ch chan []types.EntityEvent) {
-	f.store.unsubscribe(ch)
+	f.store.Unsubscribe(ch)
 }
 
 // Fake internals

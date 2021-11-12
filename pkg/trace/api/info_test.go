@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestInfoHandler ensures that the keys returned by the /info handler do not
@@ -47,7 +48,7 @@ func TestInfoHandler(t *testing.T) {
 		Redis:             config.Enablable{Enabled: true},
 		Memcached:         config.Enablable{Enabled: false},
 	}
-	rcv := newTestReceiverFromConfig(&config.AgentConfig{
+	conf := &config.AgentConfig{
 		Enabled:    true,
 		Hostname:   "test.host.name",
 		DefaultEnv: "prod",
@@ -94,19 +95,16 @@ func TestInfoHandler(t *testing.T) {
 		AnalyzedSpansByService:      map[string]map[string]float64{"X": {"Y": 2.4}},
 		DDAgentBin:                  "/path/to/core/agent",
 		Obfuscation:                 obfCfg,
-	})
-	defer func(old string) { info.Version = old }(info.Version)
-	defer func(old string) { info.GitCommit = old }(info.GitCommit)
-	defer func(old string) { info.BuildDate = old }(info.BuildDate)
-	defer testutil.WithFeatures("feature_flag")()
-	info.Version = "0.99.0"
-	info.GitCommit = "fab047e10"
-	info.BuildDate = "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792"
-	_, h := rcv.makeInfoHandler()
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/info", nil)
-	h.ServeHTTP(rec, req)
-	if rec.Body.String() != `{
+	}
+
+	var testCases = []struct {
+		name                 string
+		expected             string
+		enableConfigEndpoint bool
+	}{
+		{
+			name: "default",
+			expected: `{
 	"version": "0.99.0",
 	"git_commit": "fab047e10",
 	"build_date": "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792",
@@ -116,6 +114,7 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.4/traces",
 		"/v0.4/services",
 		"/v0.5/traces",
+		"/v0.6/traces",
 		"/profiling/v1/input",
 		"/v0.6/stats",
 		"/appsec/proxy/",
@@ -156,9 +155,90 @@ func TestInfoHandler(t *testing.T) {
 			"memcached": false
 		}
 	}
-}` {
-		t.Fatal("Output of /info has changed. Changing the keys "+
-			"is not allowed because the client rely on them and "+
-			"is considered a breaking change:\n\n%f", rec.Body.String())
+}`,
+		},
+		{
+			name:                 "debug",
+			enableConfigEndpoint: true,
+			expected: `{
+	"version": "0.99.0",
+	"git_commit": "fab047e10",
+	"build_date": "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792",
+	"endpoints": [
+		"/v0.3/traces",
+		"/v0.3/services",
+		"/v0.4/traces",
+		"/v0.4/services",
+		"/v0.5/traces",
+		"/v0.6/traces",
+		"/profiling/v1/input",
+		"/v0.6/stats",
+		"/appsec/proxy/",
+		"/debugger/v1/input",
+		"/v0.6/config"
+	],
+	"feature_flags": [
+		"config_endpoint"
+	],
+	"client_drop_p0s": true,
+	"config": {
+		"default_env": "prod",
+		"target_tps": 11,
+		"max_eps": 12,
+		"receiver_port": 8111,
+		"receiver_socket": "/sock/path",
+		"connection_limit": 12,
+		"receiver_timeout": 100,
+		"max_request_bytes": 123,
+		"statsd_port": 123,
+		"max_memory": 1000000,
+		"max_cpu": 12345,
+		"analyzed_spans_by_service": {
+			"X": {
+				"Y": 2.4
+			}
+		},
+		"obfuscation": {
+			"elastic_search": true,
+			"mongo": true,
+			"sql_exec_plan": true,
+			"sql_exec_plan_normalize": true,
+			"http": {
+				"remove_query_string": true,
+				"remove_path_digits": true
+			},
+			"remove_stack_traces": false,
+			"redis": true,
+			"memcached": false
+		}
+	}
+}`,
+		},
+	}
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			rcv := newTestReceiverFromConfig(conf)
+			if tt.enableConfigEndpoint {
+				defer testutil.WithFeatures("config_endpoint")()
+			} else {
+				defer testutil.WithFeatures("feature_flag")()
+			}
+			defer func(old string) { info.Version = old }(info.Version)
+			defer func(old string) { info.GitCommit = old }(info.GitCommit)
+			defer func(old string) { info.BuildDate = old }(info.BuildDate)
+			info.Version = "0.99.0"
+			info.GitCommit = "fab047e10"
+			info.BuildDate = "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792"
+			_, h := rcv.makeInfoHandler()
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest("GET", "/info", nil)
+			h.ServeHTTP(rec, req)
+			assert.Equal(t, rec.Body.String(), tt.expected)
+			if rec.Body.String() != tt.expected {
+				t.Fatal("Output of /info has changed. Changing the keys "+
+					"is not allowed because the client rely on them and "+
+					"is considered a breaking change:\n\n%f", rec.Body.String())
+			}
+		})
 	}
 }

@@ -31,7 +31,7 @@ var groupReportedFields = []string{
 // ErrGroupNotFound is returned when a group cannot be found
 var ErrGroupNotFound = errors.New("group not found")
 
-func resolveGroup(_ context.Context, e env.Env, id string, res compliance.Resource) (resolved, error) {
+func resolveGroup(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resolved, error) {
 	if res.Group == nil {
 		return nil, fmt.Errorf("%s: expecting group resource in group check", id)
 	}
@@ -86,13 +86,19 @@ func (f *groupFinder) findGroup(line []byte) (bool, error) {
 		log.Errorf("failed to parse group ID for %s: %v", f.groupName, err)
 	}
 
+	users := strings.Split(parts[3], ",")
 	f.instance = eval.NewInstance(
 		eval.VarMap{
 			compliance.GroupFieldName:  f.groupName,
-			compliance.GroupFieldUsers: strings.Split(parts[3], ","),
+			compliance.GroupFieldUsers: users,
 			compliance.GroupFieldID:    gid,
 		},
 		nil,
+		eval.RegoInputMap{
+			"name":  f.groupName,
+			"users": users,
+			"id":    gid,
+		},
 	)
 
 	return true, nil

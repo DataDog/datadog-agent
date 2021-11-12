@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+
 	"github.com/stretchr/testify/assert"
 )
 

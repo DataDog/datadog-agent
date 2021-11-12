@@ -75,9 +75,21 @@ if node['platform_family'] != 'windows'
     package node['dd-agent-upgrade']['package_name'] do
       action :remove
     end
-    package node['dd-agent-upgrade']['package_name'] do
-      action :install
-      version node['dd-agent-upgrade']['version']
+    # We have this commented and run it as `execute` command to be able to provide
+    # ZYPP_RPM_DEBUG=1 and see debug output. Whenever we solve/understand
+    # https://bugzilla.suse.com/show_bug.cgi?id=1192034, we can uncomment
+    # and remove the command.
+    #
+    # package node['dd-agent-upgrade']['package_name'] do
+    #   action :install
+    #   version node['dd-agent-upgrade']['version']
+    # end
+    execute 'install agent' do
+      command "zypper --non-interactive install --auto-agree-with-licenses #{node['dd-agent-upgrade']['package_name']}=#{node['dd-agent-upgrade']['version']}"
+
+      environment({'ZYPP_RPM_DEBUG' => '1'})
+      live_stream true
+      action :run
     end
   end
 end
@@ -126,7 +138,7 @@ if node['platform_family'] == 'windows'
   execute "install-agent" do
     command "start /wait msiexec /log upgrade.log /q /i #{temp_file} #{install_options}"
     action :run
-    notifies :restart, 'service[datadog-agent]'
+    # notifies :restart, 'service[datadog-agent]'
   end
 
 end

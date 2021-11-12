@@ -33,6 +33,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	// register all workloadmeta collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 var (
@@ -205,8 +209,13 @@ func runAgent(ctx context.Context) (err error) {
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
+		// Start workload metadata store before tagger
+		workloadmeta.GetGlobalStore().Start(context.Background())
+
 		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-		tagger.Init()
+		if err := tagger.Init(); err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, nil, hname)

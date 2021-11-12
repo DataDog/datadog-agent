@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +19,7 @@ func PingTCP(t *testing.T, ip net.IP, port int) net.Conn {
 		addr = fmt.Sprintf("[%s]:%d", ip, port)
 	}
 
-	conn, err := net.Dial(network, addr)
+	conn, err := net.DialTimeout(network, addr, time.Second)
 	require.NoError(t, err)
 
 	_, err = conn.Write([]byte("ping"))

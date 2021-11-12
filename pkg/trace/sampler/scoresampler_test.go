@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/cihub/seelog"
@@ -19,14 +20,14 @@ import (
 
 const defaultEnv = "none"
 
-func getTestErrorsSampler() *ErrorsSampler {
+func getTestErrorsSampler(tps float64) *ErrorsSampler {
 	// Disable debug logs in these tests
 	seelog.UseLogger(seelog.Disabled)
 
 	// No extra fixed sampling, no maximum TPS
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1,
-		TargetTPS:       0,
+		ErrorTPS:        tps,
 	}
 	return NewErrorsSampler(conf)
 }
@@ -43,7 +44,7 @@ func getTestTrace() (pb.Trace, *pb.Span) {
 func TestExtraSampleRate(t *testing.T) {
 	assert := assert.New(t)
 
-	s := getTestErrorsSampler()
+	s := getTestErrorsSampler(10)
 	trace, root := getTestTrace()
 	signature := testComputeSignature(trace)
 
@@ -60,39 +61,18 @@ func TestExtraSampleRate(t *testing.T) {
 	assert.Equal(s.GetSampleRate(trace, root, signature), s.extraRate*sRate)
 }
 
-func TestErrorSampleThresholdTo1(t *testing.T) {
-	assert := assert.New(t)
-	env := defaultEnv
-
-	s := getTestErrorsSampler()
-	for i := 0; i < 1e2; i++ {
-		trace, root := getTestTrace()
-		s.Sample(trace, root, env)
-		rate, _ := root.Metrics["_dd.errors_sr"]
-		assert.Equal(1.0, rate)
-	}
-	for i := 0; i < 1e3; i++ {
-		trace, root := getTestTrace()
-		s.Sample(trace, root, env)
-		rate, _ := root.Metrics["_dd.errors_sr"]
-		if rate < 1 {
-			assert.True(rate < errorSamplingRateThresholdTo1)
-		}
-	}
-}
-
 func TestTargetTPS(t *testing.T) {
 	// Test the "effectiveness" of the targetTPS option.
 	assert := assert.New(t)
-	s := getTestErrorsSampler()
-
 	targetTPS := 5.0
+	s := getTestErrorsSampler(targetTPS)
+
 	tps := 100.0
 	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
 	initPeriods := 20
 	periods := 50
 
-	s.targetTPS = targetTPS
+	s.targetTPS = atomic.NewFloat(targetTPS)
 	periodSeconds := defaultDecayPeriod.Seconds()
 	tracesPerPeriod := tps * periodSeconds
 	// Set signature score offset high enough not to kick in during the test.
@@ -117,13 +97,23 @@ func TestTargetTPS(t *testing.T) {
 	assert.InEpsilon(tps, s.Backend.GetSampledScore(), 0.01)
 
 	// We should have kept less traces per second than targetTPS
-	assert.True(s.targetTPS >= float64(sampledCount)/(float64(periods)*periodSeconds))
+	assert.True(s.targetTPS.Load() >= float64(sampledCount)/(float64(periods)*periodSeconds))
 
 	// We should have a throughput of sampled traces around targetTPS
 	// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
 	// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-	assert.InEpsilon(s.targetTPS, float64(sampledCount)/(float64(periods)*periodSeconds),
+	assert.InEpsilon(s.targetTPS.Load(), float64(sampledCount)/(float64(periods)*periodSeconds),
 		0.01+defaultDecayFactor-1)
+}
+
+func TestDisable(t *testing.T) {
+	assert := assert.New(t)
+
+	s := getTestErrorsSampler(0)
+	trace, root := getTestTrace()
+	for i := 0; i < int(1e2); i++ {
+		assert.False(s.Sample(trace, root, defaultEnv))
+	}
 }
 
 func BenchmarkSampler(b *testing.B) {
@@ -132,7 +122,7 @@ func BenchmarkSampler(b *testing.B) {
 	// Up to signatureCount different signatures
 	signatureCount := 20
 
-	s := getTestErrorsSampler()
+	s := getTestErrorsSampler(10)
 
 	b.ResetTimer()
 	b.ReportAllocs()

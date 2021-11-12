@@ -109,8 +109,8 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
     int i;
     int raise = 0;
     int ret_code = 0;
-    int subprocess_args_sz;
-    int subprocess_env_sz;
+    int subprocess_args_sz = 0;
+    int subprocess_env_sz = 0;
     char **subprocess_args = NULL;
     char **subprocess_env = NULL;
     char *c_stdout = NULL;

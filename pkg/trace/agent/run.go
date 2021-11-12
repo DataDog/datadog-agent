@@ -31,7 +31,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	// register all workloadmeta collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
@@ -141,14 +144,27 @@ func Run(ctx context.Context) {
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	var t tagger.Tagger
-	if coreconfig.Datadog.GetBool("apm_config.remote_tagger") {
-		t = remote.NewTagger()
-	} else {
-		t = local.NewTagger(collectors.DefaultCatalog)
+	remoteTagger := coreconfig.Datadog.GetBool("apm_config.remote_tagger")
+	if remoteTagger {
+		tagger.SetDefaultTagger(remote.NewTagger())
+		if err := tagger.Init(); err != nil {
+			log.Infof("starting remote tagger failed. falling back to local tagger: %s", err)
+			remoteTagger = false
+		}
 	}
-	tagger.SetDefaultTagger(t)
-	tagger.Init()
+
+	// starts the local tagger if apm_config says so, or if starting the
+	// remote tagger has failed.
+	if !remoteTagger {
+		// Start workload metadata store before tagger
+		workloadmeta.GetGlobalStore().Start(context.Background())
+
+		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+		if err := tagger.Init(); err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
+	}
+
 	defer func() {
 		err := tagger.Stop()
 		if err != nil {
@@ -158,8 +174,10 @@ func Run(ctx context.Context) {
 
 	agnt := NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
-	if coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
-		runProfiling(cfg)
+	if cfg.ProfilingSettings != nil {
+		cfg.ProfilingSettings.Tags = []string{fmt.Sprintf("version:%s", info.Version)}
+		profiling.Start(*cfg.ProfilingSettings)
+		log.Infof("Internal profiling enabled: %s.", cfg.ProfilingSettings)
 		defer profiling.Stop()
 	}
 	agnt.Run()
@@ -180,33 +198,4 @@ func Run(ctx context.Context) {
 		}
 		f.Close()
 	}
-}
-
-// runProfiling enables the profiler.
-func runProfiling(cfg *config.AgentConfig) {
-	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
-		// fail safe
-		return
-	}
-	site := "datadoghq.com"
-	if v := coreconfig.Datadog.GetString("site"); v != "" {
-		site = v
-	}
-	addr := fmt.Sprintf("https://intake.profile.%s/v1/input", site)
-	if v := coreconfig.Datadog.GetString("internal_profiling.profile_dd_url"); v != "" {
-		addr = v
-	}
-	period := profiling.DefaultProfilingPeriod
-	if v := coreconfig.Datadog.GetDuration("internal_profiling.period"); v != 0 {
-		period = v
-	}
-	cpudur := profiler.DefaultDuration
-	if v := coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"); v != 0 {
-		cpudur = v
-	}
-	mutexFraction := coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction")
-	blockRate := coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate")
-	routines := coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
-	profiling.Start(addr, cfg.DefaultEnv, "trace-agent", period, cpudur, mutexFraction, blockRate, routines, fmt.Sprintf("version:%s", info.Version))
-	log.Infof("Internal profiling enabled: [Target:%q][Env:%q][Period:%s][CPU:%s][Mutex:%d][Block:%d][Routines:%v].", addr, cfg.DefaultEnv, period, cpudur, mutexFraction, blockRate, routines)
 }

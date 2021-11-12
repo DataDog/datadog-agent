@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add a generic `container` check. It generates `container.*` metrics based on all running containers, regardless of the container runtime used (among the supported ones).

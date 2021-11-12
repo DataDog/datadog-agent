@@ -262,7 +262,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	}
 
 	// Update parent source with additional information
-	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", ShortContainerID(containerID), shortName, container.container.Created, l.getPath(containerID)))
+	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", ShortContainerID(containerID), shortName, container.container.Created, getPath(containerID)))
 
 	// When ContainerCollectAll is not enabled, we try to derive the service and source names from container labels
 	// provided by AD (in this case, the parent source config). Otherwise we use the standard service or short image
@@ -285,7 +285,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	fileSource := config.NewLogSource(source.Name, &config.LogsConfig{
 		Type:            config.FileType,
 		Identifier:      containerID,
-		Path:            l.getPath(containerID),
+		Path:            getPath(containerID),
 		Service:         serviceName,
 		Source:          sourceName,
 		Tags:            source.Config.Tags,
@@ -298,10 +298,11 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 }
 
 // getPath returns the file path of the container log to tail.
-// The pattern looks like /var/lib/docker/containers/{container-id}/{container-id}-json.log
-func (l *Launcher) getPath(id string) string {
-	filename := fmt.Sprintf("%s-json.log", id)
-	return filepath.Join(basePath, id, filename)
+func getPath(id string) string {
+	if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		return fmt.Sprintf("/var/lib/containers/storage/overlay-containers/%s/userdata/ctr.log", id)
+	}
+	return filepath.Join(basePath, id, fmt.Sprintf("%s-json.log", id))
 }
 
 // newOverridenSource is separated from overrideSource for testing purpose
@@ -354,6 +355,8 @@ func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSo
 	}
 	// fileSource is a new source using the original source as its parent
 	fileSource := l.getFileSource(container, source)
+	fileSource.source.ParentSource.HideFromStatus()
+
 	// Keep source for later unscheduling
 	l.fileSourcesByContainer[containerID] = fileSource
 	l.sources.AddSource(fileSource.source)

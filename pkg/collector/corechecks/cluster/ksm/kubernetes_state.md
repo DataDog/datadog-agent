@@ -158,13 +158,13 @@
 : Describes the unschedulable status for the pod. Tags:`kube_namespace` `pod_name` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.status_phase`
-: The pods current phase. Tags:`kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels).
+: The pods current phase. Tags:`kube_namespace` `pod_name` `pod_phase` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.age`
-: The time in seconds since the creation of the pod. Tags:`kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels).
+: The time in seconds since the creation of the pod. Tags:`kube_namespace` `pod_name` `pod_phase` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.uptime`
-: The time in seconds since the pod has been scheduled and acknowledged by the Kubelet. Tags:`kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels).
+: The time in seconds since the pod has been scheduled and acknowledged by the Kubelet. Tags:`kube_namespace` `pod_name` `pod_phase` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.count`
 : Number of Pods. Tags:`kube_namespace` `kube_<owner kind>`.
@@ -302,13 +302,19 @@
 : The duration since the last time the cronjob was scheduled. Tags:`kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.job.count`
-: Number of jobs. Tags:`kube_namespace` `owner_cronjob`.
+: Number of jobs. Tags:`kube_namespace` `kube_cronjob`.
 
 `kubernetes_state.job.failed`
 : The number of pods which reached Phase Failed. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.job.succeeded`
 : The number of pods which reached Phase Succeeded. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
+
+`kubernetes_state.job.completion.succeeded`
+: The job has completed its execution. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
+
+`kubernetes_state.job.completion.failed`
+: The job has failed its execution. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.resourcequota.<resource>.limit`
 : Information about resource quota limits by resource. Tags:`kube_namespace` `resourcequota`.

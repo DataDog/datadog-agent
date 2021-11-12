@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 type contextKey struct {
@@ -67,6 +67,8 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
+	r.HandleFunc("/workload-list/short", getShortWorkloadList).Methods("GET")
+	r.HandleFunc("/workload-list/verbose", getVerboseWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 
 	return r
@@ -349,11 +351,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	configs := common.AC.GetLoadedConfigs()
-	configSlice := make([]integration.Config, 0)
-	for _, config := range configs {
-		configSlice = append(configSlice, config)
-	}
+	configSlice := common.AC.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
@@ -386,6 +384,27 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonTags)
+}
+
+func getVerboseWorkloadList(w http.ResponseWriter, r *http.Request) {
+	workloadList(w, true)
+}
+
+func getShortWorkloadList(w http.ResponseWriter, r *http.Request) {
+	workloadList(w, false)
+}
+
+func workloadList(w http.ResponseWriter, verbose bool) {
+	response := workloadmeta.GetGlobalStore().Dump(verbose)
+	jsonDump, err := json.Marshal(response)
+	if err != nil {
+		log.Errorf("Unable to marshal workload list response: %w", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonDump)
 }
 
 func secretInfo(w http.ResponseWriter, r *http.Request) {

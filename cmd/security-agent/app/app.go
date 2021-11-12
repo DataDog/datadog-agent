@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -120,13 +122,13 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 }
 
-func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeOrigin config.IntakeOrigin) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol, intakeOrigin)
+func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeOrigin config.IntakeOrigin, intakeProtocol config.IntakeProtocol) (*config.Endpoints, *client.DestinationsContext, error) {
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol, intakeOrigin)
+		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, intakeOrigin)
 		if err == nil {
 			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol, intakeOrigin)
+			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 		}
 	}
 
@@ -249,7 +251,7 @@ func RunAgent(ctx context.Context) (err error) {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
+	f := forwarder.NewDefaultForwarder(forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain)))
 	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f, nil)
 
@@ -272,10 +274,17 @@ func RunAgent(ctx context.Context) (err error) {
 	// Initialize the remote tagger
 	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
 		tagger.SetDefaultTagger(remote.NewTagger())
-		tagger.Init()
+		err := tagger.Init()
+		if err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
 	}
 
 	if err = startCompliance(hostname, stopper, statsdClient); err != nil {
+		return err
+	}
+
+	if err = initRuntimeSettings(); err != nil {
 		return err
 	}
 
@@ -299,6 +308,10 @@ func RunAgent(ctx context.Context) (err error) {
 	return
 }
 
+func initRuntimeSettings() error {
+	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{})
+}
+
 // handleSignals handles OS signals, and sends a message on stopCh when an interrupt
 // signal is received.
 func handleSignals(stopCh chan struct{}) {
@@ -315,6 +328,9 @@ func handleSignals(stopCh chan struct{}) {
 			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
+
+			_ = tagger.Stop()
+
 			stopCh <- struct{}{}
 			return
 		}

@@ -142,24 +142,13 @@ typedef struct {
 } port_binding_t;
 
 typedef struct {
-    __u32 netns;
-    struct flowi4 *fl;
-} ip_route_flow_t;
+    struct sock *sk;
+    struct msghdr *msg;
+} udp_recv_sock_t;
 
 typedef struct {
-    __u64 saddr_h;
-    __u64 saddr_l;
-    __u64 daddr_h;
-    __u64 daddr_l;
-    __u32 netns;
-    __u16 family;
-} ip_route_dest_t;
-
-typedef struct {
-    __u64 gw_h;
-    __u64 gw_l;
-    __u16 family;
-    __u32 ifindex;
-} ip_route_gateway_t;
+    __u32 pid;
+    __u32 fd;
+} pid_fd_t;
 
 #endif

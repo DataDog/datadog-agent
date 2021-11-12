@@ -8,16 +8,15 @@
 package probe
 
 import (
-	"bytes"
-	"encoding/json"
 	"path"
 	"strings"
 	"syscall"
 	"time"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/mailru/easyjson/jwriter"
 )
 
 const (
@@ -110,9 +109,14 @@ func (ev *Event) ResolveFileFieldsInUpperLayer(f *model.FileFields) bool {
 // ResolveXAttrName returns the string representation of the extended attribute name
 func (ev *Event) ResolveXAttrName(e *model.SetXAttrEvent) string {
 	if len(e.Name) == 0 {
-		e.Name = string(bytes.Trim(e.NameRaw[:], "\x00"))
+		e.Name, _ = model.UnmarshalString(e.NameRaw[:], 200)
 	}
 	return e.Name
+}
+
+// ResolveHelpers returns the list of eBPF helpers used by the current program
+func (ev *Event) ResolveHelpers(e *model.BPFProgram) []uint32 {
+	return e.Helpers
 }
 
 // ResolveXAttrNamespace returns the string representation of the extended attribute namespace
@@ -128,7 +132,7 @@ func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 
 // SetMountPoint set the mount point information
 func (ev *Event) SetMountPoint(e *model.MountEvent) {
-	e.MountPointStr, e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
+	e.MountPointStr, e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
@@ -141,7 +145,7 @@ func (ev *Event) ResolveMountPoint(e *model.MountEvent) string {
 
 // SetMountRoot set the mount point information
 func (ev *Event) SetMountRoot(e *model.MountEvent) {
-	e.RootStr, e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
+	e.RootStr, e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
@@ -391,7 +395,7 @@ func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
 }
 
 func (ev *Event) String() string {
-	d, err := json.Marshal(ev)
+	d, err := ev.MarshalJSON()
 	if err != nil {
 		return err.Error()
 	}
@@ -406,7 +410,11 @@ func (ev *Event) SetPathResolutionError(err error) {
 // MarshalJSON returns the JSON encoding of the event
 func (ev *Event) MarshalJSON() ([]byte, error) {
 	s := NewEventSerializer(ev)
-	return json.Marshal(s)
+	w := &jwriter.Writer{
+		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+	}
+	s.MarshalEasyJSON(w)
+	return w.BuildBytes()
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event

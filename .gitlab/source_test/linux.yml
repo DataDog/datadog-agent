@@ -17,12 +17,15 @@
   stage: source_test
   script:
     - inv -e install-tools
-    - inv -e test --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json
+    - inv -e test --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
+    - python3 -m tasks.release_tests
+    - python3 -m tasks.libs.version_tests
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
       - test_output.json
+      - junit-*.tgz
 
 tests_deb-x64-py2:
   extends: .rtloader_tests

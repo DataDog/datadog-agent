@@ -81,7 +81,7 @@ void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder
         return NULL;
 
     struct discarder_params_t *params = (struct discarder_params_t *)entry;
-    
+
     u64 tm = bpf_ktime_get_ns();
 
     // this discarder has been marked as on hold by event such as unlink, rename, etc.
@@ -161,6 +161,11 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
         if ((discarder_timestamp = get_discarder_timestamp(&inode_params->params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
         }
+
+        u64 tm = bpf_ktime_get_ns();
+        if (inode_params->params.is_retained && inode_params->params.expire_at < tm) {
+            inode_params->params.is_retained = 0;
+        }
     } else {
         struct inode_discarder_params_t new_inode_params = {
             .revision = get_discarder_revision(mount_id),
@@ -229,10 +234,19 @@ void __attribute__((always_inline)) remove_inode_discarders(u32 mount_id, u64 in
     }
 }
 
-static __always_inline u32 get_system_probe_pid() {
-    u64 val = 0;
-    LOAD_CONSTANT("system_probe_pid", val);
-    return val;
+int __attribute__((always_inline)) expire_inode_discarder(u32 mount_id, u64 inode) {
+    if (!mount_id || !inode) {
+        return 0;
+    }
+
+    remove_inode_discarders(mount_id, inode);
+    return 0;
+}
+
+static __always_inline u32 is_runtime_discarded() {
+    u64 discarded = 0;
+    LOAD_CONSTANT("runtime_discarded", discarded);
+    return discarded;
 }
 
 struct pid_discarder_params_t {
@@ -292,8 +306,10 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
-    u32 system_probe_pid = get_system_probe_pid();
-    if (system_probe_pid && system_probe_pid == tgid) {
+    u64 runtime_pid;
+    LOAD_CONSTANT("runtime_pid", runtime_pid);
+
+    if (is_runtime_discarded() && runtime_pid == tgid) {
         return 1;
     }
 

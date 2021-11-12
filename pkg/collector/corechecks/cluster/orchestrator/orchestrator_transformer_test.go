@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -1470,6 +1471,385 @@ func TestExtractPV(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, &tc.expected, extractPersistentVolume(&tc.input))
+		})
+	}
+}
+
+func TestExtractRole(t *testing.T) {
+	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
+
+	tests := map[string]struct {
+		input    rbacv1.Role
+		expected model.Role
+	}{
+		"standard": {
+			input: rbacv1.Role{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					CreationTimestamp: creationTime,
+					Labels: map[string]string{
+						"app": "my-app",
+					},
+					Name:            "role",
+					Namespace:       "namespace",
+					ResourceVersion: "1234",
+					UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
+				},
+				Rules: []rbacv1.PolicyRule{
+					{
+						APIGroups: []string{""},
+						Resources: []string{"nodes", "pods", "services"},
+						Verbs:     []string{"get", "patch", "list"},
+					},
+					{
+						APIGroups: []string{"batch"},
+						Resources: []string{"cronjobs", "jobs"},
+						Verbs:     []string{"get", "list", "watch"},
+					},
+					{
+						APIGroups: []string{"rbac.authorization.k8s.io"},
+						Resources: []string{"rolebindings"},
+						Verbs:     []string{"create"},
+					},
+				},
+			},
+			expected: model.Role{
+				Metadata: &model.Metadata{
+					Annotations:       []string{"annotation:my-annotation"},
+					CreationTimestamp: creationTime.Unix(),
+					Labels:            []string{"app:my-app"},
+					Name:              "role",
+					Namespace:         "namespace",
+					ResourceVersion:   "1234",
+					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+				},
+				Rules: []*model.PolicyRule{
+					{
+						ApiGroups: []string{""},
+						Resources: []string{"nodes", "pods", "services"},
+						Verbs:     []string{"get", "patch", "list"},
+					},
+					{
+						ApiGroups: []string{"batch"},
+						Resources: []string{"cronjobs", "jobs"},
+						Verbs:     []string{"get", "list", "watch"},
+					},
+					{
+						ApiGroups: []string{"rbac.authorization.k8s.io"},
+						Resources: []string{"rolebindings"},
+						Verbs:     []string{"create"},
+					},
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, &tc.expected, extractRole(&tc.input))
+		})
+	}
+}
+
+func TestExtractRoleBinding(t *testing.T) {
+	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
+
+	tests := map[string]struct {
+		input    rbacv1.RoleBinding
+		expected model.RoleBinding
+	}{
+		"standard": {
+			input: rbacv1.RoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					CreationTimestamp: creationTime,
+					Labels: map[string]string{
+						"app": "my-app",
+					},
+					Name:            "role-binding",
+					Namespace:       "namespace",
+					ResourceVersion: "1234",
+					UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
+				},
+				RoleRef: rbacv1.RoleRef{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "Role",
+					Name:     "my-role",
+				},
+				Subjects: []rbacv1.Subject{
+					{
+						APIGroup: "rbac.authorization.k8s.io",
+						Kind:     "User",
+						Name:     "firstname.lastname@company.com",
+					},
+				},
+			},
+			expected: model.RoleBinding{
+				Metadata: &model.Metadata{
+					Annotations:       []string{"annotation:my-annotation"},
+					CreationTimestamp: creationTime.Unix(),
+					Labels:            []string{"app:my-app"},
+					Name:              "role-binding",
+					Namespace:         "namespace",
+					ResourceVersion:   "1234",
+					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+				},
+				RoleRef: &model.TypedLocalObjectReference{
+					ApiGroup: "rbac.authorization.k8s.io",
+					Kind:     "Role",
+					Name:     "my-role",
+				},
+				Subjects: []*model.Subject{
+					{
+						ApiGroup: "rbac.authorization.k8s.io",
+						Kind:     "User",
+						Name:     "firstname.lastname@company.com",
+					},
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, &tc.expected, extractRoleBinding(&tc.input))
+		})
+	}
+}
+
+func TestExtractClusterRole(t *testing.T) {
+	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
+
+	tests := map[string]struct {
+		input    rbacv1.ClusterRole
+		expected model.ClusterRole
+	}{
+		"standard": {
+			input: rbacv1.ClusterRole{
+				AggregationRule: &rbacv1.AggregationRule{
+					ClusterRoleSelectors: []metav1.LabelSelector{
+						{
+							MatchLabels: map[string]string{"rbac.example.com/aggregate-to-edit": "true"},
+							MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "rbac.example.com/aggregate-to-edit",
+									Operator: "In",
+									Values:   []string{"true"},
+								},
+							},
+						},
+					},
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					CreationTimestamp: creationTime,
+					Labels: map[string]string{
+						"app": "my-app",
+					},
+					Name:            "cluster-role",
+					Namespace:       "namespace",
+					ResourceVersion: "1234",
+					UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
+				},
+				Rules: []rbacv1.PolicyRule{
+					{
+						APIGroups: []string{""},
+						Resources: []string{"nodes", "pods", "services"},
+						Verbs:     []string{"get", "patch", "list"},
+					},
+					{
+						APIGroups: []string{"batch"},
+						Resources: []string{"cronjobs", "jobs"},
+						Verbs:     []string{"get", "list", "watch"},
+					},
+					{
+						APIGroups: []string{"rbac.authorization.k8s.io"},
+						Resources: []string{"rolebindings"},
+						Verbs:     []string{"create"},
+					},
+				},
+			},
+			expected: model.ClusterRole{
+				AggregationRules: []*model.LabelSelectorRequirement{
+					{
+						Key:      "rbac.example.com/aggregate-to-edit",
+						Operator: "In",
+						Values:   []string{"true"},
+					},
+					{
+						Key:      "rbac.example.com/aggregate-to-edit",
+						Operator: "In",
+						Values:   []string{"true"},
+					},
+				},
+				Metadata: &model.Metadata{
+					Annotations:       []string{"annotation:my-annotation"},
+					CreationTimestamp: creationTime.Unix(),
+					Labels:            []string{"app:my-app"},
+					Name:              "cluster-role",
+					Namespace:         "namespace",
+					ResourceVersion:   "1234",
+					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+				},
+				Rules: []*model.PolicyRule{
+					{
+						ApiGroups: []string{""},
+						Resources: []string{"nodes", "pods", "services"},
+						Verbs:     []string{"get", "patch", "list"},
+					},
+					{
+						ApiGroups: []string{"batch"},
+						Resources: []string{"cronjobs", "jobs"},
+						Verbs:     []string{"get", "list", "watch"},
+					},
+					{
+						ApiGroups: []string{"rbac.authorization.k8s.io"},
+						Resources: []string{"rolebindings"},
+						Verbs:     []string{"create"},
+					},
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, &tc.expected, extractClusterRole(&tc.input))
+		})
+	}
+}
+
+func TestExtractClusterRoleBinding(t *testing.T) {
+	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
+
+	tests := map[string]struct {
+		input    rbacv1.ClusterRoleBinding
+		expected model.ClusterRoleBinding
+	}{
+		"standard": {
+			input: rbacv1.ClusterRoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					CreationTimestamp: creationTime,
+					Labels: map[string]string{
+						"app": "my-app",
+					},
+					Name:            "cluster-role-binding",
+					Namespace:       "namespace",
+					ResourceVersion: "1234",
+					UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
+				},
+				RoleRef: rbacv1.RoleRef{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "Role",
+					Name:     "my-cluster-role",
+				},
+				Subjects: []rbacv1.Subject{
+					{
+						APIGroup: "rbac.authorization.k8s.io",
+						Kind:     "User",
+						Name:     "firstname.lastname@company.com",
+					},
+				},
+			},
+			expected: model.ClusterRoleBinding{
+				Metadata: &model.Metadata{
+					Annotations:       []string{"annotation:my-annotation"},
+					CreationTimestamp: creationTime.Unix(),
+					Labels:            []string{"app:my-app"},
+					Name:              "cluster-role-binding",
+					Namespace:         "namespace",
+					ResourceVersion:   "1234",
+					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+				},
+				RoleRef: &model.TypedLocalObjectReference{
+					ApiGroup: "rbac.authorization.k8s.io",
+					Kind:     "Role",
+					Name:     "my-cluster-role",
+				},
+				Subjects: []*model.Subject{
+					{
+						ApiGroup: "rbac.authorization.k8s.io",
+						Kind:     "User",
+						Name:     "firstname.lastname@company.com",
+					},
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, &tc.expected, extractClusterRoleBinding(&tc.input))
+		})
+	}
+}
+
+func TestExtractServiceAccount(t *testing.T) {
+	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
+
+	tests := map[string]struct {
+		input    corev1.ServiceAccount
+		expected model.ServiceAccount
+	}{
+		"standard": {
+			input: corev1.ServiceAccount{
+				AutomountServiceAccountToken: boolPtr(true),
+				ImagePullSecrets: []corev1.LocalObjectReference{
+					{
+						Name: "registry-key",
+					},
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					CreationTimestamp: creationTime,
+					Labels: map[string]string{
+						"app": "my-app",
+					},
+					Name:            "service-account",
+					Namespace:       "namespace",
+					ResourceVersion: "1234",
+					UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
+				},
+				Secrets: []corev1.ObjectReference{
+					{
+						Name: "default-token-uudge",
+					},
+				},
+			},
+			expected: model.ServiceAccount{
+				AutomountServiceAccountToken: true,
+				ImagePullSecrets: []*model.TypedLocalObjectReference{
+					{
+						Name: "registry-key",
+					},
+				},
+				Metadata: &model.Metadata{
+					Annotations:       []string{"annotation:my-annotation"},
+					CreationTimestamp: creationTime.Unix(),
+					Labels:            []string{"app:my-app"},
+					Name:              "service-account",
+					Namespace:         "namespace",
+					ResourceVersion:   "1234",
+					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+				},
+				Secrets: []*model.ObjectReference{
+					{
+						Name: "default-token-uudge",
+					},
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, &tc.expected, extractServiceAccount(&tc.input))
 		})
 	}
 }

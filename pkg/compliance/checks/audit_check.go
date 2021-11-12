@@ -23,7 +23,7 @@ var auditReportedFields = []string{
 	compliance.AuditFieldPermissions,
 }
 
-func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
+func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resolved, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}
@@ -62,13 +62,20 @@ func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Re
 			}
 
 			log.Debugf("%s: audit check - match %s", ruleID, path)
+			auditPermissions := auditPermissionsString(auditRule)
 			instances = append(instances, newResolvedInstance(
 				eval.NewInstance(
 					eval.VarMap{
 						compliance.AuditFieldPath:        path,
 						compliance.AuditFieldEnabled:     true,
-						compliance.AuditFieldPermissions: auditPermissionsString(auditRule),
-					}, nil,
+						compliance.AuditFieldPermissions: auditPermissions,
+					},
+					nil,
+					eval.RegoInputMap{
+						"path":        path,
+						"enabled":     true,
+						"permissions": auditPermissions,
+					},
 				),
 				auditRule.Path, "audit"),
 			)

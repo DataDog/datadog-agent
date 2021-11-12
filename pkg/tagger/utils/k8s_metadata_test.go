@@ -42,6 +42,13 @@ func TestMetadataAsTags(t *testing.T) {
 			want:           []string{"foo:bar"},
 		},
 		{
+			name:           "env tpl var",
+			k:              "foo",
+			v:              "bar",
+			metadataAsTags: map[string]string{"foo": "%%env%%"},
+			want:           []string{"foo:bar"},
+		},
+		{
 			name:           "label tpl var with prefix",
 			k:              "foo",
 			v:              "bar",
@@ -53,6 +60,13 @@ func TestMetadataAsTags(t *testing.T) {
 			k:              "foo",
 			v:              "bar",
 			metadataAsTags: map[string]string{"foo": "%%annotation%%_suffix"},
+			want:           []string{"foo_suffix:bar"},
+		},
+		{
+			name:           "env tpl var with suffix",
+			k:              "foo",
+			v:              "bar",
+			metadataAsTags: map[string]string{"foo": "%%env%%_suffix"},
 			want:           []string{"foo_suffix:bar"},
 		},
 		{
@@ -74,6 +88,13 @@ func TestMetadataAsTags(t *testing.T) {
 			k:              "foo",
 			v:              "bar",
 			metadataAsTags: map[string]string{"*": "%%annotation%%"},
+			want:           []string{"foo:bar"},
+		},
+		{
+			name:           "match all envs",
+			k:              "foo",
+			v:              "bar",
+			metadataAsTags: map[string]string{"*": "%%env%%"},
 			want:           []string{"foo:bar"},
 		},
 	}

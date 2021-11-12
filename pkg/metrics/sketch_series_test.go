@@ -13,7 +13,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 
@@ -158,8 +158,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 	payload, _ := sl.Marshal()
 	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
-
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	reader := bytes.NewReader(*payloads[0])
 	r, _ := zlib.NewReader(reader)
@@ -170,9 +169,8 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	assert.Equal(t, decompressed, payload)
 
 	pl := new(gogen.SketchPayload)
-	if err := pl.Unmarshal(decompressed); err != nil {
-		t.Fatal(err)
-	}
+	err = pl.Unmarshal(decompressed)
+	require.NoError(t, err)
 
 	require.Len(t, pl.Sketches, len(sl))
 

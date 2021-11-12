@@ -10,12 +10,34 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_version_numeric_only
+from tasks.libs.common.color import color_message
+
+from .utils import get_version, get_version_numeric_only
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 CUSTOM_ACTION_ROOT_DIR = "tools\\windows\\install-help"
+
+
+def try_run(ctx, cmd, n):
+    """
+    Tries to run a command n number of times. If after n tries it still
+    fails, returns False.
+    """
+
+    for _ in range(n):
+        res = ctx.run(cmd, warn=True)
+        if res.exited is None or res.exited > 0:
+            print(
+                color_message(
+                    "Failed to run \"{}\" - retrying".format(cmd),
+                    "orange",
+                )
+            )
+            continue
+        return True
+    return False
 
 
 @task
@@ -28,6 +50,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         print("Custom action library is only for Win32")
         raise Exit(code=1)
 
+    package_version = get_version(ctx, url_safe=True, major_version=major_version)
     ver = get_version_numeric_only(ctx, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
     verprops = " /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} ".format(
@@ -59,10 +82,22 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     cmd += verprops
     print("Build Command: %s" % cmd)
 
-    ctx.run(cmd)
-    artefacts = ["customaction.dll", "customaction.pdb", "customaction-tests.exe"]
+    # Try to run the command 3 times to alleviate transient
+    # network failures
+    succeeded = try_run(ctx, cmd, 3)
+    if not succeeded:
+        raise Exit("Failed to build the customaction.", code=1)
+
+    artefacts = [
+        {"source": "customaction.dll", "target": "customaction.dll"},
+        {"source": "customaction.pdb", "target": "customaction-{}.pdb".format(package_version)},
+        {"source": "customaction-tests.exe", "target": "customaction-tests.exe"},
+    ]
     for artefact in artefacts:
-        shutil.copy2("{}\\cal\\{}\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact), BIN_PATH)
+        shutil.copy2(
+            "{}\\cal\\{}\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact["source"]),
+            BIN_PATH + "\\{}".format(artefact["target"]),
+        )
 
 
 @task

@@ -215,6 +215,25 @@ func (c *Data) GetNameForInstance() string {
 	return commonOptions.Namespace
 }
 
+// SetNameForInstance set name for instance
+func (c *Data) SetNameForInstance(name string) error {
+	commonOptions := CommonInstanceConfig{}
+	err := yaml.Unmarshal(*c, &commonOptions)
+	if err != nil {
+		return fmt.Errorf("invalid instance section: %s", err)
+	}
+	commonOptions.Name = name
+
+	// modify original config
+	out, err := yaml.Marshal(&commonOptions)
+	if err != nil {
+		return err
+	}
+	*c = Data(out)
+
+	return nil
+}
+
 // MergeAdditionalTags merges additional tags to possible existing config tags
 func (c *Data) MergeAdditionalTags(tags []string) error {
 	rawConfig := RawMap{}

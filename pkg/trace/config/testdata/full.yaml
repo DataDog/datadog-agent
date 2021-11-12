@@ -67,8 +67,12 @@ apm_config:
       enabled: true
     memcached:
       enabled: true
+    credit_cards:
+      enabled: true 
+      luhn: true
 experimental:
   otlp:
     http_port: 50051
     grpc_port: 50052
+    internal_traces_port: 50053
     

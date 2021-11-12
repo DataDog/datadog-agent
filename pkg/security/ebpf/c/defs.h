@@ -212,6 +212,7 @@ enum event_type
     EVENT_ARGS_ENVS,
     EVENT_MOUNT_RELEASED,
     EVENT_SELINUX,
+    EVENT_BPF,
     EVENT_MAX, // has to be the last one
 };
 
@@ -223,6 +224,11 @@ struct kevent_t {
 
 struct syscall_t {
     s64 retval;
+};
+
+struct span_context_t {
+   u64 span_id;
+   u64 trace_id;
 };
 
 struct process_context_t {
@@ -253,8 +259,9 @@ struct ktimeval {
 struct file_metadata_t {
     u32 uid;
     u32 gid;
+    u32 nlink;
     u16 mode;
-    char padding[6];
+    char padding[2];
 
     struct ktimeval ctime;
     struct ktimeval mtime;
@@ -516,6 +523,64 @@ static __attribute__((always_inline)) int is_event_enabled(enum event_type event
 
 static __attribute__((always_inline)) void add_event_to_mask(u64 *mask, enum event_type event) {
     *mask |= 1 << (event - EVENT_FIRST_DISCARDER);
+}
+
+#define VFS_ARG_POSITION1 1
+#define VFS_ARG_POSITION2 2
+#define VFS_ARG_POSITION3 3
+#define VFS_ARG_POSITION4 4
+#define VFS_ARG_POSITION5 5
+#define VFS_ARG_POSITION6 6
+
+static __attribute__((always_inline)) u64 get_vfs_unlink_dentry_position() {
+    u64 vfs_unlink_dentry_position;
+    LOAD_CONSTANT("vfs_unlink_dentry_position", vfs_unlink_dentry_position);
+    return vfs_unlink_dentry_position;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_mkdir_dentry_position() {
+    u64 vfs_mkdir_dentry_position;
+    LOAD_CONSTANT("vfs_mkdir_dentry_position", vfs_mkdir_dentry_position);
+    return vfs_mkdir_dentry_position;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_link_target_dentry_position() {
+    u64 vfs_link_target_dentry_position;
+    LOAD_CONSTANT("vfs_link_target_dentry_position", vfs_link_target_dentry_position);
+    return vfs_link_target_dentry_position;;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_setxattr_dentry_position() {
+    u64 vfs_setxattr_dentry_position;
+    LOAD_CONSTANT("vfs_setxattr_dentry_position", vfs_setxattr_dentry_position);
+    return vfs_setxattr_dentry_position;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_removexattr_dentry_position() {
+    u64 vfs_removexattr_dentry_position;
+    LOAD_CONSTANT("vfs_removexattr_dentry_position", vfs_removexattr_dentry_position);
+    return vfs_removexattr_dentry_position;
+}
+
+#define VFS_RENAME_REGISTER_INPUT 1
+#define VFS_RENAME_STRUCT_INPUT   2
+
+static __attribute__((always_inline)) u64 get_vfs_rename_input_type() {
+    u64 vfs_rename_input_type;
+    LOAD_CONSTANT("vfs_rename_input_type", vfs_rename_input_type);
+    return vfs_rename_input_type;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_rename_src_dentry_offset() {
+    u64 offset;
+    LOAD_CONSTANT("vfs_rename_src_dentry_offset", offset);
+    return offset ? offset : 16; // offsetof(struct renamedata, old_dentry)
+}
+
+static __attribute__((always_inline)) u64 get_vfs_rename_target_dentry_offset() {
+    u64 offset;
+    LOAD_CONSTANT("vfs_rename_target_dentry_offset", offset);
+    return offset ? offset : 40; // offsetof(struct renamedata, new_dentry)
 }
 
 #endif

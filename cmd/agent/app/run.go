@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -38,12 +39,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
@@ -59,6 +62,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
@@ -83,6 +87,7 @@ var (
 
 	orchestratorForwarder  *forwarder.DefaultForwarder
 	eventPlatformForwarder epforwarder.EventPlatformForwarder
+	configService          *remoteconfig.Service
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -320,9 +325,20 @@ func StartAgent() error {
 		log.Errorf("Unable to initialize host metadata: %v", err)
 	}
 
+	// start remote configuration management
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		opts := remoteconfig.Opts{}
+		configService, err = remoteconfig.NewService(opts)
+		if err != nil {
+			log.Errorf("Failed to initialize config management service: %s", err)
+		} else if err := configService.Start(context.Background()); err != nil {
+			log.Errorf("Failed to start config management service: %s", err)
+		}
+	}
+
 	// start the cmd HTTP server
 	if runtime.GOOS != "android" {
-		if err = api.StartServer(); err != nil {
+		if err = api.StartServer(configService); err != nil {
 			return log.Errorf("Error while starting api server, exiting: %v", err)
 		}
 	}
@@ -384,6 +400,16 @@ func StartAgent() error {
 	}
 	log.Debugf("statsd started")
 
+	// Start OTLP intake
+	if otlp.IsEnabled(config.Datadog) {
+		var err error
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog, s)
+		if err != nil {
+			log.Errorf("Could not start OTLP: %s", err)
+		}
+	}
+	log.Debug("OTLP pipeline started")
+
 	// Start SNMP trap server
 	if traps.IsEnabled() {
 		if config.Datadog.GetBool("logs_enabled") {
@@ -416,7 +442,7 @@ func StartAgent() error {
 	}
 
 	// Detect Cloud Provider
-	go util.DetectCloudProvider(context.Background())
+	go cloudproviders.DetectCloudProvider(context.Background())
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
 	util.LogVersionHistory()
@@ -463,6 +489,9 @@ func StopAgent() {
 
 	if common.DSD != nil {
 		common.DSD.Stop()
+	}
+	if common.OTLP != nil {
+		common.OTLP.Stop()
 	}
 	if common.AC != nil {
 		common.AC.Stop()

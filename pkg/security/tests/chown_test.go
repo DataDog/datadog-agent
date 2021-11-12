@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestChown(t *testing.T) {
@@ -56,10 +56,10 @@ func TestChown(t *testing.T) {
 			prevGID = 200
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			if _, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, f.Fd(), 100, 200); errno != 0 {
-				t.Fatal(err)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -70,7 +70,6 @@ func TestChown(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -78,9 +77,6 @@ func TestChown(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
@@ -89,9 +85,9 @@ func TestChown(t *testing.T) {
 			prevGID = 201
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_FCHOWNAT, 0, uintptr(testFilePtr), uintptr(101), uintptr(201), 0x100, 0); errno != 0 {
-				t.Fatal(err)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -102,7 +98,6 @@ func TestChown(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -110,9 +105,6 @@ func TestChown(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("lchown", ifSyscallSupported("SYS_LCHOWN", func(t *testing.T, syscallNB uintptr) {
@@ -127,12 +119,12 @@ func TestChown(t *testing.T) {
 
 		defer os.Remove(testSymlink)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testSymlinkPtr), uintptr(102), uintptr(202)); errno != 0 {
 				if errno == unix.ENOSYS {
-					t.Skip("lchown is not supported")
+					return ErrSkipTest{"lchown is not supported"}
 				}
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -144,7 +136,6 @@ func TestChown(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, 0o777, "wrong initial mode")
 			assert.Equal(t, uint32(0), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -152,9 +143,6 @@ func TestChown(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 
 	t.Run("chown", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
@@ -163,9 +151,9 @@ func TestChown(t *testing.T) {
 			prevGID = 203
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 103, 203); errno != 0 {
-				t.Fatal(err)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -176,7 +164,6 @@ func TestChown(t *testing.T) {
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
-
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
@@ -184,8 +171,5 @@ func TestChown(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 }

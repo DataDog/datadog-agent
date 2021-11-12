@@ -6,6 +6,7 @@
 struct umount_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     u32 mount_id;
@@ -16,7 +17,7 @@ SYSCALL_KPROBE0(umount) {
 }
 
 SEC("kprobe/security_sb_umount")
-int kprobe__security_sb_umount(struct pt_regs *ctx) {
+int kprobe_security_sb_umount(struct pt_regs *ctx) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UMOUNT,
         .umount = {
@@ -45,6 +46,7 @@ int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_UMOUNT, event);
 
@@ -54,7 +56,7 @@ int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
 }
 
 SEC("tracepoint/syscalls/sys_exit_umount")
-int handle_sys_umount_exit(struct tracepoint_syscalls_sys_exit_t *args) {
+int tracepoint_syscalls_sys_exit_umount(struct tracepoint_syscalls_sys_exit_t *args) {
     return sys_umount_ret(args, args->ret);
 }
 

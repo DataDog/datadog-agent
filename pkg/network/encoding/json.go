@@ -3,7 +3,7 @@ package encoding
 import (
 	"bytes"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/gogo/protobuf/jsonpb"
 )
@@ -29,6 +29,8 @@ func (jsonSerializer) Unmarshal(blob []byte) (*model.Connections, error) {
 	if err := jsonpb.Unmarshal(reader, conns); err != nil {
 		return nil, err
 	}
+
+	handleZeroValues(conns)
 	return conns, nil
 }
 
@@ -38,3 +40,34 @@ func (j jsonSerializer) ContentType() string {
 
 var _ Marshaler = jsonSerializer{}
 var _ Unmarshaler = jsonSerializer{}
+
+// this code is a hack to fix the way zero value maps are handled during a
+// roundtrip (eg. marshaling/unmarshaling) by the JSON marshaler as we use the
+// `EmitDefaults` option. please note this function is executed *only in
+// tests* since the JSON unmarshaller is not used in the communication between
+// system-probe and the process-agent.
+// TODO: Make this more future-proof using reflection
+func handleZeroValues(conns *model.Connections) {
+	if conns == nil {
+		return
+	}
+
+	if len(conns.CompilationTelemetryByAsset) == 0 {
+		conns.CompilationTelemetryByAsset = nil
+	}
+
+	for _, c := range conns.Conns {
+		if len(c.DnsCountByRcode) == 0 {
+			c.DnsCountByRcode = nil
+		}
+		if len(c.DnsStatsByDomain) == 0 {
+			c.DnsStatsByDomain = nil
+		}
+		if len(c.DnsStatsByDomainByQueryType) == 0 {
+			c.DnsStatsByDomainByQueryType = nil
+		}
+		if len(c.DnsStatsByDomainOffsetByQueryType) == 0 {
+			c.DnsStatsByDomainOffsetByQueryType = nil
+		}
+	}
+}
