@@ -1,12 +1,8 @@
-from collections import OrderedDict
 import glob
 import io
 import os
 import platform
-import re
-import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET

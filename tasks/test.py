@@ -583,7 +583,7 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
 
 
 @task()
-def junit_upload(ctx, tgz_path):
+def junit_upload(_, tgz_path):
     """
     Uploads JUnit XML files from an archive produced by the `test` task.
     """
