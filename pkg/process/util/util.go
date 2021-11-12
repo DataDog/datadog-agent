@@ -123,6 +123,14 @@ func GetSysRoot() string {
 	return "/sys"
 }
 
+// GetRootNSPID returns the current PID from the root namespace
+func GetRootNSPID() int {
+	pidPath := filepath.Join(GetProcRoot(), "self")
+	pidStr, _ := os.Readlink(pidPath)
+	pid, _ := strconv.Atoi(pidStr)
+	return pid
+}
+
 // WithAllProcs will execute `fn` for every pid under procRoot. `fn` is
 // passed the `pid`. If `fn` returns an error the iteration aborts,
 // returning the last error returned from `fn`.
