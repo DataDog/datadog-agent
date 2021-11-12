@@ -91,6 +91,7 @@ type WindowsConfig struct {
 
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
+// Deprecated: use ddconfig directly
 type AgentConfig struct {
 	Enabled                   bool
 	HostName                  string
@@ -137,6 +138,18 @@ type AgentConfig struct {
 	Windows WindowsConfig
 
 	grpcConnectionTimeout time.Duration
+}
+
+func GetAPIEndpoint() (err error, endpoint apicfg.Endpoint) {
+	URL, err := url.Parse(config.GetMainEndpoint("https://process.", key(ns, "process_dd_url")))
+	if err != nil {
+		return fmt.Errorf("error parsing process_dd_url: %s", err), endpoint
+	}
+	endpoint.Endpoint = URL
+	if config.Datadog.IsSet("api_key") {
+
+	}
+	return
 }
 
 // CheckIsEnabled returns a bool indicating if the given check name is enabled.

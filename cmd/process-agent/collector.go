@@ -208,9 +208,12 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 }
 
 func (l *Collector) run(exit chan struct{}) error {
-	eps := make([]string, 0, len(l.cfg.APIEndpoints))
-	for _, e := range l.cfg.APIEndpoints {
-		eps = append(eps, e.Endpoint.String())
+	var eps []string
+	err, endpoint := config.GetAPIEndpoint()
+	if err != nil {
+		_ = log.Error(err)
+	} else {
+		eps = append(eps, endpoint.Endpoint.String())
 	}
 	orchestratorEps := make([]string, 0, len(l.cfg.Orchestrator.OrchestratorEndpoints))
 	for _, e := range l.cfg.Orchestrator.OrchestratorEndpoints {
@@ -272,7 +275,11 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}()
 
-	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.APIEndpoints)))
+	err, endpoint = config.GetAPIEndpoint()
+	if err != nil {
+		_ = log.Error(err)
+	}
+	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains([]apicfg.Endpoint{endpoint})))
 	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
