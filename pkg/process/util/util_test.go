@@ -9,7 +9,9 @@ import (
 
 func TestGetRootNSPID(t *testing.T) {
 	t.Run("HOST_PROC not set", func(t *testing.T) {
-		assert.Equal(t, os.Getpid(), GetRootNSPID())
+		pid, err := GetRootNSPID()
+		assert.Nil(t, err)
+		assert.Equal(t, os.Getpid(), pid)
 	})
 
 	t.Run("HOST_PROC set but not available", func(t *testing.T) {
@@ -19,6 +21,8 @@ func TestGetRootNSPID(t *testing.T) {
 		})
 
 		os.Setenv("HOST_PROC", "/foo/bar")
-		assert.Equal(t, 0, GetRootNSPID())
+		pid, err := GetRootNSPID()
+		assert.NotNil(t, err)
+		assert.Equal(t, 0, pid)
 	})
 }

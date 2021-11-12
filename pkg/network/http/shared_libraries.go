@@ -85,7 +85,7 @@ func (w *soWatcher) Start() {
 	go func() {
 		ticker := time.NewTicker(soSyncInterval)
 		defer ticker.Stop()
-		thisPID := util.GetRootNSPID()
+		thisPID, _ := util.GetRootNSPID()
 
 		for {
 			select {
