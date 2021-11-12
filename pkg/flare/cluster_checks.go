@@ -109,7 +109,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 }
 
 // GetEndpointsChecks dumps the endpointschecks dispatching state to the writer
-func GetEndpointsChecks(w io.Writer) error {
+func GetEndpointsChecks(w io.Writer, checkName string) error {
 	if !endpointschecksEnabled() {
 		return nil
 	}
@@ -146,7 +146,7 @@ func GetEndpointsChecks(w io.Writer) error {
 	// Print summary of pod-backed endpointschecks
 	fmt.Fprintln(w, fmt.Sprintf("\n===== %d Pod-backed Endpoints-Checks scheduled =====", len(cr.Configs)))
 	for _, c := range cr.Configs {
-		PrintConfig(w, c, "")
+		PrintConfig(w, c, checkName)
 	}
 
 	return nil

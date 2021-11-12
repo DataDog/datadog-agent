@@ -52,10 +52,10 @@ func GetClusterChecksCobraCmd(flagNoColor *bool, confPath *string, loggerName co
 				return err
 			}
 
-			return flare.GetEndpointsChecks(color.Output)
+			return flare.GetEndpointsChecks(color.Output, checkName)
 		},
 	}
-	clusterChecksCmd.PersistentFlags().StringVarP(&checkName, "cluster-check-name", "", "", "the cluster check name to filter for")
+	clusterChecksCmd.PersistentFlags().StringVarP(&checkName, "check", "", "", "the check name to filter for")
 
 	return clusterChecksCmd
 }
