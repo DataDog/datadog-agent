@@ -60,7 +60,7 @@ fi
 
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/10-setup-kind.sh
 # Force reconnection to take into account the addition of the `docker` group to the `core` user
-_ssh -O exit
+_ssh -O exit ||:
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/11-setup-kind-cluster.sh
 
 # Use a logged bash
