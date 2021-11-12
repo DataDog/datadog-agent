@@ -427,7 +427,7 @@ func TestProcessLogMessageNoStringRecordPlatformLog(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
-	logCollection := &CollectionRouteInfo{
+	logCollection := &LambdaLogsCollector{
 		ExecutionContext: &ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
@@ -458,7 +458,7 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
-	logCollection := &CollectionRouteInfo{
+	logCollection := &LambdaLogsCollector{
 		ExecutionContext: &ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
