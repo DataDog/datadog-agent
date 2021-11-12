@@ -183,7 +183,7 @@ func BenchmarkParentDiscarder(b *testing.B) {
 
 	enabled := map[eval.EventType]bool{"*": true}
 
-	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
+	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
 	addRuleExpr(b, rs, `unlink.file.path =~ "/var/log/*" && unlink.file.path != "/var/log/datadog/system-probe.log"`)
 
 	b.ResetTimer()
