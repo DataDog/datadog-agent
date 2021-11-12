@@ -291,7 +291,7 @@ func roundTrip(inputs interface{}) (interface{}, error) {
 
 func (r *regoCheck) buildContextInput(env env.Env) eval.RegoInputMap {
 	context := make(map[string]interface{})
-	context["id"] = r.ruleID
+	context["ruleID"] = r.ruleID
 	context["hostname"] = env.Hostname()
 
 	if r.ruleScope == compliance.KubernetesClusterScope {

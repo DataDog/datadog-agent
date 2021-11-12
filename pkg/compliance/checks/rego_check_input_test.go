@@ -119,7 +119,7 @@ func TestRegoInputCheck(t *testing.T) {
 				{
 					"context": {
 						"hostname": "hostname_test",
-						"id": "rule-id",
+						"ruleID": "rule-id",
 						"input": {
 							"processes": {
 								"process": {
