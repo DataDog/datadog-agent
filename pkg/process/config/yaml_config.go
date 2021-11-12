@@ -38,16 +38,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		return err
 	}
 
-	URL, err := url.Parse(config.GetMainEndpoint("https://process.", key(ns, "process_dd_url")))
-	if err != nil {
-		return fmt.Errorf("error parsing process_dd_url: %s", err)
-	}
-	a.APIEndpoints[0].Endpoint = URL
-
-	if key := "api_key"; config.Datadog.IsSet(key) {
-		a.APIEndpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString(key))
-	}
-
 	if config.Datadog.IsSet("hostname") {
 		a.HostName = config.Datadog.GetString("hostname")
 	}

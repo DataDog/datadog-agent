@@ -147,7 +147,7 @@ func GetAPIEndpoint() (err error, endpoint apicfg.Endpoint) {
 	}
 	endpoint.Endpoint = URL
 	if config.Datadog.IsSet("api_key") {
-
+		endpoint.APIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	}
 	return
 }
