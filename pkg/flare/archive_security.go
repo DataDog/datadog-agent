@@ -133,7 +133,7 @@ func zipSecurityAgentStatusFile(tempDir, hostname string, runtimeStatus map[stri
 	}
 
 	// Clean it up
-	cleaned, err := log.CredentialsCleanerBytes(s)
+	cleaned, err := flareScrubber.ScrubBytes(s)
 	if err != nil {
 		log.Infof("Error redacting the log files: %q", err)
 		return err

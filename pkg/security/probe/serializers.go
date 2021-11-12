@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -build_tags linux $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -no_std_marshalers -build_tags linux $GOFILE
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/probe/doc_generator -output ../../../docs/cloud-workload-security/backend.schema.json
 
 // Unless explicitly stated otherwise all files in this repository are licensed
@@ -11,12 +11,11 @@
 package probe
 
 import (
-	"encoding/json"
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // Event categories for JSON serialization
@@ -59,20 +58,20 @@ type UserContextSerializer struct {
 // CredentialsSerializer serializes a set credentials to JSON
 // easyjson:json
 type CredentialsSerializer struct {
-	UID          int          `json:"uid" jsonschema_description:"User ID"`
-	User         string       `json:"user,omitempty" jsonschema_description:"User name"`
-	GID          int          `json:"gid" jsonschema_description:"Group ID"`
-	Group        string       `json:"group,omitempty" jsonschema_description:"Group name"`
-	EUID         int          `json:"euid" jsonschema_description:"Effective User ID"`
-	EUser        string       `json:"euser,omitempty" jsonschema_description:"Effective User name"`
-	EGID         int          `json:"egid" jsonschema_description:"Effective Group ID"`
-	EGroup       string       `json:"egroup,omitempty" jsonschema_description:"Effective Group name"`
-	FSUID        int          `json:"fsuid" jsonschema_description:"Filesystem User ID"`
-	FSUser       string       `json:"fsuser,omitempty" jsonschema_description:"Filesystem User name"`
-	FSGID        int          `json:"fsgid" jsonschema_description:"Filesystem Group ID"`
-	FSGroup      string       `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
-	CapEffective JStringArray `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
-	CapPermitted JStringArray `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
+	UID          int      `json:"uid" jsonschema_description:"User ID"`
+	User         string   `json:"user,omitempty" jsonschema_description:"User name"`
+	GID          int      `json:"gid" jsonschema_description:"Group ID"`
+	Group        string   `json:"group,omitempty" jsonschema_description:"Group name"`
+	EUID         int      `json:"euid" jsonschema_description:"Effective User ID"`
+	EUser        string   `json:"euser,omitempty" jsonschema_description:"Effective User name"`
+	EGID         int      `json:"egid" jsonschema_description:"Effective Group ID"`
+	EGroup       string   `json:"egroup,omitempty" jsonschema_description:"Effective Group name"`
+	FSUID        int      `json:"fsuid" jsonschema_description:"Filesystem User ID"`
+	FSUser       string   `json:"fsuser,omitempty" jsonschema_description:"Filesystem User name"`
+	FSGID        int      `json:"fsgid" jsonschema_description:"Filesystem Group ID"`
+	FSGroup      string   `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
+	CapEffective []string `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
+	CapPermitted []string `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
 }
 
 // SetuidSerializer serializes a setuid event
@@ -97,22 +96,11 @@ type SetgidSerializer struct {
 	FSGroup string `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
 }
 
-// JStringArray handles empty array properly not generating null output but []
-type JStringArray []string
-
-// MarshalJSON custom marshaller to handle empty array
-func (j *JStringArray) MarshalJSON() ([]byte, error) {
-	if len(*j) == 0 {
-		return []byte("[]"), nil
-	}
-	return json.Marshal([]string(*j))
-}
-
 // CapsetSerializer serializes a capset event
 // easyjson:json
 type CapsetSerializer struct {
-	CapEffective JStringArray `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
-	CapPermitted JStringArray `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
+	CapEffective []string `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
+	CapPermitted []string `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
 }
 
 // ProcessCredentialsSerializer serializes the process credentials to JSON
@@ -124,7 +112,6 @@ type ProcessCredentialsSerializer struct {
 
 // ProcessCacheEntrySerializer serializes a process cache entry to JSON
 // easyjson:json
-//  jsonschema_description:""
 type ProcessCacheEntrySerializer struct {
 	Pid                 uint32                        `json:"pid,omitempty" jsonschema_description:"Process ID"`
 	PPid                uint32                        `json:"ppid,omitempty" jsonschema_description:"Parent Process ID"`
@@ -217,12 +204,12 @@ type DDContextSerializer struct {
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
-	*EventContextSerializer    `json:"evt,omitempty"`
+	EventContextSerializer     `json:"evt,omitempty"`
 	*FileEventSerializer       `json:"file,omitempty"`
 	*SELinuxEventSerializer    `json:"selinux,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
-	ProcessContextSerializer   *ProcessContextSerializer   `json:"process,omitempty"`
-	DDContextSerializer        *DDContextSerializer        `json:"dd,omitempty"`
+	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
+	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
 	ContainerContextSerializer *ContainerContextSerializer `json:"container,omitempty"`
 	Date                       time.Time                   `json:"date,omitempty"`
 }
@@ -316,8 +303,8 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 		EGroup:       ce.EGroup,
 		FSGID:        int(ce.FSGID),
 		FSGroup:      ce.FSGroup,
-		CapEffective: JStringArray(model.KernelCapability(ce.CapEffective).StringArray()),
-		CapPermitted: JStringArray(model.KernelCapability(ce.CapPermitted).StringArray()),
+		CapEffective: model.KernelCapability(ce.CapEffective).StringArray(),
+		CapPermitted: model.KernelCapability(ce.CapPermitted).StringArray(),
 	}
 }
 
@@ -390,15 +377,15 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 	return pceSerializer
 }
 
-func newDDContextSerializer(e *Event) *DDContextSerializer {
-	return &DDContextSerializer{
+func newDDContextSerializer(e *Event) DDContextSerializer {
+	return DDContextSerializer{
 		SpanID:  e.SpanContext.SpanID,
 		TraceID: e.SpanContext.TraceID,
 	}
 }
 
-func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {
-	var ps *ProcessContextSerializer
+func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) ProcessContextSerializer {
+	var ps ProcessContextSerializer
 
 	if e == nil {
 		// custom events create an empty event
@@ -408,7 +395,7 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		}
 	}
 
-	ps = &ProcessContextSerializer{
+	ps = ProcessContextSerializer{
 		ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e),
 	}
 
@@ -487,7 +474,7 @@ func serializeSyscallRetval(retval int64) string {
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *Event) *EventSerializer {
 	s := &EventSerializer{
-		EventContextSerializer: &EventContextSerializer{
+		EventContextSerializer: EventContextSerializer{
 			Name:     model.EventType(event.Type).String(),
 			Category: FIMCategory,
 		},
@@ -645,8 +632,8 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.Category = ProcessActivity
 	case model.CapsetEventType:
 		s.ProcessContextSerializer.Credentials.Destination = &CapsetSerializer{
-			CapEffective: JStringArray(model.KernelCapability(event.Capset.CapEffective).StringArray()),
-			CapPermitted: JStringArray(model.KernelCapability(event.Capset.CapPermitted).StringArray()),
+			CapEffective: model.KernelCapability(event.Capset.CapEffective).StringArray(),
+			CapPermitted: model.KernelCapability(event.Capset.CapPermitted).StringArray(),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity

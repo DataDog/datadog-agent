@@ -53,9 +53,15 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
     }
 
     struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM1(ctx);
-
     syscall->link.src_dentry = src_dentry;
+
     syscall->link.target_dentry = (struct dentry *)PT_REGS_PARM3(ctx);
+    // change the register based on the value of vfs_link_target_dentry_position
+    if (get_vfs_link_target_dentry_position() == VFS_ARG_POSITION4) {
+        // prevent the verifier from whining
+        bpf_probe_read(&syscall->link.target_dentry, sizeof(syscall->link.target_dentry), &syscall->link.target_dentry);
+        syscall->link.target_dentry = (struct dentry *) PT_REGS_PARM4(ctx);
+    }
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.

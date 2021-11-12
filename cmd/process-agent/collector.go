@@ -9,7 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -224,6 +225,13 @@ func (l *Collector) run(exit chan struct{}) error {
 	l.rtProcessResults = api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
 	l.podResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
 
+	go func() {
+		<-exit
+		l.processResults.Stop()
+		l.rtProcessResults.Stop()
+		l.podResults.Stop()
+	}()
+
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -264,7 +272,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}()
 
-	processForwarderOpts := forwarder.NewOptions(apicfg.KeysPerDomains(l.cfg.APIEndpoints))
+	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.APIEndpoints)))
 	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
@@ -272,7 +280,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	// rt forwarder can reuse processForwarder's config
 	rtProcessForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
-	podForwarderOpts := forwarder.NewOptions(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints))
+	podForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
@@ -292,19 +300,19 @@ func (l *Collector) run(exit chan struct{}) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(l.processResults, processForwarder, exit)
+		l.consumePayloads(l.processResults, processForwarder)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(l.rtProcessResults, rtProcessForwarder, exit)
+		l.consumePayloads(l.rtProcessResults, rtProcessForwarder)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(l.podResults, podForwarder, exit)
+		l.consumePayloads(l.podResults, podForwarder)
 	}()
 
 	for _, c := range l.enabledChecks {
@@ -394,10 +402,10 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 	}
 }
 
-func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder, exit chan struct{}) {
+func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
 	for {
-		// results.Poll() will block until either `exit` is closed, or an item is available on the queue (a check run occurs and adds data)
-		item, ok := results.Poll(exit)
+		// results.Poll() will return ok=false when stopped
+		item, ok := results.Poll()
 		if !ok {
 			return
 		}

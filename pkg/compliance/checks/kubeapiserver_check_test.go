@@ -109,6 +109,14 @@ type kubeApiserverFixture struct {
 	expectReport *compliance.Report
 }
 
+type fakeKubeClient struct {
+	*fake.FakeDynamicClient
+}
+
+func (f *fakeKubeClient) ClusterID() (string, error) {
+	return "fake-k8s-cluster", nil
+}
+
 func newMyObj(namespace, name, uid string) *MyObj {
 	return &MyObj{
 		TypeMeta: metav1.TypeMeta{
@@ -141,7 +149,9 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 
 	defer env.AssertExpectations(t)
 
-	kubeClient := fake.NewSimpleDynamicClient(scheme, f.objects...)
+	kubeClient := &fakeKubeClient{
+		FakeDynamicClient: fake.NewSimpleDynamicClient(scheme, f.objects...),
+	}
 	env.On("KubeClient").Return(kubeClient)
 
 	kubeCheck, err := newResourceCheck(env, "rule-id", f.resource)

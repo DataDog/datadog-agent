@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker && !darwin
 // +build docker,!darwin
 
 package docker
@@ -45,6 +46,8 @@ type DockerCheck struct {
 	dockerHostname              string
 	cappedSender                *cappedSender
 	collectContainerSizeCounter uint64
+	containerFilter             *containers.Filter
+	okExitCodes                 map[int]struct{}
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *containers.Container) {
@@ -289,10 +292,7 @@ func (d *DockerCheck) Run() error {
 				}
 			}
 			if d.instance.CollectExitCodes {
-				err = d.reportExitCodes(events, sender)
-				if err != nil {
-					log.Warn(err.Error())
-				}
+				d.reportExitCodes(events, sender)
 			}
 		}
 	}
@@ -424,9 +424,36 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 	// different than the agent hostname depending on the environment (like EC2 or GCE).
 	d.dockerHostname, err = util.GetHostname(context.TODO())
 	if err != nil {
-		log.Warnf("Can't get hostname from docker, events will not have it: %s", err)
+		log.Warnf("Can't get hostname from docker, events will not have it: %w", err)
 	}
+
+	d.containerFilter, err = containers.GetSharedMetricFilter()
+	if err != nil {
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
+	}
+
+	d.setOkExitCodes()
+
 	return nil
+}
+
+// setOkExitCodes defines the ok exit codes based on
+// the default values and the OkExitCodes config field.
+func (d *DockerCheck) setOkExitCodes() {
+	d.okExitCodes = map[int]struct{}{}
+
+	// Apply custom ok exit codes if defined.
+	if len(d.instance.OkExitCodes) > 0 {
+		for _, code := range d.instance.OkExitCodes {
+			d.okExitCodes[code] = struct{}{}
+		}
+
+		return
+	}
+
+	// Set default ok exit codes.
+	// 143 is returned when docker sends a SIGTERM to stop a container.
+	d.okExitCodes = map[int]struct{}{0: {}, 143: {}}
 }
 
 // DockerFactory is exported for integration testing

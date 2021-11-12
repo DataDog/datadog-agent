@@ -32,6 +32,16 @@ const (
 	containerCreationTopic = "/containers/create"
 	containerUpdateTopic   = "/containers/update"
 	containerDeletionTopic = "/containers/delete"
+
+	// These are not all the task-related topics, but enough to detect changes
+	// in the state of the container (only need to know if it's running or not).
+
+	TaskStartTopic   = "/tasks/start"
+	TaskOOMTopic     = "/tasks/oom"
+	TaskExitTopic    = "/tasks/exit"
+	TaskDeleteTopic  = "/tasks/delete"
+	TaskPausedTopic  = "/tasks/paused"
+	TaskResumedTopic = "/tasks/resumed"
 )
 
 // containerLifecycleFilters allows subscribing to containers lifecycle updates only.
@@ -39,10 +49,16 @@ var containerLifecycleFilters = []string{
 	fmt.Sprintf(`topic==%q`, containerCreationTopic),
 	fmt.Sprintf(`topic==%q`, containerUpdateTopic),
 	fmt.Sprintf(`topic==%q`, containerDeletionTopic),
+	fmt.Sprintf(`topic==%q`, TaskStartTopic),
+	fmt.Sprintf(`topic==%q`, TaskOOMTopic),
+	fmt.Sprintf(`topic==%q`, TaskExitTopic),
+	fmt.Sprintf(`topic==%q`, TaskDeleteTopic),
+	fmt.Sprintf(`topic==%q`, TaskPausedTopic),
+	fmt.Sprintf(`topic==%q`, TaskResumedTopic),
 }
 
 type collector struct {
-	store            *workloadmeta.Store
+	store            workloadmeta.Store
 	containerdClient cutil.ContainerdItf
 	eventsChan       <-chan *containerdevents.Envelope
 	errorsChan       <-chan error
@@ -54,7 +70,7 @@ func init() {
 	})
 }
 
-func (c *collector) Start(ctx context.Context, store *workloadmeta.Store) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Containerd) {
 		return errors.NewDisabled(componentName, "Agent is not running on containerd")
 	}
@@ -70,17 +86,10 @@ func (c *collector) Start(ctx context.Context, store *workloadmeta.Store) error 
 	eventsCtx, cancelEvents := context.WithCancel(ctx)
 	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, containerLifecycleFilters...)
 
-	// Handle containers that are already present when the collector starts
-	initialEvents, err := c.generateInitialEvents()
+	err = c.generateEventsFromContainerList(ctx)
 	if err != nil {
 		cancelEvents()
 		return err
-	}
-
-	for _, event := range initialEvents {
-		if err = c.handleEvent(ctx, &event, c.containerdClient); err != nil {
-			log.Warnf(err.Error())
-		}
 	}
 
 	go func() {
@@ -124,6 +133,30 @@ func (c *collector) stream(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
+	containerdEvents, err := c.generateInitialEvents()
+	if err != nil {
+		return err
+	}
+
+	events := make([]workloadmeta.CollectorEvent, 0, len(containerdEvents))
+	for _, containerdEvent := range containerdEvents {
+		ev, err := buildCollectorEvent(ctx, &containerdEvent, c.containerdClient)
+		if err != nil {
+			log.Warnf(err.Error())
+			continue
+		}
+
+		events = append(events, ev)
+	}
+
+	if len(events) > 0 {
+		c.store.Notify(events)
+	}
+
+	return nil
 }
 
 func (c *collector) generateInitialEvents() ([]containerdevents.Envelope, error) {

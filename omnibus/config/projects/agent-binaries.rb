@@ -7,6 +7,8 @@ require "./lib/ostools.rb"
 
 name 'agent-binaries'
 package_name 'agent-binaries'
+license "Apache-2.0"
+license_file "../LICENSE"
 
 homepage 'http://www.datadoghq.com'
 

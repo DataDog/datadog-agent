@@ -7,8 +7,13 @@ package tags
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -36,6 +41,7 @@ const (
 	serviceKey               = "service"
 	runtimeKey               = "runtime"
 	memorySizeKey            = "memorysize"
+	architectureKey          = "architecture"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -47,14 +53,16 @@ var currentExtensionVersion = "xxx"
 func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
+	architecture := ResolveRuntimeArch()
+
+	tags = setIfNotEmpty(tags, architectureKey, architecture)
+
+	tags = setIfNotEmpty(tags, runtimeKey, getRuntime("/proc", "/etc", runtimeVar))
+	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
+
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
 	tags = setIfNotEmpty(tags, versionKey, os.Getenv(versionEnvVar))
 	tags = setIfNotEmpty(tags, serviceKey, os.Getenv(serviceEnvVar))
-
-	cleanedRuntime := strings.Replace(os.Getenv(runtimeVar), "AWS_Lambda_", "", 1)
-
-	tags = setIfNotEmpty(tags, runtimeKey, cleanedRuntime)
-	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
 
 	for _, tag := range configTags {
 		splitTags := strings.Split(tag, ",")
@@ -139,4 +147,32 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
 	}
 	return tagMap
+}
+
+func getRuntimeFromOsReleaseFile(osReleasePath string) string {
+	runtime := ""
+	bytesRead, err := ioutil.ReadFile(fmt.Sprintf("%s/os-release", osReleasePath))
+	if err != nil {
+		log.Debug("could not read os-release file")
+		return ""
+	}
+	regExp := regexp.MustCompile(`PRETTY_NAME="Amazon Linux 2"`)
+	result := regExp.FindAll(bytesRead, -1)
+	if len(result) == 1 {
+		runtime = "provided.al2"
+	}
+	return runtime
+}
+
+func getRuntime(procPath string, osReleasePath string, varName string) string {
+	value := proc.SearchProcsForEnvVariable(procPath, varName)
+	value = strings.Replace(value, "AWS_Lambda_", "", 1)
+	if len(value) == 0 {
+		value = getRuntimeFromOsReleaseFile(osReleasePath)
+	}
+	if len(value) == 0 {
+		log.Debug("could not find a valid runtime, defaulting to unknown")
+		value = "unknown"
+	}
+	return value
 }

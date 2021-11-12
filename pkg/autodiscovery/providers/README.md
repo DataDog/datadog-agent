@@ -24,9 +24,9 @@ The `FileConfigProvider` is a static config provider, it scans the check configs
 
 The `KubeletConfigProvider` relies on the Kubelet API to detect check configs defined on pod annotations.
 
-### `DockerConfigProvider`
+### `ContainerConfigProvider`
 
-The `DockerConfigProvider` relies on the Docker API to detect check configs defined on container labels.
+The `ContainerConfigProvider` detects check configs defined on container labels.
 
 ### `ECSConfigProvider`
 

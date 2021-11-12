@@ -32,9 +32,7 @@ const (
 	headerExtID      string = "Lambda-Extension-Identifier"
 	headerExtErrType string = "Lambda-Extension-Function-Error-Type"
 
-	requestTimeout     time.Duration = 5 * time.Second
-	clientReadyTimeout time.Duration = 2 * time.Second
-
+	requestTimeout      time.Duration = 5 * time.Second
 	safetyBufferTimeout time.Duration = 20 * time.Millisecond
 
 	// FatalNoAPIKey is the error reported to the AWS Extension environment when
@@ -172,6 +170,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
 			metricsChan := daemon.MetricAgent.GetMetricChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
+			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), metricsChan)
 		}
 		daemon.Stop()
 		stopCh <- struct{}{}
@@ -193,7 +192,8 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 		if err != nil {
 			log.Debug("Unable to save the current state")
 		}
-		daemon.FinishInvocation()
+		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
+		daemon.TellDaemonRuntimeDone()
 		return
 	case <-doneChannel:
 		return
@@ -201,27 +201,31 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 }
 
 func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
-	daemon.StartInvocation()
+	daemon.TellDaemonRuntimeStarted()
 	log.Debug("Received invocation event...")
 	daemon.SetExecutionContext(arn, requestID)
 	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+
+	if daemon.MetricAgent != nil {
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
+		metricsChan := daemon.MetricAgent.GetMetricChannel()
+		metrics.SendInvocationEnhancedMetric(metricTags, metricsChan)
+	} else {
+		log.Error("Could not send the invocation enhanced metric")
+	}
+
 	if daemon.ExecutionContext.Coldstart {
-		ready := daemon.WaitUntilClientReady(clientReadyTimeout)
-		if ready {
-			log.Debug("Client library registered with extension")
-		} else {
-			log.Debug("Timed out waiting for client library to register with extension.")
-		}
 		daemon.UpdateStrategy()
 	}
 
 	// immediately check if we should flush data
 	if daemon.ShouldFlush(flush.Starting, time.Now()) {
-		log.Debugf("The flush strategy %s has decided to flush at moment: %s", daemon.LogFlushStategy(), flush.Starting)
+		log.Debugf("The flush strategy %s has decided to flush at moment: %s", daemon.GetFlushStrategy(), flush.Starting)
 		daemon.TriggerFlush(false)
 	} else {
-		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", daemon.LogFlushStategy(), flush.Starting)
+		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", daemon.GetFlushStrategy(), flush.Starting)
 	}
+
 	daemon.WaitForDaemon()
 	doneChannel <- true
 }

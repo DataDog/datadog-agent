@@ -153,7 +153,7 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 	}
 
 	// Clean it up
-	cleaned, err := log.CredentialsCleanerBytes(s)
+	cleaned, err := flareScrubber.ScrubBytes(s)
 	if err != nil {
 		log.Infof("Error redacting the log files: %q", err)
 		return err
@@ -210,7 +210,7 @@ func zipClusterAgentClusterChecks(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterChecks(writer) //nolint:errcheck
+	GetClusterChecks(writer, "") //nolint:errcheck
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "clusterchecks.log")
@@ -219,7 +219,7 @@ func zipClusterAgentClusterChecks(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -287,7 +287,7 @@ func zipClusterAgentDiagnose(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -309,7 +309,7 @@ func zipClusterAgentTelemetry(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newScrubberWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}

@@ -16,19 +16,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/alibaba"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/tencent"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
-	"github.com/DataDog/datadog-agent/pkg/util/azure"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/gce"
-	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	"io/ioutil"
@@ -104,56 +102,6 @@ func GetPythonVersion() string {
 	return "n/a"
 }
 
-// getHostAliases returns the hostname aliases from different provider
-// This should include GCE, Azure, Cloud foundry, kubernetes
-func getHostAliases(ctx context.Context) []string {
-	aliases := config.GetValidHostAliases()
-
-	alibabaAlias, err := alibaba.GetHostAlias(ctx)
-	if err != nil {
-		log.Debugf("no Alibaba Host Alias: %s", err)
-	} else if alibabaAlias != "" {
-		aliases = append(aliases, alibabaAlias)
-	}
-
-	azureAlias, err := azure.GetHostAlias(ctx)
-	if err != nil {
-		log.Debugf("no Azure Host Alias: %s", err)
-	} else if azureAlias != "" {
-		aliases = append(aliases, azureAlias)
-	}
-
-	gceAliases, err := gce.GetHostAliases(ctx)
-	if err != nil {
-		log.Debugf("no GCE Host Alias: %s", err)
-	} else {
-		aliases = append(aliases, gceAliases...)
-	}
-
-	cfAliases, err := cloudfoundry.GetHostAliases(ctx)
-	if err != nil {
-		log.Debugf("no Cloud Foundry Host Alias: %s", err)
-	} else if cfAliases != nil {
-		aliases = append(aliases, cfAliases...)
-	}
-
-	k8sAlias, err := kubelet.GetHostAlias(ctx)
-	if err != nil {
-		log.Debugf("no Kubernetes Host Alias (through kubelet API): %s", err)
-	} else if k8sAlias != "" {
-		aliases = append(aliases, k8sAlias)
-	}
-
-	tencentAlias, err := tencent.GetHostAlias(ctx)
-	if err != nil {
-		log.Debugf("no Tencent Host Alias: %s", err)
-	} else if tencentAlias != "" {
-		aliases = append(aliases, tencentAlias)
-	}
-
-	return util.SortUniqInPlace(aliases)
-}
-
 func getPublicIPv4(ctx context.Context) (string, error) {
 	publicIPFetcher := map[string]func(context.Context) (string, error){
 		"EC2": ec2.GetPublicIPv4,
@@ -190,9 +138,13 @@ func getMeta(ctx context.Context, hostnameData util.HostnameData) *Meta {
 		Timezones:      []string{tzname},
 		SocketFqdn:     util.Fqdn(hostname),
 		EC2Hostname:    ec2Hostname,
-		HostAliases:    getHostAliases(ctx),
+		HostAliases:    cloudproviders.GetHostAliases(ctx),
 		InstanceID:     instanceID,
 		AgentHostname:  agentHostname,
+	}
+
+	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, hostname); finalClusterName != "" {
+		m.ClusterName = finalClusterName
 	}
 
 	// Cache the metadata for use in other payload
@@ -203,7 +155,7 @@ func getMeta(ctx context.Context, hostnameData util.HostnameData) *Meta {
 }
 
 func getNetworkMeta(ctx context.Context) *NetworkMeta {
-	nid, err := util.GetNetworkID(ctx)
+	nid, err := cloudproviders.GetNetworkID(ctx)
 	if err != nil {
 		log.Infof("could not get network metadata: %s", err)
 		return nil
@@ -311,6 +263,9 @@ func getInstallMethod(infoPath string) *InstallMethod {
 
 	// if we could not get install info
 	if err != nil {
+		inventories.SetAgentMetadata(inventories.AgentInstallMethodTool, "undefined")
+		inventories.SetAgentMetadata(inventories.AgentInstallMethodToolVersion, "")
+		inventories.SetAgentMetadata(inventories.AgentInstallMethodInstallerVersion, "")
 		// consider install info is kept "undefined"
 		return &InstallMethod{
 			ToolVersion:      "undefined",
@@ -319,6 +274,9 @@ func getInstallMethod(infoPath string) *InstallMethod {
 		}
 	}
 
+	inventories.SetAgentMetadata(inventories.AgentInstallMethodTool, install.Method.Tool)
+	inventories.SetAgentMetadata(inventories.AgentInstallMethodToolVersion, install.Method.ToolVersion)
+	inventories.SetAgentMetadata(inventories.AgentInstallMethodInstallerVersion, install.Method.InstallerVersion)
 	return &InstallMethod{
 		ToolVersion:      install.Method.ToolVersion,
 		Tool:             &install.Method.Tool,

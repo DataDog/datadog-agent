@@ -142,6 +142,8 @@ func (l *LogsConfigKeys) expectedTagsDuration() time.Duration {
 }
 
 func (l *LogsConfigKeys) taggerWarmupDuration() time.Duration {
+	// note that this multiplies a duration (in ns) by 1 second (in ns), so the user must specify
+	// an integer number of seconds ("5") and not a duration expression ("5s").
 	return l.getConfig().GetDuration(l.getConfigKey("tagger_warmup_duration")) * time.Second
 }
 

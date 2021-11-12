@@ -95,8 +95,8 @@ type MetricSerializer interface {
 	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
 	SendSketch(sketches marshaler.Marshaler) error
-	SendMetadata(m marshaler.Marshaler) error
-	SendHostMetadata(m marshaler.Marshaler) error
+	SendMetadata(m marshaler.JSONMarshaler) error
+	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
 }
@@ -162,26 +162,36 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder forwarde
 }
 
 func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, http.Header, error) {
-	var marshalType split.MarshalType
+	if useV1API {
+		return s.serializePayloadJSON(payload, compress)
+	}
+	return s.serializePayloadProto(payload, compress)
+}
+
+func (s Serializer) serializePayloadJSON(payload marshaler.JSONMarshaler, compress bool) (forwarder.Payloads, http.Header, error) {
 	var extraHeaders http.Header
 
-	if useV1API {
-		marshalType = split.MarshalJSON
-		if compress {
-			extraHeaders = jsonExtraHeadersWithCompression
-		} else {
-			extraHeaders = jsonExtraHeaders
-		}
+	if compress {
+		extraHeaders = jsonExtraHeadersWithCompression
 	} else {
-		marshalType = split.Marshal
-		if compress {
-			extraHeaders = protobufExtraHeadersWithCompression
-		} else {
-			extraHeaders = protobufExtraHeaders
-		}
+		extraHeaders = jsonExtraHeaders
 	}
 
-	payloads, err := split.Payloads(payload, compress, marshalType)
+	return s.serializePayloadInternal(payload, compress, extraHeaders, split.JSONMarshalFct)
+}
+
+func (s Serializer) serializePayloadProto(payload marshaler.ProtoMarshaler, compress bool) (forwarder.Payloads, http.Header, error) {
+	var extraHeaders http.Header
+	if compress {
+		extraHeaders = protobufExtraHeadersWithCompression
+	} else {
+		extraHeaders = protobufExtraHeaders
+	}
+	return s.serializePayloadInternal(payload, compress, extraHeaders, split.ProtoMarshalFct)
+}
+
+func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler, compress bool, extraHeaders http.Header, marshalFct split.MarshalFct) (forwarder.Payloads, http.Header, error) {
+	payloads, err := split.Payloads(payload, compress, marshalFct)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not split payload into small enough chunks: %s", err)
@@ -265,7 +275,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 		return nil
 	}
 
-	useV1API := !config.Datadog.GetBool("use_v2_api.service_checks")
+	useV1API := true
 
 	var serviceCheckPayloads forwarder.Payloads
 	var extraHeaders http.Header
@@ -274,7 +284,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 	if useV1API && s.enableServiceChecksJSONStream {
 		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc, stream.DropItemOnErrItemTooBig)
 	} else {
-		serviceCheckPayloads, extraHeaders, err = s.serializePayload(sc, true, useV1API)
+		serviceCheckPayloads, extraHeaders, err = s.serializePayloadJSON(sc, true)
 	}
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)
@@ -293,7 +303,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 		return nil
 	}
 
-	const useV1API = true // v2 intake for series is not yet implemented
+	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
 	var seriesPayloads forwarder.Payloads
 	var extraHeaders http.Header
@@ -301,15 +311,21 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 
 	if useV1API && s.enableJSONStream {
 		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series, stream.DropItemOnErrItemTooBig)
+	} else if useV1API && !s.enableJSONStream {
+		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(series, true)
 	} else {
-		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
+		seriesPayloads, err = series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		extraHeaders = protobufExtraHeadersWithCompression
 	}
 
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
+	if useV1API {
+		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
+	}
+	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
@@ -338,22 +354,22 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
+func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitMetadata)
 }
 
 // SendHostMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendHostMetadata(m marshaler.Marshaler) error {
+func (s *Serializer) SendHostMetadata(m marshaler.JSONMarshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitHostMetadata)
 }
 
 // SendAgentchecksMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendAgentchecksMetadata(m marshaler.Marshaler) error {
+func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitAgentChecksMetadata)
 }
 
-func (s *Serializer) sendMetadata(m marshaler.Marshaler, submit func(payload forwarder.Payloads, extra http.Header) error) error {
-	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.MarshalJSON)
+func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload forwarder.Payloads, extra http.Header) error) error {
+	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.JSONMarshalFct)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}

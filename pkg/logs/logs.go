@@ -16,6 +16,8 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -79,8 +81,9 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	sources := config.NewLogSources()
 	services := service.NewServices()
 
-	// setup the config scheduler
-	scheduler.CreateScheduler(sources, services)
+	// setup the config scheduler; this will be added to the AD meta-scheduler
+	// later during agent startup, in common.LoadComponents
+	scheduler.CreateScheduler(sources, services, workloadmeta.GetGlobalStore())
 
 	// setup the server config
 	endpoints, err := buildEndpoints(serverless)
@@ -94,6 +97,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	if endpoints.UseHTTP {
 		status.CurrentTransport = status.TransportHTTP
 	}
+	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
 
 	// setup the status
 	status.Init(&isRunning, endpoints, sources, metrics.LogsExpvars)

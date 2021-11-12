@@ -33,16 +33,17 @@ check_already_deployed_version_*     @DataDog/do-not-notify
 dev_*_docker_hub*                    @DataDog/container-integrations
 dev_*_google_container_repository*   @DataDog/container-integrations
 docker_trigger_internal*             @DataDog/container-integrations
-twistlock_scan*                      @DataDog/container-integrations
 
 # Deploy
 deploy_*docker_hub*                  @DataDog/container-integrations
 deploy_*google_container_repository* @DataDog/container-integrations
 
 # Functional test
-kitchen_*_system_probe*              @DataDog/agent-network
-kitchen_*_security_agent*            @DataDog/agent-security
-cleanup_kitchen_functional_test      @DataDog/agent-network @DataDog/agent-security
+kitchen_*_system_probe*                        @DataDog/agent-network
+kitchen_*_security_agent*                      @DataDog/agent-security
+cleanup_kitchen_functional_test                @DataDog/agent-network @DataDog/agent-security
+serverless_cold_start_performance-deb_x64      @DataDog/serverless
+
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations

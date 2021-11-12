@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
@@ -108,15 +109,15 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 	return defaultTagger.Tag(entity, cardinality)
 }
 
-// TagBuilder queries the defaultTagger to get entity tags from cache or
-// sources and appends them to the TagsBuilder.  It can return tags at high
+// AccumulateTagsFor queries the defaultTagger to get entity tags from cache or
+// sources and appends them to the TagAccumulator.  It can return tags at high
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
-func TagBuilder(entity string, cardinality collectors.TagCardinality, tb types.TagsBuilder) error {
+func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	//TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
 	if captureTagger != nil {
-		err := captureTagger.TagBuilder(entity, cardinality, tb)
+		err := captureTagger.AccumulateTagsFor(entity, cardinality, tb)
 		if err == nil {
 			mux.RUnlock()
 			return nil
@@ -124,7 +125,7 @@ func TagBuilder(entity string, cardinality collectors.TagCardinality, tb types.T
 	}
 	mux.RUnlock()
 
-	return defaultTagger.TagBuilder(entity, cardinality, tb)
+	return defaultTagger.AccumulateTagsFor(entity, cardinality, tb)
 }
 
 // TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
@@ -189,11 +190,11 @@ func OrchestratorScopeTag() ([]string, error) {
 }
 
 // OrchestratorScopeTagBuilder queries tags for orchestrator scope (e.g.
-// task_arn in ECS Fargate) and appends them to the TagsBuilder
-func OrchestratorScopeTagBuilder(tb types.TagsBuilder) error {
+// task_arn in ECS Fargate) and appends them to the TagAccumulator
+func OrchestratorScopeTagBuilder(tb tagset.TagAccumulator) error {
 	mux.RLock()
 	if captureTagger != nil {
-		err := captureTagger.TagBuilder(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+		err := captureTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
 
 		if err == nil {
 			mux.RUnlock()
@@ -202,7 +203,7 @@ func OrchestratorScopeTagBuilder(tb types.TagsBuilder) error {
 	}
 	mux.RUnlock()
 
-	return defaultTagger.TagBuilder(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+	return defaultTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
 }
 
 // Stop queues a stop signal to the defaultTagger
@@ -249,11 +250,11 @@ func init() {
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-func EnrichTags(tb types.TagsBuilder, origin string, k8sOriginID string, cardinalityName string) {
+func EnrichTags(tb tagset.TagAccumulator, origin string, k8sOriginID string, cardinalityName string) {
 	cardinality := taggerCardinality(cardinalityName)
 
 	if origin != packets.NoOrigin {
-		if err := TagBuilder(origin, cardinality, tb); err != nil {
+		if err := AccumulateTagsFor(origin, cardinality, tb); err != nil {
 			log.Errorf(err.Error())
 		}
 	}
@@ -266,7 +267,7 @@ func EnrichTags(tb types.TagsBuilder, origin string, k8sOriginID string, cardina
 	}
 
 	if k8sOriginID != "" {
-		if err := TagBuilder(k8sOriginID, cardinality, tb); err != nil {
+		if err := AccumulateTagsFor(k8sOriginID, cardinality, tb); err != nil {
 			tlmUDPOriginDetectionError.Inc()
 			log.Tracef("Cannot get tags for entity %s: %s", k8sOriginID, err)
 		}

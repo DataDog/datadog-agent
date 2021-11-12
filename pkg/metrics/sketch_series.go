@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"expvar"
 
-	"github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
@@ -114,7 +114,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	payloads := []*[]byte{}
 
 	// constants for the protobuf data we will be writing, taken from
-	// https://github.com/DataDog/agent-payload/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
+	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
 	// Unused fields are commented out
 	const payloadSketches = 1
 	const payloadMetadata = 2
@@ -358,12 +358,12 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into times number of pieces
-func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	// Only break it down as much as possible
 	if len(sl) < times {
 		times = len(sl)
 	}
-	splitPayloads := make([]marshaler.Marshaler, times)
+	splitPayloads := make([]marshaler.AbstractMarshaler, times)
 	batchSize := len(sl) / times
 	n := 0
 	for i := 0; i < times; i++ {

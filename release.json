@@ -1,7 +1,8 @@
 {
+    "base_branch": "main",
     "last_stable": {
-        "6": "6.31.0",
-        "7": "7.31.0"
+        "6": "6.32.0",
+        "7": "7.32.0"
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",

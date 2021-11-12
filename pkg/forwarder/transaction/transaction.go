@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
@@ -241,7 +242,7 @@ func (t *HTTPTransaction) GetCreatedAt() time.Time {
 // GetTarget return the url used by the transaction
 func (t *HTTPTransaction) GetTarget() string {
 	url := t.Domain + t.Endpoint.Route
-	return log.SanitizeURL(url) // sanitized url that can be logged
+	return scrubber.ScrubLine(url) // sanitized url that can be logged
 }
 
 // GetPriority returns the priority
@@ -288,7 +289,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	reader := bytes.NewReader(*t.Payload)
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
-	logURL := log.SanitizeURL(url) // sanitized url that can be logged
+	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
 
 	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
@@ -310,7 +311,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "cant_send")
-		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", log.SanitizeURL(err.Error()))
+		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", scrubber.ScrubLine(err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 

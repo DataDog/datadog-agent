@@ -19,16 +19,29 @@ import (
 
 // buildCollectorEvent generates a CollectorEvent from a containerdevents.Envelope
 func buildCollectorEvent(ctx context.Context, containerdEvent *containerdevents.Envelope, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
-	ID, hasID := containerdEvent.Field([]string{"event", "id"})
-	if !hasID {
-		return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
-	}
-
 	switch containerdEvent.Topic {
 	case containerCreationTopic, containerUpdateTopic:
+		ID, hasID := containerdEvent.Field([]string{"event", "id"})
+		if !hasID {
+			return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
+		}
+
 		return createSetEvent(ctx, ID, containerdClient)
 	case containerDeletionTopic:
+		ID, hasID := containerdEvent.Field([]string{"event", "id"})
+		if !hasID {
+			return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
+		}
+
 		return createDeletionEvent(ID), nil
+	case TaskStartTopic, TaskOOMTopic, TaskExitTopic, TaskDeleteTopic, TaskPausedTopic, TaskResumedTopic:
+		// Notice that the ID field in this case is stored in "ContainerID".
+		ID, hasID := containerdEvent.Field([]string{"event", "container_id"})
+		if !hasID {
+			return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
+		}
+
+		return createSetEvent(ctx, ID, containerdClient)
 	default:
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("unknown action type %s, ignoring", containerdEvent.Topic)
 	}
@@ -47,7 +60,7 @@ func createSetEvent(ctx context.Context, containerID string, containerdClient cu
 
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,
-		Source: collectorID,
+		Source: workloadmeta.SourceContainerd,
 		Entity: &entity,
 	}, nil
 }
@@ -55,7 +68,7 @@ func createSetEvent(ctx context.Context, containerID string, containerdClient cu
 func createDeletionEvent(containerID string) workloadmeta.CollectorEvent {
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeUnset,
-		Source: collectorID,
+		Source: workloadmeta.SourceContainerd,
 		Entity: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   containerID,

@@ -9,13 +9,16 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 )
 
-// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
+// SetupDNAT sets up a NAT translation from:
+// * 2.2.2.2 to 1.1.1.1 (OUTPUT Chain)
+// * 3.3.3.3 to 1.1.1.1 (PREROUTING Chain)
 func SetupDNAT(t *testing.T) {
 	cmds := []string{
 		"ip link add dummy1 type dummy",
 		"ip address add 1.1.1.1 broadcast + dev dummy1",
 		"ip link set dummy1 up",
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
+		"iptables -t nat -A PREROUTING --dest 3.3.3.3 -j DNAT --to-destination 1.1.1.1",
 	}
 	nettestutil.RunCommands(t, cmds, false)
 }
@@ -26,6 +29,7 @@ func TeardownDNAT(t *testing.T) {
 		// tear down the testing interface, and iptables rule
 		"ip link del dummy1",
 		"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
+		"iptables -t nat -D PREROUTING -d 3.3.3.3 -j DNAT --to-destination 1.1.1.1",
 
 		// clear out the conntrack table
 		"conntrack -F",
@@ -73,10 +77,10 @@ func TeardownDNAT6(t *testing.T) {
 	nettestutil.RunCommands(t, cmds, true)
 }
 
-// SetupCrossNsDNAT sets up a network namespace, named "test", along with two IP addresses
+// SetupVethPair sets up a network namespace, named "test", along with two IP addresses
 // 2.2.2.3 and 2.2.2.4 to be used for namespace aware tests.
 // 2.2.2.4 is within the "test" namespace, while 2.2.2.3 is a peer in the root namespace.
-func SetupCrossNsDNAT(t *testing.T) {
+func SetupVethPair(t *testing.T) {
 	cmds := []string{
 		"ip netns add test",
 		"ip link add veth1 type veth peer name veth2",
@@ -85,8 +89,27 @@ func SetupCrossNsDNAT(t *testing.T) {
 		"ip -n test address add 2.2.2.4/24 dev veth2",
 		"ip link set veth1 up",
 		"ip -n test link set veth2 up",
-		"ip netns exec test ip route add default dev veth2",
+		"ip netns exec test ip route add default via 2.2.2.3",
+	}
+	nettestutil.RunCommands(t, cmds, false)
+}
 
+// TeardownVethPair cleans up the resources created by SetupVethPair
+func TeardownVethPair(t *testing.T) {
+	cmds := []string{
+		"ip link del veth1",
+		"ip -n test link del veth2",
+		"ip netns del test",
+	}
+	nettestutil.RunCommands(t, cmds, true)
+}
+
+// SetupCrossNsDNAT sets up a network namespace, named "test", a veth pair, and a NAT
+// rule in the "test" network namespace
+func SetupCrossNsDNAT(t *testing.T) {
+	SetupVethPair(t)
+
+	cmds := []string{
 		//this is required to enable conntrack in the root net namespace
 		//conntrack won't be enabled unless there is at least one iptables
 		//rule that uses connection tracking
@@ -100,11 +123,9 @@ func SetupCrossNsDNAT(t *testing.T) {
 
 // TeardownCrossNsDNAT cleans up the resources created by SetupCrossNsDNAT
 func TeardownCrossNsDNAT(t *testing.T) {
-	cmds := []string{
-		"ip link del veth1",
-		"ip -n test link del veth2",
-		"ip netns del test",
+	TeardownVethPair(t)
 
+	cmds := []string{
 		"iptables -D INPUT 1",
 
 		"conntrack -F",

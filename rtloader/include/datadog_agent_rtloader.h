@@ -611,6 +611,16 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_cb(rtloader_t *, cb_obfuscate_
 */
 DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_obfuscate_sql_exec_plan_t);
 
+/*! \fn void set_get_process_start_time_cb(rtloader_t *, cb_get_process_start_time_t)
+    \brief Sets a callback to be used by rtloader to retrieve agent process start time.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_get_process_start_time_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_get_process_start_time_cb(rtloader_t *, cb_get_process_start_time_t);
+
 #ifdef __cplusplus
 }
 #endif

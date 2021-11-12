@@ -4,8 +4,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/agent-payload/process"
-	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/agent-payload/v5/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -49,7 +49,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 	}
 
 	t.Run("DNS with collect_domains_enabled=true,enable_dns_by_querytype=false", func(t *testing.T) {
-		config.Datadog.Set("network_config.collect_dns_domains", true)
+		config.Datadog.Set("system_probe_config.collect_dns_domains", true)
 		config.Datadog.Set("network_config.enable_dns_by_querytype", false)
 
 		ipc := make(ipCache)
@@ -69,13 +69,15 @@ func TestFormatConnectionDNS(t *testing.T) {
 					},
 				},
 			},
+			DnsStatsByDomainByQueryType:       nil,
+			DnsStatsByDomainOffsetByQueryType: nil,
 		}
 
 		assert.Equal(t, expected, out)
 	})
 
 	t.Run("DNS with collect_domains_enabled=true,enable_dns_by_querytype=true", func(t *testing.T) {
-		config.Datadog.Set("network_config.collect_dns_domains", true)
+		config.Datadog.Set("system_probe_config.collect_dns_domains", true)
 		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
 
 		ipc := make(ipCache)
@@ -85,6 +87,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 
 		formatter.FormatConnectionDNS(in, out)
 		expected := &model.Connection{
+			DnsStatsByDomain: nil,
 			DnsStatsByDomainByQueryType: map[int32]*model.DNSStatsByQueryType{
 				0: {
 					DnsStatsByQueryType: map[int32]*model.DNSStats{
@@ -97,6 +100,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 					},
 				},
 			},
+			DnsStatsByDomainOffsetByQueryType: nil,
 		}
 
 		assert.Equal(t, expected, out)
@@ -148,7 +152,7 @@ func TestDNSPIDCollision(t *testing.T) {
 		},
 	}
 
-	config.Datadog.Set("network_config.collect_dns_domains", true)
+	config.Datadog.Set("system_probe_config.collect_dns_domains", true)
 	config.Datadog.Set("network_config.enable_dns_by_querytype", false)
 
 	ipc := make(ipCache)

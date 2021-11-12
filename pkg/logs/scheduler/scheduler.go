@@ -6,6 +6,7 @@
 package scheduler
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -13,11 +14,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+
+// The logs scheduler is connected to autodiscovery via the agent's
+// common.LoadComponents method, which calls its Schedule and Unschedule
+// methods.  For containers, the scheduler uses workloadmeta, rather than
+// autodiscovery.
 
 var (
 	// scheduler is plugged to autodiscovery to collect integration configs
@@ -33,19 +41,94 @@ var (
 type Scheduler struct {
 	sources  *logsConfig.LogSources
 	services *service.Services
+
+	// context controls the lifetime of this service
+	ctx context.Context
+
+	// cancel cancels the context
+	cancel context.CancelFunc
+
+	// events from the workloadmeta store
+	events chan workloadmeta.EventBundle
+
+	// services we have added, so that we can remove them again, indexed by ID
+	addedServices map[workloadmeta.EntityID]*service.Service
 }
 
-// CreateScheduler creates the scheduler.
-func CreateScheduler(sources *logsConfig.LogSources, services *service.Services) {
-	adScheduler = &Scheduler{
-		sources:  sources,
-		services: services,
+// NewScheduler creates a scheduler that will report to the given LogSources
+// and Services instances.  The scheduler is automatically started.
+func NewScheduler(sources *logsConfig.LogSources, services *service.Services, wlms workloadmeta.Store) *Scheduler {
+	filter := workloadmeta.NewFilter([]workloadmeta.Kind{workloadmeta.KindContainer}, nil)
+	events := wlms.Subscribe("logs", filter)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	sch := &Scheduler{
+		sources:       sources,
+		services:      services,
+		ctx:           ctx,
+		cancel:        cancel,
+		events:        events,
+		addedServices: make(map[workloadmeta.EntityID]*service.Service),
 	}
+	sch.start()
+	return sch
 }
 
-// Stop does nothing.
+// CreateScheduler creates the global scheduler (which will subsequently be
+// returned from GetScheduler)
+func CreateScheduler(sources *logsConfig.LogSources, services *service.Services, wlms workloadmeta.Store) {
+	adScheduler = NewScheduler(sources, services, wlms)
+}
+
+// start begins listening for scheduling events
+func (s *Scheduler) start() {
+	go func() {
+		// logs services have a "creationTime" relative to agent startup: Before or
+		// After.  This is used to determine whether we are logging something that
+		// has already been running (Before) or something new (After), and thus
+		// whether to start at the end (Before) or beginning (After) of the
+		// logfile.  Workloadmeta does not give us this information directly, but
+		// it does produce an EventBundle at subscription time containing all of
+		// the already-detected services.  So, we treat this first bundle as Before
+		// and all subsequent as After.
+		creationTime := service.Before
+
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			case evtbundle, open := <-s.events:
+				if !open {
+					return
+				}
+				for _, e := range evtbundle.Events {
+					switch e.Type {
+					case workloadmeta.EventTypeSet:
+						s.handleWorkloadMetaSetEvent(e, creationTime)
+					case workloadmeta.EventTypeUnset:
+						s.handleWorkloadMetaUnsetEvent(e)
+					}
+				}
+				close(evtbundle.Ch)
+				creationTime = service.After
+			}
+		}
+	}()
+}
+
+// Stop stops the scheduler.
 func (s *Scheduler) Stop() {
-	adScheduler = nil
+	// cancel the context, signalling the listening goroutine to stop
+	s.cancel()
+
+	// unsubscribe from workloadmeta events
+	wlms := workloadmeta.GetGlobalStore()
+	wlms.Unsubscribe(s.events)
+
+	// if this was the global scheduler, remove it
+	if s == adScheduler {
+		adScheduler = nil
+	}
 }
 
 // Schedule creates new sources and services from a list of integration configs.
@@ -72,23 +155,6 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			for _, source := range sources {
 				s.sources.AddSource(source)
 			}
-		case s.newService(config):
-			entityType, _, err := s.parseEntity(config.TaggerEntity)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			// logs only consider container services
-			if entityType != containers.ContainerEntityName {
-				continue
-			}
-			log.Infof("Received a new service: %v", config.Entity)
-			service, err := s.toService(config)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			s.services.AddService(service)
 		default:
 			// invalid integration config
 			continue
@@ -116,24 +182,6 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 					s.sources.RemoveSource(source)
 				}
 			}
-		case s.newService(config):
-			// new service to remove
-			entityType, _, err := s.parseEntity(config.TaggerEntity)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			// logs only consider container services
-			if entityType != containers.ContainerEntityName {
-				continue
-			}
-			log.Infof("New service to remove: entity: %v", config.Entity)
-			service, err := s.toService(config)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			s.services.RemoveService(service)
 		default:
 			// invalid integration config
 			continue
@@ -141,14 +189,44 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 	}
 }
 
+// handleWorkloadMetaSetEvent handles an incoming event from the workload
+// metadata service indicating that an entity has been "set".  The creationTime
+// argument is an estimate of whether this workload started Before or After the
+// agent started.
+func (s *Scheduler) handleWorkloadMetaSetEvent(e workloadmeta.Event, creationTime service.CreationTime) {
+	container := e.Entity.(*workloadmeta.Container)
+
+	var svc *service.Service
+	switch container.Runtime {
+	case workloadmeta.ContainerRuntimeDocker:
+		svc = service.NewService(config.DockerType, container.ID, creationTime)
+	default:
+		// unknown runtime, so no logging
+		return
+	}
+	s.addedServices[e.Entity.GetID()] = svc
+	s.services.AddService(svc)
+}
+
+// handleWorkloadMetaUnsetEvent handles an incoming event from the workload metadata
+// service indicating that an entity has been "unset"
+func (s *Scheduler) handleWorkloadMetaUnsetEvent(e workloadmeta.Event) {
+	// We don't get a workloadmeta.Container in e.Entity, so we do not know the
+	// container runtime for this container and must find the container we have
+	// previously added to s.services.
+	id := e.Entity.GetID()
+	svc, found := s.addedServices[id]
+	if !found {
+		log.Debugf("Container %s was not being logged; nothing to do to stop logging", id)
+		return
+	}
+	s.services.RemoveService(svc)
+	delete(s.addedServices, id)
+}
+
 // newSources returns true if the config can be mapped to sources.
 func (s *Scheduler) newSources(config integration.Config) bool {
 	return config.Provider != ""
-}
-
-// newService returns true if the config can be mapped to a service.
-func (s *Scheduler) newService(config integration.Config) bool {
-	return config.Provider == "" && config.Entity != ""
 }
 
 // configName returns the name of the configuration.
@@ -173,8 +251,8 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	case names.File:
 		// config defined in a file
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
-	case names.Docker, names.Kubernetes:
-		// config attached to a docker label or a pod annotation
+	case names.Container, names.Kubernetes:
+		// config attached to a container label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	default:
 		// invalid provider
@@ -214,9 +292,9 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 		}
 
 		if service != nil {
-			// a config defined in a docker label or a pod annotation does not always contain a type,
+			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Docker) {
+			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Container) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
