@@ -687,7 +687,6 @@ core,github.com/vishvananda/netlink,Apache-2.0,"Docker, Inc | Vishvananda Ishaya
 core,github.com/vishvananda/netlink/nl,Apache-2.0,"Docker, Inc | Vishvananda Ishaya"
 core,github.com/vishvananda/netns,Apache-2.0,"Docker, Inc | Vishvananda Ishaya"
 core,github.com/vito/go-sse/sse,Apache-2.0,The Authors
-core,github.com/wille/osutil,UNKNOWN,wille
 core,github.com/xeipuuv/gojsonpointer,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
 core,github.com/xeipuuv/gojsonreference,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
 core,github.com/xeipuuv/gojsonschema,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
