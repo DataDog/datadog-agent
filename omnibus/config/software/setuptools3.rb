@@ -19,7 +19,7 @@ build do
     python_prefix = "#{install_dir}/embedded"
   end
 
-  ship_license "PSFL"
+  license "Python-2.0"
   command "#{python_bin} bootstrap.py"
   command "#{python_bin} setup.py install --prefix=#{python_prefix}"
 

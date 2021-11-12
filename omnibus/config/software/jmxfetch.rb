@@ -24,7 +24,8 @@ jar_dir = "#{install_dir}/bin/agent/dist/jmx"
 relative_path "jmxfetch"
 
 build do
-  ship_license "https://raw.githubusercontent.com/DataDog/jmxfetch/master/LICENSE"
+  license "BSD-3-Clause"
+  license_file "https://raw.githubusercontent.com/DataDog/jmxfetch/master/LICENSE"
   mkdir jar_dir
 
   if osx? && code_signing_identity

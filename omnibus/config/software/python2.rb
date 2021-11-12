@@ -56,7 +56,7 @@ if ohai["platform"] != "windows"
   end
 
   build do
-    ship_license "PSFL"
+    license "Python-2.0"
 
     patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux?
     patch :source => "fix-platform-ubuntu.diff" if linux?

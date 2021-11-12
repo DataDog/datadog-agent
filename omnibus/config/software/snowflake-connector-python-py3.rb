@@ -21,7 +21,7 @@ build do
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
-
-  ship_license "https://raw.githubusercontent.com/snowflakedb/snowflake-connector-python/v#{version}/LICENSE.txt"
+  license "Apache-2.0"
+  license_file "https://raw.githubusercontent.com/snowflakedb/snowflake-connector-python/v#{version}/LICENSE.txt"
   command "#{pip} install ."
 end

@@ -10,7 +10,8 @@ source url: "ftp://ftp.freetds.org/pub/freetds/stable/freetds-#{version}.tar.gz"
 relative_path "freetds-#{version}"
 
 build do
-  ship_license "./COPYING"
+  license "GPL-2.0"
+  license_file "./COPYING"
   env = with_standard_compiler_flags(with_embedded_path)
 
   configure_args = [
