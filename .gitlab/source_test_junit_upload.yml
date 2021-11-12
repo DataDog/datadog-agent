@@ -1,4 +1,5 @@
 source_test_junit_upload:
+  # Uncomment this to only run junit uploads on main/stable branches
   # rules:
   #   !reference [.on_main_or_release_branch]
   when: always
