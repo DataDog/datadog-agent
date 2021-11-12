@@ -106,3 +106,27 @@ process_config:
     enabled: true
 )");
 }
+
+TEST_F(ReplaceYamlPropertiesTests, When_Process_Url_Set_And_Process_Discovery_Enabled_Correctly_Replace)
+{
+    value_map values = {
+        {L"PROCESS_DD_URL", L"https://process.someurl.datadoghq.com"},
+        {L"PROCESS_DISCOVERY_ENABLED", L"true"},
+    };
+    std::wstring result = replace_yaml_properties(LR"(
+# process_config:
+
+  # process_discovery:
+    # enabled: false
+)",
+                                                  propertyRetriever(values));
+
+    EXPECT_EQ(result,
+              LR"(
+process_config:
+  process_dd_url: https://process.someurl.datadoghq.com
+
+  process_discovery:
+    enabled: true
+)");
+}
