@@ -111,7 +111,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, enabled, sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, &securityLogger.PatternLogger{})
+	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SECLVariables, sprobe.SupportedDiscarders, enabled, sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, &securityLogger.PatternLogger{})
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts)
 
