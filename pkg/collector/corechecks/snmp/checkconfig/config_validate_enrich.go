@@ -5,11 +5,29 @@ import (
 	"regexp"
 )
 
+var validMetadataResources = map[string]map[string]bool{
+	"device": {
+		"name":          true,
+		"description":   true,
+		"sys_object_id": true,
+		"serial_number": true,
+		"vendor":        true,
+	},
+	"interface": {
+		"name":         true,
+		"alias":        true,
+		"description":  true,
+		"mac_address":  true,
+		"admin_status": true,
+		"oper_status":  true,
+	},
+}
+
 // ValidateEnrichMetricTags validates and enrich metric tags
 func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
 	var errors []string
 	for i := range metricTags {
-		errors = append(errors, validateEnrichMetricTag(&metricTags[i], nil)...)
+		errors = append(errors, validateEnrichMetricTag(&metricTags[i])...)
 	}
 	return errors
 }
@@ -42,7 +60,7 @@ func validateEnrichMetrics(metrics []MetricsConfig) []string {
 			}
 			for i := range metricConfig.MetricTags {
 				metricTag := &metricConfig.MetricTags[i]
-				errors = append(errors, validateEnrichMetricTag(metricTag, metricConfig)...)
+				errors = append(errors, validateEnrichMetricTag(metricTag)...)
 			}
 		}
 	}
@@ -51,23 +69,35 @@ func validateEnrichMetrics(metrics []MetricsConfig) []string {
 
 // validateEnrichMetadata will validate MetadataConfig and enrich it.
 func validateEnrichMetadata(metadata MetadataConfig) []string {
-	// TODO: validate fields
-	// TODO: validate idtags
 	var errors []string
 	for resName := range metadata {
-		res := metadata[resName]
-		for fieldName := range metadata[resName].Fields {
-			field := res.Fields[fieldName]
-			if field.Value == "" && field.Symbol.OID == "" {
-				errors = append(errors, fmt.Sprintf("field `%s`: value or symbol cannot be both empty", field))
+		_, isValidRes := validMetadataResources[resName]
+		if !isValidRes {
+			errors = append(errors, fmt.Sprintf("invalid resource: %s", resName))
+		} else {
+			res := metadata[resName]
+			for fieldName := range metadata[resName].Fields {
+				_, isValidField := validMetadataResources[resName][fieldName]
+				if !isValidField {
+					errors = append(errors, fmt.Sprintf("invalid resource (%s) field: %s", resName, fieldName))
+					continue
+				}
+				field := res.Fields[fieldName]
+				if field.Value == "" && field.Symbol.OID == "" {
+					errors = append(errors, fmt.Sprintf("field `%s`: value or symbol cannot be both empty", fieldName))
+				}
+				if field.Value != "" && field.Symbol.OID != "" {
+					errors = append(errors, fmt.Sprintf("field `%s`: value or symbol cannot be both defined", fieldName))
+				}
+				if field.Symbol.OID != "" {
+					errors = append(errors, validateEnrichSymbol(&field.Symbol)...)
+				}
+				res.Fields[fieldName] = field
 			}
-			if field.Value != "" && field.Symbol.OID != "" {
-				errors = append(errors, fmt.Sprintf("field `%s`: value or symbol cannot be both defined", field))
-			}
-			if field.Symbol.OID != "" {
-				errors = append(errors, validateEnrichSymbol(&field.Symbol)...)
-			}
-			res.Fields[fieldName] = field
+		}
+		for i := range metadata[resName].IDTags {
+			metricTag := &metadata[resName].IDTags[i]
+			errors = append(errors, validateEnrichMetricTag(metricTag)...)
 		}
 	}
 	return errors
@@ -91,7 +121,7 @@ func validateEnrichSymbol(symbol *SymbolConfig) []string {
 	}
 	return errors
 }
-func validateEnrichMetricTag(metricTag *MetricTagConfig, metricConfig *MetricsConfig) []string {
+func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
 	var errors []string
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
 		errors = append(errors, validateEnrichSymbol(&metricTag.Column)...)
@@ -99,12 +129,12 @@ func validateEnrichMetricTag(metricTag *MetricTagConfig, metricConfig *MetricsCo
 	if metricTag.Match != "" {
 		pattern, err := regexp.Compile(metricTag.Match)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("cannot compile `match` (`%s`): %s : %#v", metricTag.Match, err.Error(), metricConfig))
+			errors = append(errors, fmt.Sprintf("cannot compile `match` (`%s`): %s", metricTag.Match, err.Error()))
 		} else {
 			metricTag.pattern = pattern
 		}
 		if len(metricTag.Tags) == 0 {
-			errors = append(errors, fmt.Sprintf("`tags` mapping must be provided if `match` (`%s`) is defined: %#v", metricTag.Match, metricConfig))
+			errors = append(errors, fmt.Sprintf("`tags` mapping must be provided if `match` (`%s`) is defined", metricTag.Match))
 		}
 	}
 	for _, transform := range metricTag.IndexTransform {
