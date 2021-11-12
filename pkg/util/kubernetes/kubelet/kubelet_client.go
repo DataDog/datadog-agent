@@ -181,11 +181,11 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 	if kubeletProxyEnabled {
 		// Explicitly disable HTTP to reach APIServer
 		kubeletHTTPPort = 0
-		httpsPort, err := strconv.ParseInt(os.Getenv("KUBERNETES_SERVICE_PORT"), 10, 64)
+		httpsPort, err := strconv.ParseUint(os.Getenv("KUBERNETES_SERVICE_PORT"), 10, 16)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get APIServer port: %w", err)
 		}
-		kubeletHTTPSPort = int(httpsPort)
+		kubeletHTTPSPort = httpsPort
 
 		if config.Datadog.Get("kubernetes_kubelet_nodename") != "" {
 			kubeletPathPrefix = fmt.Sprintf("/api/v1/nodes/%s/proxy", kubeletNodeName)
@@ -236,7 +236,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 	return nil, fmt.Errorf("Invalid Kubelet configuration: both HTTPS and HTTP ports are disabled")
 }
 
-func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix string, hosts *connectionInfo, clientConfig *kubeletClientConfig) error {
+func checkKubeletConnection(ctx context.Context, scheme string, port uint16, prefix string, hosts *connectionInfo, clientConfig *kubeletClientConfig) error {
 	var err error
 	var kubeClient *kubeletClient
 
