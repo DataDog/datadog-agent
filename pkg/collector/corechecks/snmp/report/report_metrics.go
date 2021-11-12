@@ -41,7 +41,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.Metr
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
-		// TODO: Use getScalarValueFromSymbol() to support extract value
+		// TODO: Support extract value see II-635
 		value, err := values.GetScalarValue(metricTag.OID)
 		if err != nil {
 			continue
