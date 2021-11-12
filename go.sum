@@ -115,8 +115,8 @@ github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a h1
 github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a/go.mod h1:2qOvG41jii2ks6Umn6MbDGlHRgwoFiYXcjgQQ9VlsS0=
 github.com/DataDog/ebpf v0.0.0-20211111193944-95ceaf8c9cf8 h1:okPQMb2Ws8993r9GBSAFgTBkKcdFVbZ823V23yRKZow=
 github.com/DataDog/ebpf v0.0.0-20211111193944-95ceaf8c9cf8/go.mod h1:tSPYMUcskM0OLVEJSoydgYUVuhX8hOSmtaSLNtOQThg=
-github.com/DataDog/ebpf-manager v0.0.0-20210917155050-c174a8b45802 h1:t/F7Q6JsZiNsrvEjf7Uc7bBK9H+RvFBMHeZa0vHQrZM=
-github.com/DataDog/ebpf-manager v0.0.0-20210917155050-c174a8b45802/go.mod h1:DqqYWrCpPfP6mdseS1nFxWhqYm2Z28YacvPdqrhyK9I=
+github.com/DataDog/ebpf-manager v0.0.0-20210921122211-3cf42f15c2d4 h1:LjR3HCLH1PnbRBwhTZPWXR+cYh9cViOgJ9eM+hJ3hk8=
+github.com/DataDog/ebpf-manager v0.0.0-20210921122211-3cf42f15c2d4/go.mod h1:05Y9FhEyILUdCovBthi5y4KPY8AfUg5EbMNC6RMQXDY=
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c h1:a9OMhZzrrB4nd2eAsXZIBkQ061Gb/QT4CI2g+OWWevs=
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c/go.mod h1:lMIXf2EAzxbIv2zEvWu1bdqlaclUWoCtN13MHuPcY5I=
 github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd h1:tvXbvgbfV9OkVQPwdla2Fk7SPT1ICAM6fpFsuKbOhEI=
@@ -1794,6 +1794,7 @@ golang.org/x/sys v0.0.0-20210816074244-15123e1e1f71/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.0.0-20210823070655-63515b42dcdf/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20210831042530-f4d43177bf5e/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20210906170528-6f6e22806c34/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+golang.org/x/sys v0.0.0-20210921065528-437939a70204/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20210923061019-b8560ed6a9b7 h1:c20P3CcPbopVp2f7099WLOqSNKURf30Z0uq66HpijZY=
 golang.org/x/sys v0.0.0-20210923061019-b8560ed6a9b7/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/term v0.0.0-20201117132131-f5c789dd3221/go.mod h1:Nr5EML6q2oocZ2LXRh80K7BxOlk5/8JxuGnuhpl+muw=
