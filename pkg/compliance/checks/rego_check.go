@@ -355,8 +355,10 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 	currentData := make(map[string]interface{})
 	currentContent, err := ioutil.ReadFile(path)
 	if err == nil {
-		if err := json.Unmarshal(currentContent, &currentData); err != nil {
-			return err
+		if len(currentContent) != 0 {
+			if err := json.Unmarshal(currentContent, &currentData); err != nil {
+				return err
+			}
 		}
 	}
 
