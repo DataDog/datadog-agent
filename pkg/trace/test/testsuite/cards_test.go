@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
@@ -32,7 +33,7 @@ func TestCreditCards(t *testing.T) {
 	for _, tt := range []struct {
 		conf    []byte
 		out     string
-		version string
+		version api.Version
 	}{
 		{
 			conf:    []byte(""),
@@ -80,14 +81,14 @@ apm_config:
 			version: "v0.6",
 		},
 	} {
-		t.Run(tt.version+"/"+tt.out, func(t *testing.T) {
+		t.Run(string(tt.version)+"/"+tt.out, func(t *testing.T) {
 			if err := r.RunAgent(tt.conf); err != nil {
 				t.Fatal(err)
 			}
 			defer r.KillAgent()
 
 			payload, traces := generatePayload(tt.version, "4166 6766 6766 6746")
-			if err := r.PostMsgpack("/"+tt.version+"/traces", payload); err != nil {
+			if err := r.PostMsgpack("/"+string(tt.version)+"/traces", payload); err != nil {
 				t.Fatal(err)
 			}
 			waitForTrace(t, &r, func(v pb.AgentPayload) {
@@ -98,7 +99,7 @@ apm_config:
 	}
 }
 
-func generatePayload(version string, cardNumber string) (msgp.Marshaler, pb.Traces) {
+func generatePayload(version api.Version, cardNumber string) (msgp.Marshaler, pb.Traces) {
 	traces := testutil.GeneratePayload(1, &testutil.TraceConfig{
 		MaxSpans: 1,
 		Keep:     true,
