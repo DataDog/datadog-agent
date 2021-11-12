@@ -3,7 +3,6 @@ Docker related tasks
 """
 
 
-import operator
 import os
 import shutil
 import sys
