@@ -23,18 +23,18 @@ func TestSendMetric(t *testing.T) {
 		count int
 	}
 	tests := []struct {
-		caseName            string
-		metricName          string
-		value               valuestore.ResultValue
-		tags                []string
-		forcedType          string
-		options             checkconfig.MetricsConfigOption
-		expectedMethod      string
-		expectedMetricName  string
-		expectedValue       float64
-		expectedTags        []string
-		expectedSubMetrics  int
-		expectedLogs        []logCount
+		caseName           string
+		metricName         string
+		value              valuestore.ResultValue
+		tags               []string
+		forcedType         string
+		options            checkconfig.MetricsConfigOption
+		expectedMethod     string
+		expectedMetricName string
+		expectedValue      float64
+		expectedTags       []string
+		expectedSubMetrics int
+		expectedLogs       []logCount
 	}{
 		{
 			caseName:           "Gauge metric case",
