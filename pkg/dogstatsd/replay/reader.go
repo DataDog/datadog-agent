@@ -23,13 +23,14 @@ import (
 
 // TrafficCaptureReader allows reading back a traffic capture and its contents
 type TrafficCaptureReader struct {
-	Contents     []byte
-	mmapContents []byte
-	Version      int
-	Traffic      chan *pb.UnixDogstatsdMsg
-	Done         chan struct{}
-	fuse         chan struct{}
-	offset       uint32
+	Contents    []byte
+	rawContents []byte
+	Version     int
+	Traffic     chan *pb.UnixDogstatsdMsg
+	Done        chan struct{}
+	fuse        chan struct{}
+	offset      uint32
+	mmap        bool
 
 	sync.Mutex
 }
@@ -70,10 +71,11 @@ func NewTrafficCaptureReader(path string, depth int, mmap bool) (*TrafficCapture
 	}
 
 	return &TrafficCaptureReader{
-		mmapContents: c,
-		Contents:     contents,
-		Version:      ver,
-		Traffic:      make(chan *pb.UnixDogstatsdMsg, depth),
+		rawContents: c,
+		Contents:    contents,
+		Version:     ver,
+		Traffic:     make(chan *pb.UnixDogstatsdMsg, depth),
+		mmap:        mmap,
 	}, nil
 }
 
@@ -142,7 +144,11 @@ func (tc *TrafficCaptureReader) Close() error {
 	// drop reference for GC
 	tc.Contents = nil
 
-	return unmapFile(tc.mmapContents)
+	if tc.mmap {
+		return unmapFile(tc.rawContents)
+	}
+
+	return nil
 }
 
 // Shutdown triggers the fuse if there's an ongoing read routine, and closes the reader.
