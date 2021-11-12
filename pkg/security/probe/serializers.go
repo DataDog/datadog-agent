@@ -194,6 +194,30 @@ type SELinuxEventSerializer struct {
 	BoolCommit    *selinuxBoolCommitSerializer    `json:"bool_commit,omitempty" jsonschema_description:"SELinux boolean commit"`
 }
 
+// BPFMapSerializer serializes a BPF map to JSON
+// easyjson:json
+type BPFMapSerializer struct {
+	Name    string `json:"name,omitempty" jsonschema_description:"Name of the BPF map"`
+	MapType string `json:"map_type,omitempty" jsonschema_description:"Type of the BPF map"`
+}
+
+// BPFProgramSerializer serializes a BPF map to JSON
+// easyjson:json
+type BPFProgramSerializer struct {
+	Name        string   `json:"name,omitempty" jsonschema_description:"Name of the BPF program"`
+	ProgramType string   `json:"program_type,omitempty" jsonschema_description:"Type of the BPF program"`
+	AttachType  string   `json:"attach_type,omitempty" jsonschema_description:"Attach type of the BPF program"`
+	Helpers     []string `json:"helpers,omitempty" jsonschema_description:"List of helpers used by the BPF program"`
+}
+
+// BPFEventSerializer serializes a BPF event to JSON
+// easyjson:json
+type BPFEventSerializer struct {
+	Cmd     string                `json:"cmd" jsonschema_description:"BPF command"`
+	Map     *BPFMapSerializer     `json:"map,omitempty" jsonschema_description:"BPF map"`
+	Program *BPFProgramSerializer `json:"program,omitempty" jsonschema_description:"BPF program"`
+}
+
 // DDContextSerializer serializes a span context to JSON
 // easyjson:json
 type DDContextSerializer struct {
@@ -207,6 +231,7 @@ type EventSerializer struct {
 	EventContextSerializer     `json:"evt,omitempty"`
 	*FileEventSerializer       `json:"file,omitempty"`
 	*SELinuxEventSerializer    `json:"selinux,omitempty"`
+	*BPFEventSerializer        `json:"bpf,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
 	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
@@ -460,6 +485,37 @@ func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
 	}
 }
 
+func newBPFMapSerializer(e *Event) *BPFMapSerializer {
+	if e.BPF.Map.ID == 0 {
+		return nil
+	}
+	return &BPFMapSerializer{
+		Name:    e.BPF.Map.Name,
+		MapType: model.BPFMapType(e.BPF.Map.Type).String(),
+	}
+}
+
+func newBPFProgramSerializer(e *Event) *BPFProgramSerializer {
+	if e.BPF.Program.ID == 0 {
+		return nil
+	}
+
+	return &BPFProgramSerializer{
+		Name:        e.BPF.Program.Name,
+		ProgramType: model.BPFProgramType(e.BPF.Program.Type).String(),
+		AttachType:  model.BPFAttachType(e.BPF.Program.AttachType).String(),
+		Helpers:     model.StringifyHelpersList(e.BPF.Program.Helpers),
+	}
+}
+
+func newBPFEventSerializer(e *Event) *BPFEventSerializer {
+	return &BPFEventSerializer{
+		Cmd:     model.BPFCmd(e.BPF.Cmd).String(),
+		Map:     newBPFMapSerializer(e),
+		Program: newBPFProgramSerializer(e),
+	}
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
 	case syscall.Errno(retval) == syscall.EACCES || syscall.Errno(retval) == syscall.EPERM:
@@ -655,6 +711,10 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			FileSerializer: *newFileSerializer(&event.SELinux.File, event),
 		}
 		s.SELinuxEventSerializer = newSELinuxSerializer(event)
+		s.Category = KernelActivity
+	case model.BPFEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
+		s.BPFEventSerializer = newBPFEventSerializer(event)
 		s.Category = KernelActivity
 	}
 

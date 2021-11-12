@@ -379,6 +379,39 @@
       ]
     },
     {
+      "name": "bpf",
+      "definition": "A BPF command was executed",
+      "type": "Kernel",
+      "from_agent_version": "7.33",
+      "properties": [
+        {
+          "name": "bpf.cmd",
+          "type": "int",
+          "definition": "BPF command name"
+        },
+        {
+          "name": "bpf.map.type",
+          "type": "int",
+          "definition": "Type of the eBPF map"
+        },
+        {
+          "name": "bpf.prog.attach_type",
+          "type": "int",
+          "definition": "Attach type of the eBPF program"
+        },
+        {
+          "name": "bpf.prog.type",
+          "type": "int",
+          "definition": "Type of the eBPF program"
+        },
+        {
+          "name": "bpf.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
       "name": "capset",
       "definition": "A process changed its capacity set",
       "type": "Process",

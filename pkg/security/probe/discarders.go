@@ -552,4 +552,6 @@ func init() {
 				return "removexattr.file.path", event.RemoveXAttr.File.MountID, event.RemoveXAttr.File.Inode, event.RemoveXAttr.File.PathID, false
 			}))
 	SupportedDiscarders["removexattr.file.path"] = true
+
+	allDiscarderHandlers["bpf"] = processDiscarderWrapper(model.BPFEventType, nil)
 }

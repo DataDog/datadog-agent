@@ -543,7 +543,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
 							result := make([]int, len({{$Return}}))
 							for i, v := range {{$Return}} {
-								result[i] = in(v)
+								result[i] = int(v)
 							}
 							return result
 						{{- else}}
@@ -643,7 +643,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
 					result := make([]int, len({{$Return}}))
 					for i, v := range {{$Return}} {
-						result[i] = in(v)
+						result[i] = int(v)
 					}
 					return result, nil
 				{{- else}}
@@ -721,7 +721,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			if !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
-			{{$FieldName}} = {{$Field.OrigType}}(v)
+			{{- if $Field.IsArray}}
+				{{$FieldName}} = append({{$FieldName}}, {{$Field.OrigType}}(v))
+			{{else}}
+				{{$FieldName}} = {{$Field.OrigType}}(v)
+			{{end}}
 			return nil
 		{{else if eq $Field.BasicType "bool"}}
 			if {{$FieldName}}, ok = value.(bool); !ok {
