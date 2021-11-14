@@ -14,6 +14,7 @@ import (
 	"expvar"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -205,7 +206,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 
 	// Checking HTTPS first if port available
 	var httpsErr error
-	if kubeletHTTPSPort > 0 && kubletHTTPSPort <= math.MaxUint16 {
+	if kubeletHTTPSPort > 0 && kubeletHTTPSPort <= math.MaxUint16 {
 		httpsErr = checkKubeletConnection(ctx, "https", uint16(kubeletHTTPSPort), kubeletPathPrefix, potentialHosts, &clientConfig)
 		if httpsErr != nil {
 			log.Debug("Impossible to reach Kubelet through HTTPS")
@@ -219,7 +220,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 
 	// Check HTTP now if port available
 	var httpErr error
-	if kubeletHTTPPort > 0 && kubletHTTPPort <= math.MaxUint16 {
+	if kubeletHTTPPort > 0 && kubeletHTTPPort <= math.MaxUint16 {
 		httpErr = checkKubeletConnection(ctx, "http", uint16(kubeletHTTPPort), kubeletPathPrefix, potentialHosts, &clientConfig)
 		if httpErr != nil {
 			log.Debug("Impossible to reach Kubelet through HTTP")
