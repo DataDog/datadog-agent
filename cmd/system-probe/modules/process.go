@@ -41,13 +41,13 @@ var _ module.Module = &process{}
 
 type process struct {
 	probe     procutil.Probe
-	lastCheck time.Time
+	lastCheck int64
 }
 
 // GetStats returns stats for the module
 func (t *process) GetStats() map[string]interface{} {
 	return map[string]interface{}{
-		"last_check": t.lastCheck.Unix(),
+		"last_check": atomic.LoadInt64(&t.lastCheck),
 	}
 }
 
@@ -56,7 +56,7 @@ func (t *process) Register(httpMux *module.Router) error {
 	var runCounter uint64
 	httpMux.HandleFunc("/proc/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		t.lastCheck = start
+		atomic.StoreInt64(&t.lastCheck, start.Unix())
 		pids, err := getPids(req)
 		if err != nil {
 			log.Errorf("Unable to get PIDs from request: %s", err)
