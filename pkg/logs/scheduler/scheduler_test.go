@@ -18,6 +18,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var Container1 = "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"
+var Container2 = "9bad87700e8dac88d607056119ce80d3f33da461308d3d60367018891be5ee37"
+
 func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
@@ -28,10 +31,10 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
-		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+		ADIdentifiers: []string{"docker://" + Container1},
 		Provider:      names.Kubernetes,
-		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		TaggerEntity:  "container_id://" + Container1,
+		Entity:        "docker://" + Container1,
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
@@ -44,7 +47,7 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
-	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+	assert.Equal(t, Container1, logSource.Config.Identifier)
 }
 
 func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
@@ -58,10 +61,10 @@ func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 	configSource := integration.Config{
 		InitConfig:    []byte(`{"service":"foo"}`),
 		LogsConfig:    []byte(`[{"source":"bar"}]`),
-		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+		ADIdentifiers: []string{"docker://" + Container1},
 		Provider:      names.Kubernetes,
-		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		TaggerEntity:  "container_id://" + Container1,
+		Entity:        "docker://" + Container1,
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
@@ -74,7 +77,7 @@ func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
-	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+	assert.Equal(t, Container1, logSource.Config.Identifier)
 }
 
 func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
@@ -88,10 +91,10 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 	configSource := integration.Config{
 		InitConfig:    []byte(`{"service":"foo"}`),
 		LogsConfig:    []byte(`[{"source":"bar","service":"baz"}]`),
-		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+		ADIdentifiers: []string{"docker://" + Container1},
 		Provider:      names.Kubernetes,
-		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		TaggerEntity:  "container_id://" + Container1,
+		Entity:        "docker://" + Container1,
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
@@ -104,7 +107,7 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 	assert.Equal(t, "baz", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
-	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+	assert.Equal(t, Container1, logSource.Config.Identifier)
 }
 
 func TestSetEventCreatesNewContainerService(t *testing.T) {
@@ -127,21 +130,33 @@ func TestSetEventCreatesNewContainerService(t *testing.T) {
 	}
 
 	go store.NotifySubscribers([]workloadmeta.Event{
-		makeEvent("a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"),
+		makeEvent(Container1),
 	})
 
 	svc := <-servicesStream
-	assert.Equal(t, "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", svc.GetEntityID())
+	assert.Equal(t, "docker://"+Container1, svc.GetEntityID())
 	assert.Equal(t, service.Before, svc.CreationTime)
 
-	// next notification should be "After"
+	// next notification (for a new container) should be "After"
 	go store.NotifySubscribers([]workloadmeta.Event{
-		makeEvent("a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"),
+		makeEvent(Container2),
 	})
 
 	svc = <-servicesStream
-	assert.Equal(t, "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", svc.GetEntityID())
+	assert.Equal(t, "docker://"+Container2, svc.GetEntityID())
 	assert.Equal(t, service.After, svc.CreationTime)
+
+	// notification for same container as the first should not result in a new service
+	go store.NotifySubscribers([]workloadmeta.Event{
+		makeEvent(Container1),
+	})
+
+	select {
+	case svc = <-servicesStream:
+		assert.Fail(t, "should not have produced a service", "got service %#v", svc)
+	case <-time.After(10 * time.Millisecond):
+		// all good!
+	}
 }
 
 func TestUnscheduleConfigRemovesSource(t *testing.T) {
@@ -153,10 +168,10 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
-		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+		ADIdentifiers: []string{"docker://" + Container1},
 		Provider:      names.Kubernetes,
-		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		TaggerEntity:  "container_id://" + Container1,
+		Entity:        "docker://" + Container1,
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
@@ -173,7 +188,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
-	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+	assert.Equal(t, Container1, logSource.Config.Identifier)
 }
 
 func TestUnsetEventRemovesService(t *testing.T) {
@@ -193,27 +208,27 @@ func TestUnsetEventRemovesService(t *testing.T) {
 			Entity: &workloadmeta.Container{
 				Runtime: workloadmeta.ContainerRuntimeDocker,
 				EntityID: workloadmeta.EntityID{
-					ID: "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+					ID: Container1,
 				},
 			},
 		},
 	})
 
 	svc := <-addedServicesStream
-	assert.Equal(t, "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", svc.GetEntityID())
+	assert.Equal(t, "docker://"+Container1, svc.GetEntityID())
 
 	// now unset it
 	go store.NotifySubscribers([]workloadmeta.Event{
 		{
 			Type: workloadmeta.EventTypeUnset,
 			Entity: &workloadmeta.EntityID{
-				ID: "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+				ID: Container1,
 			},
 		},
 	})
 
 	svc = <-removedServicesStream
-	assert.Equal(t, "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", svc.GetEntityID())
+	assert.Equal(t, "docker://"+Container1, svc.GetEntityID())
 }
 
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
@@ -226,8 +241,8 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
-		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		TaggerEntity: "container_id://" + Container1,
+		Entity:       "docker://" + Container1,
 		ClusterCheck: false,
 		CreationTime: 0,
 		LogsExcluded: true,
