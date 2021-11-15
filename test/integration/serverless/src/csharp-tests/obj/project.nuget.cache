@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "iBAyqs8Xd4OvGUMiV4giRalcBmcgClg26D2NXjuGb2HWo2N1ZTO5otauCbJfLvGx3z8wIg8xAgglBPNRI/NnAw==",
+  "success": true,
+  "projectFilePath": "/Users/nicolas.hinsch/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/csharp.csproj",
+  "expectedPackageFiles": [
+    "/Users/nicolas.hinsch/.nuget/packages/amazon.lambda.core/1.1.0/amazon.lambda.core.1.1.0.nupkg.sha512",
+    "/Users/nicolas.hinsch/.nuget/packages/amazon.lambda.serialization.systemtextjson/2.0.1/amazon.lambda.serialization.systemtextjson.2.0.1.nupkg.sha512",
+    "/Users/nicolas.hinsch/.nuget/packages/microsoft.netcore.app.ref/3.1.0/microsoft.netcore.app.ref.3.1.0.nupkg.sha512",
+    "/Users/nicolas.hinsch/.nuget/packages/microsoft.aspnetcore.app.ref/3.1.10/microsoft.aspnetcore.app.ref.3.1.10.nupkg.sha512"
+  ],
+  "logs": []
+}

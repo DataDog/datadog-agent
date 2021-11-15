@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "restore": {
+    "/Users/nicolas.hinsch/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/csharp.csproj": {}
+  },
+  "projects": {
+    "/Users/nicolas.hinsch/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/csharp.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/Users/nicolas.hinsch/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/csharp.csproj",
+        "projectName": "aws-csharp",
+        "projectPath": "/Users/nicolas.hinsch/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/csharp.csproj",
+        "packagesPath": "/Users/nicolas.hinsch/.nuget/packages/",
+        "outputPath": "/Users/nicolas.hinsch/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/Users/nicolas.hinsch/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "netcoreapp3.1"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "netcoreapp3.1": {
+            "targetAlias": "netcoreapp3.1",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "netcoreapp3.1": {
+          "targetAlias": "netcoreapp3.1",
+          "dependencies": {
+            "Amazon.Lambda.Core": {
+              "target": "Package",
+              "version": "[1.1.0, )"
+            },
+            "Amazon.Lambda.Serialization.SystemTextJson": {
+              "target": "Package",
+              "version": "[2.0.1, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[3.1.10, 3.1.10]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[3.1.0, 3.1.0]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/Cellar/dotnet/5.0.207/libexec/sdk/5.0.207/RuntimeIdentifierGraph.json"
+        }
+      },
+      "runtimes": {
+        "linux-x64": {
+          "#import": []
+        }
+      }
+    }
+  }
+}
