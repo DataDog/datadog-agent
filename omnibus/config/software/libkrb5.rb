@@ -1,6 +1,9 @@
 name "libkrb5"
 default_version "1.18.3"
 
+license "BSD-style"
+license_file "https://raw.githubusercontent.com/krb5/krb5/master/NOTICE"
+
 version "1.18.3" do
   source url: "https://kerberos.org/dist/krb5/1.18/krb5-1.18.3.tar.gz"
   source sha256: "e61783c292b5efd9afb45c555a80dd267ac67eebabca42185362bee6c4fbd719"
@@ -11,9 +14,6 @@ relative_path "krb5-#{version}/src"
 reconf_env = { "PATH" => "#{install_dir}/embedded/bin:#{ENV["PATH"]}" }
 
 build do
-  license "BSD-style"
-  license_file "https://raw.githubusercontent.com/krb5/krb5/master/NOTICE"
-
   cmd = ["./configure",
          "--without-keyutils", # this would require additional deps/system deps, disable it
          "--without-system-verto", # do not prefer libverto from the system, if installed

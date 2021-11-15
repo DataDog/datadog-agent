@@ -3,6 +3,9 @@
 name "vc_redist"
 default_version "90"
 
+license "Microsoft Visual Studio 2008"
+license_file "https://s3.amazonaws.com/dd-agent-omnibus/omnibus/vcredist_90_license.pdf"
+
 # source :url => "https://dd-agent-omnibus.s3.amazonaws.com/msvcrntm_x64.tar.gz",
 if windows_arch_i386?
   source :url => "https://dd-agent-omnibus.s3.amazonaws.com/msvc_runtime_x86.tgz",

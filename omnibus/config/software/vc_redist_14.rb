@@ -3,6 +3,9 @@
 name "vc_redist_140"
 default_version "140"
 
+license "Microsoft Visual Studio 2015"
+license_file "https://s3.amazonaws.com/dd-agent-omnibus/omnibus/vcredist_140_license.txt"
+
 if windows_arch_i386?
   source :url => "https://s3.amazonaws.com/dd-agent-omnibus/Microsoft_VC141_CRT_x86.msm",
          :sha256 => "d582b8069174edaefb1fa04b84ebca375602655b5bdbb17aa15d61f43b25a67e",
