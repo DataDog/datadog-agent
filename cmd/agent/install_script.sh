@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.7.0.post
+install_script_version=1.7.1
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -548,7 +548,11 @@ elif [ "$OS" = "SUSE" ]; then
   fi
   echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-  $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  if [ -z "$sudo_cmd" ]; then
+    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  else
+    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  fi
 
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.
