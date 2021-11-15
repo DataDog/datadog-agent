@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, containerHandlers ...func(ctx context.Context, containerID string, tags *utils.TagList) error) ([]*TagInfo, error) {
+func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, targetDockerID string, containerHandlers ...func(ctx context.Context, containerID string, tags *utils.TagList) error) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 	for _, task := range tasks {
@@ -26,51 +26,51 @@ func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, containe
 		if task.KnownStatus == "STOPPED" {
 			continue
 		}
-
 		for _, container := range task.Containers {
 			entityID := containers.BuildTaggerEntityName(container.DockerID)
-			c.expire.Update(entityID, now)
+			// Only collect new containers + the targeted container, to avoid empty tags on race conditions
+			if c.expire.Update(entityID, now) || container.DockerID == targetDockerID {
+				tags := utils.NewTagList()
+				tags.AddLow("task_version", task.Version)
+				tags.AddLow("task_name", task.Family)
+				tags.AddLow("task_family", task.Family)
+				tags.AddLow("ecs_container_name", container.Name)
 
-			tags := utils.NewTagList()
-			tags.AddLow("task_version", task.Version)
-			tags.AddLow("task_name", task.Family)
-			tags.AddLow("task_family", task.Family)
-			tags.AddLow("ecs_container_name", container.Name)
-
-			if c.clusterName != "" {
-				if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
-					tags.AddLow("cluster_name", c.clusterName)
+				if c.clusterName != "" {
+					if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+						tags.AddLow("cluster_name", c.clusterName)
+					}
+					tags.AddLow("ecs_cluster_name", c.clusterName)
 				}
-				tags.AddLow("ecs_cluster_name", c.clusterName)
-			}
 
-			var expiryDate time.Time
-			for _, fn := range containerHandlers {
-				if fn != nil {
-					err := fn(ctx, container.DockerID, tags)
-					if err != nil {
-						log.Warnf("container handler func failed: %s", err)
+				var expiryDate time.Time
+				for _, fn := range containerHandlers {
+					if fn != nil {
+						err := fn(ctx, container.DockerID, tags)
+						if err != nil {
+							log.Warnf("container handler func failed: %s", err)
 
-						// cache result for 1 sencond
-						// it prevents tagger to aggresivelly retry fetch
-						expiryDate = time.Now().Add(1 * time.Second)
+							// cache result for 1 sencond
+							// it prevents tagger to aggresivelly retry fetch
+							expiryDate = time.Now().Add(1 * time.Second)
+						}
 					}
 				}
+
+				tags.AddOrchestrator("task_arn", task.Arn)
+
+				low, orch, high, _ := tags.Compute()
+
+				info := &TagInfo{
+					Source:               ecsCollectorName,
+					Entity:               entityID,
+					HighCardTags:         high,
+					OrchestratorCardTags: orch,
+					LowCardTags:          low,
+					ExpiryDate:           expiryDate,
+				}
+				output = append(output, info)
 			}
-
-			tags.AddOrchestrator("task_arn", task.Arn)
-
-			low, orch, high, _ := tags.Compute()
-
-			info := &TagInfo{
-				Source:               ecsCollectorName,
-				Entity:               entityID,
-				HighCardTags:         high,
-				OrchestratorCardTags: orch,
-				LowCardTags:          low,
-				ExpiryDate:           expiryDate,
-			}
-			output = append(output, info)
 		}
 	}
 	return output, nil
