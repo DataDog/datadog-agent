@@ -98,7 +98,7 @@ metric_function_names=("enhanced-metric-node" "enhanced-metric-python" "metric-c
 log_function_names=("log-node" "log-python" "log-csharp")
 
 go_function_names=("with-ddlambda-go" "without-ddlambda-go" "timeout-go")
-trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-java" "simple-trace-go")
+trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go")
 
 all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${go_function_names[@]}" "${trace_function_names[@]}")
 
