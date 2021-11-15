@@ -75,9 +75,23 @@ func newDatadogSingleClient() (*datadog.Client, error) {
 	return client, nil
 }
 
+type datadogIndividualClient struct {
+	client             *datadog.Client
+	lastQuerySucceeded bool
+	lastFailure        time.Time
+	lastSuccess        time.Time
+	retryInterval      time.Duration
+}
+
+const (
+	minRetryInterval = 30 * time.Second
+	maxRetryInterval = 30 * time.Minute
+)
+
 // DatadogFallbackClient represents a datadog client able to query metrics to a second Datadog endpoint if the first one fails
 type datadogFallbackClient struct {
-	clients []datadog.Client
+	clients        []datadogIndividualClient
+	lastUsedClient int
 }
 
 // NewDatadogFallbackClient generates a new client able to query metrics to a second Datadog endpoint if the first one fails
@@ -86,34 +100,91 @@ func newDatadogFallbackClient(endpoints []config.Endpoint) (*datadogFallbackClie
 		return nil, log.Errorf("external_metrics_provider.endpoints must be non-empty")
 	}
 
-	clients := []datadog.Client{}
+	ddFallbackClient := &datadogFallbackClient{}
 	for _, endpoint := range endpoints {
 		client := datadog.NewClient(endpoint.APIKey, endpoint.APPKey)
 		client.HttpClient.Transport = httputils.CreateHTTPTransport()
 		client.RetryTimeout = 3 * time.Second
 		client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
 		client.SetBaseUrl(endpoint.URL)
-		clients = append(clients, *client)
+		ddFallbackClient.clients = append(ddFallbackClient.clients, datadogIndividualClient{client: client})
 	}
 
-	return &datadogFallbackClient{
-		clients: clients,
-	}, nil
+	return ddFallbackClient, nil
+}
+
+func (ic *datadogIndividualClient) queryMetrics(from, to int64, query string) ([]datadog.Series, error) {
+	// TODO: check for err 500 (server side) instead of any kind of error because switching to DR doesn’t make sense if that’s the query which is bad.
+	if series, err := ic.client.QueryMetrics(from, to, query); err != nil {
+		ic.lastQuerySucceeded = true
+		ic.lastSuccess = time.Now()
+		ic.retryInterval /= 2
+		if ic.retryInterval < minRetryInterval {
+			ic.retryInterval = minRetryInterval
+		}
+		return series, err
+	} else {
+		ic.lastQuerySucceeded = false
+		ic.lastFailure = time.Now()
+		ic.retryInterval *= 2
+		if ic.retryInterval > maxRetryInterval {
+			ic.retryInterval = maxRetryInterval
+		}
+		return series, err
+	}
+}
+
+func (ic *datadogIndividualClient) hasFailedRecently() bool {
+	if ic.lastQuerySucceeded {
+		return false
+	}
+
+	return ic.lastFailure.Add(ic.retryInterval).After(time.Now())
 }
 
 func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
 	errs := errors.New("Failed to query metrics on all endpoints")
-	for _, c := range cl.clients {
-		if series, err := c.QueryMetrics(from, to, query); err != nil {
-			log.Infof("Failed to query metrics on %s: %v", c.GetBaseUrl(), err)
-			errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.GetBaseUrl(), err)
-		} else {
+
+	skippedClients := []*datadogIndividualClient{}
+
+	for i, c := range cl.clients {
+
+		if c.hasFailedRecently() {
+			skippedClients = append(skippedClients, &c)
+			continue
+		}
+
+		if series, err := c.queryMetrics(from, to, query); err == nil {
+			if i != cl.lastUsedClient {
+				log.Warnf("Switching external metrics source provider from %s to %s",
+					cl.clients[cl.lastUsedClient].client.GetBaseUrl(),
+					c.client.GetBaseUrl())
+			}
+			cl.lastUsedClient = i
 			return series, nil
+		} else {
+			log.Infof("Failed to query metrics on %s: %v", c.client.GetBaseUrl(), err)
+			errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
 		}
 	}
+
+	for _, c := range skippedClients {
+		log.Infof("Although we shouldn’t query %s because of the backoff policy, we’re going to do so because no other valid endpoint succeeded so far.", c.client.GetBaseUrl())
+		if series, err := c.queryMetrics(from, to, query); err == nil {
+			return series, nil
+		} else {
+			errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
+		}
+	}
+
 	return nil, errs
 }
 
 func (cl *datadogFallbackClient) GetRateLimitStats() map[string]datadog.RateLimit {
-	return cl.clients[0].GetRateLimitStats()
+	for _, c := range cl.clients {
+		if c.lastQuerySucceeded {
+			return c.client.GetRateLimitStats()
+		}
+	}
+	return map[string]datadog.RateLimit{}
 }
