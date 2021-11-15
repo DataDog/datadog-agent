@@ -184,7 +184,7 @@ func (s *store) Start(ctx context.Context) {
 // as they happen. On first subscription, it will also generate an EventTypeSet
 // event for each entity present in the store that matches filter.
 //
-// Any time an entity changes, a new EventTypeSet event will be set, so mulitple
+// Any time an entity changes, a new EventTypeSet event will be set, so multiple
 // events may be received for each entity.
 func (s *store) Subscribe(name string, filter *Filter) chan EventBundle {
 	// ch needs to be buffered since we'll send it events before the
