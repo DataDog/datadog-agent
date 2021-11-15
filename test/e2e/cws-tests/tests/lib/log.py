@@ -1,9 +1,11 @@
+from abc import ABC, abstractmethod
 from retry.api import retry_call
 
 
-class LogGetter:
-    def get_log(agent_name):
-        pass
+class LogGetter(ABC):
+    @abstractmethod
+    def get_log(self, agent_name):
+        raise NotImplementedError()
 
 
 def _wait_agent_log(agent_name, log_getter, pattern):

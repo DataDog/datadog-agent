@@ -2,31 +2,42 @@ import os
 import tempfile
 from retry.api import retry_call
 import urllib3
-import time
 
 from dateutil.parser import parse as dateutil_parser
 from datadog_api_client.v2 import ApiClient, ApiException, Configuration
 from datadog_api_client.v2.api import logs_api
 from datadog_api_client.v2.api import security_monitoring_api
-from datadog_api_client.v2.models import *
+from datadog_api_client.v2.models import (
+    LogsListRequest,
+    LogsQueryFilter,
+    LogsQueryOptions,
+    LogsListRequestPage,
+    LogsSort,
+    SecurityMonitoringSignalListRequest,
+    SecurityMonitoringSignalListRequestFilter,
+    SecurityMonitoringSignalListRequestPage,
+    SecurityMonitoringSignalsSort,
+    SecurityMonitoringRuleCreatePayload,
+    SecurityMonitoringRuleCaseCreate,
+    SecurityMonitoringRuleSeverity,
+    SecurityMonitoringRuleOptions,
+    SecurityMonitoringRuleDetectionMethod,
+    SecurityMonitoringRuleEvaluationWindow,
+    SecurityMonitoringRuleKeepAlive,
+    SecurityMonitoringRuleMaxSignalDuration,
+    SecurityMonitoringRuleQueryCreate,
+    SecurityMonitoringRuntimeAgentRule,
+    SecurityMonitoringRuleQueryAggregation,
+    SecurityMonitoringRuleTypeCreate,
+)
 
 
 def get_app_log(api_client, query):
     api_instance = logs_api.LogsApi(api_client)
     body = LogsListRequest(
-        filter=LogsQueryFilter(
-            _from="now-15m",
-            indexes=["main"],
-            query=query,
-            to="now",
-        ),
-        options=LogsQueryOptions(
-            time_offset=1,
-            timezone="GMT",
-        ),
-        page=LogsListRequestPage(
-            limit=25,
-        ),
+        filter=LogsQueryFilter(_from="now-15m", indexes=["main"], query=query, to="now",),
+        options=LogsQueryOptions(time_offset=1, timezone="GMT",),
+        page=LogsListRequestPage(limit=25,),
         sort=LogsSort("timestamp"),
     )
 
@@ -45,9 +56,7 @@ def get_app_signal(api_client, query):
             query=query,
             to=dateutil_parser("2050-01-01T00:00:00.00Z"),
         ),
-        page=SecurityMonitoringSignalListRequestPage(
-            limit=25,
-        ),
+        page=SecurityMonitoringSignalListRequestPage(limit=25,),
         sort=SecurityMonitoringSignalsSort("timestamp"),
     )
     api_response = api_instance.search_security_monitoring_signals(body=body)
@@ -67,14 +76,14 @@ class App:
     def __exit__(self):
         self.api_client.rest_client.pool_manager.clear()
 
-    def create_cws_rule(self, name, msg, agent_rule_id, secl, tags=[]):
+    def create_cws_rule(self, name, msg, agent_rule_id, secl, tags=None):
+        if not tags:
+            tags = []
+
         api_instance = security_monitoring_api.SecurityMonitoringApi(self.api_client)
         body = SecurityMonitoringRuleCreatePayload(
             cases=[
-                SecurityMonitoringRuleCaseCreate(
-                    condition="a > 0",
-                    status=SecurityMonitoringRuleSeverity("info"),
-                ),
+                SecurityMonitoringRuleCaseCreate(condition="a > 0", status=SecurityMonitoringRuleSeverity("info"),),
             ],
             has_extended_title=True,
             is_enabled=True,
@@ -88,10 +97,7 @@ class App:
             ),
             queries=[
                 SecurityMonitoringRuleQueryCreate(
-                    agent_rule=SecurityMonitoringRuntimeAgentRule(
-                        agent_rule_id=agent_rule_id,
-                        expression=secl,
-                    ),
+                    agent_rule=SecurityMonitoringRuntimeAgentRule(agent_rule_id=agent_rule_id, expression=secl,),
                     aggregation=SecurityMonitoringRuleQueryAggregation("count"),
                     query="a > 0",
                     name="a",
@@ -123,11 +129,7 @@ class App:
             "GET",
             url,
             preload_content=False,
-            headers={
-                "Content-Type": "application/json",
-                "DD-API-KEY": api_key,
-                "DD-APPLICATION-KEY": app_key,
-            },
+            headers={"Content-Type": "application/json", "DD-API-KEY": api_key, "DD-APPLICATION-KEY": app_key,},
         )
 
         fp = tempfile.NamedTemporaryFile(prefix="e2e-test-", mode="wb", delete=False)

@@ -34,7 +34,10 @@ class KubernetesHelper(LogGetter):
 
         return [line for line in log.splitlines()]
 
-    def exec_command(self, container, command=[]):
+    def exec_command(self, container, command=None):
+        if not command:
+            command = []
+
         stream(
             self.api_client.connect_post_namespaced_pod_exec,
             name=self.pod_name,
