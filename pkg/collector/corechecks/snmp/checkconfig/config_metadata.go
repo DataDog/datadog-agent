@@ -78,7 +78,7 @@ var LegacyMetadataConfig = MetadataConfig{
 	},
 }
 
-// MetadataConfig holds configs for a metadata
+// MetadataConfig holds configs per resource type
 type MetadataConfig map[string]MetadataResourceConfig
 
 // MetadataResourceConfig holds configs for a metadata resource
