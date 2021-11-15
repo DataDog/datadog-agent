@@ -2,6 +2,19 @@
 Release Notes
 =============
 
+.. _Release Notes_installscript-1.7.1:
+
+installscript-1.7.1
+===================
+
+.. _Release Notes_installscript-1.7.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Invocation of zypper when running install_script.sh as root is now fixed.
+
+
 .. _Release Notes_installscript-1.7.0:
 
 installscript-1.7.0
