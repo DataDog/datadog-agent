@@ -94,6 +94,7 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 				}
 				res.Fields[fieldName] = field
 			}
+			metadata[resName] = res
 		}
 		for i := range metadata[resName].IDTags {
 			metricTag := &metadata[resName].IDTags[i]
