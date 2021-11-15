@@ -65,7 +65,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 		shaResolvedInspect, _ := du.ResolveImageName(context.TODO(), m)
 		return []byte(shaResolvedInspect)
 	}
-	imgRx.ReplaceAllFunc(serialized, replFunc)
+	serialized = imgRx.ReplaceAllFunc(serialized, replFunc)
 
 	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
 	w, err := scrubber.NewWriter(f, os.ModePerm)
