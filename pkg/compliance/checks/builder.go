@@ -380,7 +380,10 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 		check, err := b.checkFromRule(&suite.Meta, &r)
 		if err != nil {
-			return err
+			if err != ErrRuleDoesNotApply {
+				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
+			}
+			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
 		}
 
 		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
@@ -396,7 +399,10 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 		check, err := b.checkFromRegoRule(&suite.Meta, &r)
 		if err != nil {
-			return err
+			if err != ErrRuleDoesNotApply {
+				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
+			}
+			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
 		}
 
 		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
