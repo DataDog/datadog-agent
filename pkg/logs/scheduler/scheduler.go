@@ -199,6 +199,10 @@ func (s *Scheduler) handleWorkloadMetaSetEvent(e workloadmeta.Event, creationTim
 	var svc *service.Service
 	switch container.Runtime {
 	case workloadmeta.ContainerRuntimeDocker:
+		if _, exists := s.addedServices[e.Entity.GetID()]; exists {
+			// container already has a service
+			return
+		}
 		svc = service.NewService(config.DockerType, container.ID, creationTime)
 	default:
 		// unknown runtime, so no logging
