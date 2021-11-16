@@ -24,7 +24,7 @@ def split_junitxml(xml_path, codeowners, output_dir):
     for suite in tree.iter("testsuite"):
         path = suite.attrib["name"].replace(REPO_NAME_PREFIX, "", 1)
 
-        # Dirs in CODEOWNERS might end with "/", but testuite names in JUnit XML
+        # Dirs in CODEOWNERS might end with "/", but testsuite names in JUnit XML
         # don't, so for determining ownership we append "/" temporarily.
         owners = codeowners.of(path + "/")
         if not owners:
