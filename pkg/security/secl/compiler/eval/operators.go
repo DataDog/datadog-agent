@@ -5,7 +5,9 @@
 
 package eval
 
-import "regexp"
+import (
+	"regexp"
+)
 
 // OpOverride defines a operator override function suite
 type OpOverrides struct {

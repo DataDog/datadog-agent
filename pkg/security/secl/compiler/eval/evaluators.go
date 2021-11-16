@@ -94,7 +94,6 @@ type StringEvaluator struct {
 
 	isPartial bool
 
-	// cache
 	regexp *regexp.Regexp
 }
 

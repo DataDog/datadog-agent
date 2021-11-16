@@ -6,7 +6,6 @@
 package eval
 
 import (
-	"fmt"
 	"regexp"
 )
 
@@ -22,19 +21,4 @@ func PatternToRegexp(pattern string) (*regexp.Regexp, error) {
 	})
 
 	return regexp.Compile("^" + quoted + "$")
-}
-
-func compilePattern(se *StringEvaluator) error {
-	if se.regexp != nil {
-		return nil
-	}
-
-	reg, err := PatternToRegexp(se.Value)
-	if err != nil {
-		return fmt.Errorf("invalid pattern '%s': %s", se.Value, err)
-	}
-	se.ValueType = PatternValueType
-	se.regexp = reg
-
-	return nil
 }

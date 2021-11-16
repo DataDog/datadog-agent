@@ -1020,16 +1020,23 @@ func TestDuration(t *testing.T) {
 func TestOpOverrides(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
-			ovName: "abc",
+			orName: "abc",
 		},
 	}
 
-	event.process.array = []*testItem{
+	// values that will be returned by the operator override
+	event.process.orNameValues = func() StringValues {
+		var values StringValues
+		values.AppendValue("abc")
+		return values
+	}
+
+	event.process.orArray = []*testItem{
 		{key: 1000, value: "abc", flag: true},
 	}
 
 	// values that will be returned by the operator override
-	event.process.ovNameValues = func() StringValues {
+	event.process.orArrayValues = func() StringValues {
 		var values StringValues
 		values.AppendValue("abc")
 		return values
@@ -1039,10 +1046,10 @@ func TestOpOverrides(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.ov_name == "not"`, Expected: true},
-		{Expr: `process.ov_name in ["not"]`, Expected: true},
-		{Expr: `process.array.value == "not"]`, Expected: true},
-		{Expr: `process.array.value in ["not"]`, Expected: true},
+		{Expr: `process.or_name == "not"`, Expected: true},
+		{Expr: `process.or_name in ["not"]`, Expected: true},
+		{Expr: `process.or_array.value == "not"`, Expected: true},
+		{Expr: `process.or_array.value in ["not"]`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -1085,7 +1092,7 @@ func BenchmarkArray(b *testing.B) {
 
 	rule, err := parseRule(expr, &testModel{}, &Opts{})
 	if err != nil {
-		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+		b.Fatalf("%s\n%s", err, expr)
 	}
 
 	evaluator := rule.GetEvaluator()
@@ -1118,7 +1125,7 @@ func BenchmarkComplex(b *testing.B) {
 
 	rule, err := parseRule(expr, &testModel{}, &Opts{})
 	if err != nil {
-		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+		b.Fatalf("%s\n%s", err, expr)
 	}
 
 	evaluator := rule.GetEvaluator()
@@ -1197,7 +1204,7 @@ func BenchmarkPool(b *testing.B) {
 
 	rule, err := parseRule(expr, &testModel{}, &Opts{})
 	if err != nil {
-		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+		b.Fatalf("%s\n%s", err, expr)
 	}
 
 	evaluator := rule.GetEvaluator()

@@ -293,7 +293,8 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 	}, pos, nil
 }
 
-func stringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+// StringEqualsWrapper makes use of operator overrides
+func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -303,6 +304,59 @@ func stringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		evaluator, err = b.OpOverrides.StringEquals(a, b, opts, state)
 	} else {
 		evaluator, err = StringEquals(a, b, opts, state)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return evaluator, nil
+}
+
+// StringArrayContainsWrapper makes use of operator overrides
+func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+	var evaluator *BoolEvaluator
+	var err error
+
+	if a.OpOverrides != nil && a.OpOverrides.StringArrayContains != nil {
+		evaluator, err = a.OpOverrides.StringArrayContains(a, b, opts, state)
+	} else if b.OpOverrides != nil && b.OpOverrides.StringArrayContains != nil {
+		evaluator, err = b.OpOverrides.StringArrayContains(a, b, opts, state)
+	} else {
+		evaluator, err = StringArrayContains(a, b, opts, state)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return evaluator, nil
+}
+
+// StringValuesContainsWrapper makes use of operator overrides
+func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+	var evaluator *BoolEvaluator
+	var err error
+
+	if a.OpOverrides != nil && a.OpOverrides.StringValuesContains != nil {
+		evaluator, err = a.OpOverrides.StringValuesContains(a, b, opts, state)
+	} else {
+		evaluator, err = StringValuesContains(a, b, opts, state)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return evaluator, nil
+}
+
+// StringArrayMatchesWrapper makes use of operator overrides
+func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+	var evaluator *BoolEvaluator
+	var err error
+
+	if a.OpOverrides != nil && a.OpOverrides.StringArrayMatches != nil {
+		evaluator, err = a.OpOverrides.StringArrayMatches(a, b, opts, state)
+	} else {
+		evaluator, err = StringArrayMatches(a, b, opts, state)
 	}
 	if err != nil {
 		return nil, err
@@ -435,20 +489,12 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			case *StringEvaluator:
 				switch nextString := next.(type) {
 				case *StringArrayEvaluator:
-					if unary.OpOverrides != nil && unary.OpOverrides.StringArrayContains != nil {
-						boolEvaluator, err = unary.OpOverrides.StringArrayContains(unary, nextString, opts, state)
-					} else {
-						boolEvaluator, err = StringArrayContains(unary, nextString, opts, state)
-					}
+					boolEvaluator, err = StringArrayContainsWrapper(unary, nextString, opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
 				case *StringValuesEvaluator:
-					if unary.OpOverrides != nil && unary.OpOverrides.StringValuesContains != nil {
-						boolEvaluator, err = unary.OpOverrides.StringValuesContains(unary, nextString, opts, state)
-					} else {
-						boolEvaluator, err = StringValuesContains(unary, nextString, opts, state)
-					}
+					boolEvaluator, err = StringValuesContainsWrapper(unary, nextString, opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -462,7 +508,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			case *StringValuesEvaluator:
 				switch nextStringArray := next.(type) {
 				case *StringArrayEvaluator:
-					boolEvaluator, err = StringArrayMatches(nextStringArray, unary, opts, state)
+					boolEvaluator, err = StringArrayMatchesWrapper(nextStringArray, unary, opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -476,7 +522,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			case *StringArrayEvaluator:
 				switch nextStringArray := next.(type) {
 				case *StringValuesEvaluator:
-					boolEvaluator, err = StringArrayMatches(unary, nextStringArray, opts, state)
+					boolEvaluator, err = StringArrayMatchesWrapper(unary, nextStringArray, opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -575,7 +621,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					boolEvaluator, err = stringEquals(unary, nextString, opts, state)
+					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -585,17 +631,17 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
 					}
 
-					if err := compilePattern(nextString); err != nil {
+					if err := nextString.Compile(); err != nil {
 						return nil, obj.Pos, NewError(obj.Pos, err.Error())
 					}
 
-					boolEvaluator, err = StringEquals(unary, nextString, opts, state)
+					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return Not(boolEvaluator, opts, state), obj.Pos, nil
 				case "==":
-					boolEvaluator, err = stringEquals(unary, nextString, opts, state)
+					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -605,11 +651,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
 					}
 
-					if err := compilePattern(nextString); err != nil {
+					if err := nextString.Compile(); err != nil {
 						return nil, obj.Pos, NewError(obj.Pos, err.Error())
 					}
 
-					boolEvaluator, err = StringEquals(unary, nextString, opts, state)
+					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -624,13 +670,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					boolEvaluator, err = StringArrayContains(nextString, unary, opts, state)
+					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return Not(boolEvaluator, opts, state), obj.Pos, nil
 				case "==":
-					boolEvaluator, err = StringArrayContains(nextString, unary, opts, state)
+					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -640,11 +686,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
 					}
 
-					if err := compilePattern(nextString); err != nil {
+					if err := nextString.Compile(); err != nil {
 						return nil, obj.Pos, NewError(obj.Pos, err.Error())
 					}
 
-					boolEvaluator, err = StringArrayContains(nextString, unary, opts, state)
+					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -654,11 +700,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
 					}
 
-					if err := compilePattern(nextString); err != nil {
+					if err := nextString.Compile(); err != nil {
 						return nil, obj.Pos, NewError(obj.Pos, err.Error())
 					}
 
-					boolEvaluator, err = StringArrayContains(nextString, unary, opts, state)
+					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
