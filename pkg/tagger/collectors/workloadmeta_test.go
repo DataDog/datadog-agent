@@ -22,6 +22,7 @@ func TestHandleKubePod(t *testing.T) {
 		fullyFleshedContainerID = "foobarquux"
 		noEnvContainerID        = "foobarbaz"
 		containerName           = "agent"
+		runtimeContainerName    = "k8s_datadog-agent_agent"
 		podName                 = "datadog-agent-foobar"
 		podNamespace            = "default"
 		env                     = "production"
@@ -59,7 +60,7 @@ func TestHandleKubePod(t *testing.T) {
 			ID:   fullyFleshedContainerID,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: containerName,
+			Name: runtimeContainerName,
 		},
 		Image: image,
 		EnvVars: map[string]string{
@@ -74,7 +75,7 @@ func TestHandleKubePod(t *testing.T) {
 			ID:   noEnvContainerID,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: containerName,
+			Name: runtimeContainerName,
 		},
 	})
 
@@ -228,7 +229,7 @@ func TestHandleKubePod(t *testing.T) {
 					Entity: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
-						fmt.Sprintf("display_container_name:%s_%s", containerName, podName),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -283,7 +284,7 @@ func TestHandleKubePod(t *testing.T) {
 					Entity: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", noEnvContainerID),
-						fmt.Sprintf("display_container_name:%s_%s", containerName, podName),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),

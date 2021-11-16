@@ -435,10 +435,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	tags.AddLow("image_id", image.ID)
 
 	// enrich with standard tags from labels for this container if present
+	containerName := podContainer.Name
 	standardTagKeys := map[string]string{
-		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tagKeyEnv):     tagKeyEnv,
-		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tagKeyVersion): tagKeyVersion,
-		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tagKeyService): tagKeyService,
+		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", containerName, tagKeyEnv):     tagKeyEnv,
+		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", containerName, tagKeyVersion): tagKeyVersion,
+		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", containerName, tagKeyService): tagKeyService,
 	}
 	c.extractFromMapWithFn(pod.Labels, standardTagKeys, tags.AddStandard)
 
@@ -446,7 +447,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
 
 	// container-specific tags provided through pod annotation
-	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, container.Name)
+	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, containerName)
 	c.extractTagsFromJSONInMap(annotation, pod.Annotations, tags)
 
 	low, orch, high, standard := tags.Compute()
