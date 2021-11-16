@@ -23,8 +23,13 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(ExperimentalOTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(ExperimentalOTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(ExperimentalOTLPTracesEnabled, true)
-	config.SetKnown(ExperimentalOTLPMetrics)
 	config.BindEnv(ExperimentalOTLPHTTPPort, "DD_OTLP_HTTP_PORT")
 	config.BindEnv(ExperimentalOTLPgRPCPort, "DD_OTLP_GRPC_PORT")
+
+	config.SetKnown(ExperimentalOTLPMetrics)
+	// Set all subkeys of experimental.otlp.metrics as known
+	config.SetKnown(ExperimentalOTLPMetrics + ".*")
 	config.SetKnown(ExperimentalOTLPReceiverSection)
+	// Set all subkeys of experimental.otlp.receiver as known
+	config.SetKnown(ExperimentalOTLPReceiverSection + ".*")
 }
