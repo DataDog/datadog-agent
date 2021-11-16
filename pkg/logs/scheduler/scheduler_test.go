@@ -13,33 +13,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 	"github.com/stretchr/testify/assert"
 )
-
-var Container1 = "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"
-var Container2 = "9bad87700e8dac88d607056119ce80d3f33da461308d3d60367018891be5ee37"
 
 func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	s := NewScheduler(logSources, services, workloadmetatesting.NewStore())
-	defer s.Stop()
+	CreateScheduler(logSources, services)
 
 	logSourcesStream := logSources.GetAddedForType(config.DockerType)
 
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
-		ADIdentifiers: []string{"docker://" + Container1},
+		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
 		Provider:      names.Kubernetes,
-		TaggerEntity:  "container_id://" + Container1,
-		Entity:        "docker://" + Container1,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
 
-	go s.Schedule([]integration.Config{configSource})
+	go adScheduler.Schedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
@@ -47,29 +41,28 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
-	assert.Equal(t, Container1, logSource.Config.Identifier)
+	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
 func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	s := NewScheduler(logSources, services, workloadmetatesting.NewStore())
-	defer s.Stop()
+	CreateScheduler(logSources, services)
 
 	logSourcesStream := logSources.GetAddedForType(config.DockerType)
 
 	configSource := integration.Config{
 		InitConfig:    []byte(`{"service":"foo"}`),
 		LogsConfig:    []byte(`[{"source":"bar"}]`),
-		ADIdentifiers: []string{"docker://" + Container1},
+		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
 		Provider:      names.Kubernetes,
-		TaggerEntity:  "container_id://" + Container1,
-		Entity:        "docker://" + Container1,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
 
-	go s.Schedule([]integration.Config{configSource})
+	go adScheduler.Schedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
@@ -77,29 +70,28 @@ func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
-	assert.Equal(t, Container1, logSource.Config.Identifier)
+	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
 func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	s := NewScheduler(logSources, services, workloadmetatesting.NewStore())
-	defer s.Stop()
+	CreateScheduler(logSources, services)
 
 	logSourcesStream := logSources.GetAddedForType(config.DockerType)
 
 	configSource := integration.Config{
 		InitConfig:    []byte(`{"service":"foo"}`),
 		LogsConfig:    []byte(`[{"source":"bar","service":"baz"}]`),
-		ADIdentifiers: []string{"docker://" + Container1},
+		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
 		Provider:      names.Kubernetes,
-		TaggerEntity:  "container_id://" + Container1,
-		Entity:        "docker://" + Container1,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
 
-	go s.Schedule([]integration.Config{configSource})
+	go adScheduler.Schedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
@@ -107,80 +99,66 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 	assert.Equal(t, "baz", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
-	assert.Equal(t, Container1, logSource.Config.Identifier)
+	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
-func TestSetEventCreatesNewContainerService(t *testing.T) {
+func TestScheduleConfigCreatesNewService(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	store := workloadmetatesting.NewStore()
-	s := NewScheduler(logSources, services, store)
-	defer s.Stop()
+	CreateScheduler(logSources, services)
 
 	servicesStream := services.GetAddedServicesForType(config.DockerType)
 
-	makeEvent := func(id string) workloadmeta.Event {
-		return workloadmeta.Event{
-			Type: workloadmeta.EventTypeSet,
-			Entity: &workloadmeta.Container{
-				Runtime:  workloadmeta.ContainerRuntimeDocker,
-				EntityID: workloadmeta.EntityID{ID: id},
-			},
-		}
+	configService := integration.Config{
+		LogsConfig:   []byte(""),
+		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ClusterCheck: false,
+		CreationTime: 0,
 	}
 
-	go store.NotifySubscribers([]workloadmeta.Event{
-		makeEvent(Container1),
-	})
-
+	go adScheduler.Schedule([]integration.Config{configService})
 	svc := <-servicesStream
-	assert.Equal(t, "docker://"+Container1, svc.GetEntityID())
-	assert.Equal(t, service.Before, svc.CreationTime)
+	assert.Equal(t, configService.Entity, svc.GetEntityID())
 
-	// next notification (for a new container) should be "After"
-	go store.NotifySubscribers([]workloadmeta.Event{
-		makeEvent(Container2),
-	})
-
-	svc = <-servicesStream
-	assert.Equal(t, "docker://"+Container2, svc.GetEntityID())
-	assert.Equal(t, service.After, svc.CreationTime)
-
-	// notification for same container as the first should not result in a new service
-	go store.NotifySubscribers([]workloadmeta.Event{
-		makeEvent(Container1),
-	})
-
+	// shouldn't consider pods
+	configService = integration.Config{
+		LogsConfig:   []byte(""),
+		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		Entity:       "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		ClusterCheck: false,
+		CreationTime: 0,
+	}
+	go adScheduler.Schedule([]integration.Config{configService})
 	select {
-	case svc = <-servicesStream:
-		assert.Fail(t, "should not have produced a service", "got service %#v", svc)
-	case <-time.After(10 * time.Millisecond):
-		// all good!
+	case <-servicesStream:
+		assert.Fail(t, "Pod should be ignored")
+	case <-time.After(100 * time.Millisecond):
+		break
 	}
 }
 
 func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	s := NewScheduler(logSources, services, workloadmetatesting.NewStore())
-	defer s.Stop()
+	CreateScheduler(logSources, services)
 	logSourcesStream := logSources.GetRemovedForType(config.DockerType)
 
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
-		ADIdentifiers: []string{"docker://" + Container1},
+		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
 		Provider:      names.Kubernetes,
-		TaggerEntity:  "container_id://" + Container1,
-		Entity:        "docker://" + Container1,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
 
 	// We need to have a source to remove
-	sources, _ := s.toSources(configSource)
+	sources, _ := adScheduler.toSources(configSource)
 	logSources.AddSource(sources[0])
 
-	go s.Unschedule([]integration.Config{configSource})
+	go adScheduler.Unschedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
@@ -188,67 +166,62 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
-	assert.Equal(t, Container1, logSource.Config.Identifier)
+	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
-func TestUnsetEventRemovesService(t *testing.T) {
+func TestUnscheduleConfigRemovesService(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	store := workloadmetatesting.NewStore()
-	s := NewScheduler(logSources, services, store)
-	defer s.Stop()
+	CreateScheduler(logSources, services)
+	servicesStream := services.GetRemovedServicesForType(config.DockerType)
 
-	addedServicesStream := services.GetAddedServicesForType(config.DockerType)
-	removedServicesStream := services.GetRemovedServicesForType(config.DockerType)
+	configService := integration.Config{
+		LogsConfig:   []byte(""),
+		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ClusterCheck: false,
+		CreationTime: 0,
+	}
 
-	// first set the service
-	go store.NotifySubscribers([]workloadmeta.Event{
-		{
-			Type: workloadmeta.EventTypeSet,
-			Entity: &workloadmeta.Container{
-				Runtime: workloadmeta.ContainerRuntimeDocker,
-				EntityID: workloadmeta.EntityID{
-					ID: Container1,
-				},
-			},
-		},
-	})
+	go adScheduler.Unschedule([]integration.Config{configService})
+	svc := <-servicesStream
+	assert.Equal(t, configService.Entity, svc.GetEntityID())
 
-	svc := <-addedServicesStream
-	assert.Equal(t, "docker://"+Container1, svc.GetEntityID())
+	// shouldn't consider pods
+	configService = integration.Config{
+		LogsConfig:   []byte(""),
+		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		Entity:       "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		ClusterCheck: false,
+		CreationTime: 0,
+	}
 
-	// now unset it
-	go store.NotifySubscribers([]workloadmeta.Event{
-		{
-			Type: workloadmeta.EventTypeUnset,
-			Entity: &workloadmeta.EntityID{
-				ID: Container1,
-			},
-		},
-	})
-
-	svc = <-removedServicesStream
-	assert.Equal(t, "docker://"+Container1, svc.GetEntityID())
+	go adScheduler.Unschedule([]integration.Config{configService})
+	select {
+	case <-servicesStream:
+		assert.Fail(t, "Pod should be ignored")
+	case <-time.After(100 * time.Millisecond):
+		break
+	}
 }
 
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	s := NewScheduler(logSources, services, workloadmetatesting.NewStore())
-	defer s.Stop()
+	CreateScheduler(logSources, services)
 	servicesStreamIn := services.GetAddedServicesForType(config.DockerType)
 	servicesStreamOut := services.GetRemovedServicesForType(config.DockerType)
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
-		TaggerEntity: "container_id://" + Container1,
-		Entity:       "docker://" + Container1,
+		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
 		CreationTime: 0,
 		LogsExcluded: true,
 	}
 
-	go s.Schedule([]integration.Config{configService})
+	go adScheduler.Schedule([]integration.Config{configService})
 	select {
 	case <-servicesStreamIn:
 		assert.Fail(t, "config must be ignored")
@@ -256,7 +229,7 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 		break
 	}
 
-	go s.Unschedule([]integration.Config{configService})
+	go adScheduler.Unschedule([]integration.Config{configService})
 	select {
 	case <-servicesStreamOut:
 		assert.Fail(t, "config must be ignored")

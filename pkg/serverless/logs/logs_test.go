@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -159,7 +158,7 @@ func TestGetLambdaSourceNilScheduler(t *testing.T) {
 func TestGetLambdaSourceNilSource(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	scheduler.CreateScheduler(logSources, services, workloadmetatesting.NewStore())
+	scheduler.CreateScheduler(logSources, services)
 	assert.Nil(t, GetLambdaSource())
 }
 
@@ -173,7 +172,7 @@ func TestGetLambdaSourceValidSource(t *testing.T) {
 	})
 	logSources.AddSource(chanSource)
 	services := service.NewServices()
-	scheduler.CreateScheduler(logSources, services, workloadmetatesting.NewStore())
+	scheduler.CreateScheduler(logSources, services)
 	assert.NotNil(t, GetLambdaSource())
 }
 

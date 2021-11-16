@@ -183,9 +183,6 @@ func (s *store) Start(ctx context.Context) {
 // Subscribe returns a channel where workload metadata events will be streamed
 // as they happen. On first subscription, it will also generate an EventTypeSet
 // event for each entity present in the store that matches filter.
-//
-// Any time an entity changes, a new EventTypeSet event will be set, so multiple
-// events may be received for each entity.
 func (s *store) Subscribe(name string, filter *Filter) chan EventBundle {
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
