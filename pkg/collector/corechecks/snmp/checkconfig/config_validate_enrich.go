@@ -96,6 +96,9 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 			}
 			metadata[resName] = res
 		}
+		if resName == "device" && len(metadata[resName].IDTags) > 0 {
+			errors = append(errors, "device resource does not support custom id_tags")
+		}
 		for i := range metadata[resName].IDTags {
 			metricTag := &metadata[resName].IDTags[i]
 			errors = append(errors, validateEnrichMetricTag(metricTag)...)

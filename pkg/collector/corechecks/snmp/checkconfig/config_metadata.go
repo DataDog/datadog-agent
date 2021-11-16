@@ -1,5 +1,7 @@
 package checkconfig
 
+import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+
 // LegacyMetadataConfig contains metadata config used for backward compatibility
 // When users have their own copy of _base.yaml and _generic_if.yaml files
 // they won't have the new profile based metadata definitions for device and interface resources
@@ -101,7 +103,7 @@ func newMetadataResourceConfig() MetadataResourceConfig {
 // IsMetadataResourceWithScalarOids returns true if the resource is based on scalar OIDs
 // at the moment, we only expect "device" resource to be based on scalar OIDs
 func IsMetadataResourceWithScalarOids(resource string) bool {
-	return resource == "device"
+	return resource == common.MetadataDeviceResource
 }
 
 // updateMetadataDefinitionWithLegacyFallback will add metadata config for resources

@@ -465,7 +465,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		{
 			name: "invalid idtags",
 			metadata: MetadataConfig{
-				"device": MetadataResourceConfig{
+				"interface": MetadataResourceConfig{
 					Fields: map[string]MetadataField{
 						"invalid-field": {
 							Value: "hey",
@@ -486,8 +486,32 @@ func Test_validateEnrichMetadata(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"invalid resource (device) field: invalid-field",
+				"invalid resource (interface) field: invalid-field",
 				"cannot compile `match` (`([a-z)`)",
+			},
+		},
+		{
+			name: "device resource does not support id_tags",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "hey",
+						},
+					},
+					IDTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "abc",
+							},
+							Tag: "abc",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"device resource does not support custom id_tags",
 			},
 		},
 	}
