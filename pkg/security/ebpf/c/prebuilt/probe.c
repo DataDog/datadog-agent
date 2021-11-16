@@ -41,6 +41,9 @@
 #include "ioctl.h"
 #include "selinux.h"
 #include "bpf.h"
+#include "ptrace.h"
+#include "mmap.h"
+#include "mprotect.h"
 #include "raw_syscalls.h"
 
 struct invalidate_dentry_event_t {

@@ -372,6 +372,8 @@ var (
 	bpfMapTypeStrings         = map[uint32]string{}
 	bpfProgramTypeStrings     = map[uint32]string{}
 	bpfAttachTypeStrings      = map[uint32]string{}
+	ptraceFlagsStrings        = map[uint32]string{}
+	vmFlagsStrings            = map[int]string{}
 )
 
 // File flags
@@ -454,6 +456,30 @@ func initBPFAttachTypeConstants() {
 	}
 }
 
+func initPtraceConstants() {
+	for k, v := range ptraceArchConstants {
+		ptraceConstants[k] = v
+	}
+
+	for k, v := range ptraceConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+	}
+
+	for k, v := range ptraceConstants {
+		ptraceFlagsStrings[v] = k
+	}
+}
+
+func initVMConstants() {
+	for k, v := range vmConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+	}
+
+	for k, v := range vmConstants {
+		vmFlagsStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
@@ -465,6 +491,8 @@ func initConstants() {
 	initBPFMapTypeConstants()
 	initBPFProgramTypeConstants()
 	initBPFAttachTypeConstants()
+	initPtraceConstants()
+	initVMConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -1247,3 +1275,22 @@ const (
 	// BpfSkSkbVerdict attach type
 	BpfSkSkbVerdict
 )
+
+// PTraceRequest represents a ptrace request value
+type PTraceRequest uint32
+
+func (f PTraceRequest) String() string {
+	for val, str := range ptraceFlagsStrings {
+		if val == uint32(f) {
+			return str
+		}
+	}
+	return fmt.Sprintf("%d", f)
+}
+
+// VMProtection represents a virtual memory protection bitmask value
+type VMProtection int
+
+func (vmp VMProtection) String() string {
+	return bitmaskToString(int(vmp), vmFlagsStrings)
+}

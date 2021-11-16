@@ -1165,6 +1165,57 @@
       ]
     },
     {
+      "name": "mmap",
+      "definition": "A mmap command was executed",
+      "type": "Kernel",
+      "from_agent_version": "7.34",
+      "properties": [
+        {
+          "name": "mmap.addr",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mmap.len",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mmap.protection",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mmap.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
+      "name": "mprotect",
+      "definition": "A mprotect command was executed",
+      "type": "Kernel",
+      "from_agent_version": "7.34",
+      "properties": [
+        {
+          "name": "mprotect.req_protection",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mprotect.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        },
+        {
+          "name": "mprotect.vm_protection",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
       "name": "open",
       "definition": "A file was opened",
       "type": "File",
@@ -1254,6 +1305,454 @@
           "name": "open.retval",
           "type": "int",
           "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
+      "name": "ptrace",
+      "definition": "A ptrace command was executed",
+      "type": "Kernel",
+      "from_agent_version": "7.34",
+      "properties": [
+        {
+          "name": "ptrace.request",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "ptrace.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.cap_effective",
+          "type": "int",
+          "definition": "Effective capability set of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.cap_permitted",
+          "type": "int",
+          "definition": "Permitted capability set of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.comm",
+          "type": "string",
+          "definition": "Comm attribute of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.container.id",
+          "type": "string",
+          "definition": "Container ID"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.cookie",
+          "type": "int",
+          "definition": "Cookie of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.created_at",
+          "type": "int",
+          "definition": "Timestamp of the creation of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.egid",
+          "type": "int",
+          "definition": "Effective GID of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.egroup",
+          "type": "string",
+          "definition": "Effective group of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variables of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.euid",
+          "type": "int",
+          "definition": "Effective UID of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.euser",
+          "type": "string",
+          "definition": "Effective user of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.filesystem",
+          "type": "string",
+          "definition": "FileSystem of the process executable"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.name",
+          "type": "string",
+          "definition": "Basename of the path of the process executable"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.path",
+          "type": "string",
+          "definition": "Path of the process executable"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.fsgid",
+          "type": "int",
+          "definition": "FileSystem-gid of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.fsgroup",
+          "type": "string",
+          "definition": "FileSystem-group of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.fsuid",
+          "type": "int",
+          "definition": "FileSystem-uid of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.fsuser",
+          "type": "string",
+          "definition": "FileSystem-user of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.gid",
+          "type": "int",
+          "definition": "GID of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.group",
+          "type": "string",
+          "definition": "Group of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.pid",
+          "type": "int",
+          "definition": "Process ID of the process (also called thread group ID)"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.ppid",
+          "type": "int",
+          "definition": "Parent process ID"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.tid",
+          "type": "int",
+          "definition": "Thread ID of the thread"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.tty_name",
+          "type": "string",
+          "definition": "Name of the TTY associated with the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.uid",
+          "type": "int",
+          "definition": "UID of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user",
+          "type": "string",
+          "definition": "User of the process"
+        },
+        {
+          "name": "ptrace.tracee.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)"
+        },
+        {
+          "name": "ptrace.tracee.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.tracee.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.tracee.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation"
+        },
+        {
+          "name": "ptrace.tracee.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.tracee.cap_effective",
+          "type": "int",
+          "definition": "Effective capability set of the process"
+        },
+        {
+          "name": "ptrace.tracee.cap_permitted",
+          "type": "int",
+          "definition": "Permitted capability set of the process"
+        },
+        {
+          "name": "ptrace.tracee.comm",
+          "type": "string",
+          "definition": "Comm attribute of the process"
+        },
+        {
+          "name": "ptrace.tracee.container.id",
+          "type": "string",
+          "definition": "Container ID"
+        },
+        {
+          "name": "ptrace.tracee.cookie",
+          "type": "int",
+          "definition": "Cookie of the process"
+        },
+        {
+          "name": "ptrace.tracee.created_at",
+          "type": "int",
+          "definition": "Timestamp of the creation of the process"
+        },
+        {
+          "name": "ptrace.tracee.egid",
+          "type": "int",
+          "definition": "Effective GID of the process"
+        },
+        {
+          "name": "ptrace.tracee.egroup",
+          "type": "string",
+          "definition": "Effective group of the process"
+        },
+        {
+          "name": "ptrace.tracee.envs",
+          "type": "string",
+          "definition": "Environment variables of the process"
+        },
+        {
+          "name": "ptrace.tracee.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation"
+        },
+        {
+          "name": "ptrace.tracee.euid",
+          "type": "int",
+          "definition": "Effective UID of the process"
+        },
+        {
+          "name": "ptrace.tracee.euser",
+          "type": "string",
+          "definition": "Effective user of the process"
+        },
+        {
+          "name": "ptrace.tracee.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "ptrace.tracee.file.filesystem",
+          "type": "string",
+          "definition": "FileSystem of the process executable"
+        },
+        {
+          "name": "ptrace.tracee.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "ptrace.tracee.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "ptrace.tracee.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "ptrace.tracee.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "ptrace.tracee.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "ptrace.tracee.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "ptrace.tracee.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "ptrace.tracee.file.name",
+          "type": "string",
+          "definition": "Basename of the path of the process executable"
+        },
+        {
+          "name": "ptrace.tracee.file.path",
+          "type": "string",
+          "definition": "Path of the process executable"
+        },
+        {
+          "name": "ptrace.tracee.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "ptrace.tracee.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "ptrace.tracee.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "ptrace.tracee.fsgid",
+          "type": "int",
+          "definition": "FileSystem-gid of the process"
+        },
+        {
+          "name": "ptrace.tracee.fsgroup",
+          "type": "string",
+          "definition": "FileSystem-group of the process"
+        },
+        {
+          "name": "ptrace.tracee.fsuid",
+          "type": "int",
+          "definition": "FileSystem-uid of the process"
+        },
+        {
+          "name": "ptrace.tracee.fsuser",
+          "type": "string",
+          "definition": "FileSystem-user of the process"
+        },
+        {
+          "name": "ptrace.tracee.gid",
+          "type": "int",
+          "definition": "GID of the process"
+        },
+        {
+          "name": "ptrace.tracee.group",
+          "type": "string",
+          "definition": "Group of the process"
+        },
+        {
+          "name": "ptrace.tracee.pid",
+          "type": "int",
+          "definition": "Process ID of the process (also called thread group ID)"
+        },
+        {
+          "name": "ptrace.tracee.ppid",
+          "type": "int",
+          "definition": "Parent process ID"
+        },
+        {
+          "name": "ptrace.tracee.tid",
+          "type": "int",
+          "definition": "Thread ID of the thread"
+        },
+        {
+          "name": "ptrace.tracee.tty_name",
+          "type": "string",
+          "definition": "Name of the TTY associated with the process"
+        },
+        {
+          "name": "ptrace.tracee.uid",
+          "type": "int",
+          "definition": "UID of the process"
+        },
+        {
+          "name": "ptrace.tracee.user",
+          "type": "string",
+          "definition": "User of the process"
         }
       ]
     },

@@ -600,3 +600,55 @@ func parseHelpers(helpers []uint64) []uint32 {
 	}
 	return rep
 }
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *PTraceEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Request = ByteOrder.Uint32(data[read : read+4])
+	e.PID = ByteOrder.Uint32(data[read+4 : read+8])
+	e.Address = ByteOrder.Uint64(data[read+8 : read+16])
+	return read + 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *MMapEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Addr = ByteOrder.Uint64(data[read : read+8])
+	e.Len = ByteOrder.Uint32(data[read+8 : read+12])
+	e.Protection = int(ByteOrder.Uint32(data[read+12 : read+16]))
+	return read + 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *MProtectEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 32 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.VMStart = ByteOrder.Uint64(data[read : read+8])
+	e.VMEnd = ByteOrder.Uint64(data[read+8 : read+16])
+	e.VMProtection = int(ByteOrder.Uint32(data[read+16 : read+24]))
+	e.ReqProtection = int(ByteOrder.Uint32(data[read+24 : read+32]))
+	return read + 32, nil
+}
