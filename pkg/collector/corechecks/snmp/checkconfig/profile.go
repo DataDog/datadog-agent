@@ -163,29 +163,8 @@ func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []stri
 		if err != nil {
 			return err
 		}
-		definition.Metrics = append(definition.Metrics, baseDefinition.Metrics...)
-		definition.MetricTags = append(definition.MetricTags, baseDefinition.MetricTags...)
-		for baseResName, baseResource := range baseDefinition.Metadata {
-			if _, ok := definition.Metadata[baseResName]; !ok {
-				definition.Metadata[baseResName] = newMetadataResourceConfig()
-			}
-			if resource, ok := definition.Metadata[baseResName]; ok {
-				for _, tagConfig := range baseResource.IDTags {
-					resource.IDTags = append(definition.Metadata[baseResName].IDTags, tagConfig)
-				}
 
-				if resource.Fields == nil {
-					resource.Fields = make(map[string]MetadataField, len(baseResource.Fields))
-				}
-				for field, symbol := range baseResource.Fields {
-					if _, ok := resource.Fields[field]; !ok {
-						resource.Fields[field] = symbol
-					}
-				}
-
-				definition.Metadata[baseResName] = resource
-			}
-		}
+		mergeProfileDefinition(definition, baseDefinition)
 
 		newExtendsHistory := append(common.CopyStrings(extendsHistory), basePath)
 		err = recursivelyExpandBaseProfiles(definition, baseDefinition.Extends, newExtendsHistory)
@@ -194,6 +173,32 @@ func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []stri
 		}
 	}
 	return nil
+}
+
+func mergeProfileDefinition(targetDefinition *profileDefinition, baseDefinition *profileDefinition) {
+	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
+	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
+	for baseResName, baseResource := range baseDefinition.Metadata {
+		if _, ok := targetDefinition.Metadata[baseResName]; !ok {
+			targetDefinition.Metadata[baseResName] = newMetadataResourceConfig()
+		}
+		if resource, ok := targetDefinition.Metadata[baseResName]; ok {
+			for _, tagConfig := range baseResource.IDTags {
+				resource.IDTags = append(targetDefinition.Metadata[baseResName].IDTags, tagConfig)
+			}
+
+			if resource.Fields == nil {
+				resource.Fields = make(map[string]MetadataField, len(baseResource.Fields))
+			}
+			for field, symbol := range baseResource.Fields {
+				if _, ok := resource.Fields[field]; !ok {
+					resource.Fields[field] = symbol
+				}
+			}
+
+			targetDefinition.Metadata[baseResName] = resource
+		}
+	}
 }
 
 func getMostSpecificOid(oids []string) (string, error) {

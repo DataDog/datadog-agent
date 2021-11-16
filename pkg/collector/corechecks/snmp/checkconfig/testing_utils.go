@@ -22,3 +22,24 @@ func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
 }
+
+func copyProfileDefinition(profileDef profileDefinition) profileDefinition {
+	newDef := profileDefinition{}
+	newDef.Metrics = append(newDef.Metrics, profileDef.Metrics...)
+	newDef.MetricTags = append(newDef.MetricTags, profileDef.MetricTags...)
+	newDef.Metadata = make(MetadataConfig)
+	newDef.Device = profileDef.Device
+	newDef.Extends = append(newDef.Extends, profileDef.Extends...)
+	newDef.SysObjectIds = append(newDef.SysObjectIds, profileDef.SysObjectIds...)
+
+	for resName, resource := range profileDef.Metadata {
+		resConfig := MetadataResourceConfig{}
+		resConfig.Fields = make(map[string]MetadataField)
+		for fieldName, field := range resource.Fields {
+			resConfig.Fields[fieldName] = field
+		}
+		resConfig.IDTags = append(resConfig.IDTags, resource.IDTags...)
+		newDef.Metadata[resName] = resConfig
+	}
+	return newDef
+}
