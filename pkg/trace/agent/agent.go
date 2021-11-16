@@ -469,7 +469,7 @@ func (a *Agent) SetGlobalTagsUnsafe(tags map[string]string) {
 }
 
 func (a *Agent) rewriteServerlessService(span *pb.Span) {
-	if span.Service == "aws.lambda" {
+	if span.Service == "aws.lambda" && a.conf.GlobalTags != nil {
 		service := a.conf.GlobalTags["service"]
 		if len(service) > 0 {
 			span.Service = service
