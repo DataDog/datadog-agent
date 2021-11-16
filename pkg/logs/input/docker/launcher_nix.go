@@ -7,12 +7,25 @@
 
 package docker
 
-import "golang.org/x/sys/unix"
+import (
+	"fmt"
+
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"golang.org/x/sys/unix"
+)
 
 const (
 	basePath = "/var/lib/docker/containers"
 )
 
 func checkReadAccess() error {
-	return unix.Access(basePath, unix.X_OK)
+	path := basePath
+	if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		path = "/var/lib/containers/storage/overlay-containers"
+	}
+	err := unix.Access(path, unix.X_OK)
+	if err != nil {
+		return fmt.Errorf("Error accessing %s: %w", path, err)
+	}
+	return nil
 }

@@ -102,7 +102,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 
 	if tailFromFile {
 		if err := checkReadAccess(); err != nil {
-			log.Errorf("Error accessing %s, %v, falling back on tailing from Docker socket", basePath, err)
+			log.Errorf("Could not access container log files: %v; falling back on tailing from Docker socket", err)
 			launcher.tailFromFile = false
 		}
 	}
