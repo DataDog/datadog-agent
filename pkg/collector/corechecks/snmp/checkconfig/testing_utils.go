@@ -23,6 +23,7 @@ func pathExists(path string) bool {
 	return !os.IsNotExist(err)
 }
 
+// copyProfileDefinition copies a profile, it's used for testing
 func copyProfileDefinition(profileDef profileDefinition) profileDefinition {
 	newDef := profileDefinition{}
 	newDef.Metrics = append(newDef.Metrics, profileDef.Metrics...)
