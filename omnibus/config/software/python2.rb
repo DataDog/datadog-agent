@@ -17,8 +17,6 @@
 
 name "python2"
 
-license "Python-2.0"
-
 if ohai["platform"] != "windows"
   default_version "2.7.18"
 
@@ -58,6 +56,8 @@ if ohai["platform"] != "windows"
   end
 
   build do
+    license "Python-2.0"
+
     patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux?
     patch :source => "fix-platform-ubuntu.diff" if linux?
     # security patches backported by the debian community

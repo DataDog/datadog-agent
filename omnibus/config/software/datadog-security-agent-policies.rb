@@ -20,10 +20,9 @@ if policies_version.nil? || policies_version.empty?
 end
 default_version policies_version
 
-license "Apache-2.0"
-license_file "./LICENSE"
-
 build do
+  license "Apache-2.0"
+  license_file "./LICENSE"
 
   compliance_dir = "#{install_dir}/etc/datadog-agent/compliance.d"
   mkdir compliance_dir

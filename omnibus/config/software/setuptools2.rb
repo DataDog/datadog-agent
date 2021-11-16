@@ -1,7 +1,6 @@
 name "setuptools2"
 default_version "40.9.0"
 
-license "Python-2.0"
 skip_transitive_dependency_licensing true
 
 dependency "python2"
@@ -13,6 +12,8 @@ source :url => "https://github.com/pypa/setuptools/archive/v#{version}.tar.gz",
        :extract => :seven_zip
 
 build do
+  license "Python-2.0"
+
   if ohai["platform"] == "windows"
     python_bin = "#{windows_safe_path(python_2_embedded)}\\python.exe"
     python_prefix = "#{windows_safe_path(python_2_embedded)}"

@@ -4,13 +4,14 @@ description "Generate mac app manifest and assets"
 
 dependency "datadog-agent"
 
-license :project_license
 source path: "#{project.files_path}/#{name}"
 
 # This needs to be done in a separate software because we need to know the Agent Version to build the app
 # manifest, and `project.build_version` is populated only once the software that the project
 # takes its version from (i.e. `datadog-agent`) has finished building
 build do
+    license :project_license
+
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
     mkdir "#{app_temp_dir}/Resources"
     mkdir "#{app_temp_dir}/Frameworks"

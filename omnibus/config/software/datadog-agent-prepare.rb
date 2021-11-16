@@ -7,10 +7,11 @@ name "datadog-agent-prepare"
 description "steps required to preprare the build"
 default_version "1.0.0"
 
-license :project_license
 skip_transitive_dependency_licensing true
 
 build do
+  license :project_license
+
   block do
     %w{embedded/lib embedded/bin embedded/etc bin}.each do |dir|
       dir_fullpath = File.expand_path(File.join(install_dir, dir))

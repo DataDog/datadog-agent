@@ -14,9 +14,6 @@ end
 
 default_version jmxfetch_version
 
-license "BSD-3-Clause"
-license_file "https://raw.githubusercontent.com/DataDog/jmxfetch/#{version}/LICENSE"
-
 source sha256: jmxfetch_hash
 source url: "https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/#{version}/jmxfetch-#{version}-jar-with-dependencies.jar",
        target_filename: "jmxfetch.jar"
@@ -27,6 +24,9 @@ jar_dir = "#{install_dir}/bin/agent/dist/jmx"
 relative_path "jmxfetch"
 
 build do
+  license "BSD-3-Clause"
+  license_file "https://raw.githubusercontent.com/DataDog/jmxfetch/#{version}/LICENSE"
+
   mkdir jar_dir
 
   if osx? && code_signing_identity

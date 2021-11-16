@@ -1,7 +1,5 @@
 name "python3"
 
-license "Python-2.0"
-
 if ohai["platform"] != "windows"
   default_version "3.8.11"
   dependency "libffi"
@@ -38,6 +36,8 @@ if ohai["platform"] != "windows"
   python_configure.push("--with-dbmliborder=")
 
   build do
+    license "Python-2.0"
+
     env = case ohai["platform"]
           when "aix"
             aix_env

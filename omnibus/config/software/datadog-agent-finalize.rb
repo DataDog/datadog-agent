@@ -12,10 +12,11 @@ name "datadog-agent-finalize"
 description "steps required to finalize the build"
 default_version "1.0.0"
 
-license :project_license
 skip_transitive_dependency_licensing true
 
 build do
+    license :project_license
+
     # TODO too many things done here, should be split
     block do
         # Conf files

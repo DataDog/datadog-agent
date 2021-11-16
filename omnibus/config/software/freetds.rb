@@ -1,10 +1,6 @@
 name "freetds"
 default_version "1.1.36"
 
-license "LGPL-2.1"
-license_file "./COPYING"
-license_file "./COPYING.lib"
-
 version "1.1.36" do
   source sha256: "1c306e658e10a325eefddfd662cec3a6d9065fe61c515f26d4f1fb6c4c62405d"
 end
@@ -14,6 +10,10 @@ source url: "ftp://ftp.freetds.org/pub/freetds/stable/freetds-#{version}.tar.gz"
 relative_path "freetds-#{version}"
 
 build do
+  license "LGPL-2.1"
+  license_file "./COPYING"
+  license_file "./COPYING.lib"
+
   env = with_standard_compiler_flags(with_embedded_path)
 
   configure_args = [
