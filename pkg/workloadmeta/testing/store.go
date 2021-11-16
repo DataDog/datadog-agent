@@ -8,16 +8,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-type subscriber struct {
-	name string
-	ch   chan workloadmeta.EventBundle
-}
-
 // Store is a testing store that satisfies the workloadmeta.Store interface.
 type Store struct {
-	mu          sync.RWMutex
-	subscribers []subscriber
-	store       map[workloadmeta.Kind]map[string]workloadmeta.Entity
+	mu    sync.RWMutex
+	store map[workloadmeta.Kind]map[string]workloadmeta.Entity
 }
 
 var _ workloadmeta.Store = &Store{}
@@ -127,54 +121,14 @@ func (s *Store) Start(ctx context.Context) {
 	panic("not implemented")
 }
 
-// Subscribe allows subscriptions, to which events are sent via
-// NotifySubscribers.  The filter is ignored.
+// Subscribe is not implemented in the testing store.
 func (s *Store) Subscribe(name string, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
-	// ch needs to be buffered since we'll send it events before the
-	// subscriber has the chance to start receiving from it. if it's
-	// unbuffered, it'll deadlock.
-	sub := subscriber{
-		name: name,
-		ch:   make(chan workloadmeta.EventBundle, 1),
-	}
-
-	s.mu.Lock()
-	s.subscribers = append(s.subscribers, sub)
-	s.mu.Unlock()
-
-	return sub.ch
+	panic("not implemented")
 }
 
-// Unsubscribe reverses the effect of Subscribe
+// Unsubscribe is not implemented in the testing store.
 func (s *Store) Unsubscribe(ch chan workloadmeta.EventBundle) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for i, sub := range s.subscribers {
-		if sub.ch == ch {
-			s.subscribers = append(s.subscribers[:i], s.subscribers[i+1:]...)
-			break
-		}
-	}
-
-	close(ch)
-}
-
-// NotifySubscribers sends the given events to all subscrbers as a single
-// bundle, ignoring filters.  It waits for the consumers to acknowledge the
-// bundle by closing Ch.
-func (s *Store) NotifySubscribers(events []workloadmeta.Event) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, sub := range s.subscribers {
-		bundle := workloadmeta.EventBundle{
-			Ch:     make(chan struct{}),
-			Events: events,
-		}
-		sub.ch <- bundle
-		<-bundle.Ch
-	}
+	panic("not implemented")
 }
 
 // Notify is not implemented in the testing store.
