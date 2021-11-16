@@ -46,7 +46,6 @@ for package_path in packages:
     by_mod.setdefault(mod, set()).add(pkg)
 
 for module, packages in by_mod.items():
-    print(f"vet {packages} in {module}")
     cmd = f"go vet {' '.join(packages)}"
 
     try:
