@@ -13,11 +13,15 @@ import (
 
 // StringValues describes a set of string values, either regex or scalar
 type StringValues struct {
-	values []string
-
+	values      []string
 	fieldValues []FieldValue
 	scalars     map[string]bool
 	regexps     []*regexp.Regexp
+}
+
+// GetScalarValues returns scalar values
+func (s *StringValues) GetScalarValues() []string {
+	return s.values
 }
 
 // AppendFieldValue append a FieldValue
