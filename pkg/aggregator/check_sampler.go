@@ -166,6 +166,12 @@ func (cs *CheckSampler) commit(timestamp float64) {
 
 	expiredContextKeys := cs.contextResolver.expireContexts()
 
+	aggregatorCheckContexts.Set(int64(cs.contextResolver.size()))
+	tlmCheckContexts.Set(float64(cs.contextResolver.size()))
+
+	aggregatorCheckContextsBytes.Set(int64(cs.contextResolver.bytes()))
+	tlmCheckContextsBytes.Set(float64(cs.contextResolver.bytes()))
+
 	// garbage collect unused buckets
 	for _, ctxKey := range expiredContextKeys {
 		delete(cs.lastBucketValue, ctxKey)

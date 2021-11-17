@@ -112,6 +112,8 @@ func TestExpireContexts(t *testing.T) {
 	// Track the 2 contexts
 	contextKey1 := contextResolver.trackContext(&mSample1, 4)
 	contextKey2 := contextResolver.trackContext(&mSample2, 6)
+	require.Equal(t,  2, contextResolver.resolver.size())
+	require.Less(t, uint64(0), contextResolver.resolver.bytes())
 
 	// With an expireTimestap of 3, both contexts are still valid
 	assert.Len(t, contextResolver.expireContexts(3), 0)
@@ -131,6 +133,8 @@ func TestExpireContexts(t *testing.T) {
 	assert.False(t, ok)
 	_, ok = contextResolver.resolver.contextsByKey[contextKey2]
 	assert.True(t, ok)
+
+	require.Equal(t,  1, contextResolver.resolver.size())
 }
 
 func TestCountBasedExpireContexts(t *testing.T) {
@@ -141,10 +145,13 @@ func TestCountBasedExpireContexts(t *testing.T) {
 
 	contextKey1 := contextResolver.trackContext(&mSample1)
 	contextKey2 := contextResolver.trackContext(&mSample2)
+	require.Equal(t, 2, contextResolver.resolver.size(), 2)
+	require.Less(t, uint64(0), contextResolver.resolver.bytes())
 	require.Len(t, contextResolver.expireContexts(), 0)
 
 	contextKey3 := contextResolver.trackContext(&mSample3)
 	contextResolver.trackContext(&mSample2)
+	require.Equal(t, 3, contextResolver.resolver.size())
 	require.Len(t, contextResolver.expireContexts(), 0)
 
 	expiredContextKeys := contextResolver.expireContexts()
@@ -155,6 +162,8 @@ func TestCountBasedExpireContexts(t *testing.T) {
 
 	require.Len(t, contextResolver.expireContexts(), 0)
 	require.Len(t, contextResolver.resolver.contextsByKey, 0)
+	require.Equal(t, 0, contextResolver.resolver.size())
+	require.Equal(t, uint64(0), contextResolver.resolver.bytes())
 }
 
 func TestTagDeduplication(t *testing.T) {

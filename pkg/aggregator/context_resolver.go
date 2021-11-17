@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -23,6 +24,7 @@ type Context struct {
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
+	sizeInBytes	  uint64
 	keyGenerator  *ckey.KeyGenerator
 	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
@@ -51,15 +53,24 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		// making a copy of tags for the context since tagsBuffer
 		// will be reused later. This allow us to allocate one slice
 		// per context instead of one per sample.
-		cr.contextsByKey[contextKey] = &Context{
+		context := &Context{
 			Name: metricSampleContext.GetName(),
 			Tags: cr.tagsBuffer.Copy(),
 			Host: metricSampleContext.GetHost(),
 		}
+		cr.contextsByKey[contextKey] = context
+		cr.sizeInBytes += cr.sizeOf(contextKey, context)
 	}
 
 	cr.tagsBuffer.Reset()
 	return contextKey
+}
+
+func (cr *contextResolver) remove(key ckey.ContextKey) {
+	if context, ok := cr.contextsByKey[key]; ok {
+		cr.sizeInBytes -= cr.sizeOf(key, context)
+		delete(cr.contextsByKey, key)
+	}
 }
 
 func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {
@@ -67,13 +78,31 @@ func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {
 	return ctx, found
 }
 
-func (cr *contextResolver) length() int {
+func (cr *contextResolver) size() int {
 	return len(cr.contextsByKey)
+}
+
+func (cr *contextResolver) bytes() uint64 {
+	return cr.sizeInBytes
+}
+
+func (cr *contextResolver) sizeOf(key ckey.ContextKey, context *Context) uint64 {
+	var size uintptr
+
+	size += reflect.TypeOf(key).Size()
+	size += reflect.TypeOf(context).Size()
+	size += uintptr(len(context.Host))
+	size += uintptr(len(context.Name))
+	for _, t := range context.Tags {
+		size += uintptr(len(t))
+	}
+
+	return uint64(size)
 }
 
 func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 	for _, expiredContextKey := range expiredContextKeys {
-		delete(cr.contextsByKey, expiredContextKey)
+		cr.remove(expiredContextKey)
 	}
 }
 
@@ -108,8 +137,12 @@ func (cr *timestampContextResolver) trackContext(metricSampleContext metrics.Met
 	return contextKey
 }
 
-func (cr *timestampContextResolver) length() int {
-	return cr.resolver.length()
+func (cr *timestampContextResolver) size() int {
+	return cr.resolver.size()
+}
+
+func (cr *timestampContextResolver) bytes() uint64 {
+	return cr.resolver.bytes()
 }
 
 func (cr *timestampContextResolver) get(key ckey.ContextKey) (*Context, bool) {
@@ -165,6 +198,14 @@ func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.Me
 
 func (cr *countBasedContextResolver) get(key ckey.ContextKey) (*Context, bool) {
 	return cr.resolver.get(key)
+}
+
+func (cr *countBasedContextResolver) size() int {
+	return cr.resolver.size()
+}
+
+func (cr *countBasedContextResolver) bytes() uint64 {
+	return cr.resolver.bytes()
 }
 
 // expireContexts cleans up the contexts that haven't been tracked since `expirationCount`

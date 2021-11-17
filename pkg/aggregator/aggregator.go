@@ -113,12 +113,15 @@ var (
 	aggregatorDogstatsdMetricSample            = expvar.Int{}
 	aggregatorChecksMetricSample               = expvar.Int{}
 	aggregatorCheckHistogramBucketMetricSample = expvar.Int{}
+	aggregatorCheckContexts                    = expvar.Int{}
+	aggregatorCheckContextsBytes               = expvar.Int{}
 	aggregatorServiceCheck                     = expvar.Int{}
 	aggregatorEvent                            = expvar.Int{}
 	aggregatorHostnameUpdate                   = expvar.Int{}
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
 	aggregatorDogstatsdContexts                = expvar.Int{}
+	aggregatorDogstatsdContextsBytes           = expvar.Int{}
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
 
@@ -130,6 +133,12 @@ var (
 		nil, "Count of hostname update")
 	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
 		nil, "Count the number of dogstatsd contexts in the aggregator")
+	tlmDogstatsdContextsBytes = telemetry.NewGauge("aggregator", "dogstatsd_contexts_bytes",
+		nil, "Count the number of dogstatsd contexts bytes in the aggregator")
+	tlmCheckContexts = telemetry.NewGauge("aggregator", "check_contexts",
+		nil, "Count the number of check contexts in the aggregator")
+	tlmCheckContextsBytes = telemetry.NewGauge("aggregator", "check_contexts_bytes",
+		nil, "Count the number of check contexts bytes in the aggregator")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -162,12 +171,15 @@ func init() {
 	aggregatorExpvars.Set("DogstatsdMetricSample", &aggregatorDogstatsdMetricSample)
 	aggregatorExpvars.Set("ChecksMetricSample", &aggregatorChecksMetricSample)
 	aggregatorExpvars.Set("ChecksHistogramBucketMetricSample", &aggregatorCheckHistogramBucketMetricSample)
+	aggregatorExpvars.Set("CheckContexts", &aggregatorCheckContexts)
+	aggregatorExpvars.Set("CheckContextsBytes", &aggregatorCheckContextsBytes)
 	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
+	aggregatorExpvars.Set("DogstatsdContextsBytes", &aggregatorDogstatsdContextsBytes)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
 
