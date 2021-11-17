@@ -74,6 +74,8 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 608
 	case kernel.Kernel5_0 <= kv.Code && kv.Code < kernel.Kernel5_1:
 		sizeOf = 584
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+		sizeOf = 592
 	}
 
 	return sizeOf
