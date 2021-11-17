@@ -50,7 +50,11 @@ func TestMMapEvent(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "mmap", event.GetType(), "wrong event type")
-			assert.Equal(t, 0, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.VMProtection(event.MMap.Protection)))
+			assert.NotEqual(t, 0, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.VMProtection(event.MMap.Protection)))
+
+			if !validateMMapSchema(t, event) {
+				t.Error(event.String())
+			}
 		})
 	})
 }
