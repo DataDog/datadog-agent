@@ -27,6 +27,7 @@ type NetworkDevicesMetadata struct {
 type DeviceMetadata struct {
 	ID           string       `json:"id"`
 	IDTags       []string     `json:"id_tags"` // id_tags is the input to produce device.id, it's also used to correlated with device metrics.
+	// TODO: Add omitempty for all fields
 	Name         string       `json:"name"`
 	Description  string       `json:"description"`
 	IPAddress    string       `json:"ip_address"`
