@@ -44,15 +44,3 @@ metadata:
           OID: 1.3.6.1.2.1.31.1.1.1.1
           name: ifAlias
         tag: custom-tag
-
-metrics:
-  - MIB: F5-BIGIP-SYSTEM-MIB
-    forced_type: gauge
-    symbol:
-      OID: 1.3.6.1.4.1.3375.2.1.1.2.1.44.0
-      name: sysStatMemoryTotal
-
-  # old syntax
-  - MIB: F5-BIGIP-SYSTEM-MIB
-    OID: 1.3.6.1.4.1.3375.2.1.1.2.1.44.999
-    name: oldSyntax
