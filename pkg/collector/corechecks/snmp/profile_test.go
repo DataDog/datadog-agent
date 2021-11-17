@@ -1,0 +1,305 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
+package snmp
+
+import (
+	"bytes"
+	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestProfileMetadata(t *testing.T) {
+	timeNow = common.MockTimeNow
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	invalidPath, _ := filepath.Abs(filepath.Join("test", "metadata_conf.d"))
+	config.Datadog.Set("confd_path", invalidPath)
+
+
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+profile: f5-big-ip
+oid_batch_size: 20
+namespace: profile-metadata
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+  f5-big-ip:
+    definition_file: f5-big-ip.yaml
+`)
+
+	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.NoError(t, err)
+
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.1.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("my_desc"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.2.3.4",
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.3.0",
+				Type:  gosnmp.TimeTicks,
+				Value: 20,
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.5.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("foo_sys_name"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
+				Type:  gosnmp.Integer,
+				Value: 30,
+			},
+			{
+				Name: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
+				Type: gosnmp.Null,
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("a-serial-num"),
+			},
+		},
+	}
+
+	bulkPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.13.1",
+				Type:  gosnmp.Integer,
+				Value: 131,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.14.1",
+				Type:  gosnmp.Integer,
+				Value: 141,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:01"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("nameRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("descRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.13.2",
+				Type:  gosnmp.Integer,
+				Value: 132,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.14.2",
+				Type:  gosnmp.Integer,
+				Value: 142,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:02"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("nameRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+		},
+	}
+
+	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("Get", []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.5.0",
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
+		"1.3.6.1.4.1.3375.2.1.3.3.3.0",
+	}).Return(&packet, nil)
+	sess.On("GetBulk", []string{
+		"1.3.6.1.2.1.2.2.1.13",
+		"1.3.6.1.2.1.2.2.1.14",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+
+	err = chk.Run()
+	assert.Nil(t, err)
+
+	// language=json
+	event := []byte(`
+{
+  "subnet": "",
+  "namespace":"profile-metadata",
+  "devices": [
+    {
+      "id": "profile-metadata:1.2.3.4",
+      "id_tags": [
+        "device_namespace:profile-metadata",
+        "snmp_device:1.2.3.4"
+      ],
+      "name": "foo_sys_name",
+      "description": "my_desc",
+      "ip_address": "1.2.3.4",
+      "sys_object_id": "1.2.3.4",
+      "profile": "f5-big-ip",
+      "vendor": "f5",
+      "subnet": "",
+      "tags": [
+        "device_namespace:profile-metadata",
+        "device_vendor:f5",
+        "prefix:f",
+        "snmp_device:1.2.3.4",
+        "snmp_host:foo_sys_name",
+        "snmp_profile:f5-big-ip",
+        "some_tag:some_tag_value",
+        "suffix:oo_sys_name"
+      ],
+      "status": 1,
+      "serial_number": "a-serial-num"
+    }
+  ],
+  "interfaces": [
+    {
+      "device_id": "profile-metadata:1.2.3.4",
+      "id_tags": ["custom-tag:nameRow1","interface:nameRow1"],
+      "index": 1,
+      "name": "nameRow1",
+      "alias": "descRow1",
+      "description": "Row1",
+      "mac_address": "00:00:00:00:00:01",
+      "admin_status": 1,
+      "oper_status": 1
+    },
+    {
+      "device_id": "profile-metadata:1.2.3.4",
+	  "id_tags": ["custom-tag:nameRow2","interface:nameRow2"],
+      "index": 2,
+      "name": "nameRow2",
+      "alias": "descRow2",
+      "description": "Row2",
+      "mac_address": "00:00:00:00:00:02",
+      "admin_status": 1,
+      "oper_status": 1
+    }
+  ],
+  "collect_timestamp":946684800
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+}

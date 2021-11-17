@@ -10,6 +10,7 @@ var validMetadataResources = map[string]map[string]bool{
 		"name":          true,
 		"description":   true,
 		"sys_object_id": true,
+		"location":      true,
 		"serial_number": true,
 		"vendor":        true,
 	},
