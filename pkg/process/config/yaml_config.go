@@ -3,9 +3,9 @@ package config
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +27,38 @@ const (
 
 func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
+}
+
+func (a *AgentConfig) setupChecks() {
+	if config.Datadog.IsSet(key(ns, "enabled")) {
+		// A string indicate the enabled state of the Agent.
+		//   If "false" (the default) we will only collect containers.
+		//   If "true" we will collect containers and processes.
+		//   If "disabled" the agent will be disabled altogether and won't start.
+		_ = log.Warn("process_config.enabled is deprecated, please use process_collection and container_collection instead")
+		enabled := config.Datadog.GetString(key(ns, "enabled"))
+		ok, err := strconv.ParseBool(enabled)
+		if ok {
+			config.Datadog.Set(key(ns, "process_collection", "enabled"), true)
+			config.Datadog.Set(key(ns, "container_collection", "enabled"), true)
+		} else if enabled == "disabled" {
+			config.Datadog.Set(key(ns, "process_collection", "enabled"), false)
+			config.Datadog.Set(key(ns, "container_collection", "enabled"), false)
+		} else if !ok && err == nil {
+			config.Datadog.Set(key(ns, "process_collection", "enabled"), false)
+			config.Datadog.Set(key(ns, "container_collection", "enabled"), true)
+		}
+	}
+
+	if config.Datadog.GetBool(key(ns, "process_collection", "enabled")) {
+		a.EnabledChecks = append(a.EnabledChecks, "process", "process_rt")
+	}
+
+	if config.Datadog.GetBool(key(ns, "container_collection", "enabled")) {
+		a.EnabledChecks = append(a.EnabledChecks, "container", "container_rt")
+	}
+
+	fmt.Printf("checks enabled: %v\n", a.EnabledChecks)
 }
 
 // LoadProcessYamlConfig load Process-specific configuration
@@ -52,32 +84,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.HostName = config.Datadog.GetString("hostname")
 	}
 
-	// Note: The enabled environment flag operates differently than that of our YAML configuration
-	if v, ok := os.LookupEnv("DD_PROCESS_AGENT_ENABLED"); ok {
-		// DD_PROCESS_AGENT_ENABLED: true - Process + Container checks enabled
-		//                           false - No checks enabled
-		//                           (none) - Container check enabled (by default)
-		if enabled, err := isAffirmative(v); enabled {
-			a.Enabled = true
-			a.EnabledChecks = processChecks
-		} else if !enabled && err == nil {
-			a.Enabled = false
-		}
-	} else if k := key(ns, "enabled"); config.Datadog.IsSet(k) {
-		// A string indicate the enabled state of the Agent.
-		//   If "false" (the default) we will only collect containers.
-		//   If "true" we will collect containers and processes.
-		//   If "disabled" the agent will be disabled altogether and won't start.
-		enabled := config.Datadog.GetString(k)
-		ok, err := isAffirmative(enabled)
-		if ok {
-			a.Enabled, a.EnabledChecks = true, processChecks
-		} else if enabled == "disabled" {
-			a.Enabled = false
-		} else if !ok && err == nil {
-			a.Enabled, a.EnabledChecks = true, containerChecks
-		}
-	}
+	a.setupChecks()
 
 	// Whether or not the process-agent should output logs to console
 	if config.Datadog.GetBool("log_to_console") {

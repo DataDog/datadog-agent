@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -678,15 +679,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 
-	// Process agent
-	config.SetDefault("process_config.enabled", "false")
-	// process_config.enabled is only used on Windows by the core agent to start the process agent service.
-	// it can be set from file, but not from env. Override it with value from DD_PROCESS_AGENT_ENABLED.
-	ddProcessAgentEnabled, found := os.LookupEnv("DD_PROCESS_AGENT_ENABLED")
-	if found {
-		AddOverride("process_config.enabled", ddProcessAgentEnabled)
-	}
-
 	config.BindEnv("process_config.process_dd_url", "")
 
 	// Logs Agent
@@ -879,7 +871,26 @@ func InitConfig(config Config) {
 
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
-	config.SetKnown("process_config.enabled")
+	config.BindEnvAndSetDefault("process_config.process_collection.enabled", false, "DD_PROCESS_COLLECTION")
+	config.BindEnvAndSetDefault("process_config.container_collection.enabled", true, "DD_CONTAINER_COLLECTION")
+	config.BindEnv("process_config.enabled", "DD_PROCESS_AGENT_ENABLED")
+	config.SetEnvKeyTransformer("process_config.enabled", func(s string) interface{} {
+		// Note: The enabled environment flag operates differently than that of our YAML configuration
+		// DD_PROCESS_AGENT_ENABLED: true - Process + Container checks enabled
+		//                           false - No checks enabled
+		//                           (none) - Container check enabled (by default)
+		// We transform the environment variable into a corresponding config key to simplify reading in the config.
+		enabled, err := strconv.ParseBool(s)
+		if err != nil {
+			_ = log.Error("Could not read DD_PROCESS_AGENT_ENABLED:", err)
+			return "false"
+		}
+		if enabled {
+			return "true"
+		} else {
+			return "disabled"
+		}
+	})
 	config.SetKnown("process_config.intervals.process_realtime")
 	config.SetKnown("process_config.queue_size")
 	config.SetKnown("process_config.rt_queue_size")
@@ -898,7 +909,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.windows.add_new_args")
 	config.SetKnown("process_config.windows.use_perf_counters")
 	config.SetKnown("process_config.additional_endpoints.*")
-	config.SetKnown("process_config.container_source")
+	config.BindEnv("process_config.container_source", "DD_PROCESS_AGENT_CONTAINER_SOURCE")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")

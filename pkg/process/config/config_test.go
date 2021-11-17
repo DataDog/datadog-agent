@@ -1,3 +1,4 @@
+//go:build linux || windows
 // +build linux windows
 
 package config
@@ -522,27 +523,6 @@ func TestSystemProbeNoNetwork(t *testing.T) {
 	assert.True(t, agentConfig.Enabled)
 	assert.ElementsMatch(t, []string{OOMKillCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
 
-}
-
-func TestIsAffirmative(t *testing.T) {
-	value, err := isAffirmative("yes")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	value, err = isAffirmative("True")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	value, err = isAffirmative("1")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	_, err = isAffirmative("")
-	assert.NotNil(t, err)
-
-	value, err = isAffirmative("ok")
-	assert.Nil(t, err)
-	assert.False(t, value)
 }
 
 func TestGetHostnameFromGRPC(t *testing.T) {
