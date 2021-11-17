@@ -118,7 +118,10 @@ func (r *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err err
 			default:
 				kind = fmt.Sprintf("%T", err)
 			}
-			tags = append(tags, fmt.Sprintf("error:%s", kind), fmt.Sprintf("status:%d", res.StatusCode))
+			tags = append(tags, fmt.Sprintf("error:%s", kind))
+			if res != nil {
+				tags = append(tags, fmt.Sprintf("status:%d", res.StatusCode))
+			}
 			metrics.Count(appSecRequestErrorMetricsID, 1, tags, 1)
 		}
 	}()
