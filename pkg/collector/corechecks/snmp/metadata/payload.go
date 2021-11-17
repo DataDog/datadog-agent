@@ -31,7 +31,7 @@ type DeviceMetadata struct {
 	Description  string       `json:"description"`
 	IPAddress    string       `json:"ip_address"`
 	SysObjectID  string       `json:"sys_object_id"`
-	//Location     string       `json:"location"`
+	Location     string       `json:"location"`
 	Profile      string       `json:"profile"`
 	Vendor       string       `json:"vendor"`
 	Subnet       string       `json:"subnet"`

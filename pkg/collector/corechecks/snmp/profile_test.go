@@ -29,7 +29,6 @@ func TestProfileMetadata(t *testing.T) {
 	invalidPath, _ := filepath.Abs(filepath.Join("test", "metadata_conf.d"))
 	config.Datadog.Set("confd_path", invalidPath)
 
-
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -81,6 +80,11 @@ profiles:
 				Name:  "1.3.6.1.2.1.1.5.0",
 				Type:  gosnmp.OctetString,
 				Value: []byte("foo_sys_name"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.6.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("paris"),
 			},
 			{
 				Name:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
@@ -211,6 +215,7 @@ profiles:
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
 		"1.3.6.1.2.1.1.5.0",
+		"1.3.6.1.2.1.1.6.0",
 		"1.3.6.1.4.1.3375.2.1.3.3.3.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
@@ -242,6 +247,7 @@ profiles:
       "description": "my_desc",
       "ip_address": "1.2.3.4",
       "sys_object_id": "1.2.3.4",
+      "location": "paris",
       "profile": "f5-big-ip",
       "vendor": "f5",
       "subnet": "",
