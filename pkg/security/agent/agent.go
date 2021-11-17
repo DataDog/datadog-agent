@@ -90,7 +90,8 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	rsa.connected.Store(false)
 
-	logTicker := newLogBackoffTicker()
+	logTicker := NewResetableTicker()
+	defer logTicker.Stop()
 
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
@@ -99,7 +100,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			rsa.connected.Store(false)
 
 			select {
-			case <-logTicker.C:
+			case <-logTicker.C():
 				log.Warnf("Error while connecting to the runtime security module: %v", err)
 			default:
 				// do nothing
@@ -109,6 +110,8 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			time.Sleep(2 * time.Second)
 			continue
 		}
+
+		logTicker.Reset()
 
 		if rsa.connected.Load() != true {
 			rsa.connected.Store(true)
@@ -154,4 +157,27 @@ func newLogBackoffTicker() *backoff.Ticker {
 	expBackoff.MaxElapsedTime = 0
 	expBackoff.Reset()
 	return backoff.NewTicker(expBackoff)
+}
+
+type ResetableTicker struct {
+	ticker *backoff.Ticker
+}
+
+func NewResetableTicker() ResetableTicker {
+	return ResetableTicker{
+		ticker: newLogBackoffTicker(),
+	}
+}
+
+func (t *ResetableTicker) C() <-chan time.Time {
+	return t.ticker.C
+}
+
+func (t *ResetableTicker) Reset() {
+	t.ticker.Stop()
+	t.ticker = newLogBackoffTicker()
+}
+
+func (t *ResetableTicker) Stop() {
+	t.ticker.Stop()
 }
