@@ -8,11 +8,13 @@
 package docker
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/docker/docker/api/types"
 )
@@ -70,4 +72,10 @@ func TestGetFileSourceOnWindows(t *testing.T) {
 			assert.Equal(t, tt.wantServiceName, fileSource.source.Config.Service)
 		})
 	}
+}
+
+func TestGetPath(t *testing.T) {
+	require.Equal(t,
+		filepath.Join(basePath, "123abc/123abc-json.log"),
+		getPath("123abc"))
 }
