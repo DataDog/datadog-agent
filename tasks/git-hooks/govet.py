@@ -4,6 +4,13 @@ import subprocess
 import sys
 from os.path import dirname, exists, join, relpath
 
+# modules -> packages that should not be vetted, each with a reason
+EXCLUDED_PACKAGES = {
+    '.': {
+        './pkg/ebpf/compiler': "requires C libraries not available everywhere",
+    },
+}
+
 
 def go_module_for_package(package_path):
     """
@@ -43,6 +50,10 @@ if len(packages) == 0:
 by_mod = {}
 for package_path in packages:
     mod, pkg = go_module_for_package(package_path)
+    reason = EXCLUDED_PACKAGES.get(mod, {}).get(pkg, None)
+    if reason:
+        print(f"Skipping {pkg} in {mod}: {reason}")
+        continue
     by_mod.setdefault(mod, set()).add(pkg)
 
 for module, packages in by_mod.items():
