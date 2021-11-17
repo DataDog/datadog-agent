@@ -549,6 +549,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve tracee process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
 		if cacheEntry != nil {
+			event.PTrace.TraceeProcessCacheEntry = cacheEntry
 			event.PTrace.Tracee = cacheEntry.ProcessContext
 		}
 	case model.MMapEventType:

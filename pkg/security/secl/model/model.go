@@ -602,10 +602,11 @@ type BPFProgram struct {
 type PTraceEvent struct {
 	SyscallEvent
 
-	Request uint32         `field:"request"`
-	PID     uint32         `field:"-"`
-	Address uint64         `field:"-"`
-	Tracee  ProcessContext `field:"tracee"`
+	Request                 uint32             `field:"request"`
+	PID                     uint32             `field:"-"`
+	Address                 uint64             `field:"-"`
+	Tracee                  ProcessContext     `field:"tracee"`
+	TraceeProcessCacheEntry *ProcessCacheEntry `field:"-"`
 }
 
 // MMapEvent represents a mmap event
