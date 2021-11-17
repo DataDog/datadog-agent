@@ -909,7 +909,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.windows.add_new_args")
 	config.SetKnown("process_config.windows.use_perf_counters")
 	config.SetKnown("process_config.additional_endpoints.*")
-	config.BindEnv("process_config.container_source", "DD_PROCESS_AGENT_CONTAINER_SOURCE")
+	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
