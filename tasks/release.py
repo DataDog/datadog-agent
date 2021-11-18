@@ -679,9 +679,7 @@ def _update_release_json_entry(
     import requests
 
     jmxfetch = requests.get(
-        "https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/{0}/jmxfetch-{0}-jar-with-dependencies.jar".format(  # noqa: FS002
-            jmxfetch_version,
-        )
+        f"https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/{jmxfetch_version}/jmxfetch-{jmxfetch_version}-jar-with-dependencies.jar"
     ).content
     jmxfetch_sha256 = hashlib.sha256(jmxfetch).hexdigest()
 

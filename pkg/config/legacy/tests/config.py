@@ -327,7 +327,8 @@ def get_config(options=None):
             listen_port = 17123
             if config.has_option('Main', 'listen_port'):
                 listen_port = int(config.get('Main', 'listen_port'))
-            agentConfig['dd_url'] = f"http://{agentConfig['bind_host']}:{listen_port}"
+            bind_host = agentConfig['bind_host']
+            agentConfig['dd_url'] = f"http://{bind_host}:{listen_port}"
         # FIXME: Legacy dd_url command line switch
         elif options is not None and options.dd_url is not None:
             agentConfig['dd_url'] = options.dd_url
