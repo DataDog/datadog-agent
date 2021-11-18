@@ -25,20 +25,25 @@ metadata:
           OID: 1.3.6.1.4.1.3375.2.1.4.2.0
           name: sysProductVersion # Displays BIG-IP software version information. e.g. 15.0.1
 #    product_name:
-#      OID: 1.3.6.1.4.1.3375.2.1.4.1.0
-#      name: sysProductName # The product name. e.g. BIG-IP
+#      symbol:
+#        OID: 1.3.6.1.4.1.3375.2.1.4.1.0
+#        name: sysProductName # The product name. e.g. BIG-IP
 #    model:
-#      OID: 1.3.6.1.4.1.3375.2.1.4.4.0
-#      name: sysProductEdition # The product edition. e.g. Final
+#      symbol:
+#        OID: 1.3.6.1.4.1.3375.2.1.4.4.0
+#        name: sysProductEdition # The product edition. e.g. Final
 #    os_name:
-#      OID: 1.3.6.1.4.1.3375.2.1.6.1.0
-#      name: sysSystemName # The operating system name.
+#      symbol:
+#        OID: 1.3.6.1.4.1.3375.2.1.6.1.0
+#        name: sysSystemName # The operating system name.
 #    os_version:
-#      OID: 1.3.6.1.4.1.3375.2.1.6.4.0
-#      name: sysSystemVersion # Displays Linux base operating system version information
+#      symbol:
+#        OID: 1.3.6.1.4.1.3375.2.1.6.4.0
+#        name: sysSystemVersion # Displays Linux base operating system version information
 #    os_hostname:
-#      OID: 1.3.6.1.4.1.3375.2.1.6.2.0
-#      name: sysSystemNodeName # The host name of the system on the network.
+#      symbol:
+#        OID: 1.3.6.1.4.1.3375.2.1.6.2.0
+#        name: sysSystemNodeName # The host name of the system on the network.
 #
 #    tags:
 #      - OID: 1.3.6.1.4.1.3375.2.1.3.3.1.0
