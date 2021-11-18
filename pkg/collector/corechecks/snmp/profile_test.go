@@ -91,6 +91,11 @@ profiles:
 				Type:  gosnmp.OctetString,
 				Value: []byte("a-serial-num"),
 			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.4.2.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("15.0.1"),
+			},
 		},
 	}
 
@@ -232,6 +237,7 @@ profiles:
 		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.6.0",
 		"1.3.6.1.4.1.3375.2.1.3.3.3.0",
+		"1.3.6.1.4.1.3375.2.1.4.2.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
 		"1.3.6.1.2.1.2.2.1.13",
@@ -274,7 +280,8 @@ profiles:
       "location": "paris",
       "profile": "f5-big-ip",
       "vendor": "f5",
-      "serial_number": "a-serial-num"
+      "serial_number": "a-serial-num",
+      "version":"15.0.1"
     }
   ],
   "interfaces": [

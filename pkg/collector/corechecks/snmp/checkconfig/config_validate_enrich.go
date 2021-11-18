@@ -13,6 +13,7 @@ var validMetadataResources = map[string]map[string]bool{
 		"location":      true,
 		"serial_number": true,
 		"vendor":        true,
+		"version":       true,
 	},
 	"interface": {
 		"name":         true,

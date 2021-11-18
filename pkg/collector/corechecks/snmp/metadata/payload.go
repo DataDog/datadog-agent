@@ -38,6 +38,7 @@ type DeviceMetadata struct {
 	Vendor       string       `json:"vendor,omitempty"`
 	Subnet       string       `json:"subnet,omitempty"`
 	SerialNumber string       `json:"serial_number,omitempty"`
+	Version      string       `json:"version,omitempty"`
 }
 
 // InterfaceMetadata contains interface metadata

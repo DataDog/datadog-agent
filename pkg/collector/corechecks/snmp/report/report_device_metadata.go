@@ -87,14 +87,15 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 }
 
 func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
-	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber string
+	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version string
 	if store != nil {
 		sysName = store.GetScalarAsString("device.name")
 		sysDescr = store.GetScalarAsString("device.description")
 		sysObjectID = store.GetScalarAsString("device.sys_object_id")
+		vendor = store.GetScalarAsString("device.vendor")
 		location = store.GetScalarAsString("device.location")
 		serialNumber = store.GetScalarAsString("device.serial_number")
-		vendor = store.GetScalarAsString("device.vendor")
+		version = store.GetScalarAsString("device.version")
 	}
 
 	// fallback to Device.Vendor for backward compatibility
@@ -116,6 +117,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		Subnet:       config.ResolvedSubnetName,
 		Status:       deviceStatus,
 		SerialNumber: serialNumber,
+		Version:      version,
 	}
 }
 
