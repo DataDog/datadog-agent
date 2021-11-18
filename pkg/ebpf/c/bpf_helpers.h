@@ -73,6 +73,10 @@ static int (*bpf_probe_write_user)(void *dst, const void *src, int size) = (void
 static int (*bpf_probe_read_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_str;
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+static int (*bpf_skb_load_bytes)(void *ctx, int off, void *to, int len) = (void *) BPF_FUNC_skb_load_bytes;
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 static int (*bpf_probe_read_user_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user_str;
 static int (*bpf_probe_read_kernel_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_kernel_str;

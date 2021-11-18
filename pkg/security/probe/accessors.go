@@ -46,6 +46,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("chown"),
 
+		eval.EventType("dns"),
+
 		eval.EventType("exec"),
 
 		eval.EventType("link"),
@@ -583,6 +585,56 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
+		}, nil
+
+	case "dns.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).DNS.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.qclass":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.QClass)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.qdcount":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.QDCount)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.qtype":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.QType)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.args":
@@ -9156,6 +9208,16 @@ func (e *Event) GetFields() []eval.Field {
 
 		"container.tags",
 
+		"dns.name",
+
+		"dns.qclass",
+
+		"dns.qdcount",
+
+		"dns.qtype",
+
+		"dns.retval",
+
 		"exec.args",
 
 		"exec.args_flags",
@@ -10486,6 +10548,26 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "container.tags":
 
 		return e.ResolveContainerTags(&e.ContainerContext), nil
+
+	case "dns.name":
+
+		return e.DNS.Name, nil
+
+	case "dns.qclass":
+
+		return int(e.DNS.QClass), nil
+
+	case "dns.qdcount":
+
+		return int(e.DNS.QDCount), nil
+
+	case "dns.qtype":
+
+		return int(e.DNS.QType), nil
+
+	case "dns.retval":
+
+		return int(e.DNS.SyscallEvent.Retval), nil
 
 	case "exec.args":
 
@@ -15324,6 +15406,21 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.tags":
 		return "*", nil
 
+	case "dns.name":
+		return "dns", nil
+
+	case "dns.qclass":
+		return "dns", nil
+
+	case "dns.qdcount":
+		return "dns", nil
+
+	case "dns.qtype":
+		return "dns", nil
+
+	case "dns.retval":
+		return "dns", nil
+
 	case "exec.args":
 		return "exec", nil
 
@@ -17216,6 +17313,26 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "container.tags":
 
 		return reflect.String, nil
+
+	case "dns.name":
+
+		return reflect.String, nil
+
+	case "dns.qclass":
+
+		return reflect.Int, nil
+
+	case "dns.qdcount":
+
+		return reflect.Int, nil
+
+	case "dns.qtype":
+
+		return reflect.Int, nil
+
+	case "dns.retval":
+
+		return reflect.Int, nil
 
 	case "exec.args":
 
@@ -20007,6 +20124,61 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.Tags"}
 		}
 		e.ContainerContext.Tags = append(e.ContainerContext.Tags, str)
+
+		return nil
+
+	case "dns.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Name"}
+		}
+		e.DNS.Name = str
+
+		return nil
+
+	case "dns.qclass":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.QClass"}
+		}
+		e.DNS.QClass = uint16(v)
+
+		return nil
+
+	case "dns.qdcount":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.QDCount"}
+		}
+		e.DNS.QDCount = uint16(v)
+
+		return nil
+
+	case "dns.qtype":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.QType"}
+		}
+		e.DNS.QType = uint16(v)
+
+		return nil
+
+	case "dns.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.SyscallEvent.Retval"}
+		}
+		e.DNS.SyscallEvent.Retval = int64(v)
 
 		return nil
 

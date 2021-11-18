@@ -741,6 +741,40 @@
       ]
     },
     {
+      "name": "dns",
+      "definition": "A DNS request was sent",
+      "type": "Kernel",
+      "from_agent_version": "7.35",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "dns.name",
+          "type": "string",
+          "definition": "name field of the DNS request"
+        },
+        {
+          "name": "dns.qclass",
+          "type": "int",
+          "definition": "qclass field of the DNS request"
+        },
+        {
+          "name": "dns.qdcount",
+          "type": "int",
+          "definition": "qdcount field of the DNS request"
+        },
+        {
+          "name": "dns.qtype",
+          "type": "int",
+          "definition": "qtype field of the DNS request"
+        },
+        {
+          "name": "dns.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
       "name": "exec",
       "definition": "A process was executed or forked",
       "type": "Process",

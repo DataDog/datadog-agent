@@ -162,6 +162,7 @@ type Event struct {
 	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
 	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
+	DNS          DNSEvent          `field:"dns" event:"dns"`                     // [7.35] [Kernel] [Experimental] A DNS request was sent
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
@@ -736,4 +737,14 @@ type SpliceEvent struct {
 type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
 	TimeoutRaw       uint64
+}
+
+// DNSEvent represents a DNS event
+type DNSEvent struct {
+	SyscallEvent
+
+	QDCount uint16 `field:"qdcount"` // qdcount field of the DNS request
+	QClass  uint16 `field:"qclass"`  // qclass field of the DNS request
+	QType   uint16 `field:"qtype"`   // qtype field of the DNS request
+	Name    string `field:"name"`    // name field of the DNS request
 }

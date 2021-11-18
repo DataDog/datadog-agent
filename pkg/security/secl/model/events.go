@@ -77,6 +77,8 @@ const (
 	SpliceEventType
 	// CgroupTracingEventType is sent when a new cgroup is being traced
 	CgroupTracingEventType
+	// DNSEventType DNS event
+	DNSEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -166,6 +168,8 @@ func (t EventType) String() string {
 		return "splice"
 	case CgroupTracingEventType:
 		return "cgroup_tracing"
+	case DNSEventType:
+		return "dns"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

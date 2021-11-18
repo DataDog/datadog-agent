@@ -41,6 +41,10 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/SpliceEvent"
     },
+    "dns": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/DNSEvent"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -148,6 +152,34 @@
         "trace_id": {
           "type": "integer",
           "description": "Trace ID used for APM correlation"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DNSEvent": {
+      "required": [
+        "qdcount",
+        "qclass",
+        "qtype",
+        "name"
+      ],
+      "properties": {
+        "qdcount": {
+          "type": "integer",
+          "description": "qdcount defines the number of questions in the DNS request"
+        },
+        "qclass": {
+          "type": "string",
+          "description": "qclass defines the class of the DNS request"
+        },
+        "qtype": {
+          "type": "string",
+          "description": "qtype defines the type of the DNS request"
+        },
+        "name": {
+          "type": "string",
+          "description": "name of the DNS request"
         }
       },
       "additionalProperties": false,

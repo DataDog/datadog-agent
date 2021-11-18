@@ -756,3 +756,48 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.TimeoutRaw = ByteOrder.Uint64(data[read : read+8])
 	return read + 8, nil
 }
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	cursor := read
+
+	if len(data[cursor:]) < 6 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.QDCount = ByteOrder.Uint16(data[cursor : cursor+2])
+	e.QType = ByteOrder.Uint16(data[cursor+2 : cursor+4])
+	e.QClass = ByteOrder.Uint16(data[cursor+4 : cursor+6])
+	e.Name = decodeDNS(data[cursor+6:])
+	return len(data), nil
+}
+
+func decodeDNS(raw []byte) string {
+	rawLen := len(raw)
+	rep := ""
+	i := 0
+	for {
+		// Parse label length
+		if rawLen < i+1 {
+			break
+		}
+		labelLen := int(raw[i])
+
+		if rawLen-(i+1) < labelLen || labelLen == 0 {
+			break
+		}
+		labelRaw := raw[i+1 : i+1+labelLen]
+
+		if i == 0 {
+			rep = string(labelRaw)
+		} else {
+			rep = rep + "." + string(labelRaw)
+		}
+		i += labelLen + 1
+	}
+	return rep
+}

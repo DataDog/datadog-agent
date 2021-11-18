@@ -408,6 +408,104 @@ var (
 		"PIPE_BUF_FLAG_LOSS":      PipeBufFlagLoss,
 	}
 
+	// DNSQTypeConstants see https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
+	DNSQTypeConstants = map[string]int{
+		"None":       0,
+		"A":          1,
+		"NS":         2,
+		"MD":         3,
+		"MF":         4,
+		"CNAME":      5,
+		"SOA":        6,
+		"MB":         7,
+		"MG":         8,
+		"MR":         9,
+		"NULL":       10,
+		"PTR":        12,
+		"HINFO":      13,
+		"MINFO":      14,
+		"MX":         15,
+		"TXT":        16,
+		"RP":         17,
+		"AFSDB":      18,
+		"X25":        19,
+		"ISDN":       20,
+		"RT":         21,
+		"NSAPPTR":    23,
+		"SIG":        24,
+		"KEY":        25,
+		"PX":         26,
+		"GPOS":       27,
+		"AAAA":       28,
+		"LOC":        29,
+		"NXT":        30,
+		"EID":        31,
+		"NIMLOC":     32,
+		"SRV":        33,
+		"ATMA":       34,
+		"NAPTR":      35,
+		"KX":         36,
+		"CERT":       37,
+		"DNAME":      39,
+		"OPT":        41,
+		"APL":        42,
+		"DS":         43,
+		"SSHFP":      44,
+		"RRSIG":      46,
+		"NSEC":       47,
+		"DNSKEY":     48,
+		"DHCID":      49,
+		"NSEC3":      50,
+		"NSEC3PARAM": 51,
+		"TLSA":       52,
+		"SMIMEA":     53,
+		"HIP":        55,
+		"NINFO":      56,
+		"RKEY":       57,
+		"TALINK":     58,
+		"CDS":        59,
+		"CDNSKEY":    60,
+		"OPENPGPKEY": 61,
+		"CSYNC":      62,
+		"ZONEMD":     63,
+		"SVCB":       64,
+		"HTTPS":      65,
+		"SPF":        99,
+		"UINFO":      100,
+		"UID":        101,
+		"GID":        102,
+		"UNSPEC":     103,
+		"NID":        104,
+		"L32":        105,
+		"L64":        106,
+		"LP":         107,
+		"EUI48":      108,
+		"EUI64":      109,
+		"URI":        256,
+		"CAA":        257,
+		"AVC":        258,
+		"TKEY":       249,
+		"TSIG":       250,
+		"IXFR":       251,
+		"AXFR":       252,
+		"MAILB":      253,
+		"MAILA":      254,
+		"ANY":        255,
+		"TA":         32768,
+		"DLV":        32769,
+		"Reserved":   65535,
+	}
+
+	// DNSQClassConstants see https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
+	DNSQClassConstants = map[string]int{
+		"CLASS_INET":   1,
+		"CLASS_CSNET":  2,
+		"CLASS_CHAOS":  3,
+		"CLASS_HESIOD": 4,
+		"CLASS_NONE":   254,
+		"CLASS_ANY":    255,
+	}
+
 	// SECLConstants are constants available in runtime security agent rules
 	SECLConstants = map[string]interface{}{
 		// boolean
@@ -432,6 +530,8 @@ var (
 	mmapFlagStrings           = map[int]string{}
 	signalStrings             = map[int]string{}
 	pipeBufFlagStrings        = map[int]string{}
+	dnsQTypeStrings           = map[uint32]string{}
+	dnsQClassStrings          = map[uint32]string{}
 )
 
 // File flags
@@ -579,6 +679,20 @@ func initPipeBufFlagConstants() {
 	}
 }
 
+func initDNSQClassConstants() {
+	for k, v := range DNSQClassConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		dnsQClassStrings[uint32(v)] = k
+	}
+}
+
+func initDNSQTypeConstants() {
+	for k, v := range DNSQTypeConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		dnsQTypeStrings[uint32(v)] = k
+	}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
@@ -596,6 +710,8 @@ func initConstants() {
 	initMMapFlagsConstants()
 	initSignalConstants()
 	initPipeBufFlagConstants()
+	initDNSQClassConstants()
+	initDNSQTypeConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -1442,3 +1558,23 @@ const (
 	// PipeBufFlagLoss pipe buffer flag
 	PipeBufFlagLoss PipeBufFlag = 0x40 /* Message loss happened after this buffer */
 )
+
+// QClass is used to declare the qclass field of a DNS request
+type QClass uint32
+
+func (qc QClass) String() string {
+	if val, ok := dnsQClassStrings[uint32(qc)]; ok {
+		return val
+	}
+	return fmt.Sprintf("qclass(%d)", qc)
+}
+
+// QType is used to declare the qtype field of a DNS request
+type QType uint32
+
+func (qt QType) String() string {
+	if val, ok := dnsQTypeStrings[uint32(qt)]; ok {
+		return val
+	}
+	return fmt.Sprintf("qtype(%d)", qt)
+}

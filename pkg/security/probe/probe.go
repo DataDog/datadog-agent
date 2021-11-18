@@ -11,6 +11,7 @@ package probe
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -181,6 +182,10 @@ func (p *Probe) Init(client *statsd.Client) error {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
 	}
 
+	if err := p.generateDynamicProbes(); err != nil {
+		return errors.Wrap(err, "couldn't generate probes")
+	}
+
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return errors.Wrap(err, "failed to init manager")
 	}
@@ -227,6 +232,32 @@ func (p *Probe) Start() error {
 	}
 
 	return p.monitor.Start(p.ctx, &p.wg)
+}
+
+// generateDynamicProbes generated probes
+func (p *Probe) generateDynamicProbes() error {
+	netIfs, err := net.Interfaces()
+	if err != nil {
+		return errors.Wrap(err, "couldn't list network interfaces")
+	}
+
+	var selector manager.AllOf
+	for _, netIf := range netIfs {
+		for _, tcProbe := range probes.GetTCProbes() {
+			newProbe := tcProbe.Copy()
+			newProbe.UID = utils.RandString(10)
+			newProbe.Ifname = netIf.Name
+			newProbe.CopyProgram = true
+
+			p.manager.Probes = append(p.manager.Probes, newProbe)
+			selector.Selectors = append(selector.Selectors, &manager.ProbeSelector{
+				ProbeIdentificationPair: newProbe.ProbeIdentificationPair,
+			})
+		}
+	}
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, &selector)
+	probes.SelectorsPerEventType["dns"] = append(probes.SelectorsPerEventType["dns"], &selector)
+	return nil
 }
 
 // SetEventHandler set the probe event handler
@@ -529,6 +560,11 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	case model.BPFEventType:
 		if _, err = event.BPF.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode bpf event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case model.DNSEventType:
+		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case model.PTraceEventType:

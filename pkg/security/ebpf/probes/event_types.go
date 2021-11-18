@@ -244,6 +244,12 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_commit_bools_write", EBPFFuncName: "kprobe_sel_commit_bools_write"}},
 		}},
+
+		// flow classification probes
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_socket_bind", EBPFFuncName: "kprobe_security_socket_bind"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_sk_classify_flow", EBPFFuncName: "kprobe_security_sk_classify_flow"}},
+		}},
 	},
 
 	// List of probes required to capture chmod events

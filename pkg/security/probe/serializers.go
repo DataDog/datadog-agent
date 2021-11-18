@@ -252,6 +252,13 @@ type SignalEventSerializer struct {
 	Target *ProcessContextSerializer `json:"target,omitempty" jsonschema_description:"process context of the signal target"`
 }
 
+type DNSEventSerializer struct {
+	QDCount int    `json:"qdcount" jsonschema_description:"qdcount defines the number of questions in the DNS request"`
+	QClass  string `json:"qclass" jsonschema_description:"qclass defines the class of the DNS request"`
+	QType   string `json:"qtype" jsonschema_description:"qtype defines the type of the DNS request"`
+	Name    string `json:"name" jsonschema_description:"name of the DNS request"`
+}
+
 // DDContextSerializer serializes a span context to JSON
 // easyjson:json
 type DDContextSerializer struct {
@@ -286,6 +293,7 @@ type EventSerializer struct {
 	*ModuleEventSerializer      `json:"module,omitempty"`
 	*SignalEventSerializer      `json:"signal,omitempty"`
 	*SpliceEventSerializer      `json:"splice,omitempty"`
+	*DNSEventSerializer         `json:"dns,omitempty"`
 	*UserContextSerializer      `json:"usr,omitempty"`
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*DDContextSerializer        `json:"dd,omitempty"`
@@ -610,6 +618,15 @@ func newSpliceEventSerializer(e *Event) *SpliceEventSerializer {
 	}
 }
 
+func newDNSEventSerializer(e *Event) *DNSEventSerializer {
+	return &DNSEventSerializer{
+		QDCount: int(e.DNS.QDCount),
+		QClass:  model.QClass(e.DNS.QClass).String(),
+		QType:   model.QType(e.DNS.QType).String(),
+		Name:    e.DNS.Name,
+	}
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
 	case retval < 0:
@@ -845,6 +862,9 @@ func NewEventSerializer(event *Event) *EventSerializer {
 				FileSerializer: *newFileSerializer(&event.Splice.File, event),
 			}
 		}
+	case model.DNSEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.DNS.Retval)
+		s.DNSEventSerializer = newDNSEventSerializer(event)
 	}
 
 	return s

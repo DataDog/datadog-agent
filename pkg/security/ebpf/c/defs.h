@@ -223,6 +223,7 @@ enum event_type
     EVENT_SIGNAL,
     EVENT_SPLICE,
     EVENT_CGROUP_TRACING,
+    EVENT_DNS,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffffffffffff // used as a mask for all the events
