@@ -107,6 +107,11 @@ profiles:
 				Value: 141,
 			},
 			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDesc1"),
+			},
+			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.1",
 				Type:  gosnmp.OctetString,
 				Value: []byte("00:00:00:00:00:01"),
@@ -140,6 +145,11 @@ profiles:
 				Name:  "1.3.6.1.2.1.2.2.1.14.2",
 				Type:  gosnmp.Integer,
 				Value: 142,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDesc2"),
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.2",
@@ -206,6 +216,11 @@ profiles:
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
 		},
 	}
 
@@ -221,6 +236,7 @@ profiles:
 	sess.On("GetBulk", []string{
 		"1.3.6.1.2.1.2.2.1.13",
 		"1.3.6.1.2.1.2.2.1.14",
+		"1.3.6.1.2.1.2.2.1.2",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
 		"1.3.6.1.2.1.2.2.1.8",
@@ -267,22 +283,22 @@ profiles:
   "interfaces": [
     {
       "device_id": "profile-metadata:1.2.3.4",
-      "id_tags": ["custom-tag:nameRow1","interface:nameRow1"],
+      "id_tags": ["interface:nameRow1"],
       "index": 1,
       "name": "nameRow1",
       "alias": "descRow1",
-      "description": "Row1",
+      "description": "ifDesc1",
       "mac_address": "00:00:00:00:00:01",
       "admin_status": 1,
       "oper_status": 1
     },
     {
       "device_id": "profile-metadata:1.2.3.4",
-	  "id_tags": ["custom-tag:nameRow2","interface:nameRow2"],
+	  "id_tags": ["interface:nameRow2"],
       "index": 2,
       "name": "nameRow2",
       "alias": "descRow2",
-      "description": "Row2",
+      "description": "ifDesc2",
       "mac_address": "00:00:00:00:00:02",
       "admin_status": 1,
       "oper_status": 1
