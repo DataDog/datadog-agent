@@ -90,12 +90,14 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	rsa.connected.Store(false)
 
-	logTicker := NewResetableTicker()
+	logTicker := BackoffTicker{}
 	defer logTicker.Stop()
 
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
-		stream, err := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
+		logTicker.StartIfNeeded()
+		stream, _ := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
+		err := errors.New("test backoff")
 		if err != nil {
 			rsa.connected.Store(false)
 
@@ -111,7 +113,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			continue
 		}
 
-		logTicker.Reset()
+		logTicker.Stop()
 
 		if rsa.connected.Load() != true {
 			rsa.connected.Store(true)
@@ -159,25 +161,21 @@ func newLogBackoffTicker() *backoff.Ticker {
 	return backoff.NewTicker(expBackoff)
 }
 
-type ResetableTicker struct {
+type BackoffTicker struct {
 	ticker *backoff.Ticker
 }
 
-func NewResetableTicker() ResetableTicker {
-	return ResetableTicker{
-		ticker: newLogBackoffTicker(),
+func (t *BackoffTicker) StartIfNeeded() {
+	if t.ticker == nil {
+		t.ticker = newLogBackoffTicker()
 	}
 }
 
-func (t *ResetableTicker) C() <-chan time.Time {
+func (t *BackoffTicker) C() <-chan time.Time {
 	return t.ticker.C
 }
 
-func (t *ResetableTicker) Reset() {
+func (t *BackoffTicker) Stop() {
 	t.ticker.Stop()
-	t.ticker = newLogBackoffTicker()
-}
-
-func (t *ResetableTicker) Stop() {
-	t.ticker.Stop()
+	t.ticker = nil
 }
