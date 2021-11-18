@@ -262,12 +262,9 @@ profiles:
       "tags": [
         "device_namespace:profile-metadata",
         "device_vendor:f5",
-        "prefix:f",
         "snmp_device:1.2.3.4",
         "snmp_host:foo_sys_name",
-        "snmp_profile:f5-big-ip",
-        "some_tag:some_tag_value",
-        "suffix:oo_sys_name"
+        "snmp_profile:f5-big-ip"
       ],
       "ip_address": "1.2.3.4",
       "status": 1,
