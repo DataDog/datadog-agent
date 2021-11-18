@@ -75,7 +75,7 @@ def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
                         continue
                     failed_tests[(package, name)] = Test(owners, name, package)
                 elif action == "pass" and (package, name) in failed_tests:
-                    print("Test {} from package {} passed after retry, removing from output".format(name, package))
+                    print(f"Test {name} from package {package} passed after retry, removing from output")
                     del failed_tests[(package, name)]
 
     return failed_tests.values()

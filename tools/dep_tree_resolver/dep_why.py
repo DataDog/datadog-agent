@@ -28,7 +28,7 @@ def dep_why(dep_tree_filename, target_module):
     the branches that lead to the specified target module
     """
 
-    print("Searching for '{}' in {}...".format(target_module, dep_tree_filename))
+    print(f"Searching for '{target_module}' in {dep_tree_filename}...")
 
     found = False
     current_path = []
@@ -46,7 +46,7 @@ def dep_why(dep_tree_filename, target_module):
                 print(current_path[1:])
 
     if not found:
-        print("'{}' was not found in the dependency tree!".format(target_module))
+        print(f"'{target_module}' was not found in the dependency tree!")
 
 
 if __name__ == '__main__':

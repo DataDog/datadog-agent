@@ -32,7 +32,7 @@ class GithubWorkflows(RemoteAPI):
         Gets the repo info.
         """
 
-        path = "/repos/{}".format(self.repository)
+        path = f"/repos/{self.repository}"
         return self.make_request(path, method="GET", json_output=True)
 
     def trigger_workflow(self, workflow_name, ref, inputs=None):
@@ -43,7 +43,7 @@ class GithubWorkflows(RemoteAPI):
         if inputs is None:
             inputs = dict()
 
-        path = "/repos/{}/actions/workflows/{}/dispatches".format(self.repository, workflow_name)
+        path = f"/repos/{self.repository}/actions/workflows/{workflow_name}/dispatches"
         data = json.dumps({"ref": ref, "inputs": inputs})
         return self.make_request(path, method="POST", data=data)
 
@@ -51,17 +51,17 @@ class GithubWorkflows(RemoteAPI):
         """
         Gets info on a specific workflow.
         """
-        path = "/repos/{}/actions/runs/{}".format(self.repository, run_id)
+        path = f"/repos/{self.repository}/actions/runs/{run_id}"
         return self.make_request(path, method="GET", json_output=True)
 
     def download_artifact(self, artifact_id, destination_dir):
         """
         Downloads the artifact identified by artifact_id to destination_dir.
         """
-        path = "/repos/{}/actions/artifacts/{}/zip".format(self.repository, artifact_id)
+        path = f"/repos/{self.repository}/actions/artifacts/{artifact_id}/zip"
         content = self.make_request(path, method="GET", raw_output=True)
 
-        zip_target_path = os.path.join(destination_dir, "{}.zip".format(artifact_id))
+        zip_target_path = os.path.join(destination_dir, f"{artifact_id}.zip")
         with open(zip_target_path, "wb") as f:
             f.write(content)
         return zip_target_path
@@ -70,7 +70,7 @@ class GithubWorkflows(RemoteAPI):
         """
         Gets list of artifacts for a workflow run.
         """
-        path = "/repos/{}/actions/runs/{}/artifacts".format(self.repository, run_id)
+        path = f"/repos/{self.repository}/actions/runs/{run_id}/artifacts"
         return self.make_request(path, method="GET", json_output=True)
 
     def latest_workflow_run_for_ref(self, workflow_name, ref):
@@ -85,7 +85,7 @@ class GithubWorkflows(RemoteAPI):
         """
         Gets all workflow runs for a workflow.
         """
-        path = "/repos/{}/actions/workflows/{}/runs".format(self.repository, workflow_name)
+        path = f"/repos/{self.repository}/actions/workflows/{workflow_name}/runs"
         return self.make_request(path, method="GET", json_output=True)
 
     def make_request(self, path, headers=None, method="GET", data=None, json_output=False, raw_output=False):
@@ -99,7 +99,7 @@ class GithubWorkflows(RemoteAPI):
         url = self.BASE_URL + path
 
         headers = dict(headers or [])
-        headers["Authorization"] = "token {}".format(self.api_token)
+        headers["Authorization"] = f"token {self.api_token}"
         headers["Accept"] = "application/vnd.github.v3+json"
 
         for _ in range(5):  # Retry up to 5 times
@@ -113,7 +113,7 @@ class GithubWorkflows(RemoteAPI):
                 stream_output=False,
                 method=method,
             )
-        raise GithubException("Failed while making HTTP request: {} {}".format(method, url))
+        raise GithubException(f"Failed while making HTTP request: {method} {url}")
 
 
 def get_github_app_token():

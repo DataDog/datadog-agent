@@ -39,14 +39,10 @@ def build(
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run(
-            "windmc --target {target_arch}  -r cmd/trace-agent/windows_resources cmd/trace-agent/windows_resources/trace-agent-msg.mc".format(
-                target_arch=windres_target
-            )
+            f"windmc --target {windres_target}  -r cmd/trace-agent/windows_resources cmd/trace-agent/windows_resources/trace-agent-msg.mc"
         )
         ctx.run(
-            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/trace-agent/windows_resources/trace-agent.rc --target {target_arch} -O coff -o cmd/trace-agent/rsrc.syso".format(
-                maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
-            )
+            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/trace-agent/windows_resources/trace-agent.rc --target {windres_target} -O coff -o cmd/trace-agent/rsrc.syso"
         )
 
     build_include = (
@@ -98,7 +94,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     # thinks that the parameters are for it to interpret.
     # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
-        test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
+        test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
     go_cmd = 'INTEGRATION=yes go test -mod={go_mod} {race_opt} -v'.format(**test_args)
 
@@ -107,7 +103,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     ]
 
     for prefix in prefixes:
-        ctx.run("{} {}".format(go_cmd, prefix))
+        ctx.run(f"{go_cmd} {prefix}")
 
 
 @task
@@ -119,7 +115,7 @@ def cross_compile(ctx, tag=""):
         print("Argument --tag=<version> is required.")
         return
 
-    print("Building tag %s..." % tag)
+    print(f"Building tag {tag}...")
 
     env = {
         "TRACE_AGENT_VERSION": tag,
@@ -144,4 +140,4 @@ def cross_compile(ctx, tag=""):
     )
     ctx.run("git checkout -")
 
-    print("Done! Binaries are located in ./bin/trace-agent/%s" % tag)
+    print(f"Done! Binaries are located in ./bin/trace-agent/{tag}")
