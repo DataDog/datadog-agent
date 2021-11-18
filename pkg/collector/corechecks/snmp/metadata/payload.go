@@ -28,14 +28,14 @@ type DeviceMetadata struct {
 	// TODO: Add omitempty for all fields that might be empty
 	ID           string       `json:"id"`
 	IDTags       []string     `json:"id_tags"` // id_tags is the input to produce device.id, it's also used to correlated with device metrics.
-	Name         string       `json:"name"`
-	Description  string       `json:"description"`
+	Name         string       `json:"name,omitempty"`
+	Description  string       `json:"description,omitempty"`
 	IPAddress    string       `json:"ip_address"`
-	SysObjectID  string       `json:"sys_object_id"`
+	SysObjectID  string       `json:"sys_object_id,omitempty"`
 	Location     string       `json:"location,omitempty"`
-	Profile      string       `json:"profile"`
-	Vendor       string       `json:"vendor"`
-	Subnet       string       `json:"subnet"`
+	Profile      string       `json:"profile,omitempty"`
+	Vendor       string       `json:"vendor,omitempty"`
+	Subnet       string       `json:"subnet,omitempty"`
 	Tags         []string     `json:"tags"`
 	Status       DeviceStatus `json:"status"`
 	SerialNumber string       `json:"serial_number,omitempty"`

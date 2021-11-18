@@ -250,7 +250,6 @@ profiles:
       "location": "paris",
       "profile": "f5-big-ip",
       "vendor": "f5",
-      "subnet": "",
       "tags": [
         "device_namespace:profile-metadata",
         "device_vendor:f5",

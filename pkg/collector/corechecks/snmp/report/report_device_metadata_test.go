@@ -62,12 +62,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "id_tags": [
                 "device_name:127.0.0.1"
             ],
-            "name": "",
-            "description": "",
             "ip_address": "1.2.3.4",
-            "sys_object_id": "",
-            "profile": "",
-            "vendor": "",
             "subnet": "127.0.0.0/29",
             "tags": [
                 "tag1",
@@ -142,10 +137,7 @@ profiles:
                 "device_namespace:my-ns",
                 "snmp_device:1.2.3.4"
             ],
-            "name": "",
-            "description": "",
             "ip_address": "1.2.3.4",
-            "sys_object_id": "",
             "profile": "f5-big-ip",
             "vendor": "f5",
             "subnet": "127.0.0.0/29",
@@ -227,12 +219,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
             "id_tags": [
                 "device_name:127.0.0.1"
             ],
-            "name": "",
-            "description": "",
             "ip_address": "1.2.3.4",
-            "sys_object_id": "",
-            "profile": "",
-            "vendor": "",
             "subnet": "127.0.0.0/29",
             "tags": [
                 "tag1",

@@ -1200,8 +1200,6 @@ tags:
       "description": "my_desc",
       "ip_address": "1.2.3.4",
       "sys_object_id": "1.2.3.4",
-      "profile": "",
-      "vendor": "",
       "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
@@ -1312,12 +1310,7 @@ tags:
         "device_namespace:default",
         "snmp_device:1.2.3.5"
       ],
-      "name": "",
-      "description": "",
       "ip_address": "1.2.3.5",
-      "sys_object_id": "",
-      "profile": "",
-      "vendor": "",
       "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
@@ -1573,11 +1566,7 @@ metric_tags:
         "snmp_device:%s"
       ],
       "name": "foo_sys_name",
-      "description": "",
       "ip_address": "%s",
-      "sys_object_id": "",
-      "profile": "",
-      "vendor": "",
       "subnet": "10.10.0.0/30",
       "tags": [
         "autodiscovery_subnet:10.10.0.0/30",
