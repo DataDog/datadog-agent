@@ -67,11 +67,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
                 "tag2"
             ],
             "ip_address": "1.2.3.4",
-			"status":1,
+            "status":1,
             "subnet": "127.0.0.0/29"
         }
     ],
-	"collect_timestamp":1415792726
+    "collect_timestamp":1415792726
 }
 `)
 	compactEvent := new(bytes.Buffer)
@@ -142,13 +142,13 @@ profiles:
                 "tag2"
             ],
             "ip_address": "1.2.3.4",
-			"status":1,
+            "status":1,
             "profile": "f5-big-ip",
             "vendor": "f5",
             "subnet": "127.0.0.0/29"
         }
     ],
-	"collect_timestamp":1415792726
+    "collect_timestamp":1415792726
 }
 `)
 	compactEvent := new(bytes.Buffer)
@@ -224,7 +224,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
                 "tag2"
             ],
             "ip_address": "1.2.3.4",
-			"status":1,
+            "status":1,
             "subnet": "127.0.0.0/29"
         }
     ],
@@ -246,7 +246,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
             "name": "22"
         }
     ],
-	"collect_timestamp":1415792726
+    "collect_timestamp":1415792726
 }
 `)
 	compactEvent := new(bytes.Buffer)
