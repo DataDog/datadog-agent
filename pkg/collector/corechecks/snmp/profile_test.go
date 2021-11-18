@@ -243,13 +243,6 @@ profiles:
         "device_namespace:profile-metadata",
         "snmp_device:1.2.3.4"
       ],
-      "name": "foo_sys_name",
-      "description": "my_desc",
-      "ip_address": "1.2.3.4",
-      "sys_object_id": "1.2.3.4",
-      "location": "paris",
-      "profile": "f5-big-ip",
-      "vendor": "f5",
       "tags": [
         "device_namespace:profile-metadata",
         "device_vendor:f5",
@@ -260,7 +253,14 @@ profiles:
         "some_tag:some_tag_value",
         "suffix:oo_sys_name"
       ],
+      "ip_address": "1.2.3.4",
       "status": 1,
+      "name": "foo_sys_name",
+      "description": "my_desc",
+      "sys_object_id": "1.2.3.4",
+      "location": "paris",
+      "profile": "f5-big-ip",
+      "vendor": "f5",
       "serial_number": "a-serial-num"
     }
   ],
