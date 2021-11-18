@@ -202,7 +202,7 @@ func TestReceiverStats(t *testing.T) {
 	testStats := func() *ReceiverStats {
 		return &ReceiverStats{
 			Stats: map[Tags]*TagStats{
-				tags: &TagStats{
+				tags: {
 					Tags: tags,
 					Stats: Stats{
 						TracesReceived:     1,
