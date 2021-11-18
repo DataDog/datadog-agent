@@ -285,7 +285,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
         cmd += f" --match \"{prefix}-*\""
     else:
         if major_version_hint:
-            cmd += r' --match "{}\.*"'.format(major_version_hint)
+            cmd += r' --match "{}\.*"'.format(major_version_hint)  # noqa: FS002
         else:
             cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
@@ -300,7 +300,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
 
     version_re = r"v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
     if prefix and type(prefix) == str:
-        version_re = r"^(?:{}-)?".format(prefix) + version_re
+        version_re = r"^(?:{}-)?".format(prefix) + version_re  # noqa: FS002
     else:
         version_re = r"^" + version_re
     if commit_number == 0:

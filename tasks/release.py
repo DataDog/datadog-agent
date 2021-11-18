@@ -167,7 +167,7 @@ def update_dca_changelog(ctx, new_version, agent_version):
     if sys.platform != 'darwin':
         # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
         ctx.run(
-            "sed -z {0} -e 's/dca-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-dca.rst".format(
+            "sed -z {0} -e 's/dca-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-dca.rst".format(  # noqa: FS002
                 sed_i_arg, new_version, '=' * len(new_version)
             )
         )
@@ -240,7 +240,7 @@ def update_changelog(ctx, new_version):
     if new_version_int[0] == 7:
         v6_tag = _find_v6_tag(ctx, new_version)
         if v6_tag:
-            ctx.run("sed {0} -E 's#^{1}#{1} / {2}#' /tmp/new_changelog.rst".format(sed_i_arg, new_version, v6_tag))
+            ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
     ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG.rst")
 
@@ -301,7 +301,7 @@ def update_installscript_changelog(ctx, new_version):
     if sys.platform != 'darwin':
         # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
         ctx.run(
-            "sed -z {0} -e 's/installscript-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-installscript.rst".format(
+            "sed -z {0} -e 's/installscript-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-installscript.rst".format(  # noqa: FS002
                 sed_i_arg, new_version, '=' * len(new_version)
             )
         )
@@ -432,7 +432,9 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
     the provided minor version.
     """
     return re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-devel)?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), minor_version)
+        r'(v)?({})[.]({})([.](\d+))?(-devel)?(-rc\.(\d+))?'.format(  # noqa: FS002
+            "|".join(allowed_major_versions), minor_version
+        )
     )
 
 
@@ -677,7 +679,7 @@ def _update_release_json_entry(
     import requests
 
     jmxfetch = requests.get(
-        "https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/{0}/jmxfetch-{0}-jar-with-dependencies.jar".format(
+        "https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/{0}/jmxfetch-{0}-jar-with-dependencies.jar".format(  # noqa: FS002
             jmxfetch_version,
         )
     ).content
@@ -862,9 +864,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True
             for tag in module.tag(agent_version):
                 ok = try_git_command(
                     ctx,
-                    "git tag -m {tag} {tag} {commit}{force_option}".format(
-                        tag=tag, commit=commit, force_option=force_option
-                    ),
+                    f"git tag -m {tag} {tag} {commit}{force_option}",
                 )
                 if not ok:
                     message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"

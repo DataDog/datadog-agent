@@ -155,7 +155,9 @@ def generate_doc(ctx):
         raise Exit(code=result.exited)
 
     # doxygen puts both errors and warnings in stderr
-    result = ctx.run("doxygen '{0}/doxygen/Doxyfile' 2>'{0}/doxygen/errors.log'".format(rtloader_path), warn=True)
+    result = ctx.run(
+        "doxygen '{0}/doxygen/Doxyfile' 2>'{0}/doxygen/errors.log'".format(rtloader_path), warn=True  # noqa: FS002
+    )
 
     if result.exited != 0:
         print("Fatal error encountered while trying to generate documentation.")
@@ -182,8 +184,8 @@ def generate_doc(ctx):
 
         flushentry(currententry)  # Flush last entry
 
-        print("\033[93m{}\033[0m".format("\n".join(warnings)))
-        print("\033[91m{}\033[0m".format("\n".join(errors)))
+        print("\033[93m{}\033[0m".format("\n".join(warnings)))  # noqa: FS002
+        print("\033[91m{}\033[0m".format("\n".join(errors)))  # noqa: FS002
         print(f"Found {len(errors)} error(s) and {len(warnings)} warning(s) while generating documentation.")
         print(f"The full list is available in {rtloader_path}/doxygen/errors.log.")
 

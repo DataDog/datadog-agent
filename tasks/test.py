@@ -563,9 +563,7 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
         platform = "linux"
 
     ctx.run(
-        "wget -qO- \"https://github.com/koalaman/shellcheck/releases/download/v{sc_version}/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp".format(
-            sc_version=version, platform=platform
-        )
+        f"wget -qO- \"https://github.com/koalaman/shellcheck/releases/download/v{version}/shellcheck-v{version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp"
     )
     ctx.run(f"cp \"/tmp/shellcheck-v{version}/shellcheck\" {destination}")
     ctx.run(f"rm -rf \"/tmp/shellcheck-v{version}\"")

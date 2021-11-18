@@ -50,8 +50,8 @@ def trigger_macos_workflow(
         inputs["python_runtimes"] = python_runtimes
 
     print(
-        "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(
-            github_action_ref, "\n".join(["  - {}: {}".format(k, inputs[k]) for k in inputs])
+        "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(  # noqa: FS002
+            github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
         )
     )
 

@@ -108,8 +108,8 @@ def trigger_agent_pipeline(
         args["BUCKET_BRANCH"] = branch
 
     print(
-        "Creating pipeline for datadog-agent on branch/tag {} with args:\n{}".format(
-            ref, "\n".join(["  - {}: {}".format(k, args[k]) for k in args])
+        "Creating pipeline for datadog-agent on branch/tag {} with args:\n{}".format(  # noqa: FS002
+            ref, "\n".join(f"  - {k}: {args[k]}" for k in args)
         )
     )
     result = gitlab.create_pipeline(ref, args)

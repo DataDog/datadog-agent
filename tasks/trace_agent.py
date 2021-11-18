@@ -56,22 +56,15 @@ def build(
 
     build_tags = get_build_tags(build_include, build_exclude)
 
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
+    race_opt = "-race" if race else ""
+    build_type = "-a" if rebuild else ""
+    go_build_tags = " ".join(build_tags)
+    agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent", android=False))
+    cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    cmd += f"-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
 
-    args = {
-        "go_mod": go_mod,
-        "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
-        "go_build_tags": " ".join(build_tags),
-        "agent_bin": os.path.join(BIN_PATH, bin_name("trace-agent", android=False)),
-        "gcflags": gcflags,
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-    }
-
-    ctx.run("go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info".format(**args), env=env)
-    ctx.run(cmd.format(**args), env=env)
+    ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
+    ctx.run(cmd, env=env)
 
 
 @task
@@ -82,21 +75,18 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if install_deps:
         deps(ctx)
 
-    test_args = {
-        "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test")),
-        "race_opt": "-race" if race else "",
-        "exec_opts": "",
-    }
+    go_build_tags = " ".join(get_default_build_tags(build="test"))
+    race_opt = "-race" if race else ""
+    exec_opts = ""
 
     # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
     # to the call, we don't want them because while calling invoke below, invoke
     # thinks that the parameters are for it to interpret.
     # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
-        test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
+        exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = 'INTEGRATION=yes go test -mod={go_mod} {race_opt} -v'.format(**test_args)
+    go_cmd = f'INTEGRATION=yes go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
         "./pkg/trace/test/testsuite/...",

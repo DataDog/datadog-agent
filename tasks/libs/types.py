@@ -18,7 +18,7 @@ class Test:
         # Find the *_test.go file in the package folder that has the test
         try:
             output = subprocess.run(
-                ['grep -Rl --include="*_test.go" \'{}\' \'{}\''.format(self.name, self.package)],
+                [f"grep -Rl --include=\"*_test.go\" '{self.name}' '{self.package}'"],
                 shell=True,
                 stdout=subprocess.PIPE,
             )

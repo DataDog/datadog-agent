@@ -51,11 +51,7 @@ def build(
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
 
-        ctx.run(
-            "windmc --target {target_arch} -r {resdir} {resdir}/process-agent-msg.mc".format(
-                resdir=resdir, target_arch=windres_target
-            )
-        )
+        ctx.run(f"windmc --target {windres_target} -r {resdir} {resdir}/process-agent-msg.mc")
 
         ctx.run(
             f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target {windres_target} -O coff -o cmd/process-agent/rsrc.syso"

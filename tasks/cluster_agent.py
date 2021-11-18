@@ -93,21 +93,18 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     # We need docker for the kubeapiserver integration tests
     tags = get_default_build_tags(build="cluster-agent") + ["docker"]
 
-    test_args = {
-        "go_mod": go_mod,
-        "go_build_tags": " ".join(get_build_tags(tags, [])),
-        "race_opt": "-race" if race else "",
-        "exec_opts": "",
-    }
+    go_build_tags = " ".join(get_build_tags(tags, []))
+    race_opt = "-race" if race else ""
+    exec_opts = ""
 
     # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
     # to the call, we don't want them because while calling invoke below, invoke
     # thinks that the parameters are for it to interpret.
     # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
-        test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
+        exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+    go_cmd = f'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
         "./test/integration/util/kube_apiserver",
