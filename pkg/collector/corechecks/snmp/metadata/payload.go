@@ -39,6 +39,11 @@ type DeviceMetadata struct {
 	Subnet       string       `json:"subnet,omitempty"`
 	SerialNumber string       `json:"serial_number,omitempty"`
 	Version      string       `json:"version,omitempty"`
+	ProductName  string       `json:"product_name,omitempty"`
+	Model        string       `json:"model,omitempty"`
+	OsName       string       `json:"os_name,omitempty"`
+	OsVersion    string       `json:"os_version,omitempty"`
+	OsHostname   string       `json:"os_hostname,omitempty"`
 }
 
 // InterfaceMetadata contains interface metadata

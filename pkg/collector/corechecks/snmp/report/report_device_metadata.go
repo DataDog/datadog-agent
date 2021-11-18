@@ -87,7 +87,7 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 }
 
 func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
-	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version string
+	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version, productName, model, osName, osVersion, osHostname string
 	if store != nil {
 		sysName = store.GetScalarAsString("device.name")
 		sysDescr = store.GetScalarAsString("device.description")
@@ -96,6 +96,11 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		location = store.GetScalarAsString("device.location")
 		serialNumber = store.GetScalarAsString("device.serial_number")
 		version = store.GetScalarAsString("device.version")
+		productName = store.GetScalarAsString("device.product_name")
+		model = store.GetScalarAsString("device.model")
+		osName = store.GetScalarAsString("device.os_name")
+		osVersion = store.GetScalarAsString("device.os_version")
+		osHostname = store.GetScalarAsString("device.os_hostname")
 	}
 
 	// fallback to Device.Vendor for backward compatibility
@@ -118,6 +123,11 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		Status:       deviceStatus,
 		SerialNumber: serialNumber,
 		Version:      version,
+		ProductName:  productName,
+		Model:        model,
+		OsName:       osName,
+		OsVersion:    osVersion,
+		OsHostname:   osHostname,
 	}
 }
 

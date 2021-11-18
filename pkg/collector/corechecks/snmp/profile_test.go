@@ -92,9 +92,34 @@ profiles:
 				Value: []byte("a-serial-num"),
 			},
 			{
+				Name:  "1.3.6.1.4.1.3375.2.1.4.1.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("BIG-IP"),
+			},
+			{
 				Name:  "1.3.6.1.4.1.3375.2.1.4.2.0",
 				Type:  gosnmp.OctetString,
 				Value: []byte("15.0.1"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.4.4.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("Final"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.6.1.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("Linux"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.6.2.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("my-linux-f5-server"),
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.6.4.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("3.0.0"),
 			},
 		},
 	}
@@ -237,7 +262,12 @@ profiles:
 		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.6.0",
 		"1.3.6.1.4.1.3375.2.1.3.3.3.0",
+		"1.3.6.1.4.1.3375.2.1.4.1.0",
 		"1.3.6.1.4.1.3375.2.1.4.2.0",
+		"1.3.6.1.4.1.3375.2.1.4.4.0",
+		"1.3.6.1.4.1.3375.2.1.6.1.0",
+		"1.3.6.1.4.1.3375.2.1.6.2.0",
+		"1.3.6.1.4.1.3375.2.1.6.4.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
 		"1.3.6.1.2.1.2.2.1.13",
@@ -281,7 +311,12 @@ profiles:
       "profile": "f5-big-ip",
       "vendor": "f5",
       "serial_number": "a-serial-num",
-      "version":"15.0.1"
+      "version":"15.0.1",
+      "product_name":"BIG-IP",
+      "model":"Final",
+      "os_name":"Linux",
+      "os_version":"3.0.0",
+      "os_hostname":"my-linux-f5-server"
     }
   ],
   "interfaces": [
