@@ -7,104 +7,100 @@ from invoke import task
 
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
-ALL_TAGS = set(
-    [
-        "android",
-        "apm",
-        "clusterchecks",
-        "consul",
-        "containerd",
-        "cri",
-        "docker",
-        "ec2",
-        "etcd",
-        "fargateprocess",
-        "gce",
-        "jmx",
-        "jetson",
-        "kubeapiserver",
-        "kubelet",
-        "linux_bpf",
-        "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
-        "npm",
-        "orchestrator",
-        "process",
-        "python",
-        "secrets",
-        "systemd",
-        "zk",
-        "zlib",
-    ]
-)
+ALL_TAGS = {
+    "android",
+    "apm",
+    "clusterchecks",
+    "consul",
+    "containerd",
+    "cri",
+    "docker",
+    "ec2",
+    "etcd",
+    "fargateprocess",
+    "gce",
+    "jmx",
+    "jetson",
+    "kubeapiserver",
+    "kubelet",
+    "linux_bpf",
+    "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
+    "npm",
+    "orchestrator",
+    "process",
+    "python",
+    "secrets",
+    "systemd",
+    "zk",
+    "zlib",
+}
 
 ### Tag inclusion lists
 
 # AGENT_TAGS lists the tags needed when building the agent.
-AGENT_TAGS = set(
-    [
-        "apm",
-        "consul",
-        "containerd",
-        "cri",
-        "docker",
-        "ec2",
-        "etcd",
-        "gce",
-        "jetson",
-        "jmx",
-        "kubeapiserver",
-        "kubelet",
-        "netcgo",
-        "orchestrator",
-        "process",
-        "python",
-        "secrets",
-        "systemd",
-        "zk",
-        "zlib",
-    ]
-)
+AGENT_TAGS = {
+    "apm",
+    "consul",
+    "containerd",
+    "cri",
+    "docker",
+    "ec2",
+    "etcd",
+    "gce",
+    "jetson",
+    "jmx",
+    "kubeapiserver",
+    "kubelet",
+    "netcgo",
+    "orchestrator",
+    "process",
+    "python",
+    "secrets",
+    "systemd",
+    "zk",
+    "zlib",
+}
 
 # ANDROID_TAGS lists the tags needed when building the android agent
-ANDROID_TAGS = set(["android", "zlib"])
+ANDROID_TAGS = {"android", "zlib"}
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = set(["clusterchecks", "kubeapiserver", "orchestrator", "secrets", "zlib", "ec2", "gce"])
+CLUSTER_AGENT_TAGS = {"clusterchecks", "kubeapiserver", "orchestrator", "secrets", "zlib", "ec2", "gce"}
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "secrets"])
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "secrets"}
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = set(["docker", "kubelet", "secrets", "zlib"])
+DOGSTATSD_TAGS = {"docker", "kubelet", "secrets", "zlib"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib"])
+IOT_AGENT_TAGS = {"jetson", "systemd", "zlib"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union(set(["clusterchecks", "fargateprocess", "orchestrator"]))
+PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orchestrator"})
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = set(["netcgo", "secrets", "docker", "kubeapiserver", "kubelet"])
+SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "kubeapiserver", "kubelet"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union(set(["clusterchecks", "linux_bpf", "npm"]))
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = set(["docker", "kubeapiserver", "kubelet", "netcgo", "secrets"])
+TRACE_AGENT_TAGS = {"docker", "kubeapiserver", "kubelet", "netcgo", "secrets"}
 
 # TEST_TAGS lists the tags that have to be added to run tests
-TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))
+TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["cri", "netcgo", "systemd", "jetson", "linux_bpf"])
+LINUX_ONLY_TAGS = {"cri", "netcgo", "systemd", "jetson", "linux_bpf"}
 
 # List of tags to always remove when building on Windows
-WINDOWS_EXCLUDE_TAGS = set(["linux_bpf"])
+WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}
 
 # List of tags to always remove when building on Windows 32-bits
-WINDOWS_32BIT_EXCLUDE_TAGS = set(["docker", "kubeapiserver", "kubelet", "orchestrator"])
+WINDOWS_32BIT_EXCLUDE_TAGS = {"docker", "kubeapiserver", "kubelet", "orchestrator"}
 
 # Build type: build tags map
 build_tags = {
