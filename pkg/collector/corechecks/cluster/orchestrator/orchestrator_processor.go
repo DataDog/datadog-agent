@@ -129,7 +129,7 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 			continue
 		}
 		redact.RemoveLastAppliedConfigurationAnnotation(cronJob.Annotations)
-
+		log.Warnf("CronJob API version: %s", cronJob.APIVersion)
 		// extract cronJob info
 		cronJobModel := extractCronJob(cronJob)
 		// scrub & generate YAML
@@ -258,6 +258,7 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 		if orchestrator.SkipKubernetesResource(job.UID, job.ResourceVersion, orchestrator.K8sJob) {
 			continue
 		}
+		log.Warnf("Job API version: %s", job.APIVersion)
 		redact.RemoveLastAppliedConfigurationAnnotation(job.Annotations)
 
 		// extract job info
@@ -763,7 +764,7 @@ func processRoleList(roleList []*rbacv1.Role, groupID int32, cfg *config.Orchest
 		if orchestrator.SkipKubernetesResource(role.UID, role.ResourceVersion, orchestrator.K8sRole) {
 			continue
 		}
-
+		log.Warnf("Role API version: %s", role.APIVersion)
 		roleModel := extractRole(role)
 
 		// k8s objects only have json "omitempty" annotations
@@ -819,7 +820,7 @@ func processRoleBindingList(roleBindingList []*rbacv1.RoleBinding, groupID int32
 		if orchestrator.SkipKubernetesResource(roleBinding.UID, roleBinding.ResourceVersion, orchestrator.K8sRoleBinding) {
 			continue
 		}
-
+		log.Warnf("RoleBindings API version: %s", roleBinding.APIVersion)
 		roleBindingModel := extractRoleBinding(roleBinding)
 
 		// k8s objects only have json "omitempty" annotations
