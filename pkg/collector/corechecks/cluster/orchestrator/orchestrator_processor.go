@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
 package orchestrator
@@ -189,6 +190,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
+		log.Warnf("Deployment API version: %s", depl.APIVersion)
 		if orchestrator.SkipKubernetesResource(depl.UID, depl.ResourceVersion, orchestrator.K8sDeployment) {
 			continue
 		}
