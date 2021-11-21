@@ -17,7 +17,7 @@ bool generatePassword(wchar_t *passbuf, int passbuflen);
 int doCreateUser(const std::wstring &name, const std::wstring &comment, const wchar_t *passbuf);
 int doSetUserPassword(const std::wstring &name, const wchar_t *passbuf);
 DWORD changeRegistryAcls(PSID sid, const wchar_t *name);
-DWORD addDdUserPermsToFile(PSID sid, std::wstring &filename);
+DWORD addDdUserPermsToFile(PSID sid, const std::wstring &filename);
 
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove);
 

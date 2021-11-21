@@ -112,7 +112,7 @@ DWORD changeRegistryAcls(PSID sid, const wchar_t *name)
     return ret;
 }
 
-DWORD addDdUserPermsToFile(PSID sid, std::wstring &filename)
+DWORD addDdUserPermsToFile(PSID sid, const std::wstring &filename)
 {
 
     if (!PathFileExistsW((LPCWSTR)filename.c_str()))
