@@ -190,11 +190,14 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
-		log.Warnf("Deployment API version: %s", depl.APIVersion)
+
 		if orchestrator.SkipKubernetesResource(depl.UID, depl.ResourceVersion, orchestrator.K8sDeployment) {
 			continue
 		}
 		redact.RemoveLastAppliedConfigurationAnnotation(depl.Annotations)
+		if len(depl.APIVersion) != 0 {
+			log.Warnf("Deployment API version is: %s", depl.APIVersion)
+		}
 
 		// extract deployment info
 		deployModel := extractDeployment(depl)
@@ -258,7 +261,10 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 		if orchestrator.SkipKubernetesResource(job.UID, job.ResourceVersion, orchestrator.K8sJob) {
 			continue
 		}
-		log.Warnf("Job API version: %s", job.APIVersion)
+		if len(job.APIVersion) != 0 {
+			log.Warnf("Job API version: %s", job.APIVersion)
+		}
+
 		redact.RemoveLastAppliedConfigurationAnnotation(job.Annotations)
 
 		// extract job info
