@@ -43,7 +43,7 @@ int decompress_archive(std::filesystem::path const &archivePath, std::filesystem
 
     la_ssize_t r;
     // Note, the construct ".string().c_str()" is ok since the temporary string
-    // will be copied internall by archive_read_open_filename.
+    // will be copied internally by archive_read_open_filename.
     if ((r = archive_read_open_filename(a, archivePath.string().c_str(), 10240)))
     {
         return 1;
@@ -67,7 +67,7 @@ int decompress_archive(std::filesystem::path const &archivePath, std::filesystem
         }
         std::filesystem::path destFilepath(destinationFolder / archive_entry_pathname(entry));
         // Note, the construct ".string().c_str()" is ok since the temporary string
-        // will be copied internall by archive_entry_set_pathname.
+        // will be copied internally by archive_entry_set_pathname.
         archive_entry_set_pathname(entry, destFilepath.string().c_str());
 
         r = archive_write_header(ext, entry);
