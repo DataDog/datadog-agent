@@ -112,7 +112,7 @@ DWORD changeRegistryAcls(PSID sid, const wchar_t *name)
     return ret;
 }
 
-DWORD addDdUserPermsToFile(PSID sid, std::wstring filename)
+DWORD addDdUserPermsToFile(PSID sid, std::wstring &filename)
 {
 
     if (!PathFileExistsW((LPCWSTR)filename.c_str()))
@@ -166,7 +166,7 @@ DWORD addDdUserPermsToFile(PSID sid, std::wstring filename)
     return dwRes;
 }
 
-void removeUserPermsFromFile(std::wstring filename, PSID sidremove)
+void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
 {
     if (!PathFileExistsW((LPCWSTR)filename.c_str()))
     {
