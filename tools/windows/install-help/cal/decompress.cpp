@@ -1,5 +1,5 @@
-#include "decompress.h"
 #include "stdafx.h"
+#include "decompress.h"
 #include <archive.h>
 #include <archive_entry.h>
 #include <fstream>
