@@ -366,7 +366,7 @@ UINT doFinalizeInstall(CustomActionData &data)
                     // Drop the .7z to get the extracted folder path
                     destinationFolder.replace_extension();
 
-                    er = addDdUserPermsToFile(data.Sid(), destinationFolder.string().c_str());
+                    er = addDdUserPermsToFile(data.Sid(), destinationFolder.wstring());
                     WcaLog(LOGMSG_STANDARD, "Setting permissions on %s (%d)", destinationFolder.string().c_str(), er);
 
                     // Delete the archive
