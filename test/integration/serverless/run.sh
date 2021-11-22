@@ -42,20 +42,25 @@ fi
 cd "./test/integration/serverless"
 
 # build and zip recorder extension
+echo
+echo "Building recorder extension"
 cd recorder-extension
 GOOS=linux GOARCH=amd64 go build -o extensions/recorder-extension main.go
 zip -rq ext.zip extensions/* -x ".*" -x "__MACOSX" -x "extensions/.*"
 cd ..
 
-go_test_dirs=("with-ddlambda" "without-ddlambda" "log-with-ddlambda" "log-without-ddlambda" "timeout" "trace")
-
 # build Go Lambda functions
+echo
+echo "Building Go Lambda functions"
+go_test_dirs=("with-ddlambda" "without-ddlambda" "log-with-ddlambda" "log-without-ddlambda" "timeout" "trace")
 cd src
 for go_dir in "${go_test_dirs[@]}"; do
     env GOOS=linux go build -ldflags="-s -w" -o bin/"$go_dir" go-tests/"$go_dir"/main.go
 done
 
 #build .NET functions
+echo
+echo "Building .NET Lambda functions"
 cd csharp-tests
 dotnet restore
 set +e #set this so we don't exit if the tools are already installed
@@ -64,6 +69,7 @@ dotnet lambda package --configuration Release --framework netcoreapp3.1 --output
 set -e
 cd ../../
 
+echo
 if [ -z "$NODE_LAYER_VERSION" ]; then
     echo "NODE_LAYER_VERSION not found, using the default"
     export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION
@@ -100,10 +106,14 @@ log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" 
 trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go")
 
 all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
+
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
     serverless invoke --stage ${stage} -f ${function_name}
-    sleep 30
+done
+#wait 30 seconds to make sure metrics aren't merged into a single metric
+sleep 30
+for function_name in "${all_functions[@]}"; do
     # two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
     return_value=$(serverless invoke --stage ${stage} -f ${function_name})
     # Compare new return value to snapshot
@@ -155,10 +165,11 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(k\":\[)[0-9\.e\-]{1,30}/\1XXX/g" |
                 perl -p -e "s/(datadog-nodev)[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
                 perl -p -e "s/(datadog_lambda:v)[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/dd_lambda_layer:datadog-go[0-9]{1,}\.[0-9]{1,}\.[0-9]{1,}/dd_lambda_layer:datadog-gox.x.x/g" |
+                perl -p -e "s/dd_lambda_layer:datadog-go[0-9.]{1,}/dd_lambda_layer:datadog-gox.x.x/g" |
                 perl -p -e "s/(dd_lambda_layer:datadog-python)[0-9_]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
                 perl -p -e "s/(serverless.lambda-extension.integration-test.count)[0-9\.]+/\1/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
+                perl -p -e "s/[ ]$//g" |
                 sort
         )
     elif [[ " ${log_function_names[*]} " =~ " ${function_name} " ]]; then
@@ -172,6 +183,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
+                perl -p -e "s/[ ]$//g" |
                 grep XXX
         )
     else
@@ -187,6 +199,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
+                perl -p -e "s/[ ]$//g" |
                 sort
         )
     fi

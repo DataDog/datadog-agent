@@ -1,4 +1,5 @@
 .serverless
-recorder-extension
-csharp-tests/bin
-csharp-tests/obj
+recorder-extension/extensions
+recorder-extension/ext.zip
+src/csharp-tests/bin
+src/csharp-tests/obj
