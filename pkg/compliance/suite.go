@@ -45,7 +45,7 @@ type yamlSuite struct {
 	Rules []map[string]interface{} `yaml:"rules,omitempty"`
 }
 
-func (ys *yamlSuite) toSuite() (*Suite, error) {
+func (ys *yamlSuite) toSuite(isRegoEvaluatorEnabled bool) (*Suite, error) {
 	s := &Suite{}
 	s.Meta = ys.Meta
 
@@ -55,7 +55,7 @@ func (ys *yamlSuite) toSuite() (*Suite, error) {
 			return nil, err
 		}
 
-		if _, ok := rule["input"]; ok {
+		if _, ok := rule["input"]; ok && isRegoEvaluatorEnabled {
 			var regoRule RegoRule
 			if err := yaml.Unmarshal(buffer, &regoRule); err != nil {
 				return nil, err
@@ -74,7 +74,7 @@ func (ys *yamlSuite) toSuite() (*Suite, error) {
 }
 
 // ParseSuite loads a single compliance suite
-func ParseSuite(config string) (*Suite, error) {
+func ParseSuite(config string, isRegoEvaluatorEnabled bool) (*Suite, error) {
 	c, err := semver.NewConstraint(versionConstraint)
 	if err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func ParseSuite(config string) (*Suite, error) {
 		return nil, err
 	}
 
-	s, err := ys.toSuite()
+	s, err := ys.toSuite(isRegoEvaluatorEnabled)
 	if err != nil {
 		return nil, err
 	}

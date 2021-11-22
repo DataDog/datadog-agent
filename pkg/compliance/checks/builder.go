@@ -47,7 +47,7 @@ const (
 
 // Builder defines an interface to build checks from rules
 type Builder interface {
-	ChecksFromFile(file string, onCheck compliance.CheckVisitor) error
+	ChecksFromFile(file string, isRegoEvaluatorEnabled bool, onCheck compliance.CheckVisitor) error
 	GetCheckStatus() compliance.CheckStatusList
 	Close() error
 }
@@ -354,8 +354,8 @@ func (b *builder) addCheckAndRun(suite *compliance.Suite, r *compliance.RuleComm
 	return nil
 }
 
-func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) error {
-	suite, err := compliance.ParseSuite(file)
+func (b *builder) ChecksFromFile(file string, isRegoEvaluatorEnabled bool, onCheck compliance.CheckVisitor) error {
+	suite, err := compliance.ParseSuite(file, isRegoEvaluatorEnabled)
 	if err != nil {
 		return err
 	}

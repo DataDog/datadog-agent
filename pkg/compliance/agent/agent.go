@@ -32,15 +32,16 @@ type Scheduler interface {
 
 // Agent defines Compliance Agent
 type Agent struct {
-	builder   checks.Builder
-	scheduler Scheduler
-	telemetry *telemetry
-	configDir string
-	cancel    context.CancelFunc
+	builder                checks.Builder
+	scheduler              Scheduler
+	telemetry              *telemetry
+	configDir              string
+	isRegoEvaluatorEnabled bool
+	cancel                 context.CancelFunc
 }
 
 // New creates a new instance of Agent
-func New(reporter event.Reporter, scheduler Scheduler, configDir string, options ...checks.BuilderOption) (*Agent, error) {
+func New(reporter event.Reporter, scheduler Scheduler, configDir string, isRegoEvaluatorEnabled bool, options ...checks.BuilderOption) (*Agent, error) {
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
@@ -55,10 +56,11 @@ func New(reporter event.Reporter, scheduler Scheduler, configDir string, options
 	}
 
 	return &Agent{
-		builder:   builder,
-		scheduler: scheduler,
-		configDir: configDir,
-		telemetry: telemetry,
+		builder:                builder,
+		scheduler:              scheduler,
+		configDir:              configDir,
+		isRegoEvaluatorEnabled: isRegoEvaluatorEnabled,
+		telemetry:              telemetry,
 	}, nil
 }
 
@@ -156,7 +158,7 @@ func (a *Agent) RunChecks() error {
 // RunChecksFromFile runs checks from the specified file with no scheduling
 func (a *Agent) RunChecksFromFile(file string) error {
 	log.Infof("Loading compliance rules from %s", file)
-	return a.builder.ChecksFromFile(file, runCheck)
+	return a.builder.ChecksFromFile(file, a.isRegoEvaluatorEnabled, runCheck)
 }
 
 // Stop stops the Compliance Agent
@@ -182,7 +184,7 @@ func (a *Agent) buildChecks(onCheck compliance.CheckVisitor) error {
 	}
 
 	for _, file := range files {
-		err := a.builder.ChecksFromFile(file, onCheck)
+		err := a.builder.ChecksFromFile(file, a.isRegoEvaluatorEnabled, onCheck)
 		if err != nil {
 			log.Errorf("Failed to load rules from %s: %v", file, err)
 			continue

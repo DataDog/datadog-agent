@@ -60,7 +60,7 @@ func TestParseSuite(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual, err := ParseSuite(test.file)
+			actual, err := ParseSuite(test.file, true)
 			assert.Equal(t, test.expectError, err)
 			assert.Equal(t, test.expectSuite, actual)
 		})

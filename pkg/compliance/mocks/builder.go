@@ -12,13 +12,13 @@ type Builder struct {
 	mock.Mock
 }
 
-// ChecksFromFile provides a mock function with given fields: file, onCheck
-func (_m *Builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) error {
-	ret := _m.Called(file, onCheck)
+// ChecksFromFile provides a mock function with given fields: file, isRegoEvaluatorEnabled, onCheck
+func (_m *Builder) ChecksFromFile(file string, isRegoEvaluatorEnabled bool, onCheck compliance.CheckVisitor) error {
+	ret := _m.Called(file, isRegoEvaluatorEnabled, onCheck)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, compliance.CheckVisitor) error); ok {
-		r0 = rf(file, onCheck)
+	if rf, ok := ret.Get(0).(func(string, bool, compliance.CheckVisitor) error); ok {
+		r0 = rf(file, isRegoEvaluatorEnabled, onCheck)
 	} else {
 		r0 = ret.Error(0)
 	}

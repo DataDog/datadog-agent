@@ -126,6 +126,7 @@ func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddg
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
+	isRegoEvaluatorEnabled := coreconfig.Datadog.GetBool("compliance_config.rego_evaluator_enabled")
 
 	options := []checks.BuilderOption{
 		checks.WithInterval(checkInterval),
@@ -149,6 +150,7 @@ func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddg
 		reporter,
 		scheduler,
 		configDir,
+		isRegoEvaluatorEnabled,
 		options...,
 	)
 	if err != nil {

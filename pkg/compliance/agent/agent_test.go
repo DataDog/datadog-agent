@@ -160,6 +160,7 @@ func TestRun(t *testing.T) {
 		reporter,
 		scheduler,
 		e.dir,
+		true,
 		checks.WithHostname("the-host"),
 		checks.WithHostRootMount(e.dir),
 		checks.WithDockerClient(dockerClient),
