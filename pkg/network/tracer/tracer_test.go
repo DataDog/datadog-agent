@@ -50,12 +50,14 @@ type connTag = uint64
 const (
 	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
 	tagOpenSSL connTag = 2 // netebpf.OpenSSL
+	tagTLS     connTag = 4 // netebpf.TLS
 )
 
 var (
 	staticTags = map[connTag]string{
 		tagGnuTLS:  "tls.library:gnutls",
 		tagOpenSSL: "tls.library:openssl",
+		tagTLS:     "protocol:tls",
 	}
 )
 
@@ -164,6 +166,7 @@ func TestGetStats(t *testing.T) {
 		"stats_resets": 0,
 		"time_sync_collisions": 0
       },
+		"classifier": {},
       "tracer": {
         "closed_conns": 1,
         "conn_stats_map_size": 5,
@@ -1723,16 +1726,17 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 			if !stats.HasStats(200) {
 				continue
 			}
-
 			statsTags := stats.Stats(200).Tags
+			foundTLSTag := (statsTags & tagTLS) > 0
+
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
 			foundPathAndHTTPTag := false
-			if key.Path.Content == "/200/foobar" && (statsTags == tagGnuTLS || statsTags == tagOpenSSL) {
+			if key.Path.Content == "/200/foobar" && ((statsTags&tagGnuTLS) > 0 || (statsTags == tagOpenSSL) > 0) {
 				foundPathAndHTTPTag = true
 				t.Logf("found tag 0x%x %s", statsTags, staticTags[statsTags])
 			}
-			if foundPathAndHTTPTag {
+			if foundPathAndHTTPTag && foundTLSTag {
 				return true
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)

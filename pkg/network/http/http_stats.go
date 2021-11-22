@@ -88,6 +88,16 @@ type Key struct {
 	Method Method
 }
 
+// L3L4Equal compare only IPs and ports from the Key
+func (k Key) L3L4Equal(k2 Key) bool {
+	return k.SrcIPHigh == k2.SrcIPHigh &&
+		k.SrcIPLow == k2.SrcIPLow &&
+		k.SrcPort == k2.SrcPort &&
+		k.DstIPHigh == k2.DstIPHigh &&
+		k.DstIPLow == k2.DstIPLow &&
+		k.DstPort == k2.DstPort
+}
+
 // NewKey generates a new Key
 func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method Method) Key {
 	return Key{

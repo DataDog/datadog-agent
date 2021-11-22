@@ -210,6 +210,10 @@ func (t *kprobeTracer) Stop() {
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	switch name {
+	case string(probes.ConnMap):
+		fallthrough
+	case string(probes.TelemetryMap):
+		fallthrough
 	case string(probes.SockByPidFDMap):
 		m, _, _ := t.m.GetMap(name)
 		return m

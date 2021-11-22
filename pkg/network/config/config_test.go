@@ -57,6 +57,31 @@ func TestDisablingDNSInspection(t *testing.T) {
 	})
 }
 
+func TestDisablingPacketsInspection(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisablePktInspection.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.False(t, cfg.PacketsInspection)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_DISABLE_PACKETS_INSPECTION", "true")
+		defer os.Unsetenv("DD_DISABLE_PACKETS_INSPECTION")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.False(t, cfg.PacketsInspection)
+	})
+}
+
 func TestEnableHTTPMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig()

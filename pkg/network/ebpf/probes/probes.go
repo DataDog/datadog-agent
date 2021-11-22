@@ -122,29 +122,35 @@ const (
 
 	// DoSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
 	DoSendfileRet ProbeName = "kretprobe/do_sendfile"
+
+	// SocketClassifierFilter is the socket probe for dns
+	SocketClassifierFilter ProbeName = "socket/classifier_filter"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
 type BPFMapName string
 
+var TracerPinPath string
+
 const (
-	ConnMap               BPFMapName = "conn_stats"
-	TcpStatsMap           BPFMapName = "tcp_stats"
-	ConnCloseEventMap     BPFMapName = "conn_close_event"
-	TracerStatusMap       BPFMapName = "tracer_status"
-	PortBindingsMap       BPFMapName = "port_bindings"
-	UdpPortBindingsMap    BPFMapName = "udp_port_bindings"
-	TelemetryMap          BPFMapName = "telemetry"
-	ConnCloseBatchMap     BPFMapName = "conn_close_batch"
-	ConntrackMap          BPFMapName = "conntrack"
-	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
-	SockFDLookupArgsMap   BPFMapName = "sockfd_lookup_args"
-	DoSendfileArgsMap     BPFMapName = "do_sendfile_args"
-	SockByPidFDMap        BPFMapName = "sock_by_pid_fd"
-	PidFDBySockMap        BPFMapName = "pid_fd_by_sock"
-	TagsMap               BPFMapName = "conn_tags"
-	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
-	IpMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
+	ConnMap                BPFMapName = "conn_stats"
+	TcpStatsMap            BPFMapName = "tcp_stats"
+	ConnCloseEventMap      BPFMapName = "conn_close_event"
+	TracerStatusMap        BPFMapName = "tracer_status"
+	PortBindingsMap        BPFMapName = "port_bindings"
+	UdpPortBindingsMap     BPFMapName = "udp_port_bindings"
+	TelemetryMap           BPFMapName = "telemetry"
+	ClassifierTelemetryMap BPFMapName = "classifier_telemetry"
+	ConnCloseBatchMap      BPFMapName = "conn_close_batch"
+	ConntrackMap           BPFMapName = "conntrack"
+	ConntrackTelemetryMap  BPFMapName = "conntrack_telemetry"
+	SockFDLookupArgsMap    BPFMapName = "sockfd_lookup_args"
+	DoSendfileArgsMap      BPFMapName = "do_sendfile_args"
+	SockByPidFDMap         BPFMapName = "sock_by_pid_fd"
+	PidFDBySockMap         BPFMapName = "pid_fd_by_sock"
+	TagsMap                BPFMapName = "conn_tags"
+	TcpSendMsgArgsMap      BPFMapName = "tcp_sendmsg_args"
+	IpMakeSkbArgsMap       BPFMapName = "ip_make_skb_args"
 )
 
 // SectionName returns the SectionName for the given BPF map

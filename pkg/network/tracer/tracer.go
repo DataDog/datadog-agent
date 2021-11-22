@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/classifier"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -45,12 +47,13 @@ import (
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
 
 type Tracer struct {
-	config      *config.Config
-	state       network.State
-	conntracker netlink.Conntracker
-	reverseDNS  dns.ReverseDNS
-	httpMonitor *http.Monitor
-	ebpfTracer  connection.Tracer
+	config            *config.Config
+	state             network.State
+	conntracker       netlink.Conntracker
+	reverseDNS        dns.ReverseDNS
+	httpMonitor       *http.Monitor
+	ebpfTracer        connection.Tracer
+	packetsClassifier classifier.Classifier
 
 	// Telemetry
 	skippedConns *atomic.Int64 `stats:""`
@@ -160,6 +163,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		state:                      state,
 		reverseDNS:                 newReverseDNS(config),
 		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, ebpfTracer, constantEditors),
+		packetsClassifier:          newPacketsClassifier(!pre410Kernel, config, ebpfTracer),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -223,6 +227,25 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		return nil, fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 	}
 	return c, nil
+}
+
+func newPacketsClassifier(c *config.Config, ebpfTracer connection.Tracer) classifier.Classifier {
+	if !c.PacketsInspection {
+		return classifier.NewNullClassifier()
+	}
+	//	if !supported {
+	//	log.Warnf("Packets inspection not supported by kernel versions < 4.1.0. Please see https://docs.datadoghq.com/network_performance_monitoring/installation for more details.")
+	//	return classifier.NewNullClassifier()
+	//}
+	connMap := ebpfTracer.GetMap(string(probes.ConnMap))
+	telemetryMap := ebpfTracer.GetMap(string(probes.TelemetryMap))
+	packetsClassifier, err := classifier.NewClassifier(c, connMap, telemetryMap)
+	if err != nil {
+		log.Errorf("could not instantiate packets inspection: %s", err)
+		return classifier.NewNullClassifier()
+	}
+	log.Info("packets inspection enabled")
+	return packetsClassifier
 }
 
 func newReverseDNS(c *config.Config) dns.ReverseDNS {
@@ -316,6 +339,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 }
 
 func (t *Tracer) Stop() {
+	t.packetsClassifier.Close()
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
@@ -604,6 +628,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		comps = allStats
 	}
 
+<<<<<<< HEAD
 	ret := map[string]interface{}{}
 	for _, c := range comps {
 		switch c {
@@ -626,6 +651,19 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		}
+=======
+	stateStats := t.state.GetStats()
+	conntrackStats := t.conntracker.GetStats()
+
+	ret := map[string]interface{}{
+		"conntrack":  conntrackStats,
+		"state":      stateStats["telemetry"],
+		"tracer":     tracerStats,
+		"ebpf":       t.ebpfTracer.GetTelemetry(),
+		"kprobes":    ddebpf.GetProbeStats(),
+		"dns":        t.reverseDNS.GetStats(),
+		"classifier": t.packetsClassifier.GetStats(),
+>>>>>>> aa1dbf9168e5 ([network/TLS] add TLS support)
 	}
 
 	return ret, nil
@@ -661,19 +699,28 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 
 // DebugEBPFMaps returns all maps registred in the eBPF manager
 func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
+	var dump strings.Builder
 	tracerMaps, err := t.ebpfTracer.DumpMaps(maps...)
 	if err != nil {
 		return "", err
 	}
-	if t.httpMonitor == nil {
-		return "tracer:\n" + tracerMaps, nil
+	dump.WriteString("tracer:\n" + tracerMaps)
+
+	if t.httpMonitor != nil {
+		httpMaps, err := t.httpMonitor.DumpMaps(maps...)
+		if err != nil {
+			return "", err
+		}
+		dump.WriteString("\nhttp_monitor:\n" + httpMaps)
 	}
 
-	httpMaps, err := t.httpMonitor.DumpMaps(maps...)
+	classifierMaps, err := t.packetsClassifier.DumpMaps(maps...)
 	if err != nil {
 		return "", err
 	}
-	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + httpMaps, nil
+	dump.WriteString("\nclassifier:\n" + classifierMaps)
+
+	return dump.String(), nil
 }
 
 // connectionExpired returns true if the passed in connection has expired

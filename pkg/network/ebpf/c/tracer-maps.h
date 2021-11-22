@@ -2,19 +2,9 @@
 #define __TRACER_MAPS_H
 
 #include "tracer.h"
+#include "tracer-conn-maps.h"
+#include "tracer-telemetry-maps.h"
 #include "bpf_helpers.h"
-
-/* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
- * and the values being conn_stats_ts_t *.
- */
-struct bpf_map_def SEC("maps/conn_stats") conn_stats = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(conn_tuple_t),
-    .value_size = sizeof(conn_stats_ts_t),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
-    .pinning = 0,
-    .namespace = "",
-};
 
 /* This is a key/value store with the keys being a conn_tuple_t (but without the PID being used)
  * and the values being a tcp_stats_t *.
@@ -131,19 +121,6 @@ struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
     .key_size = sizeof(__u64),
     .value_size = sizeof(bind_syscall_args_t),
     .max_entries = 8192,
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* This map is used for telemetry in kernelspace
- * only key 0 is used
- * value is a telemetry object
- */
-struct bpf_map_def SEC("maps/telemetry") telemetry = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(telemetry_t),
-    .max_entries = 1,
     .pinning = 0,
     .namespace = "",
 };
