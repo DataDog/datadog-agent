@@ -361,11 +361,6 @@ UINT doFinalizeInstall(CustomActionData &data)
                 }
                 else
                 {
-                    std::filesystem::path destinationFolder(path);
-                    
-                    // Drop the .7z to get the extracted folder path
-                    destinationFolder.replace_extension();
-
                     // Delete the archive
                     std::filesystem::remove(path);
                 }
