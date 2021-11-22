@@ -125,3 +125,13 @@ func GetHostAliases(ctx context.Context) []string {
 
 	return util.SortUniqInPlace(aliases)
 }
+
+// ResetCaches resets any caches containing cloud-provider-related data.
+func ResetCaches() {
+	ecs.ResetCaches()
+	ec2.ResetCaches()
+	gce.ResetCaches()
+	azure.ResetCaches()
+	alibaba.ResetCaches()
+	tencent.ResetCaches()
+}

@@ -143,3 +143,10 @@ func newBoolEntry(v bool) (bool, time.Duration) {
 	}
 	return v, cache.NoExpiration
 }
+
+// ResetCaches resets any caches containing ECS detection-related data.
+func ResetCaches() {
+	cache.Cache.Delete(isFargateInstanceCacheKey)
+	cache.Cache.Delete(hasFargateResourceTagsCacheKey)
+	cache.Cache.Delete(hasEC2ResourceTagsCacheKey)
+}

@@ -232,3 +232,12 @@ func getResponse(ctx context.Context, url string) (string, error) {
 func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
 	return GetHostname(ctx)
 }
+
+// ResetCaches resets any caches containing EC2-related data
+func ResetCaches() {
+	hostnameFetcher.Reset()
+	nameFetcher.Reset()
+	projectIDFetcher.Reset()
+	clusterNameFetcher.Reset()
+	publicIPv4Fetcher.Reset()
+}

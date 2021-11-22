@@ -72,3 +72,8 @@ func GetNTPHosts(ctx context.Context) []string {
 
 	return nil
 }
+
+// ResetCaches resets any caches containing alibaba-related data
+func ResetCaches() {
+	instanceIDFetcher.Reset()
+}

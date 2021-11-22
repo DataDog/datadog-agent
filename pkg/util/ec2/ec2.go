@@ -348,3 +348,11 @@ func HostnameProvider(ctx context.Context, options map[string]interface{}) (stri
 	log.Debug("GetHostname trying EC2 metadata...")
 	return GetInstanceID(ctx)
 }
+
+// ResetCaches resets any caches containing EC2-related data
+func ResetCaches() {
+	instanceIDFetcher.Reset()
+	localIPv4Fetcher.Reset()
+	hostnameFetcher.Reset()
+	networkIDFetcher.Reset()
+}

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 )
 
 var (
@@ -336,6 +337,11 @@ hosts:
 }
 
 func TestDefaultHostConfig(t *testing.T) {
+	// Reset any cached cloud-provider information.  All clouds default to
+	// disabled, so without any cached data the Configure call below should
+	// fall back to the default configuration.
+	cloudproviders.ResetCaches()
+
 	expectedHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	testedConfig := []byte(``)
 	config.Datadog.Set("cloud_provider_metadata", []string{})

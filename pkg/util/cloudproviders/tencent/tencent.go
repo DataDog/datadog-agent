@@ -92,3 +92,8 @@ func getMetadataItem(ctx context.Context, endpoint string) (string, error) {
 	}
 	return res, nil
 }
+
+// ResetCaches resets any caches containing tencent-related data
+func ResetCaches() {
+	instanceIDFetcher.Reset()
+}

@@ -171,3 +171,10 @@ func getHostnameWithConfig(ctx context.Context, config config.Config) (string, e
 
 	return name, nil
 }
+
+// ResetCaches resets any caches containing Azure-related data
+func ResetCaches() {
+	vmIDFetcher.Reset()
+	resourceGroupNameFetcher.Reset()
+	instanceMetaFetcher.Reset()
+}
