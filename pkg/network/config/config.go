@@ -46,6 +46,9 @@ type Config struct {
 	// CollectLocalDNS specifies whether the tracer should capture traffic for local DNS calls
 	CollectLocalDNS bool
 
+	// PacketsInspection specifies whether the tracer should enhance connection data with tags by inspecting packets traffic
+	PacketsInspection bool
+
 	// DNSInspection specifies whether the tracer should enhance connection data with domain names by inspecting DNS traffic
 	// Notice this does *not* depend on CollectLocalDNS
 	DNSInspection bool
@@ -196,6 +199,7 @@ func New() *Config {
 		MaxConnectionsStateBuffered:  cfg.GetInt(join(spNS, "max_connection_state_buffered")),
 		ClientStateExpiry:            2 * time.Minute,
 
+		PacketsInspection:   !cfg.GetBool(join(spNS, "disable_packets_inspection")),
 		DNSInspection:       !cfg.GetBool(join(spNS, "disable_dns_inspection")),
 		CollectDNSStats:     cfg.GetBool(join(spNS, "collect_dns_stats")),
 		CollectLocalDNS:     cfg.GetBool(join(spNS, "collect_local_dns")),

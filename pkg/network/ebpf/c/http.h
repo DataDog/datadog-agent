@@ -4,6 +4,7 @@
 #include "tracer.h"
 #include "http-types.h"
 #include "http-maps.h"
+#include "tags-types.h"
 
 #include <uapi/linux/ptrace.h>
 

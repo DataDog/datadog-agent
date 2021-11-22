@@ -79,7 +79,7 @@ func (a *RuntimeAsset) Verify(dir string) (io.Reader, string, error) {
 		return nil, "", fmt.Errorf("error hashing file %s: %w", f.Name(), err)
 	}
 	if fmt.Sprintf("%x", h.Sum(nil)) != a.hash {
-		return nil, "", fmt.Errorf("file content hash does not match expected value")
+		return nil, "", fmt.Errorf("file '%s' content hash does not match expected value", p)
 	}
 	return &buf, a.hash, nil
 }

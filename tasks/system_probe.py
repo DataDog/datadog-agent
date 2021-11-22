@@ -620,7 +620,7 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    compiled_programs = ["dns", "offset-guess", "tracer"]
+    compiled_programs = ["classifier", "dns", "offset-guess", "tracer"]
 
     network_flags = get_network_build_flags(network_c_dir)
 

@@ -115,6 +115,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "closed_channel_size"), 500)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
 
+	cfg.BindEnvAndSetDefault(join(spNS, "disable_packets_inspection"), false, "DD_DISABLE_PACKETS_INSPECTION")
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_dns_inspection"), false, "DD_DISABLE_DNS_INSPECTION")
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_stats"), true, "DD_COLLECT_DNS_STATS")
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_local_dns"), false, "DD_COLLECT_LOCAL_DNS")
