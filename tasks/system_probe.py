@@ -866,6 +866,18 @@ def generate_lookup_tables(ctx, windows=is_windows):
         ctx.run(f"go generate {file}")
 
 
+@task
+def generate_lookup_tables(ctx, windows=is_windows):
+    if windows:
+        return
+
+    lookup_table_generate_files = [
+        "./pkg/network/go/goid/main.go",
+    ]
+    for file in lookup_table_generate_files:
+        ctx.run(f"go generate {file}")
+
+
 def is_root():
     return os.getuid() == 0
 
