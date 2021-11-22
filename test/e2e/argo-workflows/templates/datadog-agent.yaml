@@ -10,14 +10,15 @@ spec:
           - name: namespace
           - name: dd-url
           - name: site
-          - name: api-key
-          - name: app-key
           - name: agent-image-repository
           - name: agent-image-tag
           - name: cluster-agent-image-repository
           - name: cluster-agent-image-tag
       script:
         image: alpine/helm
+        envFrom:
+          - secretRef:
+              name: dd-keys
         command: [sh]
         source: |
           set -euo pipefail
@@ -26,8 +27,8 @@ spec:
           datadog:
             dd_url: {{inputs.parameters.dd-url}}
             site: {{inputs.parameters.site}}
-            apiKey: {{inputs.parameters.api-key}}
-            appKey: {{inputs.parameters.app-key}}
+            apiKey: $DD_API_KEY
+            appKey: $DD_APP_KEY
             tags:
               - tag1
               - tag2
@@ -372,11 +373,12 @@ spec:
         parameters:
           - name: namespace
           - name: site
-          - name: api-key
-          - name: app-key
       activeDeadlineSeconds: 500
       script:
         image: python
+        envFrom:
+          - secretRef:
+              name: dd-keys
         command: [bash]
         volumeMounts:
           - name: datadog-agent-volume
@@ -385,10 +387,6 @@ spec:
           set -euo pipefail
 
           export DD_SITE={{inputs.parameters.site}}
-          export DD_API_KEY={{inputs.parameters.api-key}}
-          export DD_APP_KEY={{inputs.parameters.app-key}}
-
-          set +x
 
           cd /host/datadog-agent/test/e2e/cws-tests
           python -m venv /tmp/.venv

@@ -11,6 +11,7 @@ spec:
       - name: datadog-agent-image-tag
       - name: datadog-cluster-agent-image-repository
       - name: datadog-cluster-agent-image-tag
+      - name: datadog-agent-src
   volumes:
   - name: datadog-agent-volume
     hostPath:

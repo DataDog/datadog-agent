@@ -10,8 +10,6 @@ spec:
       - name: datadog-agent-image-repository
       - name: datadog-agent-image-tag
       - name: datadog-agent-site
-      - name: datadog-agent-api-key
-      - name: datadog-agent-app-key
       - name: datadog-cluster-agent-image-repository
       - name: datadog-cluster-agent-image-tag
   volumes:
@@ -25,8 +23,6 @@ spec:
           - name: datadog-agent-image-repository
           - name: datadog-agent-image-tag
           - name: datadog-agent-site
-          - name: datadog-agent-api-key
-          - name: datadog-agent-app-key
           - name: datadog-cluster-agent-image-repository
           - name: datadog-cluster-agent-image-tag
       steps:
@@ -68,10 +64,6 @@ spec:
                 value: "{{inputs.parameters.datadog-agent-site}}"
               - name: dd-url
                 value: ""
-              - name: api-key
-                value: "{{inputs.parameters.datadog-agent-api-key}}"
-              - name: app-key
-                value: "{{inputs.parameters.datadog-agent-app-key}}"
 
         - - name: wait-datadog-agent
             templateRef:
@@ -92,10 +84,6 @@ spec:
                   value: "{{workflow.namespace}}"
                 - name: site
                   value: "{{inputs.parameters.datadog-agent-site}}"
-                - name: api-key
-                  value: "{{inputs.parameters.datadog-agent-api-key}}"
-                - name: app-key
-                  value: "{{inputs.parameters.datadog-agent-app-key}}"
 
     - name: exit-handler
       steps:
