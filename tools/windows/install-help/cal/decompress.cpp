@@ -29,7 +29,7 @@ class DecompressionContext
         archive_write_disk_set_standard_lookup(_extractor);
 
         // Note, the construct ".string().c_str()" is ok since the temporary string
-        // will be copied internally by archive_entry_set_pathname.
+        // will be copied internally by archive_read_open_filename.
         if (archive_read_open_filename(_archive, archivePath.string().c_str(), 10240) != ARCHIVE_OK)
         {
             throw std::runtime_error("archive_read_open_filename");
@@ -124,7 +124,7 @@ int decompress_archive(std::filesystem::path const &archivePath, std::filesystem
     }
     catch (const std::exception &e)
     {
-        WcaLog(LOGMSG_STANDARD, "Extracting archive failed: %s\n", e.what());
+        WcaLog(LOGMSG_STANDARD, "Extracting archive failed: %s", e.what());
         return 1;
     }
 
