@@ -90,6 +90,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
+	isRegoEvaluatorEnabled := coreconfig.Datadog.GetBool("compliance_config.rego_evaluator_enabled")
 
 	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
@@ -99,6 +100,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 		reporter,
 		scheduler,
 		configDir,
+		isRegoEvaluatorEnabled,
 		checks.WithInterval(checkInterval),
 		checks.WithMaxEvents(checkMaxEvents),
 		checks.WithHostname(hostname),
