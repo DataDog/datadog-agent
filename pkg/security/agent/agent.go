@@ -161,20 +161,24 @@ func newLogBackoffTicker() *backoff.Ticker {
 	return backoff.NewTicker(expBackoff)
 }
 
+// BackoffTicker represents a ticker based on an exponential backoff, used to trigger connect error logs
 type BackoffTicker struct {
 	ticker *backoff.Ticker
 }
 
+// StartIfNeeded starts the backoff ticker, if not already started
 func (t *BackoffTicker) StartIfNeeded() {
 	if t.ticker == nil {
 		t.ticker = newLogBackoffTicker()
 	}
 }
 
+// C returns the underlying channel
 func (t *BackoffTicker) C() <-chan time.Time {
 	return t.ticker.C
 }
 
+// Stop stops the ticker and sets the ticker in a restartable state
 func (t *BackoffTicker) Stop() {
 	t.ticker.Stop()
 	t.ticker = nil
