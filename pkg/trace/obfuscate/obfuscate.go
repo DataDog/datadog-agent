@@ -43,6 +43,12 @@ type SQLOptions struct {
 	ReplaceDigits bool `json:"replace_digits"`
 }
 
+// SQLMetadata holds metadata about a SQL statement.
+type SQLMetadata struct {
+	// Comments in a SQL statement.
+	Comments []string
+}
+
 // SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
 func (o *Obfuscator) SetSQLLiteralEscapes(ok bool) {
 	if ok {

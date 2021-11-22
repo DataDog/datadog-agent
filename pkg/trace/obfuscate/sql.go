@@ -45,7 +45,9 @@ type tokenFilter interface {
 
 // discardFilter is a token filter which discards certain elements from a query, such as
 // comments and AS aliases by returning a nil buffer.
-type discardFilter struct{}
+type discardFilter struct {
+	metadata *SQLMetadata
+}
 
 // Filter the given token so that a `nil` slice is returned if the token is in the token filtered list.
 func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
@@ -79,6 +81,7 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 	// return the same token value (not FilteredGroupable) and nil
 	switch token {
 	case Comment:
+		f.metadata.Comments = append(f.metadata.Comments, strings.TrimSpace(strings.Replace(string(buffer), "\n", " ", -1)))
 		return Filtered, nil, nil
 	case ';':
 		return markFilteredGroupable(token), nil, nil
@@ -309,8 +312,9 @@ func (f *tableFinderFilter) Reset() {
 
 // ObfuscatedQuery specifies information about an obfuscated SQL query.
 type ObfuscatedQuery struct {
-	Query     string // the obfuscated SQL query
-	TablesCSV string // comma-separated list of tables that the query addresses
+	Query     string      // the obfuscated SQL query
+	TablesCSV string      // comma-separated list of tables that the query addresses
+	Metadata  SQLMetadata // metadata extracted from the SQL query
 }
 
 // Cost returns the number of bytes needed to store all the fields
@@ -332,7 +336,8 @@ func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, opts SQLOptions) (*O
 		out             = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err             error
 		lastToken       TokenKind
-		discard         discardFilter
+		metadata        SQLMetadata
+		discard         = discardFilter{metadata: &metadata}
 		replace         = replaceFilter{replaceDigits: opts.ReplaceDigits}
 		grouping        groupingFilter
 		tableFinder     = tableFinderFilter{storeTableNames: storeTableNames}
@@ -388,6 +393,7 @@ func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, opts SQLOptions) (*O
 	return &ObfuscatedQuery{
 		Query:     out.String(),
 		TablesCSV: tableFinder.CSV(),
+		Metadata:  metadata,
 	}, nil
 }
 

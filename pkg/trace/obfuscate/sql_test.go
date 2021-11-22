@@ -255,6 +255,81 @@ func TestSQLUTF8(t *testing.T) {
 	}
 }
 
+func TestSQLMetadataComments(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		in, out  string
+		metadata SQLMetadata
+	}{
+		{
+			`
+/* Multi-line comment */
+select replacement from table where replacement = 'i�n�t�e��rspersed';`,
+			"select replacement from table where replacement = ?",
+			SQLMetadata{Comments: []string{"/* Multi-line comment */"}},
+		},
+		{
+			`
+-- Single line comment
+-- Another single line comment
+-- Another another single line comment
+select * from names where name like '�����';`,
+			"select * from names where name like ?",
+			SQLMetadata{
+				Comments: []string{
+					"-- Single line comment",
+					"-- Another single line comment",
+					"-- Another another single line comment",
+				}},
+		},
+		{
+			`
+/* Multi-line comment
+with line breaks */
+select * from users where id = 42`,
+			"select * from users where id = ?",
+			SQLMetadata{
+				Comments: []string{
+					"/* Multi-line comment with line breaks */",
+				}},
+		},
+		{
+			`
+/*
+Multi-line comment with line breaks */
+DELETE FROM table WHERE table.a=1`,
+			"DELETE FROM table WHERE table.a = ?",
+			SQLMetadata{
+				Comments: []string{
+					"/* Multi-line comment with line breaks */",
+				}},
+		},
+		{
+			`
+/*
+Multi-line comment
+with line breaks
+*/
+/* Two multi-line comments with
+line breaks */
+select * from test where !'weird_query'`,
+			"select * from test where ! ?",
+			SQLMetadata{
+				Comments: []string{
+					"/* Multi-line comment with line breaks */",
+					"/* Two multi-line comments with line breaks */",
+				}},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
+			assert.Equal(tt.metadata.Comments, oq.Metadata.Comments)
+		})
+	}
+}
+
 func TestSQLTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
 		defer testutil.WithFeatures("table_names")()
