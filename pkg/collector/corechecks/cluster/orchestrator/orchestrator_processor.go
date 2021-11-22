@@ -195,6 +195,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 			continue
 		}
 		redact.RemoveLastAppliedConfigurationAnnotation(depl.Annotations)
+		log.Warnf("Deployment Name is: %s", depl.Name)
 		if len(depl.APIVersion) != 0 {
 			log.Warnf("Deployment API version is: %s", depl.APIVersion)
 		}
