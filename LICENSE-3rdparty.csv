@@ -334,6 +334,11 @@ core,github.com/florianl/go-tc/internal/unix,MIT,Florian Lehner <dev@der-flo.net
 core,github.com/freddierice/go-losetup,MIT,Freddie Rice
 core,github.com/fsnotify/fsnotify,BSD-3-Clause,The fsnotify authors
 core,github.com/ghodss/yaml,MIT,Sam Ghods | The Go Authors
+core,github.com/go-delve/delve/pkg/dwarf/godwarf,MIT,Derek Parker
+core,github.com/go-delve/delve/pkg/dwarf/op,MIT,Derek Parker
+core,github.com/go-delve/delve/pkg/dwarf/util,MIT,Derek Parker
+core,github.com/go-delve/delve/pkg/goversion,MIT,Derek Parker
+core,github.com/go-delve/delve/pkg/logflags,MIT,Derek Parker
 core,github.com/go-ini/ini,Apache-2.0,Unknwon
 core,github.com/go-kit/log,MIT,Go kit
 core,github.com/go-kit/log/level,MIT,Go kit
