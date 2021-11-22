@@ -14,62 +14,40 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
-// ReadBPFModule from the asset file
-func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "tracer.o"
+func getBPFModule(bpfDir string, debug bool, name string) (bytecode.AssetReader, error) {
+	file := name + ".o"
 	if debug {
-		file = "tracer-debug.o"
+		file = name + "-debug.o"
 	}
-
 	ebpfReader, err := bytecode.GetReader(bpfDir, file)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
 
 	return ebpfReader, nil
+}
+
+// ReadBPFModule from the asset file
+func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return getBPFModule(bpfDir, debug, "tracer")
 }
 
 // ReadHTTPModule from the asset file
 func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "http.o"
-	if debug {
-		file = "http-debug.o"
-	}
-
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return getBPFModule(bpfDir, debug, "http")
 }
 
 // ReadDNSModule from the asset file
 func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "dns.o"
-	if debug {
-		file = "dns-debug.o"
-	}
+	return getBPFModule(bpfDir, debug, "dns")
+}
 
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+// ReadClassifierModule from the asset file
+func ReadClassifierModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return getBPFModule(bpfDir, debug, "classifier")
 }
 
 // ReadOffsetBPFModule from the asset file
 func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "offset-guess.o"
-	if debug {
-		file = "offset-guess-debug.o"
-	}
-
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return getBPFModule(bpfDir, debug, "offset-guess")
 }

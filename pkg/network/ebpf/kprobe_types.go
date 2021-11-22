@@ -22,6 +22,7 @@ type ConnStats C.conn_stats_ts_t
 type Conn C.conn_t
 type Batch C.batch_t
 type Telemetry C.telemetry_t
+type ClassifierTelemetry C.classifier_telemetry_t
 type PortBinding C.port_binding_t
 type PIDFD C.pid_fd_t
 type UDPRecvSock C.udp_recv_sock_t
@@ -53,11 +54,13 @@ type ConnTag = uint64
 const (
 	GnuTLS  ConnTag = C.LIBGNUTLS
 	OpenSSL ConnTag = C.LIBSSL
+	TLS     ConnTag = C.TLS
 )
 
 var (
 	StaticTags = map[ConnTag]string{
 		GnuTLS:  "tls.library:gnutls",
 		OpenSSL: "tls.library:openssl",
+		TLS:     "tls.encrypted:true",
 	}
 )

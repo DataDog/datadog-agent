@@ -130,6 +130,15 @@ typedef struct {
     __u64 conn_stats_max_entries_hit;
 } telemetry_t;
 
+// Classifier telemetry names
+typedef struct {
+    __u64 tail_call_failed;
+    __u64 tls_flow_classified;
+} classifier_telemetry_t;
+
+#define PORT_LISTENING 1
+#define PORT_CLOSED 0
+
 typedef struct {
     __u16 port;
 } bind_syscall_args_t;
