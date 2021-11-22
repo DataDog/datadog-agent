@@ -129,7 +129,7 @@ int decompress_archive(const std::filesystem::path &archivePath, const std::file
     }
     catch (const std::exception& e)
     {
-        std::cout << "Extracting archive failed: " << e.what() << std::endl;
+        WcaLog(LOGMSG_STANDARD, "Extracting archive failed: %s", e.what());
         return 1;
     }
 }
