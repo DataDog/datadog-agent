@@ -166,9 +166,7 @@ func getRuntimeFromOsReleaseFile(osReleasePath string) string {
 
 func getRuntime(procPath string, osReleasePath string, varName string) string {
 	foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
-	fmt.Printf("found runtimes = %s\n", foundRuntimes)
 	runtime := cleanRuntimes(foundRuntimes)
-	fmt.Printf("cleaned runtimes = %s\n", runtime)
 	runtime = strings.Replace(runtime, "AWS_Lambda_", "", 1)
 	if len(runtime) == 0 {
 		runtime = getRuntimeFromOsReleaseFile(osReleasePath)
@@ -188,7 +186,7 @@ func cleanRuntimes(runtimes []string) string {
 		}
 	}
 	if len(filtered) != 1 {
-		log.Debug("could not find an unique value for runtime")
+		log.Debug("could not find a unique value for runtime")
 		return ""
 	}
 	return filtered[0]
