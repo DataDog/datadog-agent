@@ -131,9 +131,6 @@ func TestCalculateCtrPct(t *testing.T) {
 	// Time is empty
 	assert.Equal(t, float32(0), calculateCtrPct(3, 1, 0, 0, 1, emptyTime))
 
-	// Elapsed time is less than 1s
-	assert.Equal(t, float32(0), calculateCtrPct(3, 1, 0, 0, 1, time.Now()))
-
 	// Div by zero on sys2/sys1, fallback to normal cpu calculation
 	assert.InEpsilon(t, 50.0, calculateCtrPct(1.5*math.Pow10(9), math.Pow10(9), 1, 1, 1, before), epsilon)
 
