@@ -12,12 +12,12 @@
 /// </summary>
 class DecompressionContext
 {
-  private:
-    struct archive *_archive;
-    struct archive *_extractor;
+private:
+    struct archive* _archive;
+    struct archive* _extractor;
 
-  public:
-    DecompressionContext(std::filesystem::path const &archivePath)
+public:
+    DecompressionContext(const std::filesystem::path &archivePath)
     {
         _archive = archive_read_new();
         archive_read_support_compression_lzma(_archive);
@@ -32,13 +32,13 @@ class DecompressionContext
         // will be copied internally by archive_read_open_filename.
         if (archive_read_open_filename(_archive, archivePath.string().c_str(), 10240) != ARCHIVE_OK)
         {
-            throw std::runtime_error("archive_read_open_filename");
+            throw std::runtime_error(archive_error_string(_archive));
         }
     }
 
-    struct archive_entry *read_next_header()
+    struct archive_entry* read_next_header()
     {
-        struct archive_entry *entry;
+        struct archive_entry* entry;
         la_ssize_t r = archive_read_next_header(_archive, &entry);
         if (r == ARCHIVE_EOF)
         {
@@ -51,7 +51,7 @@ class DecompressionContext
         return entry;
     }
 
-    void write_header(struct archive_entry *entry)
+    void write_header(struct archive_entry* entry)
     {
         if (archive_write_header(_extractor, entry) < ARCHIVE_OK)
         {
@@ -69,15 +69,20 @@ class DecompressionContext
 
     void copy_data()
     {
-        const void *buff;
+        const void* buff;
         size_t size;
         la_int64_t offset;
 
         for (;;)
         {
-            if (archive_read_data_block(_archive, &buff, &size, &offset) < ARCHIVE_OK)
+            const la_ssize_t result = archive_read_data_block(_archive, &buff, &size, &offset);
+            if (result == ARCHIVE_EOF)
             {
-                throw std::runtime_error(archive_error_string(_extractor));
+                break;
+            }
+            if (result < ARCHIVE_OK)
+            {
+                throw std::runtime_error(archive_error_string(_archive));
             }
             if (archive_write_data_block(_extractor, buff, size, offset) < ARCHIVE_OK)
             {
@@ -96,14 +101,14 @@ class DecompressionContext
     }
 };
 
-int decompress_archive(std::filesystem::path const &archivePath, std::filesystem::path const &destinationFolder)
+int decompress_archive(const std::filesystem::path &archivePath, const std::filesystem::path &destinationFolder)
 {
     try
     {
         DecompressionContext context(archivePath);
         for (;;)
         {
-            struct archive_entry *entry = context.read_next_header();
+            struct archive_entry* entry = context.read_next_header();
             if (entry == nullptr)
             {
                 return 0;
@@ -122,11 +127,9 @@ int decompress_archive(std::filesystem::path const &archivePath, std::filesystem
             context.write_finish_entry();
         }
     }
-    catch (const std::exception &e)
+    catch (const std::exception& e)
     {
-        WcaLog(LOGMSG_STANDARD, "Extracting archive failed: %s", e.what());
+        std::cout << "Extracting archive failed: " << e.what() << std::endl;
         return 1;
     }
-
-    return 0;
 }
