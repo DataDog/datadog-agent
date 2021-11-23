@@ -44,9 +44,14 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 	}
 }
 
+func (d *Destination) ErrorStateChangeChan() chan bool {
+	return nil
+}
+
 // Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
-func (d *Destination) Send(payload []byte) error {
+func (d *Destination) Send(payload []byte) {
+	// TODO retry
 	if d.conn == nil {
 		var err error
 
@@ -55,7 +60,7 @@ func (d *Destination) Send(payload []byte) error {
 		if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
 			// the connection manager is not meant to fail,
 			// this can happen only when the context is cancelled.
-			return err
+			return // err
 		}
 		d.connCreationTime = time.Now()
 	}
@@ -69,14 +74,14 @@ func (d *Destination) Send(payload []byte) error {
 	frame, err := d.delimiter.delimit(content)
 	if err != nil {
 		// the delimiter can fail when the payload can not be framed correctly.
-		return err
+		return //err
 	}
 
 	_, err = d.conn.Write(frame)
 	if err != nil {
 		d.connManager.CloseConnection(d.conn)
 		d.conn = nil
-		return client.NewRetryableError(err)
+		return // client.NewRetryableError(err)
 	}
 
 	if d.connManager.ShouldReset(d.connCreationTime) {
@@ -85,7 +90,7 @@ func (d *Destination) Send(payload []byte) error {
 		d.conn = nil
 	}
 
-	return nil
+	return // nil
 }
 
 // SendAsync sends a message to the destination without blocking. If the channel is full, the incoming messages will be

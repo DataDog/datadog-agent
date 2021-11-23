@@ -27,7 +27,7 @@ type Pipeline struct {
 
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
-	mainDestinations := getMainDestinations(endpoints, destinationsContext)
+	mainDestinations := getDestinations(endpoints, destinationsContext)
 	// var backupDestinations *client.Destinations
 	// if endpoints.Backup != nil {
 	// 	backupDestinations = getBackupDestinations(endpoints, destinationsContext)
@@ -94,30 +94,26 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.sender.Flush(ctx)    // flush the sender
 }
 
-func getMainDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
+	reliable := []client.Destination{}
+	additionals := []client.Destination{}
+
 	if endpoints.UseHTTP {
-		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
+		for _, endpoint := range endpoints.GetReliableEndpoints() {
+			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+		}
+		for _, endpoint := range endpoints.GetUnReliableEndpoints() {
 			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
 		}
-		return client.NewDestinations(main, additionals)
+		return client.NewDestinations(reliable, additionals)
 	}
-	main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
-	additionals := []client.Destination{}
-	for _, endpoint := range endpoints.Additionals {
+	for _, endpoint := range endpoints.GetReliableEndpoints() {
+		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
+	}
+	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
 		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
 	}
-	return client.NewDestinations(main, additionals)
-}
-
-func getBackupDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
-	if endpoints.UseHTTP {
-		backup := http.NewDestination(*endpoints.Backup, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
-		return client.NewDestinations(backup, []client.Destination{})
-	}
-	backup := tcp.NewDestination(*endpoints.Backup, endpoints.UseProto, destinationsContext)
-	return client.NewDestinations(backup, []client.Destination{})
+	return client.NewDestinations(reliable, additionals)
 }
 
 func getStrategy(endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {

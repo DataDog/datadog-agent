@@ -7,6 +7,7 @@ package sender
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -63,16 +64,77 @@ func (s *Sender) Flush(ctx context.Context) {
 }
 
 func (s *Sender) run() {
-	// defer func() {
-	// 	s.done <- struct{}{}
-	// }()
-	// s.strategy.Send(s.inputChan, s.outputChan, s.send)
+	defer func() {
+		s.done <- struct{}{}
+	}()
+
+	errorMap := []bool{}
+	for range s.destinations.Reliable {
+		errorMap = append(errorMap, false)
+	}
+
+	fmt.Println("BRIAN - got dests", len(errorMap))
 
 	for payload := range s.inputChan {
+
+		failed := []chan bool{}
+
+		for i, destination := range s.destinations.Reliable {
+			// First collect any errors from the senders
+			select {
+			case errorMap[i] = <-destination.ErrorStateChangeChan():
+			default:
+			}
+			if errorMap[i] {
+				fmt.Println("BRIAN - GOT error")
+				failed = append(failed, destination.ErrorStateChangeChan())
+			} else {
+				go destination.Send(payload.payload)
+			}
+		}
+
+		// all of them failed - block until one comes alive
+		if len(failed) == len(s.destinations.Reliable) {
+			fmt.Println("BRIAN - Blocking")
+			successChan := blockUntil(failed)
+			index := <-successChan
+			close(successChan)
+			errorMap[index] = false
+			fmt.Println("BRIAN - unblocked on ", index)
+		}
+
 		// DO multi shipping here
-		s.destinations.Main.Send(payload.payload)
+		// s.destinations.Main.Send(payload.payload)
+		// if err != nil {
+		// 	if shouldStopSending(err) {
+		// 		return
+		// 	}
+		// 	log.Warnf("Could not send payload: %v", err)
+		// }
 		// update auditor
 	}
+}
+
+func shouldStopSending(err error) bool {
+	return err == context.Canceled
+}
+
+func blockUntil(cs []chan bool) chan int {
+	out := make(chan int)
+	done := make(chan bool)
+	for i, c := range cs {
+		go func(i int, c <-chan bool) {
+			select {
+			case <-done:
+			case <-c:
+				for n := 0; n < len(cs)-1; n++ {
+					done <- true
+				}
+				out <- i
+			}
+		}(i, c)
+	}
+	return out
 }
 
 // send sends a payload to multiple destinations,
@@ -114,9 +176,6 @@ func (s *Sender) run() {
 // }
 
 // shouldStopSending returns true if a component should stop sending logs.
-func shouldStopSending(err error) bool {
-	return err == context.Canceled
-}
 
 // SplitSenders splits a single stream of message into 2 equal streams.
 // Acts like an AND gate in that the input will only block if both outputs block.

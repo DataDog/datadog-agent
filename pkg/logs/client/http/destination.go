@@ -39,6 +39,7 @@ var emptyPayload []byte
 
 // Destination sends a payload over HTTP.
 type Destination struct {
+	sync.Mutex
 	url                 string
 	apiKey              string
 	contentType         string
@@ -53,6 +54,8 @@ type Destination struct {
 	blockedUntil        time.Time
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
+	lastError           error
+	errorChan           chan bool
 }
 
 // NewDestination returns a new Destination.
@@ -87,6 +90,8 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
+		lastError:           nil,
+		errorChan:           make(chan bool, 1),
 	}
 }
 
@@ -100,25 +105,69 @@ func errorToTag(err error) string {
 	}
 }
 
+func (d *Destination) ErrorStateChangeChan() chan bool {
+	return d.errorChan
+}
+
 // Send sends a payload over HTTP,
-// the error returned can be retryable and it is the responsibility of the callee to retry.
-func (d *Destination) Send(payload []byte) error {
-	if d.blockedUntil.After(time.Now()) {
-		log.Debugf("%s: sleeping until %v before retrying", d.url, d.blockedUntil)
-		d.waitForBackoff()
+func (d *Destination) Send(payload []byte) {
+	d.sendConcurrent(payload, true)
+}
+
+func (d *Destination) sendConcurrent(payload []byte, retry bool) {
+	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
+	if cap(d.climit) == 0 {
+		d.sendAndRetry(payload, retry)
+		return
 	}
 
-	err := d.unconditionalSend(payload)
+	go func() {
+		d.climit <- struct{}{}
+		go func() {
+			d.sendAndRetry(payload, retry)
+			<-d.climit
+		}()
+	}()
+}
 
-	if _, ok := err.(*client.RetryableError); ok {
-		d.nbErrors = d.backoff.IncError(d.nbErrors)
-	} else {
-		d.nbErrors = d.backoff.DecError(d.nbErrors)
+// Send sends a payload over HTTP,
+func (d *Destination) sendAndRetry(payload []byte, retry bool) {
+	for {
+		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
+		if d.blockedUntil.After(time.Now()) {
+			log.Debugf("%s: sleeping until %v before retrying", d.url, d.blockedUntil)
+			d.waitForBackoff()
+		}
+
+		err := d.unconditionalSend(payload)
+
+		if retry {
+			d.Lock()
+			if _, ok := err.(*client.RetryableError); ok {
+				d.nbErrors = d.backoff.IncError(d.nbErrors)
+
+				if d.lastError == nil {
+					d.errorChan <- true
+				}
+
+				d.lastError = err
+				d.Unlock()
+				continue
+
+			} else {
+				d.nbErrors = d.backoff.DecError(d.nbErrors)
+
+				if d.lastError != nil {
+					d.errorChan <- false
+				}
+
+				d.lastError = err
+				d.Unlock()
+			}
+		}
+		return
 	}
-
-	d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
-
-	return err
+	//TODO channel errors
 }
 
 func (d *Destination) unconditionalSend(payload []byte) (err error) {
@@ -201,23 +250,13 @@ func (d *Destination) SendAsync(payload []byte) {
 	d.payloadChan <- payload
 }
 
-// sendInBackground sends all payloads from payloadChan in background.
 func (d *Destination) sendInBackground(payloadChan chan []byte) {
 	ctx := d.destinationsContext.Context()
 	go func() {
 		for {
 			select {
 			case payload := <-payloadChan:
-				// if the channel is non-buffered then there is no concurrency and we block on sending each payload
-				if cap(d.climit) == 0 {
-					d.unconditionalSend(payload) //nolint:errcheck
-					break
-				}
-				d.climit <- struct{}{}
-				go func() {
-					d.unconditionalSend(payload) //nolint:errcheck
-					<-d.climit
-				}()
+				d.sendConcurrent(payload, false)
 			case <-ctx.Done():
 				return
 			}

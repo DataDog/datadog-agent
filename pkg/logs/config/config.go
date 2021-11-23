@@ -155,6 +155,7 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
+		IsReliable:              true,
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
@@ -184,15 +185,14 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
-	backup := getBackupEndpoint(logsConfig, main)
-
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 	}
-	return NewEndpoints(main, backup, additionals, useProto, false), nil
+	endpoints := append([]Endpoint{main}, additionals...)
+	return NewEndpoints(main, endpoints, useProto, false), nil
 }
 
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
@@ -215,6 +215,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		BackoffFactor:           logsConfig.senderBackoffFactor(),
 		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
+		IsReliable:              true,
 	}
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
@@ -239,8 +240,6 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
-	backup := getBackupEndpoint(logsConfig, main)
-
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
@@ -261,7 +260,8 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 	batchMaxSize := logsConfig.batchMaxSize()
 	batchMaxContentSize := logsConfig.batchMaxContentSize()
 
-	return NewEndpointsWithBatchSettings(main, backup, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize), nil
+	endpoints := append([]Endpoint{main}, additionals...)
+	return NewEndpointsWithBatchSettings(main, endpoints, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize), nil
 }
 
 // parseAddress returns the host and the port of the address.
@@ -285,27 +285,4 @@ func TaggerWarmupDuration() time.Duration {
 // AggregationTimeout is used when performing aggregation operations
 func AggregationTimeout() time.Duration {
 	return defaultLogsConfigKeys().aggregationTimeout()
-}
-
-func getBackupEndpoint(logsConfig *LogsConfigKeys, main Endpoint) *Endpoint {
-	var backup *Endpoint
-	backupEndpoint := main
-
-	if logsDDBackupURL, logsDDURLDefined := logsConfig.logsSecondaryDDURL(); logsDDURLDefined {
-		// Copy the main endpoint since all the settings are shared except the host + port
-
-		host, port, err := parseAddress(logsDDBackupURL)
-		if err != nil {
-			return nil
-		}
-		backupEndpoint.Host = host
-		backupEndpoint.Port = port
-		backup = &backupEndpoint
-	}
-
-	if backupAPIKey, defined := logsConfig.logsSecondaryAPIKey(); defined {
-		backupEndpoint.APIKey = backupAPIKey
-		backup = &backupEndpoint
-	}
-	return backup
 }

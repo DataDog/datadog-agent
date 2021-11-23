@@ -58,8 +58,7 @@ type Endpoint struct {
 // Endpoints holds the main endpoint and additional ones to dualship logs.
 type Endpoints struct {
 	Main                   Endpoint
-	Backup                 *Endpoint
-	Additionals            []Endpoint
+	Endpoints              []Endpoint
 	UseProto               bool
 	UseHTTP                bool
 	BatchWait              time.Duration
@@ -69,11 +68,10 @@ type Endpoints struct {
 }
 
 // NewEndpoints returns a new endpoints composite with default batching settings
-func NewEndpoints(main Endpoint, backup *Endpoint, additionals []Endpoint, useProto bool, useHTTP bool) *Endpoints {
+func NewEndpoints(main Endpoint, endpoints []Endpoint, useProto bool, useHTTP bool) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
-		Backup:                 backup,
-		Additionals:            additionals,
+		Endpoints:              endpoints,
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
 		BatchWait:              config.DefaultBatchWait,
@@ -84,11 +82,10 @@ func NewEndpoints(main Endpoint, backup *Endpoint, additionals []Endpoint, usePr
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
-func NewEndpointsWithBatchSettings(main Endpoint, backup *Endpoint, additionals []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int) *Endpoints {
+func NewEndpointsWithBatchSettings(main Endpoint, endpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
-		Backup:                 backup,
-		Additionals:            additionals,
+		Endpoints:              endpoints,
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
 		BatchWait:              batchWait,
@@ -98,24 +95,24 @@ func NewEndpointsWithBatchSettings(main Endpoint, backup *Endpoint, additionals 
 	}
 }
 
-// GetReliableAdditionals returns additional endpoints that can be failed over to and block the pipeline in the
+// GetReliableEndpooints returns additional endpoints that can be failed over to and block the pipeline in the
 // event of an outage and will retry errors. These endpoints are treated the same as the main endpoint.
-func (e *Endpoints) GetReliableAdditionals() []*Endpoint {
-	endpoints := []*Endpoint{}
-	for _, endpoint := range e.Additionals {
+func (e *Endpoints) GetReliableEndpoints() []Endpoint {
+	endpoints := []Endpoint{}
+	for _, endpoint := range e.Endpoints {
 		if endpoint.IsReliable {
-			endpoints = append(endpoints, &endpoint)
+			endpoints = append(endpoints, endpoint)
 		}
 	}
 	return endpoints
 }
 
-// GetUnReliableAdditionals returns additional endpoints that do not guarantee logs are received in the event of an error.
-func (e *Endpoints) GetUnReliableAdditionals() []*Endpoint {
-	endpoints := []*Endpoint{}
-	for _, endpoint := range e.Additionals {
+// GetUnReliableEndpoints returns additional endpoints that do not guarantee logs are received in the event of an error.
+func (e *Endpoints) GetUnReliableEndpoints() []Endpoint {
+	endpoints := []Endpoint{}
+	for _, endpoint := range e.Endpoints {
 		if !endpoint.IsReliable {
-			endpoints = append(endpoints, &endpoint)
+			endpoints = append(endpoints, endpoint)
 		}
 	}
 	return endpoints

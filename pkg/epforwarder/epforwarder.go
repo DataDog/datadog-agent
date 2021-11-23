@@ -178,12 +178,15 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	if endpoints.BatchMaxSize <= pkgconfig.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
-	main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
+	reliable := []client.Destination{}
+	for _, endpoint := range endpoints.GetReliableEndpoints() {
+		reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+	}
 	additionals := []client.Destination{}
-	for _, endpoint := range endpoints.Additionals {
+	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
 		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
 	}
-	destinations := client.NewDestinations(main, additionals)
+	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, 100)
 	senderInput := make(chan *sender.Payload, 100)
 
@@ -199,8 +202,8 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	strategy.Start(inputChan, senderInput)
 
 	a := auditor.NewNullAuditor()
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
-		desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
+	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
+		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
 	return &passthroughPipeline{
 		sender:  sender.NewSender(senderInput, a.Channel(), destinations),
 		in:      inputChan,

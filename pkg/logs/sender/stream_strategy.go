@@ -29,13 +29,7 @@ func (s *streamStrategy) Start(inputChan chan *message.Message, outputChan chan 
 			if msg.Origin != nil {
 				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
-			// Move this
-			// if err != nil {A
-			// 	if shouldStopSending(err) {
-			// 		return
-			// 	}
-			// 	log.Warnf("Could not send payload: %v", err)
-			// }
+			// TODO: move telemetry to sender?
 			metrics.LogsSent.Add(1)
 			metrics.TlmLogsSent.Inc()
 

@@ -9,7 +9,6 @@ import (
 	"context"
 	"expvar"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -35,10 +34,7 @@ type batchStrategy struct {
 	serializer       Serializer
 	batchWait        time.Duration
 	contentEncoding  ContentEncoding
-	climit           chan struct{}  // semaphore for limiting concurrent sends
-	pendingSends     sync.WaitGroup // waitgroup for concurrent sends
-	syncFlushTrigger chan struct{}  // trigger a synchronous flush
-	syncFlushDone    chan struct{}  // wait for a synchronous flush to finish
+	syncFlushTrigger chan struct{} // trigger a synchronous flush
 	expVars          *expvar.Map
 	clock            clock.Clock
 }
@@ -65,42 +61,15 @@ func newBatchStrategyWithClock(serializer Serializer, batchWait time.Duration, m
 		serializer:       serializer,
 		batchWait:        batchWait,
 		contentEncoding:  contentEncoding,
-		climit:           make(chan struct{}, maxConcurrent),
 		syncFlushTrigger: make(chan struct{}),
-		syncFlushDone:    make(chan struct{}),
 		pipelineName:     pipelineName,
 		expVars:          expVars,
 		clock:            clock,
 	}
-
 }
 
 func (s *batchStrategy) Flush(ctx context.Context) {
-	select {
-	case <-ctx.Done():
-		return
-	default:
-		s.syncFlushTrigger <- struct{}{}
-		<-s.syncFlushDone
-	}
-}
-
-func (s *batchStrategy) syncFlush(inputChan chan *message.Message, outputChan chan *Payload) {
-	defer func() {
-		s.flushBuffer(outputChan)
-		s.pendingSends.Wait()
-	}()
-	for {
-		select {
-		case m, isOpen := <-inputChan:
-			if !isOpen {
-				return
-			}
-			s.processMessage(m, outputChan)
-		default:
-			return
-		}
-	}
+	s.syncFlushTrigger <- struct{}{}
 }
 
 // Send accumulates messages to a buffer and sends them when the buffer is full or outdated.
@@ -111,7 +80,6 @@ func (s *batchStrategy) Start(inputChan chan *message.Message, outputChan chan *
 		defer func() {
 			s.flushBuffer(outputChan)
 			flushTicker.Stop()
-			s.pendingSends.Wait()
 		}()
 		var startIdle = time.Now()
 		for {
@@ -122,6 +90,7 @@ func (s *batchStrategy) Start(inputChan chan *message.Message, outputChan chan *
 					// inputChan has been closed, no more payloads are expected
 					return
 				}
+				// TODo: move this telemetry
 				s.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
 				var startInUse = time.Now()
 
@@ -134,8 +103,7 @@ func (s *batchStrategy) Start(inputChan chan *message.Message, outputChan chan *
 				// the first message that was added to the buffer has been here for too long, send the payload now
 				s.flushBuffer(outputChan)
 			case <-s.syncFlushTrigger:
-				s.syncFlush(inputChan, outputChan)
-				s.syncFlushDone <- struct{}{}
+				s.flushBuffer(outputChan)
 			}
 		}
 	}()
@@ -167,29 +135,11 @@ func (s *batchStrategy) flushBuffer(outputChan chan *Payload) {
 	}
 	messages := s.buffer.GetMessages()
 	s.buffer.Clear()
-	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
-	if cap(s.climit) == 0 {
-		s.sendMessages(messages, outputChan)
-		return
-	}
-	s.climit <- struct{}{}
-	s.pendingSends.Add(1)
-	go func() {
-		s.sendMessages(messages, outputChan)
-		s.pendingSends.Done()
-		<-s.climit
-	}()
+	s.sendMessages(messages, outputChan)
 }
 
 func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *Payload) {
-	// err := send(s.serializer.Serialize(messages))
-	// if err != nil {
-	// 	if shouldStopSending(err) {
-	// 		return
-	// 	}
-	// 	log.Warnf("Could not send payload: %v", err)
-	// }
-
+	// TODO: move telemetry to sender?
 	metrics.LogsSent.Add(int64(len(messages)))
 	metrics.TlmLogsSent.Add(float64(len(messages)))
 
