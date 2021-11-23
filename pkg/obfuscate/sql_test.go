@@ -13,9 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type sqlTestCase struct {
@@ -29,55 +28,18 @@ type sqlTokenizerTestCase struct {
 	expectedKind TokenKind
 }
 
-func SQLSpan(query string) *pb.Span {
-	return &pb.Span{
-		Resource: query,
-		Type:     "sql",
-		Meta: map[string]string{
-			"sql.query": query,
-		},
-	}
-}
-
-func TestSQLResourceQuery(t *testing.T) {
-	assert := assert.New(t)
-	span := &pb.Span{
-		Resource: "SELECT * FROM users WHERE id = 42",
-		Type:     "sql",
-		Meta: map[string]string{
-			"sql.query": "SELECT * FROM users WHERE id = 42",
-		},
-	}
-
-	NewObfuscator(nil).Obfuscate(span)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
-	assert.Equal("SELECT * FROM users WHERE id = 42", span.Meta["sql.query"])
-}
-
-func TestSQLResourceWithoutQuery(t *testing.T) {
-	assert := assert.New(t)
-	span := &pb.Span{
-		Resource: "SELECT * FROM users WHERE id = 42",
-		Type:     "sql",
-	}
-
-	NewObfuscator(nil).Obfuscate(span)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Meta["sql.query"])
-}
-
 func TestKeepSQLAlias(t *testing.T) {
 	q := `SELECT username AS person FROM users WHERE id=4`
 
 	t.Run("off", func(t *testing.T) {
-		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		o := NewObfuscator(Config{SQL: SQLConfig{KeepSQLAlias: false}})
+		oq, err := o.ObfuscateSQLString(q)
 		assert.NoError(t, err)
 		assert.Equal(t, "SELECT username FROM users WHERE id = ?", oq.Query)
 	})
 
 	t.Run("on", func(t *testing.T) {
-		defer testutil.WithFeatures("keep_sql_alias")()
-		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		oq, err := NewObfuscator(Config{SQL: SQLConfig{KeepSQLAlias: true}}).ObfuscateSQLString(q)
 		assert.NoError(t, err)
 		assert.Equal(t, "SELECT username AS person FROM users WHERE id = ?", oq.Query)
 	})
@@ -100,7 +62,7 @@ func TestCanObfuscateAutoVacuum(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
+			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
 		})
@@ -111,21 +73,21 @@ func TestDollarQuotedFunc(t *testing.T) {
 	q := `SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users`
 
 	t.Run("off", func(t *testing.T) {
-		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		oq, err := NewObfuscator(Config{}).ObfuscateSQLString(q)
 		assert.NoError(t, err)
 		assert.Equal(t, "SELECT ? FROM users", oq.Query)
 	})
 
 	t.Run("on", func(t *testing.T) {
-		defer testutil.WithFeatures("dollar_quoted_func")()
-		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		oq, err := NewObfuscator(Config{SQL: SQLConfig{DollarQuotedFunc: true}}).ObfuscateSQLString(q)
 		assert.NoError(t, err)
 		assert.Equal(t, `SELECT $func$INSERT INTO table VALUES ( ? )$func$ FROM users`, oq.Query)
 	})
 
 	t.Run("AS", func(t *testing.T) {
-		defer testutil.WithFeatures("keep_sql_alias,dollar_quoted_func")()
-		oq, err := NewObfuscator(nil).ObfuscateSQLString(`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text) AS $func$ BEGIN INSERT INTO "school" ("id","organization_id","name","created_at","updated_at") VALUES ('dc4e9444-d7c9-40a9-bcef-68e4cc594e61','ec647f56-f27a-49a1-84af-021ad0a19f21','Test','2021-03-31 16:30:43.915 +00:00','2021-03-31 16:30:43.915 +00:00'); created := true; EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id"='dc4e9444-d7c9-40a9-bcef-68e4cc594e61',"organization_id"='ec647f56-f27a-49a1-84af-021ad0a19f21',"name"='Test',"updated_at"='2021-03-31 16:30:43.915 +00:00' WHERE ("id" = 'dc4e9444-d7c9-40a9-bcef-68e4cc594e61'); created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();`)
+		oq, err := NewObfuscator(Config{SQL: SQLConfig{KeepSQLAlias: true, DollarQuotedFunc: true}}).ObfuscateSQLString(
+			`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text) AS $func$ BEGIN INSERT INTO "school" ("id","organization_id","name","created_at","updated_at") VALUES ('dc4e9444-d7c9-40a9-bcef-68e4cc594e61','ec647f56-f27a-49a1-84af-021ad0a19f21','Test','2021-03-31 16:30:43.915 +00:00','2021-03-31 16:30:43.915 +00:00'); created := true; EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id"='dc4e9444-d7c9-40a9-bcef-68e4cc594e61',"organization_id"='ec647f56-f27a-49a1-84af-021ad0a19f21',"name"='Test',"updated_at"='2021-03-31 16:30:43.915 +00:00' WHERE ("id" = 'dc4e9444-d7c9-40a9-bcef-68e4cc594e61'); created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();`,
+		)
 		assert.NoError(t, err)
 		assert.Equal(t, `CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert ( OUT created boolean, OUT primary_key text ) AS $func$BEGIN INSERT INTO school ( id, organization_id, name, created_at, updated_at ) VALUES ( ? ) created := ? EXCEPTION WHEN unique_violation THEN UPDATE school SET id = ? organization_id = ? name = ? updated_at = ? WHERE ( id = ? ) created := ? END$func$ LANGUAGE plpgsql SELECT * FROM pg_temp.sequelize_upsert ( )`, oq.Query)
 	})
@@ -146,7 +108,7 @@ func TestScanDollarQuotedString(t *testing.T) {
 		{`$$abc$`, `abc`, true},
 	} {
 		t.Run("", func(t *testing.T) {
-			tok := NewSQLTokenizer(tt.in, false)
+			tok := NewSQLTokenizer(tt.in, false, nil)
 			kind, str := tok.Scan()
 			if tt.err {
 				if kind != LexError {
@@ -161,50 +123,19 @@ func TestScanDollarQuotedString(t *testing.T) {
 
 	t.Run("dollar_quoted_func", func(t *testing.T) {
 		t.Run("off", func(t *testing.T) {
-			tok := NewSQLTokenizer("$func$abc$func$", false)
+			tok := NewSQLTokenizer("$func$abc$func$", false, nil)
 			kind, _ := tok.Scan()
 			assert.Equal(t, DollarQuotedString, kind)
 		})
 
 		t.Run("on", func(t *testing.T) {
-			defer testutil.WithFeatures("dollar_quoted_func")()
-			tok := NewSQLTokenizer("$func$abc$func$", false)
+			tok := NewSQLTokenizer("$func$abc$func$", false, &SQLConfig{
+				DollarQuotedFunc: true,
+			})
 			kind, _ := tok.Scan()
 			assert.Equal(t, DollarQuotedFunc, kind)
 		})
 	})
-}
-
-func TestSQLResourceWithError(t *testing.T) {
-	assert := assert.New(t)
-	testCases := []struct {
-		span pb.Span
-	}{
-		{
-			pb.Span{
-				Resource: "SELECT * FROM users WHERE id = '' AND '",
-				Type:     "sql",
-			},
-		},
-		{
-			pb.Span{
-				Resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1",
-				Type:     "sql",
-			},
-		},
-		{
-			pb.Span{
-				Resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1)",
-				Type:     "sql",
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		NewObfuscator(nil).Obfuscate(&tc.span)
-		assert.Equal("Non-parsable SQL query", tc.span.Resource)
-		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
-	}
 }
 
 func TestSQLUTF8(t *testing.T) {
@@ -248,34 +179,11 @@ func TestSQLUTF8(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
+			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
 		})
 	}
-}
-
-func TestSQLTableNames(t *testing.T) {
-	t.Run("on", func(t *testing.T) {
-		defer testutil.WithFeatures("table_names")()
-
-		span := &pb.Span{
-			Resource: "SELECT * FROM users WHERE id = 42",
-			Type:     "sql",
-		}
-		NewObfuscator(nil).Obfuscate(span)
-		assert.Equal(t, "users", span.Meta["sql.tables"])
-
-	})
-
-	t.Run("off", func(t *testing.T) {
-		span := &pb.Span{
-			Resource: "SELECT * FROM users WHERE id = 42",
-			Type:     "sql",
-		}
-		NewObfuscator(nil).Obfuscate(span)
-		assert.Empty(t, span.Meta["sql.tables"])
-	})
 }
 
 func TestSQLReplaceDigits(t *testing.T) {
@@ -337,7 +245,7 @@ GROUP BY sales1828.product_key`,
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{ReplaceDigits: true})
+				oq, err := NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{ReplaceDigits: true})
 				assert.NoError(err)
 				assert.Empty(oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -402,7 +310,7 @@ GROUP BY sales1828.product_key`,
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
+				oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
 				assert.Empty(oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -413,8 +321,6 @@ GROUP BY sales1828.product_key`,
 
 func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		defer testutil.WithFeatures("table_names")()
-
 		for _, tt := range []struct {
 			query      string
 			tables     string
@@ -563,7 +469,20 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{ReplaceDigits: true})
+				oq, err := NewObfuscator(Config{
+					SQL: SQLConfig{
+						TableNames:    true,
+						ReplaceDigits: true,
+					},
+				}).ObfuscateSQLString(tt.query)
+				assert.NoError(err)
+				assert.Equal(tt.tables, oq.TablesCSV)
+				assert.Equal(tt.obfuscated, oq.Query)
+
+				oq, err = NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{
+					TableNames:    true,
+					ReplaceDigits: true,
+				})
 				assert.NoError(err)
 				assert.Equal(tt.tables, oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -572,7 +491,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 	})
 
 	t.Run("off", func(t *testing.T) {
-		oq, err := NewObfuscator(nil).ObfuscateSQLString("DELETE FROM table WHERE table.a=1")
+		oq, err := NewObfuscator(Config{}).ObfuscateSQLString("DELETE FROM table WHERE table.a=1")
 		assert.NoError(t, err)
 		assert.Empty(t, oq.TablesCSV)
 	})
@@ -856,12 +775,6 @@ ORDER BY [b].[Name]`,
 			`SELECT * FROM users WHERE lastname = ?`,
 		},
 		{
-			`SELECT [b].[BlogId], [b].[Name]
-FROM [Blogs] AS [b
-ORDER BY [b].[Name]`,
-			`Non-parsable SQL query`,
-		},
-		{
 			`SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id = ? AND visitor_id IS ? UNION SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id IS ? AND visitor_id = "AA0DKTGEM6LRN3WWPZ01Q61E3J7ROX7O" ORDER BY customer_id DESC`,
 			"SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id = ? AND visitor_id IS ? UNION SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id IS ? AND visitor_id = ? ORDER BY customer_id DESC",
 		},
@@ -1008,12 +921,12 @@ LIMIT 1
 			expected: `SELECT * FROM dbo.Items WHERE id = ? or ? = ?`,
 		},
 	}
-
+	o := NewObfuscator(Config{})
 	for _, c := range cases {
 		t.Run(c.query, func(t *testing.T) {
-			s := SQLSpan(c.query)
-			NewObfuscator(nil).Obfuscate(s)
-			assert.Equal(t, c.expected, s.Resource)
+			oq, err := o.ObfuscateSQLString(c.query)
+			require.NoError(t, err)
+			require.Equal(t, c.expected, oq.Query)
 		})
 	}
 }
@@ -1142,7 +1055,7 @@ in the middle'`,
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
-			tokenizer := NewSQLTokenizer(c.str, false)
+			tokenizer := NewSQLTokenizer(c.str, false, nil)
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)
 			assert.Equal(t, c.expected, string(buffer))
@@ -1271,7 +1184,7 @@ in the middle'`,
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
-			tokenizer := NewSQLTokenizer(c.str, true)
+			tokenizer := NewSQLTokenizer(c.str, true, nil)
 			tokenizer.literalEscapes = true
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)
@@ -1311,7 +1224,7 @@ LIMIT 1000`,
 
 	// The consumer is the same between executions
 	for _, tc := range testCases {
-		oq, err := NewObfuscator(nil).ObfuscateSQLString(tc.query)
+		oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
 		assert.Nil(err)
 		assert.Equal(tc.expected, oq.Query)
 	}
@@ -1324,7 +1237,7 @@ func TestConsumerError(t *testing.T) {
 	// what to do with malformed SQL
 	input := "SELECT * FROM users WHERE users.id = '1 AND users.name = 'dog'"
 
-	_, err := NewObfuscator(nil).ObfuscateSQLString(input)
+	_, err := NewObfuscator(Config{}).ObfuscateSQLString(input)
 	assert.NotNil(err)
 }
 
@@ -1414,7 +1327,7 @@ func TestSQLErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
-			_, err := NewObfuscator(nil).ObfuscateSQLString(tc.query)
+			_, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
 			assert.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
@@ -1466,15 +1379,15 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			o := NewObfuscator(nil)
-			o.SetSQLLiteralEscapes(c.initial)
+			o := NewObfuscator(Config{})
+			o.setSQLLiteralEscapes(c.initial)
 			_, err := o.ObfuscateSQLString(c.query)
 			if c.err != nil {
 				assert.Equal(t, c.err, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			assert.Equal(t, c.want, o.SQLLiteralEscapes(), "Unexpected final value of SQLLiteralEscapes")
+			assert.Equal(t, c.want, o.useSQLLiteralEscapes(), "Unexpected final value of SQLLiteralEscapes")
 		})
 	}
 }
@@ -1555,13 +1468,13 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 		{"Large", LargeQuery},
 		{"Complex", ComplexQuery},
 	}
-	obf := NewObfuscator(nil)
+	obf := NewObfuscator(Config{})
 	for _, bm := range benchmarks {
 		b.Run(bm.name+"/"+strconv.Itoa(len(bm.query)), func(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, SQLOptions{ReplaceDigits: true})
+				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, &SQLConfig{ReplaceDigits: true})
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -1598,7 +1511,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 			b.Fatalf("invalid hit rate %.2f", hitrate)
 		}
 		return func(b *testing.B) {
-			o := NewObfuscator(nil)
+			o := NewObfuscator(Config{})
 			hitcount := int(float64(queries) * hitrate)
 			var idx uint64
 			b.ResetTimer()
@@ -1640,16 +1553,6 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 	}
 }
 
-func CassSpan(query string) *pb.Span {
-	return &pb.Span{
-		Resource: query,
-		Type:     "cassandra",
-		Meta: map[string]string{
-			"query": query,
-		},
-	}
-}
-
 func TestCassQuantizer(t *testing.T) {
 	assert := assert.New(t)
 
@@ -1687,16 +1590,17 @@ func TestCassQuantizer(t *testing.T) {
 		},
 	}
 
+	o := NewObfuscator(Config{})
 	for _, testCase := range queryToExpected {
-		s := CassSpan(testCase.in)
-		NewObfuscator(nil).Obfuscate(s)
-		assert.Equal(testCase.expected, s.Resource)
+		oq, err := o.ObfuscateSQLString(testCase.in)
+		assert.NoError(err)
+		assert.Equal(testCase.expected, oq.Query)
 	}
 }
 
 func TestUnicodeDigit(t *testing.T) {
 	hangStr := "٩"
-	o := NewObfuscator(nil)
+	o := NewObfuscator(Config{})
 	o.ObfuscateSQLString(hangStr)
 }
 

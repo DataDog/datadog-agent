@@ -5,73 +5,9 @@
 
 package obfuscate
 
-import (
-	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-)
-
-// ccObfuscator maintains credit card obfuscation state and processing.
-type ccObfuscator struct {
-	luhn bool
-}
-
-func newCreditCardsObfuscator(useLuhn bool) *ccObfuscator {
-	cco := &ccObfuscator{luhn: useLuhn}
-	pb.SetMetaHook(cco.MetaHook)
-	return cco
-}
-
-func (cco *ccObfuscator) Disable() { pb.SetMetaHook(nil) }
-
-// MetaHook checks the tag with the given key and val and returns the final
-// value to be assigned to this tag.
-//
-// For example, in this specific use-case, if the val is detected to be a credit
-// card number, "?" will be returned.
-func (cco *ccObfuscator) MetaHook(k, v string) (newval string) {
-	switch k {
-	case "_sample_rate",
-		"_sampling_priority_v1",
-		"error",
-		"error.msg",
-		"error.type",
-		"error.stack",
-		"env",
-		"graphql.field",
-		"graphql.query",
-		"graphql.type",
-		"graphql.operation.name",
-		"grpc.code",
-		"grpc.method",
-		"grpc.request",
-		"http.status_code",
-		"http.method",
-		"runtime-id",
-		"out.host",
-		"out.port",
-		"sampling.priority",
-		"span.type",
-		"span.name",
-		"service.name",
-		"service",
-		"sql.query",
-		"version":
-		// these tags are known to not be credit card numbers
-		return v
-	}
-	if strings.HasPrefix(k, "_dd") {
-		return v
-	}
-	if isCardNumber(v, cco.luhn) {
-		return "?"
-	}
-	return v
-}
-
-// isSensitve checks if b could be a credit card number by checking the digit count and IIN prefix.
+// IsCardNumber checks if b could be a credit card number by checking the digit count and IIN prefix.
 // If validateLuhn is true, the Luhn checksum is also applied to potential candidates.
-func isCardNumber(b string, validateLuhn bool) (ok bool) {
+func IsCardNumber(b string, validateLuhn bool) (ok bool) {
 	//
 	// Just credit card numbers for now, based on:
 	// • https://baymard.com/checkout-usability/credit-card-patterns

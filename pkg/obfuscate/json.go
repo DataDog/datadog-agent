@@ -8,23 +8,28 @@ package obfuscate
 import (
 	"strconv"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// obfuscateJSON obfuscates the given span's tag using the given obfuscator. If the obfuscator is
+func (o *Obfuscator) ObfuscateMongoDBString(cmd string) string {
+	return obfuscateJSONString(cmd, o.mongo)
+}
+
+func (o *Obfuscator) ObfuscateElasticSearchString(cmd string) string {
+	return obfuscateJSONString(cmd, o.es)
+}
+
+// obfuscateJSONString obfuscates the given span's tag using the given obfuscator. If the obfuscator is
 // nil it is considered disabled.
-func (o *Obfuscator) obfuscateJSON(span *pb.Span, tag string, obfuscator *jsonObfuscator) {
-	if obfuscator == nil || span.Meta == nil || span.Meta[tag] == "" {
-		// obfuscator is disabled or tag is not present
-		return
+func obfuscateJSONString(cmd string, obfuscator *jsonObfuscator) string {
+	if obfuscator == nil || cmd == "" {
+		// obfuscator is disabled or string is empty
+		return cmd
 	}
-	span.Meta[tag], _ = obfuscator.obfuscate([]byte(span.Meta[tag]))
+	out, _ := obfuscator.obfuscate([]byte(cmd))
 	// we should accept whatever the obfuscator returns, even if it's an error: a parsing
 	// error simply means that the JSON was invalid, meaning that we've only obfuscated
 	// as much of it as we could. It is safe to accept the output, even if partial.
+	return out
 }
 
 type jsonObfuscator struct {
@@ -42,7 +47,7 @@ type jsonObfuscator struct {
 	keepDepth         int  // the depth at which we've stopped obfuscating
 }
 
-func newJSONObfuscator(cfg *config.JSONObfuscationConfig, o *Obfuscator) *jsonObfuscator {
+func newJSONObfuscator(cfg *JSONConfig, o *Obfuscator) *jsonObfuscator {
 	keepValue := make(map[string]bool, len(cfg.KeepValues))
 	for _, v := range cfg.KeepValues {
 		keepValue[v] = true
@@ -71,7 +76,7 @@ func sqlObfuscationTransformer(o *Obfuscator) func(string) string {
 	return func(s string) string {
 		result, err := o.ObfuscateSQLString(s)
 		if err != nil {
-			log.Debugf("Failed to obfuscate SQL string '%s': %s", s, err.Error())
+			o.log.Debugf("Failed to obfuscate SQL string '%s': %s", s, err.Error())
 			// instead of returning an empty string we explicitly return an error string here within the result in order
 			// to surface the problem clearly to the user
 			return "Datadog-agent failed to obfuscate SQL string. Enable agent debug logs for more info."

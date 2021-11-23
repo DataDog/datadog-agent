@@ -76,6 +76,7 @@ DEFAULT_MODULES = {
             "pkg/util/winutil",
             "pkg/quantile",
             "pkg/otlp/model",
+            "pkg/obfuscate",
             "pkg/security/secl",
         ],
     ),

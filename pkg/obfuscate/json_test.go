@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -101,11 +100,11 @@ func TestObfuscateJSON(t *testing.T) {
 	runTest := func(s *xmlObfuscateTest) func(*testing.T) {
 		return func(t *testing.T) {
 			assert := assert.New(t)
-			cfg := &config.JSONObfuscationConfig{
+			cfg := &JSONConfig{
 				KeepValues:         s.KeepValues,
 				ObfuscateSQLValues: s.ObfuscateSQLValues,
 			}
-			out, err := newJSONObfuscator(cfg, NewObfuscator(nil)).obfuscate([]byte(s.In))
+			out, err := newJSONObfuscator(cfg, NewObfuscator(Config{})).obfuscate([]byte(s.In))
 			if !s.DontNormalize {
 				assert.NoError(err)
 				assertEqualJSON(t, s.Out, out)
@@ -123,13 +122,13 @@ func TestObfuscateJSON(t *testing.T) {
 }
 
 func BenchmarkObfuscateJSON(b *testing.B) {
-	cfg := &config.JSONObfuscationConfig{KeepValues: []string{"highlight"}}
+	cfg := &JSONConfig{KeepValues: []string{"highlight"}}
 	if len(jsonSuite) == 0 {
 		b.Fatal("no test suite loaded")
 	}
 	for i := len(jsonSuite) - 1; i >= 0; i-- {
 		test := jsonSuite[i]
-		obf := newJSONObfuscator(cfg, NewObfuscator(nil))
+		obf := newJSONObfuscator(cfg, NewObfuscator(Config{}))
 		b.Run(test.Tag, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {

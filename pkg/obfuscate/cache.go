@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-
 	"github.com/dgraph-io/ristretto"
 )
 
@@ -16,7 +13,8 @@ type measuredCache struct {
 	*ristretto.Cache
 
 	// close allows sending shutdown notification.
-	close chan struct{}
+	close  chan struct{}
+	statsd StatsClient
 }
 
 // Close gracefully closes the cache when active.
@@ -38,8 +36,8 @@ func (c *measuredCache) statsLoop() {
 	for {
 		select {
 		case <-tick.C:
-			metrics.Gauge("datadog.trace_agent.ofuscation.sql_cache.hits", float64(mx.Hits()), nil, 1)
-			metrics.Gauge("datadog.trace_agent.ofuscation.sql_cache.misses", float64(mx.Misses()), nil, 1)
+			c.statsd.Gauge("datadog.trace_agent.ofuscation.sql_cache.hits", float64(mx.Hits()), nil, 1)
+			c.statsd.Gauge("datadog.trace_agent.ofuscation.sql_cache.misses", float64(mx.Misses()), nil, 1)
 		case <-c.close:
 			c.Cache.Close()
 			return
@@ -47,9 +45,14 @@ func (c *measuredCache) statsLoop() {
 	}
 }
 
+type cacheOptions struct {
+	On     bool
+	Statsd StatsClient
+}
+
 // newMeasuredCache returns a new measuredCache.
-func newMeasuredCache() *measuredCache {
-	if !features.Has("sql_cache") {
+func newMeasuredCache(opts cacheOptions) *measuredCache {
+	if !opts.On {
 		// a nil *ristretto.Cache is a no-op cache
 		return &measuredCache{}
 	}
@@ -73,8 +76,9 @@ func newMeasuredCache() *measuredCache {
 		panic(fmt.Errorf("Error starting obfuscator query cache: %v", err))
 	}
 	c := measuredCache{
-		close: make(chan struct{}),
-		Cache: cache,
+		close:  make(chan struct{}),
+		statsd: opts.Statsd,
+		Cache:  cache,
 	}
 	go c.statsLoop()
 	return &c

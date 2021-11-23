@@ -12,15 +12,7 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const sqlQueryTag = "sql.query"
-const nonParsableResource = "Non-parsable SQL query"
 
 var questionMark = []byte("?")
 
@@ -45,7 +37,7 @@ type tokenFilter interface {
 
 // discardFilter is a token filter which discards certain elements from a query, such as
 // comments and AS aliases by returning a nil buffer.
-type discardFilter struct{}
+type discardFilter struct{ keepSQLAlias bool }
 
 // Filter the given token so that a `nil` slice is returned if the token is in the token filtered list.
 func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
@@ -69,7 +61,7 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 			// closing bracket counter-part. See GitHub issue DataDog/datadog-trace-agent#475.
 			return FilteredBracketedIdentifier, nil, nil
 		}
-		if features.Has("keep_sql_alias") {
+		if f.keepSQLAlias {
 			return token, buffer, nil
 		}
 		return Filtered, nil, nil
@@ -83,7 +75,7 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 	case ';':
 		return markFilteredGroupable(token), nil, nil
 	case As:
-		if !features.Has("keep_sql_alias") {
+		if !f.keepSQLAlias {
 			return As, nil, nil
 		}
 		fallthrough
@@ -211,13 +203,13 @@ func (f *groupingFilter) Reset() {
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
-	return o.ObfuscateSQLStringWithOptions(in, SQLOptions{ReplaceDigits: features.Has("quantize_sql_tables") || features.Has("replace_sql_digits")})
+	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL)
 }
 
 // ObfuscateSQLStringWithOptions accepts an optional SQLOptions to change the behavior of the obfuscator
 // to quantize and obfuscate the given input SQL query string. Quantization removes some elements such as comments
 // and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts SQLOptions) (*ObfuscatedQuery, error) {
+func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
 	if v, ok := o.queryCache.Get(in); ok {
 		return v.(*ObfuscatedQuery), nil
 	}
@@ -229,18 +221,18 @@ func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts SQLOptions) (
 	return oq, nil
 }
 
-func (o *Obfuscator) obfuscateSQLString(in string, opts SQLOptions) (*ObfuscatedQuery, error) {
-	lesc := o.SQLLiteralEscapes()
-	tok := NewSQLTokenizer(in, lesc)
-	out, err := attemptObfuscationWithOptions(tok, opts)
+func (o *Obfuscator) obfuscateSQLString(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
+	lesc := o.useSQLLiteralEscapes()
+	tok := NewSQLTokenizer(in, lesc, opts)
+	out, err := attemptObfuscation(tok)
 	if err != nil && tok.SeenEscape() {
 		// If the tokenizer failed, but saw an escape character in the process,
 		// try again treating escapes differently
-		tok = NewSQLTokenizer(in, !lesc)
-		if out, err2 := attemptObfuscationWithOptions(tok, opts); err2 == nil {
+		tok = NewSQLTokenizer(in, !lesc, opts)
+		if out, err2 := attemptObfuscation(tok); err2 == nil {
 			// If the second attempt succeeded, change the default behavior so that
 			// on the next run we get it right in the first run.
-			o.SetSQLLiteralEscapes(!lesc)
+			o.setSQLLiteralEscapes(!lesc)
 			return out, nil
 		}
 	}
@@ -321,19 +313,13 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
-	return attemptObfuscationWithOptions(tokenizer, SQLOptions{ReplaceDigits: features.Has("quantize_sql_tables") || features.Has("replace_sql_digits")})
-}
-
-// attemptObfuscationWithOptions attempts to obfuscate the SQL query loaded into the tokenizer, using the given
-// set of filters. An optional SQLOptions may be given to change the behavior.
-func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, opts SQLOptions) (*ObfuscatedQuery, error) {
 	var (
-		storeTableNames = features.Has("table_names")
+		storeTableNames = tokenizer.cfg.TableNames
 		out             = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err             error
 		lastToken       TokenKind
-		discard         discardFilter
-		replace         = replaceFilter{replaceDigits: opts.ReplaceDigits}
+		discard         = discardFilter{tokenizer.cfg.KeepSQLAlias}
+		replace         = replaceFilter{replaceDigits: tokenizer.cfg.ReplaceDigits}
 		grouping        groupingFilter
 		tableFinder     = tableFinderFilter{storeTableNames: storeTableNames}
 	)
@@ -389,36 +375,6 @@ func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, opts SQLOptions) (*O
 		Query:     out.String(),
 		TablesCSV: tableFinder.CSV(),
 	}, nil
-}
-
-func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
-	if span.Resource == "" {
-		return
-	}
-	oq, err := o.ObfuscateSQLString(span.Resource)
-	if err != nil {
-		// we have an error, discard the SQL to avoid polluting user resources.
-		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
-		if span.Meta == nil {
-			span.Meta = make(map[string]string, 1)
-		}
-		if _, ok := span.Meta[sqlQueryTag]; !ok {
-			span.Meta[sqlQueryTag] = nonParsableResource
-		}
-		span.Resource = nonParsableResource
-		return
-	}
-
-	span.Resource = oq.Query
-
-	if len(oq.TablesCSV) > 0 {
-		traceutil.SetMeta(span, "sql.tables", oq.TablesCSV)
-	}
-	if span.Meta != nil && span.Meta[sqlQueryTag] != "" {
-		// "sql.query" tag already set by user, do not change it.
-		return
-	}
-	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
 }
 
 // ObfuscateSQLExecPlan obfuscates query conditions in the provided JSON encoded execution plan. If normalize=True,

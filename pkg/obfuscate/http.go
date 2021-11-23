@@ -8,31 +8,18 @@ package obfuscate
 import (
 	"net/url"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
-// obfuscateHTTP obfuscates query strings and path segments containing digits in the span's
-// "http.url" tag, when one or both of these options are enabled.
-func (o *Obfuscator) obfuscateHTTP(span *pb.Span) {
-	if span.Meta == nil {
-		return
-	}
+func (o *Obfuscator) ObfuscateURLString(val string) string {
 	if !o.opts.HTTP.RemoveQueryString && !o.opts.HTTP.RemovePathDigits {
 		// nothing to do
-		return
-	}
-	const k = "http.url"
-	val, ok := span.Meta[k]
-	if !ok {
-		return
+		return val
 	}
 	u, err := url.Parse(val)
 	if err != nil {
 		// should not happen for valid URLs, but better obfuscate everything
 		// rather than expose sensitive information when this option is on.
-		span.Meta[k] = "?"
-		return
+		return "?"
 	}
 	if o.opts.HTTP.RemoveQueryString && u.RawQuery != "" {
 		u.ForceQuery = true // add the '?'
@@ -57,5 +44,5 @@ func (o *Obfuscator) obfuscateHTTP(span *pb.Span) {
 			u.Path = strings.Join(segs, "/")
 		}
 	}
-	span.Meta[k] = strings.Replace(u.String(), "/REDACTED/", "?", -1)
+	return strings.Replace(u.String(), "/REDACTED/", "?", -1)
 }
