@@ -107,7 +107,7 @@ func getReliableAdditionalDestinations(endpoints *config.Endpoints, destinations
 
 	if len(reliableEndpoints) >= 1 {
 		log.Infof("Found an additional reliable endpoint. Only the first additional endpoint marked as reliable will be used at this time.")
-		reliableAdditionalEndpoint = *reliableEndpoints[0]
+		reliableAdditionalEndpoint = reliableEndpoints[0]
 	} else {
 		return nil
 	}
