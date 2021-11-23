@@ -108,11 +108,11 @@ func (e *Endpoints) GetReliableAdditionals() []*Endpoint {
 }
 
 // GetUnReliableAdditionals returns additional endpoints that do not guarantee logs are received in the event of an error.
-func (e *Endpoints) GetUnReliableAdditionals() []*Endpoint {
-	endpoints := []*Endpoint{}
+func (e *Endpoints) GetUnReliableAdditionals() []Endpoint {
+	endpoints := []Endpoint{}
 	for _, endpoint := range e.Additionals {
 		if !endpoint.IsReliable {
-			endpoints = append(endpoints, &endpoint)
+			endpoints = append(endpoints, endpoint)
 		}
 	}
 	return endpoints
