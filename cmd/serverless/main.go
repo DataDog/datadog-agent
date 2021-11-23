@@ -163,7 +163,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// start the proxy if needed
 	// as this feature is experimental, this should be the only entrypoint (easier to remove)
-	log.Debug("------------------------------------------------------------------------------------>")
 	go proxy.Start()
 
 	// immediately starts the communication server
