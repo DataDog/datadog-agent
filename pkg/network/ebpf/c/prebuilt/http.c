@@ -276,10 +276,9 @@ int uprobe__gnutls_transport_set_int2(struct pt_regs* ctx) {
 SEC("uprobe/gnutls_transport_set_ptr")
 int uprobe__gnutls_transport_set_ptr(struct pt_regs* ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
-    // This should include the file descriptor cast as a pointer
-    void *fd_as_ptr = (void *)PT_REGS_PARM2(ctx);
+    // This is a void*, but it might contain the socket fd cast as a pointer.
+    int fd = (int)PT_REGS_PARM2(ctx);
 
-    int fd = (int)(uintptr_t)fd_as_ptr;
     init_ssl_sock(ssl_session, (u32)fd);
     return 0;
 }
@@ -291,10 +290,9 @@ int uprobe__gnutls_transport_set_ptr2(struct pt_regs* ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     // Use the recv_ptr and ignore the send_ptr;
     // in most real-world scenarios, they are the same.
-    // This should include the file descriptor cast as a pointer
-    void *recv_fd_as_ptr = (void *)PT_REGS_PARM2(ctx);
+    // This is a void*, but it might contain the socket fd cast as a pointer.
+    int recv_fd = (int)PT_REGS_PARM2(ctx);
 
-    int recv_fd = (int)(uintptr_t)recv_fd_as_ptr;
     init_ssl_sock(ssl_session, (u32)recv_fd);
     return 0;
 }
