@@ -91,6 +91,16 @@ func TestGetConfigEnvVars(t *testing.T) {
 
 	config.BindEnv("config_option", "DD_CONFIG_OPTION")
 	assert.Contains(t, config.GetEnvVars(), "DD_CONFIG_OPTION")
+
+	// check for de-duplication
+	config.BindEnv("config_option_again", "DD_CONFIG_OPTION")
+	count := 0
+	for _, v := range config.GetEnvVars() {
+		if v == "DD_CONFIG_OPTION" {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count)
 }
 
 func TestGetFloat64SliceE(t *testing.T) {
