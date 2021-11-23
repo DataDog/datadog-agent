@@ -63,9 +63,17 @@ instances:
     # collect_disk_stats: false
 
     ## @param collect_exit_codes - boolean - optional - default: false
-    ## Collect containers exit codes and send service checks critical when exit code is not 0.
+    ## Collect containers exit codes and send service checks critical when exit code is not 0 or 143.
     #
     # collect_exit_codes: false
+
+    ## @param ok_exit_codes - list of integers - optional - default: [0, 143]
+    ## Define the set of exit codes considered OK. It requires the collect_exit_codes parameter to be enabled.
+    ## Note: 143 is returned when docker sends a SIGTERM to stop a container.
+    #
+    # ok_exit_codes:
+    #   - 0
+    #   - 143
 
     ## @param tags - list of strings following the pattern: "key:value" - optional
     ## List of tags to attach to every metric, event, and service check emitted by this integration.

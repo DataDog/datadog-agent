@@ -302,7 +302,7 @@
 : The duration since the last time the cronjob was scheduled. Tags:`kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.job.count`
-: Number of jobs. Tags:`kube_namespace` `owner_cronjob`.
+: Number of jobs. Tags:`kube_namespace` `kube_cronjob`.
 
 `kubernetes_state.job.failed`
 : The number of pods which reached Phase Failed. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).

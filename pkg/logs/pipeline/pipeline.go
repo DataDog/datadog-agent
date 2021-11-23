@@ -20,10 +20,9 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan    chan *message.Message
-	processor    *processor.Processor
-	mainSender   *sender.Sender
-	backupSender *sender.Sender
+	InputChan chan *message.Message
+	processor *processor.Processor
+	sender    *sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
@@ -38,7 +37,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	senderInput := make(chan *sender.Payload, 1)
 
 	var mainSender *sender.Sender
-	var backupSender *sender.Sender
+	// var backupSender *sender.Sender
 
 	strategy := getStrategy(endpoints, serverless, pipelineID)
 	strategy.Start(strategyInput, senderInput)
@@ -71,38 +70,28 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver)
 
 	return &Pipeline{
-		InputChan:    inputChan,
-		processor:    processor,
-		mainSender:   mainSender,
-		backupSender: backupSender,
+		InputChan: inputChan,
+		processor: processor,
+		sender:    mainSender,
 	}
 }
 
 // Start launches the pipeline
 func (p *Pipeline) Start() {
-	p.mainSender.Start()
-	if p.backupSender != nil {
-		p.backupSender.Start()
-	}
+	p.sender.Start()
 	p.processor.Start()
 }
 
 // Stop stops the pipeline
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
-	p.mainSender.Stop()
-	if p.backupSender != nil {
-		p.backupSender.Stop()
-	}
+	p.sender.Stop()
 }
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
-	p.processor.Flush(ctx)  // flush messages in the processor into the sender
-	p.mainSender.Flush(ctx) // flush the sender
-	if p.backupSender != nil {
-		p.backupSender.Flush(ctx)
-	}
+	p.processor.Flush(ctx) // flush messages in the processor into the sender
+	p.sender.Flush(ctx)    // flush the sender
 }
 
 func getMainDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {

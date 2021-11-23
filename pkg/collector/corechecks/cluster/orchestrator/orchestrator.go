@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -43,7 +43,6 @@ import (
 )
 
 const (
-	orchestratorCheckName   = "orchestrator"
 	maximumWaitForAPIServer = 10 * time.Second
 	collectionInterval      = 10 * time.Second
 )
@@ -65,7 +64,7 @@ var (
 )
 
 func init() {
-	core.RegisterCheck(orchestratorCheckName, OrchestratorFactory)
+	core.RegisterCheck(orchestrator.CheckName, OrchestratorFactory)
 }
 
 // OrchestratorInstance is the config of the orchestrator check instance.
@@ -125,7 +124,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 // OrchestratorFactory returns the orchestrator check
 func OrchestratorFactory() check.Check {
 	return newOrchestratorCheck(
-		core.NewCheckBase(orchestratorCheckName),
+		core.NewCheckBase(orchestrator.CheckName),
 		&OrchestratorInstance{},
 	)
 }

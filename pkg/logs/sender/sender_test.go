@@ -88,7 +88,7 @@ func TestSender(t *testing.T) {
 	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
 	destinations := client.NewDestinations(destination, nil)
 
-	sender := NewSender(input, output, destinations, StreamStrategy)
+	sender := NewSingleSender(input, output, destinations, StreamStrategy)
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -121,7 +121,7 @@ func TestSenderNotBlockedByAdditional(t *testing.T) {
 	additionalDestination := tcp.NewDestination(config.Endpoint{Host: "dont.exist.local", Port: 0}, true, destinationsCtx)
 	destinations := client.NewDestinations(mainDestination, []client.Destination{additionalDestination})
 
-	sender := NewSender(input, output, destinations, StreamStrategy)
+	sender := NewSingleSender(input, output, destinations, StreamStrategy)
 	sender.Start()
 
 	expectedMessage1 := newMessage([]byte("fake line"), source, "")
@@ -157,6 +157,7 @@ func TestDualShipEndpoints(t *testing.T) {
 	mainMockStrategy := newMockStrategy()
 	backupMockStrategy := newMockStrategy()
 
+<<<<<<< HEAD
 	mainSender := NewSender(mainInput, mainOutput, mainDests, mainMockStrategy)
 	backupSender := NewSender(backupInput, backupOutput, backupDests, backupMockStrategy)
 
@@ -164,6 +165,13 @@ func TestDualShipEndpoints(t *testing.T) {
 
 	mainSender.Start()
 	backupSender.Start()
+=======
+	mainSender := NewSingleSender(mainInput, mainOutput, mainDests, mainMockStrategy)
+	additionalSender := NewSingleSender(backupInput, backupOutput, backupDests, backupMockStrategy)
+
+	dualSender := NewDualSender(input, mainSender, additionalSender)
+	dualSender.Start()
+>>>>>>> main
 
 	// Scenario 1: Both senders fail, and then both recover
 
@@ -215,3 +223,35 @@ func TestDualShipEndpoints(t *testing.T) {
 	<-mainOutput
 	<-backupOutput
 }
+<<<<<<< HEAD
+=======
+
+func TestSingleFailsThenRecovers(t *testing.T) {
+	source := config.NewLogSource("", &config.LogsConfig{})
+
+	input := make(chan *message.Message, 1)
+	mainOutput := make(chan *message.Message)
+
+	mainDest := newMockDestination()
+	mainDests := client.NewDestinations(mainDest, []client.Destination{})
+
+	mainMockStrategy := newMockStrategy()
+
+	mainSender := NewSingleSender(input, mainOutput, mainDests, mainMockStrategy)
+
+	mainSender.Start()
+
+	input <- newMessage([]byte("fake line"), source, "")
+	<-mainOutput
+
+	mainDest.errChan <- true
+
+	input <- newMessage([]byte("fake line"), source, "")
+	<-mainMockStrategy.sendFailed
+
+	mainDest.errChan <- false
+
+	input <- newMessage([]byte("fake line"), source, "")
+	<-mainOutput
+}
+>>>>>>> main

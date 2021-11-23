@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
@@ -249,7 +249,7 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 		connections := c.(*model.CollectorConnections)
 		total += len(connections.Connections)
 
-		domaindb := connections.GetDNSNamesV2()
+		domaindb, _ := connections.GetDNSNames()
 
 		// verify nothing was put in the DnsStatsByDomain bucket by mistake
 		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomain), 0)
@@ -368,7 +368,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 		connections := c.(*model.CollectorConnections)
 		total += len(connections.Connections)
 
-		domaindb := connections.GetDNSNamesV2()
+		domaindb, _ := connections.GetDNSNames()
 
 		// verify nothing was put in the DnsStatsByDomain bucket by mistake
 		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomain), 0)

@@ -24,6 +24,9 @@ CWS logs have the following JSON schema:
         "selinux": {
             "$ref": "#/definitions/SELinuxEvent"
         },
+        "bpf": {
+            "$ref": "#/definitions/BPFEvent"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -52,11 +55,118 @@ CWS logs have the following JSON schema:
 | `evt` | $ref | Please see [EventContext](#eventcontext) |
 | `file` | $ref | Please see [FileEvent](#fileevent) |
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
+| `bpf` | $ref | Please see [BPFEvent](#bpfevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
 | `date` | string |  |
+
+## `BPFEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "cmd"
+    ],
+    "properties": {
+        "cmd": {
+            "type": "string",
+            "description": "BPF command"
+        },
+        "map": {
+            "$ref": "#/definitions/BPFMap",
+            "description": "BPF map"
+        },
+        "program": {
+            "$ref": "#/definitions/BPFProgram",
+            "description": "BPF program"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `cmd` | BPF command |
+| `map` | BPF map |
+| `program` | BPF program |
+
+| References |
+| ---------- |
+| [BPFMap](#bpfmap) |
+| [BPFProgram](#bpfprogram) |
+
+## `BPFMap`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Name of the BPF map"
+        },
+        "map_type": {
+            "type": "string",
+            "description": "Type of the BPF map"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `name` | Name of the BPF map |
+| `map_type` | Type of the BPF map |
+
+
+## `BPFProgram`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Name of the BPF program"
+        },
+        "program_type": {
+            "type": "string",
+            "description": "Type of the BPF program"
+        },
+        "attach_type": {
+            "type": "string",
+            "description": "Attach type of the BPF program"
+        },
+        "helpers": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "List of helpers used by the BPF program"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `name` | Name of the BPF program |
+| `program_type` | Type of the BPF program |
+| `attach_type` | Attach type of the BPF program |
+| `helpers` | List of helpers used by the BPF program |
+
 
 ## `ContainerContext`
 

@@ -16,6 +16,7 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -94,6 +95,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	if endpoints.UseHTTP {
 		status.CurrentTransport = status.TransportHTTP
 	}
+	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
 
 	// setup the status
 	status.Init(&isRunning, endpoints, sources, metrics.LogsExpvars)

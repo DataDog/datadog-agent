@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -75,7 +76,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
-func TestEnableGatewayLookup(t *testing.T) {
+func TestDisableGatewayLookup(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
@@ -85,27 +86,27 @@ func TestEnableGatewayLookup(t *testing.T) {
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.False(t, cfg.EnableGatewayLookup)
+		assert.True(t, cfg.EnableGatewayLookup)
 
 		newConfig()
-		_, err = sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableGwLookup.yaml")
+		_, err = sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableGwLookup.yaml")
 		require.NoError(t, err)
 		cfg = New()
 
-		assert.True(t, cfg.EnableGatewayLookup)
+		assert.False(t, cfg.EnableGatewayLookup)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "true")
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "false")
 		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableGatewayLookup)
+		assert.False(t, cfg.EnableGatewayLookup)
 	})
 }
 
@@ -168,16 +169,16 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 	})
 }
 
-func TestEnablingDNSDomainCollection(t *testing.T) {
+func TestDisablingDNSDomainCollection(t *testing.T) {
 	newConfig()
 	defer restoreGlobalConfig()
 
 	t.Run("via YAML", func(t *testing.T) {
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSDomains.yaml")
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.CollectDNSDomains)
+		assert.False(t, cfg.CollectDNSDomains)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
@@ -188,7 +189,7 @@ func TestEnablingDNSDomainCollection(t *testing.T) {
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.False(t, cfg.CollectDNSDomains) // default value should be false
+		assert.False(t, cfg.CollectDNSDomains)
 
 		newConfig()
 		os.Setenv("DD_COLLECT_DNS_DOMAINS", "true")
@@ -205,7 +206,7 @@ func TestSettingMaxDNSStats(t *testing.T) {
 	defer restoreGlobalConfig()
 
 	t.Run("via YAML", func(t *testing.T) {
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSDomains.yaml")
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
 		require.NoError(t, err)
 		cfg := New()
 
@@ -228,5 +229,68 @@ func TestSettingMaxDNSStats(t *testing.T) {
 		cfg = New()
 
 		assert.Equal(t, 10000, cfg.MaxDNSStats)
+	})
+}
+
+func TestHTTPReplaceRules(t *testing.T) {
+	expected := []*ReplaceRule{
+		{
+			Pattern: "/users/(.*)",
+			Re:      regexp.MustCompile("/users/(.*)"),
+			Repl:    "/users/?",
+		},
+		{
+			Pattern: "foo",
+			Re:      regexp.MustCompile("foo"),
+			Repl:    "bar",
+		},
+		{
+			Pattern: "payment_id",
+			Re:      regexp.MustCompile("payment_id"),
+		},
+	}
+
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-HTTPReplaceRules.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
+        [
+          {
+            "pattern": "/users/(.*)",
+            "repl": "/users/?"
+          },
+          {
+            "pattern": "foo",
+            "repl": "bar"
+          },
+          {
+            "pattern": "payment_id"
+          }
+        ]
+        `)
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
 	})
 }

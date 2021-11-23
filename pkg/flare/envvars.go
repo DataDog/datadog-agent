@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var allowedEnvvarNames = []string{
@@ -53,6 +54,8 @@ var allowedEnvvarNames = []string{
 	"DD_APM_MAX_EPS",
 	"DD_APM_TPS", //deprecated
 	"DD_APM_MAX_TPS",
+	"DD_APM_ERROR_TPS",
+	"DD_APM_DISABLE_RARE_SAMPLER",
 	"DD_APM_MAX_MEMORY",
 	"DD_APM_MAX_CPU_PERCENT",
 	"DD_APM_FEATURES",
@@ -122,7 +125,7 @@ func zipEnvvars(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "envvars.log")
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	w, err := scrubber.NewWriter(f, os.ModePerm)
 	if err != nil {
 		return err
 	}

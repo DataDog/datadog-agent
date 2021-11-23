@@ -6,6 +6,7 @@
 package forwarder
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -128,6 +129,7 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitHostMetadata(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Series(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
 }
@@ -342,6 +344,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 
 	requests := int64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("%#v\n", r.URL)
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -366,6 +369,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	headers.Set("key", "value")
 
 	assert.Nil(t, f.SubmitV1Series(payload, headers))
+	assert.Nil(t, f.SubmitSeries(payload, headers))
 	assert.Nil(t, f.SubmitV1Intake(payload, headers))
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
 	assert.Nil(t, f.SubmitEvents(payload, headers))
@@ -378,10 +382,10 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	<-time.After(1 * time.Second)
 
 	// We should receive the following requests:
-	// - 8 transactions * 2 payloads per transactions * 2 api_keys
+	// - 9 transactions * 2 payloads per transactions * 2 api_keys
 	// - 2 requests to check the validity of the two api_key
 	ts.Close()
-	assert.Equal(t, int64(8*2*2+2), requests)
+	assert.Equal(t, int64(9*2*2+2), requests)
 }
 
 func TestTransactionEventHandlers(t *testing.T) {
@@ -408,7 +412,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -438,7 +442,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(endpoints.MetadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		if v := atomic.AddInt64(&requests, 1); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
@@ -466,7 +470,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -496,7 +500,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(endpoints.MetadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusInternalServerError)
 	})
@@ -520,7 +524,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -579,10 +583,10 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
-	responses, err := f.submitProcessLikePayload(endpoints.MetadataEndpoint, payload, headers, true)
+	responses, err := f.submitProcessLikePayload(endpoints.SeriesEndpoint, payload, headers, true)
 	require.NoError(t, err)
 
 	_, ok := <-responses

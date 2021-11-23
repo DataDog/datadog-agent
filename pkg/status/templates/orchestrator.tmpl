@@ -32,12 +32,12 @@ Orchestrator Explorer
   ======================
   {{- range $key, $values := .OrchestratorEndpoints}}
   {{- if gt (len $values) 1}}
-  {{$key}} - API Keys ending with:
+    {{$key}} - API Keys ending with:
   {{- range $values }}
       - {{ . }}
   {{- end}}
   {{- else}}
-  {{$key}} - API Key ending with: {{index $values 0}}
+    {{$key}} - API Key ending with: {{index $values 0}}
   {{- end}}
   {{- end}}
 
@@ -53,6 +53,12 @@ Orchestrator Explorer
 {{range $index, $element := .CacheInformation}}
     {{ $element.NodeType }}
       Last Run: (Hits: {{$element.CacheHits}} Miss: {{$element.CacheMiss}}) | Total: (Hits: {{$element.TotalHits}} Miss: {{$element.TotalMiss}})
+{{end}}
+{{- if .CLCEnabled }}
+  ===========
+  Dispatched Configurations on Cluster Check Runners
+  ===========
+    To print orchestrator check details run agent clusterchecks --check orchestrator
 {{end}}
 {{else}}
 {{- if .LeaderName }}

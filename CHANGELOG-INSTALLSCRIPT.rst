@@ -2,6 +2,60 @@
 Release Notes
 =============
 
+.. _Release Notes_installscript-1.7.1:
+
+installscript-1.7.1
+===================
+
+.. _Release Notes_installscript-1.7.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Invocation of zypper when running install_script.sh as root is now fixed.
+
+
+.. _Release Notes_installscript-1.7.0:
+
+installscript-1.7.0
+===================
+
+.. _Release Notes_installscript-1.7.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Since datadog-agent 6.33/7.33, the SUSE RPMs are only supported on OpenSUSE >= 15
+  (including OpenSUSE >= 42) and SLES >= 12. On OpenSUSE < 15 and SLES < 12,
+  ``install_script.sh`` now installs 6.32/7.32 when minor version is unpinned
+  and ``DD_AGENT_FLAVOR`` doesn't specify version.
+
+- On Debian-based systems, the install script now installs the
+  datadog-signing-keys package in addition to the datadog-agent package.
+  
+  For users using the official apt.datadoghq.com repository: the datadog-signing-keys
+  package is already present in the repository, no further action is necessary.
+  
+  For users with custom mirrors or repositories: the datadog-signing-keys
+  package must be present in the same repository channel as the datadog-agent
+  package, otherwise the install script will fail to install the Agent.
+
+
+.. _Release Notes_installscript-1.7.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The ``install_script.sh`` now supports AlmaLinux and Rocky Linux installation.
+  Note that only datadog-agent, datadog-iot-agent and datadog-dogstatsd since
+  version 6.33/7.33 support these distributions, so trying to install older
+  versions will fail.
+
+- Environment variable ``ZYPP_RPM_DEBUG`` value is now propagated through
+  ``install_script.sh`` to the ``zypper install`` command to enable
+  RPM transaction debugging.
+
+
 .. _Release Notes_installscript-1.6.0:
 
 installscript-1.6.0

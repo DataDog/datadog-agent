@@ -32,7 +32,6 @@ type Sender struct {
 	destinations *client.Destinations
 	strategy     Strategy
 	done         chan struct{}
-	lastError    error
 }
 
 // NewSender returns a new sender.
@@ -74,7 +73,6 @@ func (s *Sender) run() {
 		s.destinations.Main.Send(payload.payload)
 		// update auditor
 	}
-
 }
 
 // send sends a payload to multiple destinations,

@@ -46,9 +46,11 @@ func (c inventoriesCollector) Send(ctx context.Context, s *serializer.Serializer
 	return nil
 }
 
-// Init initializes the inventory metadata collection
+// Init initializes the inventory metadata collection. This should be called in
+// all agents that wish to track inventory, after configuration is initialized.
 func (c inventoriesCollector) Init() error {
-	return inventories.StartMetadataUpdatedGoroutine(c.sc, config.Datadog.GetDuration("inventories_min_interval")*time.Second)
+	inventories.InitializeData()
+	return inventories.StartMetadataUpdatedGoroutine(c.sc, time.Duration(config.Datadog.GetInt("inventories_min_interval"))*time.Second)
 }
 
 // SetupInventoriesExpvar init the expvar function for inventories
@@ -73,10 +75,11 @@ func SetupInventories(sc *Scheduler, ac inventories.AutoConfigInterface, coll in
 	}
 	RegisterCollector("inventories", ic)
 
-	if err := sc.AddCollector("inventories", config.Datadog.GetDuration("inventories_max_interval")*time.Second); err != nil {
+	if err := sc.AddCollector("inventories", time.Duration(config.Datadog.GetInt("inventories_max_interval"))*time.Second); err != nil {
 		return err
 	}
 
 	SetupInventoriesExpvar(ac, coll)
+
 	return nil
 }

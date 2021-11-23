@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package serializer
@@ -298,6 +299,24 @@ func TestSendV1Series(t *testing.T) {
 	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("enable_stream_payload_serialization", false)
 	defer config.Datadog.Set("enable_stream_payload_serialization", nil)
+
+	s := NewSerializer(f, nil)
+
+	payload := &testPayload{}
+	err := s.SendSeries(payload)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	errPayload := &testErrorPayload{}
+	err = s.SendSeries(errPayload)
+	require.NotNil(t, err)
+}
+
+func TestSendSeries(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
+	config.Datadog.Set("use_v2_api.series", true)
+	defer config.Datadog.Set("use_v2_api.series", false)
 
 	s := NewSerializer(f, nil)
 

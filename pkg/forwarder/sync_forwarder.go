@@ -63,6 +63,12 @@ func (f *SyncForwarder) SubmitV1Series(payload Payloads, extra http.Header) erro
 	return f.sendHTTPTransactions(transactions)
 }
 
+// SubmitSeries will send timeseries to the v2 endpoint
+func (f *SyncForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
+	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SeriesEndpoint, payload, true, extra)
+	return f.sendHTTPTransactions(transactions)
+}
+
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
 func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, true, extra)

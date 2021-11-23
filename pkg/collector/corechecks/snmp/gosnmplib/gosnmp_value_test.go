@@ -70,7 +70,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: []byte("m\ny\rV\ta\n\r\tl"),
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: "myVal"},
+			valuestore.ResultValue{Value: "m\ny\rV\ta\n\r\tl"},
 			nil,
 		},
 		{

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gogo/protobuf/proto"
 )
@@ -32,35 +33,36 @@ const pathTraces = "/api/v0.2/traces"
 // a flush is triggered; replaced in tests.
 var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
 
-// SampledSpans represents the result of a trace sampling operation.
-type SampledSpans struct {
-	// Trace will contain a trace if it was sampled or be empty if it wasn't.
-	Traces []*pb.APITrace
-	// Events contains all APM events extracted from a trace. If no events were extracted, it will be empty.
-	Events []*pb.Span
+// SampledChunks represents the result of a trace sampling operation.
+type SampledChunks struct {
+	// TracerPayload contains all the chunks that were sampled as part of processing a payload.
+	TracerPayload *pb.TracerPayload
 	// Size represents the approximated message size in bytes.
 	Size int
-	// SpanCount specifies the total number of spans found in Traces.
+	// SpanCount specifies the number of spans that were sampled as part of a trace inside the TracerPayload.
 	SpanCount int64
+	// EventCount specifies the total number of events found in Traces.
+	EventCount int64
 }
 
 // TraceWriter buffers traces and APM events, flushing them to the Datadog API.
 type TraceWriter struct {
 	// In receives sampled spans to be processed by the trace writer.
 	// Channel should only be received from when testing.
-	In chan *SampledSpans
+	In chan *SampledChunks
 
-	hostname string
-	env      string
-	senders  []*sender
-	stop     chan struct{}
-	stats    *info.TraceWriterInfo
-	wg       sync.WaitGroup // waits for gzippers
-	tick     time.Duration  // flush frequency
+	hostname  string
+	env       string
+	targetTPS float64
+	errorTPS  float64
+	senders   []*sender
+	stop      chan struct{}
+	stats     *info.TraceWriterInfo
+	wg        sync.WaitGroup // waits for gzippers
+	tick      time.Duration  // flush frequency
 
-	traces       []*pb.APITrace // traces buffered
-	events       []*pb.Span     // events buffered
-	bufferedSize int            // estimated buffer size
+	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
+	bufferedSize   int                 // estimated buffer size
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -73,9 +75,11 @@ type TraceWriter struct {
 // will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 	tw := &TraceWriter{
-		In:        make(chan *SampledSpans, 1000),
+		In:        make(chan *SampledChunks, 1000),
 		hostname:  cfg.Hostname,
 		env:       cfg.DefaultEnv,
+		targetTPS: cfg.TargetTPS,
+		errorTPS:  cfg.ErrorTPS,
 		stats:     &info.TraceWriterInfo{},
 		stop:      make(chan struct{}),
 		flushChan: make(chan chan struct{}),
@@ -173,23 +177,19 @@ func (w *TraceWriter) FlushSync() error {
 	return nil
 }
 
-func (w *TraceWriter) addSpans(pkg *SampledSpans) {
+func (w *TraceWriter) addSpans(pkg *SampledChunks) {
 	atomic.AddInt64(&w.stats.Spans, pkg.SpanCount)
-	atomic.AddInt64(&w.stats.Traces, int64(len(pkg.Traces)))
-	atomic.AddInt64(&w.stats.Events, int64(len(pkg.Events)))
+	atomic.AddInt64(&w.stats.Traces, int64(len(pkg.TracerPayload.Chunks)))
+	atomic.AddInt64(&w.stats.Events, pkg.EventCount)
 
 	size := pkg.Size
 	if size+w.bufferedSize > MaxPayloadSize {
 		// reached maximum allowed buffered size
 		w.flush()
 	}
-	if len(pkg.Traces) > 0 {
-		log.Tracef("Handling new trace with %d spans: %v", pkg.SpanCount, pkg.Traces)
-		w.traces = append(w.traces, pkg.Traces...)
-	}
-	if len(pkg.Events) > 0 {
-		log.Tracef("Handling new package with %d events: %v", len(pkg.Events), pkg.Events)
-		w.events = append(w.events, pkg.Events...)
+	if len(pkg.TracerPayload.Chunks) > 0 {
+		log.Tracef("Handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
+		w.tracerPayloads = append(w.tracerPayloads, pkg.TracerPayload)
 	}
 	w.bufferedSize += size
 }
@@ -212,14 +212,13 @@ outer:
 
 func (w *TraceWriter) resetBuffer() {
 	w.bufferedSize = 0
-	w.traces = w.traces[:0]
-	w.events = w.events[:0]
+	w.tracerPayloads = w.tracerPayloads[:0]
 }
 
 const headerLanguages = "X-Datadog-Reported-Languages"
 
 func (w *TraceWriter) flush() {
-	if len(w.traces) == 0 && len(w.events) == 0 {
+	if len(w.tracerPayloads) == 0 {
 		// nothing to do
 		return
 	}
@@ -227,14 +226,16 @@ func (w *TraceWriter) flush() {
 	defer timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
 	defer w.resetBuffer()
 
-	log.Debugf("Serializing %d traces and %d APM events.", len(w.traces), len(w.events))
-	tracePayload := pb.TracePayload{
-		HostName:     w.hostname,
-		Env:          w.env,
-		Traces:       w.traces,
-		Transactions: w.events,
+	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
+	p := pb.AgentPayload{
+		AgentVersion:   version.AgentVersion,
+		HostName:       w.hostname,
+		Env:            w.env,
+		TargetTPS:      w.targetTPS,
+		ErrorTPS:       w.errorTPS,
+		TracerPayloads: w.tracerPayloads,
 	}
-	b, err := proto.Marshal(&tracePayload)
+	b, err := proto.Marshal(&p)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return

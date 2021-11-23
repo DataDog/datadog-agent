@@ -3,6 +3,7 @@
 
 #include "filters.h"
 #include "process.h"
+#include "bpf_const.h"
 
 #define FSTYPE_LEN 16
 
@@ -136,6 +137,15 @@ struct syscall_cache_t {
             u32 event_kind;
             union selinux_write_payload_t payload;
         } selinux;
+
+        struct {
+            int cmd;
+            u32 map_id;
+            u32 prog_id;
+            int retval;
+            u64 helpers[3];
+            union bpf_attr_def *attr;
+        } bpf;
     };
 };
 
