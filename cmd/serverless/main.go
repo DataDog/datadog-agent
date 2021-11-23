@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -159,6 +160,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 			log.Errorf("While changing the loglevel: %s", err)
 		}
 	}
+
+	// start the proxy if needed
+	// as this feature is experimental, this should be the only entrypoint (easier to remove)
+	log.Debug("------------------------------------------------------------------------------------>")
+	go proxy.Start()
 
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
