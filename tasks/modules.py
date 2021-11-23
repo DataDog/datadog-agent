@@ -85,7 +85,7 @@ DEFAULT_MODULES = {
     "pkg/util/winutil": GoModule(
         "pkg/util/winutil",
         condition=lambda: sys.platform == 'win32',
-        dependencies=["pkg/util/log", "pkg/util/scrubber"],
+        dependencies=["pkg/util/log"],
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
     "pkg/otlp/model": GoModule("pkg/otlp/model", dependencies=["pkg/quantile"]),
