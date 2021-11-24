@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import re
 import subprocess
 import sys
 from os.path import dirname, exists, join, relpath
@@ -65,18 +64,29 @@ for package_path in packages:
 # otherwise cause go vet to fail.
 for module, packages in by_mod.items():
     try:
-        proc = subprocess.run("go list ./...", shell=True, check=True, cwd=module, capture_output=True)
+        # -find skips listing package dependencies
+        # -f {{.Dir}} outputs the absolute dir containing the package
+        proc = subprocess.run(
+            "go list -find -f '{{.Dir}}' ./...", shell=True, check=True, cwd=module, capture_output=True
+        )
     except subprocess.CalledProcessError as e:
         print(e.stderr.decode('utf-8'))
         sys.exit(-1)
 
-    mod_re = re.compile(('github.com/DataDog/datadog-agent/' + module.lstrip('./')).rstrip('/') + '/')
-    valid_packages = set(mod_re.sub('./', line.strip()) for line in proc.stdout.decode('utf-8').split('\n'))
+    valid_packages = set()
+    for line in proc.stdout.decode('utf-8').split('\n'):
+        if line:
+            relative = relpath(line, module)
+            if relative != '.':
+                relative = './' + relative
+        valid_packages.add(relative)
     for package in packages - valid_packages:
-        print(f"Skipping {package} in {module}: build constraints exclude all Go files")
+        print(f"Skipping {package} in {module}: not a valid package or all files are excluded by build tags")
         packages.remove(package)
 
 for module, packages in by_mod.items():
+    if not packages:
+        continue
     try:
         subprocess.run(f"go vet {' '.join(packages)}", shell=True, check=True, cwd=module)
     except subprocess.CalledProcessError:
