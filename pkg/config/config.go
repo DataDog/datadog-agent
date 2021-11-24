@@ -887,9 +887,8 @@ func InitConfig(config Config) {
 		}
 		if enabled {
 			return "true"
-		} else {
-			return "disabled"
 		}
+		return "disabled"
 	})
 	config.SetKnown("process_config.intervals.process_realtime")
 	config.SetKnown("process_config.queue_size")
