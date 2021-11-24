@@ -129,7 +129,7 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 			continue
 		}
 		redact.RemoveLastAppliedConfigurationAnnotation(cronJob.Annotations)
-		log.Warnf("CronJob API version: %s", cronJob.APIVersion)
+		//log.Warnf("CronJob API version: %s", cronJob.APIVersion)
 		// extract cronJob info
 		cronJobModel := extractCronJob(cronJob)
 		// scrub & generate YAML
@@ -196,9 +196,8 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		}
 		redact.RemoveLastAppliedConfigurationAnnotation(depl.Annotations)
 		log.Warnf("Deployment Name is: %s", depl.Name)
-		if len(depl.APIVersion) != 0 {
-			log.Warnf("Deployment API version is: %s", depl.APIVersion)
-		}
+		log.Warnf("Deployment API version is: %s", depl.APIVersion)
+		log.Warnf("Deployment SelfLink is: %s", depl.SelfLink)
 
 		// extract deployment info
 		deployModel := extractDeployment(depl)
@@ -771,7 +770,7 @@ func processRoleList(roleList []*rbacv1.Role, groupID int32, cfg *config.Orchest
 		if orchestrator.SkipKubernetesResource(role.UID, role.ResourceVersion, orchestrator.K8sRole) {
 			continue
 		}
-		log.Warnf("Role API version: %s", role.APIVersion)
+		//log.Warnf("Role API version: %s", role.APIVersion)
 		roleModel := extractRole(role)
 
 		// k8s objects only have json "omitempty" annotations
@@ -827,7 +826,7 @@ func processRoleBindingList(roleBindingList []*rbacv1.RoleBinding, groupID int32
 		if orchestrator.SkipKubernetesResource(roleBinding.UID, roleBinding.ResourceVersion, orchestrator.K8sRoleBinding) {
 			continue
 		}
-		log.Warnf("RoleBindings API version: %s", roleBinding.APIVersion)
+		//log.Warnf("RoleBindings API version: %s", roleBinding.APIVersion)
 		roleBindingModel := extractRoleBinding(roleBinding)
 
 		// k8s objects only have json "omitempty" annotations
@@ -885,7 +884,8 @@ func processClusterRoleList(clusterRoleList []*rbacv1.ClusterRole, groupID int32
 		}
 
 		clusterRoleModel := extractClusterRole(clusterRole)
-
+		//log.Warnf("ClusterRole API version: %s", clusterRole.APIVersion)
+		//log.Warnf("ClusterRole Self Link version: %s", clusterRole.SelfLink)
 		// k8s objects only have json "omitempty" annotations
 		// + marshalling is more performant than YAML
 		jsonRole, err := jsoniter.Marshal(clusterRole)
