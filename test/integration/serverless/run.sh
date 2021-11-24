@@ -42,7 +42,6 @@ fi
 cd "./test/integration/serverless"
 
 # build and zip recorder extension
-echo
 echo "Building recorder extension"
 cd recorder-extension
 GOOS=linux GOARCH=amd64 go build -o extensions/recorder-extension main.go
@@ -50,7 +49,6 @@ zip -rq ext.zip extensions/* -x ".*" -x "__MACOSX" -x "extensions/.*"
 cd ..
 
 # build Go Lambda functions
-echo
 echo "Building Go Lambda functions"
 go_test_dirs=("with-ddlambda" "without-ddlambda" "log-with-ddlambda" "log-without-ddlambda" "timeout" "trace")
 cd src
@@ -59,7 +57,6 @@ for go_dir in "${go_test_dirs[@]}"; do
 done
 
 #build .NET functions
-echo
 echo "Building .NET Lambda functions"
 cd csharp-tests
 dotnet restore
@@ -69,7 +66,6 @@ dotnet lambda package --configuration Release --framework netcoreapp3.1 --output
 set -e
 cd ../../
 
-echo
 if [ -z "$NODE_LAYER_VERSION" ]; then
     echo "NODE_LAYER_VERSION not found, using the default"
     export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION

@@ -1,3 +1,4 @@
+# flake8: noqa
 import time
 
 from datadog_lambda.metric import lambda_metric
