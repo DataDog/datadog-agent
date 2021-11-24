@@ -13,7 +13,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/mailru/easyjson/jlexer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,9 +25,6 @@ type compactSpacesTestCase struct {
 
 func TestMain(m *testing.M) {
 	flag.Parse()
-
-	// disable loggging in tests
-	seelog.UseLogger(seelog.Disabled)
 
 	// prepare JSON obfuscator tests
 	suite, err := loadTests()
