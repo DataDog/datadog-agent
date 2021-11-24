@@ -81,6 +81,12 @@ const (
 
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
+
+	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
+	DefaultInventoriesMinInterval = 300 // 5min
+
+	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
+	DefaultInventoriesMaxInterval = 600 // 10min
 )
 
 // Datadog is the global configuration object
@@ -916,8 +922,8 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
-	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
+	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
+	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
