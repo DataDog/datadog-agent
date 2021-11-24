@@ -39,7 +39,9 @@ type Obfuscator struct {
 	log        Logger
 }
 
+// Logger is able to log certain log messages.
 type Logger interface {
+	// Debugf logs the given message using the given format.
 	Debugf(format string, params ...interface{})
 }
 
@@ -92,7 +94,9 @@ type Config struct {
 	Logger Logger
 }
 
+// StatsClient implementations are able to emit stats.
 type StatsClient interface {
+	// Gauge reports a gauge stat with the given name, value, tags and rate.
 	Gauge(name string, value float64, tags []string, rate float64) error
 }
 

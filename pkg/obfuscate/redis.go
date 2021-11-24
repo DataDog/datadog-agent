@@ -83,6 +83,7 @@ func (*Obfuscator) QuantizeRedisString(query string) string {
 	return strings.Trim(resource.String(), " ")
 }
 
+// ObfuscateRedisString obfuscates the given Redis command.
 func (*Obfuscator) ObfuscateRedisString(rediscmd string) string {
 	t := newRedisTokenizer([]byte(rediscmd))
 	var (

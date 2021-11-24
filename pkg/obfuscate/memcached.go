@@ -7,6 +7,7 @@ package obfuscate
 
 import "strings"
 
+// ObfuscateMemcachedString obfuscates the Memcached command cmd.
 func (*Obfuscator) ObfuscateMemcachedString(cmd string) string {
 	// All memcached commands end with new lines [1]. In the case of storage
 	// commands, key values follow after. Knowing this, all we have to do

@@ -10,10 +10,12 @@ import (
 	"strings"
 )
 
+// ObfuscateMongoDBString obfuscates the given MongoDB JSON query.
 func (o *Obfuscator) ObfuscateMongoDBString(cmd string) string {
 	return obfuscateJSONString(cmd, o.mongo)
 }
 
+// ObfuscateElasticSearchString obfuscates the given ElasticSearch JSON query.
 func (o *Obfuscator) ObfuscateElasticSearchString(cmd string) string {
 	return obfuscateJSONString(cmd, o.es)
 }

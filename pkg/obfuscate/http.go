@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+// ObfuscateURLString obfuscates the given URL. It must be a valid URL and at least one
+// HTTP obfuscation option must be enabled at Obfuscator instantiation time.
 func (o *Obfuscator) ObfuscateURLString(val string) string {
 	if !o.opts.HTTP.RemoveQueryString && !o.opts.HTTP.RemovePathDigits {
 		// nothing to do
