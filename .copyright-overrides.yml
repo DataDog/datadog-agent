@@ -24,6 +24,7 @@ github.com/google/go-cmp/*: The Go Authors
 github.com/grpc-ecosystem/*: Gengo, Inc
 github.com/hashicorp/*: HashiCorp Inc.
 github.com/prometheus/*: The Prometheus Authors
+github.com/open-telemetry/*: Open Telemetry Maintainers
 go.etcd.io/*: the etcd maintainers
 google.golang.org/appengine: the Go App Engine Maintainers
 google.golang.org/appengine/*: the Go App Engine Maintainers
