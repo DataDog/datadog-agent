@@ -89,14 +89,14 @@ func getMainDestinations(endpoints *config.Endpoints, destinationsContext *clien
 		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
 		additionals := []client.Destination{}
 		for _, endpoint := range endpoints.GetUnReliableAdditionals() {
-			additionals = append(additionals, http.NewDestination(*endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
 		}
 		return client.NewDestinations(main, additionals)
 	}
 	main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
 	additionals := []client.Destination{}
 	for _, endpoint := range endpoints.GetUnReliableAdditionals() {
-		additionals = append(additionals, tcp.NewDestination(*endpoint, endpoints.UseProto, destinationsContext))
+		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
 	}
 	return client.NewDestinations(main, additionals)
 }
@@ -107,7 +107,7 @@ func getReliableAdditionalDestinations(endpoints *config.Endpoints, destinations
 
 	if len(reliableEndpoints) >= 1 {
 		log.Infof("Found an additional reliable endpoint. Only the first additional endpoint marked as reliable will be used at this time.")
-		reliableAdditionalEndpoint = *reliableEndpoints[0]
+		reliableAdditionalEndpoint = reliableEndpoints[0]
 	} else {
 		return nil
 	}
