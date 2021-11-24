@@ -28,7 +28,10 @@ type safeConfig struct {
 	sync.RWMutex
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
-	configEnvVars  map[string]struct{}
+
+	// configEnvVars is the set of env vars that are consulted for
+	// configuration values.
+	configEnvVars map[string]struct{}
 }
 
 // Set wraps Viper for concurrent access
