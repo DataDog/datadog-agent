@@ -12,7 +12,6 @@ import (
 )
 
 func TestObfuscateMemcached(t *testing.T) {
-	const k = "memcached.command"
 	for _, tt := range []struct {
 		in, out string
 	}{

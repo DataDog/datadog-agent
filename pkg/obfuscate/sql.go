@@ -16,25 +16,6 @@ import (
 
 var questionMark = []byte("?")
 
-// tokenFilter is a generic interface that a sqlObfuscator expects. It defines
-// the Filter() function used to filter or replace given tokens.
-// A filter can be stateful and keep an internal state to apply the filter later;
-// this can be useful to prevent backtracking in some cases.
-
-// tokenFilter implementations process tokens in the order that they are found by the tokenizer
-// and respond as to how they should be interpreted in the result. For example: one token filter
-// may decide that a token should be hidden in the result, or that it should be transformed in
-// some way.
-type tokenFilter interface {
-	// Filter takes the current token kind, the last token kind and the token itself,
-	// returning the new token kind and the value that should be stored in the final query,
-	// along with an error.
-	Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error)
-
-	// Reset resets the filter.
-	Reset()
-}
-
 // discardFilter is a token filter which discards certain elements from a query, such as
 // comments and AS aliases by returning a nil buffer.
 type discardFilter struct{ keepSQLAlias bool }

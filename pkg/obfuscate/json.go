@@ -199,20 +199,3 @@ func (p *jsonObfuscator) obfuscate(data []byte) (string, error) {
 	}
 	return out.String(), nil
 }
-
-func stringOp(op int) string {
-	return [...]string{
-		"Continue",
-		"BeginLiteral",
-		"BeginObject",
-		"ObjectKey",
-		"ObjectValue",
-		"EndObject",
-		"BeginArray",
-		"ArrayValue",
-		"EndArray",
-		"SkipSpace",
-		"End",
-		"Error",
-	}[op]
-}
