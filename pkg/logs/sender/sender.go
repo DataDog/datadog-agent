@@ -84,144 +84,54 @@ func (s *Sender) run() {
 
 	destinationContetexts := []*destinationContext{}
 	for _, input := range s.destinations.Reliable {
-		destCtx := &destinationContext{false, make(chan []byte, 1), make(chan bool, 1)}
+		destCtx := &destinationContext{false, make(chan []byte, 100), make(chan bool, 1)}
 		destinationContetexts = append(destinationContetexts, destCtx)
+		input.Start(destCtx.input, destCtx.errorChanged)
+	}
+
+	additionalContexts := []*destinationContext{}
+	for _, input := range s.destinations.Additionals {
+		destCtx := &destinationContext{false, make(chan []byte, 100), make(chan bool, 1)}
+		additionalContexts = append(additionalContexts, destCtx)
 		input.Start(destCtx.input, destCtx.errorChanged)
 	}
 
 	for payload := range s.inputChan {
 
-		errors := 0
-		for _, destCtx := range destinationContetexts {
-			if destCtx.updateAndGetHasError() {
-				errors++
-			} else {
-				destCtx.input <- payload.payload
-			}
-		}
-
-		// All have errors - wait
-		if errors == len(destinationContetexts) {
-			allHaveError := true
-			for allHaveError {
-				for _, input := range destinationContetexts {
-					if !input.updateAndGetHasError() {
-						allHaveError = false
-						break
-					}
+		sent := false
+		for !sent {
+			for _, destCtx := range destinationContetexts {
+				if !destCtx.updateAndGetHasError() {
+					sent = true
+					destCtx.input <- payload.payload
 				}
+			}
+
+			if !sent {
+				// Using a busy loop is much simpler than trying to join an arbitrary number of channels.
+				// This has little overhead since it will only happen when there is no possible way to send logs
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
+
+		for _, destCtx := range destinationContetexts {
+			// if an endpoint is stuck in the previous step, buffer the payloads if we have room to mitigate loss
+			// on intermittent failures.
+			if destCtx.hasError {
+				select {
+				case destCtx.input <- payload.payload:
+				default:
+				}
+			}
+		}
+
+		// Attempt to send to additional destination
+		for _, destCtx := range additionalContexts {
+			select {
+			case destCtx.input <- payload.payload:
+			default:
+			}
+		}
+
 	}
 }
-
-func shouldStopSending(err error) bool {
-	return err == context.Canceled
-}
-
-// send sends a payload to multiple destinations,
-// it will forever retry for the main destination unless the error is not retryable
-// and only try once for additional destinations.
-// func (s *Sender) send(payload []byte) error {
-// 	for {
-// 		err := s.destinations.Main.Send(payload)
-// 		if err != nil {
-// 			if s.lastError == nil {
-// 				s.hasError <- true
-// 			}
-// 			s.lastError = err
-
-// 			metrics.DestinationErrors.Add(1)
-// 			metrics.TlmDestinationErrors.Inc()
-// 			if _, ok := err.(*client.RetryableError); ok {
-
-// 				// could not send the payload because of a client issue,
-// 				// let's retry
-// 				continue
-// 			}
-// 			return err
-// 		}
-// 		if s.lastError != nil {
-// 			s.lastError = nil
-// 			s.hasError <- false
-// 		}
-// 		break
-// 	}
-
-// 	for _, destination := range s.destinations.Additionals {
-// 		// send in the background so that the agent does not fall behind
-// 		// for the main destination
-// 		destination.SendAsync(payload)
-// 	}
-
-// 	return nil
-// }
-
-// shouldStopSending returns true if a component should stop sending logs.
-
-// SplitSenders splits a single stream of message into 2 equal streams.
-// Acts like an AND gate in that the input will only block if both outputs block.
-// // This ensures backpressure is propagated to the input to prevent loss of measages in the pipeline.
-// func SplitSenders(inputChan chan *message.Message, main *Sender, backup *Sender) {
-// 	go func() {
-// 		mainSenderHasErr := false
-// 		backupSenderHasErr := false
-
-// 		for message := range inputChan {
-// 			sentMain := false
-// 			sentBackup := false
-
-// 			// First collect any errors from the senders
-// 			select {
-// 			case mainSenderHasErr = <-main.hasError:
-// 			default:
-// 			}
-
-// 			select {
-// 			case backupSenderHasErr = <-backup.hasError:
-// 			default:
-// 			}
-
-// 			// If both senders are failing, we want to block the pipeline until at least one succeeds
-// 			if mainSenderHasErr && backupSenderHasErr {
-// 				select {
-// 				case main.inputChan <- message:
-// 					sentMain = true
-// 				case backup.inputChan <- message:
-// 					sentBackup = true
-// 				case mainSenderHasErr = <-main.hasError:
-// 				case backupSenderHasErr = <-backup.hasError:
-// 				}
-// 			}
-
-// 			if !sentMain {
-// 				mainSenderHasErr = sendMessage(mainSenderHasErr, main, message)
-// 			}
-
-// 			if !sentBackup {
-// 				backupSenderHasErr = sendMessage(backupSenderHasErr, backup, message)
-// 			}
-// 		}
-// 	}()
-// }
-
-// func sendMessage(hasError bool, sender *Sender, message *message.Message) bool {
-// 	if !hasError {
-// 		// If there is no error - block and write to the buffered channel until it succeeds or we get an error.
-// 		// If we don't block, the input can fill the buffered channels faster than sender can
-// 		// drain them - causing missing logs.
-// 		select {
-// 		case sender.inputChan <- message:
-// 		case hasError = <-sender.hasError:
-// 		}
-// 	} else {
-// 		// Even if there is an error, try to put the log line in the buffered channel in case the
-// 		// error resolves quickly and there is room in the channel.
-// 		select {
-// 		case sender.inputChan <- message:
-// 		default:
-// 		}
-// 	}
-// 	return hasError
-// }

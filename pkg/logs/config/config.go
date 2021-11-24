@@ -245,6 +245,12 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 		additionals[i].UseCompression = main.UseCompression
+		additionals[i].BackoffBase = main.BackoffBase
+		additionals[i].BackoffMax = main.BackoffMax
+		additionals[i].BackoffFactor = main.BackoffFactor
+		additionals[i].RecoveryInterval = main.RecoveryInterval
+		additionals[i].RecoveryReset = main.RecoveryReset
+
 		if additionals[i].Version == 0 {
 			additionals[i].Version = main.Version
 		}

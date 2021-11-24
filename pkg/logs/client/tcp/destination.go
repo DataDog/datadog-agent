@@ -6,19 +6,13 @@
 package tcp
 
 import (
-	"expvar"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	warningPeriod = 1000
 )
 
 // Destination is responsible for shipping logs to a remote server over TCP.
@@ -29,8 +23,6 @@ type Destination struct {
 	destinationsContext *client.DestinationsContext
 	conn                net.Conn
 	connCreationTime    time.Time
-	inputChan           chan []byte
-	once                sync.Once
 }
 
 // NewDestination returns a new destination.
@@ -93,43 +85,4 @@ func (d *Destination) Start(payload chan []byte, hasError chan bool) {
 			}
 		}
 	}()
-
-	return // nil
 }
-
-// SendAsync sends a message to the destination without blocking. If the channel is full, the incoming messages will be
-// dropped
-func (d *Destination) SendAsync(payload []byte) {
-	host := d.connManager.endpoint.Host
-	d.once.Do(func() {
-		inputChan := make(chan []byte, config.ChanSize)
-		d.inputChan = inputChan
-		metrics.DestinationLogsDropped.Set(host, &expvar.Int{})
-		// go d.runAsync()
-	})
-
-	select {
-	case d.inputChan <- payload:
-	default:
-		// TODO: Display the warning in the status
-		if metrics.DestinationLogsDropped.Get(host).(*expvar.Int).Value()%warningPeriod == 0 {
-			log.Warnf("Some logs sent to additional destination %v were dropped", host)
-		}
-		metrics.DestinationLogsDropped.Add(host, 1)
-		metrics.TlmLogsDropped.Inc(host)
-	}
-}
-
-// TODO: Fixme
-// runAsync read the messages from the channel and send them
-// func (d *Destination) runAsync() {
-// 	ctx := d.destinationsContext.Context()
-// 	for {
-// 		select {
-// 		case payload := <-d.inputChan:
-// 			d.Send(payload) //nolint:errcheck
-// 		case <-ctx.Done():
-// 			return
-// 		}
-// 	}
-// }

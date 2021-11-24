@@ -46,8 +46,6 @@ type Destination struct {
 	host                string
 	client              *httputils.ResetClient
 	destinationsContext *client.DestinationsContext
-	once                sync.Once
-	payloadChan         chan []byte
 	climit              chan struct{} // semaphore for limiting concurrent background sends
 	backoff             backoff.Policy
 	nbErrors            int
@@ -55,17 +53,18 @@ type Destination struct {
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
 	lastError           error
+	shouldRetry         bool
 }
 
 // NewDestination returns a new Destination.
 // If `maxConcurrentBackgroundSends` > 0, then at most that many background payloads will be sent concurrently, else
 // there is no concurrency and the background sending pipeline will block while sending each payload.
 // TODO: add support for SOCKS5
-func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, maxConcurrentBackgroundSends int) *Destination {
-	return newDestination(endpoint, contentType, destinationsContext, time.Second*10, maxConcurrentBackgroundSends)
+func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, maxConcurrentBackgroundSends int, shouldRetry bool) *Destination {
+	return newDestination(endpoint, contentType, destinationsContext, time.Second*10, maxConcurrentBackgroundSends, shouldRetry)
 }
 
-func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int) *Destination {
+func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int, shouldRetry bool) *Destination {
 	if maxConcurrentBackgroundSends < 0 {
 		maxConcurrentBackgroundSends = 0
 	}
@@ -90,6 +89,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
 		lastError:           nil,
+		shouldRetry:         shouldRetry,
 	}
 }
 
@@ -115,21 +115,21 @@ func (d *Destination) Start(payload chan []byte, hasError chan bool) {
 func (d *Destination) sendConcurrent(payload []byte, retry bool, hasError chan bool) {
 	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 	if cap(d.climit) == 0 {
-		d.sendAndRetry(payload, retry, hasError)
+		d.sendAndRetry(payload, hasError)
 		return
 	}
 
 	go func() {
 		d.climit <- struct{}{}
 		go func() {
-			d.sendAndRetry(payload, retry, hasError)
+			d.sendAndRetry(payload, hasError)
 			<-d.climit
 		}()
 	}()
 }
 
 // Send sends a payload over HTTP,
-func (d *Destination) sendAndRetry(payload []byte, retry bool, hasError chan bool) {
+func (d *Destination) sendAndRetry(payload []byte, hasError chan bool) {
 	for {
 		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
 		if d.blockedUntil.After(time.Now()) {
@@ -139,7 +139,12 @@ func (d *Destination) sendAndRetry(payload []byte, retry bool, hasError chan boo
 
 		err := d.unconditionalSend(payload)
 
-		if retry {
+		if err == context.Canceled {
+			log.Warnf("Could not send payload: %v", err)
+			return
+		}
+
+		if d.shouldRetry {
 			d.Lock()
 			if _, ok := err.(*client.RetryableError); ok {
 				d.nbErrors = d.backoff.IncError(d.nbErrors)
@@ -165,7 +170,6 @@ func (d *Destination) sendAndRetry(payload []byte, retry bool, hasError chan boo
 		}
 		return
 	}
-	//TODO channel errors
 }
 
 func (d *Destination) unconditionalSend(payload []byte) (err error) {
@@ -238,30 +242,6 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	}
 }
 
-// SendAsync sends a payload in background.
-func (d *Destination) SendAsync(payload []byte) {
-	d.once.Do(func() {
-		payloadChan := make(chan []byte, config.ChanSize)
-		d.sendInBackground(payloadChan)
-		d.payloadChan = payloadChan
-	})
-	d.payloadChan <- payload
-}
-
-func (d *Destination) sendInBackground(payloadChan chan []byte) {
-	ctx := d.destinationsContext.Context()
-	go func() {
-		for {
-			select {
-			case payload := <-payloadChan:
-				d.sendConcurrent(payload, false, nil)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-}
-
 func httpClientFactory(timeout time.Duration) func() *http.Client {
 	return func() *http.Client {
 		return &http.Client{
@@ -305,7 +285,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	ctx.Start()
 	defer ctx.Stop()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := destination.unconditionalSend(emptyPayload)
 	if err != nil {

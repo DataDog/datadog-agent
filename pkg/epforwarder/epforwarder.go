@@ -180,11 +180,11 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	reliable := []client.Destination{}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+		reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true))
 	}
 	additionals := []client.Destination{}
 	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
-		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, 100)

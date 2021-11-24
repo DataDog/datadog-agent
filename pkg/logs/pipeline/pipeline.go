@@ -100,10 +100,10 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 
 	if endpoints.UseHTTP {
 		for _, endpoint := range endpoints.GetReliableEndpoints() {
-			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true))
 		}
 		for _, endpoint := range endpoints.GetUnReliableEndpoints() {
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false))
 		}
 		return client.NewDestinations(reliable, additionals)
 	}

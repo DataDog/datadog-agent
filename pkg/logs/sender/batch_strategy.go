@@ -144,7 +144,11 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 	metrics.TlmLogsSent.Add(float64(len(messages)))
 
 	serializedMessage := s.serializer.Serialize(messages)
-	encodedPayload, _ := s.contentEncoding.encode(serializedMessage) // TODO: Handle Error
+	encodedPayload, err := s.contentEncoding.encode(serializedMessage)
+	if err != nil {
+		log.Warn("Encoding failed - dropping payload", err)
+		return
+	}
 
 	outputChan <- &Payload{messages: messages, payload: encodedPayload}
 }
