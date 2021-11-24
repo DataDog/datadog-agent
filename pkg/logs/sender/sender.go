@@ -7,7 +7,7 @@ package sender
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -23,6 +23,20 @@ type Payload struct {
 type Strategy interface {
 	Start(inputChan chan *message.Message, outputChan chan *Payload)
 	Flush(ctx context.Context)
+}
+
+type destinationContext struct {
+	hasError     bool
+	input        chan []byte
+	errorChanged chan bool
+}
+
+func (d *destinationContext) updateAndGetHasError() bool {
+	select {
+	case d.hasError = <-d.errorChanged:
+	default:
+	}
+	return d.hasError
 }
 
 // Sender sends logs to different destinations.
@@ -68,73 +82,42 @@ func (s *Sender) run() {
 		s.done <- struct{}{}
 	}()
 
-	errorMap := []bool{}
-	for range s.destinations.Reliable {
-		errorMap = append(errorMap, false)
+	destinationContetexts := []*destinationContext{}
+	for _, input := range s.destinations.Reliable {
+		destCtx := &destinationContext{false, make(chan []byte, 1), make(chan bool, 1)}
+		destinationContetexts = append(destinationContetexts, destCtx)
+		input.Start(destCtx.input, destCtx.errorChanged)
 	}
-
-	fmt.Println("BRIAN - got dests", len(errorMap))
 
 	for payload := range s.inputChan {
 
-		failed := []chan bool{}
-
-		for i, destination := range s.destinations.Reliable {
-			// First collect any errors from the senders
-			select {
-			case errorMap[i] = <-destination.ErrorStateChangeChan():
-			default:
-			}
-			if errorMap[i] {
-				fmt.Println("BRIAN - GOT error")
-				failed = append(failed, destination.ErrorStateChangeChan())
+		errors := 0
+		for _, destCtx := range destinationContetexts {
+			if destCtx.updateAndGetHasError() {
+				errors++
 			} else {
-				go destination.Send(payload.payload)
+				destCtx.input <- payload.payload
 			}
 		}
 
-		// all of them failed - block until one comes alive
-		if len(failed) == len(s.destinations.Reliable) {
-			fmt.Println("BRIAN - Blocking")
-			successChan := blockUntil(failed)
-			index := <-successChan
-			close(successChan)
-			errorMap[index] = false
-			fmt.Println("BRIAN - unblocked on ", index)
+		// All have errors - wait
+		if errors == len(destinationContetexts) {
+			allHaveError := true
+			for allHaveError {
+				for _, input := range destinationContetexts {
+					if !input.updateAndGetHasError() {
+						allHaveError = false
+						break
+					}
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
 		}
-
-		// DO multi shipping here
-		// s.destinations.Main.Send(payload.payload)
-		// if err != nil {
-		// 	if shouldStopSending(err) {
-		// 		return
-		// 	}
-		// 	log.Warnf("Could not send payload: %v", err)
-		// }
-		// update auditor
 	}
 }
 
 func shouldStopSending(err error) bool {
 	return err == context.Canceled
-}
-
-func blockUntil(cs []chan bool) chan int {
-	out := make(chan int)
-	done := make(chan bool)
-	for i, c := range cs {
-		go func(i int, c <-chan bool) {
-			select {
-			case <-done:
-			case <-c:
-				for n := 0; n < len(cs)-1; n++ {
-					done <- true
-				}
-				out <- i
-			}
-		}(i, c)
-	}
-	return out
 }
 
 // send sends a payload to multiple destinations,

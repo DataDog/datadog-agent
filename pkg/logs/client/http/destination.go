@@ -55,7 +55,6 @@ type Destination struct {
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
 	lastError           error
-	errorChan           chan bool
 }
 
 // NewDestination returns a new Destination.
@@ -91,7 +90,6 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
 		lastError:           nil,
-		errorChan:           make(chan bool, 1),
 	}
 }
 
@@ -105,33 +103,33 @@ func errorToTag(err error) string {
 	}
 }
 
-func (d *Destination) ErrorStateChangeChan() chan bool {
-	return d.errorChan
-}
-
 // Send sends a payload over HTTP,
-func (d *Destination) Send(payload []byte) {
-	d.sendConcurrent(payload, true)
+func (d *Destination) Start(payload chan []byte, hasError chan bool) {
+	go func() {
+		for p := range payload {
+			d.sendConcurrent(p, true, hasError)
+		}
+	}()
 }
 
-func (d *Destination) sendConcurrent(payload []byte, retry bool) {
+func (d *Destination) sendConcurrent(payload []byte, retry bool, hasError chan bool) {
 	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 	if cap(d.climit) == 0 {
-		d.sendAndRetry(payload, retry)
+		d.sendAndRetry(payload, retry, hasError)
 		return
 	}
 
 	go func() {
 		d.climit <- struct{}{}
 		go func() {
-			d.sendAndRetry(payload, retry)
+			d.sendAndRetry(payload, retry, hasError)
 			<-d.climit
 		}()
 	}()
 }
 
 // Send sends a payload over HTTP,
-func (d *Destination) sendAndRetry(payload []byte, retry bool) {
+func (d *Destination) sendAndRetry(payload []byte, retry bool, hasError chan bool) {
 	for {
 		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
 		if d.blockedUntil.After(time.Now()) {
@@ -146,8 +144,8 @@ func (d *Destination) sendAndRetry(payload []byte, retry bool) {
 			if _, ok := err.(*client.RetryableError); ok {
 				d.nbErrors = d.backoff.IncError(d.nbErrors)
 
-				if d.lastError == nil {
-					d.errorChan <- true
+				if d.lastError == nil && hasError != nil {
+					hasError <- true
 				}
 
 				d.lastError = err
@@ -157,8 +155,8 @@ func (d *Destination) sendAndRetry(payload []byte, retry bool) {
 			} else {
 				d.nbErrors = d.backoff.DecError(d.nbErrors)
 
-				if d.lastError != nil {
-					d.errorChan <- false
+				if d.lastError != nil && hasError != nil {
+					hasError <- false
 				}
 
 				d.lastError = err
@@ -256,7 +254,7 @@ func (d *Destination) sendInBackground(payloadChan chan []byte) {
 		for {
 			select {
 			case payload := <-payloadChan:
-				d.sendConcurrent(payload, false)
+				d.sendConcurrent(payload, false, nil)
 			case <-ctx.Done():
 				return
 			}

@@ -50,45 +50,49 @@ func (d *Destination) ErrorStateChangeChan() chan bool {
 
 // Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
-func (d *Destination) Send(payload []byte) {
-	// TODO retry
-	if d.conn == nil {
-		var err error
+func (d *Destination) Start(payload chan []byte, hasError chan bool) {
+	go func() {
+		for p := range payload {
+			// TODO retry
+			if d.conn == nil {
+				var err error
 
-		// We work only if we have a started destination context
-		ctx := d.destinationsContext.Context()
-		if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
-			// the connection manager is not meant to fail,
-			// this can happen only when the context is cancelled.
-			return // err
+				// We work only if we have a started destination context
+				ctx := d.destinationsContext.Context()
+				if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
+					// the connection manager is not meant to fail,
+					// this can happen only when the context is cancelled.
+					return // err
+				}
+				d.connCreationTime = time.Now()
+			}
+
+			metrics.BytesSent.Add(int64(len(p)))
+			metrics.TlmBytesSent.Add(float64(len(p)))
+			metrics.EncodedBytesSent.Add(int64(len(p)))
+			metrics.TlmEncodedBytesSent.Add(float64(len(p)))
+
+			content := d.prefixer.apply(p)
+			frame, err := d.delimiter.delimit(content)
+			if err != nil {
+				// the delimiter can fail when the payload can not be framed correctly.
+				return //err
+			}
+
+			_, err = d.conn.Write(frame)
+			if err != nil {
+				d.connManager.CloseConnection(d.conn)
+				d.conn = nil
+				return // client.NewRetryableError(err)
+			}
+
+			if d.connManager.ShouldReset(d.connCreationTime) {
+				log.Debug("Resetting TCP connection")
+				d.connManager.CloseConnection(d.conn)
+				d.conn = nil
+			}
 		}
-		d.connCreationTime = time.Now()
-	}
-
-	metrics.BytesSent.Add(int64(len(payload)))
-	metrics.TlmBytesSent.Add(float64(len(payload)))
-	metrics.EncodedBytesSent.Add(int64(len(payload)))
-	metrics.TlmEncodedBytesSent.Add(float64(len(payload)))
-
-	content := d.prefixer.apply(payload)
-	frame, err := d.delimiter.delimit(content)
-	if err != nil {
-		// the delimiter can fail when the payload can not be framed correctly.
-		return //err
-	}
-
-	_, err = d.conn.Write(frame)
-	if err != nil {
-		d.connManager.CloseConnection(d.conn)
-		d.conn = nil
-		return // client.NewRetryableError(err)
-	}
-
-	if d.connManager.ShouldReset(d.connCreationTime) {
-		log.Debug("Resetting TCP connection")
-		d.connManager.CloseConnection(d.conn)
-		d.conn = nil
-	}
+	}()
 
 	return // nil
 }
@@ -101,7 +105,7 @@ func (d *Destination) SendAsync(payload []byte) {
 		inputChan := make(chan []byte, config.ChanSize)
 		d.inputChan = inputChan
 		metrics.DestinationLogsDropped.Set(host, &expvar.Int{})
-		go d.runAsync()
+		// go d.runAsync()
 	})
 
 	select {
@@ -116,15 +120,16 @@ func (d *Destination) SendAsync(payload []byte) {
 	}
 }
 
+// TODO: Fixme
 // runAsync read the messages from the channel and send them
-func (d *Destination) runAsync() {
-	ctx := d.destinationsContext.Context()
-	for {
-		select {
-		case payload := <-d.inputChan:
-			d.Send(payload) //nolint:errcheck
-		case <-ctx.Done():
-			return
-		}
-	}
-}
+// func (d *Destination) runAsync() {
+// 	ctx := d.destinationsContext.Context()
+// 	for {
+// 		select {
+// 		case payload := <-d.inputChan:
+// 			d.Send(payload) //nolint:errcheck
+// 		case <-ctx.Done():
+// 			return
+// 		}
+// 	}
+// }
