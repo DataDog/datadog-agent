@@ -96,6 +96,10 @@ var _ Store = &store{}
 // each collector in the catalog. Call Start to start the store and its
 // collectors.
 func NewStore(catalog map[string]collectorFactory) Store {
+	return newStore(catalog)
+}
+
+func newStore(catalog map[string]collectorFactory) *store {
 	candidates := make(map[string]Collector)
 	for id, c := range catalog {
 		candidates[id] = c()

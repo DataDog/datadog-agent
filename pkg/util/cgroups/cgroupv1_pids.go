@@ -8,7 +8,7 @@
 
 package cgroups
 
-import "strconv"
+import "time"
 
 func (c *cgroupV1) GetPIDStats(stats *PIDStats) error {
 	if stats == nil {
@@ -17,21 +17,6 @@ func (c *cgroupV1) GetPIDStats(stats *PIDStats) error {
 
 	if !c.controllerMounted("pids") {
 		return &ControllerNotFoundError{Controller: "pids"}
-	}
-
-	stats.PIDs = nil
-	if err := parseFile(c.fr, c.pathFor("pids", "cgroup.procs"), func(s string) error {
-		pid, err := strconv.Atoi(s)
-		if err != nil {
-			reportError(newValueError(s, err))
-			return nil
-		}
-
-		stats.PIDs = append(stats.PIDs, pid)
-
-		return nil
-	}); err != nil {
-		reportError(err)
 	}
 
 	// In pids.current we get count of TIDs+PIDs
@@ -44,4 +29,8 @@ func (c *cgroupV1) GetPIDStats(stats *PIDStats) error {
 	}
 
 	return nil
+}
+
+func (c *cgroupV1) GetPIDs(cacheValidity time.Duration) ([]int, error) {
+	return c.pidMapper.getPIDsForCgroup(c.path, cacheValidity), nil
 }

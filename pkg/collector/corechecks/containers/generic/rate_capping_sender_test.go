@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker && !darwin
-// +build docker,!darwin
-
-package docker
+package generic
 
 import (
 	"testing"
@@ -19,23 +16,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
-type dockerRateCappingSuite struct {
+type rateCappingSuite struct {
 	suite.Suite
 	mockSender   *mocksender.MockSender
-	cappedSender *cappedSender
+	cappedSender *CappedSender
 }
 
 // Artificially add 10 seconds to the sender timestamp
-func (s *dockerRateCappingSuite) tick() {
+func (s *rateCappingSuite) tick() {
 	s.cappedSender.timestamp = s.cappedSender.timestamp.Add(10 * time.Second)
 }
 
 // Put configuration back in a known state before each test
-func (s *dockerRateCappingSuite) SetupTest() {
+func (s *rateCappingSuite) SetupTest() {
 	s.mockSender = mocksender.NewMockSender("rateTest")
 	s.mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-	s.cappedSender = &cappedSender{
+	s.cappedSender = &CappedSender{
 		Sender:    s.mockSender,
 		timestamp: time.Now(),
 		rateCaps: map[string]float64{
@@ -45,7 +42,7 @@ func (s *dockerRateCappingSuite) SetupTest() {
 	cache.Cache.Flush() // Remove previous values from gocache
 }
 
-func (s *dockerRateCappingSuite) TestUnfilteredMetric() {
+func (s *rateCappingSuite) TestUnfilteredMetric() {
 	// Unfiltered metric
 	s.cappedSender.Rate("non.capped", 200, "", nil)
 	s.tick()
@@ -55,7 +52,7 @@ func (s *dockerRateCappingSuite) TestUnfilteredMetric() {
 	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 3)
 }
 
-func (s *dockerRateCappingSuite) TestUnderCap() {
+func (s *rateCappingSuite) TestUnderCap() {
 	// Filtered rate under the cap is transmitted
 	s.cappedSender.Rate("capped.at.100", 2000, "", nil)
 	s.tick()
@@ -65,7 +62,7 @@ func (s *dockerRateCappingSuite) TestUnderCap() {
 	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 3)
 }
 
-func (s *dockerRateCappingSuite) TestOverCap() {
+func (s *rateCappingSuite) TestOverCap() {
 	// Updates over the rate are ignored
 	s.cappedSender.Rate("capped.at.100", 2000, "", nil)
 	s.tick()
@@ -75,7 +72,7 @@ func (s *dockerRateCappingSuite) TestOverCap() {
 	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 1)
 }
 
-func (s *dockerRateCappingSuite) TestCapRecover() {
+func (s *rateCappingSuite) TestCapRecover() {
 	// Transmit, cap then transmit
 	s.cappedSender.Rate("capped.at.100", 2000, "", nil)
 	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 1)
@@ -90,7 +87,7 @@ func (s *dockerRateCappingSuite) TestCapRecover() {
 	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 3)
 }
 
-func (s *dockerRateCappingSuite) TestTagging() {
+func (s *rateCappingSuite) TestTagging() {
 	// Transmit both series, storing two cache entries
 	s.cappedSender.Rate("capped.at.100", 200, "", []string{"first"})
 	s.cappedSender.Rate("capped.at.100", 5000, "", []string{"two"})
@@ -102,5 +99,5 @@ func (s *dockerRateCappingSuite) TestTagging() {
 }
 
 func TestDockerRateCappingSuite(t *testing.T) {
-	suite.Run(t, &dockerRateCappingSuite{})
+	suite.Run(t, &rateCappingSuite{})
 }

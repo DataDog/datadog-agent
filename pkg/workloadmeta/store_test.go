@@ -18,7 +18,7 @@ const (
 )
 
 func TestHandleEvents(t *testing.T) {
-	s := newStore()
+	s := newTestStore()
 
 	container := &Container{
 		EntityID: EntityID{
@@ -440,7 +440,7 @@ func TestSubscribe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newStore()
+			s := newTestStore()
 
 			s.handleEvents(tt.preEvents)
 
@@ -475,7 +475,7 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
-func newStore() *store {
+func newTestStore() *store {
 	return &store{
 		store: make(map[Kind]map[string]sourceToEntity),
 	}
