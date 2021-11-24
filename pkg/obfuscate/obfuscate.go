@@ -5,6 +5,11 @@
 
 // Package obfuscate implements quantizing and obfuscating of tags and resources for
 // a set of spans matching a certain criteria.
+//
+// This module is used in the Datadog Agent, the Go tracing client (dd-trace-go) and in the
+// OpenTelemetry Collector Datadog exporter./ End-user behavior is stable, but there are no
+// stability guarantees on its public Go API. Nonetheless, if editing try to avoid breaking
+// API changes if possible and double check the API usage on all module dependents.
 package obfuscate
 
 import (
