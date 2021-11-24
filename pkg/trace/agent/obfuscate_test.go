@@ -17,17 +17,20 @@ import (
 )
 
 func TestNewCreditCardsObfuscator(t *testing.T) {
-	pb.SetMetaHook(nil)
 	_, ok := pb.MetaHook()
 	assert.False(t, ok)
-	_, stop := agentWithDefaults()
-	defer stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation.CreditCards.Enabled = true
+	NewAgent(ctx, cfg)
 	_, ok = pb.MetaHook()
 	assert.True(t, ok)
 }
 
 func TestMetaHook(t *testing.T) {
-	cco := newCreditCardsObfuscator(false)
+	cco := newCreditCardsObfuscator(config.CreditCardsConfig{Enabled: true})
 	defer cco.Stop()
 	for _, tt := range []struct {
 		k, v string

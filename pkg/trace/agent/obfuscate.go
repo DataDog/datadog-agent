@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -120,9 +121,12 @@ type ccObfuscator struct {
 	luhn bool
 }
 
-func newCreditCardsObfuscator(useLuhn bool) *ccObfuscator {
-	cco := &ccObfuscator{luhn: useLuhn}
-	pb.SetMetaHook(cco.MetaHook)
+func newCreditCardsObfuscator(cfg config.CreditCardsConfig) *ccObfuscator {
+	cco := &ccObfuscator{luhn: cfg.Luhn}
+	if cfg.Enabled {
+		// obfuscator disabled
+		pb.SetMetaHook(cco.MetaHook)
+	}
 	return cco
 }
 
