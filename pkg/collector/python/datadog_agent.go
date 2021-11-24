@@ -224,7 +224,7 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 // fails. An optional configuration may be passed to change the behavior of the obfuscator.
 //export ObfuscateSQL
 func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
-	var sqlOpts obfuscate.SQLOptions
+	var sqlOpts obfuscate.SQLConfig
 	if opts != nil {
 		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
 		sqlOpts.UnmarshalEasyJSON(jl)
