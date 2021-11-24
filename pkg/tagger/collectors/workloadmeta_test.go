@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
+
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -931,6 +933,75 @@ func TestHandleDelete(t *testing.T) {
 	})
 
 	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestHandlePodWithDeletedContainer(t *testing.T) {
+	// This test checks that we get events to delete a container that no longer
+	// exists even if it belonged to a pod that still exists.
+
+	containerToBeDeletedID := "delete"
+	containerToBeDeletedTaggerEntityID := fmt.Sprintf("container_id://%s", containerToBeDeletedID)
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "123",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "datadog-agent",
+			Namespace: "default",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{},
+	}
+	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", pod.ID)
+
+	collectorCh := make(chan []*TagInfo, 10)
+
+	collector := &WorkloadMetaCollector{
+		store: workloadmetatesting.NewStore(),
+		children: map[string]map[string]struct{}{
+			// Notice that here we set the container that belonged to the pod
+			// but that no longer exists
+			podTaggerEntityID: {
+				containerToBeDeletedTaggerEntityID: struct{}{},
+			},
+		},
+		out: collectorCh,
+	}
+
+	eventBundle := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: pod,
+			},
+		},
+		Ch: make(chan struct{}),
+	}
+
+	collector.processEvents(eventBundle)
+	close(collectorCh)
+
+	expected := &TagInfo{
+		Source:       podSource,
+		Entity:       containerToBeDeletedTaggerEntityID,
+		DeleteEntity: true,
+	}
+
+	// We should receive an event to set the pod and another to delete the
+	// container. Here we're only interested in the latter, because the former
+	// is already checked in other tests.
+	found := false
+	for evBundle := range collectorCh {
+		for _, event := range evBundle {
+			if cmp.Equal(event, expected) {
+				found = true
+				break
+			}
+		}
+	}
+
+	assert.True(t, found, "TagInfo of deleted container not returned")
 }
 
 func TestHandleContainerStaticTags(t *testing.T) {
