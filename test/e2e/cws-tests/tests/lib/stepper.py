@@ -10,5 +10,5 @@ class Step:
         print("{} {}... ".format(emoji.emojize(self.emoji), self.msg), end="", flush=True)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        print(emoji.emojize(":check_mark:"))
+    def __exit__(self, _exc_type, _exc_val, _exc_tb):
+        print(emoji.emojize(":check_mark:"), flush=True)

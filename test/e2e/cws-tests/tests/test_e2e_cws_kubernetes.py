@@ -1,4 +1,5 @@
 import argparse
+import emoji
 import os
 import tempfile
 import unittest
@@ -51,7 +52,10 @@ class TestE2EKubernetes(unittest.TestCase):
 
         with Step(msg="check rule({}) creation".format(test_id), emoji=":straight_ruler:"):
             self.rule_id = self.App.create_cws_rule(
-                desc, "rule for e2e testing", "e2e_{}".format(test_id), 'open.file.path == "{}"'.format(filename),
+                desc,
+                "rule for e2e testing",
+                "e2e_{}".format(test_id),
+                'open.file.path == "{}"'.format(filename),
             )
 
         with Step(msg="check policies download", emoji=":file_folder:"):
@@ -66,17 +70,17 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="select pod", emoji=":man_running:"):
             self.kubernetes_helper.select_pod_name("app=datadog-agent")
 
-        with Step(msg="check agent start", emoji=":man_running:"):
+        with Step(msg="check agent start", emoji=":customs:"):
             wait_agent_log("security-agent", self.kubernetes_helper, SECURITY_START_LOG)
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
         with Step(msg="wait for host tags(~2m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
 
-        with Step(msg="upload policies", emoji=":man_running:"):
+        with Step(msg="upload policies", emoji=":down_arrow:"):
             self.kubernetes_helper.cp_to_agent("system-probe", self.policies, "/tmp/runtime-security.d/default.policy")
 
-        with Step(msg="restart system-probe", emoji=":man_running:"):
+        with Step(msg="restart system-probe", emoji=":rocket:"):
             self.kubernetes_helper.kill_agent("system-probe", "-HUP")
             time.sleep(60)
 
@@ -84,7 +88,9 @@ class TestE2EKubernetes(unittest.TestCase):
             os.system("touch {}".format(filename))
 
             wait_agent_log(
-                "system-probe", self.kubernetes_helper, "Sending event message for rule `{}`".format(rule["id"]),
+                "system-probe",
+                self.kubernetes_helper,
+                "Sending event message for rule `{}`".format(rule["id"]),
             )
 
         with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):
@@ -101,8 +107,12 @@ class TestE2EKubernetes(unittest.TestCase):
 
             self.assertIn(tag, attributes["tags"], "unable to find rule_id tag")
             self.assertEqual(
-                rule["id"], attributes["attributes"]["agent"]["rule_id"], "unable to find rule_id tag attribute",
+                rule["id"],
+                attributes["attributes"]["agent"]["rule_id"],
+                "unable to find rule_id tag attribute",
             )
+
+        print(emoji.emojize(":heart_on_fire:"), flush=True)
 
 
 def main():

@@ -30,7 +30,7 @@ class DockerHelper(LogGetter):
         ]
 
         if policy_filename:
-            volumes.append("{}:/etc/datadog-agent/runtime-security.d/default.policy".format(policy_filename),)
+            volumes.append("{}:/etc/datadog-agent/runtime-security.d/default.policy".format(policy_filename))
 
         if datadog_agent_config:
             volumes.append("{}:/etc/datadog-agent/datadog.yaml".format(datadog_agent_config))

@@ -48,7 +48,10 @@ class TestE2EDocker(unittest.TestCase):
 
         with Step(msg="check rule({}) creation".format(test_id), emoji=":straight_ruler:"):
             self.rule_id = self.App.create_cws_rule(
-                desc, "rule for e2e testing", "e2e_{}".format(test_id), 'open.file.path == "{}"'.format(filename),
+                desc,
+                "rule for e2e testing",
+                "e2e_{}".format(test_id),
+                'open.file.path == "{}"'.format(filename),
             )
 
         with Step(msg="check policies download", emoji=":file_folder:"):
@@ -88,7 +91,9 @@ class TestE2EDocker(unittest.TestCase):
             os.system("touch {}".format(filename))
 
             wait_agent_log(
-                "system-probe", self.docker_helper, "Sending event message for rule `{}`".format(rule["id"]),
+                "system-probe",
+                self.docker_helper,
+                "Sending event message for rule `{}`".format(rule["id"]),
             )
 
         with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):
@@ -105,7 +110,9 @@ class TestE2EDocker(unittest.TestCase):
 
             self.assertIn(tag, attributes["tags"], "unable to find rule_id tag")
             self.assertEqual(
-                rule["id"], attributes["attributes"]["agent"]["rule_id"], "unable to find rule_id tag attribute",
+                rule["id"],
+                attributes["attributes"]["agent"]["rule_id"],
+                "unable to find rule_id tag attribute",
             )
 
 

@@ -4,7 +4,7 @@ from retry.api import retry_call
 
 class LogGetter(ABC):
     @abstractmethod
-    def get_log(self, agent_name):
+    def get_log(self, _agent_name):
         raise NotImplementedError()
 
 
