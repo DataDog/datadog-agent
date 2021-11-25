@@ -8,58 +8,64 @@
 package proxy
 
 import (
-	"io"
-	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type runtimeProxy struct {
+	target                   *url.URL
+	proxy                    *httputil.ReverseProxy
+	currentInvocationDetails *invocationDetails
+	processor                invocationProcessor
+}
+
 // Start starts the proxy
 // This proxy allows us to inspect traffic from/to the AWS Lambda Runtime API
-func Start() {
+func Start(proxyHostPort string, originalRuntimeHostPort string) bool {
 	if strings.ToLower(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")) == "true" {
 		log.Debug("the experimental proxy feature is enabled")
-		setup()
+		go setup(proxyHostPort, originalRuntimeHostPort, &proxyProcessor{})
+		return true
 	}
+	return false
 }
 
-func setup() {
-	originalRuntimeAPIAdress := "127.0.0.1:9001" // todo: fix this hardcoded value
-	reRoutedRuntimeAPIAdress := "127.0.0.1:9000" // todo: fix this hardcoded value
-	network := "tcp"
-	listener, err := net.Listen(network, reRoutedRuntimeAPIAdress)
-	if err != nil {
-		log.Error("could not start the proxy")
-	} else {
-		for {
-			proxyConnexion, err := listener.Accept()
-			if err != nil {
-				log.Error("could not accept the connection", err)
-			} else {
-				go handleRequest(network, originalRuntimeAPIAdress, proxyConnexion)
-			}
-		}
+func setup(proxyHostPort string, originalRuntimeHostPort string, processor invocationProcessor) {
+	proxy := startProxy(originalRuntimeHostPort, processor)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", proxy.handle)
+
+	s := &http.Server{
+		Addr:    proxyHostPort,
+		Handler: mux,
 	}
+
+	s.ListenAndServe()
 }
 
-func handleRequest(network string, originalRuntimeAPIAdress string, proxyConnexion net.Conn) {
-	defer proxyConnexion.Close()
-	originalConnexion, err := net.Dial(network, originalRuntimeAPIAdress)
-	if err != nil {
-		log.Error("error dialing remote addr", err)
-		return
+func (rp *runtimeProxy) handle(w http.ResponseWriter, r *http.Request) {
+	rp.proxy.Transport = &proxyTransport{
+		currentInvocationDetails: rp.currentInvocationDetails,
+		processor:                rp.processor,
 	}
-	defer originalConnexion.Close()
-	closeChannel := make(chan struct{}, 2)
-	go inspectAndForwardRequest(closeChannel, originalConnexion, proxyConnexion)
-	go inspectAndForwardRequest(closeChannel, proxyConnexion, originalConnexion)
-	<-closeChannel
+	rp.proxy.ServeHTTP(w, r)
 }
 
-func inspectAndForwardRequest(closeChannel chan struct{}, dst io.Writer, src io.Reader) {
-	// todo: parse correctly headers/body instead of logging it to stdout
-	io.Copy(os.Stdout, io.TeeReader(src, dst))
-	closeChannel <- struct{}{}
+func startProxy(target string, processor invocationProcessor) *runtimeProxy {
+	url := &url.URL{
+		Scheme: "http",
+		Host:   target,
+	}
+	return &runtimeProxy{
+		target:                   url,
+		proxy:                    httputil.NewSingleHostReverseProxy(url),
+		currentInvocationDetails: &invocationDetails{},
+		processor:                processor,
+	}
 }

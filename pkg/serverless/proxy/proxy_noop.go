@@ -8,6 +8,7 @@
 package proxy
 
 // Start is a no-op operation, used in the classic serverless build (non experimental)
-func Start() {
+func Start(listenUrl string, originalUrl string) bool {
 	// no-op
+	return false
 }
