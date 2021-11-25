@@ -44,6 +44,11 @@ func newCgroupCollector() (*cgroupCollector, error) {
 	var err error
 	var hostPrefix string
 
+	if !config.IsHostProcAvailable() || !config.IsHostSysAvailable() {
+		log.Debug("Container metrics system collector not available as host paths not mounted")
+		return nil, provider.ErrPermaFail
+	}
+
 	procPath := config.Datadog.GetString("container_proc_root")
 	if strings.HasPrefix(procPath, "/host") {
 		hostPrefix = "/host"
