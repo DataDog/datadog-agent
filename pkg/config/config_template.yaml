@@ -52,10 +52,10 @@ api_key:
 
 ## @param sslkeylogfile - string - optional - default: ""
 ## @env DD_SSLKEYLOGFILE - string - optional - default: ""
-## sslkeylogfile optionally specifies a destination for TLS master secrets
-## in NSS key log format that can be used to allow external programs
+## sslkeylogfile specifies a destination for TLS master secrets
+## in NSS key log format to allow external programs
 ## such as Wireshark to decrypt TLS connections.
-## See https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format.
+## For more details, see https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format.
 ## Use of sslkeylogfile compromises security and should only be
 ## used for debugging.
 # sslkeylogfile: ""
