@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/fatih/color"
+
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
@@ -38,7 +40,7 @@ var (
 
 func init() {
 	apiKeyStatusUnknown.Set("Unable to validate API Key")
-	apiKeyInvalid.Set("API Key invalid")
+	apiKeyInvalid.Set(color.YellowString("API Key invalid"))
 	apiKeyValid.Set("API Key valid")
 	apiKeyFake.Set("Fake API Key that skips validation")
 }
