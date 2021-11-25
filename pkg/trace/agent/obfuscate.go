@@ -64,7 +64,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		if a.conf.Obfuscation.Redis.Enabled {
 			if span.Meta == nil || span.Meta[tagRedisRawCommand] == "" {
 				// nothing to do
-				break
+				return
 			}
 			span.Meta[tagRedisRawCommand] = o.ObfuscateRedisString(span.Meta[tagRedisRawCommand])
 		}
@@ -72,29 +72,29 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		if a.conf.Obfuscation.Memcached.Enabled {
 			v, ok := span.Meta[tagMemcachedCommand]
 			if span.Meta == nil || !ok {
-				break
+				return
 			}
 			span.Meta[tagMemcachedCommand] = o.ObfuscateMemcachedString(v)
 		}
 	case "web", "http":
 		if span.Meta == nil {
-			break
+			return
 		}
 		v, ok := span.Meta[tagHTTPURL]
 		if !ok || v == "" {
-			break
+			return
 		}
 		span.Meta[tagHTTPURL] = o.ObfuscateURLString(v)
 	case "mongodb":
 		v, ok := span.Meta[tagMongoDBQuery]
 		if span.Meta == nil || !ok {
-			break
+			return
 		}
 		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(v)
 	case "elasticsearch":
 		v, ok := span.Meta[tagElasticBody]
 		if span.Meta == nil || !ok {
-			break
+			return
 		}
 		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(v)
 	}
