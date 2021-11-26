@@ -223,6 +223,8 @@
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/e2e/                              @DataDog/container-integrations
 /test/integration/                      @DataDog/container-integrations
+/test/integration/serverless            @DataDog/serverless
+/test/integration/serverless_perf       @DataDog/serverless
 /test/kitchen/                          @DataDog/agent-platform
 /test/kitchen/kitchen-azure-security-agent-test.yml @DataDog/agent-security
 /test/kitchen/kitchen-vagrant-security-agent.yml @DataDog/agent-security
