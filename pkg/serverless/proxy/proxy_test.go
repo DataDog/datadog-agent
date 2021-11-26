@@ -32,7 +32,7 @@ type assertSuccessProcessor struct{}
 func (ap *assertSuccessProcessor) process(invocationDetails *invocationDetails) {
 	commonAssert(invocationDetails)
 	if invocationDetails.isError != false {
-		panic("payload")
+		panic("isError")
 	}
 }
 
@@ -41,7 +41,7 @@ type assertFailureProcessor struct{}
 func (ap *assertFailureProcessor) process(invocationDetails *invocationDetails) {
 	commonAssert(invocationDetails)
 	if invocationDetails.isError != true {
-		panic("payload")
+		panic("isError")
 	}
 }
 
@@ -55,7 +55,7 @@ func commonAssert(invocationDetails *invocationDetails) {
 	if len(invocationDetails.invokeHeaders) != 3 {
 		panic("headers")
 	}
-	if invocationDetails.invokeEventPayload != "ok" {
+	if !strings.HasSuffix(invocationDetails.invokeEventPayload, "ok") {
 		panic("payload")
 	}
 }
