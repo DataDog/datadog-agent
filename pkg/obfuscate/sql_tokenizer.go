@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"unicode"
 	"unicode/utf8"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 )
 
 // tokenizer.go implemenents a lexer-like iterator that tokenizes SQL and CQL
@@ -147,13 +145,19 @@ type SQLTokenizer struct {
 
 	literalEscapes bool // indicates we should not treat backslashes as escape characters
 	seenEscape     bool // indicates whether this tokenizer has seen an escape character within a string
+
+	cfg *SQLConfig
 }
 
 // NewSQLTokenizer creates a new SQLTokenizer for the given SQL string. The literalEscapes argument specifies
 // whether escape characters should be treated literally or as such.
-func NewSQLTokenizer(sql string, literalEscapes bool) *SQLTokenizer {
+func NewSQLTokenizer(sql string, literalEscapes bool, cfg *SQLConfig) *SQLTokenizer {
+	if cfg == nil {
+		cfg = new(SQLConfig)
+	}
 	return &SQLTokenizer{
 		buf:            []byte(sql),
+		cfg:            cfg,
 		literalEscapes: literalEscapes,
 	}
 }
@@ -345,7 +349,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			if kind == DollarQuotedFunc {
 				// this is considered an embedded query, we should try and
 				// obfuscate it
-				out, err := attemptObfuscation(NewSQLTokenizer(string(tok), tkn.literalEscapes))
+				out, err := attemptObfuscation(NewSQLTokenizer(string(tok), tkn.literalEscapes, tkn.cfg))
 				if err != nil {
 					// if we can't obfuscate it, treat it as a regular string
 					return DollarQuotedString, tok
@@ -502,9 +506,7 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 		}
 		buf.WriteRune(ch)
 	}
-	if features.Has("dollar_quoted_func") && string(delim) == "$func$" {
-		// dolar_quoted_func: treat "$func" delimited dollar-quoted strings
-		// differently and do not obfuscate them as a string
+	if tkn.cfg.DollarQuotedFunc && string(delim) == "$func$" {
 		return DollarQuotedFunc, buf.Bytes()
 	}
 	return DollarQuotedString, buf.Bytes()

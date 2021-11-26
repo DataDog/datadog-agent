@@ -76,6 +76,7 @@ DEFAULT_MODULES = {
             "pkg/util/winutil",
             "pkg/quantile",
             "pkg/otlp/model",
+            "pkg/obfuscate",
             "pkg/security/secl",
         ],
     ),
@@ -88,6 +89,7 @@ DEFAULT_MODULES = {
         dependencies=["pkg/util/log"],
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
+    "pkg/obfuscate": GoModule("pkg/obfuscate"),
     "pkg/otlp/model": GoModule("pkg/otlp/model", dependencies=["pkg/quantile"]),
     "pkg/security/secl": GoModule("pkg/security/secl"),
 }

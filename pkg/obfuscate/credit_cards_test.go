@@ -9,40 +9,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-
 	"github.com/stretchr/testify/assert"
 )
-
-func TestNewCreditCardsObfuscator(t *testing.T) {
-	_, ok := pb.MetaHook()
-	assert.False(t, ok)
-	cco := newCreditCardsObfuscator(false)
-	defer cco.Disable()
-	_, ok = pb.MetaHook()
-	assert.True(t, ok)
-}
-
-func TestMetaHook(t *testing.T) {
-	cco := newCreditCardsObfuscator(false)
-	defer cco.Disable()
-	for _, tt := range []struct {
-		k, v string
-		out  string
-	}{
-		// these tags are not even checked:
-		{"error", "5105-1051-0510-5100", "5105-1051-0510-5100"},
-		{"_dd.something", "5105-1051-0510-5100", "5105-1051-0510-5100"},
-		{"env", "5105-1051-0510-5100", "5105-1051-0510-5100"},
-		{"service", "5105-1051-0510-5100", "5105-1051-0510-5100"},
-		{"version", "5105-1051-0510-5100", "5105-1051-0510-5100"},
-
-		{"card.number", "5105", "5105"},
-		{"card.number", "5105-1051-0510-5100", "?"},
-	} {
-		assert.Equal(t, tt.out, cco.MetaHook(tt.k, tt.v))
-	}
-}
 
 func TestIINValidCardPrefix(t *testing.T) {
 	for _, tt := range []struct {
@@ -282,7 +250,7 @@ func TestIINIsSensitive(t *testing.T) {
 			"4001 0200 0000 0009",
 		} {
 			t.Run("", func(t *testing.T) {
-				assert.True(t, isCardNumber(valid, true), i)
+				assert.True(t, IsCardNumber(valid, true), i)
 			})
 		}
 	})
@@ -298,7 +266,7 @@ func TestIINIsSensitive(t *testing.T) {
 			"7712378231899",
 			"   -  ",
 		} {
-			assert.False(t, isCardNumber(invalid, false), i)
+			assert.False(t, IsCardNumber(invalid, false), i)
 		}
 	})
 }
@@ -307,7 +275,7 @@ func BenchmarkIsSensitive(b *testing.B) {
 	run := func(str string, luhn bool) func(b *testing.B) {
 		return func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				isCardNumber(str, luhn)
+				IsCardNumber(str, luhn)
 			}
 		}
 	}

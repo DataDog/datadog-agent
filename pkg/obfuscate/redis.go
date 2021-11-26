@@ -7,8 +7,6 @@ package obfuscate
 
 import (
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 // redisTruncationMark is used as suffix by tracing libraries to indicate that a
@@ -20,10 +18,6 @@ const maxRedisNbCommands = 3
 // Redis commands consisting in 2 words
 var redisCompoundCommandSet = map[string]bool{
 	"CLIENT": true, "CLUSTER": true, "COMMAND": true, "CONFIG": true, "DEBUG": true, "SCRIPT": true}
-
-func (o *Obfuscator) quantizeRedis(span *pb.Span) {
-	span.Resource = o.QuantizeRedisString(span.Resource)
-}
 
 // QuantizeRedisString returns a quantized version of a Redis query.
 //
@@ -89,16 +83,9 @@ func (*Obfuscator) QuantizeRedisString(query string) string {
 	return strings.Trim(resource.String(), " ")
 }
 
-const redisRawCommand = "redis.raw_command"
-
-// obfuscateRedis obfuscates arguments inside the given span's "redis.raw_command" tag, if it exists
-// and is non-empty.
-func (*Obfuscator) obfuscateRedis(span *pb.Span) {
-	if span.Meta == nil || span.Meta[redisRawCommand] == "" {
-		// nothing to do
-		return
-	}
-	t := newRedisTokenizer([]byte(span.Meta[redisRawCommand]))
+// ObfuscateRedisString obfuscates the given Redis command.
+func (*Obfuscator) ObfuscateRedisString(rediscmd string) string {
+	t := newRedisTokenizer([]byte(rediscmd))
 	var (
 		str  strings.Builder
 		cmd  string
@@ -125,7 +112,7 @@ func (*Obfuscator) obfuscateRedis(span *pb.Span) {
 			break
 		}
 	}
-	span.Meta[redisRawCommand] = str.String()
+	return str.String()
 }
 
 func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
