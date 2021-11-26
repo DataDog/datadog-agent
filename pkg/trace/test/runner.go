@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -42,6 +43,10 @@ type Runner struct {
 // Start initializes the runner and starts the fake backend.
 func (s *Runner) Start() error {
 	s.backend = newFakeBackend(s.ChannelSize)
+	if !s.Verbose {
+		// respect whatever the testing framework says
+		s.Verbose = testing.Verbose()
+	}
 	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose)
 	if err != nil {
 		return err
