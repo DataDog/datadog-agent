@@ -155,7 +155,7 @@ func (mp *GenericProvider) retryCollectors(cacheValidity time.Duration) {
 		} else {
 			if errors.Is(err, ErrPermaFail) {
 				delete(mp.collectors, collectorEntry.ID)
-				log.Debugf("Metrics collector: %s went into PermaFail, removed from candidates")
+				log.Debugf("Metrics collector: %s went into PermaFail, removed from candidates", collectorEntry.ID)
 			}
 		}
 	}

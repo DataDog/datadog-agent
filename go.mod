@@ -60,12 +60,12 @@ require (
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.2
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.33.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/quantile v0.33.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.33.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.33.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.33.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.33.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.33.0-rc.4
+  github.com/DataDog/datadog-agent/pkg/quantile v0.33.0-rc.4
+  github.com/DataDog/datadog-agent/pkg/security/secl v0.33.0-rc.4
+  github.com/DataDog/datadog-agent/pkg/util/log v0.33.0-rc.4
+  github.com/DataDog/datadog-agent/pkg/util/scrubber v0.33.0-rc.4
+  github.com/DataDog/datadog-agent/pkg/util/winutil v0.33.0-rc.4
 	github.com/DataDog/datadog-go v4.8.2+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20211116165855-af5870810f0b
@@ -164,6 +164,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
 	github.com/open-policy-agent/opa v0.34.2
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.38.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
 	github.com/patrickmn/go-cache v2.1.0+incompatible
