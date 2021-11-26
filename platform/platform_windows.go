@@ -4,18 +4,39 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"syscall"
+	"unicode/utf16"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
+// From winnt.h (see https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoexw)
+// This is used by https://docs.microsoft.com/en-us/windows/win32/devnotes/rtlgetversion
+type OSVERSIONINFOEXW struct {
+	dwOSVersionInfoSize uint32
+	dwMajorVersion uint32
+	dwMinorVersion uint32
+	dwBuildNumber uint32
+	dwPlatformId uint32
+	szCSDVersion [128]uint16
+	wServicePackMajor uint16
+	wServicePackMinor uint16
+	wSuiteMask uint16
+	wProductType uint8
+	wReserved uint8
+}
+
 var (
-	modNetapi32          = windows.NewLazyDLL("Netapi32.dll")
-	procNetWkstaGetInfo  = modNetapi32.NewProc("NetWkstaGetInfo")
-	procNetServerGetInfo = modNetapi32.NewProc("NetServerGetInfo")
-	procNetApiBufferFree = modNetapi32.NewProc("NetApiBufferFree")
+	modNetapi32                = windows.NewLazyDLL("Netapi32.dll")
+	procNetServerGetInfo       = modNetapi32.NewProc("NetServerGetInfo")
+	procNetApiBufferFree       = modNetapi32.NewProc("NetApiBufferFree")
+	ntdll                      = windows.NewLazyDLL("Ntdll.dll")
+	procRtlGetVersion          = ntdll.NewProc("RtlGetVersion")
+	winbrand                   = windows.NewLazyDLL("winbrand.dll")
+	ERROR_SUCESS syscall.Errno = 0
 )
 
 const (
@@ -59,24 +80,6 @@ const buildNumberKey = "CurrentBuildNumber"
 const majorKey = "CurrentMajorVersionNumber"
 const minorKey = "CurrentMinorVersionNumber"
 
-func GetVersion() (maj uint64, min uint64, err error) {
-
-	var outdata *byte
-	if err = modNetapi32.Load(); err != nil {
-		return
-	}
-	if err = procNetWkstaGetInfo.Find(); err != nil {
-		return
-	}
-	status, _, err := procNetWkstaGetInfo.Call(uintptr(0), uintptr(100), uintptr(unsafe.Pointer(&outdata)))
-	if status != uintptr(0) {
-		return 0, 0, err
-	}
-	defer procNetApiBufferFree.Call(uintptr(unsafe.Pointer(outdata)))
-	return platGetVersion(outdata)
-
-}
-
 func netServerGetInfo() (si SERVER_INFO_101, err error) {
 	var outdata *byte
 	// do additional work so that we don't panic() when the library's
@@ -95,6 +98,71 @@ func netServerGetInfo() (si SERVER_INFO_101, err error) {
 	return platGetServerInfo(outdata), nil
 }
 
+func fetchOsDescription() (string, error) {
+	err := winbrand.Load()
+	if err == ERROR_SUCESS {
+		err = nil
+		// From https://stackoverflow.com/a/69462683
+		procBrandingFormatString := winbrand.NewProc("BrandingFormatString")
+		if procBrandingFormatString.Find() != nil {
+			// Encode the string "%WINDOWS_LONG%" to UTF-16 and append a null byte for the Windows API
+			magicString := utf16.Encode([]rune("%WINDOWS_LONG%" + "\x00"))
+			os, _, err := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
+			defer syscall.LocalFree(syscall.Handle(os))
+			if err == ERROR_SUCESS {
+				return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(os))), nil
+			}
+		}
+	} else {
+		k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+			registryHive,
+			registry.QUERY_VALUE)
+		defer k.Close()
+		if err == nil {
+			os , _, err := k.GetStringValue(productNameKey)
+			if err == nil {
+				return os, nil
+			}
+		}
+	}
+	return "(undetermined windows version)", err
+}
+
+func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error) {
+	var osversion OSVERSIONINFOEXW
+	status, _, _ := procRtlGetVersion.Call(uintptr(unsafe.Pointer(&osversion)))
+	if status == 0 {
+		major = uint64(osversion.dwMajorVersion)
+		minor = uint64(osversion.dwMinorVersion)
+		build = uint64(osversion.dwBuildNumber)
+	} else {
+		var regkey registry.Key
+		regkey, err = registry.OpenKey(registry.LOCAL_MACHINE,
+			registryHive,
+			registry.QUERY_VALUE)
+		defer regkey.Close()
+		if err != nil {
+			major, _, err = regkey.GetIntegerValue(majorKey)
+			if err != nil {
+				return
+			}
+
+			minor, _, err = regkey.GetIntegerValue(minorKey)
+			if err != nil {
+				return
+			}
+
+			var regbuild string
+			regbuild, _, err = regkey.GetStringValue(buildNumberKey)
+			if err != nil {
+				return
+			}
+			build, err = strconv.ParseUint(regbuild, 10, 0)
+		}
+	}
+	return
+}
+
 // GetArchInfo() returns basic host architecture information
 func GetArchInfo() (systemInfo map[string]interface{}, err error) {
 	systemInfo = make(map[string]interface{})
@@ -107,23 +175,10 @@ func GetArchInfo() (systemInfo map[string]interface{}, err error) {
 		systemInfo["machine"] = runtime.GOARCH
 	}
 
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		registryHive,
-		registry.QUERY_VALUE)
-	defer k.Close()
+	systemInfo["os"], err = fetchOsDescription()
 
-	systemInfo["os"], _, _ = k.GetStringValue(productNameKey)
-
-	var maj, _, _ = k.GetIntegerValue(majorKey)
-	var min, _, _ = k.GetIntegerValue(minorKey)
-	var bld, _, _ = k.GetStringValue(buildNumberKey)
-	if maj == 0 {
-		maj, min, err = GetVersion()
-		if 0 != syscall.Errno(0) {
-			return
-		}
-	}
-	verstring := fmt.Sprintf("%d.%d.%s", maj, min, bld)
+	maj, min, bld, err := fetchWindowsVersion()
+	verstring := fmt.Sprintf("%d.%d.%d", maj, min, bld)
 	systemInfo["kernel_release"] = verstring
 
 	systemInfo["kernel_name"] = "Windows"
@@ -154,15 +209,4 @@ func GetArchInfo() (systemInfo map[string]interface{}, err error) {
 	systemInfo["family"] = family
 
 	return
-}
-
-func convert_windows_string(winput []uint16) string {
-	var retstring string
-	for i := 0; i < len(winput); i++ {
-		if winput[i] == 0 {
-			break
-		}
-		retstring += string(rune(winput[i]))
-	}
-	return retstring
 }
