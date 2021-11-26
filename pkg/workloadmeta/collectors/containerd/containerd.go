@@ -120,7 +120,7 @@ func (c *collector) stream(ctx context.Context) {
 		case <-healthHandle.C:
 
 		case ev := <-c.eventsChan:
-			if err := c.handleEvent(ctx, ev, c.containerdClient); err != nil {
+			if err := c.handleEvent(ctx, ev); err != nil {
 				log.Warnf(err.Error())
 			}
 
@@ -206,7 +206,7 @@ func (c *collector) generateInitialEvents(ctx context.Context) ([]containerdeven
 	return events, nil
 }
 
-func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerdevents.Envelope, containerdClient cutil.ContainerdItf) error {
+func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
 	ignore, err := c.ignoreEvent(ctx, containerdEvent)
 	if err != nil {
 		return err
@@ -216,7 +216,7 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 		return nil
 	}
 
-	workloadmetaEvent, err := buildCollectorEvent(ctx, containerdEvent, containerdClient)
+	workloadmetaEvent, err := buildCollectorEvent(ctx, containerdEvent, c.containerdClient)
 	if err != nil {
 		return err
 	}
