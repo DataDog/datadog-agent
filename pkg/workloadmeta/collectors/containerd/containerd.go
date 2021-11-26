@@ -58,17 +58,28 @@ var containerLifecycleFilters = []string{
 	fmt.Sprintf(`topic==%q`, TaskResumedTopic),
 }
 
+type exitInfo struct {
+	exitCode *uint32
+	exitTS   time.Time
+}
+
 type collector struct {
 	store                  workloadmeta.Store
 	containerdClient       cutil.ContainerdItf
 	filterPausedContainers *containers.Filter
 	eventsChan             <-chan *containerdevents.Envelope
 	errorsChan             <-chan error
+
+	// Container exit info (mainly exit code and exit timestamp) are attached to the corresponding task events.
+	// contToExitInfo caches the exit info of a task to enrich the container deletion event when it's received later.
+	contToExitInfo map[string]*exitInfo
 }
 
 func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{}
+		return &collector{
+			contToExitInfo: make(map[string]*exitInfo),
+		}
 	})
 }
 
@@ -150,7 +161,7 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 
 	events := make([]workloadmeta.CollectorEvent, 0, len(containerdEvents))
 	for _, containerdEvent := range containerdEvents {
-		ev, err := buildCollectorEvent(ctx, &containerdEvent, c.containerdClient)
+		ev, err := c.buildCollectorEvent(ctx, &containerdEvent)
 		if err != nil {
 			log.Warnf(err.Error())
 			continue
@@ -216,7 +227,7 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 		return nil
 	}
 
-	workloadmetaEvent, err := buildCollectorEvent(ctx, containerdEvent, c.containerdClient)
+	workloadmetaEvent, err := c.buildCollectorEvent(ctx, containerdEvent)
 	if err != nil {
 		return err
 	}
@@ -257,4 +268,19 @@ func (c *collector) ignoreEvent(ctx context.Context, containerdEvent *containerd
 
 	// Only the image name is relevant to exclude paused containers
 	return c.filterPausedContainers.IsExcluded("", img.Name(), ""), nil
+}
+
+func (c *collector) getExitInfo(id string) *exitInfo {
+	return c.contToExitInfo[id]
+}
+
+func (c *collector) deleteExitInfo(id string) {
+	delete(c.contToExitInfo, id)
+}
+
+func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time) {
+	c.contToExitInfo[id] = &exitInfo{
+		exitTS:   exitTS,
+		exitCode: exitCode,
+	}
 }

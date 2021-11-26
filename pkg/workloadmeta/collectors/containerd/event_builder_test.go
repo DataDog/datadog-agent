@@ -33,6 +33,10 @@ func TestBuildCollectorEvent(t *testing.T) {
 		},
 	}
 
+	exitCode := uint32(137)
+	exitTime := time.Now()
+	fakeExitInfo := &exitInfo{exitCode: &exitCode, exitTS: exitTime}
+
 	client := containerdClient(&container)
 
 	workloadMetaContainer, err := buildWorkloadMetaContainer(&container, &client)
@@ -93,6 +97,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 		event         containerdevents.Envelope
 		expectedEvent workloadmeta.CollectorEvent
 		expectsError  bool
+		exitInfo      *exitInfo
 	}{
 		{
 			name: "container create event",
@@ -133,11 +138,18 @@ func TestBuildCollectorEvent(t *testing.T) {
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeUnset,
 				Source: collectorID,
-				Entity: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   containerID,
+				Entity: &workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   containerID,
+					},
+					State: workloadmeta.ContainerState{
+						ExitCode:   &exitCode,
+						FinishedAt: exitTime,
+					},
 				},
 			},
+			exitInfo: fakeExitInfo,
 		},
 		{
 			name: "unknown event",
@@ -248,7 +260,12 @@ func TestBuildCollectorEvent(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			workloadMetaEvent, err := buildCollectorEvent(context.TODO(), &test.event, &client)
+			c := &collector{containerdClient: &client, contToExitInfo: make(map[string]*exitInfo)}
+			if test.exitInfo != nil {
+				c.contToExitInfo[containerID] = test.exitInfo
+			}
+
+			workloadMetaEvent, err := c.buildCollectorEvent(context.TODO(), &test.event)
 
 			if test.expectsError {
 				assert.Error(t, err)

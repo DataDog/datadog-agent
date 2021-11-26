@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -221,8 +223,25 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 		}
 
 	case docker.ContainerEventActionDie, docker.ContainerEventActionDied:
+		var exitCode *uint32
+		if exitCodeString, found := ev.Attributes["exitCode"]; found {
+			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
+			if err != nil {
+				log.Debugf("Cannot convert exit code %q: %w", exitCodeString, err)
+			} else {
+				exitCode = util.UInt32Ptr(exitCodeInt)
+			}
+		}
+
 		event.Type = workloadmeta.EventTypeUnset
-		event.Entity = entityID
+		event.Entity = &workloadmeta.Container{
+			EntityID: entityID,
+			State: workloadmeta.ContainerState{
+				Running:    false,
+				FinishedAt: ev.Timestamp,
+				ExitCode:   exitCode,
+			},
+		}
 
 	default:
 		return event, fmt.Errorf("unknown action type %q, ignoring", ev.Action)
