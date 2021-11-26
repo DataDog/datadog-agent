@@ -40,8 +40,16 @@ type Config struct {
 	config.ReceiverSettings `mapstructure:",squash"`
 	// Path of metrics data.
 	Path string `mapstructure:"path"`
-	// Delay before starting to send data.
-	Delay time.Duration `mapstructure:"delay"`
+	// LoopConfig is the loop configuration.
+	Loop LoopConfig `mapstructure:"loop"`
+}
+
+// LoopConfig is the loop configuration.
+type LoopConfig struct {
+	// Enabled states whether the feature is enabled.
+	Enabled bool `mapstructure:"enabled"`
+	// Period defines the loop period.
+	Period time.Duration `mapstructure:"period"`
 }
 
 // Validate configuration of receiver.
@@ -55,6 +63,7 @@ func (cfg *Config) Validate() error {
 func createDefaultConfig() config.Receiver {
 	return &Config{
 		ReceiverSettings: config.NewReceiverSettings(config.NewComponentID(typeStr)),
+		Loop:             LoopConfig{Enabled: false, Period: 10 * time.Second},
 	}
 }
 
@@ -68,17 +77,15 @@ type receiver struct {
 }
 
 func (r *receiver) Start(_ context.Context, host component.Host) error {
-	go r.unmarshalAndSend(host)
+	if r.config.Loop.Enabled {
+		go r.unmarshalLoop(host)
+	} else {
+		go r.unmarshalAndSend(host)
+	}
 	return nil
 }
 
 func (r *receiver) unmarshalAndSend(host component.Host) {
-	select {
-	case <-time.After(r.config.Delay):
-	case <-r.stopCh:
-		return
-	}
-
 	file, err := os.Open(r.config.Path)
 	if err != nil {
 		host.ReportFatalError(fmt.Errorf("failed to open %q: %w", r.config.Path, err))
@@ -108,6 +115,17 @@ func (r *receiver) unmarshalAndSend(host component.Host) {
 	if err := file.Close(); err != nil {
 		host.ReportFatalError(fmt.Errorf("failed to close %q: %w", r.config.Path, err))
 		return
+	}
+}
+
+func (r *receiver) unmarshalLoop(host component.Host) {
+	for {
+		r.unmarshalAndSend(host)
+		select {
+		case <-time.After(r.config.Loop.Period):
+		case <-r.stopCh:
+			return
+		}
 	}
 }
 

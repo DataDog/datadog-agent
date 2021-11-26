@@ -21,7 +21,9 @@ spec:
               receivers:
                 file:
                   path: /etc/data/metrics.data
-                  delay: 25s
+                  loop:
+                    enabled: true
+                    period: 10s
               exporters:
                 otlp:
                   endpoint: ${DD_AGENT_OTLP_ENDPOINT}
