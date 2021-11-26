@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/model/otlp"
 	"go.opentelemetry.io/collector/model/pdata"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
+	"go.uber.org/zap"
 )
 
 const typeStr = "file"
@@ -71,6 +72,7 @@ var _ component.MetricsReceiver = (*receiver)(nil)
 
 type receiver struct {
 	config       *Config
+	logger       *zap.Logger
 	unmarshaler  pdata.MetricsUnmarshaler
 	nextConsumer consumer.Metrics
 	stopCh       chan struct{}
@@ -78,8 +80,10 @@ type receiver struct {
 
 func (r *receiver) Start(_ context.Context, host component.Host) error {
 	if r.config.Loop.Enabled {
+		r.logger.Info("Running in a loop")
 		go r.unmarshalLoop(host)
 	} else {
+		r.logger.Info("Running just once")
 		go r.unmarshalAndSend(host)
 	}
 	return nil
@@ -92,6 +96,7 @@ func (r *receiver) unmarshalAndSend(host component.Host) {
 		return
 	}
 
+	r.logger.Info("Sending metrics batch")
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		metrics, err := r.unmarshaler.UnmarshalMetrics(scanner.Bytes())
@@ -142,6 +147,7 @@ func createMetricsReceiver(
 ) (component.MetricsReceiver, error) {
 	return &receiver{
 		config:       cfg.(*Config),
+		logger:       set.Logger,
 		unmarshaler:  otlp.NewJSONMetricsUnmarshaler(),
 		nextConsumer: consumer,
 		stopCh:       make(chan struct{}),
