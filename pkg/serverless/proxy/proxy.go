@@ -44,7 +44,11 @@ func setup(proxyHostPort string, originalRuntimeHostPort string, processor invoc
 		Handler: mux,
 	}
 
-	s.ListenAndServe()
+	err := s.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		log.Errorf("[proxy] error while serving the proxy")
+	}
+
 }
 
 func (rp *runtimeProxy) handle(w http.ResponseWriter, r *http.Request) {
