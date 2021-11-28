@@ -35,9 +35,12 @@ struct dns_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
 
+    u16 id;
     u16 qdcount;
     u16 qtype;
     u16 qclass;
+    u64 dns_server_ip_family;
+    u64 dns_server_ip[2];
     char name[DNS_MAX_LENGTH];
 };
 
@@ -142,6 +145,14 @@ __attribute__((always_inline)) int handle_dns_req(struct __sk_buff *skb, struct 
         return TC_ACT_OK;
     }
     evt->qdcount = htons(header.qdcount);
+    evt->id = htons(header.id);
+    evt->dns_server_ip_family = htons(pkt->eth.h_proto);
+    if (evt->dns_server_ip_family == ETH_P_IP) {
+        evt->dns_server_ip[0] = pkt->ipv4.daddr;
+    } else if (evt->dns_server_ip_family == ETH_P_IPV6) {
+        evt->dns_server_ip[0] = *(u64*)&pkt->ipv6.saddr;
+        evt->dns_server_ip[1] = *((u64*)(&pkt->ipv6.saddr) + 1);
+    }
 
     // tail call to the dns request parser
     tail_call_to_classifier(skb, DNS_REQUEST_PARSER);
@@ -179,5 +190,11 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
 
     return TC_ACT_OK;
 }
+
+// => add DNS server IP
+// => detect new interfaces & attach TC probe
+// => loop for IPv6
+// => tests
+// => parse DNS answer (number of answers, resolved IPs, resolution time)
 
 #endif

@@ -324,6 +324,8 @@ A DNS request was sent
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `dns.dns_server_ip_family` | int | DNS server IP family (IPv4 or IPv6) of the DNS server IP |
+| `dns.id` | int | id field of the DNS request |
 | `dns.name` | string | name field of the DNS request |
 | `dns.qclass` | int | qclass field of the DNS request |
 | `dns.qdcount` | int | qdcount field of the DNS request |

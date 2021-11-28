@@ -11,6 +11,7 @@ package model
 
 import (
 	"fmt"
+	"net"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -743,8 +744,11 @@ type CgroupTracingEvent struct {
 type DNSEvent struct {
 	SyscallEvent
 
-	QDCount uint16 `field:"qdcount"` // qdcount field of the DNS request
-	QClass  uint16 `field:"qclass"`  // qclass field of the DNS request
-	QType   uint16 `field:"qtype"`   // qtype field of the DNS request
-	Name    string `field:"name"`    // name field of the DNS request
+	ID                uint16 `field:"id"`                   // id field of the DNS request
+	QDCount           uint16 `field:"qdcount"`              // qdcount field of the DNS request
+	QClass            uint16 `field:"qclass"`               // qclass field of the DNS request
+	QType             uint16 `field:"qtype"`                // qtype field of the DNS request
+	DNSServerIPFamily uint64 `field:"dns_server_ip_family"` // DNS server IP family (IPv4 or IPv6) of the DNS server IP
+	DNSServerIP       net.IP `field:"dns_server_ip"`        // DNS server IP to which the request was sent
+	Name              string `field:"name"`                 // name field of the DNS request
 }

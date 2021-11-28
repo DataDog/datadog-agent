@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 // BinaryUnmarshaler interface implemented by every event type
@@ -765,14 +767,21 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	cursor := read
 
-	if len(data[cursor:]) < 6 {
+	if len(data[cursor:]) < 32 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.QDCount = ByteOrder.Uint16(data[cursor : cursor+2])
-	e.QType = ByteOrder.Uint16(data[cursor+2 : cursor+4])
-	e.QClass = ByteOrder.Uint16(data[cursor+4 : cursor+6])
-	e.Name = decodeDNS(data[cursor+6:])
+	e.ID = ByteOrder.Uint16(data[cursor : cursor+2])
+	e.QDCount = ByteOrder.Uint16(data[cursor+2 : cursor+4])
+	e.QType = ByteOrder.Uint16(data[cursor+4 : cursor+6])
+	e.QClass = ByteOrder.Uint16(data[cursor+6 : cursor+8])
+	e.DNSServerIPFamily = ByteOrder.Uint64(data[cursor+8 : cursor+16])
+	if e.DNSServerIPFamily == unix.ETH_P_IP {
+		e.DNSServerIP = data[cursor+16 : cursor+20]
+	} else if e.DNSServerIPFamily == unix.ETH_P_IPV6 {
+		e.DNSServerIP = data[cursor+16 : cursor+32]
+	}
+	e.Name = decodeDNS(data[cursor+32:])
 	return len(data), nil
 }
 

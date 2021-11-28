@@ -38,6 +38,8 @@ int classifier_egress(struct __sk_buff *skb) {
                 return TC_ACT_OK;
 
             pkt->l4_protocol = pkt->ipv6.nexthdr;
+            flow.addr[0] = *(u64*)&pkt->ipv6.saddr;
+            flow.addr[1] = *((u64*)(&pkt->ipv6.saddr) + 1);
             break;
 
         default:

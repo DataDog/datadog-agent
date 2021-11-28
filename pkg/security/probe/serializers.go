@@ -253,10 +253,12 @@ type SignalEventSerializer struct {
 }
 
 type DNSEventSerializer struct {
-	QDCount int    `json:"qdcount" jsonschema_description:"qdcount defines the number of questions in the DNS request"`
-	QClass  string `json:"qclass" jsonschema_description:"qclass defines the class of the DNS request"`
-	QType   string `json:"qtype" jsonschema_description:"qtype defines the type of the DNS request"`
-	Name    string `json:"name" jsonschema_description:"name of the DNS request"`
+	ID          int    `json:"id" jsonschema_description:"id is the unique identifier of the DNS request"`
+	QDCount     int    `json:"qdcount" jsonschema_description:"qdcount is the number of questions in the DNS request"`
+	QClass      string `json:"qclass" jsonschema_description:"qclass is the class of the DNS request"`
+	QType       string `json:"qtype" jsonschema_description:"qtype is the type of the DNS request"`
+	DNSServerIP string `json:"dns_server_ip" jsonschema_description:"dns_server_ip is the DNS server IP to which the DNS request was sent"`
+	Name        string `json:"name" jsonschema_description:"name of the DNS request"`
 }
 
 // DDContextSerializer serializes a span context to JSON
@@ -620,10 +622,12 @@ func newSpliceEventSerializer(e *Event) *SpliceEventSerializer {
 
 func newDNSEventSerializer(e *Event) *DNSEventSerializer {
 	return &DNSEventSerializer{
-		QDCount: int(e.DNS.QDCount),
-		QClass:  model.QClass(e.DNS.QClass).String(),
-		QType:   model.QType(e.DNS.QType).String(),
-		Name:    e.DNS.Name,
+		ID:          int(e.DNS.ID),
+		QDCount:     int(e.DNS.QDCount),
+		QClass:      model.QClass(e.DNS.QClass).String(),
+		QType:       model.QType(e.DNS.QType).String(),
+		DNSServerIP: e.DNS.DNSServerIP.String(),
+		Name:        e.DNS.Name,
 	}
 }
 

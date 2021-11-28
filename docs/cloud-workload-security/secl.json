@@ -748,6 +748,16 @@
       "experimental": true,
       "properties": [
         {
+          "name": "dns.dns_server_ip_family",
+          "type": "int",
+          "definition": "DNS server IP family (IPv4 or IPv6) of the DNS server IP"
+        },
+        {
+          "name": "dns.id",
+          "type": "int",
+          "definition": "id field of the DNS request"
+        },
+        {
           "name": "dns.name",
           "type": "string",
           "definition": "name field of the DNS request"
