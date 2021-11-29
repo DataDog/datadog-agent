@@ -2,13 +2,14 @@ package discovery
 
 import (
 	"fmt"
+	"net"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
-	"net"
-	"testing"
-	"time"
 )
 
 func TestDiscovery(t *testing.T) {
@@ -31,13 +32,18 @@ func TestDiscovery(t *testing.T) {
 	checkConfig := &checkconfig.CheckConfig{
 		Network:            "192.168.0.0/29",
 		CommunityString:    "public",
-		DiscoveryInterval:  3600,
+		DiscoveryInterval:  1,
 		DiscoveryWorkers:   1,
 		IgnoredIPAddresses: map[string]bool{"192.168.0.5": true},
 	}
 	discovery := NewDiscovery(checkConfig)
 	discovery.Start()
-	time.Sleep(100 * time.Millisecond)
+	// discover.Start is immediately starting the discovery in a go routine,
+	// let's give it some time to make sure it is being scheduled and that
+	// it has the time to fully run.
+	// 2500ms make sure the discovery has the time to run its main loop
+	// at least 2 times.
+	time.Sleep(2500 * time.Millisecond)
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
