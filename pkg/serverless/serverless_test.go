@@ -35,25 +35,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, "myRequestID", handleInvocation)
 	architecture := fmt.Sprintf("architecture:%s", tags.ResolveRuntimeArch())
 
-<<<<<<< HEAD
 	assert.Equal(t, 14, len(d.ExtraTags.Tags))
-=======
-	expectedTagArray := []string{
-		"a1:valuea1",
-		"a2:valuea2",
-		"a3:valuea3",
-		"a4:valuea4",
-		"a_maj:valueamaj",
-		"account_id:123456789012",
-		architecture,
-		"aws_account:123456789012",
-		"dd_extension_version:xxx",
-		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
-		"functionname:my-function",
-		"region:us-east-1",
-		"resource:my-function",
-	}
->>>>>>> maxday/tag15
 
 	sort.Strings(d.ExtraTags.Tags)
 	assert.Equal(t, "a1:valuea1", d.ExtraTags.Tags[0])

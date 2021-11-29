@@ -65,24 +65,6 @@ func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string
 	}
 }
 
-// GenerateRuntimeDurationMetric generates the runtime duration metric
-func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string, tags []string, metricsChan chan []metrics.MetricSample) {
-	// first check if both date are set
-	if start.IsZero() || end.IsZero() {
-		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
-	} else {
-		duration := end.Sub(start).Milliseconds()
-		metricsChan <- []metrics.MetricSample{{
-			Name:       "aws.lambda.enhanced.runtime_duration",
-			Value:      float64(duration),
-			Mtype:      metrics.DistributionType,
-			Tags:       tags,
-			SampleRate: 1,
-			Timestamp:  float64(end.UnixNano()),
-		}}
-	}
-}
-
 // GenerateEnhancedMetricsFromFunctionLog generates enhanced metrics from a LogTypeFunction message
 func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, tags []string, metricsChan chan []metrics.MetricSample) {
 	for _, substring := range getOutOfMemorySubstrings() {

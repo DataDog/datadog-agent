@@ -66,11 +66,7 @@ func TestBuildTagsFromMap(t *testing.T) {
 func TestBuildTagMapFromArnIncomplete(t *testing.T) {
 	arn := "function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-<<<<<<< HEAD
 	assert.Equal(t, 8, len(tagMap))
-=======
-	assert.Equal(t, 7, len(tagMap))
->>>>>>> maxday/tag15
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "function:my-function", tagMap["function_arn"])
@@ -79,21 +75,13 @@ func TestBuildTagMapFromArnIncomplete(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 	// Result of this test depends on build environment
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-<<<<<<< HEAD
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
-=======
-
->>>>>>> maxday/tag15
 }
 
 func TestBuildTagMapFromArnIncompleteWithCommaAndSpaceTags(t *testing.T) {
 	arn := "function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "tag1:value1,tag2:VALUE2", "TAG3:VALUE3"})
-<<<<<<< HEAD
 	assert.Equal(t, 10, len(tagMap))
-=======
-	assert.Equal(t, 9, len(tagMap))
->>>>>>> maxday/tag15
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "function:my-function", tagMap["function_arn"])
@@ -104,20 +92,13 @@ func TestBuildTagMapFromArnIncompleteWithCommaAndSpaceTags(t *testing.T) {
 	assert.Equal(t, "value3", tagMap["tag3"])
 	// Result of this test depends on build environment
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-<<<<<<< HEAD
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
-=======
->>>>>>> maxday/tag15
 }
 
 func TestBuildTagMapFromArnComplete(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-<<<<<<< HEAD
 	assert.Equal(t, 13, len(tagMap))
-=======
-	assert.Equal(t, 12, len(tagMap))
->>>>>>> maxday/tag15
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
@@ -131,10 +112,7 @@ func TestBuildTagMapFromArnComplete(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 	// Result of this test depends on build environment
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-<<<<<<< HEAD
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
-=======
->>>>>>> maxday/tag15
 }
 
 func TestBuildTagMapFromArnCompleteWithEnvAndVersionAndService(t *testing.T) {
@@ -147,11 +125,7 @@ func TestBuildTagMapFromArnCompleteWithEnvAndVersionAndService(t *testing.T) {
 
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-<<<<<<< HEAD
 	assert.Equal(t, 16, len(tagMap))
-=======
-	assert.Equal(t, 15, len(tagMap))
->>>>>>> maxday/tag15
 	assert.Equal(t, "mytestenv", tagMap["env"])
 	assert.Equal(t, "mytestversion", tagMap["version"])
 	assert.Equal(t, "mytestservice", tagMap["service"])
@@ -168,20 +142,13 @@ func TestBuildTagMapFromArnCompleteWithEnvAndVersionAndService(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 	// Result of this test depends on build environment
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-<<<<<<< HEAD
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
-=======
->>>>>>> maxday/tag15
 }
 
 func TestBuildTagMapFromArnCompleteWithUpperCase(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:My-Function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-<<<<<<< HEAD
 	assert.Equal(t, 13, len(tagMap))
-=======
-	assert.Equal(t, 12, len(tagMap))
->>>>>>> maxday/tag15
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
@@ -194,21 +161,14 @@ func TestBuildTagMapFromArnCompleteWithUpperCase(t *testing.T) {
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-<<<<<<< HEAD
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
-=======
->>>>>>> maxday/tag15
 }
 
 func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
 	os.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "$LATEST")
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-<<<<<<< HEAD
 	assert.Equal(t, 13, len(tagMap))
-=======
-	assert.Equal(t, 12, len(tagMap))
->>>>>>> maxday/tag15
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
@@ -221,21 +181,14 @@ func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-<<<<<<< HEAD
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
-=======
->>>>>>> maxday/tag15
 }
 
 func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
 	os.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "888")
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-<<<<<<< HEAD
 	assert.Equal(t, 14, len(tagMap))
-=======
-	assert.Equal(t, 13, len(tagMap))
->>>>>>> maxday/tag15
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
@@ -249,10 +202,7 @@ func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
-<<<<<<< HEAD
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
-=======
->>>>>>> maxday/tag15
 }
 
 func TestAddTagInvalid(t *testing.T) {
