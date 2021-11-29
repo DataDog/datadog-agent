@@ -159,7 +159,7 @@ def gen_mocks(ctx):
         "Scheduler",
     ]
 
-    interface_regex = "|".join(f"^{i}$" for i in interfaces)
+    interface_regex = "|".join(f"^{i}\\$" for i in interfaces)
 
     with ctx.cd("./pkg/compliance"):
         ctx.run("mockery --case snake -r --name=\"{}\"".format(interface_regex))
