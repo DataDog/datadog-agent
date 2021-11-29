@@ -63,22 +63,12 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
 	assert.NotNil(t, agent.cancel)
-
 }
 
 func TestLoadConfigShouldBeFast(t *testing.T) {
-	timeout := time.After(1 * time.Second)
-	done := make(chan bool)
-	go func() {
-		var agent = &ServerlessTraceAgent{}
-		agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
-		defer agent.Stop()
-		done <- true
-	}()
-
-	select {
-	case <-timeout:
-		t.Fatal("Tracer config load/validation is too long")
-	case <-done:
-	}
+	startTime := time.Now()
+	agent := &ServerlessTraceAgent{}
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
+	defer agent.Stop()
+	assert.True(t, time.Since(startTime) < time.Second)
 }
