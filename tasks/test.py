@@ -521,9 +521,6 @@ class TestProfiler:
     def flush(self):
         sys.stdout.flush()
 
-    def reset(self):
-        self.out_buffer = ""
-
     def print_sorted(self, limit=0):
         if self.times:
             sorted_times = sorted(self.times, key=operator.itemgetter(1), reverse=True)
@@ -552,6 +549,7 @@ def lint_python(ctx):
     ctx.run("flake8 .")
     ctx.run("black --check --diff .")
     ctx.run("isort --check-only --diff .")
+    ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
 
 
 @task

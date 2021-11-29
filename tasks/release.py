@@ -578,7 +578,6 @@ COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
 DIFFERENT_TAGS_TEMPLATE = (
     "The latest version of {} ({}) does not match the version used in the previous release entry ({})."
 )
-TAG_NOT_FOUND_TEMPLATE = "Couldn't find a(n) {} version compatible with the new Agent version entry {}"
 RC_TAG_QUESTION_TEMPLATE = "The {} tag found is an RC tag: {}. Are you sure you want to use it?"
 TAG_FOUND_TEMPLATE = "The {} tag is {}"
 
