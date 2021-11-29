@@ -120,13 +120,15 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 
 func (cs *CheckSampler) commitSeries(timestamp float64) {
 	series, errors := cs.metrics.Flush(timestamp)
-	for ckey, err := range errors {
+	for ckey, errs := range errors {
 		context, ok := cs.contextResolver.get(ckey)
-		if !ok {
-			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
-			continue
+		for _, err := range errs {
+			if !ok {
+				log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
+			} else {
+				log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
+			}
 		}
-		log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
 	}
 	for _, serie := range series {
 		// Resolve context and populate new []Serie
