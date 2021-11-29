@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -58,10 +59,11 @@ var containerLifecycleFilters = []string{
 }
 
 type collector struct {
-	store            workloadmeta.Store
-	containerdClient cutil.ContainerdItf
-	eventsChan       <-chan *containerdevents.Envelope
-	errorsChan       <-chan error
+	store                  workloadmeta.Store
+	containerdClient       cutil.ContainerdItf
+	filterPausedContainers *containers.Filter
+	eventsChan             <-chan *containerdevents.Envelope
+	errorsChan             <-chan error
 }
 
 func init() {
@@ -79,6 +81,11 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 
 	var err error
 	c.containerdClient, err = cutil.GetContainerdUtil()
+	if err != nil {
+		return err
+	}
+
+	c.filterPausedContainers, err = containers.GetPauseContainerFilter()
 	if err != nil {
 		return err
 	}
@@ -113,7 +120,7 @@ func (c *collector) stream(ctx context.Context) {
 		case <-healthHandle.C:
 
 		case ev := <-c.eventsChan:
-			if err := c.handleEvent(ctx, ev, c.containerdClient); err != nil {
+			if err := c.handleEvent(ctx, ev); err != nil {
 				log.Warnf(err.Error())
 			}
 
@@ -136,7 +143,7 @@ func (c *collector) stream(ctx context.Context) {
 }
 
 func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
-	containerdEvents, err := c.generateInitialEvents()
+	containerdEvents, err := c.generateInitialEvents(ctx)
 	if err != nil {
 		return err
 	}
@@ -159,15 +166,15 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) generateInitialEvents() ([]containerdevents.Envelope, error) {
+func (c *collector) generateInitialEvents(ctx context.Context) ([]containerdevents.Envelope, error) {
 	var events []containerdevents.Envelope
 
-	containers, err := c.containerdClient.Containers()
+	existingContainers, err := c.containerdClient.Containers()
 	if err != nil {
 		return nil, err
 	}
 
-	for _, container := range containers {
+	for _, container := range existingContainers {
 		eventEncoded, err := proto.Marshal(&apievents.ContainerCreate{
 			ID: container.ID(),
 		})
@@ -175,21 +182,41 @@ func (c *collector) generateInitialEvents() ([]containerdevents.Envelope, error)
 			return nil, err
 		}
 
-		events = append(events, containerdevents.Envelope{
+		event := containerdevents.Envelope{
 			Timestamp: time.Now(),
 			Topic:     containerCreationTopic,
 			Event: &types.Any{
 				TypeUrl: "containerd.events.ContainerCreate",
 				Value:   eventEncoded,
 			},
-		})
+		}
+
+		ignore, err := c.ignoreEvent(ctx, &event)
+		if err != nil {
+			return nil, err
+		}
+
+		if ignore {
+			continue
+		}
+
+		events = append(events, event)
 	}
 
 	return events, nil
 }
 
-func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerdevents.Envelope, containerdClient cutil.ContainerdItf) error {
-	workloadmetaEvent, err := buildCollectorEvent(ctx, containerdEvent, containerdClient)
+func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
+	ignore, err := c.ignoreEvent(ctx, containerdEvent)
+	if err != nil {
+		return err
+	}
+
+	if ignore {
+		return nil
+	}
+
+	workloadmetaEvent, err := buildCollectorEvent(ctx, containerdEvent, c.containerdClient)
 	if err != nil {
 		return err
 	}
@@ -197,4 +224,37 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 	c.store.Notify([]workloadmeta.CollectorEvent{workloadmetaEvent})
 
 	return nil
+}
+
+// ignoreEvent returns whether a containerd event should be ignored.
+// The ignored events are the ones that refer to a "pause" container.
+func (c *collector) ignoreEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) (bool, error) {
+	// The container ID can be in the "id" field (in container events) or
+	// "container_id" (in task events)
+	ID, found := containerdEvent.Field([]string{"event", "id"})
+	if !found {
+		ID, found = containerdEvent.Field([]string{"event", "container_id"})
+		if !found {
+			// We don't handle any events that don't have a container ID, so we
+			// can ignore them.
+			return true, nil
+		}
+	}
+
+	container, err := c.containerdClient.ContainerWithContext(ctx, ID)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// This is a delete event that needs to be handled
+			return false, nil
+		}
+		return false, err
+	}
+
+	img, err := c.containerdClient.Image(container)
+	if err != nil {
+		return false, err
+	}
+
+	// Only the image name is relevant to exclude paused containers
+	return c.filterPausedContainers.IsExcluded("", img.Name(), ""), nil
 }

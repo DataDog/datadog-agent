@@ -570,6 +570,7 @@ core,github.com/open-policy-agent/opa/topdown/print,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/types,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/util,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/version,Apache-2.0,The OPA Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry,Apache-2.0,Open Telemetry Maintainers
 core,github.com/opencontainers/go-digest,Apache-2.0,"Docker, Inc | OCI Contributors"
 core,github.com/opencontainers/image-spec/identity,Apache-2.0,The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,The Linux Foundation

@@ -75,7 +75,7 @@ CLUSTER_AGENT_TAGS = set(["clusterchecks", "kubeapiserver", "orchestrator", "sec
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "secrets"])
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = set(["docker", "kubelet", "secrets", "zlib"])
+DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "secrets", "zlib"])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
 IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib"])
@@ -84,13 +84,13 @@ IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib"])
 PROCESS_AGENT_TAGS = AGENT_TAGS.union(set(["clusterchecks", "fargateprocess", "orchestrator"]))
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = set(["netcgo", "secrets", "docker", "kubeapiserver", "kubelet"])
+SECURITY_AGENT_TAGS = set(["netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet"])
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = AGENT_TAGS.union(set(["clusterchecks", "linux_bpf", "npm"]))
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = set(["docker", "kubeapiserver", "kubelet", "netcgo", "secrets"])
+TRACE_AGENT_TAGS = set(["docker", "containerd", "kubeapiserver", "kubelet", "netcgo", "secrets"])
 
 # TEST_TAGS lists the tags that have to be added to run tests
 TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))

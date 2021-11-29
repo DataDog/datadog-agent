@@ -23,6 +23,8 @@ EXCLUDED_FOLDERS = {
     "./pkg/util/log",
     "./pkg/util/log/zap",
     "./pkg/util/scrubber",
+    "./pkg/obfuscate",
+    "./pkg/obfuscate/testdata",
     "./pkg/otlp/model",
     "./pkg/otlp/model/attributes",
     "./pkg/otlp/model/attributes/azure",
