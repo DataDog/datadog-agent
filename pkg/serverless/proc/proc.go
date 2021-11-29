@@ -25,9 +25,7 @@ func getPidList(procPath string) []int {
 	for _, file := range files {
 		if file.IsDir() {
 			if processID, err := strconv.Atoi(file.Name()); err == nil {
-				if processID != 1 { // no need to check for the root pid
-					pids = append(pids, processID)
-				}
+				pids = append(pids, processID)
 			}
 		}
 	}
@@ -57,16 +55,16 @@ func getEnvVariablesFromPid(procPath string, pid int) map[string]string {
 	return envVars
 }
 
-// SearchProcsForEnvVariable returns the value of the given env variable name
-// It returns an empty string if not found
-// If an env variable is found more that one time, the first one is returned
-func SearchProcsForEnvVariable(procPath string, envName string) string {
+// SearchProcsForEnvVariable returns values of the given env variable name
+// it returns a slice since a value could be found in more than one process
+func SearchProcsForEnvVariable(procPath string, envName string) []string {
+	result := []string{}
 	pidList := getPidList(procPath)
 	for _, pid := range pidList {
 		envMap := getEnvVariablesFromPid(procPath, pid)
 		if value, ok := envMap[envName]; ok {
-			return value
+			result = append(result, value)
 		}
 	}
-	return ""
+	return result
 }
