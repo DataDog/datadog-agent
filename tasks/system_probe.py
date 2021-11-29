@@ -5,7 +5,7 @@ import os
 import shutil
 import sys
 import tempfile
-from subprocess import CalledProcessError, check_output
+from subprocess import check_output
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -374,14 +374,6 @@ def object_files(ctx, parallel_build=True):
     build_object_files(ctx, parallel_build=parallel_build)
 
 
-def get_ebpf_c_files():
-    files = glob.glob("pkg/ebpf/c/**/*.c")
-    files.extend(glob.glob("pkg/network/ebpf/c/**/*.c"))
-    files.extend(glob.glob("pkg/security/ebpf/c/**/*.c"))
-    files.extend(glob.glob("pkg/collector/corechecks/ebpf/c/**/*.c"))
-    return files
-
-
 def get_ebpf_targets():
     files = glob.glob("pkg/ebpf/c/*.[c,h]")
     files.extend(glob.glob("pkg/network/ebpf/c/*.[c,h]"))
@@ -710,20 +702,6 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
 
 def is_root():
     return os.getuid() == 0
-
-
-def should_docker_use_sudo(_):
-    # We are already root
-    if is_root():
-        return False
-
-    with open(os.devnull, 'w') as FNULL:
-        try:
-            check_output(['docker', 'info'], stderr=FNULL)
-        except CalledProcessError:
-            return True
-
-    return False
 
 
 @contextlib.contextmanager
