@@ -62,38 +62,62 @@ func TestShouldDropEntry(t *testing.T) {
 		}))
 }
 
-func TestApplicationName(t *testing.T) {
+func TestSourceAndService(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil)
 
-	assert.Equal(t, "foo", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
-				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+	assert.Equal(
+		t,
+		&applicationOriginInfo{source: "foo", service: "foo"},
+		tailer.getApplicationOriginInfo(
+			&sdjournal.JournalEntry{
+				Fields: map[string]string{
+					sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+					sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+					sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+				},
 			},
-		}, []string{}))
+			[]string{},
+		),
+	)
 
-	assert.Equal(t, "foo.service", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo.service",
-				sdjournal.SD_JOURNAL_FIELD_COMM:         "foo.sh",
+	assert.Equal(
+		t,
+		&applicationOriginInfo{source: "foo.service", service: "foo.service"},
+		tailer.getApplicationOriginInfo(
+			&sdjournal.JournalEntry{
+				Fields: map[string]string{
+					sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo.service",
+					sdjournal.SD_JOURNAL_FIELD_COMM:         "foo.sh",
+				},
 			},
-		}, []string{}))
+			[]string{},
+		),
+	)
 
-	assert.Equal(t, "foo.sh", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_COMM: "foo.sh",
+	assert.Equal(
+		t,
+		&applicationOriginInfo{source: "foo.sh", service: "foo.sh"},
+		tailer.getApplicationOriginInfo(
+			&sdjournal.JournalEntry{
+				Fields: map[string]string{
+					sdjournal.SD_JOURNAL_FIELD_COMM: "foo.sh",
+				},
 			},
-		}, []string{}))
+			[]string{},
+		),
+	)
 
-	assert.Equal(t, "", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{},
-		}, []string{}))
+	assert.Equal(
+		t,
+		&applicationOriginInfo{source: "", service: ""},
+		tailer.getApplicationOriginInfo(
+			&sdjournal.JournalEntry{
+				Fields: map[string]string{},
+			},
+			[]string{},
+		),
+	)
 }
 
 func TestContent(t *testing.T) {
@@ -138,57 +162,75 @@ func TestSeverity(t *testing.T) {
 	}
 }
 
-func TestApplicationNameShouldBeDockerForContainerEntries(t *testing.T) {
+func TestSourceAndServiceShouldBeDockerForContainerEntries(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil)
 
-	assert.Equal(t, "docker", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
-				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
-				containerIDKey:                               "bar",
+	assert.Equal(
+		t,
+		&applicationOriginInfo{source: "docker", service: "docker"},
+		tailer.getApplicationOriginInfo(
+			&sdjournal.JournalEntry{
+				Fields: map[string]string{
+					sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+					sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+					sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+					containerIDKey:                               "bar",
+				},
 			},
-		}, []string{}))
+			[]string{},
+		),
+	)
 }
 
-func TestApplicationNameShouldBeShortImageForContainerEntries(t *testing.T) {
+func TestSourceAndServiceShouldBeShortImageForContainerEntries(t *testing.T) {
 	containerID := "bar"
 
 	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
 	tailer := NewTailer(source, nil)
 
-	assert.Equal(t, "testImage", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
-				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
-				containerIDKey:                               containerID,
+	assert.Equal(
+		t,
+		&applicationOriginInfo{source: "testImage", service: "testImage"},
+		tailer.getApplicationOriginInfo(
+			&sdjournal.JournalEntry{
+				Fields: map[string]string{
+					sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+					sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+					sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+					containerIDKey:                               containerID,
+				},
 			},
-		}, []string{"short_image:testImage"}))
+			[]string{"short_image:testImage"},
+		),
+	)
 
 	// Verify we have the value in our cache
 	_, hit := cache.Cache.Get(getImageCacheKey(containerID))
 	assert.True(t, hit)
 }
 
-func TestApplicationNameShouldBeDockerWhenTagNotFound(t *testing.T) {
+func TestSourceAndServiceShouldBeDockerWhenTagNotFound(t *testing.T) {
 	containerID := "bar2"
 
 	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
 	tailer := NewTailer(source, nil)
 
-	assert.Equal(t, "docker", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
-				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
-				containerIDKey:                               containerID,
+	assert.Equal(
+		t,
+		&applicationOriginInfo{source: "docker", service: "docker"},
+		tailer.getApplicationOriginInfo(
+			&sdjournal.JournalEntry{
+				Fields: map[string]string{
+					sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+					sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+					sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+					containerIDKey:                               containerID,
+				},
 			},
-		}, []string{"not_short_image:testImage"}))
+			[]string{"not_short_image:testImage"},
+		),
+	)
 
 	// Verify we don't have value in our cache
 	_, hit := cache.Cache.Get(getImageCacheKey(containerID))
@@ -204,17 +246,50 @@ func TestWrongTypeFromCache(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
 	tailer := NewTailer(source, nil)
 
-	assert.Equal(t, "testImage", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
-				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
-				containerIDKey:                               containerID,
+	assert.Equal(
+		t,
+		&applicationOriginInfo{source: "testImage", service: "testImage"},
+		tailer.getApplicationOriginInfo(
+			&sdjournal.JournalEntry{
+				Fields: map[string]string{
+					sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+					sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+					sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+					containerIDKey:                               containerID,
+				},
 			},
-		}, []string{"short_image:testImage"}))
+			[]string{"short_image:testImage"},
+		),
+	)
 
 	// Verify we have the value in our cache
 	_, hit := cache.Cache.Get(getImageCacheKey(containerID))
 	assert.True(t, hit)
+}
+
+func TestSourceShouldBeDockerAndServiceNotSetWhenContainerModeDockerOrigin(t *testing.T) {
+	containerID := "bar4"
+
+	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true, ContainerModeDockerOrigin: true})
+	tailer := NewTailer(source, nil)
+
+	assert.Equal(
+		t,
+		&applicationOriginInfo{source: "docker", service: ""},
+		tailer.getApplicationOriginInfo(
+			&sdjournal.JournalEntry{
+				Fields: map[string]string{
+					sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+					sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+					sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+					containerIDKey:                               containerID,
+				},
+			},
+			[]string{"short_image:testImage"},
+		),
+	)
+
+	// Verify we don't have value in our cache
+	_, hit := cache.Cache.Get(getImageCacheKey(containerID))
+	assert.False(t, hit)
 }

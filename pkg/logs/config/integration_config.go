@@ -40,9 +40,10 @@ type LogsConfig struct {
 	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
 	TailingMode  string   `mapstructure:"start_position" json:"start_position"` // File
 
-	IncludeUnits  []string `mapstructure:"include_units" json:"include_units"`   // Journald
-	ExcludeUnits  []string `mapstructure:"exclude_units" json:"exclude_units"`   // Journald
-	ContainerMode bool     `mapstructure:"container_mode" json:"container_mode"` // Journald
+	IncludeUnits              []string `mapstructure:"include_units" json:"include_units"`              // Journald
+	ExcludeUnits              []string `mapstructure:"exclude_units" json:"exclude_units"`              // Journald
+	ContainerMode             bool     `mapstructure:"container_mode" json:"container_mode"`            // Journald
+	ContainerModeDockerOrigin bool     `mapstructure:"docker_mode" json:"container_mode_docker_origin"` // Journald
 
 	Image string // Docker
 	Label string // Docker

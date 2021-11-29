@@ -22,8 +22,8 @@ import (
 
 // defaultWaitDuration represents the delay before which we try to collect a new log from the journal
 const (
-	defaultWaitDuration    = 1 * time.Second
-	defaultApplicationName = "docker"
+	defaultWaitDuration             = 1 * time.Second
+	defaultContainerApplicationName = "docker"
 )
 
 // Tailer collects logs from a journal.
@@ -225,10 +225,10 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 	// set the service and the source attributes of the message,
 	// those values are still overridden by the integration config when defined
 	tags := t.getTags(entry)
-	applicationName := t.getApplicationName(entry, tags)
-	origin.SetSource(applicationName)
-	origin.SetService(applicationName)
 	origin.SetTags(tags)
+	applicationOriginInfo := t.getApplicationOriginInfo(entry, tags)
+	origin.SetSource(applicationOriginInfo.source)
+	origin.SetService(applicationOriginInfo.service)
 	return origin
 }
 
@@ -239,24 +239,45 @@ var applicationKeys = []string{
 	sdjournal.SD_JOURNAL_FIELD_COMM,              // "_COMM"
 }
 
-// getApplicationName returns the name of the application from where the entry is from.
-func (t *Tailer) getApplicationName(entry *sdjournal.JournalEntry, tags []string) string {
+type applicationOriginInfo struct {
+	source, service string
+}
+
+// getApplicationOriginInfo returns the name of the source and service from where the entry is from.
+func (t *Tailer) getApplicationOriginInfo(entry *sdjournal.JournalEntry, tags []string) *applicationOriginInfo {
 	if t.isContainerEntry(entry) {
 		if t.source.Config.ContainerMode {
+			if t.source.Config.ContainerModeDockerOrigin {
+				return &applicationOriginInfo{
+					source:  defaultContainerApplicationName,
+					service: "",
+				}
+			}
 			if shortName, found := getDockerImageShortName(t.getContainerID(entry), tags); found {
-				return shortName
+				return &applicationOriginInfo{
+					source:  shortName,
+					service: shortName,
+				}
 			}
 		}
-
-		return defaultApplicationName
+		return &applicationOriginInfo{
+			source:  defaultContainerApplicationName,
+			service: defaultContainerApplicationName,
+		}
 	}
 
 	for _, key := range applicationKeys {
 		if value, exists := entry.Fields[key]; exists {
-			return value
+			return &applicationOriginInfo{
+				source:  value,
+				service: value,
+			}
 		}
 	}
-	return ""
+	return &applicationOriginInfo{
+		source:  "",
+		service: "",
+	}
 }
 
 // getTags returns a list of tags matching with the journal entry.
