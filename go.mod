@@ -85,6 +85,7 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.5.1
 	github.com/Microsoft/hcsshim v0.9.0
+	github.com/acobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
@@ -101,7 +102,6 @@ require (
 	github.com/cilium/ebpf v0.6.3-0.20210917122031-fc2955d2ecee
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
-	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/cgroups v1.0.2
 	github.com/containerd/containerd v1.5.7
 	github.com/containerd/typeurl v1.0.2
