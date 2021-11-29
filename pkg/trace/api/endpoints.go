@@ -89,6 +89,12 @@ var endpoints = []endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
 	},
 	{
+		Pattern: "/telemetry/proxy/",
+		Handler: func(r *HTTPReceiver) http.Handler {
+			return http.StripPrefix("/telemetry/proxy", r.telemetryProxyHandler())
+		},
+	},
+	{
 		Pattern: "/v0.6/stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
 	},
