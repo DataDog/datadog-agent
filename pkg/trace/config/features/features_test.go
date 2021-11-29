@@ -11,5 +11,5 @@ func TestFeatures(t *testing.T) {
 	assert.True(t, Has("a"))
 	assert.True(t, Has("b"))
 	assert.True(t, Has("c"))
-	assert.Equal(t, All(), []string{"a", "b", "c"})
+	assert.ElementsMatch(t, All(), []string{"a", "b", "c"})
 }
