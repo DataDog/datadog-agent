@@ -18,7 +18,11 @@ var questionMark = []byte("?")
 
 // discardFilter is a token filter which discards certain elements from a query, such as
 // comments and AS aliases by returning a nil buffer.
-type discardFilter struct{ keepSQLAlias bool }
+type discardFilter struct {
+	keepSQLAlias    bool
+	collectComments bool
+	metadata        *SQLMetadata
+}
 
 // Filter the given token so that a `nil` slice is returned if the token is in the token filtered list.
 func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
@@ -52,6 +56,9 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 	// return the same token value (not FilteredGroupable) and nil
 	switch token {
 	case Comment:
+		if f.collectComments {
+			f.metadata.Comments = append(f.metadata.Comments, strings.TrimSpace(strings.Replace(string(buffer), "\n", " ", -1)))
+		}
 		return Filtered, nil, nil
 	case ';':
 		return markFilteredGroupable(token), nil, nil
@@ -282,14 +289,14 @@ func (f *tableFinderFilter) Reset() {
 
 // ObfuscatedQuery specifies information about an obfuscated SQL query.
 type ObfuscatedQuery struct {
-	Query     string // the obfuscated SQL query
-	TablesCSV string // comma-separated list of tables that the query addresses
+	Query    string      // the obfuscated SQL query
+	Metadata SQLMetadata // metadata extracted from the SQL query
 }
 
 // Cost returns the number of bytes needed to store all the fields
 // of this ObfuscatedQuery.
 func (oq *ObfuscatedQuery) Cost() int64 {
-	return int64(len(oq.Query) + len(oq.TablesCSV))
+	return int64(len(oq.Query) + len(oq.Metadata.TablesCSV))
 }
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
@@ -299,10 +306,15 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		out             = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err             error
 		lastToken       TokenKind
-		discard         = discardFilter{tokenizer.cfg.KeepSQLAlias}
-		replace         = replaceFilter{replaceDigits: tokenizer.cfg.ReplaceDigits}
-		grouping        groupingFilter
-		tableFinder     = tableFinderFilter{storeTableNames: storeTableNames}
+		metadata        SQLMetadata
+		discard         = discardFilter{
+			keepSQLAlias:    tokenizer.cfg.KeepSQLAlias,
+			collectComments: tokenizer.cfg.CollectComments,
+			metadata:        &metadata,
+		}
+		replace     = replaceFilter{replaceDigits: tokenizer.cfg.ReplaceDigits}
+		grouping    groupingFilter
+		tableFinder = tableFinderFilter{storeTableNames: storeTableNames}
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
@@ -352,9 +364,10 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 	if out.Len() == 0 {
 		return nil, errors.New("result is empty")
 	}
+	metadata.TablesCSV = tableFinder.CSV()
 	return &ObfuscatedQuery{
-		Query:     out.String(),
-		TablesCSV: tableFinder.CSV(),
+		Query:    out.String(),
+		Metadata: metadata,
 	}, nil
 }
 

@@ -4,7 +4,6 @@ package obfuscate
 
 import (
 	json "encoding/json"
-
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -37,8 +36,10 @@ func easyjson4ef41860DecodeGithubComDataDogDatadogAgentPkgObfuscate(in *jlexer.L
 			continue
 		}
 		switch key {
-		case "TableNames":
+		case "table_names":
 			out.TableNames = bool(in.Bool())
+		case "collect_comments":
+			out.CollectComments = bool(in.Bool())
 		case "replace_digits":
 			out.ReplaceDigits = bool(in.Bool())
 		case "KeepSQLAlias":
@@ -62,9 +63,14 @@ func easyjson4ef41860EncodeGithubComDataDogDatadogAgentPkgObfuscate(out *jwriter
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"TableNames\":"
+		const prefix string = ",\"table_names\":"
 		out.RawString(prefix[1:])
 		out.Bool(bool(in.TableNames))
+	}
+	{
+		const prefix string = ",\"collect_comments\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.CollectComments))
 	}
 	{
 		const prefix string = ",\"replace_digits\":"

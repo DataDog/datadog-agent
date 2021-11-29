@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package python
@@ -241,8 +242,21 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		*errResult = TrackedCString(err.Error())
 		return nil
 	}
+	payload := struct {
+		Query    string                `json:"query"`
+		Metadata obfuscate.SQLMetadata `json:"metadata"`
+	}{
+		Query:    obfuscatedQuery.Query,
+		Metadata: obfuscatedQuery.Metadata,
+	}
+	out, err := json.Marshal(payload)
+	if err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
 	// memory will be freed by caller
-	return TrackedCString(obfuscatedQuery.Query)
+	return TrackedCString(string(out))
 }
 
 // ObfuscateSQLExecPlan obfuscates the provided json query execution plan, writing the error into errResult if the

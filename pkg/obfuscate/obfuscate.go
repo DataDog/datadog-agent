@@ -105,7 +105,10 @@ type StatsClient interface {
 type SQLConfig struct {
 	// TableNames specifies whether the obfuscator should also extract the table names that a query addresses,
 	// in addition to obfuscating.
-	TableNames bool
+	TableNames bool `json:"table_names"`
+
+	// CollectComments specifies whether the obfuscator should also extract comments from the SQL statement.
+	CollectComments bool `json:"collect_comments"`
 
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits"`
@@ -122,6 +125,16 @@ type SQLConfig struct {
 
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool
+}
+
+// SQLMetadata holds metadata collected throughout the obfuscation for a SQL statement.
+type SQLMetadata struct {
+	// TablesCSV is a comma-separated list of tables that the query addresses.
+	// Note, SQLConfig.TableNames needs to be enabled.
+	TablesCSV string `json:"tables_csv"`
+	// Comments in a SQL statement.
+	// Note, SQLConfig.CollectComments needs to be enabled.
+	Comments []string `json:"comments"`
 }
 
 // HTTPConfig holds the configuration settings for HTTP obfuscation.

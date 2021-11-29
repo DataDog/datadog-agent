@@ -1,6 +1,7 @@
 package testdatadogagent
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -255,7 +256,22 @@ func obfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	s := C.GoString(rawQuery)
 	switch s {
 	case "select * from table where id = 1":
-		return (*C.char)(helpers.TrackedCString("select * from table where id = ?"))
+		payload := struct {
+			Query    string                `json:"query"`
+			Metadata obfuscate.SQLMetadata `json:"metadata"`
+		}{
+			Query: "select * from table where id = ?",
+			Metadata: obfuscate.SQLMetadata{
+				Comments:  []string{"-- SQL test comment"},
+				TablesCSV: "table",
+			},
+		}
+		out, err := json.Marshal(payload)
+		if err != nil {
+			*errResult = (*C.char)(helpers.TrackedCString(err.Error()))
+			return nil
+		}
+		return (*C.char)(helpers.TrackedCString(string(out)))
 	// expected error results from obfuscator
 	case "":
 		*errResult = (*C.char)(helpers.TrackedCString("result is empty"))

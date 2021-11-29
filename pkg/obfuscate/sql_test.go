@@ -138,6 +138,82 @@ func TestScanDollarQuotedString(t *testing.T) {
 	})
 }
 
+func TestSQLMetadata(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		in, out  string
+		metadata SQLMetadata
+	}{
+		{
+			`
+/* Multi-line comment */
+select replacement from table where replacement = 'i�n�t�e��rspersed';`,
+			"select replacement from table where replacement = ?",
+			SQLMetadata{
+				Comments:  []string{"/* Multi-line comment */"},
+				TablesCSV: "table",
+			},
+		},
+		{
+			`
+-- Single line comment
+-- Another single line comment
+-- Another another single line comment
+select * from names where name like '�����';`,
+			"select * from names where name like ?",
+			SQLMetadata{
+				Comments: []string{
+					"-- Single line comment",
+					"-- Another single line comment",
+					"-- Another another single line comment",
+				},
+				TablesCSV: "names",
+			},
+		},
+		{
+			`
+/* Multi-line comment
+with line breaks */
+select * from users where id = 42`,
+			"select * from users where id = ?",
+			SQLMetadata{
+				Comments: []string{
+					"/* Multi-line comment with line breaks */",
+				},
+				TablesCSV: "users",
+			},
+		},
+		{
+			`
+/*
+Multi-line comment
+with line breaks
+*/
+/* Two multi-line comments with
+line breaks */
+select * from test where !'weird_query'`,
+			"select * from test where ! ?",
+			SQLMetadata{
+				Comments: []string{
+					"/* Multi-line comment with line breaks */",
+					"/* Two multi-line comments with line breaks */",
+				},
+				TablesCSV: "test",
+			},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{TableNames: true, CollectComments: true},
+			}).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
+			assert.Equal(tt.metadata.Comments, oq.Metadata.Comments)
+			assert.Equal(tt.metadata.TablesCSV, oq.Metadata.TablesCSV)
+		})
+	}
+}
+
 func TestSQLUTF8(t *testing.T) {
 	assert := assert.New(t)
 	for _, tt := range []struct{ in, out string }{
@@ -247,7 +323,7 @@ GROUP BY sales1828.product_key`,
 				assert := assert.New(t)
 				oq, err := NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{ReplaceDigits: true})
 				assert.NoError(err)
-				assert.Empty(oq.TablesCSV)
+				assert.Empty(oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 			})
 		}
@@ -312,7 +388,7 @@ GROUP BY sales1828.product_key`,
 				assert := assert.New(t)
 				oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
-				assert.Empty(oq.TablesCSV)
+				assert.Empty(oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 			})
 		}
@@ -476,7 +552,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 					},
 				}).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
-				assert.Equal(tt.tables, oq.TablesCSV)
+				assert.Equal(tt.tables, oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 
 				oq, err = NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{
@@ -484,7 +560,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 					ReplaceDigits: true,
 				})
 				assert.NoError(err)
-				assert.Equal(tt.tables, oq.TablesCSV)
+				assert.Equal(tt.tables, oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 			})
 		}
@@ -493,7 +569,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 	t.Run("off", func(t *testing.T) {
 		oq, err := NewObfuscator(Config{}).ObfuscateSQLString("DELETE FROM table WHERE table.a=1")
 		assert.NoError(t, err)
-		assert.Empty(t, oq.TablesCSV)
+		assert.Empty(t, oq.Metadata.TablesCSV)
 	})
 }
 
