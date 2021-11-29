@@ -596,13 +596,6 @@ profiles:
         "device_namespace:default",
         "snmp_device:1.2.3.4"
       ],
-      "name": "foo_sys_name",
-      "description": "my_desc",
-      "ip_address": "1.2.3.4",
-      "sys_object_id": "1.2.3.4",
-      "profile": "f5-big-ip",
-      "vendor": "f5",
-      "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
@@ -615,7 +608,14 @@ profiles:
         "some_tag:some_tag_value",
         "suffix:oo_sys_name"
       ],
+      "ip_address": "1.2.3.4",
       "status": 1,
+      "name": "foo_sys_name",
+      "description": "my_desc",
+      "sys_object_id": "1.2.3.4",
+      "profile": "f5-big-ip",
+      "vendor": "f5",
+      "subnet": "127.0.0.0/30",
       "serial_number": "a-serial-num"
     }
   ],
@@ -1196,20 +1196,18 @@ tags:
         "device_namespace:default",
         "snmp_device:1.2.3.4"
       ],
-      "name": "foo_sys_name",
-      "description": "my_desc",
-      "ip_address": "1.2.3.4",
-      "sys_object_id": "1.2.3.4",
-      "profile": "",
-      "vendor": "",
-      "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
         "mytag:val1",
         "snmp_device:1.2.3.4"
       ],
-      "status": 1
+      "ip_address": "1.2.3.4",
+      "status": 1,
+      "name": "foo_sys_name",
+      "description": "my_desc",
+      "sys_object_id": "1.2.3.4",
+      "subnet": "127.0.0.0/30"
     }
   ],
   "interfaces": [
@@ -1312,20 +1310,15 @@ tags:
         "device_namespace:default",
         "snmp_device:1.2.3.5"
       ],
-      "name": "",
-      "description": "",
-      "ip_address": "1.2.3.5",
-      "sys_object_id": "",
-      "profile": "",
-      "vendor": "",
-      "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
         "mytag:val1",
         "snmp_device:1.2.3.5"
       ],
-      "status": 2
+      "ip_address": "1.2.3.5",
+      "status": 2,
+      "subnet": "127.0.0.0/30"
     }
   ],
   "collect_timestamp":946684800
@@ -1572,20 +1565,16 @@ metric_tags:
         "device_namespace:default",
         "snmp_device:%s"
       ],
-      "name": "foo_sys_name",
-      "description": "",
-      "ip_address": "%s",
-      "sys_object_id": "",
-      "profile": "",
-      "vendor": "",
-      "subnet": "10.10.0.0/30",
       "tags": [
         "autodiscovery_subnet:10.10.0.0/30",
         "device_namespace:default",
         "snmp_device:%s",
         "snmp_host:foo_sys_name"
       ],
-      "status": 1
+      "ip_address": "%s",
+      "status": 1,
+      "name": "foo_sys_name",
+      "subnet": "10.10.0.0/30"
     }
   ],
   "interfaces": [
