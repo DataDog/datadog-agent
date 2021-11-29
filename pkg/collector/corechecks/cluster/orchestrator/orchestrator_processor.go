@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
 package orchestrator
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -71,6 +73,8 @@ func processStatefulSetList(statefulSetList []*v1.StatefulSet, groupID int32, cf
 			Tags:         cfg.ExtraTags,
 		})
 	}
+
+	cluster.SetCacheStats(statefulSetList, statefulSetMsgs, orchestrator.K8sStatefulSet)
 
 	log.Debugf("Collected & enriched %d out of %d StatefulSets in %s", len(statefulSetMsgs), len(statefulSetList), time.Since(start))
 	return messages, nil
@@ -167,6 +171,8 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 		})
 	}
 
+	cluster.SetCacheStats(cronJobList, cronJobMsgs, orchestrator.K8sCronJob)
+
 	log.Debugf("Collected & enriched %d out of %d CronJobs in %s", len(cronJobMsgs), len(cronJobList), time.Since(start))
 	return messages, nil
 }
@@ -232,6 +238,8 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		})
 	}
 
+	cluster.SetCacheStats(deployList, deployMsgs, orchestrator.K8sDeployment)
+
 	log.Debugf("Collected & enriched %d out of %d Deployments in %s", len(deployMsgs), len(deploymentList), time.Since(start))
 	return messages, nil
 }
@@ -295,6 +303,8 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	cluster.SetCacheStats(jobList, jobMsgs, orchestrator.K8sJob)
 
 	log.Debugf("Collected & enriched %d out of %d Jobs in %s", len(jobMsgs), len(jobList), time.Since(start))
 	return messages, nil
@@ -363,6 +373,8 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		})
 	}
 
+	cluster.SetCacheStats(rsList, rsMsgs, orchestrator.K8sReplicaSet)
+
 	log.Debugf("Collected & enriched %d out of %d ReplicaSets in %s", len(rsMsgs), len(rsList), time.Since(start))
 	return messages, nil
 }
@@ -419,6 +431,8 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	cluster.SetCacheStats(serviceList, serviceMsgs, orchestrator.K8sService)
 
 	log.Debugf("Collected & enriched %d out of %d Services in %s", len(serviceMsgs), len(serviceList), time.Since(start))
 	return messages, nil
@@ -530,6 +544,8 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	cluster.SetCacheStats(nodesList, nodeMsgs, orchestrator.K8sNode)
 
 	log.Debugf("Collected & enriched %d out of %d Nodes in %s", len(nodeMsgs), len(nodesList), time.Since(start))
 	return nodeMessages, model.Cluster{
@@ -670,6 +686,8 @@ func processPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int3
 		})
 	}
 
+	cluster.SetCacheStats(pvList, pvMsgs, orchestrator.K8sPersistentVolume)
+
 	log.Debugf("Collected & enriched %d out of %d Persistent volumes in %s", len(pvMsgs), len(pvList), time.Since(start))
 	return messages, nil
 }
@@ -736,6 +754,8 @@ func processPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, g
 		})
 	}
 
+	cluster.SetCacheStats(pvcList, pvcMsgs, orchestrator.K8sPersistentVolumeClaim)
+
 	log.Debugf("Collected & enriched %d out of %d Persistent volume claims in %s", len(pvcMsgs), len(pvcList), time.Since(start))
 	return messages, nil
 }
@@ -791,6 +811,8 @@ func processRoleList(roleList []*rbacv1.Role, groupID int32, cfg *config.Orchest
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	cluster.SetCacheStats(roleList, roleMsgs, orchestrator.K8sRole)
 
 	log.Debugf("Collected & enriched %d out of %d Roles in %s", len(roleMsgs), len(roleList), time.Since(start))
 	return messages, nil
@@ -848,6 +870,8 @@ func processRoleBindingList(roleBindingList []*rbacv1.RoleBinding, groupID int32
 		})
 	}
 
+	cluster.SetCacheStats(roleBindingList, roleBindingMsgs, orchestrator.K8sRoleBinding)
+
 	log.Debugf("Collected & enriched %d out of %d RoleBindings in %s", len(roleBindingMsgs), len(roleBindingList), time.Since(start))
 	return messages, nil
 }
@@ -903,6 +927,8 @@ func processClusterRoleList(clusterRoleList []*rbacv1.ClusterRole, groupID int32
 			Tags:         cfg.ExtraTags,
 		})
 	}
+
+	cluster.SetCacheStats(clusterRoleList, clusterRoleMsgs, orchestrator.K8sClusterRole)
 
 	log.Debugf("Collected & enriched %d out of %d ClusterRoles in %s", len(clusterRoleMsgs), len(clusterRoleList), time.Since(start))
 	return messages, nil
@@ -960,6 +986,8 @@ func processClusterRoleBindingList(clusterRoleBindingList []*rbacv1.ClusterRoleB
 		})
 	}
 
+	cluster.SetCacheStats(clusterRoleBindingList, clusterRoleBindingMsgs, orchestrator.K8sClusterRoleBinding)
+
 	log.Debugf("Collected & enriched %d out of %d ClusterRoleBindings in %s", len(clusterRoleBindingMsgs), len(clusterRoleBindingList), time.Since(start))
 	return messages, nil
 }
@@ -1015,6 +1043,8 @@ func processServiceAccountList(serviceAccountList []*corev1.ServiceAccount, grou
 			Tags:            cfg.ExtraTags,
 		})
 	}
+
+	cluster.SetCacheStats(serviceAccountList, serviceAccountMsgs, orchestrator.K8sServiceAccount)
 
 	log.Debugf("Collected & enriched %d out of %d ServiceAccounts in %s", len(serviceAccountMsgs), len(serviceAccountList), time.Since(start))
 	return messages, nil

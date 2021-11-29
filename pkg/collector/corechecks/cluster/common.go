@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package cluster
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
@@ -31,4 +33,14 @@ func RunLeaderElection() (string, error) {
 	}
 
 	return leaderEngine.GetLeader(), nil
+}
+
+// SetCacheStats sets the cache stats for each resource
+func SetCacheStats(resourceList interface{}, resourceMsgs interface{}, nodeType orchestrator.NodeType) {
+	stats := orchestrator.CheckStats{
+		CacheHits: len(resourceList) - len(resourceMsgs),
+		CacheMiss: len(resourceMsgs),
+		NodeType:  nodeType,
+	}
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(nodeType), stats, orchestrator.NoExpiration)
 }
