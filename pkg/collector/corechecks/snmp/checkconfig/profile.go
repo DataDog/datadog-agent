@@ -18,16 +18,26 @@ import (
 
 type profileDefinitionMap map[string]profileDefinition
 
-type deviceMeta struct {
+// DeviceMeta holds device related static metadata
+// DEPRECATED in favour of profile metadata syntax
+type DeviceMeta struct {
+	// deprecated in favour of new `profileDefinition.Metadata` syntax
 	Vendor string `yaml:"vendor"`
 }
 
 type profileDefinition struct {
 	Metrics      []MetricsConfig   `yaml:"metrics"`
+	Metadata     MetadataConfig    `yaml:"metadata"`
 	MetricTags   []MetricTagConfig `yaml:"metric_tags"`
 	Extends      []string          `yaml:"extends"`
-	Device       deviceMeta        `yaml:"device"`
+	Device       DeviceMeta        `yaml:"device"`
 	SysObjectIds StringArray       `yaml:"sysobjectid"`
+}
+
+func newProfileDefinition() *profileDefinition {
+	p := &profileDefinition{}
+	p.Metadata = make(MetadataConfig)
+	return p
 }
 
 var defaultProfilesMu = &sync.Mutex{}
@@ -115,13 +125,14 @@ func readProfileDefinition(definitionFile string) (*profileDefinition, error) {
 		return nil, fmt.Errorf("failed to read file `%s`: %s", filePath, err)
 	}
 
-	profileDefinition := &profileDefinition{}
+	profileDefinition := newProfileDefinition()
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
 	}
 	normalizeMetrics(profileDefinition.Metrics)
-	errors := validateEnrichMetrics(profileDefinition.Metrics)
+	errors := validateEnrichMetadata(profileDefinition.Metadata)
+	errors = append(errors, validateEnrichMetrics(profileDefinition.Metrics)...)
 	errors = append(errors, ValidateEnrichMetricTags(profileDefinition.MetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
@@ -152,8 +163,8 @@ func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []stri
 		if err != nil {
 			return err
 		}
-		definition.Metrics = append(definition.Metrics, baseDefinition.Metrics...)
-		definition.MetricTags = append(definition.MetricTags, baseDefinition.MetricTags...)
+
+		mergeProfileDefinition(definition, baseDefinition)
 
 		newExtendsHistory := append(common.CopyStrings(extendsHistory), basePath)
 		err = recursivelyExpandBaseProfiles(definition, baseDefinition.Extends, newExtendsHistory)
@@ -162,6 +173,32 @@ func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []stri
 		}
 	}
 	return nil
+}
+
+func mergeProfileDefinition(targetDefinition *profileDefinition, baseDefinition *profileDefinition) {
+	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
+	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
+	for baseResName, baseResource := range baseDefinition.Metadata {
+		if _, ok := targetDefinition.Metadata[baseResName]; !ok {
+			targetDefinition.Metadata[baseResName] = newMetadataResourceConfig()
+		}
+		if resource, ok := targetDefinition.Metadata[baseResName]; ok {
+			for _, tagConfig := range baseResource.IDTags {
+				resource.IDTags = append(targetDefinition.Metadata[baseResName].IDTags, tagConfig)
+			}
+
+			if resource.Fields == nil {
+				resource.Fields = make(map[string]MetadataField, len(baseResource.Fields))
+			}
+			for field, symbol := range baseResource.Fields {
+				if _, ok := resource.Fields[field]; !ok {
+					resource.Fields[field] = symbol
+				}
+			}
+
+			targetDefinition.Metadata[baseResName] = resource
+		}
+	}
 }
 
 func getMostSpecificOid(oids []string) (string, error) {

@@ -25,17 +25,18 @@ type NetworkDevicesMetadata struct {
 
 // DeviceMetadata contains device metadata
 type DeviceMetadata struct {
-	ID          string       `json:"id"`
-	IDTags      []string     `json:"id_tags"` // id_tags is the input to produce device.id, it's also used to correlated with device metrics.
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	IPAddress   string       `json:"ip_address"`
-	SysObjectID string       `json:"sys_object_id"`
-	Profile     string       `json:"profile"`
-	Vendor      string       `json:"vendor"`
-	Subnet      string       `json:"subnet"`
-	Tags        []string     `json:"tags"`
-	Status      DeviceStatus `json:"status"`
+	ID           string       `json:"id"`
+	IDTags       []string     `json:"id_tags"` // id_tags is the input to produce device.id, it's also used to correlated with device metrics.
+	Name         string       `json:"name"`
+	Description  string       `json:"description"`
+	IPAddress    string       `json:"ip_address"`
+	SysObjectID  string       `json:"sys_object_id"`
+	Profile      string       `json:"profile"`
+	Vendor       string       `json:"vendor"`
+	Subnet       string       `json:"subnet"`
+	Tags         []string     `json:"tags"`
+	Status       DeviceStatus `json:"status"`
+	SerialNumber string       `json:"serial_number,omitempty"`
 }
 
 // InterfaceMetadata contains interface metadata
