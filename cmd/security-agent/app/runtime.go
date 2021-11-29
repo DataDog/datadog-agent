@@ -204,7 +204,7 @@ func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient
 		return nil, err
 	}
 
-	agent, err := secagent.NewRuntimeSecurityAgent(hostname, reporter)
+	agent, err := secagent.NewRuntimeSecurityAgent(hostname, reporter, endpoints)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
 	}

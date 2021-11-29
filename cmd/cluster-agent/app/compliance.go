@@ -57,6 +57,10 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*c
 		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
 	}
 
+	for _, status := range endpoints.GetStatus() {
+		log.Info(status)
+	}
+
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
