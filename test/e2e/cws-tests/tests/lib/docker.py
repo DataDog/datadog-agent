@@ -17,7 +17,34 @@ class DockerHelper(LogGetter):
 
         self.agent_container = None
 
-    def start_agent(self, image, policy_filename=None, datadog_agent_config=None, system_probe_config=None):
+    def start_cspm_agent(self, image, datadog_agent_config=None):
+        volumes = [
+            "/var/run/docker.sock:/var/run/docker.sock:ro",
+            "/proc/:/host/proc/:ro",
+            "/sys/fs/cgroup/:/host/sys/fs/cgroup:ro",
+            "/etc/passwd:/etc/passwd:ro",
+            "/etc/os-release:/host/etc/os-release:ro",
+            "/:/host/root:ro",
+        ]
+
+        if datadog_agent_config:
+            volumes.append("{}:/etc/datadog-agent/datadog.yaml".format(datadog_agent_config))
+
+        self.agent_container = self.client.containers.run(
+            image,
+            environment=[
+                "DD_COMPLIANCE_CONFIG_ENABLED=true",
+                "HOST_ROOT=/host/root",
+                "DD_SITE={}".format(os.environ["DD_SITE"]),
+                "DD_API_KEY={}".format(os.environ["DD_API_KEY"]),
+            ],
+            volumes=volumes,
+            detach=True,
+        )
+
+        return self.agent_container
+
+    def start_cws_agent(self, image, policy_filename=None, datadog_agent_config=None, system_probe_config=None):
         volumes = [
             "/var/run/docker.sock:/var/run/docker.sock:ro",
             "/proc/:/host/proc/:ro",
