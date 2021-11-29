@@ -140,7 +140,7 @@ updates:
     milestone: 22
     schedule:
       interval: "weekly"
-- package-ecosystem: "pip"
+  - package-ecosystem: "pip"
     directory: "/.circleci"
     labels:
       - dependencies
