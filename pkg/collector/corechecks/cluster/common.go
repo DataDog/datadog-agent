@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package cluster
@@ -35,10 +36,10 @@ func RunLeaderElection() (string, error) {
 }
 
 // SetCacheStats sets the cache stats for each resource
-func SetCacheStats(resourceList interface{}, resourceMsgs interface{}, nodeType orchestrator.NodeType) {
+func SetCacheStats(resourceListLen int, resourceMsgsLen int, nodeType orchestrator.NodeType) {
 	stats := orchestrator.CheckStats{
-		CacheHits: len(resourceList) - len(resourceMsgs),
-		CacheMiss: len(resourceMsgs),
+		CacheHits: resourceListLen - resourceMsgsLen,
+		CacheMiss: resourceMsgsLen,
 		NodeType:  nodeType,
 	}
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(nodeType), stats, orchestrator.NoExpiration)

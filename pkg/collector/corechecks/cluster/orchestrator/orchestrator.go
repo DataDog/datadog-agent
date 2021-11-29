@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
+//go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
 package orchestrator
@@ -500,13 +501,9 @@ func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMess
 }
 
 func sendClusterMetadata(sender aggregator.Sender, clusterMessage model.MessageBody, clusterID string) {
-	stats := orchestrator.CheckStats{
-		CacheHits: 0,
-		CacheMiss: 1,
-		NodeType:  orchestrator.K8sCluster,
-	}
+	cluster.SetCacheStats(1, 1, orchestrator.K8sCluster)
+
 	sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, clusterID, int(orchestrator.K8sCluster))
-	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
 }
 
 func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
