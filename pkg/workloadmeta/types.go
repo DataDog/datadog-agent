@@ -61,9 +61,11 @@ const (
 	SourceECSFargate   Source = "ecs_fargate"
 	SourceKubelet      Source = "kubelet"
 	SourceKubeMetadata Source = "kube_metadata"
+	SourcePodman       Source = "podman"
 
 	ContainerRuntimeDocker     ContainerRuntime = "docker"
 	ContainerRuntimeContainerd ContainerRuntime = "containerd"
+	ContainerRuntimePodman     ContainerRuntime = "podman"
 
 	ECSLaunchTypeEC2     ECSLaunchType = "ec2"
 	ECSLaunchTypeFargate ECSLaunchType = "fargate"
