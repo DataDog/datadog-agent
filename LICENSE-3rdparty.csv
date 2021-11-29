@@ -106,6 +106,7 @@ core,github.com/OneOfOne/xxhash,Apache-2.0,OneOfOne (https://github.com/OneOfOne
 core,github.com/PuerkitoBio/purell,BSD-3-Clause,Martin Angers
 core,github.com/PuerkitoBio/urlesc,BSD-3-Clause,The Go Authors
 core,github.com/StackExchange/wmi,MIT,Stack Exchange
+core,github.com/acobaugh/osrelease,BSD-3-Clause,Andrew Cobaugh
 core,github.com/alecthomas/jsonschema,MIT,Alec Thomas
 core,github.com/alecthomas/participle,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer,MIT,Alec Thomas
