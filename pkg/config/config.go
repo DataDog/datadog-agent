@@ -83,10 +83,10 @@ const (
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
 	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
-	DefaultInventoriesMinInterval = 300 // 5min
+	DefaultInventoriesMinInterval = 5 * 60
 
 	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
-	DefaultInventoriesMaxInterval = 600 // 10min
+	DefaultInventoriesMaxInterval = 10 * 60
 )
 
 // Datadog is the global configuration object
