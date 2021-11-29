@@ -40,7 +40,7 @@ func (tx *httpTX) Path(buffer []byte) []byte {
 	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
 
 	// b might contain a null terminator in the middle
-	bLen := strlen(b)
+	bLen := strlen(b[:])
 
 	var i, j int
 	for i = 0; i < bLen && b[i] != ' '; i++ {
