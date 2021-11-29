@@ -62,7 +62,7 @@ def record_and_loads(filename: str, content_type: str, content_encoding: str, co
         content = zlib.decompress(content)
 
     content = content.decode()
-    content = "%s\n" % content if content[-1] != "\n" else content
+    content = f"{content}\n" if content[-1] != "\n" else content
     with open(path.join(record_dir, filename), "a") as f:
         f.write(content)
 
