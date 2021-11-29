@@ -8,7 +8,7 @@ targets = [path for path in sys.argv[1:] if path.endswith(".go")]
 
 # Call invoke command
 # We do this workaround since we can't do relative imports
-cmd = "inv fmt --fail-on-fmt '{}'".format(",".join(targets))
+cmd = f"inv fmt --fail-on-fmt '{','.join(targets)}'"
 
 try:
     subprocess.run(cmd, shell=True, check=True)

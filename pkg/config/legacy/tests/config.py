@@ -191,7 +191,7 @@ def get_histogram_aggregates(configstr=None):
         for val in vals:
             val = val.strip()
             if val not in valid_values:
-                log.warning("Ignored histogram aggregate {0}, invalid".format(val))
+                log.warning(f"Ignored histogram aggregate {val}, invalid")
                 continue
             else:
                 result.append(val)
@@ -216,10 +216,10 @@ def get_histogram_percentiles(configstr=None):
                 if floatval <= 0 or floatval >= 1:
                     raise ValueError
                 if len(val) > 4:
-                    log.warning("Histogram percentiles are rounded to 2 digits: {0} rounded".format(floatval))
+                    log.warning(f"Histogram percentiles are rounded to 2 digits: {floatval} rounded")
                 result.append(float(val[0:4]))
             except ValueError:
-                log.warning("Bad histogram percentile value {0}, must be float in ]0;1[, skipping".format(val))
+                log.warning(f"Bad histogram percentile value {val}, must be float in ]0;1[, skipping")
     except Exception:
         log.exception("Error when parsing histogram percentiles, skipping")
         return None
@@ -327,7 +327,8 @@ def get_config(options=None):
             listen_port = 17123
             if config.has_option('Main', 'listen_port'):
                 listen_port = int(config.get('Main', 'listen_port'))
-            agentConfig['dd_url'] = "http://{}:{}".format(agentConfig['bind_host'], listen_port)
+            bind_host = agentConfig['bind_host']
+            agentConfig['dd_url'] = f"http://{bind_host}:{listen_port}"
         # FIXME: Legacy dd_url command line switch
         elif options is not None and options.dd_url is not None:
             agentConfig['dd_url'] = options.dd_url
@@ -506,7 +507,7 @@ def get_config(options=None):
         sys.exit(2)
 
     except ConfigParser.NoOptionError as e:
-        sys.stderr.write('There are some items missing from your config file, but nothing fatal [%s]' % e)
+        sys.stderr.write(f'There are some items missing from your config file, but nothing fatal [{e}]')
 
     # Storing proxy settings in the agentConfig
     agentConfig['proxy_settings'] = get_proxy(agentConfig)
@@ -530,15 +531,13 @@ def extract_agent_config(config):
         conf_backend = config.get('Main', 'sd_config_backend')
 
     if backend not in SD_BACKENDS:
-        log.error("The backend {0} is not supported. Service discovery won't be enabled.".format(backend))
+        log.error(f"The backend {backend} is not supported. Service discovery won't be enabled.")
         agentConfig['service_discovery'] = False
 
     if conf_backend is None:
         log.warning('No configuration backend provided for service discovery. Only auto config templates will be used.')
     elif conf_backend not in SD_CONFIG_BACKENDS:
-        log.error(
-            "The config backend {0} is not supported. Only auto config templates will be used.".format(conf_backend)
-        )
+        log.error(f"The config backend {conf_backend} is not supported. Only auto config templates will be used.")
         conf_backend = None
     agentConfig['sd_config_backend'] = conf_backend
 

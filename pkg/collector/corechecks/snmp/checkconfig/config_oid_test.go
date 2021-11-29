@@ -16,6 +16,7 @@ func Test_oidConfig_addScalarOids(t *testing.T) {
 	conf.addScalarOids([]string{"1.2"})
 	conf.addScalarOids([]string{"1.3"})
 	conf.addScalarOids([]string{"1.0"})
+	conf.addScalarOids([]string{""})
 	assert.ElementsMatch(t, []string{"1.1", "1.2", "1.3", "1.0"}, conf.ScalarOids)
 }
 
@@ -29,5 +30,6 @@ func Test_oidConfig_addColumnOids(t *testing.T) {
 	conf.addColumnOids([]string{"1.2"})
 	conf.addColumnOids([]string{"1.3"})
 	conf.addColumnOids([]string{"1.0"})
+	conf.addColumnOids([]string{""})
 	assert.ElementsMatch(t, []string{"1.1", "1.2", "1.3", "1.0"}, conf.ColumnOids)
 }

@@ -60,7 +60,7 @@ if len(targets) == 0:
 
 # Call invoke command
 # We do this workaround since we can't do relative imports
-cmd = "inv -e vet --targets='{}'".format(",".join(targets))
+cmd = f"inv -e vet --targets='{','.join(targets)}'"
 
 try:
     subprocess.run(cmd, shell=True, check=True)

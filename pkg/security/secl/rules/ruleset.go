@@ -193,6 +193,25 @@ func (rs *RuleSet) AddRules(rules []*RuleDefinition) *multierror.Error {
 	return result
 }
 
+// GetRuleEventType return the rule EventType. Currently rules support only one eventType
+func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
+	eventTypes, err := rule.GetEventTypes()
+	if err != nil {
+		return "", err
+	}
+
+	if len(eventTypes) == 0 {
+		return "", ErrRuleWithoutEvent
+	}
+
+	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
+	if len(eventTypes) > 1 {
+		return "", ErrRuleWithMultipleEvents
+	}
+
+	return eventTypes[0], nil
+}
+
 // AddRule creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	for _, id := range rs.opts.ReservedRuleIDs {
@@ -227,21 +246,14 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
 	}
 
-	eventTypes := rule.GetEventTypes()
-
-	if len(eventTypes) == 0 {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutEvent}
-	}
-
-	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
-	if len(eventTypes) > 1 {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithMultipleEvents}
+	eventType, err := GetRuleEventType(rule.Rule)
+	if err != nil {
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
 	}
 
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
-		et := eventTypes[0]
-		if _, exists := rs.opts.EventTypeEnabled[et]; !exists {
+		if _, exists := rs.opts.EventTypeEnabled[eventType]; !exists {
 			return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrEventTypeNotEnabled}
 		}
 	}
