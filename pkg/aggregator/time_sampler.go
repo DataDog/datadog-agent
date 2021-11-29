@@ -162,7 +162,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(rawSeries []*metrics.Serie) []*
 	return series
 }
 
-func (s TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
+func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
 
