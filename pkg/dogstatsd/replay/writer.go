@@ -246,6 +246,8 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 		tc.StopCapture()
 	}()
 
+	// copy the instance as `tc.shutdown` can be set at nil
+	shutdown := tc.shutdown
 process:
 	for {
 		select {
@@ -256,12 +258,8 @@ process:
 				log.Errorf("There was an issue writing the captured message to disk, stopping capture: %v", err)
 				tc.StopCapture()
 			}
-		case <-tc.shutdown:
+		case <-shutdown:
 			log.Debug("Capture shutting down")
-			tc.Lock()
-			tc.shutdown = nil
-			tc.Unlock()
-
 			break process
 		}
 	}
@@ -325,6 +323,7 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 
 	if tc.shutdown != nil {
 		close(tc.shutdown)
+		tc.shutdown = nil
 	}
 
 	log.Debug("Capture was stopped")
