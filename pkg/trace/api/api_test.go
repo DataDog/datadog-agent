@@ -119,6 +119,26 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 	testBody(http.StatusRequestEntityTooLarge, " []")
 }
 
+func TestListenTCP(t *testing.T) {
+	t.Run("measured", func(t *testing.T) {
+		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 0}}
+		ln, err := r.listenTCP(":0")
+		defer ln.Close()
+		assert.NoError(t, err)
+		_, ok := ln.(*measuredListener)
+		assert.True(t, ok)
+	})
+
+	t.Run("limited", func(t *testing.T) {
+		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 10}}
+		ln, err := r.listenTCP(":0")
+		defer ln.Close()
+		assert.NoError(t, err)
+		_, ok := ln.(*rateLimitedListener)
+		assert.True(t, ok)
+	})
+}
+
 func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
 	r := newTestReceiverFromConfig(config.New())
@@ -807,6 +827,8 @@ func TestClientComputedTopLevel(t *testing.T) {
 }
 
 func TestConfigEndpoint(t *testing.T) {
+	defer func(old string) { features.Set(old) }(strings.Join(features.All(), ","))
+
 	var tcs = []struct {
 		name               string
 		reqBody            string

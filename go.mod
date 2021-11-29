@@ -34,6 +34,7 @@ replace (
 )
 
 replace (
+	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
@@ -58,12 +59,13 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.2
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.33.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/quantile v0.33.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.33.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.33.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.33.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.33.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.33.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/quantile v0.33.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.33.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/log v0.33.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.33.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.33.0-rc.4
 	github.com/DataDog/datadog-go v4.8.2+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20211116165855-af5870810f0b
@@ -106,7 +108,6 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
 	github.com/cyphar/filepath-securejoin v0.2.2
 	github.com/davecgh/go-spew v1.1.1
-	github.com/dgraph-io/ristretto v0.1.0
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200916142827-bd33bbf0497b+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.0
@@ -163,6 +164,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
 	github.com/open-policy-agent/opa v0.34.2
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.38.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
 	github.com/patrickmn/go-cache v2.1.0+incompatible

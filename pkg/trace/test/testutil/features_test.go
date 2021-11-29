@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+
 	"github.com/stretchr/testify/assert"
 )
 
