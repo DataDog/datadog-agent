@@ -23,7 +23,9 @@ type MetricTagConfig struct {
 	Tag string `yaml:"tag"`
 
 	// Table config
-	Index  uint         `yaml:"index"`
+	Index uint `yaml:"index"`
+
+	// TODO: refactor to rename to `symbol` instead (keep backward compat with `column`)
 	Column SymbolConfig `yaml:"column"`
 
 	// Symbol config
@@ -76,10 +78,10 @@ type MetricsConfig struct {
 }
 
 // GetTags retrieve tags using the metric config and values
-func (m *MetricsConfig) GetTags(fullIndex string, values *valuestore.ResultValueStore) []string {
+func (mtcl MetricTagConfigList) GetTags(fullIndex string, values *valuestore.ResultValueStore) []string {
 	var rowTags []string
 	indexes := strings.Split(fullIndex, ".")
-	for _, metricTag := range m.MetricTags {
+	for _, metricTag := range mtcl {
 		// get tag using `index` field
 		if metricTag.Index > 0 {
 			index := metricTag.Index - 1 // `index` metric config is 1-based
@@ -102,6 +104,7 @@ func (m *MetricsConfig) GetTags(fullIndex string, values *valuestore.ResultValue
 		}
 		// get tag using another column value
 		if metricTag.Column.OID != "" {
+			// TODO: Support extract value see II-635
 			columnValues, err := values.GetColumnValues(metricTag.Column.OID)
 			if err != nil {
 				log.Debugf("error getting column value: %v", err)

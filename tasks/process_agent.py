@@ -51,16 +51,10 @@ def build(
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
 
-        ctx.run(
-            "windmc --target {target_arch} -r {resdir} {resdir}/process-agent-msg.mc".format(
-                resdir=resdir, target_arch=windres_target
-            )
-        )
+        ctx.run(f"windmc --target {windres_target} -r {resdir} {resdir}/process-agent-msg.mc")
 
         ctx.run(
-            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target {target_arch} -O coff -o cmd/process-agent/rsrc.syso".format(
-                maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
-            )
+            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target {windres_target} -O coff -o cmd/process-agent/rsrc.syso"
         )
 
     # TODO use pkg/version for this
@@ -75,7 +69,7 @@ def build(
 
     goenv = {}
     if go_version:
-        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        lines = ctx.run(f"gimme {go_version}").stdout.split("\n")
         for line in lines:
             for env_var in GIMME_ENV_VARS:
                 if env_var in line:
@@ -87,7 +81,7 @@ def build(
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
-    ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
+    ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(build="process-agent", arch=arch)
 
     ## secrets is not supported on windows because the process agent still runs as
@@ -127,40 +121,38 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         raise Exit(message="image was not specified")
 
     with TempDir() as docker_context:
-        ctx.run("cp tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev {to}".format(to=docker_context + "/Dockerfile"))
+        ctx.run(f"cp tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev {docker_context + '/Dockerfile'}")
 
-        ctx.run("cp bin/process-agent/process-agent {to}".format(to=docker_context + "/process-agent"))
-        ctx.run("cp bin/system-probe/system-probe {to}".format(to=docker_context + "/system-probe"))
+        ctx.run(f"cp bin/process-agent/process-agent {docker_context + '/process-agent'}")
+        ctx.run(f"cp bin/system-probe/system-probe {docker_context + '/system-probe'}")
         if include_agent_binary:
-            ctx.run("cp bin/agent/agent {to}".format(to=docker_context + "/agent"))
+            ctx.run(f"cp bin/agent/agent {docker_context + '/agent'}")
             core_agent_dest = "/opt/datadog-agent/bin/agent/agent"
         else:
             # this is necessary so that the docker build doesn't fail while attempting to copy the agent binary
-            ctx.run("touch {tmp_dir}/agent".format(tmp_dir=docker_context))
+            ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        ctx.run("cp pkg/ebpf/bytecode/build/*.o {to}".format(to=docker_context))
-        ctx.run("cp pkg/ebpf/bytecode/build/runtime/*.c {to}".format(to=docker_context))
+        ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
+        ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
             ctx.run(
-                "docker build --pull --tag {image} --build-arg AGENT_BASE={base_image} --build-arg CORE_AGENT_DEST={core_agent_dest} .".format(
-                    image=image, base_image=base_image, core_agent_dest=core_agent_dest
-                )
+                f"docker build --pull --tag {image} --build-arg AGENT_BASE={base_image} --build-arg CORE_AGENT_DEST={core_agent_dest} ."
             )
 
     if push:
-        ctx.run("docker push {image}".format(image=image))
+        ctx.run(f"docker push {image}")
 
 
 class TempDir:
     def __enter__(self):
         self.fname = tempfile.mkdtemp()
-        print("created tempdir: {name}".format(name=self.fname))
+        print(f"created tempdir: {self.fname}")
         return self.fname
 
     # The _ in front of the unused arguments are needed to pass lint check
     def __exit__(self, _exception_type, _exception_value, _exception_traceback):
-        print("deleting tempdir: {name}".format(name=self.fname))
+        print(f"deleting tempdir: {self.fname}")
         shutil.rmtree(self.fname)

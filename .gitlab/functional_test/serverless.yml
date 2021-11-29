@@ -9,7 +9,7 @@ serverless_cold_start_performance-deb_x64:
     - cd cmd/serverless && go build -mod=mod -a -v -tags serverless
     - mkdir -p /tmp/serverless-ci
     - cp serverless /tmp/serverless-ci/datadog-agent
-    - cp ../../test/integration/serverless/* /tmp/serverless-ci
+    - cp ../../test/integration/serverless_perf/* /tmp/serverless-ci
     - cd /tmp/serverless-ci # Docker does not like syslinks, that's why it's easier to build the image in /tmp
     - docker build -t datadogci/lambda-extension .
     - ./compute.sh
