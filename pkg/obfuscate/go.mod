@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/obfuscate
 
-go 1.16
+go 1.12
 
 require (
 	github.com/DataDog/datadog-go v4.8.2+incompatible
