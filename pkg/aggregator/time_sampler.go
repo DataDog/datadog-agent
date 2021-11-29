@@ -95,10 +95,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 }
 
 func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
-	var series []*metrics.Serie
 	var rawSeries []*metrics.Serie
-
-	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	counterContextsToDelete := map[ckey.ContextKey]struct{}{}
 
@@ -132,6 +129,13 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 	for context := range counterContextsToDelete {
 		delete(s.counterLastSampledByContext, context)
 	}
+
+	return s.dedupSerieBySerieSignature(rawSeries)
+}
+
+func (s *TimeSampler) dedupSerieBySerieSignature(rawSeries []*metrics.Serie) []*metrics.Serie {
+	var series []*metrics.Serie
+	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 
 	for _, serie := range rawSeries {
 		serieSignature := SerieSignature{serie.MType, serie.ContextKey, serie.NameSuffix}
