@@ -40,6 +40,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 
 AGENT_CORECHECKS = [
+    "container",
     "containerd",
     "cpu",
     "cri",
@@ -276,7 +277,7 @@ def system_tests(_):
 
 
 @task
-def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False):
+def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, signed_pull=True):
     """
     Build the docker image
     """
@@ -298,9 +299,8 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
         raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
-
     # Pull base image with content trust enabled
-    pull_base_images(ctx, dockerfile_path, signed_pull=True)
+    pull_base_images(ctx, dockerfile_path, signed_pull)
     common_build_opts = "-t {} -f {}".format(AGENT_TAG, dockerfile_path)
     if python_version not in BOTH_VERSIONS:
         common_build_opts = "{} --build-arg PYTHON_VERSION={}".format(common_build_opts, python_version)

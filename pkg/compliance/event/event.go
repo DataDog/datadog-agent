@@ -31,4 +31,5 @@ type Event struct {
 	Tags             []string    `json:"tags"`
 	Data             interface{} `json:"data,omitempty"`
 	ExpireAt         time.Time   `json:"expire_at,omitempty"`
+	Evaluator        string      `json:"evaluator,omitempty"`
 }

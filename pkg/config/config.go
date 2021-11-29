@@ -228,6 +228,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
+	config.BindEnvAndSetDefault("remote_tagger_timeout_seconds", 30)
 
 	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
@@ -236,7 +237,7 @@ func InitConfig(config Config) {
 	config.BindEnv("remote_configuration.api_key")
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
-	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 60) // in seconds
+	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -378,6 +379,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
 
 	config.BindEnvAndSetDefault("use_v2_api.events", false)
+	config.BindEnvAndSetDefault("use_v2_api.series", false)
 	config.BindEnvAndSetDefault("use_v2_api.service_checks", false)
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.BindEnvAndSetDefault("enable_payloads.events", true)
@@ -902,7 +904,8 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.internal_profiling.enabled")
-	config.SetKnown("process_config.remote_tagger")
+
+	config.BindEnvAndSetDefault("process_config.remote_tagger", true)
 
 	// Process Discovery Check
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false)
@@ -920,7 +923,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", defaultSecurityAgentLogFile)
-	config.BindEnvAndSetDefault("security_agent.remote_tagger", false)
+	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
@@ -928,6 +931,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
+	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
 
 	// Datadog security agent (runtime)

@@ -371,6 +371,50 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 	suite.True(endpoint.UseSSL)
 }
 
+func (suite *EndpointsTestSuite) TestAdditionalEndpointsMappedCorrectly() {
+	var (
+		endpoints *Endpoints
+		endpoint  Endpoint
+		err       error
+	)
+
+	suite.config.Set("logs_config.additional_endpoints", []map[string]interface{}{
+		{
+			"host":        "a",
+			"api_key":     "1",
+			"is_reliable": false,
+		},
+		{
+			"host":        "b",
+			"api_key":     "2",
+			"is_reliable": true,
+		},
+		{
+			"host":        "c",
+			"api_key":     "3",
+			"is_reliable": false,
+		},
+	})
+
+	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	suite.Len(endpoints.Additionals, 3)
+	suite.Len(endpoints.GetUnReliableAdditionals(), 2)
+	suite.Len(endpoints.GetReliableAdditionals(), 1)
+
+	endpoint = endpoints.GetUnReliableAdditionals()[0]
+	suite.Equal("a", endpoint.Host)
+	suite.Equal("1", endpoint.APIKey)
+
+	endpoint = endpoints.GetUnReliableAdditionals()[1]
+	suite.Equal("c", endpoint.Host)
+	suite.Equal("3", endpoint.APIKey)
+
+	endpoint = endpoints.GetReliableAdditionals()[0]
+	suite.Equal("b", endpoint.Host)
+	suite.Equal("2", endpoint.APIKey)
+}
+
 func TestEndpointsTestSuite(t *testing.T) {
 	suite.Run(t, new(EndpointsTestSuite))
 }

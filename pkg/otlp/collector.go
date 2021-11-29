@@ -88,6 +88,9 @@ type PipelineConfig struct {
 	MetricsEnabled bool
 	// TracesEnabled states whether OTLP traces support is enabled.
 	TracesEnabled bool
+
+	// Metrics contains configuration options for the serializer metrics exporter
+	Metrics map[string]interface{}
 }
 
 // Pipeline is an OTLP pipeline.
@@ -120,6 +123,7 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 		ConfigMapProvider:       newMapProvider(cfg),
 		LoggingOptions:          options,
 	})
+
 	if err != nil {
 		return nil, err
 	}

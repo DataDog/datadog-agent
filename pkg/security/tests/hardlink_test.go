@@ -43,7 +43,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	}
 	defer os.Remove(testOrigExecutable)
 
-	if err := copyFile(executable, testOrigExecutable, 0755); err != nil {
+	if err = copyFile(executable, testOrigExecutable, 0755); err != nil {
 		t.Fatal(err)
 	}
 

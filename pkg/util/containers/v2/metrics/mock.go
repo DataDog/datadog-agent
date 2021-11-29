@@ -28,7 +28,14 @@ func (mp *MockMetricsProvider) GetCollector(runtime string) Collector {
 }
 
 // RegisterCollector registers a collector
-func (mp *MockMetricsProvider) RegisterCollector(runtime string, c Collector) {
+func (mp *MockMetricsProvider) RegisterCollector(collectorMeta CollectorMetadata) {
+	if collector, err := collectorMeta.Factory(); err != nil {
+		mp.collectors[collectorMeta.ID] = collector
+	}
+}
+
+// RegisterConcreteCollector registers a collector
+func (mp *MockMetricsProvider) RegisterConcreteCollector(runtime string, c Collector) {
 	mp.collectors[runtime] = c
 }
 

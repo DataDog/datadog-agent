@@ -31,7 +31,7 @@ type ProcessSyscall struct {
 	ID      uint32
 }
 
-// UnmarshalBinary unmarshals a binary representation of a ProcessSyscall
+// UnmarshalBinary unmarshalls a binary representation of a ProcessSyscall
 func (p *ProcessSyscall) UnmarshalBinary(data []byte) error {
 	var comm [16]byte
 	model.SliceToArray(data[0:16], unsafe.Pointer(&comm))
@@ -58,7 +58,7 @@ func (p *ProcessPath) IsEmpty() bool {
 	return p.Path[0] == '\x00'
 }
 
-// UnmarshalBinary unmarshals a binary representation of a ProcessSyscall
+// UnmarshalBinary unmarshalls a binary representation of a ProcessSyscall
 func (p *ProcessPath) UnmarshalBinary(data []byte) error {
 	if len(data) == 0 {
 		return errors.New("path empty")

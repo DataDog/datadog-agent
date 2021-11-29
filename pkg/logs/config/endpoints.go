@@ -40,6 +40,7 @@ type Endpoint struct {
 	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
 	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
+	IsReliable              bool `mapstructure:"is_reliable" json:"is_reliable"`
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -92,4 +93,27 @@ func NewEndpointsWithBatchSettings(main Endpoint, additionals []Endpoint, usePro
 		BatchMaxSize:           batchMaxSize,
 		BatchMaxContentSize:    batchMaxContentSize,
 	}
+}
+
+// GetReliableAdditionals returns additional endpoints that can be failed over to and block the pipeline in the
+// event of an outage and will retry errors. These endpoints are treated the same as the main endpoint.
+func (e *Endpoints) GetReliableAdditionals() []Endpoint {
+	endpoints := []Endpoint{}
+	for _, endpoint := range e.Additionals {
+		if endpoint.IsReliable {
+			endpoints = append(endpoints, endpoint)
+		}
+	}
+	return endpoints
+}
+
+// GetUnReliableAdditionals returns additional endpoints that do not guarantee logs are received in the event of an error.
+func (e *Endpoints) GetUnReliableAdditionals() []Endpoint {
+	endpoints := []Endpoint{}
+	for _, endpoint := range e.Additionals {
+		if !endpoint.IsReliable {
+			endpoints = append(endpoints, endpoint)
+		}
+	}
+	return endpoints
 }

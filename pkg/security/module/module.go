@@ -281,6 +281,7 @@ func (m *Module) Reload() error {
 	newRuleSetOpts := func() *rules.Opts {
 		return rules.NewOptsWithParams(
 			model.SECLConstants,
+			sprobe.SECLVariables,
 			sprobe.SupportedDiscarders,
 			m.getEventTypeEnabled(),
 			sprobe.AllCustomRuleIDs(),

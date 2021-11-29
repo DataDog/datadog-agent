@@ -1409,6 +1409,8 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 
 	// start tracer so it dumps port bindings
 	cfg := testConfig()
+	// delay from gateway lookup timeout can cause test failure
+	cfg.EnableGatewayLookup = false
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
@@ -1558,8 +1560,9 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	defer tr.Stop()
 
 	// Spin-up HTTPS server
-	enableTLS := true
-	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", enableTLS)
+	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+		EnableTLS: true,
+	})
 	defer serverDoneFn()
 
 	// Run wget once to make sure the OpenSSL is detected and uprobes are attached

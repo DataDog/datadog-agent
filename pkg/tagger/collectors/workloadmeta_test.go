@@ -7,6 +7,7 @@ package collectors
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -21,6 +22,7 @@ func TestHandleKubePod(t *testing.T) {
 		fullyFleshedContainerID = "foobarquux"
 		noEnvContainerID        = "foobarbaz"
 		containerName           = "agent"
+		runtimeContainerName    = "k8s_datadog-agent_agent"
 		podName                 = "datadog-agent-foobar"
 		podNamespace            = "default"
 		env                     = "production"
@@ -58,7 +60,7 @@ func TestHandleKubePod(t *testing.T) {
 			ID:   fullyFleshedContainerID,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: containerName,
+			Name: runtimeContainerName,
 		},
 		Image: image,
 		EnvVars: map[string]string{
@@ -73,7 +75,7 @@ func TestHandleKubePod(t *testing.T) {
 			ID:   noEnvContainerID,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: containerName,
+			Name: runtimeContainerName,
 		},
 	})
 
@@ -227,7 +229,7 @@ func TestHandleKubePod(t *testing.T) {
 					Entity: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
-						fmt.Sprintf("display_container_name:%s_%s", containerName, podName),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -282,7 +284,7 @@ func TestHandleKubePod(t *testing.T) {
 					Entity: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", noEnvContainerID),
-						fmt.Sprintf("display_container_name:%s_%s", containerName, podName),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -684,6 +686,8 @@ func TestHandleContainer(t *testing.T) {
 					"NOMAD_TASK_NAME":  "test-task",
 					"NOMAD_JOB_NAME":   "test-job",
 					"NOMAD_GROUP_NAME": "test-group",
+					"NOMAD_NAMESPACE":  "test-namespace",
+					"NOMAD_DC":         "test-dc",
 				},
 			},
 			expected: []*TagInfo{
@@ -699,6 +703,8 @@ func TestHandleContainer(t *testing.T) {
 						"nomad_task:test-task",
 						"nomad_job:test-job",
 						"nomad_group:test-group",
+						"nomad_namespace:test-namespace",
+						"nomad_dc:test-dc",
 					}),
 					StandardTags: []string{},
 				},
@@ -811,6 +817,31 @@ func TestHandleContainer(t *testing.T) {
 						"swarm_service:helloworld",
 					}),
 					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "opencontainers image revision",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+					Labels: map[string]string{
+						"org.opencontainers.image.revision": "758691a28aa920070651d360814c559bc26af907",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source: containerSource,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{"git.commit.sha:758691a28aa920070651d360814c559bc26af907"},
+					StandardTags:         []string{},
 				},
 			},
 		},
@@ -1007,5 +1038,66 @@ func TestParseJSONValue(t *testing.T) {
 			low, _, _, _ := tags.Compute()
 			assert.ElementsMatch(t, tt.want, low)
 		})
+	}
+}
+
+func Test_mergeMaps(t *testing.T) {
+	tests := []struct {
+		name   string
+		first  map[string]string
+		second map[string]string
+		want   map[string]string
+	}{
+		{
+			name:   "no conflict",
+			first:  map[string]string{"first-k1": "first-v1", "first-k2": "first-v2"},
+			second: map[string]string{"second-k1": "second-v1", "second-k2": "second-v2"},
+			want: map[string]string{
+				"first-k1":  "first-v1",
+				"first-k2":  "first-v2",
+				"second-k1": "second-v1",
+				"second-k2": "second-v2",
+			},
+		},
+		{
+			name:   "conflict",
+			first:  map[string]string{"first-k1": "first-v1", "first-k2": "first-v2"},
+			second: map[string]string{"first-k2": "second-v1", "second-k2": "second-v2"},
+			want: map[string]string{
+				"first-k1":  "first-v1",
+				"first-k2":  "first-v2",
+				"second-k2": "second-v2",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.EqualValues(t, tt.want, mergeMaps(tt.first, tt.second))
+		})
+	}
+}
+
+func assertTagInfoEqual(t *testing.T, expected *TagInfo, item *TagInfo) bool {
+	t.Helper()
+	sort.Strings(expected.LowCardTags)
+	sort.Strings(item.LowCardTags)
+
+	sort.Strings(expected.OrchestratorCardTags)
+	sort.Strings(item.OrchestratorCardTags)
+
+	sort.Strings(expected.HighCardTags)
+	sort.Strings(item.HighCardTags)
+
+	sort.Strings(expected.StandardTags)
+	sort.Strings(item.StandardTags)
+
+	return assert.Equal(t, expected, item)
+}
+
+func assertTagInfoListEqual(t *testing.T, expectedUpdates []*TagInfo, updates []*TagInfo) {
+	t.Helper()
+	assert.Equal(t, len(expectedUpdates), len(updates))
+	for i := 0; i < len(expectedUpdates); i++ {
+		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
 	}
 }

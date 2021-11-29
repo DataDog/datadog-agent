@@ -7,16 +7,30 @@ package scrubber
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 )
 
 // DefaultScrubber is the scrubber used by the package-level cleaning functions.
 //
-// It includes a set of agent-specific replacers defined in default.go.
+// It includes a set of agent-specific replacers.  It can scrub DataDog App
+// and API keys, passwords from URLs, and multi-line PEM-formatted TLS keys and
+// certificates.  It contains special handling for YAML-like content (with
+// lines of the form "key: value") and can scrub passwords, tokens, and SNMP
+// community strings in such content.
+//
+// See default.go for details of these replacers.
 var DefaultScrubber = &Scrubber{}
 
 func init() {
+	AddDefaultReplacers(DefaultScrubber)
+}
+
+// AddDefaultReplacers to a scrubber. This is called automatically for
+// DefaultScrubber, but can be used to initialize other, custom scrubbers with
+// the default replacers.
+func AddDefaultReplacers(scrubber *Scrubber) {
 	hintedAPIKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
 		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
@@ -63,15 +77,15 @@ func init() {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
-	DefaultScrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, apiKeyReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, appKeyReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, uriPasswordReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, passwordReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, tokenReplacer)
-	DefaultScrubber.AddReplacer(SingleLine, snmpReplacer)
-	DefaultScrubber.AddReplacer(MultiLine, certReplacer)
+	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
+	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
+	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
+	scrubber.AddReplacer(SingleLine, appKeyReplacer)
+	scrubber.AddReplacer(SingleLine, uriPasswordReplacer)
+	scrubber.AddReplacer(SingleLine, passwordReplacer)
+	scrubber.AddReplacer(SingleLine, tokenReplacer)
+	scrubber.AddReplacer(SingleLine, snmpReplacer)
+	scrubber.AddReplacer(MultiLine, certReplacer)
 }
 
 func matchYAMLKeyPart(part string) *regexp.Regexp {
@@ -109,10 +123,12 @@ func ScrubBytes(file []byte) ([]byte, error) {
 	return DefaultScrubber.ScrubBytes(file)
 }
 
-// ScrubURL sanitizes credentials from a message containing a URL, and returns
-// a string that can be logged safely, using the default scrubber.
-func ScrubURL(url string) string {
-	return DefaultScrubber.ScrubURL(url)
+// ScrubLine scrubs credentials from a single line of text, using the default
+// scrubber.  It can be safely applied to URLs or to strings containing URLs.
+// It does not run multi-line replacers, and should not be used on multi-line
+// inputs.
+func ScrubLine(url string) string {
+	return DefaultScrubber.ScrubLine(url)
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have
@@ -126,4 +142,10 @@ func AddStrippedKeys(strippedKeys []string) {
 		}
 		DefaultScrubber.AddReplacer(SingleLine, configReplacer)
 	}
+}
+
+// NewWriter instantiates a Writer to the given file path with the given
+// permissions, using the default scrubber.
+func NewWriter(path string, perms os.FileMode) (*Writer, error) {
+	return newWriterWithScrubber(path, perms, DefaultScrubber)
 }

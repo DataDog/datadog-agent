@@ -40,7 +40,7 @@ func parsePort(t *testing.T, addr string) uint16 {
 	_, portString, err := net.SplitHostPort(addr)
 	require.NoError(t, err)
 
-	port, err := strconv.Atoi(portString)
+	port, err := strconv.ParseUint(portString, 10, 16)
 	require.NoError(t, err)
 
 	return uint16(port)

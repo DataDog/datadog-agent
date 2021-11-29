@@ -133,12 +133,6 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 
 		// TODO: check if real change
 
-		_, found := storedTags.sourceTags[info.Source]
-		if found && info.CacheMiss {
-			log.Tracef("ProcessTagInfo err: try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
-			continue
-		}
-
 		telemetry.UpdatedEntities.Inc()
 		updateStoredTags(storedTags, info)
 
@@ -274,13 +268,13 @@ func (s *TagStore) Prune() {
 // LookupHashed gets tags from the store and returns them as a HashedTags instance. It
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
-func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) (tagset.HashedTags, []string) {
+func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) tagset.HashedTags {
 	s.RLock()
 	defer s.RUnlock()
 	storedTags, present := s.store[entity]
 
 	if present == false {
-		return tagset.HashedTags{}, nil
+		return tagset.HashedTags{}
 	}
 	return storedTags.getHashedTags(cardinality)
 }
@@ -288,9 +282,8 @@ func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardina
 // Lookup gets tags from the store and returns them concatenated in a string slice. It
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
-func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) ([]string, []string) {
-	tags, sources := s.LookupHashed(entity, cardinality)
-	return tags.Get(), sources
+func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) []string {
+	return s.LookupHashed(entity, cardinality).Get()
 }
 
 // LookupStandard returns the standard tags recorded for a given entity

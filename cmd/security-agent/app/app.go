@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -273,10 +274,17 @@ func RunAgent(ctx context.Context) (err error) {
 	// Initialize the remote tagger
 	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
 		tagger.SetDefaultTagger(remote.NewTagger())
-		tagger.Init()
+		err := tagger.Init()
+		if err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
 	}
 
 	if err = startCompliance(hostname, stopper, statsdClient); err != nil {
+		return err
+	}
+
+	if err = initRuntimeSettings(); err != nil {
 		return err
 	}
 
@@ -298,6 +306,10 @@ func RunAgent(ctx context.Context) (err error) {
 	log.Infof("Datadog Security Agent is now running.")
 
 	return
+}
+
+func initRuntimeSettings() error {
+	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{})
 }
 
 // handleSignals handles OS signals, and sends a message on stopCh when an interrupt

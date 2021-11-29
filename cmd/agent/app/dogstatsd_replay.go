@@ -30,6 +30,7 @@ import (
 var (
 	dsdReplayFilePath   string
 	dsdVerboseReplay    bool
+	dsdMmapReplay       bool
 	dsdReplayIterations int
 )
 
@@ -41,6 +42,7 @@ func init() {
 	AgentCmd.AddCommand(dogstatsdReplayCmd)
 	dogstatsdReplayCmd.Flags().StringVarP(&dsdReplayFilePath, "file", "f", "", "Input file with TCP traffic to replay.")
 	dogstatsdReplayCmd.Flags().BoolVarP(&dsdVerboseReplay, "verbose", "v", false, "Verbose replay.")
+	dogstatsdReplayCmd.Flags().BoolVarP(&dsdMmapReplay, "mmap", "m", true, "Mmap file for replay. Set to false to load the entire file into memory instead")
 	dogstatsdReplayCmd.Flags().IntVarP(&dsdReplayIterations, "loops", "l", defaultIterations, "Number of iterationsi to replay.")
 }
 
@@ -117,7 +119,7 @@ func dogstatsdReplay() error {
 	cli := pb.NewAgentSecureClient(apiconn)
 
 	depth := 10
-	reader, err := replay.NewTrafficCaptureReader(dsdReplayFilePath, depth)
+	reader, err := replay.NewTrafficCaptureReader(dsdReplayFilePath, depth, dsdMmapReplay)
 	if reader != nil {
 		defer reader.Close()
 	}

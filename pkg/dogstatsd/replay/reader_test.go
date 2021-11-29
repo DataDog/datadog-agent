@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func readerTest(t *testing.T, path string) {
+func readerTest(t *testing.T, path string, mmap bool) {
 	// well-formed input file
-	tc, err := NewTrafficCaptureReader(path, 1)
+	tc, err := NewTrafficCaptureReader(path, 1, mmap)
 	assert.Nil(t, err)
 	assert.NotNil(t, tc)
 
@@ -46,16 +46,24 @@ func readerTest(t *testing.T, path string) {
 }
 
 func TestReader(t *testing.T) {
-	readerTest(t, "resources/test/datadog-capture.dog")
+	readerTest(t, "resources/test/datadog-capture.dog", true)
 }
 
 func TestReaderZstd(t *testing.T) {
-	readerTest(t, "resources/test/datadog-capture.dog.zstd")
+	readerTest(t, "resources/test/datadog-capture.dog.zstd", true)
+}
+
+func TestReaderNoMmap(t *testing.T) {
+	readerTest(t, "resources/test/datadog-capture.dog", false)
+}
+
+func TestReaderZstdNoMmap(t *testing.T) {
+	readerTest(t, "resources/test/datadog-capture.dog.zstd", false)
 }
 
 func TestSeek(t *testing.T) {
 	// well-formed input file
-	tc, err := NewTrafficCaptureReader("resources/test/datadog-capture.dog.zstd", 1)
+	tc, err := NewTrafficCaptureReader("resources/test/datadog-capture.dog.zstd", 1, true)
 	assert.Nil(t, err)
 	assert.NotNil(t, tc)
 

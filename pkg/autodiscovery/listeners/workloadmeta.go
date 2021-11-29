@@ -93,6 +93,14 @@ func (l *workloadmetaListenerImpl) Store() workloadmeta.Store {
 }
 
 func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentSvcID string) {
+	if parentSvcID != "" {
+		if _, ok := l.children[parentSvcID]; !ok {
+			l.children[parentSvcID] = make(map[string]struct{})
+		}
+
+		l.children[parentSvcID][svcID] = struct{}{}
+	}
+
 	if old, found := l.services[svcID]; found {
 		if svcEqual(old, svc) {
 			log.Tracef("%s received a duplicated service '%s', ignoring", l.name, svc.GetEntity())
@@ -105,14 +113,6 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 
 	l.services[svcID] = svc
 	l.newService <- svc
-
-	if parentSvcID != "" {
-		if _, ok := l.children[parentSvcID]; !ok {
-			l.children[parentSvcID] = make(map[string]struct{})
-		}
-
-		l.children[parentSvcID][svcID] = struct{}{}
-	}
 }
 
 func (l *workloadmetaListenerImpl) IsExcluded(ft containers.FilterType, name, image, ns string) bool {

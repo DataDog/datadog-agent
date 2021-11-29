@@ -23,11 +23,12 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/loader"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc"
 )
 
 const (
@@ -45,11 +46,17 @@ var (
 	program   *loader.Program
 	packages  map[string]*types.Package
 	buildTags string
+	vendor    string
 )
 
 var module *common.Module
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
+	if typePackage, found := packages[pkg]; found {
+		return typePackage.Scope().Lookup(symbol), nil
+	}
+
+	pkg = path.Join(vendor, pkg)
 	if typePackage, found := packages[pkg]; found {
 		return typePackage.Scope().Lookup(symbol), nil
 	}
@@ -536,7 +543,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
 							result := make([]int, len({{$Return}}))
 							for i, v := range {{$Return}} {
-								result[i] = in(v)
+								result[i] = int(v)
 							}
 							return result
 						{{- else}}
@@ -636,7 +643,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
 					result := make([]int, len({{$Return}}))
 					for i, v := range {{$Return}} {
-						result[i] = in(v)
+						result[i] = int(v)
 					}
 					return result, nil
 				{{- else}}
@@ -714,7 +721,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			if !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
-			{{$FieldName}} = {{$Field.OrigType}}(v)
+			{{- if $Field.IsArray}}
+				{{$FieldName}} = append({{$FieldName}}, {{$Field.OrigType}}(v))
+			{{else}}
+				{{$FieldName}} = {{$Field.OrigType}}(v)
+			{{end}}
 			return nil
 		{{else if eq $Field.BasicType "bool"}}
 			if {{$FieldName}}, ok = value.(bool); !ok {
@@ -775,5 +786,6 @@ func init() {
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")
 	flag.StringVar(&output, "output", "", "Go generated file")
+	flag.StringVar(&vendor, "vendor", "", "vendor prefix")
 	flag.Parse()
 }

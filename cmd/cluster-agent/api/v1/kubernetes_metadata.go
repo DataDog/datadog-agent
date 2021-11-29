@@ -96,7 +96,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 		"getNodeMetadata",
 		strconv.Itoa(http.StatusNotFound),
 	)
-	w.Write([]byte(fmt.Sprintf("Could not find labels on the node: %s", nodeName)))
+	fmt.Fprintf(w, "Could not find labels on the node: %s", nodeName)
 }
 
 // getNamespaceMetadata is only used when the node agent hits the DCA for the list of labels
@@ -155,7 +155,7 @@ func getNamespaceMetadata(w http.ResponseWriter, r *http.Request) {
 		"getNamespaceMetadata",
 		strconv.Itoa(http.StatusNotFound),
 	)
-	w.Write([]byte(fmt.Sprintf("Could not find labels on the namespace: %s", nsName)))
+	fmt.Fprintf(w, "Could not find labels on the namespace: %s", nsName)
 }
 
 // getPodMetadata is only used when the node agent hits the DCA for the tags list.
@@ -218,7 +218,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		"getPodMetadata",
 		strconv.Itoa(http.StatusNotFound),
 	)
-	w.Write([]byte(fmt.Sprintf("Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)))
+	fmt.Fprintf(w, "Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)
 }
 
 // getPodMetadataForNode has the same signature as getAllMetadata, but is only scoped on one node.

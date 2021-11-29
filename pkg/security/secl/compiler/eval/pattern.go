@@ -10,12 +10,8 @@ import (
 	"regexp"
 )
 
-func patternToRegexp(pattern string) (*regexp.Regexp, error) {
-	// do not accept full wildcard value
-	if matched, err := regexp.Match(`[a-zA-Z0-9\.]+`, []byte(pattern)); err != nil || !matched {
-		return nil, &ErrInvalidPattern{Pattern: pattern}
-	}
-
+// PatternToRegexp converts pattern to regular expression
+func PatternToRegexp(pattern string) (*regexp.Regexp, error) {
 	// quote eveything except wilcard
 	re := regexp.MustCompile(`[\.*+?()|\[\]{}^$]`)
 	quoted := re.ReplaceAllStringFunc(pattern, func(s string) string {
@@ -33,7 +29,7 @@ func toPattern(se *StringEvaluator) error {
 		return nil
 	}
 
-	reg, err := patternToRegexp(se.Value)
+	reg, err := PatternToRegexp(se.Value)
 	if err != nil {
 		return fmt.Errorf("invalid pattern '%s': %s", se.Value, err)
 	}

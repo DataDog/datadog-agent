@@ -23,8 +23,8 @@ core,code.cloudfoundry.org/lager,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,code.cloudfoundry.org/tlsconfig,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,contrib.go.opencensus.io/exporter/prometheus,Apache-2.0,OpenCensus Authors
 core,github.com/AlekSi/pointer,MIT,Alexey Palazhchenko
-core,github.com/DataDog/agent-payload/gogen,BSD-3-Clause,"Datadog, Inc"
-core,github.com/DataDog/agent-payload/process,BSD-3-Clause,"Datadog, Inc"
+core,github.com/DataDog/agent-payload/v5/gogen,BSD-3-Clause,"Datadog, Inc"
+core,github.com/DataDog/agent-payload/v5/process,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc"
 core,github.com/DataDog/ebpf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
@@ -182,7 +182,7 @@ core,github.com/bhmj/jsonslice,MIT,bhmj
 core,github.com/bits-and-blooms/bitset,BSD-3-Clause,Will Fitzgerald
 core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Tobias Rehbein <tobias.rehbein@web.de>
 core,github.com/blang/semver,MIT,Benedikt Lang <github at benediktlang.de>
-core,github.com/bmizerany/pat,UNKNOWN,"Keith Rarick, Blake Mizerany"
+core,github.com/bmizerany/pat,MIT,"Keith Rarick, Blake Mizerany"
 core,github.com/cenkalti/backoff,MIT,Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Cenk Altı
 core,github.com/cespare/xxhash/v2,MIT,Caleb Spare
@@ -526,6 +526,7 @@ core,github.com/open-policy-agent/opa/internal/debug,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/deepcopy,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/file/archive,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/ir,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,The OPA Authors | lestrrat
@@ -540,6 +541,7 @@ core,github.com/open-policy-agent/opa/internal/merge,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/planner,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/rego/opa,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/semver,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/strings,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/uuid,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/version,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/wasm/constant,Apache-2.0,The OPA Authors
@@ -549,6 +551,7 @@ core,github.com/open-policy-agent/opa/internal/wasm/module,Apache-2.0,The OPA Au
 core,github.com/open-policy-agent/opa/internal/wasm/opcode,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/capabilities,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/wasm/types,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/util,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/keys,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/loader,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/metrics,Apache-2.0,The OPA Authors
@@ -563,9 +566,11 @@ core,github.com/open-policy-agent/opa/topdown,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/builtins,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/cache,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/copypropagation,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/topdown/print,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/types,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/util,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/version,Apache-2.0,The OPA Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry,Apache-2.0,Open Telemetry Maintainers
 core,github.com/opencontainers/go-digest,Apache-2.0,"Docker, Inc | OCI Contributors"
 core,github.com/opencontainers/image-spec/identity,Apache-2.0,The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,The Linux Foundation
@@ -683,11 +688,10 @@ core,github.com/vishvananda/netlink,Apache-2.0,"Docker, Inc | Vishvananda Ishaya
 core,github.com/vishvananda/netlink/nl,Apache-2.0,"Docker, Inc | Vishvananda Ishaya"
 core,github.com/vishvananda/netns,Apache-2.0,"Docker, Inc | Vishvananda Ishaya"
 core,github.com/vito/go-sse/sse,Apache-2.0,The Authors
-core,github.com/wille/osutil,UNKNOWN,wille
 core,github.com/xeipuuv/gojsonpointer,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
 core,github.com/xeipuuv/gojsonreference,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
 core,github.com/xeipuuv/gojsonschema,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
-core,github.com/xi2/xz,UNKNOWN,Igor Pavlov <http://7-zip.org/> | Lasse Collin <lasse.collin@tukaani.org> | Michael Cross <https://github.com/xi2>
+core,github.com/xi2/xz,Public Domain,Igor Pavlov <http://7-zip.org/> | Lasse Collin <lasse.collin@tukaani.org> | Michael Cross <https://github.com/xi2>
 core,github.com/xor-gate/ar,MIT,Blake Smith <blakesmith0@gmail.com>
 core,github.com/yashtewari/glob-intersection,Apache-2.0,yashtewari (https://github.com/yashtewari)
 core,go.etcd.io/bbolt,MIT,the etcd maintainers
@@ -1589,7 +1593,6 @@ core,k8s.io/kube-state-metrics/v2/pkg/allowdenylist,Apache-2.0,Cloud Native Comp
 core,k8s.io/kube-state-metrics/v2/pkg/builder,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/builder/types,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/constant,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
-core,k8s.io/kube-state-metrics/v2/pkg/listwatch,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/metric,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/metric_generator,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/metrics_store,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
