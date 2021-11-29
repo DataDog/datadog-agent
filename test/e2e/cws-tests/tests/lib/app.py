@@ -1,35 +1,34 @@
 import os
 import tempfile
-from retry.api import retry_call
-import urllib3
 
-from dateutil.parser import parse as dateutil_parser
+import urllib3
 from datadog_api_client.v2 import ApiClient, ApiException, Configuration
-from datadog_api_client.v2.api import logs_api
-from datadog_api_client.v2.api import security_monitoring_api
+from datadog_api_client.v2.api import logs_api, security_monitoring_api
 from datadog_api_client.v2.models import (
     LogsListRequest,
+    LogsListRequestPage,
     LogsQueryFilter,
     LogsQueryOptions,
-    LogsListRequestPage,
     LogsSort,
-    SecurityMonitoringSignalListRequest,
-    SecurityMonitoringSignalListRequestFilter,
-    SecurityMonitoringSignalListRequestPage,
-    SecurityMonitoringSignalsSort,
-    SecurityMonitoringRuleCreatePayload,
     SecurityMonitoringRuleCaseCreate,
-    SecurityMonitoringRuleSeverity,
-    SecurityMonitoringRuleOptions,
+    SecurityMonitoringRuleCreatePayload,
     SecurityMonitoringRuleDetectionMethod,
     SecurityMonitoringRuleEvaluationWindow,
     SecurityMonitoringRuleKeepAlive,
     SecurityMonitoringRuleMaxSignalDuration,
-    SecurityMonitoringRuleQueryCreate,
-    SecurityMonitoringRuntimeAgentRule,
+    SecurityMonitoringRuleOptions,
     SecurityMonitoringRuleQueryAggregation,
+    SecurityMonitoringRuleQueryCreate,
+    SecurityMonitoringRuleSeverity,
     SecurityMonitoringRuleTypeCreate,
+    SecurityMonitoringRuntimeAgentRule,
+    SecurityMonitoringSignalListRequest,
+    SecurityMonitoringSignalListRequestFilter,
+    SecurityMonitoringSignalListRequestPage,
+    SecurityMonitoringSignalsSort,
 )
+from dateutil.parser import parse as dateutil_parser
+from retry.api import retry_call
 
 
 def get_app_log(api_client, query):
@@ -133,14 +132,14 @@ class App:
         try:
             api_instance.delete_security_monitoring_rule(rule_id)
         except ApiException as e:
-            print("Exception when calling SecurityMonitoringApi->delete_security_monitoring_rule: %s\n" % e)
+            print(f"Exception when calling SecurityMonitoringApi->delete_security_monitoring_rule: {e}")
 
     def download_policies(self):
         site = os.environ["DD_SITE"]
         api_key = os.environ["DD_API_KEY"]
         app_key = os.environ["DD_APP_KEY"]
 
-        url = "https://api.{}/api/v2/security/cloud_workload/policy/download".format(site)
+        url = f"https://api.{site}/api/v2/security/cloud_workload/policy/download"
 
         pool_manager = urllib3.PoolManager()
         request = pool_manager.request(

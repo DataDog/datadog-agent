@@ -7,7 +7,8 @@ class Step:
         self.emoji = emoji
 
     def __enter__(self):
-        print("{} {}... ".format(emoji.emojize(self.emoji), self.msg), end="", flush=True)
+        _emoji = emoji.emojize(self.emoji)
+        print(f"{_emoji} {self.msg}... ", end="", flush=True)
         return self
 
     def __exit__(self, _exc_type, _exc_val, _exc_tb):

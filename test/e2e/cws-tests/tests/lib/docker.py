@@ -1,8 +1,8 @@
-import docker
 import os
-from retry.api import retry_call
 
+import docker
 from lib.log import LogGetter
+from retry.api import retry_call
 
 
 def is_container_running(container):
@@ -30,13 +30,16 @@ class DockerHelper(LogGetter):
         ]
 
         if policy_filename:
-            volumes.append("{}:/etc/datadog-agent/runtime-security.d/default.policy".format(policy_filename))
+            volumes.append(f"{policy_filename}:/etc/datadog-agent/runtime-security.d/default.policy")
 
         if datadog_agent_config:
-            volumes.append("{}:/etc/datadog-agent/datadog.yaml".format(datadog_agent_config))
+            volumes.append(f"{datadog_agent_config}:/etc/datadog-agent/datadog.yaml")
 
         if system_probe_config:
-            volumes.append("{}:/etc/datadog-agent/system-probe.yaml".format(system_probe_config))
+            volumes.append(f"{system_probe_config}:/etc/datadog-agent/system-probe.yaml")
+
+        site = os.environ["DD_SITE"]
+        api_key = os.environ["DD_API_KEY"]
 
         self.agent_container = self.client.containers.run(
             image,
@@ -46,8 +49,8 @@ class DockerHelper(LogGetter):
                 "DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
                 "DD_SYSTEM_PROBE_ENABLED=true",
                 "HOST_ROOT=/host/root",
-                "DD_SITE={}".format(os.environ["DD_SITE"]),
-                "DD_API_KEY={}".format(os.environ["DD_API_KEY"]),
+                f"DD_SITE={site}",
+                f"DD_API_KEY={api_key}",
             ],
             volumes=volumes,
             detach=True,

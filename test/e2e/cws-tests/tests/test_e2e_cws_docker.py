@@ -1,16 +1,16 @@
 import os
 import tempfile
+import time
 import unittest
 import uuid
 import warnings
-import time
 
 from lib.app import App
-from lib.docker import DockerHelper
-from lib.policy import PolicyLoader
-from lib.config import gen_system_probe_config, gen_datadog_agent_config
-from lib.log import wait_agent_log
+from lib.config import gen_datadog_agent_config, gen_system_probe_config
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
+from lib.docker import DockerHelper
+from lib.log import wait_agent_log
+from lib.policy import PolicyLoader
 from lib.stepper import Step
 
 
@@ -40,18 +40,18 @@ class TestE2EDocker(unittest.TestCase):
 
         dir = tempfile.TemporaryDirectory(prefix="e2e-temp-folder")
         dirname = dir.name
-        filename = "{}/secret".format(dirname)
+        filename = f"{dirname}/secret"
 
         test_id = str(uuid.uuid4())[:4]
-        desc = "e2e test rule {}".format(test_id)
+        desc = f"e2e test rule {test_id}"
         data = None
 
-        with Step(msg="check rule({}) creation".format(test_id), emoji=":straight_ruler:"):
+        with Step(msg=f"check rule({test_id}) creation", emoji=":straight_ruler:"):
             self.rule_id = self.App.create_cws_rule(
                 desc,
                 "rule for e2e testing",
-                "e2e_{}".format(test_id),
-                'open.file.path == "{}"'.format(filename),
+                f"e2e_{test_id}",
+                f'open.file.path == "{filename}"',
             )
 
         with Step(msg="check policies download", emoji=":file_folder:"):
@@ -65,7 +65,7 @@ class TestE2EDocker(unittest.TestCase):
 
         with Step(msg="check agent start", emoji=":man_running:"):
             image = os.getenv("DD_AGENT_IMAGE")
-            hostname = "host_{}".format(test_id)
+            hostname = f"host_{test_id}"
             self.datadog_agent_config = gen_datadog_agent_config(
                 hostname=hostname, log_level="DEBUG", tags=["tag1", "tag2"]
             )
@@ -88,23 +88,27 @@ class TestE2EDocker(unittest.TestCase):
             time.sleep(3 * 60)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
-            os.system("touch {}".format(filename))
+            os.system(f"touch {filename}")
+
+            rule_id = rule["id"]
 
             wait_agent_log(
                 "system-probe",
                 self.docker_helper,
-                "Sending event message for rule `{}`".format(rule["id"]),
+                f"Sending event message for rule `{rule_id}`",
             )
 
         with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):
-            event = self.App.wait_app_log("rule_id:{}".format(rule["id"]))
+            rule_id = rule["id"]
+            event = self.App.wait_app_log(f"rule_id:{rule_id}")
             attributes = event["data"][0]["attributes"]
 
             self.assertIn("tag1", attributes["tags"], "unable to find tag")
             self.assertIn("tag2", attributes["tags"], "unable to find tag")
 
         with Step(msg="check app signal", emoji=":1st_place_medal:"):
-            tag = "rule_id:{}".format(rule["id"])
+            rule_id = rule["id"]
+            tag = f"rule_id:{rule_id}"
             signal = self.App.wait_app_signal(tag)
             attributes = signal["data"][0]["attributes"]
 

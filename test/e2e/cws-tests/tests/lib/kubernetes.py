@@ -1,10 +1,9 @@
+import os
 import tarfile
 from tempfile import TemporaryFile
-import os
 
 from kubernetes import client, config
 from kubernetes.stream import stream
-
 from lib.log import LogGetter
 
 
@@ -32,7 +31,7 @@ class KubernetesHelper(LogGetter):
             name=self.pod_name, namespace=self.namespace, container=agent_name, follow=False, tail_lines=500
         )
 
-        return [line for line in log.splitlines()]
+        return log.splitlines()
 
     def exec_command(self, container, command=None):
         if not command:
@@ -79,10 +78,6 @@ class KubernetesHelper(LogGetter):
 
         while resp.is_open():
             resp.update(timeout=1)
-            if resp.peek_stdout():
-                print("STDOUT: %s" % resp.read_stdout())
-            if resp.peek_stderr():
-                print("STDERR: %s" % resp.read_stderr())
             if commands:
                 c = commands.pop(0)
                 resp.write_stdin(c)
@@ -94,5 +89,5 @@ class KubernetesHelper(LogGetter):
         command = ['mkdir', '-p', dirname]
         self.exec_command(agent_name, command=command)
 
-        command = ['mv', '/tmp/{}'.format(src_file), dst_file]
+        command = ['mv', f'/tmp/{src_file}', dst_file]
         self.exec_command(agent_name, command=command)
