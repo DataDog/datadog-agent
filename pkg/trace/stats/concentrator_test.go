@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -60,6 +61,14 @@ func testSpan(spanID uint64, parentID uint64, duration, offset int64, service, r
 	}
 }
 
+// spansToTraceChunk converts the given spans to a pb.TraceChunk
+func spansToTraceChunk(spans []*pb.Span) *pb.TraceChunk {
+	return &pb.TraceChunk{
+		Priority: int32(sampler.PriorityNone),
+		Spans:    spans,
+	}
+}
+
 // assertCountsEqual is a test utility function to assert expected == actual for count aggregations.
 func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []pb.ClientGroupedStats) {
 	expectedM := make(map[string]pb.ClientGroupedStats)
@@ -77,6 +86,26 @@ func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []
 	assert.Equal(t, expectedM, actualM)
 }
 
+// TestTracerHostname tests if `Concentrator` uses the tracer hostname rather than agent hostname, if there is one.
+func TestTracerHostname(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	spans := []*pb.Span{
+		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
+	}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := &EnvTrace{
+		Env:   "none",
+		Trace: NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "tracer-hostname"),
+	}
+	c := NewTestConcentrator(now)
+	c.addNow(testTrace, "")
+
+	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	assert.Equal("tracer-hostname", stats.Stats[0].Hostname)
+}
+
 // TestConcentratorOldestTs tests that the Agent doesn't report time buckets from a
 // time before its start
 func TestConcentratorOldestTs(t *testing.T) {
@@ -84,7 +113,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 	now := time.Now()
 
 	// Build that simply have spans spread over time windows.
-	trace := pb.Trace{
+	spans := []*pb.Span{
 		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
 		testSpan(1, 0, 40, 4, "A1", "resource1", 0),
 		testSpan(1, 0, 30, 3, "A1", "resource1", 0),
@@ -93,8 +122,8 @@ func TestConcentratorOldestTs(t *testing.T) {
 		testSpan(1, 0, 1, 0, "A1", "resource1", 0),
 	}
 
-	traceutil.ComputeTopLevel(trace)
-	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
+	traceutil.ComputeTopLevel(spans)
+	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")
 
 	testTrace := &EnvTrace{
 		Env:   "none",
@@ -209,7 +238,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	c.oldestTs = alignedNow - int64(c.bufferLen)*c.bsize
 
 	// Build that simply have spans spread over time windows.
-	trace := pb.Trace{
+	spans := []*pb.Span{
 		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
 		testSpan(1, 0, 40, 4, "A1", "resource1", 0),
 		testSpan(1, 0, 30, 3, "A1", "resource1", 0),
@@ -218,8 +247,8 @@ func TestConcentratorStatsTotals(t *testing.T) {
 		testSpan(1, 0, 1, 0, "A1", "resource1", 0),
 	}
 
-	traceutil.ComputeTopLevel(trace)
-	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
+	traceutil.ComputeTopLevel(spans)
+	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")
 
 	t.Run("ok", func(t *testing.T) {
 		testTrace := &EnvTrace{
@@ -251,8 +280,8 @@ func TestConcentratorStatsTotals(t *testing.T) {
 		}
 
 		assert.Equal(duration, uint64(50+40+30+20+10+1), "Wrong value for total duration %d", duration)
-		assert.Equal(hits, uint64(len(trace)), "Wrong value for total hits %d", hits)
-		assert.Equal(topLevelHits, uint64(len(trace)), "Wrong value for total top level hits %d", topLevelHits)
+		assert.Equal(hits, uint64(len(spans)), "Wrong value for total hits %d", hits)
+		assert.Equal(topLevelHits, uint64(len(spans)), "Wrong value for total top level hits %d", topLevelHits)
 		assert.Equal(errors, uint64(0), "Wrong value for total errors %d", errors)
 	})
 }
@@ -272,7 +301,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	c.oldestTs = alignedNow - int64(c.bufferLen)*c.bsize
 
 	// Build a trace with stats which should cover 3 time buckets.
-	trace := pb.Trace{
+	spans := []*pb.Span{
 		// more than 2 buckets old, should be added to the 2 bucket-old, first flush.
 		testSpan(1, 0, 111, 10, "A1", "resource1", 0),
 		testSpan(1, 0, 222, 3, "A1", "resource1", 0),
@@ -394,8 +423,8 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	}
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []pb.ClientGroupedStats{}
 
-	traceutil.ComputeTopLevel(trace)
-	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
+	traceutil.ComputeTopLevel(spans)
+	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")
 
 	testTrace := &EnvTrace{
 		Env:   "none",
@@ -445,12 +474,12 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 	// it only allows recent stats.
 	c.oldestTs = alignedNow - int64(c.bufferLen)*c.bsize
 	// Build a trace with stats representing the distribution given by the generator
-	trace := pb.Trace{}
+	spans := []*pb.Span{}
 	for i := 0; i < 100; i++ {
-		trace = append(trace, testSpan(uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0))
+		spans = append(spans, testSpan(uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0))
 	}
-	traceutil.ComputeTopLevel(trace)
-	c.addNow(&EnvTrace{Env: "none", Trace: NewWeightedTrace(trace, traceutil.GetRoot(trace))}, "")
+	traceutil.ComputeTopLevel(spans)
+	c.addNow(&EnvTrace{Env: "none", Trace: NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")}, "")
 	stats := c.flushNow(now.UnixNano() + c.bsize*int64(c.bufferLen))
 	expectedFlushedTs := alignedNow
 	assert.Len(stats.Stats, 1)

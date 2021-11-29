@@ -141,7 +141,7 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender  *sender.Sender
+	sender  sender.Sender
 	in      chan *message.Message
 	auditor auditor.Auditor
 }
@@ -190,7 +190,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
 		desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
 	return &passthroughPipeline{
-		sender:  sender.NewSender(inputChan, a.Channel(), destinations, strategy),
+		sender:  sender.NewSingleSender(inputChan, a.Channel(), destinations, strategy),
 		in:      inputChan,
 		auditor: a,
 	}, nil

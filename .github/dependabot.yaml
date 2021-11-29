@@ -39,7 +39,19 @@ updates:
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
-    ignore: 
+    ignore:
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /pkg/obfuscate
+    labels:
+      - dependencies
+      - team/agent-apm
+      - changelog/no-changelog
+    milestone: 22
+    ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
@@ -51,7 +63,7 @@ updates:
       - team/metrics-aggregation
       - changelog/no-changelog
     milestone: 22
-    ignore: 
+    ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
@@ -63,8 +75,20 @@ updates:
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
-    ignore: 
+    ignore:
       - dependency-name: github.com/cihub/seelog
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /pkg/util/scrubber
+    labels:
+      - dependencies
+      - team/agent-core
+      - changelog/no-changelog
+    milestone: 22
+    ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
@@ -76,7 +100,19 @@ updates:
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
-    ignore: 
+    ignore:
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /pkg/security/secl
+    labels:
+      - dependencies
+      - team/agent-security
+      - changelog/no-changelog
+    milestone: 22
+    ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
@@ -92,3 +128,27 @@ updates:
     milestone: 22
     schedule:
       interval: monthly
+  - package-ecosystem: "pip"
+    directory: "/"
+    labels:
+      - dependencies
+      - python
+      - team/agent-platform
+      - changelog/no-changelog
+      - qa/skip-qa
+      - dev/tooling
+    milestone: 22
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "pip"
+    directory: "/.circleci"
+    labels:
+      - dependencies
+      - python
+      - team/agent-platform
+      - changelog/no-changelog
+      - qa/skip-qa
+      - dev/tooling
+    milestone: 22
+    schedule:
+      interval: "monthly"

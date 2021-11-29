@@ -26,12 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	defaultTimeout    = 5 * time.Minute
 	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute
 )
@@ -97,7 +97,8 @@ func (t *Tagger) Init() error {
 
 	t.client = pb.NewAgentSecureClient(t.conn)
 
-	err = t.startTaggerStream(defaultTimeout)
+	timeout := time.Duration(config.Datadog.GetInt("remote_tagger_timeout_seconds")) * time.Second
+	err = t.startTaggerStream(timeout)
 	if err != nil {
 		// tagger stopped before being connected
 		if err == errTaggerStreamNotStarted {
@@ -146,8 +147,8 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 	return []string{}, nil
 }
 
-// TagBuilder returns tags for a given entity at the desired cardinality.
-func (t *Tagger) TagBuilder(entityID string, cardinality collectors.TagCardinality, tb types.TagsBuilder) error {
+// AccumulateTagsFor returns tags for a given entity at the desired cardinality.
+func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	tags, err := t.Tag(entityID, cardinality)
 	if err != nil {
 		return err

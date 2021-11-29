@@ -41,6 +41,7 @@ kitchen_environment_variables = {
   'TESTING_YUM_URL' => node['dd-agent-install-script']['repo_domain_yum'],
   'TESTING_APT_REPO_VERSION' => "#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}",
   'TESTING_YUM_VERSION_PATH' => node['dd-agent-install-script']['repo_branch_yum'],
+  'ZYPP_RPM_DEBUG' => '1',
 }.compact
 
 # Transform hash into bash syntax for exporting environment variables

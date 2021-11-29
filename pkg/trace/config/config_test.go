@@ -306,6 +306,8 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(o.RemoveStackTraces)
 	assert.True(c.Obfuscation.Redis.Enabled)
 	assert.True(c.Obfuscation.Memcached.Enabled)
+	assert.True(c.Obfuscation.CreditCards.Enabled)
+	assert.True(c.Obfuscation.CreditCards.Luhn)
 }
 
 func TestUndocumentedYamlConfig(t *testing.T) {
@@ -326,6 +328,8 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal("apikey_12", c.Endpoints[0].APIKey)
 	assert.Equal(0.33, c.ExtraSampleRate)
 	assert.Equal(100.0, c.TargetTPS)
+	assert.Equal(37.0, c.ErrorTPS)
+	assert.Equal(true, c.DisableRareSampler)
 	assert.Equal(1000.0, c.MaxEPS)
 	assert.Equal(25, c.ReceiverPort)
 	assert.Equal(120*time.Second, c.ConnectionResetInterval)

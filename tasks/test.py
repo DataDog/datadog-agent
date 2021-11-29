@@ -17,6 +17,7 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, generate, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
+from .libs.junit_upload import junit_upload_from_tgz, produce_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
@@ -106,6 +107,7 @@ def test(
     save_result_json=None,
     rerun_fails=None,
     go_mod="mod",
+    junit_tar="",
 ):
     """
     Run all the tools and tests on the given module and targets.
@@ -246,7 +248,12 @@ def test(
         print("Removing existing '{}' file".format(save_result_json))
         os.remove(save_result_json)
 
-    cmd = 'gotestsum {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    junit_file_flag = ""
+    junit_file = "junit-out.xml"
+    if junit_tar:
+        junit_file_flag = "--junitfile " + junit_file
+
+    cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
     args = {
         "go_mod": go_mod,
@@ -262,9 +269,11 @@ def test(
         "nocache": nocache,
         "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if save_result_json else "",
         "rerun_fails": "--rerun-fails={}".format(rerun_fails) if rerun_fails else "",
+        "junit_file_flag": junit_file_flag,
     }
 
     failed_modules = []
+    junit_files = []
     for module in modules:
         print("----- Module '{}'".format(module.full_path()))
         if not module.condition():
@@ -290,6 +299,11 @@ def test(
                 os.path.join(module.full_path(), TMP_JSON), 'rb'
             ) as module_file:
                 json_file.write(module_file.read())
+
+        junit_files.append(os.path.join(module.full_path(), junit_file))
+
+    if junit_tar:
+        produce_junit_tar(junit_files, junit_tar)
 
     if failed_modules:
         # Exit if any of the modules failed
@@ -541,7 +555,7 @@ def lint_python(ctx):
 
 
 @task
-def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
+def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
     """
     Installs the requested version of shellcheck in the specified folder (by default /usr/local/bin).
     Required to run the shellcheck pre-commit hook.
@@ -566,3 +580,12 @@ def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
         )
     )
     ctx.run("rm -rf \"/tmp/shellcheck-v{sc_version}\"".format(sc_version=version))
+
+
+@task()
+def junit_upload(_, tgz_path):
+    """
+    Uploads JUnit XML files from an archive produced by the `test` task.
+    """
+
+    junit_upload_from_tgz(tgz_path)

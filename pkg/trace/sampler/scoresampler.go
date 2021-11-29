@@ -11,11 +11,8 @@ import (
 )
 
 const (
-	// errorSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
-	// If this is surpassed, the rate is set to 1.
-	errorSamplingRateThresholdTo1 = 0.1
-	errorsRateKey                 = "_dd.errors_sr"
-	noPriorityRateKey             = "_dd.no_p_sr"
+	errorsRateKey     = "_dd.errors_sr"
+	noPriorityRateKey = "_dd.no_p_sr"
 )
 
 // ErrorsSampler is dedicated to catching traces containing spans with errors.
@@ -31,6 +28,7 @@ type NoPrioritySampler struct{ ScoreSampler }
 type ScoreSampler struct {
 	*Sampler
 	samplingRateKey string
+	disabled        bool
 }
 
 // NewNoPrioritySampler returns an initialized Sampler dedicated to traces with
@@ -44,13 +42,16 @@ func NewNoPrioritySampler(conf *config.AgentConfig) *NoPrioritySampler {
 // just like the the normal ScoreEngine except for its GetType method (useful
 // for reporting).
 func NewErrorsSampler(conf *config.AgentConfig) *ErrorsSampler {
-	s := newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:error"})
-	s.setRateThresholdTo1(errorSamplingRateThresholdTo1)
-	return &ErrorsSampler{ScoreSampler{Sampler: s, samplingRateKey: errorsRateKey}}
+	s := newSampler(conf.ExtraSampleRate, conf.ErrorTPS, []string{"sampler:error"})
+	return &ErrorsSampler{ScoreSampler{Sampler: s, samplingRateKey: errorsRateKey, disabled: conf.ErrorTPS == 0}}
 }
 
 // Sample counts an incoming trace and tells if it is a sample which has to be kept
 func (s ScoreSampler) Sample(trace pb.Trace, root *pb.Span, env string) bool {
+	if s.disabled {
+		return false
+	}
+
 	// Extra safety, just in case one trace is empty
 	if len(trace) == 0 {
 		return false

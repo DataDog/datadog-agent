@@ -16,13 +16,19 @@ import (
 	"time"
 )
 
+// Options wraps all configurable params for the HTTPServer
+type Options struct {
+	EnableTLS        bool
+	EnableKeepAlives bool
+}
+
 // HTTPServer spins up a HTTP test server that returns the status code included in the URL
 // Example:
 // * GET /200/foo returns a 200 status code;
 // * PUT /404/bar returns a 404 status code;
 // Optional TLS support using a self-signed certificate can be enabled trough the `enableTLS` argument
 // nolint
-func HTTPServer(t *testing.T, addr string, enableTLS bool) func() {
+func HTTPServer(t *testing.T, addr string, options Options) func() {
 	handler := func(w http.ResponseWriter, req *http.Request) {
 		statusCode := StatusFromPath(req.URL.Path)
 		io.Copy(ioutil.Discard, req.Body)
@@ -39,7 +45,7 @@ func HTTPServer(t *testing.T, addr string, enableTLS bool) func() {
 	listenFn := func() { _ = srv.ListenAndServe() }
 
 	// If certPath is set we enabled TLS
-	if enableTLS {
+	if options.EnableTLS {
 		curDir, _ := curDir()
 		crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
 		keyPath := filepath.Join(curDir, "testdata/server.key")
@@ -47,7 +53,7 @@ func HTTPServer(t *testing.T, addr string, enableTLS bool) func() {
 	}
 
 	go listenFn()
-	srv.SetKeepAlivesEnabled(false)
+	srv.SetKeepAlivesEnabled(options.EnableKeepAlives)
 	return func() { srv.Shutdown(context.Background()) }
 }
 

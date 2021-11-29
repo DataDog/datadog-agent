@@ -51,8 +51,15 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
         return 0;
     }
 
-    // we resolve all the information before the file is actually removed
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    // change the register based on the value of vfs_unlink_dentry_position
+    if (get_vfs_unlink_dentry_position() == VFS_ARG_POSITION3) {
+        // prevent the verifier from whining
+        bpf_probe_read(&dentry, sizeof(dentry), &dentry);
+        dentry = (struct dentry *) PT_REGS_PARM3(ctx);
+    }
+
+    // we resolve all the information before the file is actually removed
     syscall->unlink.dentry = dentry;
     set_file_inode(dentry, &syscall->unlink.file, 1);
     fill_file_metadata(dentry, &syscall->unlink.file.metadata);

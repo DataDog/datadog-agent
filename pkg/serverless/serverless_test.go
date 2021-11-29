@@ -6,12 +6,14 @@
 package serverless
 
 import (
+	"fmt"
 	"os"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,10 +21,9 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	d := daemon.StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
-	d.SetClientReady(false)
 	d.WaitForDaemon()
 
-	d.StartInvocation()
+	d.TellDaemonRuntimeStarted()
 
 	//deadline = current time + 20 ms
 	deadlineMs := (time.Now().UnixNano())/1000000 + 20
@@ -32,32 +33,47 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	os.Setenv("DD_EXTRA_TAGS", "a3:valueA3 a4:valueA4")
 
 	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, "myRequestID", handleInvocation)
+	architecture := fmt.Sprintf("architecture:%s", tags.ResolveRuntimeArch())
 
-	expectedTagArray := []string{
-		"a1:valuea1",
-		"a2:valuea2",
-		"a3:valuea3",
-		"a4:valuea4",
-		"a_maj:valueamaj",
-		"account_id:123456789012",
-		"aws_account:123456789012",
-		"dd_extension_version:xxx",
-		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
-		"functionname:my-function",
-		"region:us-east-1",
-		"resource:my-function",
-	}
+	assert.Equal(t, 14, len(d.ExtraTags.Tags))
 
 	sort.Strings(d.ExtraTags.Tags)
-	assert.Equal(t, expectedTagArray, d.ExtraTags.Tags)
+	assert.Equal(t, "a1:valuea1", d.ExtraTags.Tags[0])
+	assert.Equal(t, "a2:valuea2", d.ExtraTags.Tags[1])
+	assert.Equal(t, "a3:valuea3", d.ExtraTags.Tags[2])
+	assert.Equal(t, "a4:valuea4", d.ExtraTags.Tags[3])
+	assert.Equal(t, "a_maj:valueamaj", d.ExtraTags.Tags[4])
+	assert.Equal(t, "account_id:123456789012", d.ExtraTags.Tags[5])
+	assert.Equal(t, architecture, d.ExtraTags.Tags[6])
+	assert.Equal(t, "aws_account:123456789012", d.ExtraTags.Tags[7])
+	assert.Equal(t, "dd_extension_version:xxx", d.ExtraTags.Tags[8])
+	assert.Equal(t, "function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function", d.ExtraTags.Tags[9])
+	assert.Equal(t, "functionname:my-function", d.ExtraTags.Tags[10])
+	assert.Equal(t, "region:us-east-1", d.ExtraTags.Tags[11])
+	assert.Equal(t, "resource:my-function", d.ExtraTags.Tags[12])
+	assert.True(t, d.ExtraTags.Tags[13] == "runtime:unknown" || d.ExtraTags.Tags[13] == "runtime:provided.al2")
+
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", d.ExecutionContext.ARN)
 	assert.Equal(t, "myRequestID", d.ExecutionContext.LastRequestID)
 }
 
 func TestComputeTimeout(t *testing.T) {
 	fakeCurrentTime := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
-	// add 10ms
+	// add 10m
 	fakeDeadLineInMs := fakeCurrentTime.UnixNano()/int64(time.Millisecond) + 10
 	safetyBuffer := 3 * time.Millisecond
 	assert.Equal(t, 7*time.Millisecond, computeTimeout(fakeCurrentTime, fakeDeadLineInMs, safetyBuffer))
+}
+
+func TestRemoveQualifierFromArnWithAlias(t *testing.T) {
+	invokedFunctionArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls:$latest"
+	functionArn := removeQualifierFromArn(invokedFunctionArn)
+	expectedArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls"
+	assert.Equal(t, functionArn, expectedArn)
+}
+
+func TestRemoveQualifierFromArnWithoutAlias(t *testing.T) {
+	invokedFunctionArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls"
+	functionArn := removeQualifierFromArn(invokedFunctionArn)
+	assert.Equal(t, functionArn, invokedFunctionArn)
 }

@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package replay
 
 import (
 	"errors"
+	"io/ioutil"
 	"os"
 	"reflect"
 	"sync"
@@ -33,7 +35,14 @@ func (m *memoryMap) header() *reflect.SliceHeader {
 	return (*reflect.SliceHeader)(unsafe.Pointer(m))
 }
 
-func getFileMap(path string) ([]byte, error) {
+// getFileContent returns a slice of bytes with the contents of the file specified in the path.
+// The mmap flag will try to Map the file so as to achieve reasonable performance with very large
+// files while not loading the entire thing into memory.
+func getFileContent(path string, mmap bool) ([]byte, error) {
+
+	if !mmap {
+		return ioutil.ReadFile(path)
+	}
 
 	f, err := os.Open(path)
 	if err != nil {

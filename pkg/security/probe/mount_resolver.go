@@ -22,7 +22,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -35,11 +35,7 @@ const (
 	deleteDelayTime = 5 * time.Second
 )
 
-// newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
-func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) {
-	var err error
-	var groupID uint64
-
+func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	// Has optional fields, which is a space separated list of values.
 	// Example: shared:2 master:7
 	if len(mnt.Optional) > 0 {
@@ -48,12 +44,20 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) 
 			if len(optionSplit) == 2 {
 				target, value := optionSplit[0], optionSplit[1]
 				if target == "shared" || target == "master" {
-					if groupID, err = strconv.ParseUint(value, 10, 64); err != nil {
-						return nil, err
-					}
+					groupID, err := strconv.ParseUint(value, 10, 32)
+					return uint32(groupID), err
 				}
 			}
 		}
+	}
+	return 0, nil
+}
+
+// newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
+func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) {
+	groupID, err := parseGroupID(mnt)
+	if err != nil {
+		return nil, err
 	}
 
 	// create a MountEvent out of the parsed MountInfo
@@ -62,7 +66,7 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) 
 		MountPointStr: mnt.Mountpoint,
 		RootStr:       mnt.Root,
 		MountID:       uint32(mnt.ID),
-		GroupID:       uint32(groupID),
+		GroupID:       groupID,
 		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
 		FSType:        mnt.FSType,
 	}, nil
@@ -395,6 +399,10 @@ func getSizeOfStructInode(probe *Probe) uint64 {
 		sizeOf = 632
 	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < skernel.Kernel4_16:
 		sizeOf = 608
+	case skernel.Kernel5_0 <= probe.kernelVersion.Code && probe.kernelVersion.Code < skernel.Kernel5_1:
+		sizeOf = 584
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_13:
+		sizeOf = 592
 	}
 
 	return sizeOf
@@ -408,6 +416,66 @@ func getSuperBlockMagicOffset(probe *Probe) uint64 {
 	}
 
 	return sizeOf
+}
+
+func getVFSLinkDentryPosition(probe *Probe) uint64 {
+	position := uint64(2)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 3
+	}
+
+	return position
+}
+
+func getVFSMKDirDentryPosition(probe *Probe) uint64 {
+	position := uint64(2)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 3
+	}
+
+	return position
+}
+
+func getVFSLinkTargetDentryPosition(probe *Probe) uint64 {
+	position := uint64(3)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 4
+	}
+
+	return position
+}
+
+func getVFSSetxattrDentryPosition(probe *Probe) uint64 {
+	position := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 2
+	}
+
+	return position
+}
+
+func getVFSRemovexattrDentryPosition(probe *Probe) uint64 {
+	position := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 2
+	}
+
+	return position
+}
+
+func getVFSRenameInputType(probe *Probe) uint64 {
+	inputType := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		inputType = 2
+	}
+
+	return inputType
 }
 
 // NewMountResolver instantiates a new mount resolver

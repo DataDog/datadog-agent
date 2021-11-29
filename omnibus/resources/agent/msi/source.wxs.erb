@@ -353,10 +353,11 @@
     <DirectoryRef Id="APPLICATIONDATADIRECTORY">
       <Component Id="datadog.yaml.example"
                  Guid="83461594-01AC-11E2-BE35-37EC6088709B"
-                 NeverOverwrite="yes"
-                 Permanent="yes">
+                 NeverOverwrite="no"
+                 Permanent="no">
         <File Id="datadog.yaml.example"
-            Name="datadog.yaml"
+            Name="datadog.yaml.example"
+            KeyPath="yes"
             Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
 
@@ -367,10 +368,11 @@
                  Permanent="yes">
           <File Id="system_probe.yaml.example"
             Name="system-probe.yaml"
+            KeyPath="yes"
             Source="$(var.EtcFiles)\system-probe.yaml.example"/>
         </Component>
       <?endif ?>
-      
+
 
       <Directory Id="checks.d" Name="checks.d">
         <Component Id="checks.d"
@@ -449,11 +451,11 @@
     </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
-    <Feature 
-      Id="MainApplication" 
-      Title="Datadog Agent" 
+    <Feature
+      Id="MainApplication"
+      Title="Datadog Agent"
       Level="1"
-      Absent="disallow" 
+      Absent="disallow"
       ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
         <ComponentRef Id="conffolder" />
         <ComponentGroupRef Id="ProjectDir" />
@@ -483,9 +485,9 @@
       <?if $(var.IncludeSysprobe) = true ?>
         <!-- don't install by default (indicated by level 100)  Only things with level
         <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
-        <Feature  Id="NPM" 
-                  Level="100"  
-                  Title="Network Performance Monitoring" 
+        <Feature  Id="NPM"
+                  Level="100"
+                  Title="Network Performance Monitoring"
                   ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
                   Absent="allow"
                   AllowAdvertise="no"
@@ -495,7 +497,7 @@
         </Feature>
       <?endif ?>
     </Feature>
-  
+
     <!-- UI Stuff: 100% Omnibus Generated -->
     <Icon Id="project.ico" SourceFile="Resources\assets\project_16x16.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />
@@ -561,7 +563,7 @@
 
            -->
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT PREVIOUSFOUND</Publish>
-      
+
 
       <?if $(var.IncludeSysprobe) = true ?>
         <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">PREVIOUSFOUND</Publish>
@@ -595,13 +597,13 @@
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="3">1</Publish>
       <Publish Dialog="SiteDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="SiteDlg">NOT PREVIOUSFOUND</Publish>
-      
+
 
       <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
 
-      
+
 
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="ApiKeyDlg">NOT APIKEY</Publish>
@@ -670,6 +672,7 @@
             LOGS_ENABLED=[LOGS_ENABLED]
             APM_ENABLED=[APM_ENABLED]
             PROCESS_ENABLED=[PROCESS_ENABLED]
+            PROCESS_DISCOVERY_ENABLED=[PROCESS_DISCOVERY_ENABLED]
             CMD_PORT=[CMD_PORT]
             SITE=[SITE]
             DD_URL=[DD_URL]
@@ -715,7 +718,7 @@
 
   </Product>
 </Wix>
-<!-- check 
+<!-- check
 HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\ddnpm
 
 -->

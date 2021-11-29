@@ -15,5 +15,7 @@ var (
 
 	globalVars = eval.VarMap{}
 
-	globalInstance = eval.NewInstance(globalVars, globalFunctions)
+	globalRegoInput = eval.RegoInputMap{}
+
+	globalInstance = eval.NewInstance(globalVars, globalFunctions, globalRegoInput)
 )

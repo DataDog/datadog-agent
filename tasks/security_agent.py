@@ -7,7 +7,7 @@ import tempfile
 from invoke import task
 
 from .build_tags import get_default_build_tags
-from .go import generate
+from .go import generate, golangci_lint, staticcheck, vet
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -144,8 +144,25 @@ def gen_mocks(ctx):
     Generate mocks.
     """
 
+    interfaces = [
+        "AuditClient",
+        "Builder",
+        "Clients",
+        "Configuration",
+        "DockerClient",
+        "Env",
+        "Evaluatable",
+        "Iterator",
+        "KubeClient",
+        "RegoConfiguration",
+        "Reporter",
+        "Scheduler",
+    ]
+
+    interface_regex = "|".join(f"^{i}$" for i in interfaces)
+
     with ctx.cd("./pkg/compliance"):
-        ctx.run("./gen_mocks.sh")
+        ctx.run("mockery --case snake -r --name=\"{}\"".format(interface_regex))
 
 
 @task
@@ -162,6 +179,17 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     }
 
     ctx.run(cmd.format(**args))
+
+
+def build_go_syscall_tester(ctx, build_dir):
+    syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
+    syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
+    ctx.run(
+        "go build -o {} -tags syscalltesters {}/syscall_go_tester.go ".format(
+            syscall_tester_exe_file, syscall_tester_go_dir
+        )
+    )
+    return syscall_tester_exe_file
 
 
 def build_syscall_x86_tester(ctx, build_dir, static=True):
@@ -192,9 +220,10 @@ def build_syscall_tester(ctx, build_dir, static=True):
 def build_embed_syscall_tester(ctx, static=True):
     syscall_tester_bin = build_syscall_tester(ctx, os.path.join(".", "bin"), static=static)
     syscall_x86_tester_bin = build_syscall_x86_tester(ctx, os.path.join(".", "bin"), static=static)
+    syscall_go_tester_bin = build_go_syscall_tester(ctx, os.path.join(".", "bin"))
     bundle_files(
         ctx,
-        [syscall_tester_bin, syscall_x86_tester_bin],
+        [syscall_tester_bin, syscall_x86_tester_bin, syscall_go_tester_bin],
         "bin",
         "pkg/security/tests/syscall_tester/bindata.go",
         "syscall_tester",
@@ -214,7 +243,14 @@ def build_functional_tests(
     build_flags='',
     bundle_ebpf=True,
     static=False,
+    skip_linters=False,
 ):
+    if not skip_linters:
+        targets = ['./pkg/security/tests']
+        vet(ctx, targets=targets, build_tags=[build_tags], arch=arch)
+        golangci_lint(ctx, targets=targets, build_tags=[build_tags], arch=arch)
+        staticcheck(ctx, targets=targets, build_tags=[build_tags], arch=arch)
+
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version)
 
     goenv = get_go_env(ctx, go_version)
@@ -254,6 +290,7 @@ def build_stress_tests(
     arch="x64",
     major_version='7',
     bundle_ebpf=True,
+    skip_linters=False,
 ):
     build_functional_tests(
         ctx,
@@ -263,6 +300,7 @@ def build_stress_tests(
         major_version=major_version,
         build_tags='stresstests',
         bundle_ebpf=bundle_ebpf,
+        skip_linters=skip_linters,
     )
 
 
@@ -304,6 +342,7 @@ def functional_tests(
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
     testflags='',
+    skip_linters=False,
 ):
     build_functional_tests(
         ctx,
@@ -312,6 +351,7 @@ def functional_tests(
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
+        skip_linters=skip_linters,
     )
 
     run_functional_tests(
@@ -369,6 +409,7 @@ def docker_functional_tests(
     arch="x64",
     major_version='7',
     testflags='',
+    skip_linters=False,
 ):
     build_functional_tests(
         ctx,
@@ -377,6 +418,7 @@ def docker_functional_tests(
         major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=True,
+        skip_linters=skip_linters,
     )
 
     dockerfile = """
@@ -432,9 +474,9 @@ RUN apt-get update -y \
 
 
 @task
-def generate_documentation(ctx, go_generate=False):
+def generate_cws_documentation(ctx, go_generate=False):
     if go_generate:
-        ctx.run("go generate ./pkg/security/...")
+        cws_go_generate(ctx)
 
     # secl docs
     ctx.run(
@@ -444,3 +486,10 @@ def generate_documentation(ctx, go_generate=False):
     ctx.run(
         "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend.schema.json --output ./docs/cloud-workload-security/backend.md"
     )
+
+
+@task
+def cws_go_generate(ctx):
+    with ctx.cd("./pkg/security/secl"):
+        ctx.run("go generate ./...")
+    ctx.run("go generate ./pkg/security/...")

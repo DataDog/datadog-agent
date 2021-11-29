@@ -16,6 +16,8 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -240,15 +242,28 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
 	if config.Datadog.IsSet(key(ns, "internal_profiling.enabled")) {
-		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "internal_profiling.enabled"))
-		a.ProfilingSite = config.Datadog.GetString("site")
-		a.ProfilingURL = config.Datadog.GetString("internal_profiling.profile_dd_url")
-		a.ProfilingEnvironment = config.Datadog.GetString("env")
-		a.ProfilingPeriod = config.Datadog.GetDuration("internal_profiling.period")
-		a.ProfilingCPUDuration = config.Datadog.GetDuration("internal_profiling.cpu_duration")
-		a.ProfilingMutexFraction = config.Datadog.GetInt("internal_profiling.mutex_profile_fraction")
-		a.ProfilingBlockRate = config.Datadog.GetInt("internal_profiling.block_profile_rate")
-		a.ProfilingWithGoroutines = config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
+		// allow full url override for development use
+		site := config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if site == "" {
+			s := config.Datadog.GetString("site")
+			if s == "" {
+				s = config.DefaultSite
+			}
+			site = fmt.Sprintf(profiling.ProfileURLTemplate, s)
+		}
+
+		v, _ := version.Agent()
+		a.ProfilingSettings = &profiling.Settings{
+			Site:                 site,
+			Env:                  config.Datadog.GetString("env"),
+			Service:              "process-agent",
+			Period:               config.Datadog.GetDuration("internal_profiling.period"),
+			CPUDuration:          config.Datadog.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     config.Datadog.GetInt("internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+		}
 	}
 
 	// Used to override container source auto-detection
@@ -301,13 +316,13 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 func (a *AgentConfig) initProcessDiscoveryCheck() {
 	root := key(ns, "process_discovery")
 
-	// Discovery check should be only enabled when process_config.process_discovery.enabled = true and
-	// process_config.enabled is set to "false". This effectively makes sure the check only runs when the process check is
-	// disabled, while also respecting the users wishes when they want to disable either the check or the process agent completely.
+	// Discovery check can only be enabled when regular process collection is not enabled.
+	// (process_config.process_discovery.enabled = true and process_config.enabled is not set to "true")
 	processAgentEnabled := strings.ToLower(config.Datadog.GetString(key(ns, "enabled")))
 	checkEnabled := config.Datadog.GetBool(key(root, "enabled"))
-	if checkEnabled && processAgentEnabled == "false" {
+	if checkEnabled && processAgentEnabled != "true" {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
+		a.Enabled = true
 
 		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
 		// We use a minimum of 10 minutes for this value.

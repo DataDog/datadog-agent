@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // FakeTagger implements the Tagger interface
@@ -51,7 +52,7 @@ func (f *FakeTagger) SetTagsFromInfo(tags []*collectors.TagInfo) {
 	f.store.ProcessTagInfo(tags)
 }
 
-// SetError allows to set an error to be returned when `Tag` or `TagBuilder` is called
+// SetError allows to set an error to be returned when `Tag` or `AccumulateTagsFor` is called
 // for this entity and cardinality
 func (f *FakeTagger) SetError(entity string, cardinality collectors.TagCardinality, err error) {
 	f.Lock()
@@ -74,7 +75,7 @@ func (f *FakeTagger) Stop() error {
 
 // Tag fake implementation
 func (f *FakeTagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-	tags, _ := f.store.Lookup(entity, cardinality)
+	tags := f.store.Lookup(entity, cardinality)
 
 	key := f.getKey(entity, cardinality)
 	if err := f.errors[key]; err != nil {
@@ -84,8 +85,8 @@ func (f *FakeTagger) Tag(entity string, cardinality collectors.TagCardinality) (
 	return tags, nil
 }
 
-// TagBuilder fake implementation
-func (f *FakeTagger) TagBuilder(entity string, cardinality collectors.TagCardinality, tb types.TagsBuilder) error {
+// AccumulateTagsFor fake implementation
+func (f *FakeTagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	tags, err := f.Tag(entity, cardinality)
 	if err != nil {
 		return err

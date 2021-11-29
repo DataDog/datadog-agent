@@ -63,6 +63,17 @@ func Test_getValueFromPDU(t *testing.T) {
 			nil,
 		},
 		{
+			"OctetString newline dont hexify",
+			gosnmp.SnmpPDU{
+				Name:  ".1.2.3",
+				Type:  gosnmp.OctetString,
+				Value: []byte("m\ny\rV\ta\n\r\tl"),
+			},
+			"1.2.3",
+			valuestore.ResultValue{Value: "m\ny\rV\ta\n\r\tl"},
+			nil,
+		},
+		{
 			"BitString",
 			gosnmp.SnmpPDU{
 				Name:  ".1.2.3",

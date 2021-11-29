@@ -5,6 +5,8 @@
 
 package event
 
+import "time"
+
 const (
 	// Passed is used to report successful result of a rule check (condition passed)
 	Passed = "passed"
@@ -28,4 +30,6 @@ type Event struct {
 	ResourceID       string      `json:"resource_id,omitempty"`
 	Tags             []string    `json:"tags"`
 	Data             interface{} `json:"data,omitempty"`
+	ExpireAt         time.Time   `json:"expire_at,omitempty"`
+	Evaluator        string      `json:"evaluator,omitempty"`
 }

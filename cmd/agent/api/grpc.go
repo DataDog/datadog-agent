@@ -136,31 +136,36 @@ func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.Age
 	eventCh := t.Subscribe(cardinality)
 	defer t.Unsubscribe(eventCh)
 
-	for events := range eventCh {
-		responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
-		for _, event := range events {
-			e, err := pbutils.Tagger2PbEntityEvent(event)
-			if err != nil {
-				log.Warnf("can't convert tagger entity to protobuf: %s", err)
-				continue
+	for {
+		select {
+		case events := <-eventCh:
+			responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
+			for _, event := range events {
+				e, err := pbutils.Tagger2PbEntityEvent(event)
+				if err != nil {
+					log.Warnf("can't convert tagger entity to protobuf: %s", err)
+					continue
+				}
+
+				responseEvents = append(responseEvents, e)
 			}
 
-			responseEvents = append(responseEvents, e)
-		}
+			err = grpc.DoWithTimeout(func() error {
+				return out.Send(&pb.StreamTagsResponse{
+					Events: responseEvents,
+				})
+			}, taggerStreamSendTimeout)
 
-		err = grpc.DoWithTimeout(func() error {
-			return out.Send(&pb.StreamTagsResponse{
-				Events: responseEvents,
-			})
-		}, taggerStreamSendTimeout)
-		if err != nil {
-			log.Warnf("error sending tagger event: %s", err)
-			telemetry.ServerStreamErrors.Inc()
-			return err
+			if err != nil {
+				log.Warnf("error sending tagger event: %s", err)
+				telemetry.ServerStreamErrors.Inc()
+				return err
+			}
+
+		case <-out.Context().Done():
+			return nil
 		}
 	}
-
-	return nil
 }
 
 // FetchEntity fetches an entity from the Tagger with the desired cardinality tags.

@@ -34,6 +34,7 @@
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tracer.c $S3_ARTIFACTS_URI/tracer.c.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime/http.c $S3_ARTIFACTS_URI/http.c.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security.c $S3_ARTIFACTS_URI/runtime-security.c.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime/conntrack.c $S3_ARTIFACTS_URI/conntrack.c.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime/oom-kill.c $S3_ARTIFACTS_URI/oom-kill.c.$ARCH

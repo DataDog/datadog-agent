@@ -697,4 +697,8 @@ func addConnections(a, b *ConnectionStats) {
 	if b.LastUpdateEpoch > a.LastUpdateEpoch {
 		a.LastUpdateEpoch = b.LastUpdateEpoch
 	}
+
+	if a.IPTranslation == nil {
+		a.IPTranslation = b.IPTranslation
+	}
 }

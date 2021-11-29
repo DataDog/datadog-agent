@@ -3,7 +3,7 @@ package encoding
 import (
 	"bytes"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/gogo/protobuf/jsonpb"
 )
@@ -65,6 +65,9 @@ func handleZeroValues(conns *model.Connections) {
 		}
 		if len(c.DnsStatsByDomainByQueryType) == 0 {
 			c.DnsStatsByDomainByQueryType = nil
+		}
+		if len(c.DnsStatsByDomainOffsetByQueryType) == 0 {
+			c.DnsStatsByDomainOffsetByQueryType = nil
 		}
 	}
 }

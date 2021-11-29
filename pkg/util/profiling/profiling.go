@@ -22,8 +22,6 @@ var (
 const (
 	// ProfileURLTemplate constant template for expected profiling endpoint URL.
 	ProfileURLTemplate = "https://intake.profile.%s/v1/input"
-	// ProfileCoreService default service for the core agent profiler.
-	ProfileCoreService = "datadog-agent"
 	// ProfilingLocalURLTemplate is the constant used to compute the URL of the local trace agent
 	ProfilingLocalURLTemplate = "http://%v/profiling/v1/input"
 	// DefaultProfilingPeriod defines the default profiling period
@@ -32,43 +30,45 @@ const (
 
 // Start initiates profiling with the supplied parameters;
 // this function is thread-safe.
-func Start(site, env, service string, period time.Duration, cpuDuration time.Duration, mutexFraction, blockRate int, withGoroutine bool, tags ...string) error {
+func Start(settings Settings) error {
 	mu.Lock()
 	defer mu.Unlock()
 	if running {
 		return nil
 	}
 
+	settings.applyDefaults()
+
 	types := []profiler.ProfileType{profiler.CPUProfile, profiler.HeapProfile}
-	if withGoroutine {
+	if settings.WithGoroutineProfile {
 		types = append(types, profiler.GoroutineProfile)
 	}
 
 	options := []profiler.Option{
-		profiler.WithEnv(env),
-		profiler.WithService(service),
-		profiler.WithURL(site),
-		profiler.WithPeriod(period),
+		profiler.WithEnv(settings.Env),
+		profiler.WithService(settings.Service),
+		profiler.WithURL(settings.Site),
+		profiler.WithPeriod(settings.Period),
 		profiler.WithProfileTypes(types...),
-		profiler.CPUDuration(cpuDuration),
-		profiler.WithTags(tags...),
+		profiler.CPUDuration(settings.CPUDuration),
+		profiler.WithTags(settings.Tags...),
 	}
 
 	// If block or mutex profiling was configured via runtime configuration, pass current
 	// values to profiler. This prevents profiler from resetting mutex profile rate to the
 	// default value; and enables collection of blocking profile data if it is enabled.
-	if mutexFraction > 0 {
-		options = append(options, profiler.MutexProfileFraction(mutexFraction))
+	if settings.MutexProfileFraction > 0 {
+		options = append(options, profiler.MutexProfileFraction(settings.MutexProfileFraction))
 	}
-	if blockRate > 0 {
-		options = append(options, profiler.BlockProfileRate(blockRate))
+	if settings.BlockProfileRate > 0 {
+		options = append(options, profiler.BlockProfileRate(settings.BlockProfileRate))
 	}
 
 	err := profiler.Start(options...)
 
 	if err == nil {
 		running = true
-		log.Debugf("Profiling started! Submitting to: %s", site)
+		log.Debugf("Profiling started! Submitting to: %s", settings.Site)
 	}
 
 	return err

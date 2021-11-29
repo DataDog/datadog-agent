@@ -93,7 +93,12 @@ def lint(ctx, targets):
 
     # add the /... suffix to the targets
     targets_list = ["{}/...".format(t) for t in targets]
-    result = ctx.run("revive {}".format(' '.join(targets_list)), hide=True)
+    cmd = "revive {}".format(' '.join(targets_list))
+    if ctx.config.run.echo:
+        # Hack so the command is printed if invoke -e is used
+        # We use hide=True later to hide the output, but it also hides the command
+        ctx.run(cmd, dry=True)
+    result = ctx.run(cmd, hide=True)
     if result.stdout:
         files = set()
         skipped_files = set()
@@ -237,8 +242,10 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
 
     tags = copy.copy(build_tags or get_default_build_tags(build="test", arch=arch))
     # these two don't play well with static checking
-    tags.remove("python")
-    tags.remove("jmx")
+    if "python" in tags:
+        tags.remove("python")
+    if "jmx" in tags:
+        tags.remove("jmx")
 
     ctx.run("staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(pkgs))
     # staticcheck exits with status 1 when it finds an issue, if we're here
@@ -259,7 +266,12 @@ def misspell(ctx, targets):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    result = ctx.run("misspell " + " ".join(targets), hide=True)
+    cmd = "misspell " + " ".join(targets)
+    if ctx.config.run.echo:
+        # Hack so the command is printed if invoke -e is used
+        # We use hide=True later to hide the output, but it also hides the command
+        ctx.run(cmd, dry=True)
+    result = ctx.run(cmd, hide=True)
     legit_misspells = []
     for found_misspell in result.stdout.split("\n"):
         if len(found_misspell.strip()) > 0:
@@ -361,21 +373,22 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
     new_licenses = get_licenses_list(ctx)
 
-    # check that all licenses have a non-"UNKNOWN" copyright
+    # check that all deps have a non-"UNKNOWN" copyright and license
     unknown_licenses = False
-    for license in new_licenses:
-        if license.endswith(',UNKNOWN'):
+    for line in new_licenses:
+        if ',UNKNOWN' in line:
             unknown_licenses = True
-            print("! {}".format(license))
+            print("! {}".format(line))
 
     if unknown_licenses:
         raise Exit(
             message=textwrap.dedent(
                 """\
-                At least one dependency's copyright could not be determined.
+                At least one dependency's license or copyright could not be determined.
 
-                Consult the dependency's source, update `.copyright-overrides.yml` accordingly, and
-                run `inv generate-licenses` to update {}."""
+                Consult the dependency's source, update
+                `.copyright-overrides.yml` or `.wwhrd.yml` accordingly, and run
+                `inv generate-licenses` to update {}."""
             ).format(filename),
             code=1,
         )

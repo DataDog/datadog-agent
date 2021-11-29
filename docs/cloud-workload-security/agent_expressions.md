@@ -30,6 +30,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 
 | SECL Event | Type | Definition | Agent Version |
 | ---------- | ---- | ---------- | ------------- |
+| `bpf` | Kernel | A BPF command was executed | 7.33 |
 | `capset` | Process | A process changed its capacity set | 7.27 |
 | `chmod` | File | A file’s permissions were changed | 7.27 |
 | `chown` | File | A file’s owner was changed | 7.27 |
@@ -50,8 +51,8 @@ Triggers are events that correspond to types of activity seen by the system. The
 ## Operators
 SECL operators are used to combine event attributes together into a full expression. The following operators are available:
 
-| SECL Operator         | Types            |  Definition                           | Agent Version |
-|-----------------------|------------------|---------------------------------------|---------------|
+| SECL Operator         | Types            |  Definition                              | Agent Version |
+|-----------------------|------------------|------------------------------------------|---------------|
 | `==`                  | Process          | Equal                                    | 7.27          |
 | `!=`                  | File             | Not equal                                | 7.27          |
 | `>`                   | File             | Greater                                  | 7.27          |
@@ -62,12 +63,37 @@ SECL operators are used to combine event attributes together into a full express
 | `^`                   | File             | Binary not                               | 7.27          |
 | `in [elem1, ...]`     | File             | Element is contained in list             | 7.27          |
 | `not in [elem1, ...]` | File             | Element is not contained in list         | 7.27          |
-| `[~pattern, ...]`     | File             | Regex pattern is (not) contained in list | 7.27          |
 | `=~`                  | File             | String matching                          | 7.27          |
+| `!~`                  | File             | String not matching                      | 7.27          |
 | `&`                   | File             | Binary and                               | 7.27          |
 | `|`                   | File             | Binary or                                | 7.27          |
 | `&&`                  | File             | Logical and                              | 7.27          |
 | `||`                  | File             | Logical or                               | 7.27          |
+
+## Patterns and regular expressions
+Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.
+
+| Format           |  Example             | Agent Version |
+|------------------|----------------------|---------------|
+| `~"pattern"`     | `~"/etc/*"`          | 7.27          |
+| `r"regexp"`      | `r"/etc/rc[0-9]+"`   | 7.27          |
+
+## Variables
+SECL variables are predefined variables that can be used as values or as part of values.
+
+For example, rule using a `process.pid` variable looks like this:
+
+
+{{< code-block lang="javascript" >}}
+open.file.path == "/proc/${process.pid}/maps"
+
+{{< /code-block >}}
+
+List of the available variables:
+
+| SECL Variable         |  Definition                           | Agent Version |
+|-----------------------|---------------------------------------|---------------|
+| `process.pid`         | Process PID                           | 7.33          |
 
 ## Helpers
 Helpers exist in SECL that enable users to write advanced rules without needing to rely on generic techniques such as regex.
@@ -172,6 +198,18 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.tty_name` | string | Name of the TTY associated with the process |
 | `process.uid` | int | UID of the process |
 | `process.user` | string | User of the process |
+
+### Event `bpf`
+
+A BPF command was executed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `bpf.cmd` | int | BPF command name |
+| `bpf.map.type` | int | Type of the eBPF map |
+| `bpf.prog.attach_type` | int | Attach type of the eBPF program |
+| `bpf.prog.type` | int | Type of the eBPF program |
+| `bpf.retval` | int | Return value of the syscall |
 
 ### Event `capset`
 
