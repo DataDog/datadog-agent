@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build orchestrator
 // +build orchestrator
 
 package orchestrator
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -126,6 +128,8 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	cluster.SetCacheStats(len(podList), len(podMsgs), orchestrator.K8sPod)
 
 	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
