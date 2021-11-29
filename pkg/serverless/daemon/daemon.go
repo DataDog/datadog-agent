@@ -59,12 +59,18 @@ type Daemon struct {
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
 
+<<<<<<< HEAD
 	// RuntimeWg is used to keep track of whether the runtime is currently handling an invocation.
 	// It should be reset when we start a new invocation, as we may start a new invocation before hearing that the last one finished.
 	RuntimeWg *sync.WaitGroup
 
 	// FlushWg is used to keep track of whether there is currently a flush in progress
 	FlushWg *sync.WaitGroup
+=======
+	// InvcWg is used to keep track of whether the daemon is doing any pending work
+	// before finishing an invocation
+	InvcWg *sync.WaitGroup
+>>>>>>> maxday/tag15
 
 	ExtraTags *serverlessLog.Tags
 
@@ -72,7 +78,11 @@ type Daemon struct {
 
 	// TellDaemonRuntimeDoneOnce asserts that TellDaemonRuntimeDone will be called at most once per invocation (at the end of the function OR after a timeout)
 	// this should be reset before each invocation
+<<<<<<< HEAD
 	TellDaemonRuntimeDoneOnce sync.Once
+=======
+	finishInvocationOnce sync.Once
+>>>>>>> maxday/tag15
 
 	// metricsFlushMutex ensures that only one metrics flush can be underway at a given time
 	metricsFlushMutex sync.Mutex
@@ -88,6 +98,11 @@ type Daemon struct {
 // The DogStatsD server is provided when ready (slightly later), to have the
 // hello route available as soon as possible. However, the HELLO route is blocking
 // to have a way for the runtime function to know when the Serverless Agent is ready.
+<<<<<<< HEAD
+=======
+// If the Flush route is called before the statsd server has been set, a 503
+// is returned by the HTTP route.
+>>>>>>> maxday/tag15
 func StartDaemon(addr string) *Daemon {
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
@@ -95,10 +110,17 @@ func StartDaemon(addr string) *Daemon {
 	daemon := &Daemon{
 		httpServer:        &http.Server{Addr: addr, Handler: mux},
 		mux:               mux,
+<<<<<<< HEAD
 		RuntimeWg:         &sync.WaitGroup{},
 		FlushWg:           &sync.WaitGroup{},
 		lastInvocations:   make([]time.Time, 0),
 		useAdaptiveFlush:  true,
+=======
+		InvcWg:            &sync.WaitGroup{},
+		lastInvocations:   make([]time.Time, 0),
+		useAdaptiveFlush:  true,
+		clientLibReady:    false,
+>>>>>>> maxday/tag15
 		flushStrategy:     &flush.AtTheEnd{},
 		ExtraTags:         &serverlessLog.Tags{},
 		ExecutionContext:  &serverlessLog.ExecutionContext{},
@@ -110,7 +132,11 @@ func StartDaemon(addr string) *Daemon {
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
+<<<<<<< HEAD
 	// start the HTTP server used to communicate with the runtime and the Lambda platform
+=======
+	// start the HTTP server used to communicate with the clients
+>>>>>>> maxday/tag15
 	go func() {
 		_ = daemon.httpServer.ListenAndServe()
 	}()
@@ -138,6 +164,7 @@ type Flush struct {
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
+<<<<<<< HEAD
 }
 
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
@@ -150,6 +177,15 @@ func (d *Daemon) HandleRuntimeDone() {
 	}
 
 	log.Debugf("The flush strategy %s has decided to flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
+=======
+	if !f.daemon.ShouldFlush(flush.Stopping, time.Now()) {
+		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", f.daemon.LogFlushStategy(), flush.Stopping)
+		f.daemon.FinishInvocation()
+		return
+	}
+
+	log.Debugf("The flush strategy %s has decided to flush at moment: %s", f.daemon.LogFlushStategy(), flush.Stopping)
+>>>>>>> maxday/tag15
 
 	// if the DogStatsD daemon isn't ready, wait for it.
 	if !d.MetricAgent.IsReady() {
@@ -159,8 +195,13 @@ func (d *Daemon) HandleRuntimeDone() {
 	}
 
 	go func() {
+<<<<<<< HEAD
 		d.TriggerFlush(false)
 		d.TellDaemonRuntimeDone()
+=======
+		f.daemon.TriggerFlush(false)
+		f.daemon.FinishInvocation()
+>>>>>>> maxday/tag15
 	}()
 }
 
@@ -215,8 +256,13 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 // flush may be continued on the next invocation.
 // In some circumstances, it may switch to another flush strategy after the flush.
 func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
+<<<<<<< HEAD
 	d.FlushWg.Add(1)
 	defer d.FlushWg.Done()
+=======
+	d.InvcWg.Add(1)
+	defer d.InvcWg.Done()
+>>>>>>> maxday/tag15
 
 	ctx, cancel := context.WithTimeout(context.Background(), FlushTimeout)
 
@@ -319,6 +365,7 @@ func (d *Daemon) Stop() {
 	log.Debug("Serverless agent shutdown complete")
 }
 
+<<<<<<< HEAD
 // TellDaemonRuntimeStarted tells the daemon that the runtime started handling an invocation
 func (d *Daemon) TellDaemonRuntimeStarted() {
 	// Reset the RuntimeWg on every new invocation.
@@ -332,6 +379,18 @@ func (d *Daemon) TellDaemonRuntimeStarted() {
 func (d *Daemon) TellDaemonRuntimeDone() {
 	d.TellDaemonRuntimeDoneOnce.Do(func() {
 		d.RuntimeWg.Done()
+=======
+// StartInvocation tells the daemon the invocation began
+func (d *Daemon) StartInvocation() {
+	d.finishInvocationOnce = sync.Once{}
+	d.InvcWg.Add(1)
+}
+
+// FinishInvocation finishes the current invocation
+func (d *Daemon) FinishInvocation() {
+	d.finishInvocationOnce.Do(func() {
+		d.InvcWg.Done()
+>>>>>>> maxday/tag15
 	})
 }
 

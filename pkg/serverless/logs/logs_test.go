@@ -471,6 +471,70 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 
 	logMessages := []logMessage{
 		{
+			stringRecord: "hi, log 2",
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	select {
+	case received := <-logChannel:
+		assert.NotNil(t, received)
+		assert.Equal(t, "myARN", received.Lambda.ARN)
+		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
+	}
+}
+
+func TestProcessLogMessageNoStringRecordPlatformLog(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+
+	logCollection := &CollectionRouteInfo{
+		ExecutionContext: &ExecutionContext{
+			ARN:           "myARN",
+			LastRequestID: "myRequestID",
+		},
+		LogsEnabled: true,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+	}
+
+	logMessages := []logMessage{
+		{
+			logType: logTypePlatformRuntimeDone,
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	select {
+	case <-logChannel:
+		assert.Fail(t, "We should not have received logs")
+	case <-time.After(100 * time.Millisecond):
+		// nothing to do here
+	}
+}
+
+func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+
+	logCollection := &CollectionRouteInfo{
+		ExecutionContext: &ExecutionContext{
+			ARN:           "myARN",
+			LastRequestID: "myRequestID",
+		},
+		LogsEnabled: true,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+	}
+
+	logMessages := []logMessage{
+		{
 			logType: logTypeFunction,
 		},
 	}
@@ -643,6 +707,29 @@ func TestUnmarshalJSONLogTypeIncorrectReportNotFatalReport(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
+}
+
+func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
+	message := logMessage{
+		logType: logTypePlatformRuntimeDone,
+		time:    time.Now(),
+		objectRecord: platformObjectRecord{
+			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+			runtimeDoneItem: runtimeDoneItem{
+				status: "success",
+			},
+		},
+	}
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+
+	metricsChan := make(chan []metrics.MetricSample, 1)
+	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
+	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
+	computeEnhancedMetrics := true
+	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan)
+	assert.Equal(t, startTime, executionContext.StartTime)
 }
 
 func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {

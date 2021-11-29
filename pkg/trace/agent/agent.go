@@ -241,6 +241,7 @@ func (a *Agent) Process(p *api.Payload) {
 					traceutil.SetMeta(span, k, v)
 				}
 			}
+			a.rewriteServerlessService(span)
 			a.obfuscator.Obfuscate(span)
 			Truncate(span)
 			if p.ClientComputedTopLevel {
@@ -477,4 +478,13 @@ func newEventProcessor(conf *config.AgentConfig) *event.Processor {
 // SetGlobalTagsUnsafe sets global tags to the agent configuration. Unsafe for concurrent use.
 func (a *Agent) SetGlobalTagsUnsafe(tags map[string]string) {
 	a.conf.GlobalTags = tags
+}
+
+func (a *Agent) rewriteServerlessService(span *pb.Span) {
+	if span.Service == "aws.lambda" && a.conf.GlobalTags != nil {
+		service := a.conf.GlobalTags["service"]
+		if len(service) > 0 {
+			span.Service = service
+		}
+	}
 }

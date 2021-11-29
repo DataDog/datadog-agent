@@ -171,7 +171,10 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
 			metricsChan := daemon.MetricAgent.GetMetricChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
+<<<<<<< HEAD
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), metricsChan)
+=======
+>>>>>>> maxday/tag15
 		}
 		daemon.Stop()
 		stopCh <- struct{}{}
