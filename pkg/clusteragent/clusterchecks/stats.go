@@ -56,7 +56,7 @@ func (h *Handler) getStats() *types.Stats {
 func (d *dispatcher) getStats() *types.Stats {
 	d.store.RLock()
 	defer d.store.RUnlock()
-	var checkNames map[string]struct{}
+	checkNames := make(map[string]struct{})
 	for _, m := range d.store.digestToConfig {
 		checkNames[m.Name] = struct{}{}
 	}
