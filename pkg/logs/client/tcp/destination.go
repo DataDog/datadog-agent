@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,9 +43,9 @@ func (d *Destination) ErrorStateChangeChan() chan bool {
 
 // Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
-func (d *Destination) Start(payload chan []byte, hasError chan bool) {
+func (d *Destination) Start(input chan *message.Payload, hasError chan bool, output chan *message.Payload) {
 	go func() {
-		for p := range payload {
+		for p := range input {
 			// TODO retry
 			if d.conn == nil {
 				var err error
@@ -59,12 +60,12 @@ func (d *Destination) Start(payload chan []byte, hasError chan bool) {
 				d.connCreationTime = time.Now()
 			}
 
-			metrics.BytesSent.Add(int64(len(p)))
-			metrics.TlmBytesSent.Add(float64(len(p)))
-			metrics.EncodedBytesSent.Add(int64(len(p)))
-			metrics.TlmEncodedBytesSent.Add(float64(len(p)))
+			metrics.BytesSent.Add(int64(len(p.Encoded)))
+			metrics.TlmBytesSent.Add(float64(len(p.Encoded)))
+			metrics.EncodedBytesSent.Add(int64(len(p.Encoded)))
+			metrics.TlmEncodedBytesSent.Add(float64(len(p.Encoded)))
 
-			content := d.prefixer.apply(p)
+			content := d.prefixer.apply(p.Encoded)
 			frame, err := d.delimiter.delimit(content)
 			if err != nil {
 				// the delimiter can fail when the payload can not be framed correctly.
@@ -77,6 +78,8 @@ func (d *Destination) Start(payload chan []byte, hasError chan bool) {
 				d.conn = nil
 				return // client.NewRetryableError(err)
 			}
+
+			output <- p
 
 			if d.connManager.ShouldReset(d.connCreationTime) {
 				log.Debug("Resetting TCP connection")

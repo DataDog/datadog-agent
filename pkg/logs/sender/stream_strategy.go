@@ -23,7 +23,7 @@ func (s *streamStrategy) Flush(ctx context.Context) {
 }
 
 // Send sends one message at a time and forwards them to the next stage of the pipeline.
-func (s *streamStrategy) Start(inputChan chan *message.Message, outputChan chan *Payload) {
+func (s *streamStrategy) Start(inputChan chan *message.Message, outputChan chan *message.Payload) {
 	go func() {
 		for msg := range inputChan {
 			if msg.Origin != nil {
@@ -33,7 +33,7 @@ func (s *streamStrategy) Start(inputChan chan *message.Message, outputChan chan 
 			metrics.LogsSent.Add(1)
 			metrics.TlmLogsSent.Inc()
 
-			outputChan <- &Payload{messages: []*message.Message{msg}, payload: msg.Content}
+			outputChan <- &message.Payload{Messages: []*message.Message{msg}, Encoded: msg.Content}
 		}
 	}()
 }

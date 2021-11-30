@@ -13,6 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
+// Payload represents an encoded collection of messages ready to be sent to the intake
+type Payload struct {
+	Messages []*Message
+	Encoded  []byte
+}
+
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
 	Content            []byte

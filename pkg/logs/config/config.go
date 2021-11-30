@@ -244,6 +244,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
+		// TODO: Should we use the main settings or not?
 		additionals[i].UseCompression = main.UseCompression
 		additionals[i].BackoffBase = main.BackoffBase
 		additionals[i].BackoffMax = main.BackoffMax

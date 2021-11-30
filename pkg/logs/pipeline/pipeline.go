@@ -26,7 +26,7 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
+func NewPipeline(outputChan chan *message.Payload, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
 	mainDestinations := getDestinations(endpoints, destinationsContext)
 	// var backupDestinations *client.Destinations
 	// if endpoints.Backup != nil {
@@ -34,7 +34,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	// }
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
-	senderInput := make(chan *sender.Payload, 1)
+	senderInput := make(chan *message.Payload, config.ChanSize)
 
 	var mainSender *sender.Sender
 	// var backupSender *sender.Sender

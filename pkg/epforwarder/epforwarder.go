@@ -188,7 +188,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, 100)
-	senderInput := make(chan *sender.Payload, 100)
+	senderInput := make(chan *message.Payload, 100)
 
 	var encoder sender.ContentEncoding
 	if endpoints.Main.UseCompression {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
@@ -104,32 +105,32 @@ func errorToTag(err error) string {
 }
 
 // Send sends a payload over HTTP,
-func (d *Destination) Start(payload chan []byte, hasError chan bool) {
+func (d *Destination) Start(input chan *message.Payload, hasError chan bool, output chan *message.Payload) {
 	go func() {
-		for p := range payload {
-			d.sendConcurrent(p, true, hasError)
+		for p := range input {
+			d.sendConcurrent(p, hasError, output)
 		}
 	}()
 }
 
-func (d *Destination) sendConcurrent(payload []byte, retry bool, hasError chan bool) {
+func (d *Destination) sendConcurrent(payload *message.Payload, hasError chan bool, output chan *message.Payload) {
 	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 	if cap(d.climit) == 0 {
-		d.sendAndRetry(payload, hasError)
+		d.sendAndRetry(payload, hasError, output)
 		return
 	}
 
 	go func() {
 		d.climit <- struct{}{}
 		go func() {
-			d.sendAndRetry(payload, hasError)
+			d.sendAndRetry(payload, hasError, output)
 			<-d.climit
 		}()
 	}()
 }
 
 // Send sends a payload over HTTP,
-func (d *Destination) sendAndRetry(payload []byte, hasError chan bool) {
+func (d *Destination) sendAndRetry(payload *message.Payload, hasError chan bool, output chan *message.Payload) {
 	for {
 		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
 		if d.blockedUntil.After(time.Now()) {
@@ -137,7 +138,7 @@ func (d *Destination) sendAndRetry(payload []byte, hasError chan bool) {
 			d.waitForBackoff()
 		}
 
-		err := d.unconditionalSend(payload)
+		err := d.unconditionalSend(payload.Encoded)
 
 		if err == context.Canceled {
 			log.Warnf("Could not send payload: %v", err)
@@ -168,6 +169,8 @@ func (d *Destination) sendAndRetry(payload []byte, hasError chan bool) {
 				d.Unlock()
 			}
 		}
+
+		output <- payload
 		return
 	}
 }

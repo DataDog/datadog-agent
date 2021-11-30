@@ -13,21 +13,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-type Payload struct {
-	messages []*message.Message
-	payload  []byte
-}
-
 // Strategy should contain all logic to send logs to a remote destination
 // and forward them the next stage of the pipeline.
 type Strategy interface {
-	Start(inputChan chan *message.Message, outputChan chan *Payload)
+	Start(inputChan chan *message.Message, outputChan chan *message.Payload)
 	Flush(ctx context.Context)
 }
 
 type destinationContext struct {
 	hasError     bool
-	input        chan []byte
+	input        chan *message.Payload
 	errorChanged chan bool
 }
 
@@ -41,8 +36,8 @@ func (d *destinationContext) updateAndGetHasError() bool {
 
 // Sender sends logs to different destinations.
 type Sender struct {
-	inputChan    chan *Payload
-	outputChan   chan *message.Message
+	inputChan    chan *message.Payload
+	outputChan   chan *message.Payload
 	hasError     chan bool
 	destinations *client.Destinations
 	strategy     Strategy
@@ -50,7 +45,7 @@ type Sender struct {
 }
 
 // NewSender returns a new sender.
-func NewSender(inputChan chan *Payload, outputChan chan *message.Message, destinations *client.Destinations) *Sender {
+func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations) *Sender {
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
@@ -82,19 +77,10 @@ func (s *Sender) run() {
 		s.done <- struct{}{}
 	}()
 
-	destinationContetexts := []*destinationContext{}
-	for _, input := range s.destinations.Reliable {
-		destCtx := &destinationContext{false, make(chan []byte, 100), make(chan bool, 1)}
-		destinationContetexts = append(destinationContetexts, destCtx)
-		input.Start(destCtx.input, destCtx.errorChanged)
-	}
+	destinationContetexts := buildDestinationContexts(s.destinations.Reliable, s.outputChan)
 
-	additionalContexts := []*destinationContext{}
-	for _, input := range s.destinations.Additionals {
-		destCtx := &destinationContext{false, make(chan []byte, 100), make(chan bool, 1)}
-		additionalContexts = append(additionalContexts, destCtx)
-		input.Start(destCtx.input, destCtx.errorChanged)
-	}
+	sink := additionalDestinationsSink()
+	additionalContexts := buildDestinationContexts(s.destinations.Additionals, sink)
 
 	for payload := range s.inputChan {
 
@@ -103,13 +89,14 @@ func (s *Sender) run() {
 			for _, destCtx := range destinationContetexts {
 				if !destCtx.updateAndGetHasError() {
 					sent = true
-					destCtx.input <- payload.payload
+					destCtx.input <- payload
 				}
 			}
 
 			if !sent {
-				// Using a busy loop is much simpler than trying to join an arbitrary number of channels.
-				// This has little overhead since it will only happen when there is no possible way to send logs
+				// Using a busy loop is much simpler than trying to join an arbitrary number of channels and
+				// wait for just one of them.  This is an exceptional case so it has little overhead since it
+				// will only happen when there is no possible way to send logs.
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
@@ -119,7 +106,7 @@ func (s *Sender) run() {
 			// on intermittent failures.
 			if destCtx.hasError {
 				select {
-				case destCtx.input <- payload.payload:
+				case destCtx.input <- payload:
 				default:
 				}
 			}
@@ -128,10 +115,30 @@ func (s *Sender) run() {
 		// Attempt to send to additional destination
 		for _, destCtx := range additionalContexts {
 			select {
-			case destCtx.input <- payload.payload:
+			case destCtx.input <- payload:
 			default:
 			}
 		}
-
 	}
+}
+
+// Drains the output channel from destinations that don't update the auditor.
+func additionalDestinationsSink() chan *message.Payload {
+	sink := make(chan *message.Payload, 100)
+	go func() {
+		for {
+			<-sink
+		}
+	}()
+	return sink
+}
+
+func buildDestinationContexts(destinations []client.Destination, output chan *message.Payload) []*destinationContext {
+	contexts := []*destinationContext{}
+	for _, input := range destinations {
+		destCtx := &destinationContext{false, make(chan *message.Payload, 100), make(chan bool, 1)}
+		contexts = append(contexts, destCtx)
+		input.Start(destCtx.input, destCtx.errorChanged, output)
+	}
+	return contexts
 }

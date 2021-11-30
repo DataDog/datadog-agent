@@ -73,7 +73,7 @@ func (s *batchStrategy) Flush(ctx context.Context) {
 }
 
 // Send accumulates messages to a buffer and sends them when the buffer is full or outdated.
-func (s *batchStrategy) Start(inputChan chan *message.Message, outputChan chan *Payload) {
+func (s *batchStrategy) Start(inputChan chan *message.Message, outputChan chan *message.Payload) {
 
 	go func() {
 		flushTicker := s.clock.Ticker(s.batchWait)
@@ -109,7 +109,7 @@ func (s *batchStrategy) Start(inputChan chan *message.Message, outputChan chan *
 	}()
 }
 
-func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *Payload) {
+func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *message.Payload) {
 	if m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
@@ -129,7 +129,7 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *Payl
 
 // flushBuffer sends all the messages that are stored in the buffer and forwards them
 // to the next stage of the pipeline.
-func (s *batchStrategy) flushBuffer(outputChan chan *Payload) {
+func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	if s.buffer.IsEmpty() {
 		return
 	}
@@ -138,7 +138,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *Payload) {
 	s.sendMessages(messages, outputChan)
 }
 
-func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *Payload) {
+func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *message.Payload) {
 	// TODO: move telemetry to sender?
 	metrics.LogsSent.Add(int64(len(messages)))
 	metrics.TlmLogsSent.Add(float64(len(messages)))
@@ -150,5 +150,5 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		return
 	}
 
-	outputChan <- &Payload{messages: messages, payload: encodedPayload}
+	outputChan <- &message.Payload{Messages: messages, Encoded: encodedPayload}
 }
