@@ -56,6 +56,7 @@ type Endpoint struct {
 	Origin    IntakeOrigin
 }
 
+// GetStatus returns the endpoint status
 func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	compression := "uncompressed"
 	if e.UseCompression {

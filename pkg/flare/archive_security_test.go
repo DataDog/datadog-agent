@@ -52,7 +52,7 @@ func TestCreateSecurityAgentArchive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			zipFilePath, err := CreateSecurityAgentArchive(test.local, logFilePath, nil)
+			zipFilePath, err := CreateSecurityAgentArchive(test.local, logFilePath, nil, nil)
 			defer os.Remove(zipFilePath)
 
 			assert.NoError(err)
