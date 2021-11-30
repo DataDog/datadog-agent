@@ -36,7 +36,7 @@ check_size_x64:
   variables:
     BINARY_NAME: datadog-agent-x64
     BASELINE_SIZE_IN_BYTES: 30609317
-  dependencies: ["build_serverless-deb_x64"]
+  needs: ["build_serverless-deb_x64"]
   extends: .check_size_common
 
 check_size_arm64:
@@ -44,5 +44,5 @@ check_size_arm64:
   variables:
     BINARY_NAME: datadog-agent-arm64
     BASELINE_SIZE_IN_BYTES: 30609317
-  dependencies: ["build_serverless-deb_arm64"]
+  needs: ["build_serverless-deb_arm64"]
   extends: .check_size_common
