@@ -131,7 +131,6 @@ func (f *cachingFactory) NewSliceBuilder(levels, capacity int) *SliceBuilder {
 
 // ParseDSD implements Factory.ParseDSD
 func (f *cachingFactory) ParseDSD(data []byte) (*Tags, error) {
-	// TODO: GO FASTER
 	return f.getCachedTags(byDSDHashCache, murmur3.Sum64(data), func() *Tags {
 		tags := strings.Split(string(data), ",")
 		return f.NewTags(tags)

@@ -57,7 +57,6 @@ func (tags *Tags) Len() int {
 
 // MarshalDSD returns a byte array containing comma-separated tags.
 func (tags *Tags) MarshalDSD() []byte {
-	// TODO: this could be much faster
 	return []byte(strings.Join(tags.tags, ","))
 }
 
