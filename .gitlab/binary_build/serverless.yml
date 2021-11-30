@@ -16,14 +16,16 @@
 
 build_serverless-deb_x64:
   extends: .build_serverless_common
-  BINARY_NAME: datadog-agent-x64
+  variables:
+    BINARY_NAME: datadog-agent-x64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["linux_x64_go_deps"]
 
 build_serverless-deb_arm64:
   extends: .build_serverless_common
-  BINARY_NAME: datadog-agent-arm64
+  variables:
+    BINARY_NAME: datadog-agent-arm64
   rules: !reference [.on_all_builds]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -31,14 +33,16 @@ build_serverless-deb_arm64:
 
 check_size_x64:
   # this baseline is the current binary size + 3%
-  BINARY_NAME: datadog-agent-x64
-  BASELINE_SIZE_IN_BYTES: 30609317
+  variables:
+    BINARY_NAME: datadog-agent-x64
+    BASELINE_SIZE_IN_BYTES: 30609317
   needs: ["build_serverless-deb_x64"]
   extends: .check_size_common
 
 check_size_arm64:
   # this baseline is the current binary size + 3%
-  BINARY_NAME: datadog-agent-arm64
-  BASELINE_SIZE_IN_BYTES: 30609317
+  variables:
+    BINARY_NAME: datadog-agent-arm64
+    BASELINE_SIZE_IN_BYTES: 30609317
   needs: ["build_serverless-deb_x64"]
   extends: .check_size_common
