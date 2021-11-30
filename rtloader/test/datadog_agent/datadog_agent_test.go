@@ -461,9 +461,9 @@ func TestObfuscateSql(t *testing.T) {
 			code: fmt.Sprintf(`
 	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
 	with open(r'%s', 'w') as f:
-		f.write(str(result['metadata']['comments']))
+		f.write(str(result['metadata']['comments'][0]))
 	`, tmpfile.Name()),
-			expected: "['-- SQL test comment']",
+			expected: "-- SQL test comment",
 		},
 		{
 			name: "Test metadata tables_csv",
