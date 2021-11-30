@@ -32,19 +32,15 @@ build_serverless-deb_arm64:
   needs: ["linux_arm64_go_deps"]
 
 check_size_x64:
-  needs:
-    - job: build_serverless-deb_x64
+  extends: .check_size_common
   variables:
     BINARY_NAME: datadog-agent-x64
     # this baseline is the current binary size + 3%
     BASELINE_SIZE_IN_BYTES: 30609317
-  extends: .check_size_common
 
 check_size_arm64:
-  needs:
-    - job: build_serverless-deb_arm64
+  extends: .check_size_common
   variables:
     BINARY_NAME: datadog-agent-arm64
     # this baseline is the current binary size + 3%
     BASELINE_SIZE_IN_BYTES: 30609317
-  extends: .check_size_common
