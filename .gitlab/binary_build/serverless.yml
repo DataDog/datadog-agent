@@ -7,7 +7,7 @@
     - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless -o $BINARY_NAME
 
 .check_size_common:
-  stage: binary_build
+  stage: size_check
   script:
     - export CURRENT_SIZE_IN_BYTES=$(ls -l $BINARY_NAME | awk '{print $5}')
     - echo "Current extension size $CURRENT_SIZE_IN_BYTES bytes"
