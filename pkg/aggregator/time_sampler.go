@@ -95,9 +95,9 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 }
 
 func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
-	var rawSeries []*metrics.Serie
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	counterContextsToDelete := map[ckey.ContextKey]struct{}{}
+	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
 
 	if len(s.metricsByTimestamp) > 0 {
 		for bucketTimestamp, contextMetrics := range s.metricsByTimestamp {
@@ -109,8 +109,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 			// Add a 0 sample to all the counters that are not expired.
 			// It is ok to add 0 samples to a counter that was already sampled for real in the bucket, since it won't change its value
 			s.countersSampleZeroValue(bucketTimestamp, contextMetrics, counterContextsToDelete)
-
-			rawSeries = append(rawSeries, s.flushContextMetrics(bucketTimestamp, contextMetrics)...)
+			contextMetricsFlusher.Append(float64(bucketTimestamp), contextMetrics)
 
 			delete(s.metricsByTimestamp, bucketTimestamp)
 		}
@@ -121,16 +120,21 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 		contextMetrics := metrics.MakeContextMetrics()
 
 		s.countersSampleZeroValue(cutoffTime-s.interval, contextMetrics, counterContextsToDelete)
-
-		rawSeries = append(rawSeries, s.flushContextMetrics(cutoffTime-s.interval, contextMetrics)...)
+		contextMetricsFlusher.Append(float64(cutoffTime-s.interval), contextMetrics)
 	}
+
+	var series []*metrics.Serie
+	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
+		// Note: rawSeries is reused at each call
+		series = append(series, s.dedupSerieBySerieSignature(rawSeries)...)
+	})
 
 	// Delete the contexts associated to an expired counter
 	for context := range counterContextsToDelete {
 		delete(s.counterLastSampledByContext, context)
 	}
 
-	return s.dedupSerieBySerieSignature(rawSeries)
+	return series
 }
 
 func (s *TimeSampler) dedupSerieBySerieSignature(rawSeries []*metrics.Serie) []*metrics.Serie {
@@ -195,9 +199,10 @@ func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSe
 	return series, sketches
 }
 
-// flushContextMetrics flushes the passed contextMetrics, handles its errors, and returns its series
-func (s *TimeSampler) flushContextMetrics(timestamp int64, contextMetrics metrics.ContextMetrics) []*metrics.Serie {
-	series, errors := contextMetrics.Flush(float64(timestamp))
+// flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,
+// and call several times `callback`, each time with series with same context key
+func (s *TimeSampler) flushContextMetrics(contextMetricsFlusher *metrics.ContextMetricsFlusher, callback func([]*metrics.Serie)) {
+	errors := contextMetricsFlusher.FlushAndClear(callback)
 	for ckey, err := range errors {
 		context, ok := s.contextResolver.get(ckey)
 		if !ok {
@@ -206,7 +211,6 @@ func (s *TimeSampler) flushContextMetrics(timestamp int64, contextMetrics metric
 		}
 		log.Infof("No value returned for dogstatsd metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
 	}
-	return series
 }
 
 func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics, counterContextsToDelete map[ckey.ContextKey]struct{}) {
