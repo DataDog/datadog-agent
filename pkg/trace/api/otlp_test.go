@@ -179,7 +179,7 @@ func TestOTLPReceiver(t *testing.T) {
 			case p := <-out:
 				assert.Equal(t, "go", p.Source.Lang)
 				assert.Equal(t, "opentelemetry_grpc_v1", p.Source.EndpointVersion)
-				assert.Len(t, p.Traces, 1)
+				assert.Len(t, p.TracerPayload.Chunks, 1)
 				ps[i] = p
 			case <-timeout:
 				t.Fatal("timed out")
@@ -474,6 +474,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 				Error:    1,
 				Meta: map[string]string{
 					"name":                            "john",
+					"otel.trace_id":                   "72df520af2bde7a5240031ead750e5f3",
 					"env":                             "staging",
 					"instrumentation_library.name":    "ddtracer",
 					"instrumentation_library.version": "v2",
@@ -487,9 +488,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"error.stack":                     "1/2/3",
 				},
 				Metrics: map[string]float64{
-					"_sampling_priority_v1": 1,
-					"name":                  1.2,
-					"count":                 2,
+					"name":  1.2,
+					"count": 2,
 				},
 				Type: "web",
 			},
@@ -564,6 +564,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"env":                             "prod",
 					"deployment.environment":          "prod",
 					"instrumentation_library.name":    "ddtracer",
+					"otel.trace_id":                   "72df520af2bde7a5240031ead750e5f3",
 					"instrumentation_library.version": "v2",
 					"service.version":                 "v1.2.3",
 					"trace_state":                     "state",
@@ -577,9 +578,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"peer.service":                    "userbase",
 				},
 				Metrics: map[string]float64{
-					"_sampling_priority_v1": 1,
-					"name":                  1.2,
-					"count":                 2,
+					"name":  1.2,
+					"count": 2,
 				},
 				Type: "web",
 			},
@@ -658,6 +658,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"service.version":                 "v1.2.3",
 					"trace_state":                     "state",
 					"version":                         "v1.2.3",
+					"otel.trace_id":                   "72df520af2bde7a5240031ead750e5f3",
 					"events":                          "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.40\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"error.msg":                       "Out of memory",
 					"error.type":                      "mem",
@@ -666,9 +667,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"http.route":                      "/path",
 				},
 				Metrics: map[string]float64{
-					"_sampling_priority_v1": 1,
-					"name":                  1.2,
-					"count":                 2,
+					"name":  1.2,
+					"count": 2,
 				},
 				Type: "web",
 			},

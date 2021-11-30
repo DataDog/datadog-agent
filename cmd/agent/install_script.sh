@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.6.0.post
+install_script_version=1.7.1.post
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -509,11 +509,13 @@ elif [ "$OS" = "SUSE" ]; then
   
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
 
+  # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
+  agent_minor_version_without_patch="${agent_minor_version%.*}"
   # ".32" is the latest version supported for OpenSUSE < 15 and SLES < 12
   # we explicitly test for SUSE11 = "yes", as some SUSE11 don't have /etc/os-release, thus SUSE_VER is empty
   if [ "$DISTRIBUTION" == "openSUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 15 ]; }; then
-      if [ -n "$agent_minor_version" ]; then
-          if [ "$agent_minor_version" -ge "33" ]; then
+      if [ -n "$agent_minor_version_without_patch" ]; then
+          if [ "$agent_minor_version_without_patch" -ge "33" ]; then
               printf "\033[31mopenSUSE < 15 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
               exit;
           fi
@@ -525,8 +527,8 @@ elif [ "$OS" = "SUSE" ]; then
       fi
   fi
   if [ "$DISTRIBUTION" == "SUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 12 ]; }; then
-      if [ -n "$agent_minor_version" ]; then
-          if [ "$agent_minor_version" -ge "33" ]; then
+      if [ -n "$agent_minor_version_without_patch" ]; then
+          if [ "$agent_minor_version_without_patch" -ge "33" ]; then
               printf "\033[31mSLES < 12 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
               exit;
           fi
@@ -546,7 +548,11 @@ elif [ "$OS" = "SUSE" ]; then
   fi
   echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-  $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  if [ -z "$sudo_cmd" ]; then
+    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  else
+    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  fi
 
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.

@@ -116,9 +116,8 @@ func TestBuildMetricBlocklist(t *testing.T) {
 	expected := []string{
 		"user.defined.a",
 		"user.defined.b",
-		"aws.lambda.enhanced.invocations",
+		invocationsMetric,
 	}
 	result := buildMetricBlocklist(userProvidedBlocklist)
 	assert.Equal(t, expected, result)
-
 }

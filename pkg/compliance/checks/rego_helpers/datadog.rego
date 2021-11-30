@@ -9,6 +9,10 @@ raw_finding(status, resource_type, resource_id, event_data) = f {
 	}
 }
 
+kubernetes_cluster_resource_id = id {
+	id := sprintf("%s_kubernetes_cluster", [input.context.kubernetes_cluster])
+}
+
 docker_container_resource_id(c) = id {
 	id := sprintf("%s_%s", [input.context.hostname, cast_string(c.id)])
 }
@@ -22,16 +26,30 @@ docker_daemon_resource_id = id {
 	id := sprintf("%s_daemon", [input.context.hostname])
 }
 
+kubernetes_master_node_resource_id = id {
+	id := sprintf("%s_kubernetes_master_node", [input.context.hostname])
+}
+
+kubernetes_worker_node_resource_id = id {
+	id := sprintf("%s_kubernetes_worker_node", [input.context.hostname])
+}
+
 docker_network_resource_id(n) = id {
 	id := sprintf("%s_%s", [input.context.hostname, cast_string(n.id)])
 }
 
 passed_finding(resource_type, resource_id, event_data) = f {
-	f := raw_finding(true, resource_type, resource_id, event_data)
+	f := raw_finding("passed", resource_type, resource_id, event_data)
 }
 
 failing_finding(resource_type, resource_id, event_data) = f {
-	f := raw_finding(false, resource_type, resource_id, event_data)
+	f := raw_finding("failing", resource_type, resource_id, event_data)
+}
+
+error_finding(resource_type, resource_id, error_msg) = f {
+	f := raw_finding("error", resource_type, resource_id, {
+		"error": error_msg
+	})
 }
 
 docker_container_data(c) = d {

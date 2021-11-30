@@ -24,7 +24,7 @@ def get_dev_path():
 
 
 def run_make_command(ctx, command=""):
-    ctx.run("make -C {} {}".format(get_rtloader_build_path(), command))
+    ctx.run(f"make -C {get_rtloader_build_path()} {command}")
 
 
 def get_cmake_cache_path(rtloader_path):
@@ -59,9 +59,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
     if cmake_options.find("-G") == -1:
         cmake_options += " -G \"Unix Makefiles\""
 
-    cmake_args = cmake_options + " -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={}".format(
-        install_prefix or dev_path
-    )
+    cmake_args = cmake_options + f" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={install_prefix or dev_path}"
 
     python_runtimes = python_runtimes.split(',')
 
@@ -80,7 +78,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
     clear_cmake_cache(rtloader_build_path, settings)
 
     for option, value in settings.items():
-        cmake_args += " -D{}={} ".format(option, value)
+        cmake_args += f" -D{option}={value} "
 
     if arch == "x86":
         cmake_args += " -DARCH_I386=ON"
@@ -94,7 +92,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
         else:
             raise
 
-    ctx.run("cd {} && cmake {} {}".format(rtloader_build_path, cmake_args, get_rtloader_path()))
+    ctx.run(f"cd {rtloader_build_path} && cmake {cmake_args} {get_rtloader_path()}")
     run_make_command(ctx)
 
 
@@ -112,9 +110,9 @@ def clean(_):
     for p in [include_path, lib_path, rtloader_build_path]:
         try:
             shutil.rmtree(p)
-            print("Successfully cleaned '{}'".format(p))
+            print(f"Successfully cleaned '{p}'")
         except FileNotFoundError:
-            print("Nothing to clean up '{}'".format(p))
+            print(f"Nothing to clean up '{p}'")
 
 
 @task
@@ -124,7 +122,7 @@ def install(ctx):
 
 @task
 def test(ctx):
-    ctx.run("make -C {}/test run".format(get_rtloader_build_path()))
+    ctx.run(f"make -C {get_rtloader_build_path()}/test run")
 
 
 @task
@@ -136,7 +134,7 @@ def format(ctx, raise_if_changed=False):
         if len(changed_files) != 0:
             print("Following files were not correctly formated:")
             for f in changed_files:
-                print("  - {}".format(f))
+                print(f"  - {f}")
             raise Exit(code=1)
 
 
@@ -151,17 +149,19 @@ def generate_doc(ctx):
     rtloader_path = get_rtloader_path()
 
     # Clean up Doxyfile options that are not supported on the version of Doxygen used
-    result = ctx.run("doxygen -u '{}/doxygen/Doxyfile'".format(rtloader_path), warn=True)
+    result = ctx.run(f"doxygen -u '{rtloader_path}/doxygen/Doxyfile'", warn=True)
     if result.exited != 0:
         print("Fatal error encountered while trying to clean up the Doxyfile.")
         raise Exit(code=result.exited)
 
     # doxygen puts both errors and warnings in stderr
-    result = ctx.run("doxygen '{0}/doxygen/Doxyfile' 2>'{0}/doxygen/errors.log'".format(rtloader_path), warn=True)
+    result = ctx.run(
+        "doxygen '{0}/doxygen/Doxyfile' 2>'{0}/doxygen/errors.log'".format(rtloader_path), warn=True  # noqa: FS002
+    )
 
     if result.exited != 0:
         print("Fatal error encountered while trying to generate documentation.")
-        print("See {0}/doxygen/errors.log for details.".format(rtloader_path))
+        print(f"See {rtloader_path}/doxygen/errors.log for details.")
         raise Exit(code=result.exited)
 
     errors, warnings = [], []
@@ -173,7 +173,7 @@ def generate_doc(ctx):
             warnings.append(entry)
 
     # Separate warnings from errors
-    with open("{}/doxygen/errors.log".format(rtloader_path)) as errfile:
+    with open(f"{rtloader_path}/doxygen/errors.log") as errfile:
         currententry = ""
         for line in errfile.readlines():
             if 'error:' in line or 'warning:' in line:  # We get to a new entry, flush current one
@@ -184,10 +184,10 @@ def generate_doc(ctx):
 
         flushentry(currententry)  # Flush last entry
 
-        print("\033[93m{}\033[0m".format("\n".join(warnings)))
-        print("\033[91m{}\033[0m".format("\n".join(errors)))
-        print("Found {} error(s) and {} warning(s) while generating documentation.".format(len(errors), len(warnings)))
-        print("The full list is available in {}/doxygen/errors.log.".format(rtloader_path))
+        print("\033[93m{}\033[0m".format("\n".join(warnings)))  # noqa: FS002
+        print("\033[91m{}\033[0m".format("\n".join(errors)))  # noqa: FS002
+        print(f"Found {len(errors)} error(s) and {len(warnings)} warning(s) while generating documentation.")
+        print(f"The full list is available in {rtloader_path}/doxygen/errors.log.")
 
     # Exit with non-zero code if an error has been found
     if len(errors) > 0:

@@ -2,13 +2,20 @@
 
 package http
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+)
 
 type httpStatKeeper struct {
 	stats      map[Key]RequestStats
 	incomplete map[Key]httpTX
 	maxEntries int
 	telemetry  *telemetry
+
+	// replace rules for HTTP path
+	replaceRules []*config.ReplaceRule
 
 	// http path buffer
 	buffer []byte
@@ -18,14 +25,15 @@ type httpStatKeeper struct {
 	interned map[string]string
 }
 
-func newHTTPStatkeeper(maxEntries int, telemetry *telemetry) *httpStatKeeper {
+func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	return &httpStatKeeper{
-		stats:      make(map[Key]RequestStats),
-		incomplete: make(map[Key]httpTX),
-		maxEntries: maxEntries,
-		buffer:     make([]byte, HTTPBufferSize),
-		interned:   make(map[string]string),
-		telemetry:  telemetry,
+		stats:        make(map[Key]RequestStats),
+		incomplete:   make(map[Key]httpTX),
+		maxEntries:   c.MaxHTTPStatsBuffered,
+		replaceRules: c.HTTPReplaceRules,
+		buffer:       make([]byte, HTTPBufferSize),
+		interned:     make(map[string]string),
+		telemetry:    telemetry,
 	}
 }
 
@@ -51,7 +59,13 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]RequestStats {
 }
 
 func (h *httpStatKeeper) add(tx httpTX) {
-	key := h.newKey(tx)
+	path, rejected := h.processHTTPPath(tx)
+	if rejected {
+		atomic.AddInt64(&h.telemetry.rejected, 1)
+		return
+	}
+
+	key := h.newKey(tx, path)
 	stats, ok := h.stats[key]
 	if !ok && len(h.stats) >= h.maxEntries {
 		atomic.AddInt64(&h.telemetry.dropped, 1)
@@ -89,6 +103,16 @@ func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
 		request, response = response, request
 	}
 
+	if request.request_started == 0 || response.response_status_code == 0 || request.request_started > response.response_last_seen {
+		// This means we can't join these parts as they don't belong to the same transaction.
+		// In this case, as a best-effort we override the incomplete entry with the latest one
+		// we got from eBPF, so it can be joined by it's other half at a later moment.
+		// This can happen because we can get out-of-order half transactions from eBPF
+		atomic.AddInt64(&h.telemetry.dropped, 1)
+		h.incomplete[key] = tx
+		return
+	}
+
 	// Merge response into request
 	request.response_status_code = response.response_status_code
 	request.response_last_seen = response.response_last_seen
@@ -96,10 +120,7 @@ func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
 	delete(h.incomplete, key)
 }
 
-func (h *httpStatKeeper) newKey(tx httpTX) Key {
-	path := tx.Path(h.buffer)
-	pathString := h.intern(path)
-
+func (h *httpStatKeeper) newKey(tx httpTX, path string) Key {
 	return Key{
 		SrcIPHigh: uint64(tx.tup.saddr_h),
 		SrcIPLow:  uint64(tx.tup.saddr_l),
@@ -107,9 +128,26 @@ func (h *httpStatKeeper) newKey(tx httpTX) Key {
 		DstIPHigh: uint64(tx.tup.daddr_h),
 		DstIPLow:  uint64(tx.tup.daddr_l),
 		DstPort:   uint16(tx.tup.dport),
-		Path:      pathString,
+		Path:      path,
 		Method:    Method(tx.request_method),
 	}
+}
+
+func (h *httpStatKeeper) processHTTPPath(tx httpTX) (pathStr string, rejected bool) {
+	path := tx.Path(h.buffer)
+
+	for _, r := range h.replaceRules {
+		if r.Re.Match(path) {
+			if r.Repl == "" {
+				// this is a "drop" rule
+				return "", true
+			}
+
+			path = r.Re.ReplaceAll(path, []byte(r.Repl))
+		}
+	}
+
+	return h.intern(path), false
 }
 
 func (h *httpStatKeeper) intern(b []byte) string {

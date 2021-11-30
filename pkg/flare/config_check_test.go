@@ -58,7 +58,7 @@ func TestContainerExclusionRulesInfo(t *testing.T) {
 			config := newConfig(test.configType, test.excluded)
 
 			var result bytes.Buffer
-			PrintConfig(&result, config)
+			PrintConfig(&result, config, "")
 
 			if test.expectMsg {
 				assert.Contains(t, result.String(), outputMsgs[test.configType])

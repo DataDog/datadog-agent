@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package ecs
@@ -106,15 +107,22 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 			continue
 		}
 
-		arnParts := strings.Split(task.Arn, "/")
-		taskID := arnParts[len(arnParts)-1]
-		taskContainers, containerEvents := c.parseTaskContainers(task)
 		entityID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindECSTask,
 			ID:   task.Arn,
 		}
 
-		c.expire.Update(entityID, now)
+		if created := c.expire.Update(entityID, now); !created {
+			// if the task already existed in the store, we don't
+			// try to updated to avoid too many calls to the V3
+			// metadata API, as it's very easy to hit throttling
+			// limits.
+			continue
+		}
+
+		arnParts := strings.Split(task.Arn, "/")
+		taskID := arnParts[len(arnParts)-1]
+		taskContainers, containerEvents := c.parseTaskContainers(task)
 
 		entity := &workloadmeta.ECSTask{
 			EntityID: entityID,
@@ -152,9 +160,20 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 					entity.ContainerInstanceTags = taskWithTags.ContainerInstanceTags
 				} else {
 					log.Errorf("failed to get task with tags from metadata v3 API: %s", err)
+
+					// forget this task so this gets
+					// retried on the next pull. we do
+					// still produce an ECSTask with
+					// partial data.
+					c.expire.Remove(entityID)
 				}
 			} else {
 				log.Errorf("failed to get client for metadata v3 API from task %q and the following containers: %v", task.Arn, taskContainers)
+
+				// forget this task so this gets retried on the
+				// next pull. we do still produce an ECSTask
+				// with partial data.
+				c.expire.Remove(entityID)
 			}
 		}
 

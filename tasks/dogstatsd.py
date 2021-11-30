@@ -26,7 +26,7 @@ from .utils import (
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 23 * 1024
+MAX_BINARY_SIZE = 30 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 
@@ -66,14 +66,10 @@ def build(
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run(
-            "windmc --target {target_arch}  -r cmd/dogstatsd/windows_resources cmd/dogstatsd/windows_resources/dogstatsd-msg.mc".format(
-                target_arch=windres_target
-            )
+            f"windmc --target {windres_target}  -r cmd/dogstatsd/windows_resources cmd/dogstatsd/windows_resources/dogstatsd-msg.mc"
         )
         ctx.run(
-            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/dogstatsd/windows_resources/dogstatsd.rc --target {target_arch} -O coff -o cmd/dogstatsd/rsrc.syso".format(
-                maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
-            )
+            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/dogstatsd/windows_resources/dogstatsd.rc --target {windres_target} -O coff -o cmd/dogstatsd/rsrc.syso"
         )
 
     if static:
@@ -144,7 +140,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
         build(ctx, rebuild=rebuild, race=race, build_include=build_include, build_exclude=build_exclude)
 
     target = os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd"))
-    ctx.run("{} start".format(target))
+    ctx.run(f"{target} start")
 
 
 @task
@@ -182,11 +178,11 @@ def size_test(ctx, skip_build=False):
     size = stat_info.st_size / 1024
 
     if size > MAX_BINARY_SIZE:
-        print("DogStatsD static build size too big: {} kB".format(size))
+        print(f"DogStatsD static build size too big: {size} kB")
         print("This means your PR added big classes or dependencies in the packages dogstatsd uses")
         raise Exit(code=1)
 
-    print("DogStatsD static build size OK: {} kB".format(size))
+    print(f"DogStatsD static build size OK: {size} kB")
 
 
 @task
@@ -213,7 +209,7 @@ def omnibus_build(
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("DSD_OMNIBUS_BASE_DIR")
     if base_dir:
-        overrides.append("base_dir:{}".format(base_dir))
+        overrides.append(f"base_dir:{base_dir}")
 
     overrides_cmd = ""
     if overrides:
@@ -224,7 +220,7 @@ def omnibus_build(
 
         cmd = "bundle install"
         if gem_path:
-            cmd += " --path {}".format(gem_path)
+            cmd += f" --path {gem_path}"
         ctx.run(cmd, env=env)
 
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
@@ -267,28 +263,25 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if install_deps:
         deps(ctx)
 
-    test_args = {
-        "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
-        "race_opt": "-race" if race else "",
-        "exec_opts": "",
-    }
+    go_build_tags = " ".join(get_default_build_tags(build="test", arch=arch))
+    race_opt = "-race" if race else ""
+    exec_opts = ""
 
     # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
     # to the call, we don't want them because while calling invoke below, invoke
     # thinks that the parameters are for it to interpret.
     # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
-        test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
+        exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+    go_cmd = f'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
         "./test/integration/dogstatsd/...",
     ]
 
     for prefix in prefixes:
-        ctx.run("{} {}".format(go_cmd, prefix))
+        ctx.run(f"{go_cmd} {prefix}")
 
 
 @task
@@ -306,17 +299,17 @@ def image_build(ctx, arch='amd64', skip_build=False):
     if not skip_build:
         build(ctx, rebuild=True, static=True)
     if not os.path.exists(src):
-        print("Could not find dogstatsd static binary at {} ".format(src))
+        print(f"Could not find dogstatsd static binary at {src} ")
         raise Exit(code=1)
     if not os.path.exists(dst):
         os.makedirs(dst)
 
     shutil.copy(src, dst)
     build_context = "Dockerfiles/dogstatsd/alpine"
-    dockerfile_path = "{}/Dockerfile".format(arch)
+    dockerfile_path = f"{arch}/Dockerfile"
 
     client.images.build(path=build_context, dockerfile=dockerfile_path, rm=True, tag=DOGSTATSD_TAG)
-    ctx.run("rm -rf {}/static".format(build_context))
+    ctx.run(f"rm -rf {build_context}/static")
 
 
 @task

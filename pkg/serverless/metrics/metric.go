@@ -118,5 +118,5 @@ func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarder
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {
-	return append(userProvidedList, "aws.lambda.enhanced.invocations")
+	return append(userProvidedList, invocationsMetric)
 }

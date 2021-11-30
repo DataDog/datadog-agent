@@ -1,5 +1,7 @@
 package checkconfig
 
+import "sort"
+
 // OidConfig holds configs for OIDs to fetch
 type OidConfig struct {
 	// ScalarOids are all scalar oids to fetch
@@ -18,6 +20,9 @@ func (oc *OidConfig) addColumnOids(oidsToAdd []string) {
 
 func (oc *OidConfig) addOidsIfNotPresent(configOids []string, oidsToAdd []string) []string {
 	for _, oidToAdd := range oidsToAdd {
+		if oidToAdd == "" {
+			continue
+		}
 		isAlreadyPresent := false
 		for _, oid := range configOids {
 			if oid == oidToAdd {
@@ -30,5 +35,11 @@ func (oc *OidConfig) addOidsIfNotPresent(configOids []string, oidsToAdd []string
 		}
 		configOids = append(configOids, oidToAdd)
 	}
+	sort.Strings(configOids)
 	return configOids
+}
+
+func (oc *OidConfig) clean() {
+	oc.ScalarOids = nil
+	oc.ColumnOids = nil
 }

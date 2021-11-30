@@ -5,7 +5,7 @@
 
 package hostname
 
-import "github.com/DataDog/datadog-agent/pkg/util/gce"
+import "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 
 func init() {
 	RegisterHostnameProvider("gce", gce.HostnameProvider)

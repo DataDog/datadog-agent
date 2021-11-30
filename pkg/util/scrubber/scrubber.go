@@ -100,11 +100,17 @@ func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
 	return c.scrubReader(r)
 }
 
-// ScrubURL sanitizes credentials from a message containing a URL, and returns
-// a string that can be logged safely.  This method applies only the SingleLine
-// replacers.
-func (c *Scrubber) ScrubURL(message string) string {
+// ScrubLine scrubs credentials from a single line of text.  It can be safely
+// applied to URLs or to strings containing URLs.  It does not run multi-line
+// replacers, and should not be used on multi-line inputs.
+func (c *Scrubber) ScrubLine(message string) string {
 	return string(c.scrub([]byte(message), c.singleLineReplacers))
+}
+
+// NewWriter creates a new Writer tied to this scrubber.  The writer will write
+// scrubbed data to the given file path with the given permissions.
+func (c *Scrubber) NewWriter(path string, perms os.FileMode) (*Writer, error) {
+	return newWriterWithScrubber(path, perms, c)
 }
 
 // scrubReader applies the cleaning algorithm to a Reader

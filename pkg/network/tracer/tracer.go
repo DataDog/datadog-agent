@@ -208,7 +208,7 @@ func newReverseDNS(supported bool, c *config.Config) dns.ReverseDNS {
 	rdns, err := dns.NewReverseDNS(c)
 	if err != nil {
 		log.Errorf("could not instantiate dns inspector: %s", err)
-		return nil
+		return dns.NewNullReverseDNS()
 	}
 
 	log.Info("dns inspection enabled")
@@ -309,6 +309,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	t.activeBuffer.Reset()
+
+	t.retryConntrack(delta.Conns)
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
@@ -629,6 +631,26 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 	}
 
 	cs.Via = t.gwLookup.Lookup(cs)
+}
+
+func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
+	// If we're sampling events there is no point in retrying a Conntrack lookup.
+	if t.conntracker.IsSampling() {
+		return
+	}
+
+	// Check conntrack once again for short-lived connections that are missing IPTranslations
+	// The motivation here is to catch a race condition where the netlink event is processed
+	// after the connection is closed
+	for i, c := range connections {
+		if c.IPTranslation == nil && (c.Type == network.UDP || c.IsShortLived()) {
+			translation := t.conntracker.GetTranslationForConn(c)
+			if translation != nil {
+				connections[i].IPTranslation = translation
+				t.conntracker.DeleteTranslation(c)
+			}
+		}
+	}
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {

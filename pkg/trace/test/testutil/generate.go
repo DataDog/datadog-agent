@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
 // SpanConfig defines the configuration for generating spans.
@@ -71,7 +70,7 @@ func GenerateTrace(tc *TraceConfig, sc *SpanConfig) pb.Trace {
 		t = append(t, s)
 	}
 	if tc.Keep {
-		root.Metrics[sampler.KeySamplingPriority] = 2
+		root.Metrics["_sampling_priority_v1"] = 2
 	}
 	for _, span := range t {
 		if span == root {

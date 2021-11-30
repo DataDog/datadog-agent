@@ -12,7 +12,7 @@ import (
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
-	Trace            pb.Trace
+	TraceChunk       *pb.TraceChunk
 	WeightedTrace    stats.WeightedTrace
 	Root             *pb.Span
 	Env              string

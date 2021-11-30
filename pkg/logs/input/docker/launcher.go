@@ -10,7 +10,6 @@ package docker
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -102,7 +101,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 
 	if tailFromFile {
 		if err := checkReadAccess(); err != nil {
-			log.Errorf("Error accessing %s, %v, falling back on tailing from Docker socket", basePath, err)
+			log.Errorf("Could not access container log files: %v; falling back on tailing from container runtime socket", err)
 			launcher.tailFromFile = false
 		}
 	}
@@ -295,14 +294,6 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	fileSource.Status = source.Status
 	fileSource.ParentSource = source
 	return sourceInfoPair{source: fileSource, info: sourceInfo}
-}
-
-// getPath returns the file path of the container log to tail.
-func getPath(id string) string {
-	if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
-		return fmt.Sprintf("/var/lib/containers/storage/overlay-containers/%s/userdata/ctr.log", id)
-	}
-	return filepath.Join(basePath, id, fmt.Sprintf("%s-json.log", id))
 }
 
 // newOverridenSource is separated from overrideSource for testing purpose

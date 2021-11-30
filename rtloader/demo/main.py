@@ -9,4 +9,4 @@ import tagger
 
 if __name__ == "__main__":
     aggregator.submit_metric(None, 'id', aggregator.GAUGE, 'name', -99.0, ['foo', 'bar'], 'myhost', False)
-    print("tags returned by tagger: %s\n" % tagger.get_tags("21", True))
+    print(f"tags returned by tagger: {tagger.get_tags('21', True)}\n")

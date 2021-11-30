@@ -463,7 +463,7 @@ func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Head
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -489,7 +489,8 @@ func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload Payloads, extra htt
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
-	return f.submitV1IntakeWithTransactionsFactory(payload, extra, f.createHTTPTransactions)
+	transactions := f.createHTTPTransactions(endpoints.V1MetadataEndpoint, payload, false, extra)
+	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once

@@ -8,7 +8,12 @@
 
 package testutil
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
 
 // OTLPConfigFromPorts creates a test OTLP config map.
 func OTLPConfigFromPorts(bindHost string, gRPCPort uint, httpPort uint) map[string]interface{} {
@@ -25,4 +30,17 @@ func OTLPConfigFromPorts(bindHost string, gRPCPort uint, httpPort uint) map[stri
 		}
 	}
 	return otlpConfig
+}
+
+// LoadConfig from a given path.
+func LoadConfig(path string) (config.Config, error) {
+	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	config.SetupOTLP(cfg)
+	cfg.SetConfigFile(path)
+	err := cfg.ReadInConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
 }
