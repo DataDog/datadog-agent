@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,6 +76,65 @@ type ObfuscationConfig struct {
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
 	Memcached Enablable `mapstructure:"memcached"`
+
+	// CreditCards holds the configuration for obfuscating credit cards.
+	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
+}
+
+// Export returns an obfuscate.Config matching o.
+func (o *ObfuscationConfig) Export() obfuscate.Config {
+	return obfuscate.Config{
+		SQL: obfuscate.SQLConfig{
+			TableNames:       features.Has("table_names"),
+			ReplaceDigits:    features.Has("quantize_sql_tables") || features.Has("replace_sql_digits"),
+			KeepSQLAlias:     features.Has("keep_sql_alias"),
+			DollarQuotedFunc: features.Has("dollar_quoted_func"),
+			Cache:            features.Has("sql_cache"),
+		},
+		ES: obfuscate.JSONConfig{
+			Enabled:            o.ES.Enabled,
+			KeepValues:         o.ES.KeepValues,
+			ObfuscateSQLValues: o.ES.ObfuscateSQLValues,
+		},
+		Mongo: obfuscate.JSONConfig{
+			Enabled:            o.Mongo.Enabled,
+			KeepValues:         o.Mongo.KeepValues,
+			ObfuscateSQLValues: o.Mongo.ObfuscateSQLValues,
+		},
+		SQLExecPlan: obfuscate.JSONConfig{
+			Enabled:            o.SQLExecPlan.Enabled,
+			KeepValues:         o.SQLExecPlan.KeepValues,
+			ObfuscateSQLValues: o.SQLExecPlan.ObfuscateSQLValues,
+		},
+		SQLExecPlanNormalize: obfuscate.JSONConfig{
+			Enabled:            o.SQLExecPlanNormalize.Enabled,
+			KeepValues:         o.SQLExecPlanNormalize.KeepValues,
+			ObfuscateSQLValues: o.SQLExecPlanNormalize.ObfuscateSQLValues,
+		},
+		HTTP: obfuscate.HTTPConfig{
+			RemoveQueryString: o.HTTP.RemoveQueryString,
+			RemovePathDigits:  o.HTTP.RemovePathDigits,
+		},
+		Logger: new(debugLogger),
+	}
+}
+
+type debugLogger struct{}
+
+func (debugLogger) Debugf(format string, params ...interface{}) {
+	log.Debugf(format, params...)
+}
+
+// CreditCardsConfig holds the configuration for credit card obfuscation in
+// (Meta) tags.
+type CreditCardsConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// Luhn specifies whether Luhn checksum validation should be enabled.
+	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
+	// It reduces false positives, but increases the CPU time X3.
+	Luhn bool `mapstructure:"luhn"`
 }
 
 // HTTPObfuscationConfig holds the configuration settings for HTTP obfuscation.
@@ -245,6 +306,13 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.max_traces_per_second") {
 		c.TargetTPS = config.Datadog.GetFloat64("apm_config.max_traces_per_second")
 	}
+	if config.Datadog.IsSet("apm_config.errors_per_second") {
+		c.ErrorTPS = config.Datadog.GetFloat64("apm_config.errors_per_second")
+	}
+	if config.Datadog.IsSet("apm_config.disable_rare_sampler") {
+		c.DisableRareSampler = config.Datadog.GetBool("apm_config.disable_rare_sampler")
+	}
+
 	if k := "apm_config.ignore_resources"; config.Datadog.IsSet(k) {
 		c.Ignore["resource"] = config.Datadog.GetStringSlice(k)
 	}
@@ -290,14 +358,26 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
 
+	c.Obfuscation = new(ObfuscationConfig)
 	if config.Datadog.IsSet("apm_config.obfuscation") {
 		var o ObfuscationConfig
 		err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &o)
 		if err == nil {
 			c.Obfuscation = &o
-			if c.Obfuscation.RemoveStackTraces {
+			if o.RemoveStackTraces {
 				c.addReplaceRule("error.stack", `(?s).*`, "?")
 			}
+		}
+	}
+	{
+		// TODO(x): There is an issue with config.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
+		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
+		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
+		if config.Datadog.IsSet("apm_config.obfuscation.credit_cards.enabled") {
+			c.Obfuscation.CreditCards.Enabled = config.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled")
+		}
+		if config.Datadog.IsSet("apm_config.obfuscation.credit_cards.luhn") {
+			c.Obfuscation.CreditCards.Luhn = config.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn")
 		}
 	}
 

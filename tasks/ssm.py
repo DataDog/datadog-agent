@@ -33,11 +33,11 @@ def get_value_of_param(ctx, param):
     invalidparms = j.get("InvalidParameters")
     paramkey = j.get("Parameter")
     if invalidparms:
-        print("Param is invalid {}".format(invalidparms))
+        print(f"Param is invalid {invalidparms}")
         return None
 
     val = paramkey.get("Value")
-    print("Length of paramkey {}".format(len(val)))
+    print(f"Length of paramkey {len(val)}")
     return val
 
 
@@ -50,7 +50,7 @@ def get_signing_cert(ctx):
         return None
     pfx_b64_encoded = pfx_b64_encoded_part1 + pfx_b64_encoded_part2
     enclen = len(pfx_b64_encoded)
-    print("encoded length {}".format(enclen))
+    print(f"encoded length {enclen}")
     pfx_b64_decoded = base64.b64decode(pfx_b64_encoded)
 
     f, fn = tempfile.mkstemp()  # default mode is binary, which we want

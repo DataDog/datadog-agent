@@ -81,6 +81,12 @@ const (
 
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
+
+	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
+	DefaultInventoriesMinInterval = 5 * 60
+
+	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
+	DefaultInventoriesMaxInterval = 10 * 60
 )
 
 // Datadog is the global configuration object
@@ -161,6 +167,14 @@ type Warnings struct {
 	TraceMallocEnabledWithPy2 bool
 }
 
+// DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
+type DataType string
+
+const (
+	// Metrics type covers series & sketches
+	Metrics DataType = "metrics"
+)
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -220,6 +234,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
+	config.BindEnvAndSetDefault("remote_tagger_timeout_seconds", 30)
 
 	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
@@ -228,7 +243,7 @@ func InitConfig(config Config) {
 	config.BindEnv("remote_configuration.api_key")
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
-	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 60) // in seconds
+	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -370,6 +385,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
 
 	config.BindEnvAndSetDefault("use_v2_api.events", false)
+	config.BindEnvAndSetDefault("use_v2_api.series", false)
 	config.BindEnvAndSetDefault("use_v2_api.service_checks", false)
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.BindEnvAndSetDefault("enable_payloads.events", true)
@@ -465,6 +481,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
+	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
@@ -746,6 +763,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
 
+	// If true, the agent looks for container logs in the location used by podman, rather
+	// than docker.  This is a temporary configuration parameter to support podman logs until
+	// a more substantial refactor of autodiscovery is made to determine this automatically.
+	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
+
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
 	// including multi-line log processing rules and chunked line reaggregation.
@@ -888,7 +910,8 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.internal_profiling.enabled")
-	config.SetKnown("process_config.remote_tagger")
+
+	config.BindEnvAndSetDefault("process_config.remote_tagger", true)
 
 	// Process Discovery Check
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false)
@@ -899,14 +922,14 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
-	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
+	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
+	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", defaultSecurityAgentLogFile)
-	config.BindEnvAndSetDefault("security_agent.remote_tagger", false)
+	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
@@ -914,6 +937,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
+	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
 
 	// Datadog security agent (runtime)
@@ -953,6 +977,9 @@ func InitConfig(config Config) {
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
+
+	// Vector integration
+	bindVectorOptions(config, Metrics)
 
 	setAssetFs(config)
 	setupAPM(config)
@@ -1083,6 +1110,26 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
+func findUnknownEnvVars(config Config) []string {
+	var unknownVars []string
+
+	knownVars := map[string]struct{}{}
+	for _, key := range config.GetEnvVars() {
+		knownVars[key] = struct{}{}
+	}
+
+	for _, equality := range os.Environ() {
+		key := strings.SplitN(equality, "=", 2)[0]
+		if !strings.HasPrefix(key, "DD_") {
+			continue
+		}
+		if _, known := knownVars[key]; !known {
+			unknownVars = append(unknownVars, key)
+		}
+	}
+	return unknownVars
+}
+
 func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
@@ -1106,6 +1153,10 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	for _, key := range findUnknownKeys(config) {
 		log.Warnf("Unknown key in config file: %v", key)
+	}
+
+	for _, v := range findUnknownEnvVars(config) {
+		log.Warnf("Unknown environment variable: %v", v)
 	}
 
 	if loadSecret {
@@ -1518,4 +1569,44 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 	combined = append(combined, dsdTags...)
 
 	return combined
+}
+
+func bindVectorOptions(config Config, datatype DataType) {
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
+}
+
+// GetVectorURL returns the URL under the 'vector.' prefix for the given datatype
+func GetVectorURL(datatype DataType) (string, error) {
+	if Datadog.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
+		vectorURL := Datadog.GetString(fmt.Sprintf("vector.%s.url", datatype))
+		if vectorURL == "" {
+			log.Errorf("vector.%s.enabled is set to true, but vector.%s.url is empty", datatype, datatype)
+			return "", nil
+		}
+		_, err := url.Parse(vectorURL)
+		if err != nil {
+			return "", fmt.Errorf("could not parse vector %s endpoint: %s", datatype, err)
+		}
+		return vectorURL, nil
+	}
+	return "", nil
+}
+
+// GetInventoriesMinInterval gets the inventories_min_interval value, applying the default if it is zero.
+func GetInventoriesMinInterval() time.Duration {
+	minInterval := time.Duration(Datadog.GetInt("inventories_min_interval")) * time.Second
+	if minInterval == 0 {
+		minInterval = DefaultInventoriesMinInterval
+	}
+	return minInterval
+}
+
+// GetInventoriesMaxInterval gets the inventories_max_interval value, applying the default if it is zero.
+func GetInventoriesMaxInterval() time.Duration {
+	maxInterval := time.Duration(Datadog.GetInt("inventories_max_interval")) * time.Second
+	if maxInterval == 0 {
+		maxInterval = DefaultInventoriesMaxInterval
+	}
+	return maxInterval
 }

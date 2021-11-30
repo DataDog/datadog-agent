@@ -655,9 +655,9 @@ func TestProcessDiscoveryConfig(t *testing.T) {
 			cfg := AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
 			cfg.initProcessDiscoveryCheck()
 
-			// Make sure that the process discovery check is only enabled when both the process-agent is set to false,
+			// Make sure that the process discovery check is only enabled when both the process-agent is not set to true,
 			// and procDiscoveryEnabled isn't overridden.
-			if procDiscoveryEnabled == true && procConfigEnabled == "false" {
+			if procDiscoveryEnabled == true && procConfigEnabled != "true" {
 				assert.ElementsMatch([]string{DiscoveryCheckName}, cfg.EnabledChecks)
 
 				// Interval Tests:

@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -no_std_marshalers $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -20,6 +20,6 @@ type AgentContext struct {
 // Signal - Rule event wrapper used to send an event to the backend
 // easyjson:json
 type Signal struct {
-	*AgentContext `json:"agent"`
-	Title         string `json:"title"`
+	AgentContext `json:"agent"`
+	Title        string `json:"title"`
 }

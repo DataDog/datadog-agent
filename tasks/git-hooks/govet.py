@@ -22,6 +22,9 @@ EXCLUDED_FOLDERS = {
     "./pkg/util/hostname/apiserver",
     "./pkg/util/log",
     "./pkg/util/log/zap",
+    "./pkg/util/scrubber",
+    "./pkg/obfuscate",
+    "./pkg/obfuscate/testdata",
     "./pkg/otlp/model",
     "./pkg/otlp/model/attributes",
     "./pkg/otlp/model/attributes/azure",
@@ -57,7 +60,7 @@ if len(targets) == 0:
 
 # Call invoke command
 # We do this workaround since we can't do relative imports
-cmd = "inv -e vet --targets='{}'".format(",".join(targets))
+cmd = f"inv -e vet --targets='{','.join(targets)}'"
 
 try:
     subprocess.run(cmd, shell=True, check=True)

@@ -133,3 +133,12 @@ type ErrValueTypeMismatch struct {
 func (e ErrValueTypeMismatch) Error() string {
 	return fmt.Sprintf("incorrect value type for `%s`", e.Field)
 }
+
+// ErrRuleNotCompiled error returned by functions that require to have the rule compiled
+type ErrRuleNotCompiled struct {
+	RuleID string
+}
+
+func (e ErrRuleNotCompiled) Error() string {
+	return fmt.Sprintf("rule not compiled `%s`", e.RuleID)
+}

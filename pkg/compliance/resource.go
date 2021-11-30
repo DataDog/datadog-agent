@@ -30,6 +30,8 @@ const (
 	KindAudit = ResourceKind("audit")
 	// KindKubernetes is used for a KubernetesResource
 	KindKubernetes = ResourceKind("kubernetes")
+	// KindConstants is used for Constants check
+	KindConstants = ResourceKind("constants")
 	// KindCustom is used for a Custom check
 	KindCustom = ResourceKind("custom")
 )
@@ -43,6 +45,7 @@ type ResourceCommon struct {
 	Audit         *Audit              `yaml:"audit,omitempty"`
 	Docker        *DockerResource     `yaml:"docker,omitempty"`
 	KubeApiserver *KubernetesResource `yaml:"kubeApiserver,omitempty"`
+	Constants     *ConstantsResource  `yaml:"constants,omitempty"`
 	Custom        *Custom             `yaml:"custom,omitempty"`
 }
 
@@ -53,10 +56,23 @@ type Resource struct {
 	Fallback       *Fallback `yaml:"fallback,omitempty"`
 }
 
-// RegoResource describes supported resource types observed by a Rego Rule
-type RegoResource struct {
+// RegoInput describes supported resource types observed by a Rego Rule
+type RegoInput struct {
 	ResourceCommon `yaml:",inline"`
 	TagName        string `yaml:"tag"`
+	Type           string `yaml:"type"`
+}
+
+// ValidateInputType returns the validated input type or an error
+func (i *RegoInput) ValidateInputType() (string, error) {
+	switch i.Type {
+	case "object", "array":
+		return i.Type, nil
+	case "":
+		return "object", nil
+	default:
+		return "", fmt.Errorf("invalid input type `%s`", i.Type)
+	}
 }
 
 // Kind returns ResourceKind of the resource
@@ -76,6 +92,8 @@ func (r *ResourceCommon) Kind() ResourceKind {
 		return KindDocker
 	case r.KubeApiserver != nil:
 		return KindKubernetes
+	case r.Constants != nil:
+		return KindConstants
 	case r.Custom != nil:
 		return KindCustom
 	default:
@@ -105,7 +123,8 @@ const (
 
 // File describes a file resource
 type File struct {
-	Path string `yaml:"path"`
+	Path   string `yaml:"path"`
+	Parser string `yaml:"parser,omitempty"`
 }
 
 // Fields & functions available for Process
@@ -270,6 +289,11 @@ const (
 // DockerResource describes a resource from docker daemon
 type DockerResource struct {
 	Kind string `yaml:"kind"`
+}
+
+// ConstantsResource describes a resources filled with constants
+type ConstantsResource struct {
+	Values map[string]interface{} `yaml:",inline"`
 }
 
 // Custom is a special resource handled by a dedicated function

@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
@@ -61,6 +62,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
@@ -440,7 +442,7 @@ func StartAgent() error {
 	}
 
 	// Detect Cloud Provider
-	go util.DetectCloudProvider(context.Background())
+	go cloudproviders.DetectCloudProvider(context.Background())
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
 	util.LogVersionHistory()

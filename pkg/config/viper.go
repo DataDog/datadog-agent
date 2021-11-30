@@ -26,8 +26,12 @@ import (
 type safeConfig struct {
 	*viper.Viper
 	sync.RWMutex
-	envPrefix     string
-	configEnvVars []string
+	envPrefix      string
+	envKeyReplacer *strings.Replacer
+
+	// configEnvVars is the set of env vars that are consulted for
+	// configuration values.
+	configEnvVars map[string]struct{}
 }
 
 // Set wraps Viper for concurrent access
@@ -269,17 +273,33 @@ func (c *safeConfig) SetEnvPrefix(in string) {
 	c.envPrefix = in
 }
 
+// mergeWithEnvPrefix derives the environment variable that Viper will use for a given key.
+func (c *safeConfig) mergeWithEnvPrefix(key string) string {
+	return strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
+}
+
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
 func (c *safeConfig) BindEnv(input ...string) {
 	c.Lock()
 	defer c.Unlock()
+	var envKeys []string
+
+	// If one input is given, viper derives an env key from it; otherwise, all inputs after
+	// the first are literal env vars.
 	if len(input) == 1 {
-		// FIXME: for the purposes of GetEnvVars implementation, we only track env var keys
-		// that are interpolated by viper from the config option key name
-		key := input[0]
-		envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
-		c.configEnvVars = append(c.configEnvVars, envVarName)
+		envKeys = []string{c.mergeWithEnvPrefix(input[0])}
+	} else {
+		envKeys = input[1:]
 	}
+
+	for _, key := range envKeys {
+		// apply EnvKeyReplacer to each key
+		if c.envKeyReplacer != nil {
+			key = c.envKeyReplacer.Replace(key)
+		}
+		c.configEnvVars[key] = struct{}{}
+	}
+
 	_ = c.Viper.BindEnv(input...)
 }
 
@@ -288,6 +308,7 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.RLock()
 	defer c.RUnlock()
 	c.Viper.SetEnvKeyReplacer(r)
+	c.envKeyReplacer = r
 }
 
 // UnmarshalKey wraps Viper for concurrent access
@@ -393,7 +414,11 @@ func (c *safeConfig) BindPFlag(key string, flag *pflag.Flag) error {
 
 // GetEnvVars implements the Config interface
 func (c *safeConfig) GetEnvVars() []string {
-	return c.configEnvVars
+	vars := make([]string, 0, len(c.configEnvVars))
+	for v := range c.configEnvVars {
+		vars = append(vars, v)
+	}
+	return vars
 }
 
 // BindEnvAndSetDefault implements the Config interface
@@ -405,7 +430,8 @@ func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...st
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) Config {
 	config := safeConfig{
-		Viper: viper.New(),
+		Viper:         viper.New(),
+		configEnvVars: map[string]struct{}{},
 	}
 	config.SetConfigName(name)
 	config.SetEnvPrefix(envPrefix)

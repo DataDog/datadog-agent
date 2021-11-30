@@ -757,6 +757,7 @@ shared_examples_for 'an Agent that is removed' do
       exclude = [
             'C:/Windows/Assembly/Temp/',
             'C:/Windows/Assembly/Tmp/',
+            'C:/windows/AppReadiness/',
             'C:/Windows/Temp/',
             'C:/Windows/Prefetch/',
             'C:/Windows/Installer/',

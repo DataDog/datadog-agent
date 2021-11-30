@@ -535,6 +535,11 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.BPFEventType:
+		if _, err = event.BPF.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode bpf event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
@@ -737,7 +742,6 @@ func (p *Probe) FlushDiscarders() error {
 	if !atomic.CompareAndSwapInt64(&p.flushingDiscarders, 0, 1) {
 		return errors.New("already flushing discarders")
 	}
-	time.Sleep(100 * time.Millisecond)
 
 	var discardedInodes []inodeDiscarder
 	var mapValue [256]byte
@@ -765,7 +769,7 @@ func (p *Probe) FlushDiscarders() error {
 		log.Debugf("Flushing discarders")
 
 		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.Delete(unsafe.Pointer(&inode)); err != nil {
+			if err := p.inodeDiscarders.expireInodeDiscarder(inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
 				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
@@ -916,6 +920,34 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "getattr2",
 			Value: getAttr2(p),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_unlink_dentry_position",
+			Value: getVFSLinkDentryPosition(p),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_mkdir_dentry_position",
+			Value: getVFSMKDirDentryPosition(p),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_link_target_dentry_position",
+			Value: getVFSLinkTargetDentryPosition(p),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_setxattr_dentry_position",
+			Value: getVFSSetxattrDentryPosition(p),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_removexattr_dentry_position",
+			Value: getVFSRemovexattrDentryPosition(p),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_rename_input_type",
+			Value: getVFSRenameInputType(p),
+		},
+		manager.ConstantEditor{
+			Name:  "check_helper_call_input",
+			Value: getCheckHelperCallInputType(p),
 		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)

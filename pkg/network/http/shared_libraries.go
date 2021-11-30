@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	psfilepath "github.com/DataDog/gopsutil/process/filepath"
 	"github.com/DataDog/gopsutil/process/so"
@@ -69,7 +70,7 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
 	return &soWatcher{
 		procRoot:   procRoot,
-		hostMount:  os.Getenv("HOST_FS"),
+		hostMount:  os.Getenv("HOST_ROOT"),
 		all:        all,
 		rules:      rules,
 		loadEvents: perfHandler,
@@ -84,7 +85,7 @@ func (w *soWatcher) Start() {
 	go func() {
 		ticker := time.NewTicker(soSyncInterval)
 		defer ticker.Stop()
-		thisPID := os.Getpid()
+		thisPID, _ := util.GetRootNSPID()
 
 		for {
 			select {

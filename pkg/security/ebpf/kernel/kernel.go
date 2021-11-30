@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package kernel
@@ -13,7 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cobaugh/osrelease"
+	"github.com/acobaugh/osrelease"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -32,6 +33,10 @@ var (
 	Kernel4_15 = kernel.VersionCode(4, 15, 0) //nolint:deadcode,unused
 	// Kernel4_16 is the KernelVersion representation of kernel version 4.16
 	Kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
+	// Kernel5_0 is the KernelVersion representation of kernel version 5.0
+	Kernel5_0 = kernel.VersionCode(5, 0, 0) //nolint:deadcode,unused
+	// Kernel5_1 is the KernelVersion representation of kernel version 5.1
+	Kernel5_1 = kernel.VersionCode(5, 1, 0) //nolint:deadcode,unused
 	// Kernel5_3 is the KernelVersion representation of kernel version 5.3
 	Kernel5_3 = kernel.VersionCode(5, 3, 0) //nolint:deadcode,unused
 	// Kernel5_4 is the KernelVersion representation of kernel version 5.4

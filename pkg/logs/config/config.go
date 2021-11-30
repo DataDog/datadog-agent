@@ -227,7 +227,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 	if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
 		host, port, err := parseAddress(logsDDURL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsConfig.getConfigKey("logs_dd_url"), err)
+			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}
 		main.Host = host
 		main.Port = port
@@ -241,6 +241,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
+		additionals[i].UseCompression = main.UseCompression
 		if additionals[i].Version == 0 {
 			additionals[i].Version = main.Version
 		}

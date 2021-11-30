@@ -43,8 +43,8 @@ Triggers are events that correspond to types of activity seen by the system. The
 ## Operators
 SECL operators are used to combine event attributes together into a full expression. The following operators are available:
 
-| SECL Operator         | Types            |  Definition                           | Agent Version |
-|-----------------------|------------------|---------------------------------------|---------------|
+| SECL Operator         | Types            |  Definition                              | Agent Version |
+|-----------------------|------------------|------------------------------------------|---------------|
 | `==`                  | Process          | Equal                                    | 7.27          |
 | `!=`                  | File             | Not equal                                | 7.27          |
 | `>`                   | File             | Greater                                  | 7.27          |
@@ -55,12 +55,38 @@ SECL operators are used to combine event attributes together into a full express
 | `^`                   | File             | Binary not                               | 7.27          |
 | `in [elem1, ...]`     | File             | Element is contained in list             | 7.27          |
 | `not in [elem1, ...]` | File             | Element is not contained in list         | 7.27          |
-| `[~pattern, ...]`     | File             | Regex pattern is (not) contained in list | 7.27          |
 | `=~`                  | File             | String matching                          | 7.27          |
+| `!~`                  | File             | String not matching                      | 7.27          |
 | `&`                   | File             | Binary and                               | 7.27          |
 | `|`                   | File             | Binary or                                | 7.27          |
 | `&&`                  | File             | Logical and                              | 7.27          |
 | `||`                  | File             | Logical or                               | 7.27          |
+
+## Patterns and regular expressions
+Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.
+
+| Format           |  Example             | Agent Version |
+|------------------|----------------------|---------------|
+| `~"pattern"`     | `~"/etc/*"`          | 7.27          |
+| `r"regexp"`      | `r"/etc/rc[0-9]+"`   | 7.27          |
+
+## Variables
+SECL variables are predefined variables that can be used as values or as part of values.
+
+For example, rule using a `process.pid` variable looks like this:
+
+{% raw %}
+{{< code-block lang="javascript" >}}
+open.file.path == "/proc/${process.pid}/maps"
+
+{{< /code-block >}}
+{% endraw %}
+
+List of the available variables:
+
+| SECL Variable         |  Definition                           | Agent Version |
+|-----------------------|---------------------------------------|---------------|
+| `process.pid`         | Process PID                           | 7.33          |
 
 ## Helpers
 Helpers exist in SECL that enable users to write advanced rules without needing to rely on generic techniques such as regex.

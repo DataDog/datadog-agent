@@ -35,10 +35,14 @@ type WeightedQueue struct {
 
 	// Guards the mutable internal state for the queue
 	mu sync.Mutex
+	// Signalled when data is added to queue or when the instance is stopped
+	cv *sync.Cond
 	// guarded by: mu
 	queue *list.List
 	// guarded by: mu
 	currentWeight int64
+	// guarded by: mu
+	stop bool
 
 	maxSize   int
 	maxWeight int64
@@ -46,13 +50,16 @@ type WeightedQueue struct {
 
 // NewWeightedQueue returns a new WeightedQueue with the given maximum size & weight
 func NewWeightedQueue(maxSize int, maxWeight int64) *WeightedQueue {
-	return &WeightedQueue{
-		dataAvailable: make(chan struct{}),
+	q := &WeightedQueue{
+		dataAvailable: make(chan struct{}, 1),
 		queue:         list.New(),
 		maxSize:       maxSize,
 		maxWeight:     maxWeight,
 		currentWeight: 0,
+		stop:          false,
 	}
+	q.cv = sync.NewCond(&q.mu)
+	return q
 }
 
 // Len returns the number of items in the queue
@@ -69,41 +76,28 @@ func (q *WeightedQueue) Weight() int64 {
 	return q.currentWeight
 }
 
-// Poll retrieves the head of the queue or blocks until an item is available.  The provided exit channel can be closed
-// to interrupt the blocking operation.  Returns the head of the queue and true or nil, false if the poll was
-// interrupted by the closing of the exit channel
-func (q *WeightedQueue) Poll(exit chan struct{}) (WeightedItem, bool) {
-	for {
-		select {
-		case <-exit:
-			return nil, false
-		default:
+// Poll retrieves the head of the queue or blocks until an item is available or
+// the WeightedQueue is stopped.  Returns the head of the queue and true or
+// nil, false if the WeightedQueue is stopped.
+func (q *WeightedQueue) Poll() (WeightedItem, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 
-		}
-
-		q.mu.Lock()
-
-		// If the queue is empty, wait for a signal on the dataAvailable channel
-		if q.queue.Len() == 0 {
-			q.mu.Unlock()
-
-			select {
-			case <-q.dataAvailable:
-				continue
-			case <-exit:
-				return nil, false
-			}
-		}
-
-		e := q.queue.Front()
-		item := e.Value.(WeightedItem)
-		q.queue.Remove(e)
-		q.currentWeight -= item.Weight()
-
-		q.mu.Unlock()
-
-		return item, true
+	// If the queue is empty and we aren't stopped, wait for a signal
+	for q.queue.Len() == 0 && !q.stop {
+		q.cv.Wait()
 	}
+
+	if q.stop {
+		return nil, false
+	}
+
+	e := q.queue.Front()
+	item := e.Value.(WeightedItem)
+	q.queue.Remove(e)
+	q.currentWeight -= item.Weight()
+
+	return item, true
 }
 
 // Add adds the item to the queue.
@@ -168,12 +162,18 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 
 	q.queue.PushBack(item)
 
-	// Send a signal on the dataAvailable channel if needed
-	select {
-	case q.dataAvailable <- struct{}{}:
-	default:
+	// Send a signal that data is available
+	q.cv.Signal()
+}
 
-	}
+// Stop stops the WeightedQueue instance.  Any calls to Poll concurrent with or
+// after the call to Stop will return (nil, false) immediately.
+func (q *WeightedQueue) Stop() {
+	q.mu.Lock()
+	q.stop = true
+	// broadcast to all pending Poll operations
+	q.cv.Broadcast()
+	q.mu.Unlock()
 }
 
 func (q *WeightedQueue) iterator() *iterator {

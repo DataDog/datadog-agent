@@ -153,6 +153,9 @@ type Config struct {
 
 	// RecordedQueryTypes enables specific DNS query types to be recorded
 	RecordedQueryTypes []string
+
+	// HTTP replace rules
+	HTTPReplaceRules []*ReplaceRule
 }
 
 func join(pieces ...string) string {
@@ -213,6 +216,14 @@ func New() *Config {
 		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+	}
+
+	httpRRKey := join(netNS, "http_replace_rules")
+	rr, err := parseReplaceRules(cfg, httpRRKey)
+	if err != nil {
+		log.Errorf("error parsing %q: %v", httpRRKey, err)
+	} else {
+		c.HTTPReplaceRules = rr
 	}
 
 	if c.OffsetGuessThreshold > maxOffsetThreshold {

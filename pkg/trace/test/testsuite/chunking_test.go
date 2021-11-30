@@ -34,7 +34,7 @@ func TestPayloadChunking(t *testing.T) {
 		t.Fatal(err)
 	}
 	payloadCount := 3
-	traceSize := trace.Msgsize()
+	traceSize := (&pb.TraceChunk{Spans: trace}).Msgsize()
 	// make a payload that will cover payloadCount
 	var traces pb.Traces
 	for size := 0; size < writer.MaxPayloadSize*payloadCount; size += traceSize {
@@ -49,9 +49,11 @@ func TestPayloadChunking(t *testing.T) {
 	for i := 0; i < payloadCount+1; i++ {
 		select {
 		case p := <-r.Out():
-			if v, ok := p.(pb.TracePayload); ok {
+			if v, ok := p.(pb.AgentPayload); ok {
 				// ok
-				got += len(v.Traces)
+				for _, tracerPayload := range v.TracerPayloads {
+					got += len(tracerPayload.Chunks)
+				}
 				continue
 			}
 			t.Fatalf("invalid payload type: %T", p)

@@ -71,6 +71,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.ClientLatestConfig
 	if err != nil {
 		return nil, fmt.Errorf("failed to issue request: %w", err)
 	}
+	defer resp.Body.Close()
 
 	body, err = ioutil.ReadAll(resp.Body)
 	if err != nil {

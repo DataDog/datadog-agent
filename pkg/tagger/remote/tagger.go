@@ -32,7 +32,6 @@ import (
 )
 
 const (
-	defaultTimeout    = 5 * time.Minute
 	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute
 )
@@ -98,7 +97,8 @@ func (t *Tagger) Init() error {
 
 	t.client = pb.NewAgentSecureClient(t.conn)
 
-	err = t.startTaggerStream(defaultTimeout)
+	timeout := time.Duration(config.Datadog.GetInt("remote_tagger_timeout_seconds")) * time.Second
+	err = t.startTaggerStream(timeout)
 	if err != nil {
 		// tagger stopped before being connected
 		if err == errTaggerStreamNotStarted {

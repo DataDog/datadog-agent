@@ -40,9 +40,7 @@ def build(ctx, rebuild=False, race=False, major_version='7', arch="x64", go_mod=
         env["GOARCH"] = "386"
         windres_target = "pe-i386"
 
-    command = "windres -v  --target {target_arch} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
-        build_maj=build_maj, build_min=build_min, build_patch=build_patch, target_arch=windres_target
-    )
+    command = f"windres -v  --target {windres_target} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} "
     command += "-i cmd/systray/systray.rc -O coff -o cmd/systray/rsrc.syso"
     ctx.run(command)
     ldflags = get_version_ldflags(ctx, major_version=major_version)
