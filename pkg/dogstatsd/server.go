@@ -121,7 +121,7 @@ type Server struct {
 	listeners []listeners.StatsdListener
 
 	// demultiplexer will receive the metrics processed by the DogStatsD server,
-	// will take care of processing them in multiple routines if possible, and will
+	// will take care of processing them concurrently if possible, and will
 	// also take care of forwarding the metrics to the intake.
 	demultiplexer aggregator.Demultiplexer
 
@@ -450,7 +450,6 @@ func (s *Server) ServerlessFlush() {
 		w.flush()
 	}
 	// flush the aggregator to have the serializer/forwarder send data to the backend.
-	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
 	agg := s.demultiplexer.Aggregator()
 	agg.ServerlessFlush <- true
 	<-agg.ServerlessFlushDone

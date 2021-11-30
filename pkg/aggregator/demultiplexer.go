@@ -84,8 +84,8 @@ type AgentDemultiplexer struct {
 }
 
 // DemultiplexerOptions are the options used to initialize a Demultiplexer.
-// Note that forwarders are not started automatically until `StartForwarders`
-// isn't set to `true`.
+// Note that forwarders are started automatically only if `StartForwarders`
+// is set to `true`.
 type DemultiplexerOptions struct {
 	ForwarderOptions           *forwarder.Options
 	NoopEventPlatformForwarder bool
@@ -119,8 +119,8 @@ func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOption
 }
 
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
-// in goroutines. As of today, only the embedded BufferedAggregator needs a separate routine.
-// In the future, routines will be started for the event platform forwarder and/or orchestrator forwarder.
+// in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
+// In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
 func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
