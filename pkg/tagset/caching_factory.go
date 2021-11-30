@@ -13,7 +13,6 @@ import (
 
 // A cachingFactory is a Factory implementation that caches Tags instances.
 // See NewCachingFactory for usage.
-//
 type cachingFactory struct {
 	baseFactory
 
@@ -22,6 +21,8 @@ type cachingFactory struct {
 	// different CacheIDs are stored independently.
 	caches [numCacheIDs]tagsCache
 }
+
+var _ Factory = (*cachingFactory)(nil)
 
 // NewCachingFactory creates a new caching factory.  A caching factory caches
 // Tags instances when they are seen, and uses those cached values when possible

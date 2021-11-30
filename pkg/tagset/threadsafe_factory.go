@@ -14,6 +14,8 @@ type threadsafeFactory struct {
 	Factory
 }
 
+var _ Factory = (*threadsafeFactory)(nil)
+
 // NewThreadsafeFactory wraps the given factory with a mutex, ensuring
 // thread-safe operation.
 func NewThreadsafeFactory(inner Factory) Factory {

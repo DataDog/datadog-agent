@@ -19,6 +19,9 @@ package tagset
 // Tags instances returned from different factories may be used
 // interchangeably.  The only disadvantage of using multiple factories is a
 // reduced cache rate due to not sharing caches between those factories.
+//
+// This interface contains un-exported methods, so it cannot be implemented outside
+// of this package.
 type Factory interface {
 	// Tags constructors
 
