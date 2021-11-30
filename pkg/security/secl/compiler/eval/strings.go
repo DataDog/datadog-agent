@@ -13,55 +13,51 @@ import (
 
 // StringValues describes a set of string values, either regex or scalar
 type StringValues struct {
-	values      []string
-	fieldValues []FieldValue
-	scalars     map[string]bool
-	regexps     []*regexp.Regexp
-}
+	scalars []string
+	regexps []*regexp.Regexp
 
-// GetScalarValues returns scalar values
-func (s *StringValues) GetScalarValues() []string {
-	return s.values
+	// caches
+	scalarCache map[string]bool
+	fieldValues []FieldValue
 }
 
 // AppendFieldValue append a FieldValue
 func (s *StringValues) AppendFieldValue(value FieldValue) error {
-	if s.scalars == nil {
-		s.scalars = make(map[string]bool)
+	if s.scalarCache == nil {
+		s.scalarCache = make(map[string]bool)
 	}
 
 	switch value.Type {
-	case PatternValueType:
+	case PatternValueType, RegexpValueType:
 		if err := value.Compile(); err != nil {
 			return err
 		}
-
 		s.regexps = append(s.regexps, value.Regexp)
-		s.fieldValues = append(s.fieldValues, value)
-	case RegexpValueType:
-		if err := value.Compile(); err != nil {
-			return err
-		}
-
-		s.regexps = append(s.regexps, value.Regexp)
-		s.fieldValues = append(s.fieldValues, value)
 	default:
 		str := value.Value.(string)
-		s.values = append(s.values, str)
-		s.scalars[str] = true
-		s.fieldValues = append(s.fieldValues, value)
+		s.scalars = append(s.scalars, str)
+		s.scalarCache[str] = true
 	}
+	s.fieldValues = append(s.fieldValues, value)
 
 	return nil
 }
 
+// GetScalarValues return the scalar values
+func (s *StringValues) GetScalarValues() []string {
+	return s.scalars
+}
+
+// GetRegexValues return the regex values
+func (s *StringValues) GetRegexValues() []*regexp.Regexp {
+	return s.regexps
+}
+
 // SetFieldValues apply field values
 func (s *StringValues) SetFieldValues(values ...FieldValue) error {
-	s.fieldValues = []FieldValue{}
-
 	// reset internal caches
 	s.regexps = []*regexp.Regexp{}
-	s.scalars = nil
+	s.scalarCache = nil
 
 	for _, value := range values {
 		if err := s.AppendFieldValue(value); err != nil {
@@ -73,14 +69,15 @@ func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 }
 
 // AppendValue append a string value
-func (s *StringValues) AppendValue(value string) {
-	if s.scalars == nil {
-		s.scalars = make(map[string]bool)
+func (s *StringValues) AppendScalarValue(value string) {
+	if s.scalarCache == nil {
+		s.scalarCache = make(map[string]bool)
 	}
 
-	s.values = append(s.values, value)
-	s.scalars[value] = true
-	s.fieldValues = append(s.fieldValues, FieldValue{Value: value})
+	s.scalars = append(s.scalars, value)
+	s.scalarCache[value] = true
+	s.AppendFieldValue(FieldValue{Value: value, Type: ScalarValueType})
+
 }
 
 // AppendStringEvaluator append a string evalutator
@@ -89,10 +86,22 @@ func (s *StringValues) AppendStringEvaluator(evaluator *StringEvaluator) error {
 		return errors.New("only scalar evaluator are supported")
 	}
 
-	fieldValue := FieldValue{
+	return s.AppendFieldValue(FieldValue{
 		Value: evaluator.Value,
 		Type:  evaluator.ValueType,
+	})
+}
+
+// Match returns whether the value matches the string values
+func (s *StringValues) Match(value string) bool {
+	if s.scalarCache != nil && s.scalarCache[value] {
+		return true
+	}
+	for _, re := range s.regexps {
+		if re.MatchString(value) {
+			return true
+		}
 	}
 
-	return s.AppendFieldValue(fieldValue)
+	return false
 }

@@ -346,26 +346,12 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 		isPartialLeaf = true
 	}
 
-	arrayOp := func(a string, b StringValues) bool {
-		if b.scalars != nil && b.scalars[a] {
-			return true
-		}
-		if b.regexps != nil {
-			for _, re := range b.regexps {
-				if re.MatchString(a) {
-					return true
-				}
-			}
-		}
-
-		return false
-	}
-
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb(ctx))
+			values := eb(ctx)
+			return values.Match(ea(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -379,7 +365,7 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
-			Value:     arrayOp(ea, eb),
+			Value:     eb.Match(ea),
 			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -397,7 +383,7 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb)
+			return eb.Match(ea(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -410,7 +396,8 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(ea, eb(ctx))
+		values := eb(ctx)
+		return values.Match(ea)
 	}
 
 	return &BoolEvaluator{
@@ -438,15 +425,8 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts 
 
 	arrayOp := func(a []string, b StringValues) bool {
 		for _, as := range a {
-			if b.scalars != nil && b.scalars[as] {
+			if b.Match(as) {
 				return true
-			}
-			if b.regexps != nil {
-				for _, re := range b.regexps {
-					if re.MatchString(as) {
-						return true
-					}
-				}
 			}
 		}
 		return false

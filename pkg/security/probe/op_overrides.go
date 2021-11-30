@@ -31,10 +31,10 @@ var (
 					event := (*Event)(ctx.Object)
 
 					values := eval.StringValues{}
-					values.AppendValue(value)
+					values.AppendScalarValue(value)
 
 					if dest, err := event.resolvers.SymlinkResolver.Resolve(value); err == nil {
-						values.AppendValue(dest)
+						values.AppendScalarValue(dest)
 					}
 
 					return values
@@ -44,20 +44,26 @@ var (
 			return eval.StringValuesContains(a, &evaluator, opts, state)
 		},
 		StringValuesContains: func(a *eval.StringEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+			if !b.IsScalar() {
+				return nil, errors.New("non scalar overriden is not supported")
+			}
+
 			evaluator := eval.StringValuesEvaluator{
 				EvalFnc: func(ctx *eval.Context) eval.StringValues {
 					event := (*Event)(ctx.Object)
 
-					// TODO check not EvalFnc
-					values := b.Values
-
-					for _, value := range values.GetScalarValues() {
-						values := eval.StringValues{}
-						values.AppendValue(value)
+					var values eval.StringValues
+					for _, value := range b.Values.GetScalarValues() {
+						values.AppendScalarValue(value)
 
 						if dest, err := event.resolvers.SymlinkResolver.Resolve(value); err == nil {
-							values.AppendValue(dest)
+							values.AppendScalarValue(dest)
 						}
+					}
+
+					// warn regexp
+					if len(b.Values.GetRegexValues()) != 0 {
+						// TODO
 					}
 
 					return values
@@ -79,11 +85,11 @@ var (
 				EvalFnc: func(ctx *eval.Context) eval.StringValues {
 					event := (*Event)(ctx.Object)
 
-					values := eval.StringValues{}
-					values.AppendValue(value)
+					var values eval.StringValues
+					values.AppendScalarValue(value)
 
 					if dest, err := event.resolvers.SymlinkResolver.Resolve(value); err == nil {
-						values.AppendValue(dest)
+						values.AppendScalarValue(dest)
 					}
 
 					return values
@@ -92,8 +98,34 @@ var (
 
 			return eval.StringValuesContains(a, &evaluator, opts, state)
 		},
-		/*StringArrayMatches: func(a *eval.StringArrayEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*BoolEvaluator, error) {
+		StringArrayMatches: func(a *eval.StringArrayEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+			if !b.IsScalar() {
+				return nil, errors.New("non scalar overriden is not supported")
+			}
 
-		},*/
+			evaluator := eval.StringValuesEvaluator{
+				EvalFnc: func(ctx *eval.Context) eval.StringValues {
+					event := (*Event)(ctx.Object)
+
+					var values eval.StringValues
+					for _, value := range b.Values.GetScalarValues() {
+						values.AppendScalarValue(value)
+
+						if dest, err := event.resolvers.SymlinkResolver.Resolve(value); err == nil {
+							values.AppendScalarValue(dest)
+						}
+					}
+
+					// warn regexp
+					if len(b.Values.GetRegexValues()) != 0 {
+						// TODO
+					}
+
+					return b.Values
+				},
+			}
+
+			return eval.StringArrayMatches(a, &evaluator, opts, state)
+		},
 	}
 )
