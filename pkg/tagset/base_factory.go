@@ -3,8 +3,12 @@ package tagset
 // baseFactory provides some utility functions that are useful in all factory
 // implementations.
 type baseFactory struct {
-	// builders is a cache of unused builder instances for reuse
-	builders      []*Builder
+	// builders is a cache of unused builder instances for reuse.  Because
+	// factories are not thread-safe, there is no need to synchronize access
+	// to this list.
+	builders []*Builder
+
+	// sliceBuilders is similar to builders.
 	sliceBuilders []*SliceBuilder
 }
 
