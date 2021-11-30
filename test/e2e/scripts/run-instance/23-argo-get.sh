@@ -4,6 +4,8 @@ set -euo pipefail
 printf '=%.0s' {0..79} ; echo
 set -x
 
+ARGO_WORKFLOW=${ARGO_WORKFLOW:-''}
+
 cd "$(dirname "$0")"
 
 # Wait for any Running workflow

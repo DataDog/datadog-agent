@@ -70,8 +70,10 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="select pod", emoji=":man_running:"):
             self.kubernetes_helper.select_pod_name("app=datadog-agent")
 
-        with Step(msg="check agent start", emoji=":customs:"):
+        with Step(msg="check security-agent start", emoji=":customs:"):
             wait_agent_log("security-agent", self.kubernetes_helper, SECURITY_START_LOG)
+
+        with Step(msg="check system-probe start", emoji=":customs:"):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
         with Step(msg="wait for host tags(~2m)", emoji=":alarm_clock:"):

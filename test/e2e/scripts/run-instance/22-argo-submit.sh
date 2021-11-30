@@ -10,6 +10,8 @@ if [[ -z ${DATADOG_AGENT_IMAGE:+x} ]] || [[ -z ${DATADOG_CLUSTER_AGENT_IMAGE:+x}
     exit 2
 fi
 
+ARGO_WORKFLOW=${ARGO_WORKFLOW:-''}
+
 echo "DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
 echo "DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE}"
 echo "ARGO_WORKFLOW=${ARGO_WORKFLOW}"
@@ -46,6 +48,8 @@ case "$ARGO_WORKFLOW" in
             --parameter datadog-agent-site="${DATADOG_AGENT_SITE#*:}" || :
         ;;
     *)
+        kubectl create secret generic dd-keys --from-literal=DD_API_KEY=123er --from-literal=DD_APP_KEY=123er1
+
         ./argo template create ../../argo-workflows/templates/*.yaml
         ./argo submit ../../argo-workflows/workflow.yaml --wait \
             --parameter datadog-agent-image-repository="${DATADOG_AGENT_IMAGE%:*}" \
