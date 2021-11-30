@@ -60,6 +60,19 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 					}
 					metadataStore.AddScalarValue(fieldFullName, value)
 				}
+				// TODO: Use only `Symbols`
+				for _, symbol := range field.Symbols {
+					if metadataStore.ScalarFieldHasValue(fieldFullName) {
+						break
+					}
+					value, err := getScalarValueFromSymbol(values, symbol)
+					if err != nil {
+						log.Debugf("error getting scalar value: %v", err)
+						continue
+					}
+					metadataStore.AddScalarValue(fieldFullName, value)
+
+				}
 			} else {
 				metricValues, err := getColumnValueFromSymbol(values, field.Symbol)
 				if err != nil {
