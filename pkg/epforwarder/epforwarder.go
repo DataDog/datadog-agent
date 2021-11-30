@@ -180,11 +180,11 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	reliable := []client.Destination{}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true))
+		reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, pipelineID))
 	}
 	additionals := []client.Destination{}
 	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
-		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false))
+		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, pipelineID))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, 100)
@@ -197,7 +197,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		encoder = sender.IdentityContentType
 	}
 
-	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, pipelineID, encoder)
+	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, desc.eventType, encoder)
 
 	strategy.Start(inputChan, senderInput)
 

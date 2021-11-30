@@ -27,7 +27,7 @@ type Pipeline struct {
 
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan *message.Payload, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
-	mainDestinations := getDestinations(endpoints, destinationsContext)
+	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID)
 	// var backupDestinations *client.Destinations
 	// if endpoints.Backup != nil {
 	// 	backupDestinations = getBackupDestinations(endpoints, destinationsContext)
@@ -94,16 +94,16 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.sender.Flush(ctx)    // flush the sender
 }
 
-func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int) *client.Destinations {
 	reliable := []client.Destination{}
 	additionals := []client.Destination{}
 
 	if endpoints.UseHTTP {
 		for _, endpoint := range endpoints.GetReliableEndpoints() {
-			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true))
+			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, pipelineID))
 		}
 		for _, endpoint := range endpoints.GetUnReliableEndpoints() {
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false))
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, pipelineID))
 		}
 		return client.NewDestinations(reliable, additionals)
 	}
@@ -124,7 +124,7 @@ func getStrategy(endpoints *config.Endpoints, serverless bool, pipelineID int) s
 		} else {
 			encoder = sender.IdentityContentType
 		}
-		return sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", pipelineID, encoder)
+		return sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, "logs", encoder)
 	}
 	return sender.StreamStrategy
 }

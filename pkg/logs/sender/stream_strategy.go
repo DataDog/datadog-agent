@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // StreamStrategy is a shared stream strategy.
@@ -29,10 +28,6 @@ func (s *streamStrategy) Start(inputChan chan *message.Message, outputChan chan 
 			if msg.Origin != nil {
 				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
-			// TODO: move telemetry to sender?
-			metrics.LogsSent.Add(1)
-			metrics.TlmLogsSent.Inc()
-
 			outputChan <- &message.Payload{Messages: []*message.Message{msg}, Encoded: msg.Content}
 		}
 	}()

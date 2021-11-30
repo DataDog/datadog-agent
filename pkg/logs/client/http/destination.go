@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -33,6 +34,10 @@ var (
 	errClient = errors.New("client error")
 	errServer = errors.New("server error")
 	tlmSend   = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+
+	destinationExpVars = expvar.NewMap("http_destination")
+	expVarIdleMsMapKey = "idleMs"
+	expVarInUseMapKey  = "inUseMs"
 )
 
 // emptyPayload is an empty payload used to check HTTP connectivity without sending logs.
@@ -55,20 +60,27 @@ type Destination struct {
 	origin              config.IntakeOrigin
 	lastError           error
 	shouldRetry         bool
+	expVars             *expvar.Map
 }
 
 // NewDestination returns a new Destination.
 // If `maxConcurrentBackgroundSends` > 0, then at most that many background payloads will be sent concurrently, else
 // there is no concurrency and the background sending pipeline will block while sending each payload.
 // TODO: add support for SOCKS5
-func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, maxConcurrentBackgroundSends int, shouldRetry bool) *Destination {
-	return newDestination(endpoint, contentType, destinationsContext, time.Second*10, maxConcurrentBackgroundSends, shouldRetry)
+func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, maxConcurrentBackgroundSends int, shouldRetry bool, pipelineID int) *Destination {
+	return newDestination(endpoint, contentType, destinationsContext, time.Second*10, maxConcurrentBackgroundSends, shouldRetry, pipelineID)
 }
 
-func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int, shouldRetry bool) *Destination {
+func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int, shouldRetry bool, pipelineID int) *Destination {
 	if maxConcurrentBackgroundSends < 0 {
 		maxConcurrentBackgroundSends = 0
 	}
+
+	expVars := &expvar.Map{}
+	expVars.AddFloat(expVarIdleMsMapKey, 0)
+	expVars.AddFloat(expVarInUseMapKey, 0)
+	// TODO: improve this
+	destinationExpVars.Set(fmt.Sprintf("%s_%d", endpoint.Host, pipelineID), expVars)
 
 	policy := backoff.NewPolicy(
 		endpoint.BackoffFactor,
@@ -91,6 +103,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		origin:              endpoint.Origin,
 		lastError:           nil,
 		shouldRetry:         shouldRetry,
+		expVars:             expVars,
 	}
 }
 
@@ -107,8 +120,17 @@ func errorToTag(err error) string {
 // Send sends a payload over HTTP,
 func (d *Destination) Start(input chan *message.Payload, hasError chan bool, output chan *message.Payload) {
 	go func() {
+
+		var startIdle = time.Now()
+
 		for p := range input {
+			d.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
+			var startInUse = time.Now()
+
 			d.sendConcurrent(p, hasError, output)
+
+			d.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
+			startIdle = time.Now()
 		}
 	}()
 }
@@ -138,6 +160,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, hasError chan bool,
 			d.waitForBackoff()
 		}
 
+		metrics.LogsSent.Add(int64(len(payload.Messages)))
+		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
 		err := d.unconditionalSend(payload.Encoded)
 
 		if err == context.Canceled {
@@ -288,7 +312,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	ctx.Start()
 	defer ctx.Stop()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, 0)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := destination.unconditionalSend(emptyPayload)
 	if err != nil {

@@ -36,7 +36,7 @@ import (
 // processes and sends logs to the backend
 // + ------------------------------------------------------ +
 // |                                                        |
-// | Collector -> Decoder -> Processor -> Sender -> Auditor |
+// | Collector -> Decoder -> Processor -> Sender -> Auditor | // TODO: Brian update
 // |                                                        |
 // + ------------------------------------------------------ +
 type Agent struct {

@@ -7,23 +7,17 @@ package sender
 
 import (
 	"context"
-	"expvar"
-	"fmt"
 	"time"
 
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	tlmDroppedTooLarge   = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
-	batchStrategyExpVars = expvar.NewMap("batch_strategy")
-	expVarIdleMsMapKey   = "idleMs"
-	expVarInUseMapKey    = "inUseMs"
+	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 )
 
 // batchStrategy contains all the logic to send logs in batch.
@@ -35,27 +29,15 @@ type batchStrategy struct {
 	batchWait        time.Duration
 	contentEncoding  ContentEncoding
 	syncFlushTrigger chan struct{} // trigger a synchronous flush
-	expVars          *expvar.Map
 	clock            clock.Clock
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
-// If `maxConcurrent` > 0, then at most that many payloads will be sent concurrently, else there is no concurrency
-// and the pipeline will block while sending each payload.
-func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string, pipelineID int, contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(serializer, batchWait, maxConcurrent, maxBatchSize, maxContentSize, pipelineName, pipelineID, clock.New(), contentEncoding)
+func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxBatchSize int, maxContentSize int, pipelineName string, contentEncoding ContentEncoding) Strategy {
+	return newBatchStrategyWithClock(serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
 }
 
-func newBatchStrategyWithClock(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string, pipelineID int, clock clock.Clock, contentEncoding ContentEncoding) Strategy {
-	if maxConcurrent < 0 {
-		maxConcurrent = 0
-	}
-	expVars := &expvar.Map{}
-	expVars.AddFloat(expVarIdleMsMapKey, 0)
-	expVars.AddFloat(expVarInUseMapKey, 0)
-
-	batchStrategyExpVars.Set(fmt.Sprintf("%s_%d", pipelineName, pipelineID), expVars)
-
+func newBatchStrategyWithClock(serializer Serializer, batchWait time.Duration, maxBatchSize int, maxContentSize int, pipelineName string, clock clock.Clock, contentEncoding ContentEncoding) Strategy {
 	return &batchStrategy{
 		buffer:           NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:       serializer,
@@ -63,7 +45,6 @@ func newBatchStrategyWithClock(serializer Serializer, batchWait time.Duration, m
 		contentEncoding:  contentEncoding,
 		syncFlushTrigger: make(chan struct{}),
 		pipelineName:     pipelineName,
-		expVars:          expVars,
 		clock:            clock,
 	}
 }
@@ -81,7 +62,6 @@ func (s *batchStrategy) Start(inputChan chan *message.Message, outputChan chan *
 			s.flushBuffer(outputChan)
 			flushTicker.Stop()
 		}()
-		var startIdle = time.Now()
 		for {
 			select {
 			case m, isOpen := <-inputChan:
@@ -90,15 +70,7 @@ func (s *batchStrategy) Start(inputChan chan *message.Message, outputChan chan *
 					// inputChan has been closed, no more payloads are expected
 					return
 				}
-				// TODo: move this telemetry
-				s.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
-				var startInUse = time.Now()
-
 				s.processMessage(m, outputChan)
-
-				s.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
-				startIdle = time.Now()
-
 			case <-flushTicker.C:
 				// the first message that was added to the buffer has been here for too long, send the payload now
 				s.flushBuffer(outputChan)
@@ -139,10 +111,6 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 }
 
 func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *message.Payload) {
-	// TODO: move telemetry to sender?
-	metrics.LogsSent.Add(int64(len(messages)))
-	metrics.TlmLogsSent.Add(float64(len(messages)))
-
 	serializedMessage := s.serializer.Serialize(messages)
 	encodedPayload, err := s.contentEncoding.encode(serializedMessage)
 	if err != nil {
