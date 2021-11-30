@@ -38,6 +38,9 @@ var _ Factory = (*cachingFactory)(nil)
 // less-frequently-referenced values, at the expense of more CPU time spent
 // searching for cached instances.  A value of 5 is a nice starting point.  The
 // cache width must be at least 1.
+//
+// Caching factories are not threadsafe.  Wrap with a ThreadsafeFactory if
+// thread safety is required.
 func NewCachingFactory(cacheSize, cacheWidth int) Factory {
 	if cacheSize < 1 {
 		panic("cacheSize must be at least 1")

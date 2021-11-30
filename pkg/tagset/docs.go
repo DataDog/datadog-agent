@@ -13,6 +13,9 @@
 // The package otherwise presents a fairly abstract API that allows performance
 // optimizations without changing semantics.
 //
+// For background, see the proposal for this package at
+// https://github.com/DataDog/datadog-agent/blob/main/docs/proposals/agent-pkg-tagset-rfc.md
+//
 // Tags
 //
 // The Tags type is an opaque, immutable data structure representing a set of
@@ -25,6 +28,8 @@
 // interface, factories support optimization and deduplication.  A global factory
 // is available for general use, and purpose-specific factories can be created
 // for more intensive tag operations.
+//
+// In general, factories are not thread-safe
 //
 // Builders
 //
