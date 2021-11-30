@@ -242,14 +242,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		*errResult = TrackedCString(err.Error())
 		return nil
 	}
-	payload := struct {
-		Query    string                `json:"query"`
-		Metadata obfuscate.SQLMetadata `json:"metadata"`
-	}{
-		Query:    obfuscatedQuery.Query,
-		Metadata: obfuscatedQuery.Metadata,
-	}
-	out, err := json.Marshal(payload)
+	out, err := json.Marshal(obfuscatedQuery)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())

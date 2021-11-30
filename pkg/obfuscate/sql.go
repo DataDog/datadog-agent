@@ -289,8 +289,8 @@ func (f *tableFinderFilter) Reset() {
 
 // ObfuscatedQuery specifies information about an obfuscated SQL query.
 type ObfuscatedQuery struct {
-	Query    string      // the obfuscated SQL query
-	Metadata SQLMetadata // metadata extracted from the SQL query
+	Query    string      `json:"query"`    // the obfuscated SQL query
+	Metadata SQLMetadata `json:"metadata"` // metadata extracted from the SQL query
 }
 
 // Cost returns the number of bytes needed to store all the fields

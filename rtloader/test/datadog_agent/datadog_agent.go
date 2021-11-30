@@ -256,17 +256,14 @@ func obfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	s := C.GoString(rawQuery)
 	switch s {
 	case "select * from table where id = 1":
-		payload := struct {
-			Query    string                `json:"query"`
-			Metadata obfuscate.SQLMetadata `json:"metadata"`
-		}{
+		obfuscatedQuery := obfuscate.ObfuscatedQuery{
 			Query: "select * from table where id = ?",
 			Metadata: obfuscate.SQLMetadata{
 				Comments:  []string{"-- SQL test comment"},
 				TablesCSV: "table",
 			},
 		}
-		out, err := json.Marshal(payload)
+		out, err := json.Marshal(obfuscatedQuery)
 		if err != nil {
 			*errResult = (*C.char)(helpers.TrackedCString(err.Error()))
 			return nil
