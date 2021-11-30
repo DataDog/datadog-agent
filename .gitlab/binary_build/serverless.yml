@@ -1,29 +1,44 @@
 ---
 .build_serverless_common:
   stage: binary_build
-  variables:
-    # this baseline is the current binary size + 3%
-    BASELINE_SIZE_IN_BYTES: 30609317
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless
-    - export CURRENT_SIZE_IN_BYTES=$(ls -l serverless | awk '{print $5}')
+    - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless -o $BINARY_NAME
+
+.check_size_common:
+  stage: binary_build
+  script:
+    - export CURRENT_SIZE_IN_BYTES=$(ls -l $BINARY_NAME | awk '{print $5}')
     - echo "Current extension size $CURRENT_SIZE_IN_BYTES bytes"
     - export DELTA=$(($CURRENT_SIZE_IN_BYTES-$BASELINE_SIZE_IN_BYTES))
-    - if [[ $DELTA -gt 0 ]]; then echo "Extension binary size is too big, please investigate/reach the serverless slack channel" && exit 1; else exit 0; fi
-
+    - if [[ $DELTA -gt 0 ]]; then echo "Extension binary size is too big for $BINARY_NAME, please investigate/reach the serverless slack channel" && exit 1; else exit 0; fi
 
 build_serverless-deb_x64:
   extends: .build_serverless_common
+  BINARY_NAME: datadog-agent-x64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["linux_x64_go_deps"]
 
 build_serverless-deb_arm64:
   extends: .build_serverless_common
-  rules:
-    !reference [.on_all_builds]
+  BINARY_NAME: datadog-agent-arm64
+  rules: !reference [.on_all_builds]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["linux_arm64_go_deps"]
+
+check_size_x64:
+  # this baseline is the current binary size + 3%
+  BINARY_NAME: datadog-agent-x64
+  BASELINE_SIZE_IN_BYTES: 30609317
+  needs: ["build_serverless-deb_x64"]
+  extends: .check_size_common
+
+check_size_arm64:
+  # this baseline is the current binary size + 3%
+  BINARY_NAME: datadog-agent-arm64
+  BASELINE_SIZE_IN_BYTES: 30609317
+  needs: ["build_serverless-deb_x64"]
+  extends: .check_size_common
