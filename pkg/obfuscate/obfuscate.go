@@ -130,10 +130,8 @@ type SQLConfig struct {
 // SQLMetadata holds metadata collected throughout the obfuscation for a SQL statement.
 type SQLMetadata struct {
 	// TablesCSV is a comma-separated list of tables that the query addresses.
-	// Note, SQLConfig.TableNames needs to be enabled.
 	TablesCSV string `json:"tables_csv"`
 	// Comments in a SQL statement.
-	// Note, SQLConfig.CollectComments needs to be enabled.
 	Comments []string `json:"comments"`
 }
 
