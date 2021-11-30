@@ -92,7 +92,6 @@ func (c *ServerlessMetricAgent) Stop() {
 	if c.IsReady() {
 		c.dogStatDServer.Stop()
 	}
-	// FIXME(remy): should we close the Demultiplexer here?
 }
 
 // SetExtraTags sets extra tags on the DogStatsD server

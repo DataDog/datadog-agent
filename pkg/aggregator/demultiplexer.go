@@ -20,7 +20,7 @@ import (
 
 // DemultiplexerInstance is a shared global demultiplexer instance.
 // Initialized by InitAndStartAgentDemultiplexer or InitAndStartServerlessDemultiplexer,
-// could be nil otherwise. TODO(remy): remove this global instance in the future.
+// could be nil otherwise.
 //
 // Deprecated.
 var demultiplexerInstance Demultiplexer
@@ -41,10 +41,8 @@ type Demultiplexer interface {
 
 	// AddTimeSamples adds time samples processed by the DogStatsD server into a time sampler pipeline.
 	// The MetricSamples should have their hash computed.
-	// TODO(remy): not implemented yet.
 	AddTimeSamples(sample []metrics.MetricSample)
 	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-	// TODO(remy): not implemented yet.
 	AddCheckSample(sample metrics.MetricSample)
 	// FlushAggregatedData flushes all the aggregated data from the samplers to
 	// the serialization/forwarding parts.
@@ -257,18 +255,11 @@ func (d *AgentDemultiplexer) FlushAggregatedData(start time.Time, waitForSeriali
 
 // AddTimeSamples adds time samples processed by the DogStatsD server into a time sampler pipeline.
 // The MetricSamples should have their hash computed.
-// TODO(remy): not implemented yet.
 func (d *AgentDemultiplexer) AddTimeSamples(samples []metrics.MetricSample) {
-	// TODO(remy): it may makes sense to embed the `batcher` directly in the Demultiplexer
-
-	// TODO(remy): this is the entry point to the time sampler pipelines, we will probably want to do something
-	// TODO(remy): like `pipelines[sample.Key%d.pipelinesCount].samples <- sample`
-	// TODO(remy): where all readers of these channels are running in a different routine
 	panic("not implemented yet.")
 }
 
 // AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-// TODO(remy): not implemented yet.
 func (d *AgentDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
 	panic("not implemented yet.")
 }
@@ -305,7 +296,6 @@ type ServerlessDemultiplexer struct {
 func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, hostname string, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
 	forwarder := forwarder.NewSyncForwarder(domainResolvers, forwarderTimeout)
 	serializer := serializer.NewSerializer(forwarder, nil)
-	// TODO(remy): what about the flush interval here?
 	aggregator := InitAggregator(serializer, nil, hostname)
 
 	demux := &ServerlessDemultiplexer{
@@ -351,15 +341,7 @@ func (d *ServerlessDemultiplexer) FlushAggregatedData(start time.Time, waitForSe
 
 // AddTimeSamples adds time samples processed by the DogStatsD server into a time sampler pipeline.
 // The MetricSamples should have their hash computed.
-// TODO(remy): not implemented yet.
 func (d *ServerlessDemultiplexer) AddTimeSamples(samples []metrics.MetricSample) {
-	// TODO(remy): it may makes sense to embed the `batcher` directly in the Demultiplexer
-
-	// TODO(remy): this is the entry point to the time sampler pipelines, we will probably want to do something
-	// TODO(remy): like `pipelines[sample.Key%d.pipelinesCount].samples <- sample`
-	// TODO(remy): where all readers of these channels are running in a different routine
-
-	// TODO(remy): for now, these are sent directly to the aggregator channels
 	panic("not implemented yet.")
 }
 

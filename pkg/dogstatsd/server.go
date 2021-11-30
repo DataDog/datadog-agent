@@ -559,12 +559,12 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					if debugEnabled {
 						s.storeMetricStats(samples[idx])
 					}
-					batcher.appendSample(samples[idx]) // TODO(remy): use the Demultiplexer
+					batcher.appendSample(samples[idx])
 					if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
 						distSample := samples[idx].Copy()
 						distSample.Name = s.histToDistPrefix + distSample.Name
 						distSample.Mtype = metrics.DistributionType
-						batcher.appendSample(*distSample) // TODO(remy): use the Demultiplexer
+						batcher.appendSample(*distSample)
 					}
 				}
 			}
