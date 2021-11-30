@@ -248,7 +248,7 @@ func (s *Serializer) SendEvents(e EventsStreamJSONMarshaler) error {
 		return nil
 	}
 
-	useV1API := !config.Datadog.GetBool("use_v2_api.events")
+	useV1API := true
 	var eventPayloads forwarder.Payloads
 	var extraHeaders http.Header
 	var err error
