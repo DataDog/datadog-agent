@@ -108,16 +108,6 @@ func (tf *MockedForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header
 	return tf.Called(payload, extra).Error(0)
 }
 
-// SubmitEvents updates the internal mock struct
-func (tf *MockedForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
-}
-
-// SubmitServiceChecks updates the internal mock struct
-func (tf *MockedForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
-}
-
 // SubmitSketchSeries updates the internal mock struct
 func (tf *MockedForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)

@@ -88,12 +88,6 @@ func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extr
 func (f *forwarderBenchStub) SubmitSeries(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitEvents(payload forwarder.Payloads, extraHeaders http.Header) error {
-	return nil
-}
-func (f *forwarderBenchStub) SubmitServiceChecks(payload forwarder.Payloads, extraHeaders http.Header) error {
-	return nil
-}
 func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }

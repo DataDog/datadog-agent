@@ -123,8 +123,6 @@ func TestSubmitIfStopped(t *testing.T) {
 
 	require.NotNil(t, forwarder)
 	require.Equal(t, Stopped, forwarder.State())
-	assert.NotNil(t, forwarder.SubmitEvents(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitServiceChecks(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitSketchSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitHostMetadata(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header)))
@@ -368,24 +366,38 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
+	// - 2 requests to check the validity of the two api_key
+	numReqs := int64(2)
+
+	// for each call, we send 2 payloads * 2 api_keys
 	assert.Nil(t, f.SubmitV1Series(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitSeries(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitV1Intake(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
-	assert.Nil(t, f.SubmitEvents(payload, headers))
-	assert.Nil(t, f.SubmitServiceChecks(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitSketchSeries(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitHostMetadata(payload, headers))
+	numReqs += 4
+
 	assert.Nil(t, f.SubmitMetadata(payload, headers))
+	numReqs += 4
 
 	// let's wait a second for every channel communication to trigger
 	<-time.After(1 * time.Second)
 
 	// We should receive the following requests:
 	// - 9 transactions * 2 payloads per transactions * 2 api_keys
-	// - 2 requests to check the validity of the two api_key
 	ts.Close()
-	assert.Equal(t, int64(9*2*2+2), requests)
+	assert.Equal(t, numReqs, requests)
 }
 
 func TestTransactionEventHandlers(t *testing.T) {

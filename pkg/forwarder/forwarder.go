@@ -61,8 +61,6 @@ type Forwarder interface {
 	SubmitV1Series(payload Payloads, extra http.Header) error
 	SubmitV1Intake(payload Payloads, extra http.Header) error
 	SubmitV1CheckRuns(payload Payloads, extra http.Header) error
-	SubmitEvents(payload Payloads, extra http.Header) error
-	SubmitServiceChecks(payload Payloads, extra http.Header) error
 	SubmitSeries(payload Payloads, extra http.Header) error
 	SubmitSketchSeries(payload Payloads, extra http.Header) error
 	SubmitHostMetadata(payload Payloads, extra http.Header) error
@@ -447,18 +445,6 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 		f.domainForwarders[t.Domain].sendHTTPTransactions(t)
 	}
 	return nil
-}
-
-// SubmitEvents will send an event type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.EventsEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitServiceChecks will send a service check type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.ServiceChecksEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE

@@ -91,14 +91,6 @@ func (f *forwarderBenchStub) SubmitSeries(payloads forwarder.Payloads, extraHead
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitEvents(payloads forwarder.Payloads, extraHeaders http.Header) error {
-	f.computeStats(payloads)
-	return nil
-}
-func (f *forwarderBenchStub) SubmitServiceChecks(payloads forwarder.Payloads, extraHeaders http.Header) error {
-	f.computeStats(payloads)
-	return nil
-}
 func (f *forwarderBenchStub) SubmitSketchSeries(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil

@@ -86,18 +86,6 @@ func (f *SyncForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) e
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitEvents will send an event type payload to Datadog backend.
-func (f *SyncForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.EventsEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitServiceChecks will send a service check type payload to Datadog backend.
-func (f *SyncForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.ServiceChecksEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *SyncForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, true, extra)

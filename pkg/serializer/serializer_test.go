@@ -401,9 +401,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	s.SendProcessesMetadata("test")
 
 	f.AssertNotCalled(t, "SubmitMetadata")
-	f.AssertNotCalled(t, "SubmitEvents")
 	f.AssertNotCalled(t, "SubmitV1CheckRuns")
-	f.AssertNotCalled(t, "SubmitServiceChecks")
 	f.AssertNotCalled(t, "SubmitV1Series")
 	f.AssertNotCalled(t, "SubmitSketchSeries")
 
