@@ -10,7 +10,7 @@ package python
 
 import (
 	"context"
-	"json"
+	"encoding/json"
 	"sync"
 	"unsafe"
 
