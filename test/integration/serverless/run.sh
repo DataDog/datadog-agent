@@ -10,6 +10,7 @@ LOGS_WAIT_SECONDS=600
 
 DEFAULT_NODE_LAYER_VERSION=66
 DEFAULT_PYTHON_LAYER_VERSION=49
+DEFAULT_JAVA_TRACE_LAYER_VERSION=8
 
 set -e
 
@@ -22,7 +23,7 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
 fi
 
 # Move into the root directory, so this script can be called from any directory
-SERVERLESS_INTEGRATION_TESTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 cd $SERVERLESS_INTEGRATION_TESTS_DIR/../../..
 
 # TODO: Get this working in CI environment
@@ -58,6 +59,14 @@ for go_dir in "${go_test_dirs[@]}"; do
     env GOOS=linux go build -ldflags="-s -w" -o bin/"$go_dir" go-tests/"$go_dir"/main.go
 done
 
+#build Java functions
+echo
+echo "Building Java Lambda Functions"
+java_test_dirs=("with-ddlambda" "trace" "log")
+for java_dir in "${java_test_dirs[@]}"; do
+    mvn package -f java-tests/"${java_dir}"/pom.xml
+done
+
 #build .NET functions
 echo
 echo "Building .NET Lambda functions"
@@ -80,9 +89,14 @@ if [ -z "$PYTHON_LAYER_VERSION" ]; then
     export PYTHON_LAYER_VERSION=$DEFAULT_PYTHON_LAYER_VERSION
 fi
 
+if [ -z "$JAVA_TRACE_LAYER_VERSION" ]; then
+    echo "JAVA_TRACE_LAYER_VERSION not found, using the default"
+    export JAVA_TRACE_LAYER_VERSION=$DEFAULT_JAVA_TRACE_LAYER_VERSION
+fi
+
 echo "NODE_LAYER_VERSION set to: $NODE_LAYER_VERSION"
 echo "PYTHON_LAYER_VERSION set to: $PYTHON_LAYER_VERSION"
-
+echo "JAVA_TRACE_LAYER_VERSION set to: $JAVA_TRACE_LAYER_VERSION"
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
 
@@ -101,13 +115,13 @@ NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
 
 # invoke functions
 
-metric_function_names=("enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "error-python" "error-node")
-log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda")
-trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go")
+metric_function_names=("with-ddlambda-java" "enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "error-python" "error-node")
+log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda" "log-java")
+trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go" "simple-trace-java")
 
 all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
-
-set +e # Don't exit this script if an invocation fails or there's a diff
+all_functions=("simple-trace-java") #"with-ddlambda-java"  "log-java"
+set +e                              # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
     serverless invoke --stage ${stage} -f ${function_name}
 done
@@ -188,20 +202,21 @@ for function_name in "${all_functions[@]}"; do
         )
     else
         # Normalize traces
-        logs=$(
-            echo "$raw_logs" |
-                grep "\[trace\]" |
-                perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
-                perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1XXX/g" |
-                perl -p -e "s/(duration\":)[0-9]+/\1XXX/g" |
-                perl -p -e "s/((datadog_lambda|dd_trace)\":\")[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/$stage/XXXXXX/g" |
-                perl -p -e "s/[ ]$//g" |
-                sort
-        )
+        logs="$raw_logs"
+        # $(
+        #     echo "$raw_logs" |
+        #         grep "\[trace\]" |
+        #         perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
+        #         perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1XXX/g" |
+        #         perl -p -e "s/(duration\":)[0-9]+/\1XXX/g" |
+        #         perl -p -e "s/((datadog_lambda|dd_trace)\":\")[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
+        #         perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
+        #         perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
+        #         perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
+        #         perl -p -e "s/$stage/XXXXXX/g" |
+        #         perl -p -e "s/[ ]$//g" |
+        #         sort
+        # )
     fi
 
     function_snapshot_path="./snapshots/${function_name}"

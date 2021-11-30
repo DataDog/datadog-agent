@@ -3,3 +3,7 @@ recorder-extension/extensions
 recorder-extension/ext.zip
 src/csharp-tests/bin
 src/csharp-tests/obj
+src/java-tests/with-ddlambda/src
+src/java-tests/with-ddlambda/target
+src/java-tests/trace/src
+src/java-tests/trace/target

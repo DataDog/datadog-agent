@@ -1,0 +1,172 @@
+Serverless: Recoverable error occurred (Rate exceeded), sleeping for ~5 seconds. Try 1 of 4
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Starting daemon to receive messages from runtime...
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Unable to restore the state from file
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Using a SyncForwarder with a 5s timeout
+2021-11-30 18:14:03 UTC | DD_EXTENSION | INFO | Retry queue storage on disk is disabled
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | 'telemetry.dogstatsd.aggregator_channel_latency_buckets' is empty, falling back to default values
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | 'telemetry.dogstatsd.listeners_latency_buckets' is empty, falling back to default values
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | 'telemetry.dogstatsd.listeners_channel_latency_buckets' is empty, falling back to default values
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | dogstatsd-udp: 127.0.0.1:8125 successfully initialized
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Enabling logs collection HTTP route
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Subscribing to Logs for types: [platform function extension]
+2021-11-30 18:14:03 UTC | DD_EXTENSION | INFO | dogstatsd-udp: starting to listen on 127.0.0.1:8125
+2021-11-30 18:14:03 UTC | DD_EXTENSION | WARN | Error loading config: open /var/task/datadog.yaml: no such file or directory
+2021-11-30 18:14:03 UTC | DD_EXTENSION | INFO | Features detected from environment: 
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Setting DefaultEnv to "integration-tests-env" (from 'env' config option)
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Could not get hostname via gRPC: grpc client disabled via cmd_port: -1. Falling back to other methods.
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Acquired hostname from OS: "169.254.30.117". Core agent was unreachable at "/opt/datadog-agent/bin/agent/agent": fork/exec /opt/datadog-agent/bin/agent/agent: no such file or directory.
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Trace writer initialized (climit=200 qsize=78)
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Stats writer initialized (climit=20 qsize=83)
+LOGS	Name: datadog-agent	State: Subscribed	Types: [platform,function,extension]
+2021-11-30 18:14:03 UTC | DD_EXTENSION | INFO | Starting a serverless logs-agent...
+2021-11-30 18:14:03 UTC | DD_EXTENSION | INFO | logs-agent started
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Adding AWS Logs collection source
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | serverless agent ready in 20.212326ms
+2021-11-30 18:14:03 UTC | DD_EXTENSION | INFO | Listening for traces at http://localhost:8126
+2021-11-30 18:14:03 UTC | DD_EXTENSION | DEBUG | Starting concentrator
+Picked up JAVA_TOOL_OPTIONS: -javaagent:"/opt/java/lib/dd-java-agent.jar"
+START RequestId: a2848af6-21ad-4a6a-819f-56084c18fa83 Version: $LATEST
+[dd.trace 2021-11-30 18:14:05:996 +0000] [main] INFO datadog.trace.agent.common.writer.WriterFactory - Detected serverless environment. Serverless extension has been detected, using DDAgentWriter
+[dd.trace 2021-11-30 18:14:06:606 +0000] [dd-task-scheduler] INFO datadog.trace.agent.core.StatusLogger - DATADOG TRACER CONFIGURATION {"version":"0.90.0~32708e53ec","os_name":"Linux","os_version":"4.14.246-198.474.amzn2.x86_64","architecture":"amd64","lang":"jvm","lang_version":"1.8.0_312","jvm_vendor":"Amazon.com Inc.","jvm_version":"25.312-b07","java_class_version":"52.0","http_nonProxyHosts":"null","http_proxyHost":"null","enabled":true,"service":"integration-tests-service","agent_url":"http://localhost:8126","agent_error":false,"debug":false,"analytics_enabled":false,"sampling_rules":[{},{}],"priority_sampling_enabled":true,"logs_correlation_enabled":true,"profiling_enabled":false,"appsec_enabled":false,"dd_version":"0.90.0~32708e53ec","health_checks_enabled":true,"configuration_file":"no config file present","runtime_id":"cfd61cf2-59ff-4086-be64-8e019b71f4f1","logging_settings":{"levelInBrackets":false,"dateTimeFormat":"'[dd.trace 'yyyy-MM-dd HH:mm:ss:SSS Z']'","logFile":"System.err","configurationFile":"simplelogger.properties","showShortLogName":false,"showDateTime":true,"showLogName":true,"showThreadName":true,"defaultLogLevel":"INFO","warnLevelString":"WARN","embedException":false},"cws_enabled":false,"cws_tls_refresh":5000}
+EXTENSION	Name: datadog-agent	State: Ready	Events: [INVOKE,SHUTDOWN]
+EXTENSION	Name: recorder-extension	State: Ready	Events: [SHUTDOWN]
+2021-11-30 18:14:08 UTC | DD_EXTENSION | DEBUG | Received invocation event...
+2021-11-30 18:14:08 UTC | DD_EXTENSION | DEBUG | The flush strategy end has decided to not flush at moment: starting
+{"level":"DEBUG","message":"datadog: Extension has been detected"}
+2021-11-30 18:14:09 UTC | DD_EXTENSION | DEBUG | Hit on the serverless.Hello route.
+{"level":"DEBUG","message":"datadog: Setting the writer to extension"}
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Hit on the serverless.Flush route.
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Received a runtimeDone log message for the current invocation a2848af6-21ad-4a6a-819f-56084c18fa83
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | The flush strategy end has decided to flush at moment: stopping
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Beginning metrics flush at time 1638296051
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Beginning traces flush at time 1638296051
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Beginning logs flush at time 1638296051
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Serializing 3 tracer payloads.
+2021-11-30 18:14:11 UTC | DD_EXTENSION | INFO | Triggering a flush in the logs-agent
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Flush in the logs-agent done.
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Finished logs flush that was started at time 1638296051
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Received a Flush trigger
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Flushing 2 sketches to the forwarder
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+[sketch] {"metric":"aws.lambda.enhanced.runtime_duration","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:true","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296050,"cnt":1,"min":2589,"max":2589,"avg":2589,"sum":2589,"k":[1845],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.invocations","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:true","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296040,"cnt":1,"min":1,"max":1,"avg":1,"sum":1,"k":[1338],"n":[1]}]} 
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Flushed traces to the API; time: 2.210273ms, bytes: 1242
+2021-11-30 18:14:11 UTC | DD_EXTENSION | INFO | Successfully posted payload to "http://127.0.0.1:3333/api/beta/sketches?api_key=NO_NEED_TO_BE_VALID", the agent will only log transaction success every 500 transactions
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Flushing 2 series to the forwarder
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Flushing 1 service checks to the forwarder
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Finished metrics flush that was started at time 1638296051
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Finished traces flush that was started at time 1638296051
+2021-11-30 18:14:11 UTC | DD_EXTENSION | DEBUG | Finished flushing
+END RequestId: a2848af6-21ad-4a6a-819f-56084c18fa83
+REPORT RequestId: a2848af6-21ad-4a6a-819f-56084c18fa83	Duration: 2628.56 ms	Billed Duration: 2629 ms	Memory Size: 1024 MB	Max Memory Used: 226 MB	Init Duration: 5396.00 ms	
+XRAY TraceId: 1-61a669ea-6bebe5e424e25ecc40fc56c8	SegmentId: 2a7e4e4703f53229	Sampled: true	
+
+START RequestId: 6411971b-1f76-40ad-aa38-378197cc5441 Version: $LATEST
+{"level":"DEBUG","message":"datadog: Extension has been detected"}
+2021-11-30 18:14:50 UTC | DD_EXTENSION | INFO | [lang:java lang_version:1.8.0_312 lang_vendor:Amazon.com Inc. interpreter:OpenJDK 64-Bit Server VM tracer_version:0.90.0~32708e53ec endpoint_version:v0.4] -> traces received: 3, traces filtered: 0, traces amount: 2036 bytes, events extracted: 0, events sampled: 0
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | flushing bucket 1638296040000000000
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Flushing 1 service checks to the forwarder
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Flushing 2 series to the forwarder
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | flushing bucket 1638296050000000000
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | update oldestTs to 1638296080000000000
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Hit on the serverless.Hello route.
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Received invocation event...
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | The flush strategy end has decided to not flush at moment: starting
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Enhanced metrics: {durationMs:2628.56 billedDurationMs:2629 memorySizeMB:1024 maxMemoryUsedMB:226 initDurationMs:5396}
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Flushing 3 entries (buckets=2 client_payloads=1)
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+{"level":"DEBUG","message":"datadog: Setting the writer to extension"}
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Hit on the serverless.Flush route.
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Received a runtimeDone log message for the current invocation 6411971b-1f76-40ad-aa38-378197cc5441
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | The flush strategy end has decided to flush at moment: stopping
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Beginning metrics flush at time 1638296090
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Received a Flush trigger
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Beginning logs flush at time 1638296090
+2021-11-30 18:14:50 UTC | DD_EXTENSION | INFO | Triggering a flush in the logs-agent
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Flush in the logs-agent done.
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Finished logs flush that was started at time 1638296090
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Beginning traces flush at time 1638296090
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Flushing 8 sketches to the forwarder
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:14:50 UTC | DD_EXTENSION | WARN | Stats writer payload rejected by edge: 404 Not Found
+[sketch] {"metric":"aws.lambda.enhanced.billed_duration","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:true","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296050,"cnt":1,"min":2.629,"max":2.629,"avg":2.629,"sum":2.629,"k":[1400],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.duration","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:true","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296050,"cnt":1,"min":2.62856,"max":2.62856,"avg":2.62856,"sum":2.62856,"k":[1400],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.estimated_cost","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:true","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296050,"cnt":1,"min":0.0000440167543,"max":0.0000440167543,"avg":0.0000440167543,"sum":0.0000440167543,"k":[691],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.invocations","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:false","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296090,"cnt":1,"min":1,"max":1,"avg":1,"sum":1,"k":[1338],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.runtime_duration","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:false","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296090,"cnt":1,"min":121,"max":121,"avg":121,"sum":121,"k":[1647],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.init_duration","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:true","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296050,"cnt":1,"min":5.396,"max":5.396,"avg":5.396,"sum":5.396,"k":[1447],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.max_memory_used","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:true","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296050,"cnt":1,"min":226,"max":226,"avg":226,"sum":226,"k":[1688],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.memorysize","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:true","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296050,"cnt":1,"min":1024,"max":1024,"avg":1024,"sum":1024,"k":[1785],"n":[1]}]} 
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Flushing 18 series to the forwarder
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Flushing 1 service checks to the forwarder
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Finished metrics flush that was started at time 1638296090
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Serializing 3 tracer payloads.
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Flushed traces to the API; time: 317.02µs, bytes: 1217
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Finished traces flush that was started at time 1638296090
+2021-11-30 18:14:50 UTC | DD_EXTENSION | DEBUG | Finished flushing
+END RequestId: 6411971b-1f76-40ad-aa38-378197cc5441
+REPORT RequestId: 6411971b-1f76-40ad-aa38-378197cc5441	Duration: 169.04 ms	Billed Duration: 170 ms	Memory Size: 1024 MB	Max Memory Used: 226 MB	
+XRAY TraceId: 1-61a66a1a-4888015822530ce13976b3ce	SegmentId: 234edb5b641e099a	Sampled: true	
+
+2021-11-30 18:20:03 UTC | DD_EXTENSION | INFO | [lang:java lang_version:1.8.0_312 lang_vendor:Amazon.com Inc. interpreter:OpenJDK 64-Bit Server VM tracer_version:0.90.0~32708e53ec endpoint_version:v0.4] -> traces received: 3, traces filtered: 0, traces amount: 2035 bytes, events extracted: 0, events sampled: 0
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | flushing bucket 1638296090000000000
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | update oldestTs to 1638296390000000000
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | Flushing 3 entries (buckets=1 client_payloads=1)
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | Flushing 1 service checks to the forwarder
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | Enhanced metrics: {durationMs:169.04 billedDurationMs:170 memorySizeMB:1024 maxMemoryUsedMB:226 initDurationMs:0}
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | Flushing 18 series to the forwarder
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | Received shutdown event. Reason: spindown
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | Waiting to shut down HTTP server
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | Flushing 5 sketches to the forwarder
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | Flushing 1 service checks to the forwarder
+[sketch] {"metric":"aws.lambda.enhanced.max_memory_used","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:false","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296090,"cnt":1,"min":226,"max":226,"avg":226,"sum":226,"k":[1688],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.memorysize","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:false","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296090,"cnt":1,"min":1024,"max":1024,"avg":1024,"sum":1024,"k":[1785],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.billed_duration","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:false","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296090,"cnt":1,"min":0.17,"max":0.17,"avg":0.17,"sum":0.17,"k":[1224],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.duration","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:false","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296090,"cnt":1,"min":0.16904,"max":0.16904,"avg":0.16904,"sum":0.16904,"k":[1223],"n":[1]}]} 
+[sketch] {"metric":"aws.lambda.enhanced.estimated_cost","distributions":null,"tags":["account_id:601427279990","architecture:x86_64","aws_account:601427279990","cold_start:false","dd_extension_version:123","env:integration-tests-env","function_arn:arn:aws:lambda:sa-east-1:601427279990:function:integration-tests-extension-e9600d08-simple-trace-java","functionname:integration-tests-extension-e9600d08-simple-trace-java","memorysize:1024","region:sa-east-1","resource:integration-tests-extension-e9600d08-simple-trace-java","runtime:java8","service:integration-tests-service","taga:valuea","tagb:valueb","tagc:valuec","tagd:valued","version:integration-tests-version"],"dogsketches":[{"ts":1638296090,"cnt":1,"min":0.000003033339,"max":0.000003033339,"avg":0.000003033339,"sum":0.000003033339,"k":[518],"n":[1]}]} 
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | Flushing 2 series to the forwarder
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:20:03 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Shutting down HTTP server
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Beginning logs flush at time 1638296404
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Beginning traces flush at time 1638296404
+2021-11-30 18:20:04 UTC | DD_EXTENSION | INFO | Triggering a flush in the logs-agent
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Flush in the logs-agent done.
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Finished logs flush that was started at time 1638296404
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Beginning metrics flush at time 1638296404
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Received a Flush trigger
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Flushing 11 series to the forwarder
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Flushing 1 service checks to the forwarder
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | The payload was not too big, returning the full payload
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | SyncForwarder has flushed 1 transactions
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Finished metrics flush that was started at time 1638296404
+2021-11-30 18:20:04 UTC | DD_EXTENSION | WARN | Stats writer payload rejected by edge: 404 Not Found
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Finished traces flush that was started at time 1638296404
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Finished flushing
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Shutting down agents
+2021-11-30 18:20:04 UTC | DD_EXTENSION | INFO | Stopping logs-agent
+2021-11-30 18:20:04 UTC | DD_EXTENSION | INFO | logs-agent stopped
+2021-11-30 18:20:04 UTC | DD_EXTENSION | DEBUG | Serverless agent shutdown complete

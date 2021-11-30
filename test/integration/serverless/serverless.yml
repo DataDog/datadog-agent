@@ -42,243 +42,275 @@ layers:
       artifact: ../../../../datadog-lambda-extension/.layers/datadog_extension-amd64.zip
 
 functions:
-  enhanced-metric-node:
-    runtime: nodejs14.x
-    handler: src/metric.enhancedMetricTest
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  # enhanced-metric-node:
+  #   runtime: nodejs14.x
+  #   handler: src/metric.enhancedMetricTest
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
-  error-node:
-    runtime: nodejs14.x
-    handler: src/metric.errorTest
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  # error-node:
+  #   runtime: nodejs14.x
+  #   handler: src/metric.errorTest
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
-  enhanced-metric-python:
-    runtime: python3.8
-    handler: datadog_lambda.handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_LAMBDA_HANDLER: src/metricPython.metric
+  # enhanced-metric-python:
+  #   runtime: python3.8
+  #   handler: datadog_lambda.handler.handler
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  #     DD_LAMBDA_HANDLER: src/metricPython.metric
 
-  error-python:
-    runtime: python3.8
-    handler: datadog_lambda.handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_LAMBDA_HANDLER: src/metricPython.error
+  # error-python:
+  #   runtime: python3.8
+  #   handler: datadog_lambda.handler.handler
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  #     DD_LAMBDA_HANDLER: src/metricPython.error
 
-  with-ddlambda-go:
-    runtime: provided.al2
-    handler: src/bin/with-ddlambda
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  # with-ddlambda-go:
+  #   runtime: provided.al2
+  #   handler: src/bin/with-ddlambda
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_LOG_LEVEL: ERROR
+  #     DD_LOGS_ENABLED: true
+  #     DD_SERVERLESS_LOGS_ENABLED: true
+  #     DD_LOGS_INJECTION: true
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
-  no-enhanced-metric-node:
-    runtime: nodejs14.x
-    handler: src/metric.noEnhancedMetricTest
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_ENHANCED_METRICS: false
+  # no-enhanced-metric-node:
+  #   runtime: nodejs14.x
+  #   handler: src/metric.noEnhancedMetricTest
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_ENHANCED_METRICS: false
 
-  no-enhanced-metric-python:
-    runtime: python3.8
-    handler: datadog_lambda.handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_ENHANCED_METRICS: false
-      DD_LAMBDA_HANDLER: src/metricPython.metric
+  # no-enhanced-metric-python:
+  #   runtime: python3.8
+  #   handler: datadog_lambda.handler.handler
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_ENHANCED_METRICS: false
+  #     DD_LAMBDA_HANDLER: src/metricPython.metric
 
-  without-ddlambda-go:
-    runtime: provided.al2
-    handler: src/bin/without-ddlambda
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  # without-ddlambda-go:
+  #   runtime: provided.al2
+  #   handler: src/bin/without-ddlambda
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_LOG_LEVEL: ERROR
+  #     DD_LOGS_ENABLED: true
+  #     DD_SERVERLESS_LOGS_ENABLED: true
+  #     DD_LOGS_INJECTION: true
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
-  timeout-node:
-    runtime: nodejs14.x
-    handler: src/metric.timeoutMetricTest
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_LOG_LEVEL: DEBUG
+  # timeout-node:
+  #   runtime: nodejs14.x
+  #   handler: src/metric.timeoutMetricTest
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_LOG_LEVEL: DEBUG
 
-  timeout-python:
-    runtime: python3.8
-    handler: datadog_lambda.handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_LOG_LEVEL: DEBUG
-      DD_LAMBDA_HANDLER: src/metricPython.timeout
+  # timeout-python:
+  #   runtime: python3.8
+  #   handler: datadog_lambda.handler.handler
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_LOG_LEVEL: DEBUG
+  #     DD_LAMBDA_HANDLER: src/metricPython.timeout
 
-  timeout-go:
-    runtime: provided.al2
-    timeout: 3
-    handler: src/bin/timeout
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  # timeout-go:
+  #   runtime: provided.al2
+  #   timeout: 3
+  #   handler: src/bin/timeout
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
-  log-node:
-    runtime: nodejs14.x
-    handler: src/log.logTest
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_ENHANCED_METRICS: false
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  # log-node:
+  #   runtime: nodejs14.x
+  #   handler: src/log.logTest
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_ENHANCED_METRICS: false
+  #     DD_LOG_LEVEL: ERROR
+  #     DD_LOGS_ENABLED: true
+  #     DD_SERVERLESS_LOGS_ENABLED: true
+  #     DD_LOGS_INJECTION: true
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
-  log-python:
-    runtime: python3.8
-    handler: datadog_lambda.handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_ENHANCED_METRICS: false
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_LAMBDA_HANDLER: src/logPython.log
+  # log-python:
+  #   runtime: python3.8
+  #   handler: datadog_lambda.handler.handler
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_ENHANCED_METRICS: false
+  #     DD_LOG_LEVEL: ERROR
+  #     DD_LOGS_ENABLED: true
+  #     DD_SERVERLESS_LOGS_ENABLED: true
+  #     DD_LOGS_INJECTION: true
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  #     DD_LAMBDA_HANDLER: src/logPython.log
 
-  log-go-with-ddlambda:
-    runtime: provided.al2
-    handler: src/bin/log-with-ddlambda
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_ENHANCED_METRICS: false
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  # log-go-with-ddlambda:
+  #   runtime: provided.al2
+  #   handler: src/bin/log-with-ddlambda
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_ENHANCED_METRICS: false
+  #     DD_LOG_LEVEL: ERROR
+  #     DD_LOGS_ENABLED: true
+  #     DD_SERVERLESS_LOGS_ENABLED: true
+  #     DD_LOGS_INJECTION: true
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
-  log-go-without-ddlambda:
-    runtime: provided.al2
-    handler: src/bin/log-without-ddlambda
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_ENHANCED_METRICS: false
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  # log-go-without-ddlambda:
+  #   runtime: provided.al2
+  #   handler: src/bin/log-without-ddlambda
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_ENHANCED_METRICS: false
+  #     DD_LOG_LEVEL: ERROR
+  #     DD_LOGS_ENABLED: true
+  #     DD_SERVERLESS_LOGS_ENABLED: true
+  #     DD_LOGS_INJECTION: true
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
-  simple-trace-node:
-    runtime: nodejs14.x
-    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_LAMBDA_HANDLER: src/trace.simpleTest
-      DD_LOG_LEVEL: DEBUG
-      DD_TRACE_ENABLED: true
-      DD_APM_DD_URL: http://127.0.0.1:3333
-      DD_ENHANCED_METRICS: false
-      DD_TAGS: tagA:valueA,tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC,tagD:valueD
+  # simple-trace-node:
+  #   runtime: nodejs14.x
+  #   handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_LAMBDA_HANDLER: src/trace.simpleTest
+  #     DD_LOG_LEVEL: DEBUG
+  #     DD_TRACE_ENABLED: true
+  #     DD_APM_DD_URL: http://127.0.0.1:3333
+  #     DD_ENHANCED_METRICS: false
+  #     DD_TAGS: tagA:valueA,tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC,tagD:valueD
 
-  simple-trace-python:
-    runtime: python3.8
-    handler: datadog_lambda.handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_LAMBDA_HANDLER: src/tracePython.simple_test
-      DD_LOG_LEVEL: DEBUG
-      DD_TRACE_ENABLED: true
-      DD_APM_DD_URL: http://127.0.0.1:3333
-      DD_ENHANCED_METRICS: false
-      DD_TAGS: tagA:valueA,tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC,tagD:valueD
+  # simple-trace-python:
+  #   runtime: python3.8
+  #   handler: datadog_lambda.handler.handler
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_LAMBDA_HANDLER: src/tracePython.simple_test
+  #     DD_LOG_LEVEL: DEBUG
+  #     DD_TRACE_ENABLED: true
+  #     DD_APM_DD_URL: http://127.0.0.1:3333
+  #     DD_ENHANCED_METRICS: false
+  #     DD_TAGS: tagA:valueA,tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC,tagD:valueD
 
-  simple-trace-go:
-    runtime: provided.al2
-    handler: src/bin/trace
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_TRACE_ENABLED: true
-      DD_APM_DD_URL: http://127.0.0.1:3333
+  # simple-trace-go:
+  #   runtime: provided.al2
+  #   handler: src/bin/trace
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  #     DD_TRACE_ENABLED: true
+  #     DD_APM_DD_URL: http://127.0.0.1:3333
 
-  metric-csharp:
-    runtime: dotnetcore3.1
-    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
+  # metric-csharp:
+  #   runtime: dotnetcore3.1
+  #   handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
+  #   package:
+  #     individually: true
+  #     artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  #     DD_LOGS_ENABLED: true
+  #     DD_SERVERLESS_LOGS_ENABLED: true
+  #     DD_LOGS_INJECTION: true
+
+  # log-csharp:
+  #   runtime: dotnetcore3.1
+  #   handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
+  #   package:
+  #     individually: true
+  #     artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_TAGS: tagA:valueA tagB:valueB
+  #     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+  #     DD_LOGS_ENABLED: true
+  #     DD_SERVERLESS_LOGS_ENABLED: true
+  #     DD_LOGS_INJECTION: true
+
+  with-ddlambda-java:
+    runtime: java8.al2
+    handler: Handler
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/java-tests/with-ddlambda/target/hello-dev.jar
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -289,12 +321,12 @@ functions:
       DD_SERVERLESS_LOGS_ENABLED: true
       DD_LOGS_INJECTION: true
 
-  log-csharp:
-    runtime: dotnetcore3.1
-    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
+  log-java:
+    runtime: java8.al2
+    handler: LogHandler
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/java-tests/log/target/log-dev.jar
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -304,3 +336,23 @@ functions:
       DD_LOGS_ENABLED: true
       DD_SERVERLESS_LOGS_ENABLED: true
       DD_LOGS_INJECTION: true
+
+  simple-trace-java:
+    runtime: java8.al2
+    handler: TraceHandler
+    package:
+      individually: true
+      artifact: src/java-tests/trace/target/trace-dev.jar
+    layers:
+      - arn:aws:lambda:${self:provider.region}:601427279990:layer:dd-trace-java-test:${env:JAVA_TRACE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_TAGS: tagA:valueA tagB:valueB
+      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+      DD_TRACE_ENABLED: true
+      DD_APM_DD_URL: http://127.0.0.1:3333
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar"'
+      DD_LOGS_INJECTION: true
+      DD_JMXFETCH_ENABLED: false
+      DD_LOG_LEVEL: DEBUG
