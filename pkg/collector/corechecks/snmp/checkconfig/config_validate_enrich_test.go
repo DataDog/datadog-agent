@@ -390,8 +390,8 @@ func Test_validateEnrichMetadata(t *testing.T) {
 						"name": {
 							Value: "hey",
 							Symbol: SymbolConfig{
-								OID:                 "1.2.3",
-								Name:                "someSymbol",
+								OID:  "1.2.3",
+								Name: "someSymbol",
 							},
 						},
 					},
