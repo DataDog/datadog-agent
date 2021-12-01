@@ -20,6 +20,7 @@ func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 		value = extractedValue
 	}
 	if symbol.MatchPatternCompiled != nil {
+		// TODO: TEST ME
 		strValue, err := value.ToString()
 		if err != nil {
 			// TODO: TEST ME
@@ -28,10 +29,10 @@ func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 		}
 
 		if symbol.MatchPatternCompiled.MatchString(strValue) {
-			replacedVal := checkconfig.RegexReplaceValue(strValue, symbol.MatchPatternCompiled, symbol.Value)
+			replacedVal := checkconfig.RegexReplaceValue(strValue, symbol.MatchPatternCompiled, symbol.MatchValue)
 			if replacedVal == "" {
 				// TODO: TEST ME
-				log.Debugf("pattern `%v` failed to match `%v` with template `%v`", strValue, symbol.Value)
+				log.Debugf("pattern `%v` failed to match `%v` with template `%v`", strValue, symbol.MatchValue)
 				return valuestore.ResultValue{}, err
 			}
 			value = valuestore.ResultValue{Value: replacedVal}

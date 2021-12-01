@@ -18,7 +18,7 @@ type SymbolConfig struct {
 	ExtractValueCompiled *regexp.Regexp
 
 	MatchPattern         string `yaml:"match_pattern"`
-	Value                string `yaml:"match_value"`
+	MatchValue           string `yaml:"match_value"`
 	MatchPatternCompiled *regexp.Regexp
 }
 
