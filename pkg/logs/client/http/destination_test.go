@@ -118,8 +118,8 @@ func TestDestinationSend200(t *testing.T) {
 	server := NewHTTPServerTest(200)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	hasError := make(chan bool)
-	server.destination.Start(input, hasError, output)
+	isRetrying := make(chan bool)
+	server.destination.Start(input, isRetrying, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
@@ -131,11 +131,11 @@ func TestDestinationSend500Retries(t *testing.T) {
 	server := NewHTTPServerTest(500)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	hasErrorChan := make(chan bool, 1)
-	server.destination.Start(input, hasErrorChan, output)
+	isRetryingChan := make(chan bool, 1)
+	server.destination.Start(input, isRetryingChan, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	assert.True(t, <-hasErrorChan)
+	assert.True(t, <-isRetryingChan)
 
 	// Should recover because it was retrying
 	server.changeStatus(200)
@@ -148,11 +148,11 @@ func TestDestinationSend429Retries(t *testing.T) {
 	server := NewHTTPServerTest(429)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	hasErrorChan := make(chan bool, 1)
-	server.destination.Start(input, hasErrorChan, output)
+	isRetryingChan := make(chan bool, 1)
+	server.destination.Start(input, isRetryingChan, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	assert.True(t, <-hasErrorChan)
+	assert.True(t, <-isRetryingChan)
 
 	// Should recover because it was retrying
 	server.changeStatus(200)
@@ -165,13 +165,13 @@ func TestDestinationSend400(t *testing.T) {
 	server := NewHTTPServerTest(400)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	hasErrorChan := make(chan bool, 1)
-	server.destination.Start(input, hasErrorChan, output)
+	isRetryingChan := make(chan bool, 1)
+	server.destination.Start(input, isRetryingChan, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
 	select {
-	case <-hasErrorChan:
+	case <-isRetryingChan:
 		assert.Fail(t, "the error channel should be empty")
 	default:
 	}
@@ -180,7 +180,7 @@ func TestDestinationSend400(t *testing.T) {
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
 	select {
-	case <-hasErrorChan:
+	case <-isRetryingChan:
 		assert.Fail(t, "the error channel should be empty")
 	default:
 	}
@@ -213,7 +213,7 @@ func TestDestinationSendsV2Protocol(t *testing.T) {
 	defer server.httpServer.Close()
 
 	server.destination.protocol = "test-proto"
-	err := server.destination.unconditionalSend([]byte("payload"))
+	err := server.destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
 	assert.Nil(t, err)
 	assert.Equal(t, server.request.Header.Get("dd-protocol"), "test-proto")
 }
@@ -222,7 +222,7 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 	server := NewHTTPServerTest(200)
 	defer server.httpServer.Close()
 
-	err := server.destination.unconditionalSend([]byte("payload"))
+	err := server.destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
 	assert.Nil(t, err)
 	assert.Empty(t, server.request.Header.Values("dd-protocol"))
 }

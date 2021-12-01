@@ -117,7 +117,7 @@ func errorToTag(err error) string {
 }
 
 // Start starts reading the input channel
-func (d *Destination) Start(input chan *message.Payload, hasError chan bool, output chan *message.Payload) {
+func (d *Destination) Start(input chan *message.Payload, isRetrying chan bool, output chan *message.Payload) {
 	go func() {
 
 		var startIdle = time.Now()
@@ -126,7 +126,7 @@ func (d *Destination) Start(input chan *message.Payload, hasError chan bool, out
 			d.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
 			var startInUse = time.Now()
 
-			d.sendConcurrent(p, hasError, output)
+			d.sendConcurrent(p, isRetrying, output)
 
 			d.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
 			startIdle = time.Now()
@@ -134,24 +134,24 @@ func (d *Destination) Start(input chan *message.Payload, hasError chan bool, out
 	}()
 }
 
-func (d *Destination) sendConcurrent(payload *message.Payload, hasError chan bool, output chan *message.Payload) {
+func (d *Destination) sendConcurrent(payload *message.Payload, isRetrying chan bool, output chan *message.Payload) {
 	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 	if cap(d.climit) == 0 {
-		d.sendAndRetry(payload, hasError, output)
+		d.sendAndRetry(payload, isRetrying, output)
 		return
 	}
 
 	go func() {
 		d.climit <- struct{}{}
 		go func() {
-			d.sendAndRetry(payload, hasError, output)
+			d.sendAndRetry(payload, isRetrying, output)
 			<-d.climit
 		}()
 	}()
 }
 
 // Send sends a payload over HTTP,
-func (d *Destination) sendAndRetry(payload *message.Payload, hasError chan bool, output chan *message.Payload) {
+func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan bool, output chan *message.Payload) {
 	for {
 		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
 		if d.blockedUntil.After(time.Now()) {
@@ -173,8 +173,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, hasError chan bool,
 			if _, ok := err.(*client.RetryableError); ok {
 				d.nbErrors = d.backoff.IncError(d.nbErrors)
 
-				if d.lastError == nil && hasError != nil {
-					hasError <- true
+				if d.lastError == nil && isRetrying != nil {
+					isRetrying <- true
 				}
 
 				d.lastError = err
@@ -184,8 +184,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, hasError chan bool,
 			} else {
 				d.nbErrors = d.backoff.DecError(d.nbErrors)
 
-				if d.lastError != nil && hasError != nil {
-					hasError <- false
+				if d.lastError != nil && isRetrying != nil {
+					isRetrying <- false
 				}
 
 				d.lastError = nil

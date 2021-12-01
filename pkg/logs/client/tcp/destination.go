@@ -38,15 +38,15 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
-func (d *Destination) Start(input chan *message.Payload, hasError chan bool, output chan *message.Payload) {
+func (d *Destination) Start(input chan *message.Payload, isRetrying chan bool, output chan *message.Payload) {
 	go func() {
 		for payload := range input {
-			d.sendAndRetry(payload, hasError, output)
+			d.sendAndRetry(payload, isRetrying, output)
 		}
 	}()
 }
 
-func (d *Destination) sendAndRetry(payload *message.Payload, hasError chan bool, output chan *message.Payload) {
+func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan bool, output chan *message.Payload) {
 	for {
 		if d.conn == nil {
 			var err error

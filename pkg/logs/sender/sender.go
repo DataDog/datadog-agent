@@ -21,37 +21,44 @@ type Strategy interface {
 }
 
 type destinationContext struct {
-	hasError     bool
-	input        chan *message.Payload
-	errorChanged chan bool
+	isRetrying        bool
+	input             chan *message.Payload
+	retryStateChanged chan bool
 }
 
-func (d *destinationContext) updateAndGetHasError() bool {
+func (d *destinationContext) updateAndGetIsRetrying() bool {
 	select {
-	case d.hasError = <-d.errorChanged:
+	case d.isRetrying = <-d.retryStateChanged:
 	default:
 	}
-	return d.hasError
+	return d.isRetrying
+}
+
+func (d *destinationContext) close() {
+	close(d.input)
+	close(d.retryStateChanged)
 }
 
 // Sender sends logs to different destinations.
 type Sender struct {
 	inputChan    chan *message.Payload
 	outputChan   chan *message.Payload
-	hasError     chan bool
+	isRetrying   chan bool
 	destinations *client.Destinations
 	strategy     Strategy
 	done         chan struct{}
+	bufferSize   int
 }
 
 // NewSender returns a new sender.
-func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations) *Sender {
+func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int) *Sender {
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
-		hasError:     make(chan bool, 1),
+		isRetrying:   make(chan bool, 1),
 		destinations: destinations,
 		done:         make(chan struct{}),
+		bufferSize:   bufferSize,
 	}
 }
 
@@ -77,17 +84,17 @@ func (s *Sender) run() {
 		s.done <- struct{}{}
 	}()
 
-	destinationContetexts := buildDestinationContexts(s.destinations.Reliable, s.outputChan)
+	reliableDestinations := buildDestinationContexts(s.destinations.Reliable, s.outputChan, s.bufferSize)
 
-	sink := additionalDestinationsSink()
-	additionalContexts := buildDestinationContexts(s.destinations.Additionals, sink)
+	sink := additionalDestinationsSink(s.bufferSize)
+	additionalDestinations := buildDestinationContexts(s.destinations.Additionals, sink, s.bufferSize)
 
 	for payload := range s.inputChan {
 
 		sent := false
 		for !sent {
-			for _, destCtx := range destinationContetexts {
-				if !destCtx.updateAndGetHasError() {
+			for _, destCtx := range reliableDestinations {
+				if !destCtx.updateAndGetIsRetrying() {
 					destCtx.input <- payload
 					sent = true
 				}
@@ -95,16 +102,16 @@ func (s *Sender) run() {
 
 			if !sent {
 				// Using a busy loop is much simpler than trying to join an arbitrary number of channels and
-				// wait for just one of them.  This is an exceptional case so it has little overhead since it
+				// wait for just one of them. This is an exceptional case so it has little overhead since it
 				// will only happen when there is no possible way to send logs.
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
 
-		for _, destCtx := range destinationContetexts {
+		for _, destCtx := range reliableDestinations {
 			// if an endpoint is stuck in the previous step, buffer the payloads if we have room to mitigate loss
 			// on intermittent failures.
-			if destCtx.hasError {
+			if destCtx.isRetrying {
 				select {
 				case destCtx.input <- payload:
 				default:
@@ -113,18 +120,26 @@ func (s *Sender) run() {
 		}
 
 		// Attempt to send to additional destination
-		for _, destCtx := range additionalContexts {
+		for _, destCtx := range additionalDestinations {
 			select {
 			case destCtx.input <- payload:
 			default:
 			}
 		}
 	}
+
+	// Cleanup
+	for _, destCtx := range reliableDestinations {
+		destCtx.close()
+	}
+	for _, destCtx := range additionalDestinations {
+		destCtx.close()
+	}
 }
 
 // Drains the output channel from destinations that don't update the auditor.
-func additionalDestinationsSink() chan *message.Payload {
-	sink := make(chan *message.Payload, 100)
+func additionalDestinationsSink(bufferSize int) chan *message.Payload {
+	sink := make(chan *message.Payload, bufferSize)
 	go func() {
 		for {
 			<-sink
@@ -133,12 +148,12 @@ func additionalDestinationsSink() chan *message.Payload {
 	return sink
 }
 
-func buildDestinationContexts(destinations []client.Destination, output chan *message.Payload) []*destinationContext {
+func buildDestinationContexts(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*destinationContext {
 	contexts := []*destinationContext{}
 	for _, input := range destinations {
-		destCtx := &destinationContext{false, make(chan *message.Payload, 100), make(chan bool, 1)}
+		destCtx := &destinationContext{false, make(chan *message.Payload, bufferSize), make(chan bool, 1)}
 		contexts = append(contexts, destCtx)
-		input.Start(destCtx.input, destCtx.errorChanged, output)
+		input.Start(destCtx.input, destCtx.retryStateChanged, output)
 	}
 	return contexts
 }

@@ -401,19 +401,19 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsMappedCorrectly() {
 
 	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	suite.Len(endpoints.Additionals, 3)
-	suite.Len(endpoints.GetUnReliableAdditionals(), 2)
-	suite.Len(endpoints.GetReliableAdditionals(), 1)
+	suite.Len(endpoints.Endpoints, 3)
+	suite.Len(endpoints.GetUnReliableEndpoints(), 2)
+	suite.Len(endpoints.GetReliableEndpoints(), 1)
 
-	endpoint = endpoints.GetUnReliableAdditionals()[0]
+	endpoint = endpoints.GetUnReliableEndpoints()[0]
 	suite.Equal("a", endpoint.Host)
 	suite.Equal("1", endpoint.APIKey)
 
-	endpoint = endpoints.GetUnReliableAdditionals()[1]
+	endpoint = endpoints.GetUnReliableEndpoints()[1]
 	suite.Equal("c", endpoint.Host)
 	suite.Equal("3", endpoint.APIKey)
 
-	endpoint = endpoints.GetReliableAdditionals()[0]
+	endpoint = endpoints.GetUnReliableEndpoints()[0]
 	suite.Equal("b", endpoint.Host)
 	suite.Equal("2", endpoint.APIKey)
 }

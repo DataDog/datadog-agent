@@ -36,7 +36,7 @@ func NewPipeline(outputChan chan *message.Payload, processingRules []*config.Pro
 
 	strategy := getStrategy(endpoints, serverless, pipelineID)
 	strategy.Start(strategyInput, senderInput)
-	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations)
+	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.ChanSize)
 
 	var encoder processor.Encoder
 	if serverless {

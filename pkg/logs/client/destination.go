@@ -9,5 +9,5 @@ import "github.com/DataDog/datadog-agent/pkg/logs/message"
 
 // Destination sends a payload to a specific endpoint over a given network protocol.
 type Destination interface {
-	Start(input chan *message.Payload, hasError chan bool, output chan *message.Payload)
+	Start(input chan *message.Payload, isRetrying chan bool, output chan *message.Payload)
 }
