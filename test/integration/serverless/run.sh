@@ -10,10 +10,7 @@ LOGS_WAIT_SECONDS=600
 
 DEFAULT_NODE_LAYER_VERSION=66
 DEFAULT_PYTHON_LAYER_VERSION=49
-<<<<<<< HEAD
 DEFAULT_JAVA_TRACE_LAYER_VERSION=8
-=======
->>>>>>> main
 
 set -e
 
@@ -26,11 +23,7 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
 fi
 
 # Move into the root directory, so this script can be called from any directory
-<<<<<<< HEAD
 SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-=======
-SERVERLESS_INTEGRATION_TESTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
->>>>>>> main
 cd $SERVERLESS_INTEGRATION_TESTS_DIR/../../..
 
 # TODO: Get this working in CI environment
@@ -50,10 +43,7 @@ fi
 cd "./test/integration/serverless"
 
 # build and zip recorder extension
-<<<<<<< HEAD
 echo
-=======
->>>>>>> main
 echo "Building recorder extension"
 cd recorder-extension
 GOOS=linux GOARCH=amd64 go build -o extensions/recorder-extension main.go
@@ -61,10 +51,7 @@ zip -rq ext.zip extensions/* -x ".*" -x "__MACOSX" -x "extensions/.*"
 cd ..
 
 # build Go Lambda functions
-<<<<<<< HEAD
 echo
-=======
->>>>>>> main
 echo "Building Go Lambda functions"
 go_test_dirs=("with-ddlambda" "without-ddlambda" "log-with-ddlambda" "log-without-ddlambda" "timeout" "trace")
 cd src
@@ -72,7 +59,6 @@ for go_dir in "${go_test_dirs[@]}"; do
     env GOOS=linux go build -ldflags="-s -w" -o bin/"$go_dir" go-tests/"$go_dir"/main.go
 done
 
-<<<<<<< HEAD
 #build Java functions
 echo
 echo "Building Java Lambda Functions"
@@ -83,9 +69,6 @@ done
 
 #build .NET functions
 echo
-=======
-#build .NET functions
->>>>>>> main
 echo "Building .NET Lambda functions"
 cd csharp-tests
 dotnet restore
@@ -95,10 +78,7 @@ dotnet lambda package --configuration Release --framework netcoreapp3.1 --output
 set -e
 cd ../../
 
-<<<<<<< HEAD
 echo
-=======
->>>>>>> main
 if [ -z "$NODE_LAYER_VERSION" ]; then
     echo "NODE_LAYER_VERSION not found, using the default"
     export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION
@@ -135,23 +115,12 @@ NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
 
 # invoke functions
 
-<<<<<<< HEAD
 metric_function_names=("with-ddlambda-java" "enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "error-python" "error-node")
 log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda" "log-java")
 trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go" "simple-trace-java")
 
 all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
-all_functions=("simple-trace-java") #"with-ddlambda-java"  "log-java"
-set +e                              # Don't exit this script if an invocation fails or there's a diff
-=======
-metric_function_names=("enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "error-python" "error-node")
-log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda")
-trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go")
-
-all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
-
 set +e # Don't exit this script if an invocation fails or there's a diff
->>>>>>> main
 for function_name in "${all_functions[@]}"; do
     serverless invoke --stage ${stage} -f ${function_name}
 done
@@ -232,23 +201,6 @@ for function_name in "${all_functions[@]}"; do
         )
     else
         # Normalize traces
-<<<<<<< HEAD
-        logs="$raw_logs"
-        # $(
-        #     echo "$raw_logs" |
-        #         grep "\[trace\]" |
-        #         perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
-        #         perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1XXX/g" |
-        #         perl -p -e "s/(duration\":)[0-9]+/\1XXX/g" |
-        #         perl -p -e "s/((datadog_lambda|dd_trace)\":\")[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-        #         perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-        #         perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-        #         perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-        #         perl -p -e "s/$stage/XXXXXX/g" |
-        #         perl -p -e "s/[ ]$//g" |
-        #         sort
-        # )
-=======
         logs=$(
             echo "$raw_logs" |
                 grep "\[trace\]" |
@@ -263,7 +215,6 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/[ ]$//g" |
                 sort
         )
->>>>>>> main
     fi
 
     function_snapshot_path="./snapshots/${function_name}"
