@@ -6,7 +6,6 @@
 package sender
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,62 +15,50 @@ import (
 
 func TestStreamStrategy(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Message)
+	output := make(chan *message.Payload)
 
-	var content []byte
-	success := func(payload []byte) error {
-		assert.Equal(t, content, payload)
-		return nil
-	}
+	StreamStrategy.Start(input, output)
 
-	go StreamStrategy.Send(input, output, success)
-
-	content = []byte("a")
+	content := []byte("a")
 	message1 := message.NewMessage(content, nil, "", 0)
 	input <- message1
 
-	assert.Equal(t, message1, <-output)
+	payload := <-output
+	assert.Equal(t, message1, payload.Messages[0])
+	assert.Equal(t, content, payload.Encoded)
 
 	content = []byte("b")
 	message2 := message.NewMessage(content, nil, "", 0)
 	input <- message2
 
-	assert.Equal(t, message2, <-output)
+	payload = <-output
+	assert.Equal(t, message2, payload.Messages[0])
+	assert.Equal(t, content, payload.Encoded)
 }
 
 func TestStreamStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Message)
+	output := make(chan *message.Payload)
 
-	var content []byte
-	success := func(payload []byte) error {
-		return context.Canceled
-	}
-
-	message := message.NewMessage(content, nil, "", 0)
+	message := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {
 		input <- message
 		close(input)
 	}()
 
-	StreamStrategy.Send(input, output, success)
+	StreamStrategy.Start(input, output)
 }
 
 func TestStreamStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Message)
+	output := make(chan *message.Payload)
 
-	var content []byte
-	success := func(payload []byte) error {
-		return nil
-	}
-
-	message := message.NewMessage(content, nil, "", 0)
+	message := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {
 		input <- message
 		close(input)
 		assert.Equal(t, message, <-output)
 	}()
 
-	StreamStrategy.Send(input, output, success)
+	StreamStrategy.Start(input, output)
 }

@@ -37,12 +37,7 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 	}
 }
 
-func (d *Destination) ErrorStateChangeChan() chan bool {
-	return nil
-}
-
-// Send transforms a message into a frame and sends it to a remote server,
-// returns an error if the operation failed.
+// Start reads from the input, transforms a message into a frame and sends it to a remote server,
 func (d *Destination) Start(input chan *message.Payload, hasError chan bool, output chan *message.Payload) {
 	go func() {
 		for p := range input {

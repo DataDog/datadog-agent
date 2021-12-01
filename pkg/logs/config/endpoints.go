@@ -95,7 +95,7 @@ func NewEndpointsWithBatchSettings(main Endpoint, endpoints []Endpoint, useProto
 	}
 }
 
-// GetReliableEndpooints returns additional endpoints that can be failed over to and block the pipeline in the
+// GetReliableEndpoints returns additional endpoints that can be failed over to and block the pipeline in the
 // event of an outage and will retry errors. These endpoints are treated the same as the main endpoint.
 func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}

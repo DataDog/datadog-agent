@@ -170,10 +170,20 @@ func TestDestinationSend400(t *testing.T) {
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
+	select {
+	case <-hasErrorChan:
+		assert.Fail(t, "the error channel should be empty")
+	default:
+	}
 
-	// Should nto retry 400 - no error reported back (because it's not retryable) so input should be unblocked
+	// Should not retry 400 - no error reported back (because it's not retryable) so input should be unblocked
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
+	select {
+	case <-hasErrorChan:
+		assert.Fail(t, "the error channel should be empty")
+	default:
+	}
 
 	server.stop()
 }

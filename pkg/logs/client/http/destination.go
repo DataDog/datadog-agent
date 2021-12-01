@@ -117,7 +117,7 @@ func errorToTag(err error) string {
 	}
 }
 
-// Send sends a payload over HTTP,
+// Start starts reading the input channel
 func (d *Destination) Start(input chan *message.Payload, hasError chan bool, output chan *message.Payload) {
 	go func() {
 
@@ -189,7 +189,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, hasError chan bool,
 					hasError <- false
 				}
 
-				d.lastError = err
+				d.lastError = nil
 				d.Unlock()
 			}
 		}
