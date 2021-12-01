@@ -40,52 +40,56 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
 func (d *Destination) Start(input chan *message.Payload, hasError chan bool, output chan *message.Payload) {
 	go func() {
-		for p := range input {
-			for {
-				if d.conn == nil {
-					var err error
-
-					// We work only if we have a started destination context
-					ctx := d.destinationsContext.Context()
-					if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
-						// the connection manager is not meant to fail,
-						// this can happen only when the context is cancelled.
-						return
-					}
-					d.connCreationTime = time.Now()
-				}
-
-				metrics.LogsSent.Add(1)
-				metrics.TlmLogsSent.Inc()
-				metrics.BytesSent.Add(int64(len(p.Encoded)))
-				metrics.TlmBytesSent.Add(float64(len(p.Encoded)))
-				metrics.EncodedBytesSent.Add(int64(len(p.Encoded)))
-				metrics.TlmEncodedBytesSent.Add(float64(len(p.Encoded)))
-
-				content := d.prefixer.apply(p.Encoded)
-				frame, err := d.delimiter.delimit(content)
-				if err != nil {
-					// the delimiter can fail when the payload can not be framed correctly.
-					return
-				}
-
-				_, err = d.conn.Write(frame)
-				if err != nil {
-					d.connManager.CloseConnection(d.conn)
-					d.conn = nil
-
-					// retry (will try to open a new connection)
-					continue
-				}
-
-				output <- p
-
-				if d.connManager.ShouldReset(d.connCreationTime) {
-					log.Debug("Resetting TCP connection")
-					d.connManager.CloseConnection(d.conn)
-					d.conn = nil
-				}
-			}
+		for payload := range input {
+			d.sendAndRetry(payload, hasError, output)
 		}
 	}()
+}
+
+func (d *Destination) sendAndRetry(payload *message.Payload, hasError chan bool, output chan *message.Payload) {
+	for {
+		if d.conn == nil {
+			var err error
+
+			// We work only if we have a started destination context
+			ctx := d.destinationsContext.Context()
+			if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
+				// the connection manager is not meant to fail,
+				// this can happen only when the context is cancelled.
+				return
+			}
+			d.connCreationTime = time.Now()
+		}
+
+		metrics.LogsSent.Add(1)
+		metrics.TlmLogsSent.Inc()
+		metrics.BytesSent.Add(int64(len(payload.Encoded)))
+		metrics.TlmBytesSent.Add(float64(len(payload.Encoded)))
+		metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
+		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)))
+
+		content := d.prefixer.apply(payload.Encoded)
+		frame, err := d.delimiter.delimit(content)
+		if err != nil {
+			// the delimiter can fail when the payload can not be framed correctly.
+			return
+		}
+
+		_, err = d.conn.Write(frame)
+		if err != nil {
+			d.connManager.CloseConnection(d.conn)
+			d.conn = nil
+
+			// retry (will try to open a new connection)
+			continue
+		}
+
+		output <- payload
+
+		if d.connManager.ShouldReset(d.connCreationTime) {
+			log.Debug("Resetting TCP connection")
+			d.connManager.CloseConnection(d.conn)
+			d.conn = nil
+		}
+	}
 }

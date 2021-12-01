@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
@@ -135,17 +134,5 @@ func TestStatusEndpoints(t *testing.T) {
 	initStatus()
 
 	status := Get()
-	assert.Equal(t, "Primary: Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com on port 10516", status.Endpoints[0])
-	assert.Equal(t, len(status.Endpoints), 1)
-}
-
-func TestStatusEndpointsWithBackup(t *testing.T) {
-	defer Clear()
-	defer ddconfig.Datadog.Set("logs_config.logs_secondary_dd_url", "")
-	ddconfig.Datadog.Set("logs_config.logs_secondary_dd_url", "foobar:1234")
-	initStatus()
-
-	status := Get()
-	assert.Equal(t, "Primary: Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com on port 10516", status.Endpoints[0])
-	assert.Equal(t, "Backup: Sending uncompressed logs in SSL encrypted TCP to foobar on port 1234", status.Endpoints[1])
+	assert.Equal(t, "Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com on port 10516", status.Endpoints[0])
 }
