@@ -33,10 +33,6 @@ mkdir -p ~/.ssh
 if [ "$KITCHEN_PROVIDER" == "azure" ]; then
   # Setup the azure credentials, grabbing them from AWS if they do not exist in the environment already
   # If running locally, they should be imported into the environment
-  if [ ! -f /root/.azure/credentials ]; then
-    mkdir -p /root/.azure
-    touch /root/.azure/credentials
-  fi
 
   # These should not be printed out
   set +x
@@ -70,8 +66,9 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
     exit 1
   fi
 
-  # Create the Azure credentials file
-  (echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > /root/.azure/credentials
+  # Create the Azure credentials file as requried by the kitchen-azurerm driver
+  mkdir -p ~/.azure/
+  (echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > ~/.azure/credentials
   set -x
 
 elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
