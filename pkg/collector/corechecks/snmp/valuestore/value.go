@@ -56,15 +56,3 @@ func (sv ResultValue) ExtractStringValue(extractValuePattern *regexp.Regexp) (Re
 		return sv, nil
 	}
 }
-
-//
-//// IsZeroValue test if the value is a zero value
-//func (sv ResultValue) IsZeroValue() (string, error) {
-//	switch sv.Value.(type) {
-//	case float64:
-//		return strconv.Itoa(int(sv.Value.(float64))), nil
-//	case string:
-//		return sv.Value.(string), nil
-//	}
-//	return "", fmt.Errorf("invalid type %T for value %#v", sv.Value, sv.Value)
-//}
