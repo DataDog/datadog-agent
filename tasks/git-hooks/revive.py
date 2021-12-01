@@ -10,7 +10,7 @@ targets = {"./" + os.path.dirname(path) for path in sys.argv[1:] if path.endswit
 
 # Call invoke command
 # We do this workaround since we can't do relative imports
-cmd = 'inv -e lint {}'.format(",".join(targets))
+cmd = f"inv -e lint {','.join(targets)}"
 
 try:
     subprocess.run(cmd, shell=True, check=True)

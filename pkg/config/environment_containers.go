@@ -34,6 +34,8 @@ const (
 	KubeOrchestratorExplorer Feature = "orchestratorexplorer"
 	// CloudFoundry socket present
 	CloudFoundry Feature = "cloudfoundry"
+	// Podman containers storage path accessible
+	Podman Feature = "podman"
 
 	defaultLinuxDockerSocket           = "/var/run/docker.sock"
 	defaultWindowsDockerSocketPath     = "//./pipe/docker_engine"
@@ -41,6 +43,7 @@ const (
 	defaultWindowsContainerdSocketPath = "//./pipe/containerd-containerd"
 	defaultLinuxCrioSocket             = "/var/run/crio/crio.sock"
 	defaultHostMountPrefix             = "/host"
+	defaultPodmanContainersStoragePath = "/var/lib/containers"
 	unixSocketPrefix                   = "unix://"
 	winNamedPipePrefix                 = "npipe://"
 
@@ -56,6 +59,7 @@ func init() {
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
 	registerFeature(CloudFoundry)
+	registerFeature(Podman)
 }
 
 func detectContainerFeatures(features FeatureMap) {
@@ -64,6 +68,7 @@ func detectContainerFeatures(features FeatureMap) {
 	detectContainerd(features)
 	detectFargate(features)
 	detectCloudFoundry(features)
+	detectPodman(features)
 }
 
 func detectKubernetes(features FeatureMap) {
@@ -157,6 +162,15 @@ func detectCloudFoundry(features FeatureMap) {
 	}
 }
 
+func detectPodman(features FeatureMap) {
+	for _, defaultPath := range getDefaultPodmanPaths() {
+		if _, err := os.Stat(defaultPath); err == nil {
+			features[Podman] = struct{}{}
+			return
+		}
+	}
+}
+
 func getHostMountPrefixes() []string {
 	if IsContainerized() {
 		return []string{"", defaultHostMountPrefix}
@@ -192,6 +206,14 @@ func getDefaultCriPaths() []string {
 	paths := []string{}
 	for _, prefix := range getHostMountPrefixes() {
 		paths = append(paths, path.Join(prefix, defaultLinuxContainerdSocket), path.Join(prefix, defaultLinuxCrioSocket))
+	}
+	return paths
+}
+
+func getDefaultPodmanPaths() []string {
+	paths := []string{}
+	for _, prefix := range getHostMountPrefixes() {
+		paths = append(paths, path.Join(prefix, defaultPodmanContainersStoragePath))
 	}
 	return paths
 }

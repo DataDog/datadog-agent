@@ -41,6 +41,7 @@ func processStatefulSetList(statefulSetList []*v1.StatefulSet, groupID int32, cf
 		if orchestrator.SkipKubernetesResource(statefulSet.UID, statefulSet.ResourceVersion, orchestrator.K8sStatefulSet) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(statefulSet.Annotations)
 
 		// extract statefulSet info
 		statefulSetModel := extractStatefulSet(statefulSet)
@@ -84,6 +85,7 @@ func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *con
 		if orchestrator.SkipKubernetesResource(daemonSet.UID, daemonSet.ResourceVersion, orchestrator.K8sDaemonSet) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(daemonSet.Annotations)
 
 		// extract daemonSet info
 		daemonSetModel := extractDaemonSet(daemonSet)
@@ -389,6 +391,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		if orchestrator.SkipKubernetesResource(svc.UID, svc.ResourceVersion, orchestrator.K8sService) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(svc.Annotations)
 
 		serviceModel := extractService(svc)
 
@@ -493,6 +496,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		if orchestrator.SkipKubernetesResource(node.UID, node.ResourceVersion, orchestrator.K8sNode) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(node.Annotations)
 
 		nodeModel := extractNode(node)
 		// k8s objects only have json "omitempty" annotations
@@ -637,6 +641,7 @@ func processPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int3
 		if orchestrator.SkipKubernetesResource(pv.UID, pv.ResourceVersion, orchestrator.K8sPersistentVolume) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(pv.Annotations)
 
 		pvModel := extractPersistentVolume(pv)
 
@@ -705,6 +710,7 @@ func processPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, g
 		if orchestrator.SkipKubernetesResource(pvc.UID, pvc.ResourceVersion, orchestrator.K8sPersistentVolumeClaim) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(pvc.Annotations)
 
 		pvModel := extractPersistentVolumeClaim(pvc)
 
@@ -761,6 +767,7 @@ func processRoleList(roleList []*rbacv1.Role, groupID int32, cfg *config.Orchest
 		if orchestrator.SkipKubernetesResource(role.UID, role.ResourceVersion, orchestrator.K8sRole) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(role.Annotations)
 
 		roleModel := extractRole(role)
 
@@ -817,6 +824,7 @@ func processRoleBindingList(roleBindingList []*rbacv1.RoleBinding, groupID int32
 		if orchestrator.SkipKubernetesResource(roleBinding.UID, roleBinding.ResourceVersion, orchestrator.K8sRoleBinding) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(roleBinding.Annotations)
 
 		roleBindingModel := extractRoleBinding(roleBinding)
 
@@ -873,6 +881,7 @@ func processClusterRoleList(clusterRoleList []*rbacv1.ClusterRole, groupID int32
 		if orchestrator.SkipKubernetesResource(clusterRole.UID, clusterRole.ResourceVersion, orchestrator.K8sClusterRole) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(clusterRole.Annotations)
 
 		clusterRoleModel := extractClusterRole(clusterRole)
 
@@ -929,6 +938,7 @@ func processClusterRoleBindingList(clusterRoleBindingList []*rbacv1.ClusterRoleB
 		if orchestrator.SkipKubernetesResource(clusterRoleBinding.UID, clusterRoleBinding.ResourceVersion, orchestrator.K8sClusterRoleBinding) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(clusterRoleBinding.Annotations)
 
 		clusterRoleBindingModel := extractClusterRoleBinding(clusterRoleBinding)
 
@@ -985,6 +995,7 @@ func processServiceAccountList(serviceAccountList []*corev1.ServiceAccount, grou
 		if orchestrator.SkipKubernetesResource(serviceAcount.UID, serviceAcount.ResourceVersion, orchestrator.K8sServiceAccount) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(serviceAcount.Annotations)
 
 		clusterRoleBindingModel := extractServiceAccount(serviceAcount)
 

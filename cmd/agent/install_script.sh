@@ -488,7 +488,7 @@ elif [ "$OS" = "SUSE" ]; then
   # See https://www.suse.com/releasenotes/x86_64/SUSE-SLES/15/#fate-324409
   SUSE_VER=$(cat /etc/os-release 2>/dev/null | grep VERSION_ID | tr -d '"' | tr . = | cut -d = -f 2 | xargs echo)
   gpgkeys="https://${keys_url}/DATADOG_RPM_KEY_CURRENT.public"
-  if [ -n "$SUSE_VER" ] && [ "$SUSE_VER" -ge 15 ]; then
+  if [ -n "$SUSE_VER" ] && [ "$SUSE_VER" -ge 15 ] && [ "$SUSE_VER" -ne 42 ]; then
     gpgkeys=''
     separator='\n       '
     for key_path in "${RPM_GPG_KEYS[@]}"; do

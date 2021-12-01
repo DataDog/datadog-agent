@@ -329,6 +329,14 @@ func (a *APIServer) SendStats() error {
 	return nil
 }
 
+// ReloadPolicies reloads the policies
+func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
+	if err := a.module.Reload(); err != nil {
+		return nil, err
+	}
+	return &api.ReloadPoliciesResultMessage{}, nil
+}
+
 // Apply a rule set
 func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	a.expiredEventsLock.Lock()

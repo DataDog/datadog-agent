@@ -1,6 +1,6 @@
 module datadog-lambda-extension/recorder-extension
 
-go 1.14
+go 1.16
 
 replace (
 	github.com/iovisor/gobpf => github.com/DataDog/gobpf v0.0.0-20210322155958-9866ef4cd22c
@@ -33,9 +33,14 @@ replace (
 )
 
 require (
+<<<<<<< HEAD
 	github.com/DataDog/agent-payload v4.73.0+incompatible // indirect
 	github.com/DataDog/datadog-agent v0.0.0-20210616155722-298368b28184 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/tinylib/msgp v1.1.5 // indirect
+=======
+	github.com/DataDog/agent-payload v4.73.0+incompatible
+	github.com/DataDog/datadog-agent v0.0.0-20210616155722-298368b28184
+>>>>>>> main
 )

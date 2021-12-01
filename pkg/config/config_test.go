@@ -1026,3 +1026,25 @@ network_devices:
 	config = setupConfFromYAML(datadogYaml)
 	assert.Equal(t, "dev", config.GetString("network_devices.namespace"))
 }
+
+func TestGetInventoriesMinInterval(t *testing.T) {
+	Mock().Set("inventories_min_interval", 6)
+	assert.EqualValues(t, 6*time.Second, GetInventoriesMinInterval())
+}
+
+func TestGetInventoriesMinIntervalInvalid(t *testing.T) {
+	// an invalid integer results in a value of 0 from Viper (with a logged warning)
+	Mock().Set("inventories_min_interval", 0)
+	assert.EqualValues(t, DefaultInventoriesMinInterval, GetInventoriesMinInterval())
+}
+
+func TestGetInventoriesMaxInterval(t *testing.T) {
+	Mock().Set("inventories_max_interval", 6)
+	assert.EqualValues(t, 6*time.Second, GetInventoriesMaxInterval())
+}
+
+func TestGetInventoriesMaxIntervalInvalid(t *testing.T) {
+	// an invalid integer results in a value of 0 from Viper (with a logged warning)
+	Mock().Set("inventories_max_interval", 0)
+	assert.EqualValues(t, DefaultInventoriesMaxInterval, GetInventoriesMaxInterval())
+}
