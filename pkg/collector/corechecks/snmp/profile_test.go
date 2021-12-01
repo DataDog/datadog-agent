@@ -107,8 +107,8 @@ profiles:
 				Value: []byte("Final"),
 			},
 			{
-				Name:  "1.3.6.1.4.1.3375.2.1.4.999999.0",
-				Type:  gosnmp.NoSuchObject,
+				Name: "1.3.6.1.4.1.3375.2.1.4.999999.0",
+				Type: gosnmp.NoSuchObject,
 			},
 			{
 				Name:  "1.3.6.1.4.1.3375.2.1.6.1.0",

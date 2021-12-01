@@ -56,6 +56,7 @@ func (sv ResultValue) ExtractStringValue(extractValuePattern *regexp.Regexp) (Re
 		return sv, nil
 	}
 }
+
 //
 //// IsZeroValue test if the value is a zero value
 //func (sv ResultValue) IsZeroValue() (string, error) {

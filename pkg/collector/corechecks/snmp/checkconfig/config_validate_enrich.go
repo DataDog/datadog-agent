@@ -90,10 +90,10 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 					continue
 				}
 				field := res.Fields[fieldName]
-				if field.Symbol.OID != "" {
-					field.Symbols = append([]SymbolConfig{field.Symbol}, field.Symbols...)
-					field.Symbol = SymbolConfig{}
-				}
+				//if field.Symbol.OID != "" {
+				//	field.Symbols = append([]SymbolConfig{field.Symbol}, field.Symbols...)
+				//	field.Symbol = SymbolConfig{}
+				//}
 				// TODO: TEST ME
 				//if field.Value == "" && len(field.Symbols) == 0 {
 				//	errors = append(errors, fmt.Sprintf("field `%s`: value, symbol or symbols must be defined", fieldName))
@@ -106,9 +106,9 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 				for i := range field.Symbols {
 					errors = append(errors, validateEnrichSymbol(&field.Symbols[i])...)
 				}
-				//if field.Symbol.OID != "" {
-				//	errors = append(errors, validateEnrichSymbol(&field.Symbol)...)
-				//}
+				if field.Symbol.OID != "" {
+					errors = append(errors, validateEnrichSymbol(&field.Symbol)...)
+				}
 				res.Fields[fieldName] = field
 			}
 			metadata[resName] = res

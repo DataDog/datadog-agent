@@ -48,11 +48,16 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 	for resourceName, metadataConfig := range metadataConfigs {
 		for fieldName, field := range metadataConfig.Fields {
 			fieldFullName := resourceName + "." + fieldName
+
+			var symbols []checkconfig.SymbolConfig
+			if field.Symbol.OID != "" {
+				symbols = append(symbols, field.Symbol)
+			}
+			symbols = append(symbols, field.Symbols...)
+
 			if checkconfig.IsMetadataResourceWithScalarOids(resourceName) {
-				if field.Value != "" {
-					metadataStore.AddScalarValue(fieldFullName, valuestore.ResultValue{Value: field.Value})
-				}
-				for _, symbol := range field.Symbols {
+				// TODO: Test symbols
+				for _, symbol := range symbols {
 					if metadataStore.ScalarFieldHasValue(fieldFullName) {
 						break
 					}
@@ -62,9 +67,14 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 						continue
 					}
 					metadataStore.AddScalarValue(fieldFullName, value)
+
+				}
+				// TODO: Test Value as fallback
+				if field.Value != "" && metadataStore.ScalarFieldHasValue(fieldFullName) {
+					metadataStore.AddScalarValue(fieldFullName, valuestore.ResultValue{Value: field.Value})
 				}
 			} else {
-				for _, symbol := range field.Symbols {
+				for _, symbol := range symbols {
 					metricValues, err := getColumnValueFromSymbol(values, symbol)
 					if err != nil {
 						continue
