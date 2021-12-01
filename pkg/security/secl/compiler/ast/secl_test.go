@@ -213,3 +213,12 @@ func TestDuration(t *testing.T) {
 
 	print(t, rule)
 }
+
+func TestNumberVariable(t *testing.T) {
+	rule, err := ParseRule(`process.pid == ${pid}`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}

@@ -17,7 +17,7 @@ import (
 func TestGrain(t *testing.T) {
 	assert := assert.New(t)
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
-	aggr := NewAggregationFromSpan(&s, "default", "default", "cid")
+	aggr := NewAggregationFromSpan(&s, "", "default", "default", "cid")
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Env:         "default",
@@ -34,8 +34,8 @@ func TestGrain(t *testing.T) {
 
 func TestGrainWithExtraTags(t *testing.T) {
 	assert := assert.New(t)
-	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagHostname: "host-id", tagVersion: "v0", tagStatusCode: "418", tagOrigin: "synthetics-browser"}}
-	aggr := NewAggregationFromSpan(&s, "default", "default", "cid")
+	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagVersion: "v0", tagStatusCode: "418"}}
+	aggr := NewAggregationFromSpan(&s, "synthetics-browser", "default", "host-id", "cid")
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Hostname:    "host-id",
@@ -58,17 +58,17 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		root := traceutil.GetRoot(benchTrace)
-		traceutil.ComputeTopLevel(benchTrace)
-		wt := NewWeightedTrace(benchTrace, root)
-		for _, span := range wt {
-			sb.HandleSpan(span, "dev", "hostname", "cid")
+		root := traceutil.GetRoot(benchSpans)
+		traceutil.ComputeTopLevel(benchSpans)
+		wt := NewWeightedTrace(spansToTraceChunk(benchSpans), root, "")
+		for _, span := range wt.Spans {
+			sb.HandleSpan(span, "", "dev", "hostname", "cid")
 		}
 	}
 }
 
-var benchTrace = pb.Trace{
-	&pb.Span{
+var benchSpans = []*pb.Span{
+	{
 		Service:  "rails",
 		Name:     "web.template",
 		Resource: "SELECT user.handle AS user_handle, user.id AS user_id, user.org_id AS user_org_id, user.password AS user_password, user.email AS user_email, user.name AS user_name, user.role AS user_role, user.team AS user_team, user.support AS user_support, user.is_admin AS user_is_admin, user.github_username AS user_github_username, user.github_token AS user_github_token, user.disabled AS user_disabled, user.verified AS user_verified, user.bot AS user_bot, user.created AS user_created, user.modified AS user_modified, user.time_zone AS user_time_zone, user.password_modified AS user_password_modified FROM user WHERE user.id = ? AND user.org_id = ? LIMIT ?",
@@ -82,7 +82,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"rowcount": 0.5066325669281033},
 		Type:     "redis",
 	},
-	&pb.Span{
+	{
 		Service:  "pg-master",
 		Name:     "postgres.query",
 		Resource: "データの犬",
@@ -96,7 +96,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"size": 0.47564235466940796, "rowcount": 0.12453347154800333},
 		Type:     "lamar",
 	},
-	&pb.Span{
+	{
 		Service:  "rails",
 		Name:     "sqlalchemy",
 		Resource: "GET cache|xxx",
@@ -110,7 +110,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"rowcount": 0.276209049435507, "size": 0.18889910131880996},
 		Type:     "redis",
 	},
-	&pb.Span{
+	{
 		Service:  "pylons",
 		Name:     "postgres.query",
 		Resource: "events.buckets",
@@ -124,7 +124,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"rowcount": 0.5543063276573277, "size": 0.6196504333337066, "payloads": 0.9689311094466356},
 		Type:     "lamar",
 	},
-	&pb.Span{
+	{
 		Service:  "rails",
 		Name:     "postgres.query",
 		Resource: "データの犬",
@@ -138,7 +138,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"rowcount": 0.2646545763337349},
 		Type:     "lamar",
 	},
-	&pb.Span{
+	{
 		Service:  "web-billing",
 		Name:     "web.query",
 		Resource: "GET /url/test/fixture/resource/42",
@@ -152,7 +152,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"rowcount": 0.7800384694533715, "payloads": 0.24585482170573683, "loops": 0.3119738365111953, "size": 0.6693070719377765},
 		Type:     "sql",
 	},
-	&pb.Span{
+	{
 		Service:  "pg-master",
 		Name:     "sqlalchemy",
 		Resource: "データの犬",
@@ -166,7 +166,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"payloads": 0.5207323287655542, "loops": 0.4731462684058845, "heap_allocated": 0.5386526456622786, "size": 0.9438291624690298, "rowcount": 0.14536182482282964},
 		Type:     "lamar",
 	},
-	&pb.Span{
+	{
 		Service:  "django",
 		Name:     "pylons.controller",
 		Resource: "データの犬",
@@ -180,7 +180,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{},
 		Type:     "lamar",
 	},
-	&pb.Span{
+	{
 		Service:  "django",
 		Name:     "web.query",
 		Resource: "events.buckets",
@@ -194,7 +194,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"rowcount": 0.9895177718616301},
 		Type:     "lamar",
 	},
-	&pb.Span{
+	{
 		Service:  "pg-master",
 		Name:     "pylons.controller",
 		Resource: "GET cache|xxx",
@@ -208,7 +208,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"rowcount": 0.12186970474265321, "size": 0.4352687905570856},
 		Type:     "redis",
 	},
-	&pb.Span{
+	{
 		Service:  "web-billing",
 		Name:     "web.template",
 		Resource: "GET /url/test/fixture/resource/42",
@@ -222,7 +222,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"rowcount": 0.3501786556194641},
 		Type:     "lamar",
 	},
-	&pb.Span{
+	{
 		Service:  "pg-master",
 		Name:     "postgres.query",
 		Resource: "データの犬",
@@ -236,7 +236,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"payloads": 0.737550948148184, "size": 0.5683740489852795, "rowcount": 0.4318616362850698},
 		Type:     "lamar",
 	},
-	&pb.Span{
+	{
 		Service:  "rails",
 		Name:     "web.template",
 		Resource: "events.buckets",
@@ -250,7 +250,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{},
 		Type:     "redis",
 	},
-	&pb.Span{
+	{
 		Service:  "pylons",
 		Name:     "postgres.query",
 		Resource: "SELECT user.handle AS user_handle, user.id AS user_id, user.org_id AS user_org_id, user.password AS user_password, user.email AS user_email, user.name AS user_name, user.role AS user_role, user.team AS user_team, user.support AS user_support, user.is_admin AS user_is_admin, user.github_username AS user_github_username, user.github_token AS user_github_token, user.disabled AS user_disabled, user.verified AS user_verified, user.bot AS user_bot, user.created AS user_created, user.modified AS user_modified, user.time_zone AS user_time_zone, user.password_modified AS user_password_modified FROM user WHERE user.id = ? AND user.org_id = ? LIMIT ?",
@@ -264,7 +264,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"payloads": 0.37210733159614523, "rowcount": 0.5264465848403574, "size": 0.025720650418526562},
 		Type:     "http",
 	},
-	&pb.Span{
+	{
 		Service:  "web-billing",
 		Name:     "postgres.query",
 		Resource: "GET /url/test/fixture/resource/42",
@@ -278,7 +278,7 @@ var benchTrace = pb.Trace{
 		Metrics:  map[string]float64{"rowcount": 0.805619107635167},
 		Type:     "redis",
 	},
-	&pb.Span{
+	{
 		Service:  "pg-master",
 		Name:     "web.query",
 		Resource: "SELECT user.handle AS user_handle, user.id AS user_id, user.org_id AS user_org_id, user.password AS user_password, user.email AS user_email, user.name AS user_name, user.role AS user_role, user.team AS user_team, user.support AS user_support, user.is_admin AS user_is_admin, user.github_username AS user_github_username, user.github_token AS user_github_token, user.disabled AS user_disabled, user.verified AS user_verified, user.bot AS user_bot, user.created AS user_created, user.modified AS user_modified, user.time_zone AS user_time_zone, user.password_modified AS user_password_modified FROM user WHERE user.id = ? AND user.org_id = ? LIMIT ?",

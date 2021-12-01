@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,6 +79,50 @@ type ObfuscationConfig struct {
 
 	// CreditCards holds the configuration for obfuscating credit cards.
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
+}
+
+// Export returns an obfuscate.Config matching o.
+func (o *ObfuscationConfig) Export() obfuscate.Config {
+	return obfuscate.Config{
+		SQL: obfuscate.SQLConfig{
+			TableNames:       features.Has("table_names"),
+			ReplaceDigits:    features.Has("quantize_sql_tables") || features.Has("replace_sql_digits"),
+			KeepSQLAlias:     features.Has("keep_sql_alias"),
+			DollarQuotedFunc: features.Has("dollar_quoted_func"),
+			Cache:            features.Has("sql_cache"),
+		},
+		ES: obfuscate.JSONConfig{
+			Enabled:            o.ES.Enabled,
+			KeepValues:         o.ES.KeepValues,
+			ObfuscateSQLValues: o.ES.ObfuscateSQLValues,
+		},
+		Mongo: obfuscate.JSONConfig{
+			Enabled:            o.Mongo.Enabled,
+			KeepValues:         o.Mongo.KeepValues,
+			ObfuscateSQLValues: o.Mongo.ObfuscateSQLValues,
+		},
+		SQLExecPlan: obfuscate.JSONConfig{
+			Enabled:            o.SQLExecPlan.Enabled,
+			KeepValues:         o.SQLExecPlan.KeepValues,
+			ObfuscateSQLValues: o.SQLExecPlan.ObfuscateSQLValues,
+		},
+		SQLExecPlanNormalize: obfuscate.JSONConfig{
+			Enabled:            o.SQLExecPlanNormalize.Enabled,
+			KeepValues:         o.SQLExecPlanNormalize.KeepValues,
+			ObfuscateSQLValues: o.SQLExecPlanNormalize.ObfuscateSQLValues,
+		},
+		HTTP: obfuscate.HTTPConfig{
+			RemoveQueryString: o.HTTP.RemoveQueryString,
+			RemovePathDigits:  o.HTTP.RemovePathDigits,
+		},
+		Logger: new(debugLogger),
+	}
+}
+
+type debugLogger struct{}
+
+func (debugLogger) Debugf(format string, params ...interface{}) {
+	log.Debugf(format, params...)
 }
 
 // CreditCardsConfig holds the configuration for credit card obfuscation in
@@ -260,6 +306,13 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.max_traces_per_second") {
 		c.TargetTPS = config.Datadog.GetFloat64("apm_config.max_traces_per_second")
 	}
+	if config.Datadog.IsSet("apm_config.errors_per_second") {
+		c.ErrorTPS = config.Datadog.GetFloat64("apm_config.errors_per_second")
+	}
+	if config.Datadog.IsSet("apm_config.disable_rare_sampler") {
+		c.DisableRareSampler = config.Datadog.GetBool("apm_config.disable_rare_sampler")
+	}
+
 	if k := "apm_config.ignore_resources"; config.Datadog.IsSet(k) {
 		c.Ignore["resource"] = config.Datadog.GetStringSlice(k)
 	}
@@ -311,7 +364,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &o)
 		if err == nil {
 			c.Obfuscation = &o
-			if c.Obfuscation.RemoveStackTraces {
+			if o.RemoveStackTraces {
 				c.addReplaceRule("error.stack", `(?s).*`, "?")
 			}
 		}

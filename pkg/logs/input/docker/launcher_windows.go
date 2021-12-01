@@ -8,7 +8,9 @@
 package docker
 
 import (
+	"fmt"
 	"io/ioutil"
+	"path/filepath"
 )
 
 const (
@@ -19,4 +21,9 @@ func checkReadAccess() error {
 	// We need read access to the docker folder
 	_, err := ioutil.ReadDir(basePath)
 	return err
+}
+
+// getPath returns the file path of the container log to tail.
+func getPath(id string) string {
+	return filepath.Join(basePath, id, fmt.Sprintf("%s-json.log", id))
 }

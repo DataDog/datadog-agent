@@ -10,7 +10,7 @@ package orchestrator
 import (
 	"testing"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 )
 

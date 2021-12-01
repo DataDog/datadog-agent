@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -99,6 +100,9 @@ type APIClient struct {
 
 	// DiscoveryCl holds kubernetes discovery client
 	DiscoveryCl discovery.DiscoveryInterface
+
+	// VPAClient holds kubernetes VerticalPodAutoscalers client
+	VPAClient vpa.Interface
 
 	// timeoutSeconds defines the kubernetes client timeout
 	timeoutSeconds int64
@@ -220,6 +224,15 @@ func getKubeDiscoveryClient(timeout time.Duration) (discovery.DiscoveryInterface
 	return discovery.NewDiscoveryClientForConfig(clientConfig)
 }
 
+func getKubeVPAClient(timeout time.Duration) (vpa.Interface, error) {
+	clientConfig, err := getClientConfig(timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return vpa.NewForConfig(clientConfig)
+}
+
 func getWPAInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error) {
 	// default to 300s
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
@@ -276,6 +289,12 @@ func (c *APIClient) connect() error {
 	c.Cl, err = GetKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
+		return err
+	}
+
+	c.VPAClient, err = getKubeVPAClient(time.Duration(c.timeoutSeconds) * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver vpa client: %w", err)
 		return err
 	}
 

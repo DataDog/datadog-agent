@@ -361,3 +361,170 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		})
 	}
 }
+
+func Test_validateEnrichMetadata(t *testing.T) {
+	tests := []struct {
+		name             string
+		metadata         MetadataConfig
+		expectedErrors   []string
+		expectedMetadata MetadataConfig
+	}{
+		{
+			name: "either field symbol or value must be provided",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"field `name`: value or symbol cannot be both empty",
+			},
+		},
+		{
+			name: "both field symbol and value cannot be provided",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "hey",
+							Symbol: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "someSymbol",
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"field `name`: value or symbol cannot be both defined",
+			},
+		},
+		{
+			name: "field regex pattern is compiled",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Symbol: SymbolConfig{
+								OID:          "1.2.3",
+								Name:         "someSymbol",
+								ExtractValue: "(\\w)",
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{},
+			expectedMetadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Symbol: SymbolConfig{
+								OID:                 "1.2.3",
+								Name:                "someSymbol",
+								ExtractValue:        "(\\w)",
+								ExtractValuePattern: regexp.MustCompile(`(\w)`),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid resource",
+			metadata: MetadataConfig{
+				"invalid-res": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "hey",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"invalid resource: invalid-res",
+			},
+		},
+		{
+			name: "invalid field",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"invalid-field": {
+							Value: "hey",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"invalid resource (device) field: invalid-field",
+			},
+		},
+		{
+			name: "invalid idtags",
+			metadata: MetadataConfig{
+				"interface": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"invalid-field": {
+							Value: "hey",
+						},
+					},
+					IDTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "abc",
+							},
+							Match: "([a-z)",
+							Tags: map[string]string{
+								"foo": "bar",
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"invalid resource (interface) field: invalid-field",
+				"cannot compile `match` (`([a-z)`)",
+			},
+		},
+		{
+			name: "device resource does not support id_tags",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "hey",
+						},
+					},
+					IDTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "abc",
+							},
+							Tag: "abc",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"device resource does not support custom id_tags",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errors := validateEnrichMetadata(tt.metadata)
+			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
+			for i := range errors {
+				assert.Contains(t, errors[i], tt.expectedErrors[i])
+			}
+			if tt.expectedMetadata != nil {
+				assert.Equal(t, tt.expectedMetadata, tt.metadata)
+			}
+		})
+	}
+}

@@ -150,13 +150,13 @@ func (m *Module) Start() error {
 		return errors.Wrap(err, "failed to start probe")
 	}
 
-	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
-	// context is ready when we start the probes
-	if err := m.probe.Snapshot(); err != nil {
+	if err := m.Reload(); err != nil {
 		return err
 	}
 
-	if err := m.Reload(); err != nil {
+	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
+	// context is ready when we start the probes
+	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
 
@@ -223,9 +223,16 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 	}
 
 	if m.config.RuntimeEnabled {
-		if eventTypes, exists := categories[model.RuntimeCategory]; exists {
-			for _, eventType := range eventTypes {
-				enabled[eventType] = true
+		// everything but FIM
+		for _, category := range model.GetAllCategories() {
+			if category == model.FIMCategory {
+				continue
+			}
+
+			if eventTypes, exists := categories[category]; exists {
+				for _, eventType := range eventTypes {
+					enabled[eventType] = true
+				}
 			}
 		}
 	}
@@ -281,6 +288,7 @@ func (m *Module) Reload() error {
 	newRuleSetOpts := func() *rules.Opts {
 		return rules.NewOptsWithParams(
 			model.SECLConstants,
+			sprobe.SECLVariables,
 			sprobe.SupportedDiscarders,
 			m.getEventTypeEnabled(),
 			sprobe.AllCustomRuleIDs(),
@@ -452,6 +460,10 @@ func (m *Module) metricsSender() {
 	for {
 		select {
 		case <-statsTicker.C:
+			if os.Getenv("RUNTIME_SECURITY_TESTSUITE") == "true" {
+				continue
+			}
+
 			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}

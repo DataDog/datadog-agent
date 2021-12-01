@@ -44,14 +44,13 @@ func TestUnlink(t *testing.T) {
 	t.Run("unlink", ifSyscallSupported("SYS_UNLINK", func(t *testing.T, syscallNB uintptr) {
 		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
-				t.Fatal(err)
+				return err
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
-
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
 		})
@@ -68,14 +67,13 @@ func TestUnlink(t *testing.T) {
 	t.Run("unlinkat", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testAtFilePtr), 0); err != 0 {
-				t.Fatal(err)
+				return err
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
-
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
 		})
@@ -109,8 +107,7 @@ func TestUnlinkInvalidate(t *testing.T) {
 		f.Close()
 
 		test.WaitSignal(t, func() error {
-			os.Remove(testFile)
-			return nil
+			return os.Remove(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "unlink.file.path", testFile)

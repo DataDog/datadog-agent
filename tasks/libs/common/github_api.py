@@ -29,7 +29,7 @@ class GithubAPI(RemoteAPI):
         Gets the repo info.
         """
 
-        path = "/repos/{}".format(self.repository)
+        path = f"/repos/{self.repository}"
         return self.make_request(path, method="GET", json_output=True)
 
     def get_branch(self, branch_name):
@@ -37,7 +37,7 @@ class GithubAPI(RemoteAPI):
         Gets info on a given branch in the given Github repository.
         """
 
-        path = "/repos/{}/branches/{}".format(self.repository, branch_name)
+        path = f"/repos/{self.repository}/branches/{branch_name}"
         return self.make_request(path, method="GET", json_output=True)
 
     def create_pr(self, pr_title, pr_body, base_branch, target_branch):
@@ -45,7 +45,7 @@ class GithubAPI(RemoteAPI):
         Creates a PR in the given Github repository.
         """
 
-        path = "/repos/{}/pulls".format(self.repository)
+        path = f"/repos/{self.repository}/pulls"
         data = json.dumps({"head": target_branch, "base": base_branch, "title": pr_title, "body": pr_body})
         return self.make_request(path, method="POST", json_output=True, data=data)
 
@@ -54,7 +54,7 @@ class GithubAPI(RemoteAPI):
         Updates a given PR with the provided milestone number and labels.
         """
 
-        path = "/repos/{}/issues/{}".format(self.repository, pull_number)
+        path = f"/repos/{self.repository}/issues/{pull_number}"
         data = json.dumps(
             {
                 "milestone": milestone_number,
@@ -68,7 +68,7 @@ class GithubAPI(RemoteAPI):
         Searches for a milestone in the given repository that matches the provided name,
         and returns data about it.
         """
-        path = "/repos/{}/milestones".format(self.repository)
+        path = f"/repos/{self.repository}/milestones"
         res = self.make_request(path, method="GET", json_output=True)
         for milestone in res:
             if milestone["title"] == milestone_name:
@@ -84,7 +84,7 @@ class GithubAPI(RemoteAPI):
         to the headers to be able to authenticate ourselves to GitHub.
         """
         headers = dict(headers or [])
-        headers["Authorization"] = "token {}".format(self.api_token)
+        headers["Authorization"] = f"token {self.api_token}"
         headers["Accept"] = "application/vnd.github.v3+json"
 
         return self.request(

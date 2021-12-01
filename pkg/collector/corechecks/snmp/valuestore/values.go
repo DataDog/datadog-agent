@@ -66,36 +66,6 @@ func (v *ResultValueStore) getColumnValue(oid string, index string) (ResultValue
 	return value, nil
 }
 
-// GetScalarValueAsString returns a scalar value as string
-func (v *ResultValueStore) GetScalarValueAsString(oid string) string {
-	value, err := v.GetScalarValue(oid)
-	if err != nil {
-		log.Tracef("failed to get value for OID %s: %s", oid, err)
-		return ""
-	}
-	str, err := value.ToString()
-	if err != nil {
-		log.Tracef("failed to convert to string for OID %s with value %v: %s", oid, value, err)
-		return ""
-	}
-	return str
-}
-
-// GetColumnValueAsString look for oid/index in ResultValueStore and returns a string
-func (v *ResultValueStore) GetColumnValueAsString(oid string, index string) string {
-	value, err := v.getColumnValue(oid, index)
-	if err != nil {
-		log.Tracef("failed to get value for OID %s with index %s: %s", oid, index, err)
-		return ""
-	}
-	str, err := value.ToString()
-	if err != nil {
-		log.Tracef("failed to convert to string for OID %s with value %v: %s", oid, value, err)
-		return ""
-	}
-	return str
-}
-
 // GetColumnValueAsFloat look for oid/index in ResultValueStore and returns a float64
 func (v *ResultValueStore) GetColumnValueAsFloat(oid string, index string) float64 {
 	value, err := v.getColumnValue(oid, index)

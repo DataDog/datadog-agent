@@ -13,18 +13,17 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // Agent handles REST API calls
@@ -47,7 +46,10 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
 	r.HandleFunc("/status", a.getStatus).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
-	r.HandleFunc("/config", a.getRuntimeConfig).Methods("GET")
+	r.HandleFunc("/config", settingshttp.Server.GetFull("")).Methods("GET")
+	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 }
 
 func (a *Agent) stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -141,23 +143,4 @@ func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
-}
-
-func (a *Agent) getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
-	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
-	if err != nil {
-		log.Errorf("Unable to marshal runtime config response: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
-		return
-	}
-
-	scrubbed, err := scrubber.ScrubBytes(runtimeConfig)
-	if err != nil {
-		log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
-		return
-	}
-	w.Write(scrubbed)
 }

@@ -37,10 +37,10 @@ deploy_staging_deb-7:
     - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
 
     # Release the artifacts to the "7" component
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*arm64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a armhf --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*armhf.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*arm64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a armhf --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*armhf.deb
 
 deploy_staging_rpm-7:
   rules:
@@ -61,9 +61,9 @@ deploy_staging_rpm-7:
   script:
     - *setup_rpm_signing_key
     - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm
-    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm
-    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/armv7hl/" -a "armv7hl" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-7.*armv7hl.rpm
+    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$BUCKET_BRANCH/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm
+    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$BUCKET_BRANCH/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm
+    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$BUCKET_BRANCH/7/armv7hl/" -a "armv7hl" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-7.*armv7hl.rpm
 
 deploy_staging_suse_rpm-7:
   rules:
@@ -81,7 +81,7 @@ deploy_staging_suse_rpm-7:
   script:
     - *setup_rpm_signing_key
     - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$DEB_RPM_BUCKET_BRANCH/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/*-7.*x86_64.rpm
+    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$BUCKET_BRANCH/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/*-7.*x86_64.rpm
 
 deploy_staging_dmg-a7:
   allow_failure: true
@@ -94,7 +94,7 @@ deploy_staging_dmg-a7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.dmg" $OMNIBUS_PACKAGE_DIR s3://$MACOS_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.dmg" $OMNIBUS_PACKAGE_DIR s3://$MACOS_S3_BUCKET/$BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy dsd binary to staging bucket
 deploy_staging_dsd:

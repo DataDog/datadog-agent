@@ -181,7 +181,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		Valid:                true,
 		Value:                12.0,
 		UpdateTime:           updateTime,
-		AutoscalerReferences: "ns1/hpa1",
+		AutoscalerReferences: "hpa:ns1/hpa1",
 		Error:                nil,
 	}
 	ddm.SetQueries("metric query2")
@@ -198,7 +198,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		Value:                10.0,
 		UpdateTime:           updateTime,
 		Error:                nil,
-		AutoscalerReferences: "ns0/hpa0",
+		AutoscalerReferences: "hpa:ns0/hpa0",
 	}
 	ddm.SetQueries("metric query0")
 	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dd-metric-0"))
@@ -210,7 +210,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		Value:                11.0,
 		UpdateTime:           updateTime,
 		Error:                nil,
-		AutoscalerReferences: "ns0/wpa0",
+		AutoscalerReferences: "wpa:ns0/wpa0",
 	}
 	ddm.SetQueries("metric query1")
 	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dd-metric-1"))
@@ -307,7 +307,7 @@ func TestCreateAutogenDatadogMetrics(t *testing.T) {
 		Value:                0.0,
 		UpdateTime:           updateTime,
 		Error:                nil,
-		AutoscalerReferences: "ns0/hpa0",
+		AutoscalerReferences: "hpa:ns0/hpa0",
 	}
 	ddm.SetQuery("avg:docker.cpu.usage{foo:bar}.rollup(30)")
 	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d22"))
@@ -321,7 +321,7 @@ func TestCreateAutogenDatadogMetrics(t *testing.T) {
 		Value:                0.0,
 		UpdateTime:           updateTime,
 		Error:                nil,
-		AutoscalerReferences: "ns0/wpa0",
+		AutoscalerReferences: "wpa:ns0/wpa0",
 	}
 	ddm.SetQuery("avg:docker.cpu.usage{bar:foo}.rollup(30)")
 	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412"))

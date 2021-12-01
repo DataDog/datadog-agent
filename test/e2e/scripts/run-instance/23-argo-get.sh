@@ -4,6 +4,8 @@ set -euo pipefail
 printf '=%.0s' {0..79} ; echo
 set -x
 
+ARGO_WORKFLOW=${ARGO_WORKFLOW:-''}
+
 cd "$(dirname "$0")"
 
 # Wait for any Running workflow
@@ -28,12 +30,19 @@ done
 
 EXIT_CODE=0
 for workflow in $(./argo list --status Failed -o name | grep -v 'No workflows found'); do
-    ./argo get "$workflow" -o json | jq -r '.status.nodes[] | select(.phase == "Failed") | .displayName + " " + .id' | while read -r displayName podName; do
+    ./argo get "$workflow" -o json | jq -r '.status.nodes | to_entries | map(.value) | sort_by(.phase) | .[] | select(.phase == "Failed" or (.name | contains("onExit[0].diagnose[0]."))) | .displayName + " " + .id' | while read -r displayName podName; do
         printf '\033[1m===> Logs of %s\t%s <===\033[0m\n' "$displayName" "$podName"
         ./argo logs "$workflow" "$podName"
     done
     ./argo get ${no_utf8_opt:-} "$workflow"
     EXIT_CODE=2
+done
+
+# CWS e2e output
+for workflow in $(./argo list -o name); do
+    if [ "$ARGO_WORKFLOW" = "cws" ]; then
+        kubectl logs $(./argo get $workflow -o json | jq -r '.status.nodes[] | select(.displayName=="test-cws-e2e").id') -c main
+    fi
 done
 
 # Make the Argo UI available from the user

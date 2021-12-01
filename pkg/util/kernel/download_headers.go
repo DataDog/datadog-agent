@@ -75,13 +75,15 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target) (backend types.Backend, err error) {
 	logger := customLogger{}
 	switch strings.ToLower(target.Distro.Display) {
-	case "fedora", "rhel":
+	case "fedora":
+		backend, err = rpm.NewFedoraBackend(target, h.yumReposDir, logger)
+	case "rhel", "redhat":
 		backend, err = rpm.NewRedHatBackend(target, h.yumReposDir, logger)
 	case "centos":
 		backend, err = rpm.NewCentOSBackend(target, h.yumReposDir, logger)
-	case "opensuse":
+	case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "opensuse-tumbleweed-kubic":
 		backend, err = rpm.NewOpenSUSEBackend(target, h.zypperReposDir, logger)
-	case "sle":
+	case "suse", "sles", "sled", "caasp":
 		backend, err = rpm.NewSLESBackend(target, h.zypperReposDir, logger)
 	case "debian", "ubuntu":
 		backend, err = apt.NewBackend(target, h.aptConfigDir, logger)

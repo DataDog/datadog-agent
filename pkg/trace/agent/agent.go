@@ -11,14 +11,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -29,9 +30,9 @@ import (
 )
 
 const (
-	// tagContainersTags specifies the name of the tag which holds key/value
-	// pairs representing information about the container (Docker, EC2, etc).
-	tagContainersTags = "_dd.tags.container"
+	// tagHostname specifies the hostname of the tracer.
+	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
+	tagHostname = "_dd.hostname"
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -52,7 +53,8 @@ type Agent struct {
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
-	obfuscator *obfuscate.Obfuscator
+	obfuscator     *obfuscate.Obfuscator
+	cardObfuscator *ccObfuscator
 
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
@@ -71,6 +73,10 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	in := make(chan *api.Payload, 1000)
 	statsChan := make(chan pb.StatsPayload, 100)
 
+	oconf := conf.Obfuscation.Export()
+	if oconf.Statsd == nil {
+		oconf.Statsd = metrics.Client
+	}
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now()),
 		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan),
@@ -83,7 +89,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		EventProcessor:        newEventProcessor(conf),
 		TraceWriter:           writer.NewTraceWriter(conf),
 		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
-		obfuscator:            obfuscate.NewObfuscator(conf.Obfuscation),
+		obfuscator:            obfuscate.NewObfuscator(oconf),
+		cardObfuscator:        newCreditCardsObfuscator(conf.Obfuscation.CreditCards),
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
@@ -169,6 +176,8 @@ func (a *Agent) loop() {
 				a.EventProcessor,
 				a.OTLPReceiver,
 				a.obfuscator,
+				a.obfuscator,
+				a.cardObfuscator,
 			} {
 				stopper.Stop()
 			}
@@ -180,37 +189,47 @@ func (a *Agent) loop() {
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(p *api.Payload) {
-	if len(p.Traces) == 0 {
+	if len(p.Chunks()) == 0 {
 		log.Debugf("Skipping received empty payload")
 		return
 	}
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
-	ss := new(writer.SampledSpans)
+	ss := new(writer.SampledChunks)
 	var envtraces []stats.EnvTrace
 	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
-	for _, t := range p.Traces {
-		if len(t) == 0 {
+
+	for i := 0; i < len(p.Chunks()); {
+		chunk := p.Chunk(i)
+		if len(chunk.Spans) == 0 {
 			log.Debugf("Skipping received empty trace")
+			p.RemoveChunk(i)
 			continue
 		}
 
-		tracen := int64(len(t))
+		tracen := int64(len(chunk.Spans))
 		atomic.AddInt64(&ts.SpansReceived, tracen)
-		err := normalizeTrace(p.Source, t)
+		err := normalizeTrace(p.Source, chunk.Spans)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
 			atomic.AddInt64(&ts.SpansDropped, tracen)
+			p.RemoveChunk(i)
 			continue
 		}
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
-		root := traceutil.GetRoot(t)
+		root := traceutil.GetRoot(chunk.Spans)
+		normalizeChunk(chunk, root)
+		if p.TracerPayload.Hostname == "" {
+			// Older tracers set tracer hostname in the root span.
+			p.TracerPayload.Hostname = root.Meta[tagHostname]
+		}
 
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			p.RemoveChunk(i)
 			continue
 		}
 
@@ -218,21 +237,26 @@ func (a *Agent) Process(p *api.Payload) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			p.RemoveChunk(i)
 			continue
 		}
 
 		// Extra sanitization steps of the trace.
-		for _, span := range t {
+		for _, span := range chunk.Spans {
 			for k, v := range a.conf.GlobalTags {
-				traceutil.SetMeta(span, k, v)
+				if k == tagOrigin {
+					chunk.Origin = v
+				} else {
+					traceutil.SetMeta(span, k, v)
+				}
 			}
-			a.obfuscator.Obfuscate(span)
+			a.obfuscateSpan(span)
 			Truncate(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
 			}
 		}
-		a.Replacer.Replace(t)
+		a.Replacer.Replace(chunk.Spans)
 
 		{
 			// this section sets up any necessary tags on the root:
@@ -243,54 +267,58 @@ func (a *Agent) Process(p *api.Payload) {
 				rate := ratelimiter.RealRate()
 				sampler.SetPreSampleRate(root, rate)
 			}
-			if p.ContainerTags != "" {
-				traceutil.SetMeta(root, tagContainersTags, p.ContainerTags)
-			}
 		}
 		if !p.ClientComputedTopLevel {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
 			// which is not thread-safe while samplers and Concentrator might modify it too.
-			traceutil.ComputeTopLevel(t)
+			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
 		env := a.conf.DefaultEnv
-		if v := traceutil.GetEnv(t); v != "" {
+		if v := traceutil.GetEnv(chunk.Spans); v != "" {
 			// this trace has a user defined env.
 			env = v
 		}
 		pt := ProcessedTrace{
-			Trace:            t,
-			WeightedTrace:    stats.NewWeightedTrace(t, root),
+			TraceChunk:       chunk,
+			WeightedTrace:    stats.NewWeightedTrace(chunk, root, p.TracerPayload.Hostname),
 			Root:             root,
 			Env:              env,
 			ClientDroppedP0s: p.ClientDroppedP0s > 0,
 		}
-
-		events, keep := a.sample(ts, pt)
 		if !p.ClientComputedStats {
 			if envtraces == nil {
-				envtraces = make([]stats.EnvTrace, 0, len(p.Traces))
+				envtraces = make([]stats.EnvTrace, 0, len(p.Chunks()))
 			}
 			envtraces = append(envtraces, stats.EnvTrace{
 				Trace: pt.WeightedTrace,
 				Env:   pt.Env,
 			})
 		}
-		// TODO(piochelepiotr): Maybe we can skip some computation if stats are computed in the tracer and the trace is droped.
-		if keep {
-			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
-			ss.Size += t.Msgsize()
-			ss.SpanCount += int64(len(t))
+
+		numEvents, keep := a.sample(ts, pt)
+		if !keep && numEvents == 0 {
+			// the trace was dropped and no analyzed span were kept
+			p.RemoveChunk(i)
+			continue
 		}
-		if len(events) > 0 {
-			ss.Events = append(ss.Events, events...)
-			ss.Size += pb.Trace(events).Msgsize()
+
+		if !chunk.DroppedTrace {
+			ss.SpanCount += int64(len(chunk.Spans))
 		}
+		ss.EventCount += numEvents
+		ss.Size += chunk.Msgsize()
+		i++
+
 		if ss.Size > writer.MaxPayloadSize {
+			// payload size is getting big; split and flush what we have so far
+			ss.TracerPayload = p.TracerPayload.Cut(i)
+			i = 0
 			a.TraceWriter.In <- ss
-			ss = new(writer.SampledSpans)
+			ss = new(writer.SampledChunks)
 		}
 	}
+	ss.TracerPayload = p.TracerPayload
 	if ss.Size > 0 {
 		a.TraceWriter.In <- ss
 	}
@@ -299,7 +327,7 @@ func (a *Agent) Process(p *api.Payload) {
 		if !features.Has("disable_cid_stats") && a.conf.FargateOrchestrator != fargate.Unknown {
 			// only allow the ContainerID stats dimension if we're in a Fargate instance
 			// and it's not prohibited by the disable_cid_stats feature flag.
-			in.ContainerID = p.ContainerID
+			in.ContainerID = p.TracerPayload.ContainerID
 		}
 		a.Concentrator.In <- in
 	}
@@ -327,7 +355,7 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 			if !a.Blacklister.AllowsStat(&b) {
 				continue
 			}
-			a.obfuscator.ObfuscateStatsGroup(&b)
+			a.obfuscateStatsGroup(&b)
 			a.Replacer.ReplaceStatsGroup(&b)
 			group.Stats[n] = b
 			n++
@@ -360,10 +388,9 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
-// sample decides whether the trace will be kept and extracts any APM events
-// from it.
-func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (events []*pb.Span, keep bool) {
-	priority, hasPriority := sampler.GetSamplingPriority(pt.Root)
+// sample reports the number of events found in pt and whether the chunk should be kept as a trace.
+func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (numEvents int64, keep bool) {
+	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
 	if hasPriority {
 		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
@@ -372,17 +399,17 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (events []*pb.Span,
 	}
 
 	if priority < 0 {
-		return nil, false
+		return 0, false
 	}
 
 	sampled := a.runSamplers(pt, hasPriority)
-
-	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
+	pt.TraceChunk.DroppedTrace = !sampled
+	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, pt.TraceChunk)
 
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
-	atomic.AddInt64(&ts.EventsSampled, int64(len(events)))
+	atomic.AddInt64(&ts.EventsSampled, numEvents)
 
-	return events, sampled
+	return numEvents, sampled
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
@@ -398,22 +425,25 @@ func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) bool {
 // ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
-	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env, pt.ClientDroppedP0s) {
+	if a.PrioritySampler.Sample(pt.TraceChunk, pt.Root, pt.Env, pt.ClientDroppedP0s) {
 		return true
 	}
-	if traceContainsError(pt.Trace) {
-		return a.ErrorsSampler.Sample(pt.Trace, pt.Root, pt.Env)
+	if traceContainsError(pt.TraceChunk.Spans) {
+		return a.ErrorsSampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.Env)
 	}
-	return a.RareSampler.Sample(pt.Trace, pt.Root, pt.Env)
+	if a.conf.DisableRareSampler {
+		return false
+	}
+	return a.RareSampler.Sample(pt.TraceChunk, pt.Env)
 }
 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces
 // get sampled by either the score sampler or the error sampler if they have an error.
 func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) bool {
-	if traceContainsError(pt.Trace) {
-		return a.ErrorsSampler.Sample(pt.Trace, pt.Root, pt.Env)
+	if traceContainsError(pt.TraceChunk.Spans) {
+		return a.ErrorsSampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.Env)
 	}
-	return a.NoPrioritySampler.Sample(pt.Trace, pt.Root, pt.Env)
+	return a.NoPrioritySampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.Env)
 }
 
 func traceContainsError(trace pb.Trace) bool {

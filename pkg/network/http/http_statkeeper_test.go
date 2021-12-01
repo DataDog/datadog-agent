@@ -5,16 +5,20 @@ package http
 import (
 	"encoding/binary"
 	"fmt"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
-	sk := newHTTPStatkeeper(1000, newTelemetry())
+	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+	sk := newHTTPStatkeeper(cfg, newTelemetry())
 	txs := make([]httpTX, 100)
 
 	sourceIP := util.AddressFromString("1.1.1.1")
@@ -74,7 +78,8 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 }
 
 func BenchmarkProcessSameConn(b *testing.B) {
-	sk := newHTTPStatkeeper(1000, newTelemetry())
+	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+	sk := newHTTPStatkeeper(cfg, newTelemetry())
 	tx := generateIPv4HTTPTransaction(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),
@@ -91,4 +96,97 @@ func BenchmarkProcessSameConn(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		sk.Process(transactions)
 	}
+}
+
+func TestPathProcessing(t *testing.T) {
+	var (
+		sourceIP   = util.AddressFromString("1.1.1.1")
+		sourcePort = 1234
+		destIP     = util.AddressFromString("2.2.2.2")
+		destPort   = 8080
+		statusCode = 200
+		latency    = time.Second
+	)
+
+	setupStatKeeper := func(rules []*config.ReplaceRule) *httpStatKeeper {
+		c := &config.Config{
+			MaxHTTPStatsBuffered: 1000,
+			HTTPReplaceRules:     rules,
+		}
+
+		return newHTTPStatkeeper(c, newTelemetry())
+	}
+
+	t.Run("reject rule", func(t *testing.T) {
+		rules := []*config.ReplaceRule{
+			{
+				Re: regexp.MustCompile("payment"),
+			},
+		}
+
+		sk := setupStatKeeper(rules)
+		transactions := []httpTX{
+			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/foobar", statusCode, latency),
+			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/payment/123", statusCode, latency),
+		}
+		sk.Process(transactions)
+		stats := sk.GetAndResetAllStats()
+
+		require.Len(t, stats, 1)
+		for key := range stats {
+			assert.Equal(t, "/foobar", key.Path)
+		}
+	})
+
+	t.Run("replace rule", func(t *testing.T) {
+		rules := []*config.ReplaceRule{
+			{
+				Re:   regexp.MustCompile("/users/.*"),
+				Repl: "/users/?",
+			},
+		}
+
+		sk := setupStatKeeper(rules)
+		transactions := []httpTX{
+			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/1", statusCode, latency),
+			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/2", statusCode, latency),
+			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/3", statusCode, latency),
+		}
+		sk.Process(transactions)
+		stats := sk.GetAndResetAllStats()
+
+		require.Len(t, stats, 1)
+		for key, metrics := range stats {
+			assert.Equal(t, "/prefix/users/?", key.Path)
+			assert.Equal(t, 3, metrics[statusCode/100-1].Count)
+		}
+	})
+
+	t.Run("chained rules", func(t *testing.T) {
+		rules := []*config.ReplaceRule{
+			{
+				Re:   regexp.MustCompile("/users/[A-z0-9]+"),
+				Repl: "/users/?",
+			},
+			{
+				Re:   regexp.MustCompile("/payment/[0-9]+"),
+				Repl: "/payment/?",
+			},
+		}
+
+		sk := setupStatKeeper(rules)
+		transactions := []httpTX{
+			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/ana/payment/123", statusCode, latency),
+			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/bob/payment/456", statusCode, latency),
+		}
+		sk.Process(transactions)
+		stats := sk.GetAndResetAllStats()
+
+		require.Len(t, stats, 1)
+		for key, metrics := range stats {
+			assert.Equal(t, "/users/?/payment/?", key.Path)
+			assert.Equal(t, 2, metrics[statusCode/100-1].Count)
+		}
+	})
+
 }

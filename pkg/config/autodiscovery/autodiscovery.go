@@ -6,6 +6,7 @@
 package autodiscovery
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,10 +46,10 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 		return detectedProviders, detectedListeners
 	}
 
-	if config.IsFeaturePresent(config.Docker) || config.IsFeaturePresent(config.Containerd) {
-		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "container", Polling: true, PollInterval: "1s"})
+	if config.IsFeaturePresent(config.Docker) || config.IsFeaturePresent(config.Containerd) || config.IsFeaturePresent(config.ECSFargate) || config.IsFeaturePresent(config.Podman) {
+		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.Container, Polling: true, PollInterval: "1s"})
 		if !config.IsFeaturePresent(config.Kubernetes) {
-			detectedListeners = append(detectedListeners, config.Listeners{Name: "container"})
+			detectedListeners = append(detectedListeners, config.Listeners{Name: names.Container})
 			log.Info("Adding Container listener from environment")
 		}
 		log.Info("Adding Container provider from environment")
@@ -58,12 +59,6 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "kubelet", Polling: true})
 		detectedListeners = append(detectedListeners, config.Listeners{Name: "kubelet"})
 		log.Info("Adding Kubelet autodiscovery provider and listener from environment")
-	}
-
-	if config.IsFeaturePresent(config.ECSFargate) {
-		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "ecs", Polling: true})
-		detectedListeners = append(detectedListeners, config.Listeners{Name: "ecs"})
-		log.Info("Adding ECS Fargate autodiscovery provider and listener from environment")
 	}
 
 	return detectedProviders, detectedListeners

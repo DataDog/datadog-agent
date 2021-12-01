@@ -28,6 +28,10 @@ message SecurityConfigMessage {
 
 message RunSelfTestParams{}
 
+message ReloadPoliciesParams{}
+
+message ReloadPoliciesResultMessage{}
+
 message SecuritySelfTestResultMessage {
     bool Ok = 1;
     string Error = 2;
@@ -38,4 +42,5 @@ service SecurityModule {
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
+    rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
 }
