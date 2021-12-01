@@ -17,6 +17,7 @@ import (
 type Payload struct {
 	Messages []*Message
 	Encoded  []byte
+	Encoding string
 }
 
 // Message represents a log line sent to datadog, with its metadata

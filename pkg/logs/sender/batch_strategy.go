@@ -118,5 +118,5 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		return
 	}
 
-	outputChan <- &message.Payload{Messages: messages, Encoded: encodedPayload}
+	outputChan <- &message.Payload{Messages: messages, Encoded: encodedPayload, Encoding: s.contentEncoding.name()}
 }

@@ -41,7 +41,7 @@ var (
 )
 
 // emptyPayload is an empty payload used to check HTTP connectivity without sending logs.
-var emptyPayload []byte
+var emptyPayload = message.Payload{}
 
 // Destination sends a payload over HTTP.
 type Destination struct {
@@ -79,7 +79,6 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 	expVars := &expvar.Map{}
 	expVars.AddFloat(expVarIdleMsMapKey, 0)
 	expVars.AddFloat(expVarInUseMapKey, 0)
-	// TODO: improve this
 	destinationExpVars.Set(fmt.Sprintf("%s_%d", endpoint.Host, pipelineID), expVars)
 
 	policy := backoff.NewPolicy(
@@ -162,7 +161,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, hasError chan bool,
 
 		metrics.LogsSent.Add(int64(len(payload.Messages)))
 		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
-		err := d.unconditionalSend(payload.Encoded)
+		err := d.unconditionalSend(payload)
 
 		if err == context.Canceled {
 			log.Warnf("Could not send payload: %v", err)
@@ -199,21 +198,20 @@ func (d *Destination) sendAndRetry(payload *message.Payload, hasError chan bool,
 	}
 }
 
-func (d *Destination) unconditionalSend(payload []byte) (err error) {
+func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	defer func() {
 		tlmSend.Inc(d.host, errorToTag(err))
 	}()
 
 	ctx := d.destinationsContext.Context()
 
-	// encodedPayload, err := d.contentEncoding.encode(payload)
 	if err != nil {
 		return err
 	}
-	metrics.BytesSent.Add(int64(len(payload)))
-	metrics.EncodedBytesSent.Add(int64(len(payload)))
+	metrics.BytesSent.Add(int64(len(payload.Encoded)))
+	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
 
-	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload))
+	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
 	if err != nil {
 		// the request could not be built,
 		// this can happen when the method or the url are valid.
@@ -221,7 +219,7 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	}
 	req.Header.Set("DD-API-KEY", d.apiKey)
 	req.Header.Set("Content-Type", d.contentType)
-	// req.Header.Set("Content-Encoding", d.contentEncoding.name()) // TODO: Fixme
+	req.Header.Set("Content-Encoding", payload.Encoding)
 	if d.protocol != "" {
 		req.Header.Set("DD-PROTOCOL", string(d.protocol))
 	}
@@ -314,7 +312,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
 	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, 0)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
-	err := destination.unconditionalSend(emptyPayload)
+	err := destination.unconditionalSend(&emptyPayload)
 	if err != nil {
 		log.Warnf("HTTP connectivity failure: %v", err)
 	} else {

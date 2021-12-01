@@ -28,32 +28,15 @@ type Pipeline struct {
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan *message.Payload, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID)
-	// var backupDestinations *client.Destinations
-	// if endpoints.Backup != nil {
-	// 	backupDestinations = getBackupDestinations(endpoints, destinationsContext)
-	// }
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
 	senderInput := make(chan *message.Payload, config.ChanSize)
 
-	var mainSender *sender.Sender
-	// var backupSender *sender.Sender
+	var logsSender *sender.Sender
 
 	strategy := getStrategy(endpoints, serverless, pipelineID)
 	strategy.Start(strategyInput, senderInput)
-	mainSender = sender.NewSender(senderInput, outputChan, mainDestinations)
-
-	// // If there is a backup endpoint - we are dual-shipping so we need to spawn an additional sender.
-	// if backupDestinations != nil {
-	// 	mainSenderChannel := make(chan *message.Message, config.ChanSize)
-	// 	backupSenderChannel := make(chan *message.Message, config.ChanSize)
-
-	// 	mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
-	// 	backupSender = sender.NewSender(backupSenderChannel, outputChan, backupDestinations, getStrategy(endpoints, serverless, pipelineID))
-	// 	sender.SplitSenders(senderChan, mainSender, backupSender)
-	// } else {
-	// 	mainSender = sender.NewSender(senderChan, outputChan, mainDestinations, getStrategy(endpoints, serverless, pipelineID))
-	// }
+	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations)
 
 	var encoder processor.Encoder
 	if serverless {
@@ -72,7 +55,7 @@ func NewPipeline(outputChan chan *message.Payload, processingRules []*config.Pro
 	return &Pipeline{
 		InputChan: inputChan,
 		processor: processor,
-		sender:    mainSender,
+		sender:    logsSender,
 	}
 }
 
@@ -119,7 +102,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 func getStrategy(endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		var encoder sender.ContentEncoding
-		if endpoints.Main.UseCompression { // TODO move off the endpoint so it can be more reasonables ahred
+		if endpoints.Main.UseCompression {
 			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 		} else {
 			encoder = sender.IdentityContentType
