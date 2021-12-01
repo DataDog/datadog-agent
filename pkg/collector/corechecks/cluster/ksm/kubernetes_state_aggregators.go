@@ -194,6 +194,6 @@ var metricAggregators = map[string]metricAggregator{
 	"kube_pod_info": newCountObjectsAggregator(
 		"pod.count",
 		"kube_pod_info",
-		[]string{"namespace", "created_by_kind", "created_by_name"},
+		[]string{"node", "namespace", "created_by_kind", "created_by_name"},
 	),
 }

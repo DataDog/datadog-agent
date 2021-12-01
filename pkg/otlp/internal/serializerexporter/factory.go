@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -42,8 +43,14 @@ func (f *factory) createMetricExporter(_ context.Context, params component.Expor
 		return nil, err
 	}
 
-	return exporterhelper.NewMetricsExporter(cfg, params, exp.ConsumeMetrics,
+	exporter, err := exporterhelper.NewMetricsExporter(cfg, params, exp.ConsumeMetrics,
 		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithTimeout(cfg.TimeoutSettings),
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	return resourcetotelemetry.WrapMetricsExporter(
+		resourcetotelemetry.Settings{Enabled: cfg.Metrics.ExporterConfig.ResourceAttributesAsTags}, exporter), nil
 }

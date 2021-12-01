@@ -19,6 +19,32 @@ metric_tags:
       prefix: \1
       suffix: \2
 
+metadata:
+  device:
+    fields:
+      vendor:
+        value: "f5" # static value
+      serial_number:  # value from OID.
+        symbol:
+          MIB: F5-BIGIP-SYSTEM-MIB # optional
+          OID: 1.3.6.1.4.1.3375.2.1.3.3.3.0
+          name: sysGeneralChassisSerialNum # The system serial number. 26ff4a4d-190e-12ac-d4257ed36ba6
+
+  interface:
+    fields:
+      # example override to use ifName as description
+      description:
+        symbol:
+          OID: 1.3.6.1.2.1.31.1.1.1.1
+          name: ifName
+          extract_value: '(Row\d)'
+    id_tags:
+      # add ifAlias to id_tags
+      - column:
+          OID: 1.3.6.1.2.1.31.1.1.1.1
+          name: ifAlias
+        tag: custom-tag
+
 metrics:
   - MIB: F5-BIGIP-SYSTEM-MIB
     forced_type: gauge
