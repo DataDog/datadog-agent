@@ -123,7 +123,7 @@ profiles:
 			{
 				Name:  "1.3.6.1.4.1.3375.2.1.6.4.0",
 				Type:  gosnmp.OctetString,
-				Value: []byte("3.0.0"),
+				Value: []byte("3.10.0-862.14.4.el7.ve.x86_64"),
 			},
 		},
 	}
@@ -319,8 +319,8 @@ profiles:
       "version":"15.0.1",
       "product_name":"BIG-IP",
       "model":"Final",
-      "os_name":"LINUX",
-      "os_version":"3.0.0",
+      "os_name":"LINUX (3.10.0-862.14.4.el7.ve.x86_64)",
+      "os_version":"3.10.0-862.14.4.el7.ve.x86_64",
       "os_hostname":"my-linux-f5-server"
     }
   ],
