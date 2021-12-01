@@ -201,6 +201,11 @@ func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler
 }
 
 func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler, policy stream.OnErrItemTooBigPolicy) (forwarder.Payloads, http.Header, error) {
+	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(payload)
+	return s.serializeIterableStreamablePayload(adapter, policy)
+}
+
+func (s Serializer) serializeIterableStreamablePayload(payload marshaler.IterableStreamJSONMarshaler, policy stream.OnErrItemTooBigPolicy) (forwarder.Payloads, http.Header, error) {
 	payloads, err := s.seriesJSONPayloadBuilder.BuildWithOnErrItemTooBigPolicy(payload, policy)
 	return payloads, jsonExtraHeadersWithCompression, err
 }
