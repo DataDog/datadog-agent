@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !kubelet || !orchestrator
 // +build !kubelet !orchestrator
 
 package checks
@@ -18,12 +19,14 @@ var Pod = &PodCheck{}
 
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
+	enabled bool
 	sysInfo *model.SystemInfo
 }
 
 // Init initializes a PodCheck instance.
 func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.sysInfo = info
+	c.enabled = cfg.Orchestrator.OrchestrationCollectionEnabled
 }
 
 // Name returns the name of the ProcessCheck.
@@ -35,4 +38,8 @@ func (c *PodCheck) RealTime() bool { return false }
 // Run runs the PodCheck to collect a list of running pods
 func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	return nil, fmt.Errorf("Not implemented")
+}
+
+func (c *PodCheck) Enabled() bool {
+	return c.enabled
 }

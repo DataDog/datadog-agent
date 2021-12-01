@@ -10,6 +10,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -99,6 +100,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 
 	log.Debugf("collected connections in %s", time.Since(start))
 	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.AgentConfiguration), nil
+}
+
+func (c *ConnectionsCheck) Enabled() bool {
+	return ddconfig.Datadog.GetBool("network_config.enabled")
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {

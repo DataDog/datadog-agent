@@ -6,6 +6,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -117,6 +118,10 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	statsd.Client.Gauge("datadog.process.containers.host_count", totalContainers, []string{}, 1) //nolint:errcheck
 	log.Debugf("collected %d containers in %s", int(totalContainers), time.Now().Sub(start))
 	return messages, nil
+}
+
+func (p *ContainerCheck) Enabled() bool {
+	return ddconfig.Datadog.GetBool("process_config.container_collection.enabled")
 }
 
 // fmtContainers loops through container list and converts them to a list of container objects

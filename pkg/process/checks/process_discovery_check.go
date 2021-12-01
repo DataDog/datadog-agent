@@ -5,6 +5,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -65,6 +66,10 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 	}
 
 	return payload, nil
+}
+
+func (d *ProcessDiscoveryCheck) Enabled() bool {
+	return ddconfig.Datadog.GetBool("process_config.process_discovery.enabled")
 }
 
 func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process) []*model.ProcessDiscovery {

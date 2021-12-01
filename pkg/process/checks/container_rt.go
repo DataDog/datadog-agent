@@ -4,6 +4,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -80,6 +81,10 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	r.lastRun = time.Now()
 
 	return messages, nil
+}
+
+func (r *RTContainerCheck) Enabled() bool {
+	return ddconfig.Datadog.GetBool("process_config.container_collection.rt_interval")
 }
 
 // fmtContainerStats formats and chunks the ctrList into a slice of chunks using a specific

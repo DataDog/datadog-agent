@@ -7,6 +7,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -96,6 +97,10 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	}
 
 	return result.Standard, nil
+}
+
+func (p *ProcessCheck) Enabled() bool {
+	return ddconfig.Datadog.GetBool("process_config.process_collection.enabled")
 }
 
 func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTime bool) (*RunResult, error) {

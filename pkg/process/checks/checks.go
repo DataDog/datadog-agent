@@ -14,6 +14,7 @@ type Check interface {
 	Name() string
 	RealTime() bool
 	Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error)
+	Enabled() bool
 }
 
 // RunOptions provides run options for checks
