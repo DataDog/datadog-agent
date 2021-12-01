@@ -52,15 +52,6 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 				if field.Value != "" {
 					metadataStore.AddScalarValue(fieldFullName, valuestore.ResultValue{Value: field.Value})
 				}
-				if field.Symbol.OID != "" {
-					value, err := getScalarValueFromSymbol(values, field.Symbol)
-					if err != nil {
-						log.Debugf("error getting scalar value: %v", err)
-						continue
-					}
-					metadataStore.AddScalarValue(fieldFullName, value)
-				}
-				// TODO: Use only `Symbols`
 				for _, symbol := range field.Symbols {
 					if metadataStore.ScalarFieldHasValue(fieldFullName) {
 						break
@@ -71,15 +62,16 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 						continue
 					}
 					metadataStore.AddScalarValue(fieldFullName, value)
-
 				}
 			} else {
-				metricValues, err := getColumnValueFromSymbol(values, field.Symbol)
-				if err != nil {
-					continue
-				}
-				for fullIndex, value := range metricValues {
-					metadataStore.AddColumnValue(fieldFullName, fullIndex, value)
+				for _, symbol := range field.Symbols {
+					metricValues, err := getColumnValueFromSymbol(values, symbol)
+					if err != nil {
+						continue
+					}
+					for fullIndex, value := range metricValues {
+						metadataStore.AddColumnValue(fieldFullName, fullIndex, value)
+					}
 				}
 			}
 		}

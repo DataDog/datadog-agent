@@ -90,21 +90,25 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 					continue
 				}
 				field := res.Fields[fieldName]
-				// TODO: TEST ME
-				if field.Value == "" && field.Symbol.OID == "" && len(field.Symbols) == 0 {
-					errors = append(errors, fmt.Sprintf("field `%s`: value or symbol cannot be both empty", fieldName))
+				if field.Symbol.OID != "" {
+					field.Symbols = append([]SymbolConfig{field.Symbol}, field.Symbols...)
+					field.Symbol = SymbolConfig{}
 				}
 				// TODO: TEST ME
-				if field.Value != "" && field.Symbol.OID != "" && len(field.Symbols) > 0 {
-					errors = append(errors, fmt.Sprintf("field `%s`: value or symbol cannot be both defined", fieldName))
-				}
+				//if field.Value == "" && len(field.Symbols) == 0 {
+				//	errors = append(errors, fmt.Sprintf("field `%s`: value, symbol or symbols must be defined", fieldName))
+				//}
+				//// TODO: TEST ME
+				//if field.Value != "" && len(field.Symbols) > 0 {
+				//	errors = append(errors, fmt.Sprintf("field `%s`: value symbol or symbols cannot be both defined", fieldName))
+				//}
 				// TODO: TEST ME
 				for i := range field.Symbols {
 					errors = append(errors, validateEnrichSymbol(&field.Symbols[i])...)
 				}
-				if field.Symbol.OID != "" {
-					errors = append(errors, validateEnrichSymbol(&field.Symbol)...)
-				}
+				//if field.Symbol.OID != "" {
+				//	errors = append(errors, validateEnrichSymbol(&field.Symbol)...)
+				//}
 				res.Fields[fieldName] = field
 			}
 			metadata[resName] = res
