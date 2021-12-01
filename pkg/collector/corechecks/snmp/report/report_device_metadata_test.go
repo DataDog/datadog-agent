@@ -28,6 +28,17 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	log.SetupLogger(l, "debug")
 
 	var storeWithoutIfName = &valuestore.ResultValueStore{
+		ScalarValues: valuestore.ScalarResultValuesType{
+			"1.3.6.1.2.1.1.5.0": valuestore.ResultValue{
+				Value: "my-sys-name",
+			},
+			"1.3.6.1.2.1.1.1.0": valuestore.ResultValue{
+				Value: "my-sys-descr",
+			},
+			"1.3.6.1.2.1.1.6.0": valuestore.ResultValue{
+				Value: "my-sys-location",
+			},
+		},
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
@@ -43,6 +54,55 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
+		Metadata: checkconfig.MetadataConfig{
+			"device": {
+				Fields: map[string]checkconfig.MetadataField{
+					"name": {
+						// Should use value from Symbol `1.3.6.1.2.1.1.5.0`
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.3.6.1.2.1.1.5.0",
+							Name: "sysName",
+						},
+						Symbols: []checkconfig.SymbolConfig{
+							{
+								OID:  "1.2.99",
+								Name: "doesNotExist",
+							},
+						},
+					},
+					"description": {
+						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.9999",
+							Name: "doesNotExist",
+						},
+						Symbols: []checkconfig.SymbolConfig{
+							{
+								OID:  "1.3.6.1.2.1.1.1.0",
+								Name: "sysDescr",
+							},
+						},
+					},
+					"location": {
+						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.9999",
+							Name: "doesNotExist",
+						},
+						Symbols: []checkconfig.SymbolConfig{
+							{
+								OID:  "1.888",
+								Name: "doesNotExist2",
+							},
+							{
+								OID:  "1.3.6.1.2.1.1.6.0",
+								Name: "sysLocation",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	layout := "2006-01-02 15:04:05"
 	str := "2014-11-12 11:45:26"
@@ -68,6 +128,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             ],
             "ip_address": "1.2.3.4",
             "status":1,
+            "name": "my-sys-name",
+            "description": "my-sys-descr",
+            "location": "my-sys-location",
             "subnet": "127.0.0.0/29"
         }
     ],

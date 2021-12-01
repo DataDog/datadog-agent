@@ -56,7 +56,6 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 			symbols = append(symbols, field.Symbols...)
 
 			if checkconfig.IsMetadataResourceWithScalarOids(resourceName) {
-				// TODO: Test symbols
 				for _, symbol := range symbols {
 					if metadataStore.ScalarFieldHasValue(fieldFullName) {
 						break
@@ -69,7 +68,6 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 					metadataStore.AddScalarValue(fieldFullName, value)
 
 				}
-				// TODO: Test Value as fallback
 				if field.Value != "" && !metadataStore.ScalarFieldHasValue(fieldFullName) {
 					metadataStore.AddScalarValue(fieldFullName, valuestore.ResultValue{Value: field.Value})
 				}
