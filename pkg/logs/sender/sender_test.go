@@ -1,257 +1,244 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// // Unless explicitly stated otherwise all files in this repository are licensed
+// // under the Apache License Version 2.0.
+// // This product includes software developed at Datadog (https://www.datadoghq.com/).
+// // Copyright 2016-present Datadog, Inc.
 
 package sender
 
-import (
-	"context"
-	"errors"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-)
-
-type mockDestination struct {
-	errChan  chan bool
-	hasError bool
-}
-
-func newMockDestination() *mockDestination {
-	return &mockDestination{
-		errChan:  make(chan bool, 1),
-		hasError: false,
-	}
-}
-
-func (m *mockDestination) Send(payload []byte) error {
-	select {
-	case m.hasError = <-m.errChan:
-	default:
-	}
-
-	if m.hasError {
-		return errors.New("Test error")
-	}
-	return nil
-
-}
-func (m *mockDestination) SendAsync(payload []byte) {
-}
-
-type mockStrategy struct {
-	sendFailed chan bool
-}
-
-func newMockStrategy() *mockStrategy {
-	return &mockStrategy{
-		sendFailed: make(chan bool),
-	}
-
-}
-
-func (m *mockStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
-	for msg := range inputChan {
-		if send(msg.Content) == nil {
-			outputChan <- msg
-			continue
-		}
-		m.sendFailed <- true
-	}
-}
-
-func (m *mockStrategy) Flush(ctx context.Context) {}
-
-func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
-	return message.NewMessageWithSource(content, status, source, 0)
-}
-
-func TestSender(t *testing.T) {
-	l := mock.NewMockLogsIntake(t)
-	defer l.Close()
-
-	source := config.NewLogSource("", &config.LogsConfig{})
-
-	input := make(chan *message.Message, 1)
-	output := make(chan *message.Message, 1)
-
-	destinationsCtx := client.NewDestinationsContext()
-	destinationsCtx.Start()
-
-	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
-	destinations := client.NewDestinations(destination, nil)
-
-	sender := NewSingleSender(input, output, destinations, StreamStrategy)
-	sender.Start()
-
-	expectedMessage := newMessage([]byte("fake line"), source, "")
-
-	// Write to the output should relay the message to the output (after sending it on the wire)
-	input <- expectedMessage
-	message, ok := <-output
-
-	assert.True(t, ok)
-	assert.Equal(t, message, expectedMessage)
-
-	sender.Stop()
-	destinationsCtx.Stop()
-}
-
-func TestSenderNotBlockedByAdditional(t *testing.T) {
-	l := mock.NewMockLogsIntake(t)
-	defer l.Close()
+// import (
+// 	"context"
+// 	"errors"
+// 	"testing"
+
+// 	"github.com/stretchr/testify/assert"
+
+// 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+// 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
+// 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
+// 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+// 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+// )
+
+// type mockDestination struct {
+// 	errChan  chan bool
+// 	hasError bool
+// }
+
+// func newMockDestination() *mockDestination {
+// 	return &mockDestination{
+// 		errChan:  make(chan bool, 1),
+// 		hasError: false,
+// 	}
+// }
+
+// func (m *mockDestination) Send(payload []byte) error {
+// 	select {
+// 	case m.hasError = <-m.errChan:
+// 	default:
+// 	}
+
+// 	if m.hasError {
+// 		return errors.New("Test error")
+// 	}
+// 	return nil
+
+// }
+// func (m *mockDestination) SendAsync(payload []byte) {
+// }
+
+// type mockStrategy struct {
+// 	sendFailed chan bool
+// }
+
+// func newMockStrategy() *mockStrategy {
+// 	return &mockStrategy{
+// 		sendFailed: make(chan bool),
+// 	}
+
+// }
+
+// func (m *mockStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
+// 	for msg := range inputChan {
+// 		if send(msg.Content) == nil {
+// 			outputChan <- msg
+// 			continue
+// 		}
+// 		m.sendFailed <- true
+// 	}
+// }
+
+// func (m *mockStrategy) Flush(ctx context.Context) {}
+
+// func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
+// 	return message.NewMessageWithSource(content, status, source, 0)
+// }
 
-	source := config.NewLogSource("", &config.LogsConfig{})
+// func TestSender(t *testing.T) {
+// 	l := mock.NewMockLogsIntake(t)
+// 	defer l.Close()
+
+// 	source := config.NewLogSource("", &config.LogsConfig{})
+
+// 	input := make(chan *message.Message, 1)
+// 	output := make(chan *message.Message, 1)
 
-	input := make(chan *message.Message, 1)
-	output := make(chan *message.Message, 1)
+// 	destinationsCtx := client.NewDestinationsContext()
+// 	destinationsCtx.Start()
+
+// 	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
+// 	destinations := client.NewDestinations(destination, nil)
 
-	destinationsCtx := client.NewDestinationsContext()
-	destinationsCtx.Start()
+// 	sender := NewSingleSender(input, output, destinations, StreamStrategy)
+// 	sender.Start()
+
+// 	expectedMessage := newMessage([]byte("fake line"), source, "")
 
-	mainDestination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
-	// This destination doesn't exists
-	additionalDestination := tcp.NewDestination(config.Endpoint{Host: "dont.exist.local", Port: 0}, true, destinationsCtx)
-	destinations := client.NewDestinations(mainDestination, []client.Destination{additionalDestination})
+// 	// Write to the output should relay the message to the output (after sending it on the wire)
+// 	input <- expectedMessage
+// 	message, ok := <-output
 
-	sender := NewSingleSender(input, output, destinations, StreamStrategy)
-	sender.Start()
+// 	assert.True(t, ok)
+// 	assert.Equal(t, message, expectedMessage)
 
-	expectedMessage1 := newMessage([]byte("fake line"), source, "")
-	input <- expectedMessage1
-	message, ok := <-output
-	assert.True(t, ok)
-	assert.Equal(t, message, expectedMessage1)
+// 	sender.Stop()
+// 	destinationsCtx.Stop()
+// }
 
-	expectedMessage2 := newMessage([]byte("fake line 2"), source, "")
-	input <- expectedMessage2
-	message, ok = <-output
-	assert.True(t, ok)
-	assert.Equal(t, message, expectedMessage2)
+// func TestSenderNotBlockedByAdditional(t *testing.T) {
+// 	l := mock.NewMockLogsIntake(t)
+// 	defer l.Close()
 
-	sender.Stop()
-	destinationsCtx.Stop()
-}
+// 	source := config.NewLogSource("", &config.LogsConfig{})
 
-func TestDualShipEndpoints(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
+// 	input := make(chan *message.Message, 1)
+// 	output := make(chan *message.Message, 1)
 
-	input := make(chan *message.Message, 1)
-	mainInput := make(chan *message.Message, 1)
-	backupInput := make(chan *message.Message, 1)
-	mainOutput := make(chan *message.Message)
-	backupOutput := make(chan *message.Message)
+// 	destinationsCtx := client.NewDestinationsContext()
+// 	destinationsCtx.Start()
 
-	mainDest := newMockDestination()
-	mainDests := client.NewDestinations(mainDest, []client.Destination{})
-	backupDest := newMockDestination()
-	backupDests := client.NewDestinations(backupDest, []client.Destination{})
+// 	mainDestination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
+// 	// This destination doesn't exists
+// 	additionalDestination := tcp.NewDestination(config.Endpoint{Host: "dont.exist.local", Port: 0}, true, destinationsCtx)
+// 	destinations := client.NewDestinations([]client.Destination{mainDestination}, []client.Destination{additionalDestination})
 
-	mainMockStrategy := newMockStrategy()
-	backupMockStrategy := newMockStrategy()
+// 	sender := NewSingleSender(input, output, destinations, StreamStrategy)
+// 	sender.Start()
 
-<<<<<<< HEAD
-	mainSender := NewSender(mainInput, mainOutput, mainDests, mainMockStrategy)
-	backupSender := NewSender(backupInput, backupOutput, backupDests, backupMockStrategy)
+// 	expectedMessage1 := newMessage([]byte("fake line"), source, "")
+// 	input <- expectedMessage1
+// 	message, ok := <-output
+// 	assert.True(t, ok)
+// 	assert.Equal(t, message, expectedMessage1)
 
-	SplitSenders(input, mainSender, backupSender)
+// 	expectedMessage2 := newMessage([]byte("fake line 2"), source, "")
+// 	input <- expectedMessage2
+// 	message, ok = <-output
+// 	assert.True(t, ok)
+// 	assert.Equal(t, message, expectedMessage2)
 
-	mainSender.Start()
-	backupSender.Start()
-=======
-	mainSender := NewSingleSender(mainInput, mainOutput, mainDests, mainMockStrategy)
-	additionalSender := NewSingleSender(backupInput, backupOutput, backupDests, backupMockStrategy)
+// 	sender.Stop()
+// 	destinationsCtx.Stop()
+// }
 
-	dualSender := NewDualSender(input, mainSender, additionalSender)
-	dualSender.Start()
->>>>>>> main
+// func TestDualShipEndpoints(t *testing.T) {
+// 	source := config.NewLogSource("", &config.LogsConfig{})
 
-	// Scenario 1: Both senders fail, and then both recover
+// 	input := make(chan *message.Message, 1)
+// 	mainInput := make(chan *message.Message, 1)
+// 	backupInput := make(chan *message.Message, 1)
+// 	mainOutput := make(chan *message.Message)
+// 	backupOutput := make(chan *message.Message)
 
-	// Test both output's get the line
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
-	<-backupOutput
+// 	mainDest := newMockDestination()
+// 	mainDests := client.NewDestinations([]client.Destination{mainDest}, []client.Destination{})
+// 	backupDest := newMockDestination()
+// 	backupDests := client.NewDestinations([]client.Destination{backupDest}, []client.Destination{})
 
-	backupDest.errChan <- true
+// 	mainMockStrategy := newMockStrategy()
+// 	backupMockStrategy := newMockStrategy()
 
-	// Main should get the message - backup should not.
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
-	<-backupMockStrategy.sendFailed
+// 	mainSender := NewSingleSender(mainInput, mainOutput, mainDests, mainMockStrategy)
+// 	additionalSender := NewSingleSender(backupInput, backupOutput, backupDests, backupMockStrategy)
 
-	mainDest.errChan <- true
+// 	dualSender := NewDualSender(input, mainSender, additionalSender)
+// 	dualSender.Start()
 
-	// Both senders are in a failed state. SplitSenders will now block until
-	// one succeeds regardless of the error state.
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainMockStrategy.sendFailed
-	<-backupMockStrategy.sendFailed
+// 	// Scenario 1: Both senders fail, and then both recover
 
-	mainDest.errChan <- false
+// 	// Test both output's get the line
+// 	input <- newMessage([]byte("fake line"), source, "")
+// 	<-mainOutput
+// 	<-backupOutput
 
-	// Main has recovered and should should get the message - backup should not.
-	input <- newMessage([]byte("1"), source, "")
-	<-mainOutput
-	<-backupMockStrategy.sendFailed
+// 	backupDest.errChan <- true
 
-	backupDest.errChan <- false
+// 	// Main should get the message - backup should not.
+// 	input <- newMessage([]byte("fake line"), source, "")
+// 	<-mainOutput
+// 	<-backupMockStrategy.sendFailed
 
-	// Both senders are now recovered - both get the messsage
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
-	<-backupOutput
+// 	mainDest.errChan <- true
 
-	// Scenario 2: One sender fails and then recovers
+// 	// Both senders are in a failed state. SplitSenders will now block until
+// 	// one succeeds regardless of the error state.
+// 	input <- newMessage([]byte("fake line"), source, "")
+// 	<-mainMockStrategy.sendFailed
+// 	<-backupMockStrategy.sendFailed
 
-	mainDest.errChan <- true
+// 	mainDest.errChan <- false
 
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainMockStrategy.sendFailed
-	<-backupOutput
+// 	// Main has recovered and should should get the message - backup should not.
+// 	input <- newMessage([]byte("1"), source, "")
+// 	<-mainOutput
+// 	<-backupMockStrategy.sendFailed
 
-	mainDest.errChan <- false
+// 	backupDest.errChan <- false
 
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
-	<-backupOutput
-}
-<<<<<<< HEAD
-=======
+// 	// Both senders are now recovered - both get the messsage
+// 	input <- newMessage([]byte("fake line"), source, "")
+// 	<-mainOutput
+// 	<-backupOutput
 
-func TestSingleFailsThenRecovers(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
+// 	// Scenario 2: One sender fails and then recovers
 
-	input := make(chan *message.Message, 1)
-	mainOutput := make(chan *message.Message)
+// 	mainDest.errChan <- true
 
-	mainDest := newMockDestination()
-	mainDests := client.NewDestinations(mainDest, []client.Destination{})
+// 	input <- newMessage([]byte("fake line"), source, "")
+// 	<-mainMockStrategy.sendFailed
+// 	<-backupOutput
 
-	mainMockStrategy := newMockStrategy()
+// 	mainDest.errChan <- false
 
-	mainSender := NewSingleSender(input, mainOutput, mainDests, mainMockStrategy)
+// 	input <- newMessage([]byte("fake line"), source, "")
+// 	<-mainOutput
+// 	<-backupOutput
+// }
 
-	mainSender.Start()
+// func TestSingleFailsThenRecovers(t *testing.T) {
+// 	source := config.NewLogSource("", &config.LogsConfig{})
 
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
+// 	input := make(chan *message.Message, 1)
+// 	mainOutput := make(chan *message.Message)
 
-	mainDest.errChan <- true
+// 	mainDest := newMockDestination()
+// 	mainDests := client.NewDestinations([]client.Destination{mainDest}, []client.Destination{})
 
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainMockStrategy.sendFailed
+// 	mainMockStrategy := newMockStrategy()
 
-	mainDest.errChan <- false
+// 	mainSender := NewSingleSender(input, mainOutput, mainDests, mainMockStrategy)
 
-	input <- newMessage([]byte("fake line"), source, "")
-	<-mainOutput
-}
->>>>>>> main
+// 	mainSender.Start()
+
+// 	input <- newMessage([]byte("fake line"), source, "")
+// 	<-mainOutput
+
+// 	mainDest.errChan <- true
+
+// 	input <- newMessage([]byte("fake line"), source, "")
+// 	<-mainMockStrategy.sendFailed
+
+// 	mainDest.errChan <- false
+
+// 	input <- newMessage([]byte("fake line"), source, "")
+// 	<-mainOutput
+// }

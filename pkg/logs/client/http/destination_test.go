@@ -11,26 +11,36 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
+type StatusCodeContainer struct {
+	sync.Mutex
+	statusCode int
+}
 type HTTPServerTest struct {
-	httpServer  *httptest.Server
-	destCtx     *client.DestinationsContext
-	destination *Destination
-	endpoint    config.Endpoint
-	request     *http.Request
+	httpServer          *httptest.Server
+	destCtx             *client.DestinationsContext
+	destination         *Destination
+	endpoint            config.Endpoint
+	request             *http.Request
+	statusCodeContainer *StatusCodeContainer
 }
 
 func NewHTTPServerTest(statusCode int) *HTTPServerTest {
+	statusCodeContainer := &StatusCodeContainer{statusCode: statusCode}
 	var request http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(statusCode)
+		statusCodeContainer.Lock()
+		w.WriteHeader(statusCodeContainer.statusCode)
+		statusCodeContainer.Unlock()
 		request = *r
 	}))
 	url := strings.Split(ts.URL, ":")
@@ -43,19 +53,26 @@ func NewHTTPServerTest(statusCode int) *HTTPServerTest {
 		Port:   port,
 		UseSSL: false,
 	}
-	dest := NewDestination(endpoint, JSONContentType, destCtx, 0)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, 0, true, 0)
 	return &HTTPServerTest{
-		httpServer:  ts,
-		destCtx:     destCtx,
-		destination: dest,
-		endpoint:    endpoint,
-		request:     &request,
+		httpServer:          ts,
+		destCtx:             destCtx,
+		destination:         dest,
+		endpoint:            endpoint,
+		request:             &request,
+		statusCodeContainer: statusCodeContainer,
 	}
 }
 
 func (s *HTTPServerTest) stop() {
 	s.destCtx.Start()
 	s.httpServer.Close()
+}
+
+func (s *HTTPServerTest) changeStatus(statusCode int) {
+	s.statusCodeContainer.Lock()
+	s.statusCodeContainer.statusCode = statusCode
+	s.statusCodeContainer.Unlock()
 }
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
@@ -99,38 +116,65 @@ func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
 
 func TestDestinationSend200(t *testing.T) {
 	server := NewHTTPServerTest(200)
-	err := server.destination.Send([]byte("yo"))
-	assert.Nil(t, err)
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	hasError := make(chan bool)
+	server.destination.Start(input, hasError, output)
+
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	<-output
+
 	server.stop()
 }
 
-func TestDestinationSend500(t *testing.T) {
+func TestDestinationSend500Retries(t *testing.T) {
 	server := NewHTTPServerTest(500)
-	err := server.destination.Send([]byte("yo"))
-	assert.NotNil(t, err)
-	_, retriable := err.(*client.RetryableError)
-	assert.True(t, retriable)
-	assert.Equal(t, "server error", err.Error())
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	hasErrorChan := make(chan bool, 1)
+	server.destination.Start(input, hasErrorChan, output)
+
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	assert.True(t, <-hasErrorChan)
+
+	// Should recover because it was retrying
+	server.changeStatus(200)
+	<-output
+
 	server.stop()
 }
 
-func TestDestinationSend429(t *testing.T) {
+func TestDestinationSend429Retries(t *testing.T) {
 	server := NewHTTPServerTest(429)
-	err := server.destination.Send([]byte("yo"))
-	assert.NotNil(t, err)
-	_, retriable := err.(*client.RetryableError)
-	assert.True(t, retriable)
-	assert.Equal(t, "server error", err.Error())
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	hasErrorChan := make(chan bool, 1)
+	server.destination.Start(input, hasErrorChan, output)
+
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	assert.True(t, <-hasErrorChan)
+
+	// Should recover because it was retrying
+	server.changeStatus(200)
+	<-output
+
 	server.stop()
 }
 
 func TestDestinationSend400(t *testing.T) {
 	server := NewHTTPServerTest(400)
-	err := server.destination.Send([]byte("yo"))
-	assert.NotNil(t, err)
-	_, retriable := err.(*client.RetryableError)
-	assert.False(t, retriable)
-	assert.Equal(t, "client error", err.Error())
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	hasErrorChan := make(chan bool, 1)
+	server.destination.Start(input, hasErrorChan, output)
+
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	<-output
+
+	// Should nto retry 400 - no error reported back (because it's not retryable) so input should be unblocked
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	<-output
+
 	server.stop()
 }
 

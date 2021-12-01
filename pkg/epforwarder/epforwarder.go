@@ -197,8 +197,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		encoder = sender.IdentityContentType
 	}
 
-	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, desc.eventType, encoder)
-
+	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, encoder)
 	strategy.Start(inputChan, senderInput)
 
 	a := auditor.NewNullAuditor()

@@ -88,8 +88,8 @@ func (s *Sender) run() {
 		for !sent {
 			for _, destCtx := range destinationContetexts {
 				if !destCtx.updateAndGetHasError() {
-					sent = true
 					destCtx.input <- payload
+					sent = true
 				}
 			}
 

@@ -124,7 +124,7 @@ func getStrategy(endpoints *config.Endpoints, serverless bool, pipelineID int) s
 		} else {
 			encoder = sender.IdentityContentType
 		}
-		return sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, "logs", encoder)
+		return sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
 	return sender.StreamStrategy
 }
