@@ -3,10 +3,12 @@
   stage: binary_build
   before_script:
     - !reference [.retrieve_linux_go_deps]
+  script:
     - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless -o $BINARY_NAME
 
 .check_size_common:
   script:
+    - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless -o $BINARY_NAME
     - if [[ ! -f "$BINARY_NAME" ]]; then echo "Could not find $BINARY_NAME please investigate/reach the serverless slack channel" && exit 1; else exit 0; fi
     - export CURRENT_SIZE_IN_BYTES=$(ls -l "$BINARY_NAME" | awk '{print $5}')
     - echo "Current extension size $CURRENT_SIZE_IN_BYTES bytes"
@@ -30,9 +32,7 @@ build_serverless-deb_arm64:
   needs: ["linux_arm64_go_deps"]
 
 check_serverless_size_x64:
-  extends:
-    - .build_serverless_common
-    - .check_size_common
+  extends: .check_size_common
   tags: ["runner:main"]
   variables:
     BINARY_NAME: datadog-agent-x64
@@ -40,9 +40,7 @@ check_serverless_size_x64:
     BASELINE_SIZE_IN_BYTES: 30609317
 
 check_serverless_size_arm64:
-  extends:
-    - .build_serverless_common
-    - .check_size_common
+  extends: .check_size_common
   variables:
     BINARY_NAME: datadog-agent-arm64
     # this baseline is the current binary size + 3%
