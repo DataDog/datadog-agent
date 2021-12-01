@@ -99,7 +99,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 								Name: "sysLocation",
 							},
 							{
-								OID:  "1.999",
+								OID:  "1.7777",
 								Name: "doesNotExist2",
 							},
 						},
