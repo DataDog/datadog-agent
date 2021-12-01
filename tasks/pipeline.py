@@ -332,8 +332,7 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 
 # Set of jobs that are allowed to fail (without failing the pipeline)
 # but should send notifications upon failure.
-ALLOW_FAILURE_NOTIFICATION_JOBS = {
-}
+ALLOW_FAILURE_NOTIFICATION_JOBS = {}
 
 
 def generate_failure_messages(base, during_pipeline_success=False):
