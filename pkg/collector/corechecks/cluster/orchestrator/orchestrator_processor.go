@@ -41,6 +41,7 @@ func processStatefulSetList(statefulSetList []*v1.StatefulSet, groupID int32, cf
 		if orchestrator.SkipKubernetesResource(statefulSet.UID, statefulSet.ResourceVersion, orchestrator.K8sStatefulSet) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(statefulSet.Annotations)
 
 		// extract statefulSet info
 		statefulSetModel := extractStatefulSet(statefulSet)
