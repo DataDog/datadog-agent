@@ -401,9 +401,9 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsMappedCorrectly() {
 
 	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	suite.Len(endpoints.Endpoints, 3)
+	suite.Len(endpoints.Endpoints, 4)
 	suite.Len(endpoints.GetUnReliableEndpoints(), 2)
-	suite.Len(endpoints.GetReliableEndpoints(), 1)
+	suite.Len(endpoints.GetReliableEndpoints(), 2)
 
 	endpoint = endpoints.GetUnReliableEndpoints()[0]
 	suite.Equal("a", endpoint.Host)
@@ -413,7 +413,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsMappedCorrectly() {
 	suite.Equal("c", endpoint.Host)
 	suite.Equal("3", endpoint.APIKey)
 
-	endpoint = endpoints.GetUnReliableEndpoints()[0]
+	endpoint = endpoints.GetReliableEndpoints()[1]
 	suite.Equal("b", endpoint.Host)
 	suite.Equal("2", endpoint.APIKey)
 }
