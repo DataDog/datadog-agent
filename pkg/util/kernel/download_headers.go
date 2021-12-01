@@ -64,6 +64,7 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 	if backend, err = h.getHeaderDownloadBackend(&target); err != nil {
 		return fmt.Errorf("unable to get kernel header download backend: %s", err)
 	}
+	defer backend.Close()
 
 	if err = backend.GetKernelHeaders(outputDir); err != nil {
 		return fmt.Errorf("failed to download kernel headers: %s", err)
