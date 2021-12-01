@@ -330,14 +330,35 @@ UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack chann
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
 """
 
+# Set of jobs that are allowed to fail (without failing the pipeline)
+# but should send notifications upon failure.
+ALLOW_FAILURE_NOTIFICATION_JOBS = {
+}
 
-def generate_failure_messages(base):
+
+def generate_failure_messages(base, during_pipeline_success=False):
     project_name = "DataDog/datadog-agent"
     all_teams = "@DataDog/agent-all"
-    failed_jobs = get_failed_jobs(project_name, os.getenv("CI_PIPELINE_ID"))
+
+    failed_jobs = get_failed_jobs(project_name, os.getenv("CI_PIPELINE_ID"), include_allow_failures=True)
+    if during_pipeline_success:
+        # Only use jobs that were allowed-to-fail and have notifications enabled
+        failed_jobs = [j for j in failed_jobs if j["allow_failure"] and j["name"] in ALLOW_FAILURE_NOTIFICATION_JOBS]
+        if not failed_jobs:
+            return None
+    else:
+        # Include both jobs that are not allowed-to-fail
+        # and those that are, but also have notifications enabled
+        failed_jobs = [j for j in failed_jobs if not j["allow_failure"] or j["name"] in ALLOW_FAILURE_NOTIFICATION_JOBS]
+
     # Generate messages for each team
     messages_to_send = defaultdict(lambda: TeamMessage(base))
-    messages_to_send[all_teams] = SlackMessage(base, jobs=failed_jobs)
+    # Skip sending a message to all teams during pipeline success
+    # (to prevent sending two messages in the all-teams channel).
+    # This means that allowed-to-fail jobs that fail during pipeline success
+    # can't have all-teams as their owner and receive notifications.
+    if not during_pipeline_success:
+        messages_to_send[all_teams] = SlackMessage(base, jobs=failed_jobs)
 
     failed_job_owners = find_job_owners(failed_jobs)
     for owner, jobs in failed_job_owners.items():
@@ -422,22 +443,32 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
 
 @task
-def notify_failure(_, notification_type="merge", print_to_stdout=False):
+def notify_failure(_, notification_type="merge", print_to_stdout=False, during_pipeline_success=False):
     """
     Send failure notifications for the current pipeline. CI-only task.
+    If run during pipeline success, then this task will end up sending notifications
+    for jobs that failed but were were "allowed-to-fail"
+    (in that they won't cause an overall pipeline failure)
+    and are included in the 'ALLOW_FAILURE_NOTIFICATION_JOBS' set.
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
 
     header = ""
+    emoji = ":yellow-light:" if during_pipeline_success else ":host-red:"
     if notification_type == "merge":
-        header = ":host-red: :merged: datadog-agent merge"
+        header = f"{emoji} :merged: datadog-agent merge"
     elif notification_type == "deploy":
-        header = ":host-red: :rocket: datadog-agent deploy"
-    base = base_message(header)
+        header = f"{emoji} :rocket: datadog-agent deploy"
+    base = base_message(header, during_pipeline_success=during_pipeline_success)
 
     try:
-        messages_to_send = generate_failure_messages(base)
+        messages_to_send = generate_failure_messages(base, during_pipeline_success=during_pipeline_success)
+        if not messages_to_send and during_pipeline_success:
+            # Don't send anything if there were no failures
+            if print_to_stdout:
+                print("Would not send any messages")
+            return
     except Exception as e:
         buffer = io.StringIO()
         print(base, file=buffer)

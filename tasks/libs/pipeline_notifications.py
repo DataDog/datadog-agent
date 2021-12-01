@@ -7,7 +7,7 @@ from .common.gitlab import Gitlab, get_gitlab_token
 from .types import Test
 
 
-def get_failed_jobs(project_name, pipeline_id):
+def get_failed_jobs(project_name, pipeline_id, include_allow_failures=False):
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
 
     # gitlab.all_jobs yields a generator, it needs to be converted to a list to be able to
@@ -39,7 +39,7 @@ def get_failed_jobs(project_name, pipeline_id):
             "url": jobs[-1]["web_url"],
             "retry_summary": [job["status"] for job in jobs],
         }
-        if final_status["status"] == "failed" and not final_status["allow_failure"]:
+        if final_status["status"] == "failed" and (not final_status["allow_failure"] or include_allow_failures):
             final_failed_jobs.append(final_status)
 
     return final_failed_jobs
@@ -99,13 +99,14 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
     return owners_to_notify
 
 
-def base_message(header):
-    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} failed.
+def base_message(header, during_pipeline_success=False):
+    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {result}.
 {commit_title} (<{commit_url}|{commit_short_sha}>) by {author}""".format(  # noqa: FS002
         header=header,
         pipeline_url=os.getenv("CI_PIPELINE_URL"),
         pipeline_id=os.getenv("CI_PIPELINE_ID"),
         commit_ref_name=os.getenv("CI_COMMIT_REF_NAME"),
+        result="succeeded with failing jobs" if during_pipeline_success else "failed",
         commit_title=os.getenv("CI_COMMIT_TITLE"),
         commit_url="{project_url}/commit/{commit_sha}".format(  # noqa: FS002
             project_url=os.getenv("CI_PROJECT_URL"), commit_sha=os.getenv("CI_COMMIT_SHA")
