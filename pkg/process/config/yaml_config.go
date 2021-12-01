@@ -329,7 +329,6 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 	checkEnabled := config.Datadog.GetBool(key(root, "enabled"))
 	if checkEnabled && processAgentEnabled != "true" {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
-		a.Enabled = true
 
 		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
 		// We use a minimum of 10 minutes for this value.

@@ -36,6 +36,16 @@ type CheckWithRealTime interface {
 	RunWithOptions(cfg *config.AgentConfig, nextGroupID func() int32, options RunOptions) (*RunResult, error)
 }
 
+// Enabled returns true if there is at least one check enabled. This is used to tell if the process agent should be run.
+func Enabled() bool {
+	for _, chk := range All {
+		if chk.Enabled() {
+			return true
+		}
+	}
+	return false
+}
+
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
 // it just guarantees that the collector will be able to find the check.
 // If you want to add a check you MUST register it here.

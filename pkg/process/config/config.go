@@ -92,7 +92,6 @@ type WindowsConfig struct {
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
-	Enabled                   bool
 	HostName                  string
 	APIEndpoints              []apicfg.Endpoint
 	LogFile                   string
@@ -190,7 +189,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	}
 
 	ac := &AgentConfig{
-		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
 		LogFile:      defaultLogFilePath,
 		LogLevel:     "info",
@@ -329,11 +327,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 			if checks, ok := moduleCheckMap[mod]; ok {
 				cfg.EnabledChecks = append(cfg.EnabledChecks, checks...)
 			}
-		}
-
-		if !cfg.Enabled {
-			log.Info("enabling process-agent for connections check as the system-probe is enabled")
-			cfg.Enabled = true
 		}
 	}
 
