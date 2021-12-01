@@ -11,11 +11,16 @@ import (
 
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
-	OID          string `yaml:"OID"`
-	Name         string `yaml:"name"`
+	OID  string `yaml:"OID"`
+	Name string `yaml:"name"`
+
 	ExtractValue string `yaml:"extract_value"`
 
-	ExtractValuePattern *regexp.Regexp
+	MatchPattern string `yaml:"match_pattern"`
+	Value        string `yaml:"match_value"`
+
+	ExtractValueCompiled *regexp.Regexp
+	MatchPatternCompiled *regexp.Regexp
 }
 
 // MetricTagConfig holds metric tag info

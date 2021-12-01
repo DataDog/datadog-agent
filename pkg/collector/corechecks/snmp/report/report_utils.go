@@ -11,10 +11,10 @@ func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 	if err != nil {
 		return valuestore.ResultValue{}, err
 	}
-	if symbol.ExtractValuePattern != nil {
-		extractedValue, err := value.ExtractStringValue(symbol.ExtractValuePattern)
+	if symbol.ExtractValueCompiled != nil {
+		extractedValue, err := value.ExtractStringValue(symbol.ExtractValueCompiled)
 		if err != nil {
-			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, symbol.ExtractValuePattern, err)
+			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, symbol.ExtractValueCompiled, err)
 			return valuestore.ResultValue{}, err
 		}
 		value = extractedValue
@@ -29,10 +29,10 @@ func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 		return nil, err
 	}
 	for index, value := range columnValues {
-		if symbol.ExtractValuePattern != nil {
-			extractedValue, err := value.ExtractStringValue(symbol.ExtractValuePattern)
+		if symbol.ExtractValueCompiled != nil {
+			extractedValue, err := value.ExtractStringValue(symbol.ExtractValueCompiled)
 			if err != nil {
-				log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, symbol.ExtractValuePattern, err)
+				log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, symbol.ExtractValueCompiled, err)
 				continue
 			}
 			value = extractedValue
