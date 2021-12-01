@@ -90,7 +90,6 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 					continue
 				}
 				field := res.Fields[fieldName]
-				// TODO: TEST ME
 				for i := range field.Symbols {
 					errors = append(errors, validateEnrichSymbol(&field.Symbols[i])...)
 				}

@@ -21,6 +21,17 @@ func TestStore_Scalar(t *testing.T) {
 	assert.Equal(t, "", store.GetScalarAsString("device.invalid_value_type"))
 }
 
+func TestStore_ScalarFieldHasValue(t *testing.T) {
+	store := NewMetadataStore()
+	store.AddScalarValue("device.name", valuestore.ResultValue{Value: "someName"})
+	store.AddScalarValue("device.description", valuestore.ResultValue{Value: "someDescription"})
+
+	assert.Equal(t, true, store.ScalarFieldHasValue("device.name"))
+	assert.Equal(t, true, store.ScalarFieldHasValue("device.description"))
+	assert.Equal(t, false, store.ScalarFieldHasValue("device.invalid_value_type"))
+	assert.Equal(t, false, store.ScalarFieldHasValue("invalid.invalid_value_type"))
+}
+
 func TestStore_Column(t *testing.T) {
 	store := NewMetadataStore()
 	store.AddColumnValue("interface.name", "1", valuestore.ResultValue{Value: "ifName1"})
