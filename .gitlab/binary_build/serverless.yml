@@ -3,7 +3,6 @@
   stage: binary_build
   before_script:
     - !reference [.retrieve_linux_go_deps]
-  script:
     - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless -o $BINARY_NAME
 
 .check_size_common:
