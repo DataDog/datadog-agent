@@ -256,6 +256,75 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
 }
 
+func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testing.T) {
+	var emptyMetadataStore = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{},
+	}
+
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{
+		sender: sender,
+	}
+
+	config := &checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		DeviceID:           "1234",
+		DeviceIDTags:       []string{"device_name:127.0.0.1"},
+		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
+		Metadata: checkconfig.MetadataConfig{
+			"device": {
+				Fields: map[string]checkconfig.MetadataField{
+					"name": {
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.999",
+							Name: "doesNotExist",
+						},
+						Value: "my-fallback-value",
+					},
+				},
+			},
+		},
+	}
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+
+	// language=json
+	event := []byte(`
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+    "devices": [
+        {
+            "id": "1234",
+            "id_tags": [
+                "device_name:127.0.0.1"
+            ],
+            "tags": [
+                "tag1",
+                "tag2"
+            ],
+            "ip_address": "1.2.3.4",
+            "status":1,
+            "name": "my-fallback-value",
+            "subnet": "127.0.0.0/29"
+        }
+    ],
+    "collect_timestamp":1415792726
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+}
+
 func Test_batchPayloads(t *testing.T) {
 	collectTime := common.MockTimeNow()
 	deviceID := "123"

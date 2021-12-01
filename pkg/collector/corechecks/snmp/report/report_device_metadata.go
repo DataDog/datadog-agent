@@ -70,7 +70,7 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 
 				}
 				// TODO: Test Value as fallback
-				if field.Value != "" && metadataStore.ScalarFieldHasValue(fieldFullName) {
+				if field.Value != "" && !metadataStore.ScalarFieldHasValue(fieldFullName) {
 					metadataStore.AddScalarValue(fieldFullName, valuestore.ResultValue{Value: field.Value})
 				}
 			} else {
