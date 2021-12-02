@@ -8,7 +8,6 @@
 package cluster
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
@@ -32,14 +31,4 @@ func RunLeaderElection() (string, error) {
 	}
 
 	return leaderEngine.GetLeader(), nil
-}
-
-// SetCacheStats sets the cache stats for each resource
-func SetCacheStats(resourceListLen int, resourceMsgsLen int, nodeType orchestrator.NodeType) {
-	stats := orchestrator.CheckStats{
-		CacheHits: resourceListLen - resourceMsgsLen,
-		CacheMiss: resourceMsgsLen,
-		NodeType:  nodeType,
-	}
-	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(nodeType), stats, orchestrator.NoExpiration)
 }

@@ -500,7 +500,7 @@ func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMess
 }
 
 func sendClusterMetadata(sender aggregator.Sender, clusterMessage model.MessageBody, clusterID string) {
-	cluster.SetCacheStats(1, 1, orchestrator.K8sCluster)
+	orchestrator.SetCacheStats(1, 1, orchestrator.K8sCluster)
 
 	sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, clusterID, int(orchestrator.K8sCluster))
 }

@@ -184,3 +184,13 @@ func GroupSize(msgs, maxPerMessage int) int {
 	}
 	return groupSize
 }
+
+// SetCacheStats sets the cache stats for each resource
+func SetCacheStats(resourceListLen int, resourceMsgsLen int, nodeType NodeType) {
+	stats := CheckStats{
+		CacheHits: resourceListLen - resourceMsgsLen,
+		CacheMiss: resourceMsgsLen,
+		NodeType:  nodeType,
+	}
+	KubernetesResourceCache.Set(BuildStatsKey(nodeType), stats, NoExpiration)
+}

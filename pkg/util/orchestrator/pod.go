@@ -16,7 +16,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -128,7 +127,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		})
 	}
 
-	cluster.SetCacheStats(len(podList), len(podMsgs), orchestrator.K8sPod)
+	orchestrator.SetCacheStats(len(podList), len(podMsgs), orchestrator.K8sPod)
 
 	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
