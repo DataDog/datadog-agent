@@ -31,6 +31,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	expectedPayload := &message.Payload{
 		Messages: []*message.Message{message1, message2},
 		Encoded:  []byte("a\nb"),
+		Encoding: "identity",
 	}
 
 	// expect payload to be sent because buffer is full
@@ -82,31 +83,16 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	assert.Equal(t, message, payload.Messages[0])
 }
 
-func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
-	input := make(chan *message.Message)
-	output := make(chan *message.Payload)
-
-	message := message.NewMessage([]byte{}, nil, "", 0)
-	go func() {
-		input <- message
-		close(input)
-	}()
-
-	NewBatchStrategy(LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{}).Start(input, output)
-}
-
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	message := message.NewMessage([]byte{}, nil, "", 0)
-	go func() {
-		input <- message
-		close(input)
-		assert.Equal(t, message, <-output)
-	}()
-
 	NewBatchStrategy(LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{}).Start(input, output)
+	message := message.NewMessage([]byte{}, nil, "", 0)
+
+	input <- message
+	close(input)
+	assert.Equal(t, message, (<-output).Messages[0])
 }
 
 func TestBatchStrategySynchronousFlush(t *testing.T) {

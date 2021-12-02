@@ -56,6 +56,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 			if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
 				// the connection manager is not meant to fail,
 				// this can happen only when the context is cancelled.
+				metrics.DestinationErrors.Add(1)
+				metrics.TlmDestinationErrors.Inc()
 				return
 			}
 			d.connCreationTime = time.Now()
@@ -77,6 +79,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 
 		_, err = d.conn.Write(frame)
 		if err != nil {
+			metrics.DestinationErrors.Add(1)
+			metrics.TlmDestinationErrors.Inc()
 			d.connManager.CloseConnection(d.conn)
 			d.conn = nil
 

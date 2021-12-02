@@ -74,7 +74,6 @@ func (p *Pipeline) Stop() {
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
-	p.sender.Flush(ctx)    // flush the sender
 }
 
 func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int) *client.Destinations {

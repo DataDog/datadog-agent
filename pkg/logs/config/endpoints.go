@@ -68,10 +68,10 @@ type Endpoints struct {
 }
 
 // NewEndpoints returns a new endpoints composite with default batching settings
-func NewEndpoints(main Endpoint, endpoints []Endpoint, useProto bool, useHTTP bool) *Endpoints {
+func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
-		Endpoints:              endpoints,
+		Endpoints:              append([]Endpoint{main}, additionalEndpoints...),
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
 		BatchWait:              config.DefaultBatchWait,
@@ -82,10 +82,10 @@ func NewEndpoints(main Endpoint, endpoints []Endpoint, useProto bool, useHTTP bo
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
-func NewEndpointsWithBatchSettings(main Endpoint, endpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int) *Endpoints {
+func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
-		Endpoints:              endpoints,
+		Endpoints:              append([]Endpoint{main}, additionalEndpoints...),
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
 		BatchWait:              batchWait,

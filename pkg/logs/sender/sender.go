@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+//TODO MOve me
 // Strategy should contain all logic to send logs to a remote destination
 // and forward them the next stage of the pipeline.
 type Strategy interface {
@@ -45,8 +46,8 @@ type Sender struct {
 	outputChan   chan *message.Payload
 	isRetrying   chan bool
 	destinations *client.Destinations
-	strategy     Strategy
 	done         chan struct{}
+	stop         chan struct{}
 	bufferSize   int
 }
 
@@ -58,6 +59,7 @@ func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload
 		isRetrying:   make(chan bool, 1),
 		destinations: destinations,
 		done:         make(chan struct{}),
+		stop:         make(chan struct{}, 1),
 		bufferSize:   bufferSize,
 	}
 }
@@ -71,12 +73,8 @@ func (s *Sender) Start() {
 // this call blocks until inputChan is flushed
 func (s *Sender) Stop() {
 	close(s.inputChan)
+	s.stop <- struct{}{}
 	<-s.done
-}
-
-// Flush sends synchronously the messages that this sender has to send.
-func (s *Sender) Flush(ctx context.Context) {
-	s.strategy.Flush(ctx)
 }
 
 func (s *Sender) run() {
@@ -89,22 +87,34 @@ func (s *Sender) run() {
 	sink := additionalDestinationsSink(s.bufferSize)
 	additionalDestinations := buildDestinationContexts(s.destinations.Additionals, sink, s.bufferSize)
 
+	stopped := false
+
 	for payload := range s.inputChan {
+		select {
+		case <-s.stop:
+			stopped = true
+		default:
+		}
 
 		sent := false
-		for !sent {
-			for _, destCtx := range reliableDestinations {
-				if !destCtx.updateAndGetIsRetrying() {
-					destCtx.input <- payload
-					sent = true
+		for !sent && !stopped { // TODO: Handle stop and in sender
+			select {
+			case <-s.stop:
+				stopped = true
+			default:
+				for _, destCtx := range reliableDestinations {
+					if !destCtx.updateAndGetIsRetrying() {
+						destCtx.input <- payload
+						sent = true
+					}
 				}
-			}
 
-			if !sent {
-				// Using a busy loop is much simpler than trying to join an arbitrary number of channels and
-				// wait for just one of them. This is an exceptional case so it has little overhead since it
-				// will only happen when there is no possible way to send logs.
-				time.Sleep(100 * time.Millisecond)
+				if !sent {
+					// Using a busy loop is much simpler than trying to join an arbitrary number of channels and
+					// wait for just one of them. This is an exceptional case so it has little overhead since it
+					// will only happen when there is no possible way to send logs.
+					time.Sleep(100 * time.Millisecond)
+				}
 			}
 		}
 

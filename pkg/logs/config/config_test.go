@@ -206,7 +206,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		Version:          EPIntakeVersion1,
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedMainEndpoint, expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
 		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 
@@ -242,7 +242,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128"}
 
-	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedMainEndpoint, expectedAdditionalEndpoint}, true, false)
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
 	endpoints, err := buildTCPEndpoints(defaultLogsConfigKeys())
 
 	suite.Nil(err)
@@ -315,7 +315,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		Version:          EPIntakeVersion1,
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedMainEndpoint, expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
 		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 
@@ -395,7 +395,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		Origin:           "test-source",
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedMainEndpoint, expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
 		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 
@@ -437,7 +437,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128"}
 
-	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedMainEndpoint, expectedAdditionalEndpoint}, true, false)
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
 	endpoints, err := buildTCPEndpoints(defaultLogsConfigKeys())
 
 	suite.Nil(err)

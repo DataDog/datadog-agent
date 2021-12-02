@@ -124,8 +124,8 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
 
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
 	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
-	endpoint := config.Endpoint{Host: "fake:", Port: 0}
-	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+	endpoint := config.Endpoint{Host: "fake:", Port: 0, IsReliable: true}
+	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -144,6 +144,7 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
 }
 
+//HERE
 func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
 	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})

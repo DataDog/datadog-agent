@@ -64,7 +64,7 @@ func (b *Builder) getUseHTTP() bool {
 func (b *Builder) getEndpoints() []string {
 	result := make([]string, 0)
 	for _, additional := range b.endpoints.Endpoints {
-		result = append(result, b.formatEndpoint(additional, "Endpoint: "))
+		result = append(result, b.formatEndpoint(additional, ""))
 	}
 	return result
 }
