@@ -6,21 +6,11 @@
 package sender
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
-
-//TODO MOve me
-// Strategy should contain all logic to send logs to a remote destination
-// and forward them the next stage of the pipeline.
-type Strategy interface {
-	Start(inputChan chan *message.Message, outputChan chan *message.Payload)
-	Flush(ctx context.Context)
-}
 
 type destinationContext struct {
 	isRetrying        bool
@@ -45,7 +35,6 @@ func (d *destinationContext) close() {
 type Sender struct {
 	inputChan    chan *message.Payload
 	outputChan   chan *message.Payload
-	isRetrying   chan bool
 	destinations *client.Destinations
 	done         chan struct{}
 	stop         chan struct{}
@@ -57,7 +46,6 @@ func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
-		isRetrying:   make(chan bool, 1),
 		destinations: destinations,
 		done:         make(chan struct{}),
 		stop:         make(chan struct{}, 1),
@@ -67,6 +55,7 @@ func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload
 
 // Start starts the sender.
 func (s *Sender) Start() {
+	s.stop = make(chan struct{}, 1)
 	go s.run()
 }
 
@@ -79,36 +68,29 @@ func (s *Sender) Stop() {
 }
 
 func (s *Sender) run() {
-	defer func() {
-		s.done <- struct{}{}
-	}()
-
 	reliableDestinations := buildDestinationContexts(s.destinations.Reliable, s.outputChan, s.bufferSize)
 
 	sink := additionalDestinationsSink(s.bufferSize)
 	additionalDestinations := buildDestinationContexts(s.destinations.Additionals, sink, s.bufferSize)
 
-	stopped := false
-
+payloadLoop:
 	for payload := range s.inputChan {
-		fmt.Println("got payload")
 		select {
 		case <-s.stop:
-			stopped = true
+			break payloadLoop
 		default:
 		}
 
 		sent := false
-		for !sent && !stopped { // TODO: Handle stop and in sender
+		for !sent {
 			select {
 			case <-s.stop:
-				stopped = true
+				break payloadLoop
 			default:
 				for _, destCtx := range reliableDestinations {
 					if !destCtx.updateAndGetIsRetrying() {
 						destCtx.input <- payload
 						sent = true
-						fmt.Println("Sent to main")
 					}
 				}
 
@@ -122,8 +104,8 @@ func (s *Sender) run() {
 		}
 
 		for _, destCtx := range reliableDestinations {
-			// if an endpoint is stuck in the previous step, buffer the payloads if we have room to mitigate loss
-			// on intermittent failures.
+			// if an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
+			// loss on intermittent failures.
 			if destCtx.isRetrying {
 				select {
 				case destCtx.input <- payload:
@@ -134,17 +116,12 @@ func (s *Sender) run() {
 
 		// Attempt to send to additional destination
 		for _, destCtx := range additionalDestinations {
-			fmt.Println("sending to additional")
 			select {
 			case destCtx.input <- payload:
-				fmt.Println("additional enqueue")
 			default:
-				fmt.Println("!!!!! additional miss")
 			}
 		}
-		fmt.Println("finished")
 	}
-	fmt.Println("Shutting down")
 
 	// Cleanup
 	for _, destCtx := range reliableDestinations {
@@ -153,6 +130,7 @@ func (s *Sender) run() {
 	for _, destCtx := range additionalDestinations {
 		destCtx.close()
 	}
+	s.done <- struct{}{}
 }
 
 // Drains the output channel from destinations that don't update the auditor.

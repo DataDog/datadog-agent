@@ -7,7 +7,6 @@ package tcp
 
 import (
 	"expvar"
-	"fmt"
 	"net"
 	"time"
 
@@ -47,19 +46,9 @@ func (d *Destination) Start(input chan *message.Payload, isRetrying chan bool, o
 	go func() {
 		ctx := d.destinationsContext.Context()
 		for payload := range input {
-			if d.shouldRetry {
-				fmt.Println("Dequeue main")
-			} else {
-				fmt.Println("Dequeue additional")
-			}
 			d.sendAndRetry(payload, isRetrying, output)
 			select {
 			case <-ctx.Done():
-				if d.shouldRetry {
-					fmt.Println("CTX kill main")
-				} else {
-					fmt.Println("CTX kill additional")
-				}
 				return
 			default:
 			}

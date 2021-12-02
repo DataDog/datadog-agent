@@ -137,6 +137,12 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
 	})
 	agent.Stop()
 
+	// The context gets canceled when the agent stops. at this point the additional sender is stuck
+	// trying to establish a connection. agent.Stop will cancel it and the error telemetry will be updated
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
+		return int64(1) == metrics.DestinationErrors.Value()
+	})
+
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), int64(0), metrics.LogsSent.Value())
@@ -144,7 +150,6 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
 }
 
-//HERE
 func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
 	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
@@ -164,16 +169,19 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return int64(2) == metrics.LogsSent.Value()
 	})
-	fmt.Println("== About to stop")
-	time.Sleep(2 * time.Second)
 	agent.Stop()
-	fmt.Println("== Finished stop")
+
+	// The context gets canceled when the agent stops. at this point the additional sender is stuck
+	// trying to establish a connection. agent.Stop will cancel it and the error telemetry will be updated
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
+		return int64(1) == metrics.DestinationErrors.Value()
+	})
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), int64(2), metrics.LogsSent.Value())          // From the main endpoint
-	assert.Equal(suite.T(), int64(2), metrics.DestinationErrors.Value()) // From the additional endpoint
-	assert.Equal(suite.T(), "0", metrics.DestinationLogsDropped.Get("still_fake").String())
+	assert.Equal(suite.T(), int64(1), metrics.DestinationErrors.Value()) // From the additional endpoint
+	assert.Equal(suite.T(), "1", metrics.DestinationLogsDropped.Get("still_fake").String())
 }
 
 func TestAgentTestSuite(t *testing.T) {
