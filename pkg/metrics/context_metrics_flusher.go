@@ -41,38 +41,22 @@ func (f *ContextMetricsFlusher) FlushAndClear(callback func([]*Serie)) map[ckey.
 	errors := make(map[ckey.ContextKey][]error)
 	var series []*Serie
 
-	f.merge(func(contextKey ckey.ContextKey, m Metric, bucketTimestamp float64) {
-		flushToSeries(
-			contextKey,
-			m,
-			bucketTimestamp,
-			&series,
-			errors)
-	}, func() {
-		callback(series)
-		series = series[:0]
-	})
-	return errors
-}
-
-// For each context key, calls several times `callback``.
-// Call `contextKeyChanged` when handling another context key
-func (f *ContextMetricsFlusher) merge(
-	callback func(ckey.ContextKey, Metric, float64),
-	contextKeyChanged func()) {
-	for i := 0; i < len(f.metrics); i++ {
-		for contextKey, metrics := range f.metrics[i].contextMetrics {
-			callback(contextKey, metrics, f.metrics[i].bucketTimestamp)
-
-			// Find `contextKey` in the remaining contextMetrics
-			for j := i + 1; j < len(f.metrics); j++ {
-				contextMetrics := f.metrics[j].contextMetrics
-				if m, found := contextMetrics[contextKey]; found {
-					callback(contextKey, m, f.metrics[j].bucketTimestamp)
-					delete(contextMetrics, contextKey)
-				}
-			}
-			contextKeyChanged()
-		}
+	var contextMetricsCollection []ContextMetrics
+	for _, m := range f.metrics {
+		contextMetricsCollection = append(contextMetricsCollection, m.contextMetrics)
 	}
+	mergeContextMetrics(
+		contextMetricsCollection,
+		func(contextKey ckey.ContextKey, m Metric, contextMetricIndex int) {
+			flushToSeries(
+				contextKey,
+				m,
+				f.metrics[contextMetricIndex].bucketTimestamp,
+				&series,
+				errors)
+		}, func() {
+			callback(series)
+			series = series[:0]
+		})
+	return errors
 }
