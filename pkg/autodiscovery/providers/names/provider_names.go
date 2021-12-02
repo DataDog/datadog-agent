@@ -17,6 +17,7 @@ const (
 	File               = "file"
 	Kubernetes         = "kubernetes"
 	KubeServices       = "kubernetes-services"
+	KubeServicesFile   = "kubernetes-services-file"
 	KubeEndpoints      = "kubernetes-endpoints"
 	PrometheusPods     = "prometheus-pods"
 	PrometheusServices = "prometheus-services"

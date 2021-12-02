@@ -26,7 +26,8 @@ var (
 
 func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
 	ad := autodiscovery.NewAutoConfig(metaScheduler)
-	ad.AddConfigProvider(providers.NewFileConfigProvider(confSearchPaths), false, 0)
+	providers.InitConfigFilesReader(confSearchPaths)
+	ad.AddConfigProvider(providers.NewFileConfigProvider(), false, 0)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
@@ -138,6 +139,16 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			if !skipListener {
 				listeners = append(listeners, listener)
 			}
+		}
+
+		// Fill listeners settings
+		providersSet := make(map[string]struct{}, len(uniqueConfigProviders))
+		for provider := range uniqueConfigProviders {
+			providersSet[provider] = struct{}{}
+		}
+
+		for i := range listeners {
+			listeners[i].EnabledProviders = providersSet
 		}
 
 		ad.AddListeners(listeners)
