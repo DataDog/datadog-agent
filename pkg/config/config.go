@@ -137,7 +137,8 @@ type ConfigurationProviders struct {
 
 // Listeners helps unmarshalling `listeners` config param
 type Listeners struct {
-	Name string `mapstructure:"name"`
+	Name             string `mapstructure:"name"`
+	EnabledProviders map[string]struct{}
 }
 
 // Proxy represents the configuration for proxies in the agent

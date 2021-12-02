@@ -51,7 +51,8 @@ func TestLoadCheckConfig(t *testing.T) {
 	d := filepath.Dir(f)
 
 	paths := []string{filepath.Join(d, "fixtures/")}
-	fp := providers.NewFileConfigProvider(paths)
+	providers.ResetReader(paths)
+	fp := providers.NewFileConfigProvider()
 	assert.NotNil(t, fp)
 
 	cfgs, err := fp.Collect(ctx)

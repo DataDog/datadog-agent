@@ -6,6 +6,7 @@
 package autodiscovery
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -27,6 +28,15 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 		}
 		log.Infof("Prometheus scraping is enabled: Adding the Prometheus config provider '%s'", prometheusProvider.Name)
 		detectedProviders = append(detectedProviders, prometheusProvider)
+	}
+
+	advancedConfigs, _, err := providers.ReadConfigFiles(providers.WithAdvancedADOnly)
+	if err != nil {
+		log.Debugf("Couldn't read config files: %w", err)
+	}
+
+	if len(advancedConfigs) > 0 && flavor.GetFlavor() == flavor.ClusterAgent {
+		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "kube_services_file", Polling: false})
 	}
 
 	return detectedProviders, detectedListeners
