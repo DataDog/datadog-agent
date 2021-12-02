@@ -62,7 +62,7 @@ done
 #build Java functions
 echo
 echo "Building Java Lambda Functions"
-java_test_dirs=("with-ddlambda" "trace" "log" "timeout")
+java_test_dirs=("with-ddlambda" "trace" "log" "timeout" "error")
 for java_dir in "${java_test_dirs[@]}"; do
     mvn package -f java-tests/"${java_dir}"/pom.xml
 done
@@ -115,7 +115,7 @@ NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
 
 # invoke functions
 
-metric_function_names=("with-ddlambda-java" "enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "timeout-java" "error-python" "error-node")
+metric_function_names=("with-ddlambda-java" "enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "timeout-java" "error-python" "error-node" "error-java")
 log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda" "log-java")
 trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go" "simple-trace-java")
 

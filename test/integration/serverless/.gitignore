@@ -7,3 +7,4 @@ src/java-tests/with-ddlambda/target
 src/java-tests/trace/target
 src/java-tests/log/target
 src/java-tests/timeout/target
+src/java-tests/error/target
