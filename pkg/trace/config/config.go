@@ -137,6 +137,9 @@ type AgentConfig struct {
 
 	// Profiling settings, or nil if profiling is disabled
 	ProfilingSettings *profiling.Settings
+
+	// Telemetry settings
+	TelemetryConfig *TelemetryConfig
 }
 
 // Tag represents a key/value pair.
@@ -191,8 +194,9 @@ func New() *AgentConfig {
 
 		GlobalTags: make(map[string]string),
 
-		DDAgentBin:   defaultDDAgentBin,
-		OTLPReceiver: &OTLP{},
+		DDAgentBin:      defaultDDAgentBin,
+		OTLPReceiver:    &OTLP{},
+		TelemetryConfig: &TelemetryConfig{},
 	}
 }
 

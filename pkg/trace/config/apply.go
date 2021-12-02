@@ -28,6 +28,10 @@ import (
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 const apiEndpointPrefix = "https://trace.agent."
 
+// telemetryEndpointPrefix is the URL prefix for Instrumentation telemetry endpoint
+const telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
+const defaultSite = "datadoghq.com"
+
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
 	// BindHost specifies the host to bind the receiver to.
@@ -149,6 +153,12 @@ type HTTPObfuscationConfig struct {
 // Enablable can represent any option that has an "enabled" boolean sub-field.
 type Enablable struct {
 	Enabled bool `mapstructure:"enabled"`
+}
+
+// TelemetryConfig holds Instrumentation telemetry Endpoints information
+type TelemetryConfig struct {
+	Enabled   bool        `mapstructure:"enabled"`
+	Endpoints []*Endpoint `json:"-"` // never marshal this
 }
 
 // JSONObfuscationConfig holds the obfuscation configuration for sensitive
@@ -358,6 +368,55 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
 
+	// Instrumentation Telemetry config
+	c.TelemetryConfig = &TelemetryConfig{
+		Enabled: config.Datadog.GetBool("apm_config.telemetry.enabled"),
+	}
+	if c.TelemetryConfig.Enabled {
+		site := config.Datadog.GetString("site")
+		if site == "" {
+			site = defaultSite
+		}
+
+		main := telemetryEndpointPrefix + defaultSite
+		if v := config.Datadog.GetString("apm_config.telemetry.dd_url"); v != "" {
+			main = v
+		}
+
+		u, err := url.Parse(main)
+		if err != nil {
+			// if the main intake URL is invalid we don't use additional endpoints
+			log.Errorf("error parsing main telemetry intake URL %s: %v", main, err)
+			c.TelemetryConfig.Enabled = false
+		} else {
+			c.TelemetryConfig.Endpoints = []*Endpoint{{
+				APIKey: c.Endpoints[0].APIKey,
+				Host:   u.Host,
+			}}
+		}
+
+		additionalEndpoitnsCfg := "apm_config.telemetry.additional_endpoints"
+
+		if config.Datadog.IsSet(additionalEndpoitnsCfg) {
+			extra := config.Datadog.GetStringMapStringSlice(additionalEndpoitnsCfg)
+			for endpoint, keys := range extra {
+				u, err := url.Parse(endpoint)
+
+				if err != nil {
+					log.Errorf("Error parsing additional telemetry intake URL %s: %v", endpoint, err)
+					continue
+				}
+				for _, key := range keys {
+					c.TelemetryConfig.Endpoints = append(c.TelemetryConfig.Endpoints, &Endpoint{
+						Host:   u.Host,
+						APIKey: config.SanitizeAPIKey(key),
+					})
+				}
+			}
+		}
+	}
+
+	// Obfuscation config
 	c.Obfuscation = new(ObfuscationConfig)
 	if config.Datadog.IsSet("apm_config.obfuscation") {
 		var o ObfuscationConfig
@@ -369,6 +428,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			}
 		}
 	}
+
 	{
 		// TODO(x): There is an issue with config.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
