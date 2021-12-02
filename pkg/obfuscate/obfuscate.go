@@ -127,7 +127,7 @@ type SQLConfig struct {
 	Cache bool
 }
 
-// SQLMetadata holds metadata collected throughout the obfuscation of an SQL statement. It is only 
+// SQLMetadata holds metadata collected throughout the obfuscation of an SQL statement. It is only
 // collected when enabled via SQLConfig.
 type SQLMetadata struct {
 	// TablesCSV is a comma-separated list of tables that the query addresses.
