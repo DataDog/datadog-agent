@@ -22,7 +22,6 @@ func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 		return nil, err
 	}
 	for index, value := range columnValues {
-		// TODO: TEST ME
 		newValue, err := processValue(symbol, value)
 		if err != nil {
 			continue
