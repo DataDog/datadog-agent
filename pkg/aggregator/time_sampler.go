@@ -125,7 +125,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 	var series []*metrics.Serie
 	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
 		// Note: rawSeries is reused at each call
-		series = append(series, s.dedupSerieBySerieSignature(rawSeries)...)
+		series = append(series, s.dedupSeriesBySignature(rawSeries)...)
 	})
 
 	// Delete the contexts associated to an expired counter
@@ -136,7 +136,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 	return series
 }
 
-func (s *TimeSampler) dedupSerieBySerieSignature(rawSeries []*metrics.Serie) []*metrics.Serie {
+func (s *TimeSampler) dedupSeriesBySignature(rawSeries []*metrics.Serie) []*metrics.Serie {
 	var series []*metrics.Serie
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 
