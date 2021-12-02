@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 
@@ -84,14 +85,9 @@ func createAgent(endpoints *config.Endpoints) (*Agent, *config.LogSources, *serv
 	return agent, sources, services
 }
 
-func (suite *AgentTestSuite) TestAgent() {
+func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
 	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
-	l := mock.NewMockLogsIntake(suite.T())
-	defer l.Close()
-
-	endpoint := tcp.AddrToEndPoint(l.Addr())
-	endpoints := config.NewEndpoints(endpoint, nil, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -120,12 +116,32 @@ func (suite *AgentTestSuite) TestAgent() {
 	agent.Stop()
 }
 
-func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
+func (suite *AgentTestSuite) TestAgentTcp() {
+
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	suite.testAgent(endpoints)
+}
+
+func (suite *AgentTestSuite) TestAgentHttp() {
+
+	server := http.NewHTTPServerTest(200)
+	server.Endpoint.IsReliable = true
+	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
+
+	suite.testAgent(endpoints)
+}
+
+func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
+	endpoint := config.Endpoint{Host: "fake:", Port: 0, IsReliable: true}
+	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
 	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
-	endpoint := config.Endpoint{Host: "fake:", Port: 0, IsReliable: true}
-	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -150,7 +166,32 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
 }
 
-func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
+func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendHttp() {
+	endpoint := config.Endpoint{Host: "fake:", Port: 0, IsReliable: true}
+	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, true)
+
+	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
+	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
+
+	agent, sources, _ := createAgent(endpoints)
+
+	agent.Start()
+	sources.AddSource(suite.source)
+	// Give the agent at most one second to process the logs.
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsProcessed.Value()
+	})
+	agent.Stop()
+
+	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
+	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
+
+	// The http sender will retry these kinds of failures - so LogsSent and DestinationErrors will be > 0.
+	assert.True(suite.T(), metrics.LogsSent.Value() > 0)
+	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
+}
+
+func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackendTcp() {
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
 	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
 	l := mock.NewMockLogsIntake(suite.T())
@@ -182,6 +223,34 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
 	assert.Equal(suite.T(), int64(2), metrics.LogsSent.Value())          // From the main endpoint
 	assert.Equal(suite.T(), int64(2), metrics.DestinationErrors.Value()) // From the additional endpoint
 	assert.Equal(suite.T(), "2", metrics.DestinationLogsDropped.Get("still_fake").String())
+}
+
+func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackendHttp() {
+	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
+	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+
+	server := http.NewHTTPServerTest(200)
+	server.Endpoint.IsReliable = true
+
+	additionalEndpoint := config.Endpoint{Host: "still_fake", Port: 0}
+	endpoints := config.NewEndpoints(server.Endpoint, []config.Endpoint{additionalEndpoint}, false, true)
+
+	agent, sources, _ := createAgent(endpoints)
+
+	agent.Start()
+	sources.AddSource(suite.source)
+	// Give the agent at most one second to send the logs.
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
+		return int64(4) == metrics.LogsSent.Value()
+	})
+	agent.Stop()
+
+	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
+	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
+	assert.Equal(suite.T(), int64(4), metrics.LogsSent.Value())          // 4 total sends
+	assert.Equal(suite.T(), int64(2), metrics.DestinationErrors.Value()) // 2 failures
 }
 
 func TestAgentTestSuite(t *testing.T) {

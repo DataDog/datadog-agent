@@ -237,11 +237,12 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	metrics.SenderLatency.Set(latency)
 
 	if err != nil {
+		metrics.DestinationErrors.Add(1)
+		metrics.TlmDestinationErrors.Inc()
+
 		if ctx.Err() == context.Canceled {
 			return ctx.Err()
 		}
-		metrics.DestinationErrors.Add(1)
-		metrics.TlmDestinationErrors.Inc()
 		// most likely a network or a connect error, the callee should retry.
 		return client.NewRetryableError(err)
 	}
