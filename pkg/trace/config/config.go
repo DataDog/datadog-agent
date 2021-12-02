@@ -194,9 +194,10 @@ func New() *AgentConfig {
 
 		GlobalTags: make(map[string]string),
 
-		DDAgentBin:      defaultDDAgentBin,
-		OTLPReceiver:    &OTLP{},
-		TelemetryConfig: &TelemetryConfig{},
+		DDAgentBin:   defaultDDAgentBin,
+		OTLPReceiver: &OTLP{},
+		TelemetryConfig: &TelemetryConfig{
+			Endpoints: []*Endpoint{{Host: "https://instrumentation-telemetry-intake.datadoghq.com"}}},
 	}
 }
 

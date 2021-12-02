@@ -157,8 +157,8 @@ type Enablable struct {
 
 // TelemetryConfig holds Instrumentation telemetry Endpoints information
 type TelemetryConfig struct {
-	Enabled   bool        `mapstructure:"enabled"`
-	Endpoints []*Endpoint `json:"-"` // never marshal this
+	Enabled   bool `mapstructure:"enabled"`
+	Endpoints []*Endpoint
 }
 
 // JSONObfuscationConfig holds the obfuscation configuration for sensitive
@@ -378,7 +378,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			site = defaultSite
 		}
 
-		main := telemetryEndpointPrefix + defaultSite
+		main := telemetryEndpointPrefix + site
 		if v := config.Datadog.GetString("apm_config.telemetry.dd_url"); v != "" {
 			main = v
 		}
@@ -406,9 +406,16 @@ func (c *AgentConfig) applyDatadogConfig() error {
 					log.Errorf("Error parsing additional telemetry intake URL %s: %v", endpoint, err)
 					continue
 				}
+
+				// If endpoint is specified without a scheme. Then use whole string as Host name
+				host := u.Host
+				if host == "" {
+					host = u.String()
+				}
+
 				for _, key := range keys {
 					c.TelemetryConfig.Endpoints = append(c.TelemetryConfig.Endpoints, &Endpoint{
-						Host:   u.Host,
+						Host:   host,
 						APIKey: config.SanitizeAPIKey(key),
 					})
 				}

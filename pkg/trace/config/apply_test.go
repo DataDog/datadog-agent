@@ -8,6 +8,7 @@ package config
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -58,4 +59,119 @@ func TestSplitTag(t *testing.T) {
 			assert.Equal(t, splitTag(tt.tag), tt.kv)
 		})
 	}
+}
+
+// mockConfig is a single config entry mocking util with automatic reset
+//
+// Usage: defer mockConfig(key, new_value)()
+// will automatically revert previous once current scope exits
+func mockConfig(k string, v interface{}) func() {
+	oldConfig := config.Datadog
+	config.Mock().Set(k, v)
+	return func() { config.Datadog = oldConfig }
+}
+
+func TestTelemetryEndpointsConfig(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		cfg := New()
+		err := cfg.applyDatadogConfig()
+
+		assert.NoError(t, err)
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
+		assert.Equal(t, "instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+	})
+
+	t.Run("dd_url", func(t *testing.T) {
+		defer mockConfig("apm_config.telemetry.dd_url", "http://example.com")()
+
+		cfg := New()
+		err := cfg.applyDatadogConfig()
+
+		assert.NoError(t, err)
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Equal(t, "example.com", cfg.TelemetryConfig.Endpoints[0].Host)
+	})
+
+	t.Run("dd_url-fail", func(t *testing.T) {
+		defer mockConfig("apm_config.telemetry.dd_url", "111://abc.com")()
+
+		cfg := New()
+		err := cfg.applyDatadogConfig()
+
+		assert.NoError(t, err)
+		assert.False(t, cfg.TelemetryConfig.Enabled)
+	})
+
+	t.Run("site", func(t *testing.T) {
+		defer mockConfig("site", "new_site.example.com")()
+
+		cfg := New()
+		err := cfg.applyDatadogConfig()
+
+		assert.NoError(t, err)
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
+		assert.Equal(t, "instrumentation-telemetry-intake.new_site.example.com", cfg.TelemetryConfig.Endpoints[0].Host)
+	})
+
+	t.Run("additional-hosts", func(t *testing.T) {
+		additionalEndpoints := make(map[string]string)
+		additionalEndpoints["test_backend_2.example.com"] = "test_apikey_2"
+		additionalEndpoints["test_backend_3.example.com"] = "test_apikey_3"
+
+		defer mockConfig("apm_config.telemetry.additional_endpoints", additionalEndpoints)()
+
+		cfg := New()
+		err := cfg.applyDatadogConfig()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
+
+		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
+			assert.NotNil(t, additionalEndpoints[endpoint.Host])
+			assert.Equal(t, endpoint.APIKey, additionalEndpoints[endpoint.Host])
+		}
+	})
+
+	t.Run("additional-urls", func(t *testing.T) {
+		additionalEndpoints := make(map[string]string)
+		additionalEndpoints["http://test_backend_2.example.com"] = "test_apikey_2"
+		additionalEndpoints["http://test_backend_3.example.com"] = "test_apikey_3"
+
+		defer mockConfig("apm_config.telemetry.additional_endpoints", additionalEndpoints)()
+
+		cfg := New()
+		err := cfg.applyDatadogConfig()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
+
+		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
+			assert.NotNil(t, additionalEndpoints["http://"+endpoint.Host])
+			assert.Equal(t, endpoint.APIKey, additionalEndpoints["http://"+endpoint.Host])
+		}
+	})
+
+	t.Run("skip-additional", func(t *testing.T) {
+		additionalEndpoints := make(map[string]string)
+		additionalEndpoints["11://test_backend_2.example.com///"] = "test_apikey_2"
+		additionalEndpoints["http://test_backend_3.example.com/"] = "test_apikey_3"
+
+		defer mockConfig("apm_config.telemetry.additional_endpoints", additionalEndpoints)()
+		cfg := New()
+		err := cfg.applyDatadogConfig()
+		assert.NoError(t, err)
+
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 2)
+		assert.Equal(t, "instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "test_backend_3.example.com", cfg.TelemetryConfig.Endpoints[1].Host)
+	})
 }

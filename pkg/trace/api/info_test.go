@@ -95,6 +95,16 @@ func TestInfoHandler(t *testing.T) {
 		AnalyzedSpansByService:      map[string]map[string]float64{"X": {"Y": 2.4}},
 		DDAgentBin:                  "/path/to/core/agent",
 		Obfuscation:                 obfCfg,
+		TelemetryConfig: &config.TelemetryConfig{
+			Enabled: true,
+			Endpoints: []*config.Endpoint{
+				{
+					APIKey:  "123",
+					Host:    "https://telemetry-intake.datadoghq.com",
+					NoProxy: true,
+				},
+			},
+		},
 	}
 
 	var testCases = []struct {
@@ -116,6 +126,7 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.5/traces",
 		"/v0.6/traces",
 		"/profiling/v1/input",
+		"/telemetry/proxy/",
 		"/v0.6/stats",
 		"/appsec/proxy/",
 		"/debugger/v1/input"
@@ -172,6 +183,7 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.5/traces",
 		"/v0.6/traces",
 		"/profiling/v1/input",
+		"/telemetry/proxy/",
 		"/v0.6/stats",
 		"/appsec/proxy/",
 		"/debugger/v1/input",
