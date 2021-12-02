@@ -82,3 +82,18 @@ func TestLoadConfigShouldBeFast(t *testing.T) {
 	case <-done:
 	}
 }
+
+func TestBuildTraceBlocklist(t *testing.T) {
+	userProvidedBlocklist := []string{
+		"GET /toto",
+		"PATCH /tutu",
+	}
+	expected := []string{
+		"GET /toto",
+		"PATCH /tutu",
+		"GET /lambda/hello",
+		"POST /lambda/flush",
+	}
+	result := buildTraceBlocklist(userProvidedBlocklist)
+	assert.Equal(t, expected, result)
+}
