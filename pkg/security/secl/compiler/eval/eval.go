@@ -20,21 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
-// Field name
-type Field = string
-
-// FieldValueType represents the type of the value of a field
-type FieldValueType int
-
-// Field value types
-const (
-	ScalarValueType   FieldValueType = 1 << 0
-	PatternValueType  FieldValueType = 1 << 1
-	RegexpValueType   FieldValueType = 1 << 2
-	BitmaskValueType  FieldValueType = 1 << 3
-	VariableValueType FieldValueType = 1 << 4
-)
-
 // defines factor applied by specific operator
 const (
 	FunctionWeight       = 5
@@ -48,14 +33,6 @@ const (
 var (
 	variableRegex = regexp.MustCompile(`\${[^}]*}`)
 )
-
-// FieldValue describes a field value with its type
-type FieldValue struct {
-	Value interface{}
-	Type  FieldValueType
-
-	Regexp *regexp.Regexp
-}
 
 // VariableValue describes secl variable
 type VariableValue struct {

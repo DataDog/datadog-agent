@@ -11,6 +11,7 @@ type Opts struct {
 	Constants    map[string]interface{}
 	Macros       map[MacroID]*Macro
 	Variables    map[string]VariableValue
+	UserCtx      interface{}
 }
 
 // WithConstants set constants

@@ -423,7 +423,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts 
 		isPartialLeaf = true
 	}
 
-	arrayOp := func(a []string, b StringValues) bool {
+	arrayOp := func(a []string, b *StringValues) bool {
 		for _, as := range a {
 			if b.Match(as) {
 				return true
@@ -450,7 +450,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts 
 		ea, eb := a.Values, b.Values
 
 		return &BoolEvaluator{
-			Value:     arrayOp(ea, eb),
+			Value:     arrayOp(ea, &eb),
 			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -468,7 +468,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts 
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb)
+			return arrayOp(ea(ctx), &eb)
 		}
 
 		return &BoolEvaluator{

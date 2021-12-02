@@ -8,6 +8,8 @@
 package probe
 
 import (
+	"unsafe"
+
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -17,56 +19,49 @@ var (
 	// OverridePathnames is used to add symlinks to pathnames
 	OverridePathnames = &eval.OpOverrides{
 		StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+			var fieldEvaluator *eval.StringEvaluator
+			var key unsafe.Pointer
 			var value string
+
 			if a.IsScalar() {
-				value = a.Value
+				fieldEvaluator, key, value = b, unsafe.Pointer(b), a.Value
 			} else if b.IsScalar() {
-				value = b.Value
+				fieldEvaluator, key, value = a, unsafe.Pointer(a), b.Value
 			} else {
 				return nil, errors.New("non scalar overriden is not supported")
 			}
 
+			// pre-cache at compile time
+			probe := opts.UserCtx.(*Probe)
+			probe.resolvers.SymlinkResolver.Resolve(key, value)
+
 			evaluator := eval.StringValuesEvaluator{
-				EvalFnc: func(ctx *eval.Context) eval.StringValues {
-					event := (*Event)(ctx.Object)
-
-					values := eval.StringValues{}
-					values.AppendScalarValue(value)
-
-					if dest, err := event.resolvers.SymlinkResolver.Resolve(value); err == nil {
-						values.AppendScalarValue(dest)
-					}
-
-					return values
+				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
+					return probe.resolvers.SymlinkResolver.Resolve(key, value)
 				},
 			}
 
-			return eval.StringValuesContains(a, &evaluator, opts, state)
+			return eval.StringValuesContains(fieldEvaluator, &evaluator, opts, state)
 		},
 		StringValuesContains: func(a *eval.StringEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
 			if !b.IsScalar() {
 				return nil, errors.New("non scalar overriden is not supported")
 			}
 
+			// warn regexp
+			if len(b.Values.GetRegexValues()) != 0 {
+				// TODO
+			}
+
+			key, values := unsafe.Pointer(b), b.Values.GetScalarValues()
+
+			// pre-cache at compile time
+			probe := opts.UserCtx.(*Probe)
+			probe.resolvers.SymlinkResolver.Resolve(key, values...)
+
 			evaluator := eval.StringValuesEvaluator{
-				EvalFnc: func(ctx *eval.Context) eval.StringValues {
-					event := (*Event)(ctx.Object)
-
-					var values eval.StringValues
-					for _, value := range b.Values.GetScalarValues() {
-						values.AppendScalarValue(value)
-
-						if dest, err := event.resolvers.SymlinkResolver.Resolve(value); err == nil {
-							values.AppendScalarValue(dest)
-						}
-					}
-
-					// warn regexp
-					if len(b.Values.GetRegexValues()) != 0 {
-						// TODO
-					}
-
-					return values
+				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
+					return probe.resolvers.SymlinkResolver.Resolve(key, values...)
 				},
 			}
 
@@ -74,25 +69,19 @@ var (
 		},
 		// ex: process.ancestors.file.path
 		StringArrayContains: func(a *eval.StringEvaluator, b *eval.StringArrayEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
-			var value string
-			if a.IsScalar() {
-				value = a.Value
-			} else {
+			if !a.IsScalar() {
 				return nil, errors.New("non scalar overriden is not supported")
 			}
 
+			key, value := unsafe.Pointer(b), a.Value
+
+			// pre-cache at compile time
+			probe := opts.UserCtx.(*Probe)
+			probe.resolvers.SymlinkResolver.Resolve(key, value)
+
 			evaluator := eval.StringValuesEvaluator{
-				EvalFnc: func(ctx *eval.Context) eval.StringValues {
-					event := (*Event)(ctx.Object)
-
-					var values eval.StringValues
-					values.AppendScalarValue(value)
-
-					if dest, err := event.resolvers.SymlinkResolver.Resolve(value); err == nil {
-						values.AppendScalarValue(dest)
-					}
-
-					return values
+				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
+					return probe.resolvers.SymlinkResolver.Resolve(key, value)
 				},
 			}
 
@@ -103,25 +92,20 @@ var (
 				return nil, errors.New("non scalar overriden is not supported")
 			}
 
+			// warn regexp
+			if len(b.Values.GetRegexValues()) != 0 {
+				// TODO
+			}
+
+			key, values := unsafe.Pointer(a), b.Values.GetScalarValues()
+
+			// pre-cache at compile time
+			probe := opts.UserCtx.(*Probe)
+			probe.resolvers.SymlinkResolver.Resolve(key, values...)
+
 			evaluator := eval.StringValuesEvaluator{
-				EvalFnc: func(ctx *eval.Context) eval.StringValues {
-					event := (*Event)(ctx.Object)
-
-					var values eval.StringValues
-					for _, value := range b.Values.GetScalarValues() {
-						values.AppendScalarValue(value)
-
-						if dest, err := event.resolvers.SymlinkResolver.Resolve(value); err == nil {
-							values.AppendScalarValue(dest)
-						}
-					}
-
-					// warn regexp
-					if len(b.Values.GetRegexValues()) != 0 {
-						// TODO
-					}
-
-					return b.Values
+				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
+					return probe.resolvers.SymlinkResolver.Resolve(key, values...)
 				},
 			}
 

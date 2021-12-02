@@ -76,8 +76,7 @@ func (s *StringValues) AppendScalarValue(value string) {
 
 	s.scalars = append(s.scalars, value)
 	s.scalarCache[value] = true
-	s.AppendFieldValue(FieldValue{Value: value, Type: ScalarValueType})
-
+	s.fieldValues = append(s.fieldValues, FieldValue{Value: value, Type: ScalarValueType})
 }
 
 // AppendStringEvaluator append a string evalutator

@@ -182,7 +182,7 @@ func (s *StringArrayEvaluator) AppendValue(value string) {
 
 // StringValuesEvaluator returns an array of strings
 type StringValuesEvaluator struct {
-	EvalFnc func(ctx *Context) StringValues
+	EvalFnc func(ctx *Context) *StringValues
 	Values  StringValues
 	Weight  int
 
