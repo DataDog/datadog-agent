@@ -153,15 +153,19 @@ func (d *Destination) sendConcurrent(payload *message.Payload, isRetrying chan b
 // Send sends a payload over HTTP,
 func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan bool, output chan *message.Payload) {
 	for {
+
 		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
 		if d.blockedUntil.After(time.Now()) {
 			log.Debugf("%s: sleeping until %v before retrying", d.url, d.blockedUntil)
 			d.waitForBackoff()
 		}
 
-		metrics.LogsSent.Add(int64(len(payload.Messages)))
-		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
 		err := d.unconditionalSend(payload)
+
+		if err != nil {
+			metrics.DestinationErrors.Add(1)
+			metrics.TlmDestinationErrors.Inc()
+		}
 
 		if err == context.Canceled {
 			log.Warnf("Could not send payload: %v", err)
@@ -193,6 +197,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 			}
 		}
 
+		metrics.LogsSent.Add(int64(len(payload.Messages)))
+		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
 		output <- payload
 		return
 	}
@@ -237,8 +243,6 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	metrics.SenderLatency.Set(latency)
 
 	if err != nil {
-		metrics.DestinationErrors.Add(1)
-		metrics.TlmDestinationErrors.Inc()
 
 		if ctx.Err() == context.Canceled {
 			return ctx.Err()

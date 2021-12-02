@@ -65,7 +65,7 @@ func (s *HTTPServerTest) stop() {
 	s.httpServer.Close()
 }
 
-func (s *HTTPServerTest) changeStatus(statusCode int) {
+func (s *HTTPServerTest) ChangeStatus(statusCode int) {
 	s.statusCodeContainer.Lock()
 	s.statusCodeContainer.statusCode = statusCode
 	s.statusCodeContainer.Unlock()

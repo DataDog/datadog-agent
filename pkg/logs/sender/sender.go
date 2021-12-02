@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -13,22 +14,30 @@ import (
 )
 
 type destinationState struct {
+	sync.Mutex
 	isRetrying        bool
 	input             chan *message.Payload
 	retryStateChanged chan bool
 }
 
-func (d *destinationState) updateAndGetIsRetrying() bool {
-	select {
-	case d.isRetrying = <-d.retryStateChanged:
-	default:
-	}
+func (d *destinationState) getRetryState() bool {
+	d.Lock()
+	defer d.Unlock()
 	return d.isRetrying
+}
+
+func (d *destinationState) start() {
+	go func() {
+		for retryState := range d.retryStateChanged {
+			d.Lock()
+			d.isRetrying = retryState
+			d.Unlock()
+		}
+	}()
 }
 
 func (d *destinationState) close() {
 	close(d.input)
-	close(d.retryStateChanged)
 }
 
 // Sender sends logs to different destinations.
@@ -87,7 +96,7 @@ payloadLoop:
 				break payloadLoop
 			default:
 				for _, destState := range reliableDestinations {
-					if !destState.updateAndGetIsRetrying() {
+					if !destState.getRetryState() {
 						destState.input <- payload
 						sent = true
 					}
@@ -105,7 +114,7 @@ payloadLoop:
 		for _, destState := range reliableDestinations {
 			// if an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
 			// loss on intermittent failures.
-			if destState.isRetrying {
+			if destState.getRetryState() {
 				select {
 				case destState.input <- payload:
 				default:
@@ -146,8 +155,9 @@ func additionalDestinationsSink(bufferSize int) chan *message.Payload {
 func buildDestinationStates(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*destinationState {
 	states := []*destinationState{}
 	for _, input := range destinations {
-		destState := &destinationState{false, make(chan *message.Payload, bufferSize), make(chan bool, 1)}
+		destState := &destinationState{sync.Mutex{}, false, make(chan *message.Payload, bufferSize), make(chan bool, 1)}
 		states = append(states, destState)
+		destState.start()
 		input.Start(destState.input, destState.retryStateChanged, output)
 	}
 	return states

@@ -42,6 +42,7 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
+// TODO: return retry channel and close it
 func (d *Destination) Start(input chan *message.Payload, isRetrying chan bool, output chan *message.Payload) {
 	go func() {
 		for payload := range input {
@@ -66,13 +67,6 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 			d.connCreationTime = time.Now()
 		}
 
-		metrics.LogsSent.Add(1)
-		metrics.TlmLogsSent.Inc()
-		metrics.BytesSent.Add(int64(len(payload.Encoded)))
-		metrics.TlmBytesSent.Add(float64(len(payload.Encoded)))
-		metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
-		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)))
-
 		content := d.prefixer.apply(payload.Encoded)
 		frame, err := d.delimiter.delimit(content)
 		if err != nil {
@@ -88,6 +82,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 
 			if d.shouldRetry {
 				d.incrementErrors(false)
+				// TODO: report retries
 				// retry (will try to open a new connection)
 				continue
 			} else {
@@ -95,6 +90,12 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 			}
 		}
 
+		metrics.LogsSent.Add(1)
+		metrics.TlmLogsSent.Inc()
+		metrics.BytesSent.Add(int64(len(payload.Encoded)))
+		metrics.TlmBytesSent.Add(float64(len(payload.Encoded)))
+		metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
+		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)))
 		output <- payload
 
 		if d.connManager.ShouldReset(d.connCreationTime) {

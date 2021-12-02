@@ -79,7 +79,7 @@ func TestDestinationSend500Retries(t *testing.T) {
 	assert.True(t, <-isRetryingChan)
 
 	// Should recover because it was retrying
-	server.changeStatus(200)
+	server.ChangeStatus(200)
 	<-output
 
 	server.stop()
@@ -96,7 +96,7 @@ func TestDestinationSend429Retries(t *testing.T) {
 	assert.True(t, <-isRetryingChan)
 
 	// Should recover because it was retrying
-	server.changeStatus(200)
+	server.ChangeStatus(200)
 	<-output
 
 	server.stop()
