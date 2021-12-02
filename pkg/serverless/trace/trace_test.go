@@ -72,3 +72,18 @@ func TestLoadConfigShouldBeFast(t *testing.T) {
 	defer agent.Stop()
 	assert.True(t, time.Since(startTime) < time.Second)
 }
+
+func TestBuildTraceBlocklist(t *testing.T) {
+	userProvidedBlocklist := []string{
+		"GET /toto",
+		"PATCH /tutu",
+	}
+	expected := []string{
+		"GET /toto",
+		"PATCH /tutu",
+		"GET /lambda/hello",
+		"POST /lambda/flush",
+	}
+	result := buildTraceBlocklist(userProvidedBlocklist)
+	assert.Equal(t, expected, result)
+}
