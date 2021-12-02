@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -19,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
@@ -28,18 +30,40 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 	var g errgroup.Group
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
-	syncTimeout := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
+	//syncTimeout := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
 	for name := range informers {
 		name := name // https://golang.org/doc/faq#closures_and_goroutines
+		config := retry.Config{
+			Name:              string(name),
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second,
+			MaxRetryDelay:     time.Duration(60) * time.Second,
+		}
 		g.Go(func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
-			defer cancel()
-			start := time.Now()
-			if !cache.WaitForCacheSync(ctx.Done(), informers[name].HasSynced) {
-				return fmt.Errorf("couldn't sync informer %s in %v", name, time.Now().Sub(start))
+			nextTry := config.InitialRetryDelay
+			tryCount := 0
+			lastTry := false
+			for {
+				ctx, cancel := context.WithTimeout(context.Background(), nextTry)
+				defer cancel()
+				start := time.Now()
+				if !cache.WaitForCacheSync(ctx.Done(), informers[name].HasSynced) {
+					log.Warnf("couldn't sync informer %s in %v", tryCount, name, time.Now().Sub(start))
+					nextTry = nextTry + (1<<tryCount)*time.Second
+					tryCount++
+					log.Warnf("increase kube_cache_sync_timeout_seconds to %s", nextTry)
+					if nextTry >= config.MaxRetryDelay {
+						nextTry = config.MaxRetryDelay
+						lastTry = true
+					}
+					if lastTry {
+						return fmt.Errorf("couldn't sync informer %s in %v", name, time.Now().Sub(start))
+					}
+				} else {
+					log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Now().Sub(start), informers[name].LastSyncResourceVersion())
+					return nil
+				}
 			}
-			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Now().Sub(start), informers[name].LastSyncResourceVersion())
-			return nil
 		})
 	}
 	return g.Wait()
