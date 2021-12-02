@@ -105,7 +105,7 @@ func (cm *CheckMetrics) Expire(contextKeys []ckey.ContextKey, timestamp float64)
 }
 
 // Flush flushes every metrics in the CheckMetrics (see ContextMetrics.Flush)
-func (cm *CheckMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey][]error) {
+func (cm *CheckMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
 	return cm.metrics.Flush(timestamp)
 }
 
