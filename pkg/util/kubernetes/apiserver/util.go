@@ -29,13 +29,14 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 	var g errgroup.Group
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
+	syncTimeout := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
 	for name := range informers {
 		name := name // https://golang.org/doc/faq#closures_and_goroutines
 		config := retry.Config{
 			Name:              string(name),
 			Strategy:          retry.Backoff,
-			InitialRetryDelay: config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second,
-			MaxRetryDelay:     time.Duration(60) * time.Second,
+			InitialRetryDelay: syncTimeout,
+			MaxRetryDelay:     syncTimeout + time.Duration(60)*time.Second,
 		}
 		g.Go(func() error {
 			nextTry := config.InitialRetryDelay
