@@ -12,6 +12,27 @@ func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 	if err != nil {
 		return valuestore.ResultValue{}, err
 	}
+	return processValue(symbol, value)
+}
+
+func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol checkconfig.SymbolConfig) (map[string]valuestore.ResultValue, error) {
+	columnValues, err := values.GetColumnValues(symbol.OID)
+	newValues := make(map[string]valuestore.ResultValue, len(columnValues))
+	if err != nil {
+		return nil, err
+	}
+	for index, value := range columnValues {
+		// TODO: TEST ME
+		newValue, err := processValue(symbol, value)
+		if err != nil {
+			continue
+		}
+		newValues[index] = newValue
+	}
+	return newValues, nil
+}
+
+func processValue(symbol checkconfig.SymbolConfig, value valuestore.ResultValue) (valuestore.ResultValue, error) {
 	if symbol.ExtractValueCompiled != nil {
 		extractedValue, err := value.ExtractStringValue(symbol.ExtractValueCompiled)
 		if err != nil {
@@ -43,24 +64,4 @@ func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 		}
 	}
 	return value, nil
-}
-
-func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol checkconfig.SymbolConfig) (map[string]valuestore.ResultValue, error) {
-	columnValues, err := values.GetColumnValues(symbol.OID)
-	newValues := make(map[string]valuestore.ResultValue, len(columnValues))
-	if err != nil {
-		return nil, err
-	}
-	for index, value := range columnValues {
-		if symbol.ExtractValueCompiled != nil {
-			extractedValue, err := value.ExtractStringValue(symbol.ExtractValueCompiled)
-			if err != nil {
-				log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, symbol.ExtractValueCompiled, err)
-				continue
-			}
-			value = extractedValue
-		}
-		newValues[index] = value
-	}
-	return newValues, nil
 }
