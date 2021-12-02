@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+// invocationDetails stores information about the current invocation.
+// This structure is passed to the process method of the invocationProcessor interface to build a span for instance
 type invocationDetails struct {
 	startTime          time.Time
 	endTime            time.Time

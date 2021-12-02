@@ -25,7 +25,7 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 	log.Debug("[proxy] new request to %s", request.URL)
 
 	// enrich the currentInvocationDetails object
-	requestProcessor(p.currentInvocationDetails, request)
+	enrichCurrentInvocation(p.currentInvocationDetails, request)
 	if p.currentInvocationDetails.isComplete() {
 		p.processor.process(p.currentInvocationDetails)
 	}
@@ -49,7 +49,7 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 		return nil, errors.New("invalid payload format")
 	}
 
-	// enrich the currentInvicationDetails when /next response is received
+	// enrich the currentInvocationDetails when /next response is received
 	if request.Method == "GET" && strings.HasSuffix(request.URL.String(), "/next") {
 		p.currentInvocationDetails.startTime = time.Now()
 		p.currentInvocationDetails.invokeHeaders = response.Header
@@ -59,7 +59,7 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 	return response, nil
 }
 
-func requestProcessor(invocationDetails *invocationDetails, request *http.Request) {
+func enrichCurrentInvocation(invocationDetails *invocationDetails, request *http.Request) {
 	if request.Method == "GET" && strings.HasSuffix(request.URL.String(), "/next") {
 		invocationDetails.reset()
 	} else if request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/response") {
