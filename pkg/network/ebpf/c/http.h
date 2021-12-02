@@ -7,6 +7,26 @@
 
 #include <uapi/linux/ptrace.h>
 
+// HTTP2.0 client->server connection preface 'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n'
+// https://httpwg.org/specs/rfc7540.html#ConnectionHeader
+#define HTTP20_PRI_LEN 24
+#if HTTP_BUFFER_SIZE < HTTP20_PRI_LEN
+#error "HTTP_BUFFER_SIZE can't less than HTTP20_PRI_LEN"
+#endif
+static __always_inline int is_http20(char *p) {
+    if ((p[0] == 'P') && (p[1] == 'R') && (p[2] == 'I') && (p[3] == ' ') && (p[4] == '*') && (p[5] == ' ')
+        && (p[6] == 'H') && (p[7] == 'T') && (p[8] == 'T') && (p[9] == 'P') && (p[10] == '/') && (p[11] == '2') && (p[12] == '.') && (p[13] == '0')
+        && (p[14] == '\r') && (p[15] == '\n')
+        && (p[16] == '\r') && (p[17] == '\n')
+        && (p[18] == 'S') && (p[19] == 'M')
+        && (p[20] == '\r') && (p[21] == '\n')
+        && (p[22] == '\r') && (p[23] == '\n')
+        ) {
+        return 1;
+    }
+    return 0;
+}
+
 static __always_inline void http_prepare_key(u32 cpu, http_batch_key_t *key, http_batch_state_t *batch_state) {
     __builtin_memset(key, 0, sizeof(http_batch_key_t));
     key->cpu = cpu;

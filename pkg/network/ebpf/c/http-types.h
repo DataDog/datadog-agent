@@ -94,6 +94,7 @@ typedef struct {
 typedef struct {
     conn_tuple_t tup;
     __u32 fd;
+    __u8 http20;
 } ssl_sock_t;
 
  #define LIB_PATH_MAX_SIZE 120
