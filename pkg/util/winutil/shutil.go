@@ -7,7 +7,6 @@
 package winutil
 
 import (
-	"C"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"

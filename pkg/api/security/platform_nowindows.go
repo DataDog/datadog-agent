@@ -9,9 +9,15 @@ package security
 
 import (
 	"io/ioutil"
+
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // writes auth token(s) to a file that is only readable/writable by the user running the agent
 func saveAuthToken(token, tokenPath string) error {
-	return ioutil.WriteFile(tokenPath, []byte(token), 0600)
+	if err := ioutil.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+		return err
+	}
+
+	return filesystem.ChownDDAgent(tokenPath)
 }

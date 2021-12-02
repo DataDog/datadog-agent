@@ -16,24 +16,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-var (
-	wellKnownSidStrings = map[string]string{
-		"Administrators": "S-1-5-32-544",
-		"System":         "S-1-5-18",
-		"Users":          "S-1-5-32-545",
-	}
-	wellKnownSids = make(map[string]*windows.SID)
-)
-
-func init() {
-	for key, val := range wellKnownSidStrings {
-		sid, err := windows.StringToSid(val)
-		if err == nil {
-			wellKnownSids[key] = sid
-		}
-	}
-}
-
 // lookupUsernameAndDomain obtains the username and domain for usid.
 func lookupUsernameAndDomain(usid *syscall.SID) (username, domain string, e error) {
 	username, domain, t, e := usid.LookupAccount("")
@@ -48,24 +30,19 @@ func lookupUsernameAndDomain(usid *syscall.SID) (username, domain string, e erro
 
 // writes auth token(s) to a file with the same permissions as datadog.yaml
 func saveAuthToken(token, tokenPath string) error {
-	// get the current user
-
-	log.Infof("Getting sidstring from current user")
-	currUserSid, err := winutil.GetSidFromUser()
+	err = ioutil.WriteFile(tokenPath, []byte(token), 0700)
 	if err != nil {
-		log.Warnf("Unable to get current user sid %v", err)
 		return err
 	}
-	err = ioutil.WriteFile(tokenPath, []byte(token), 0755)
-	if err == nil {
-		err = acl.Apply(
-			tokenPath,
-			true,  // replace the file permissions
-			false, // don't inherit
-			acl.GrantSid(windows.GENERIC_ALL, wellKnownSids["Administrators"]),
-			acl.GrantSid(windows.GENERIC_ALL, wellKnownSids["System"]),
-			acl.GrantSid(windows.GENERIC_ALL, currUserSid))
-		log.Infof("Wrote auth token acl %v", err)
+
+	if perms, err := filesystem.NewPermission(); err != nil {
+		return err
 	}
-	return err
+
+	if err := perms.RestrictAccessToUser(tokenPath); err != nil {
+		log.Infof("Wrote auth token acl")
+	} else {
+		log.Errorf("Failed to write auth token acl %s", err)
+		return err
+	}
 }
