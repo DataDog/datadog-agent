@@ -140,7 +140,7 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), int64(0), metrics.LogsSent.Value())
-	assert.Equal(suite.T(), "{}", metrics.DestinationLogsDropped.String())
+	assert.Equal(suite.T(), "1", metrics.DestinationLogsDropped.Get("fake:").String())
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
 }
 
@@ -164,12 +164,15 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return int64(2) == metrics.LogsSent.Value()
 	})
+	fmt.Println("== About to stop")
+	time.Sleep(2 * time.Second)
 	agent.Stop()
+	fmt.Println("== Finished stop")
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
-	assert.Equal(suite.T(), int64(2), metrics.LogsSent.Value()) // From the main endpoint
-	// assert.Equal(suite.T(), int64(2), metrics.DestinationErrors.Value()) // From the additional endpoint
+	assert.Equal(suite.T(), int64(2), metrics.LogsSent.Value())          // From the main endpoint
+	assert.Equal(suite.T(), int64(2), metrics.DestinationErrors.Value()) // From the additional endpoint
 	assert.Equal(suite.T(), "0", metrics.DestinationLogsDropped.Get("still_fake").String())
 }
 

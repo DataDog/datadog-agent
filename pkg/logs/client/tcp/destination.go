@@ -7,6 +7,7 @@ package tcp
 
 import (
 	"expvar"
+	"fmt"
 	"net"
 	"time"
 
@@ -25,10 +26,11 @@ type Destination struct {
 	destinationsContext *client.DestinationsContext
 	conn                net.Conn
 	connCreationTime    time.Time
+	shouldRetry         bool
 }
 
 // NewDestination returns a new destination.
-func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext) *Destination {
+func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext, shouldRetry bool) *Destination {
 	prefix := endpoint.APIKey + string(' ')
 	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 	return &Destination{
@@ -36,14 +38,31 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		delimiter:           NewDelimiter(useProto),
 		connManager:         NewConnectionManager(endpoint),
 		destinationsContext: destinationsContext,
+		shouldRetry:         shouldRetry,
 	}
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
 func (d *Destination) Start(input chan *message.Payload, isRetrying chan bool, output chan *message.Payload) {
 	go func() {
+		ctx := d.destinationsContext.Context()
 		for payload := range input {
+			if d.shouldRetry {
+				fmt.Println("Dequeue main")
+			} else {
+				fmt.Println("Dequeue additional")
+			}
 			d.sendAndRetry(payload, isRetrying, output)
+			select {
+			case <-ctx.Done():
+				if d.shouldRetry {
+					fmt.Println("CTX kill main")
+				} else {
+					fmt.Println("CTX kill additional")
+				}
+				return
+			default:
+			}
 		}
 	}()
 }
@@ -58,7 +77,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 			if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
 				// the connection manager is not meant to fail,
 				// this can happen only when the context is cancelled.
-				d.incrementErrors()
+				d.incrementErrors(true)
 				return
 			}
 			d.connCreationTime = time.Now()
@@ -75,18 +94,22 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 		frame, err := d.delimiter.delimit(content)
 		if err != nil {
 			// the delimiter can fail when the payload can not be framed correctly.
-			d.incrementErrors()
+			d.incrementErrors(true)
 			return
 		}
 
 		_, err = d.conn.Write(frame)
 		if err != nil {
-			d.incrementErrors()
 			d.connManager.CloseConnection(d.conn)
 			d.conn = nil
 
-			// retry (will try to open a new connection)
-			continue
+			if d.shouldRetry {
+				d.incrementErrors(false)
+				// retry (will try to open a new connection)
+				continue
+			} else {
+				d.incrementErrors(true)
+			}
 		}
 
 		output <- payload
@@ -100,10 +123,12 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 	}
 }
 
-func (d *Destination) incrementErrors() {
-	host := d.connManager.endpoint.Host
-	metrics.DestinationLogsDropped.Add(host, 1)
-	metrics.TlmLogsDropped.Inc(host)
+func (d *Destination) incrementErrors(drop bool) {
+	if drop {
+		host := d.connManager.endpoint.Host
+		metrics.DestinationLogsDropped.Add(host, 1)
+		metrics.TlmLogsDropped.Inc(host)
+	}
 	metrics.DestinationErrors.Add(1)
 	metrics.TlmDestinationErrors.Inc()
 }

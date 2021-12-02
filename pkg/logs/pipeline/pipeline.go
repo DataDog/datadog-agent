@@ -90,10 +90,10 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 		return client.NewDestinations(reliable, additionals)
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
+		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, true))
 	}
 	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
-		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
+		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false))
 	}
 	return client.NewDestinations(reliable, additionals)
 }

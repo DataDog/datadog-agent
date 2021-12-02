@@ -7,6 +7,7 @@ package sender
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -90,6 +91,7 @@ func (s *Sender) run() {
 	stopped := false
 
 	for payload := range s.inputChan {
+		fmt.Println("got payload")
 		select {
 		case <-s.stop:
 			stopped = true
@@ -106,6 +108,7 @@ func (s *Sender) run() {
 					if !destCtx.updateAndGetIsRetrying() {
 						destCtx.input <- payload
 						sent = true
+						fmt.Println("Sent to main")
 					}
 				}
 
@@ -131,12 +134,17 @@ func (s *Sender) run() {
 
 		// Attempt to send to additional destination
 		for _, destCtx := range additionalDestinations {
+			fmt.Println("sending to additional")
 			select {
 			case destCtx.input <- payload:
+				fmt.Println("additional enqueue")
 			default:
+				fmt.Println("!!!!! additional miss")
 			}
 		}
+		fmt.Println("finished")
 	}
+	fmt.Println("Shutting down")
 
 	// Cleanup
 	for _, destCtx := range reliableDestinations {
