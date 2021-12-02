@@ -14,7 +14,11 @@ type timestampedContextMetrics struct {
 	contextMetrics  ContextMetrics
 }
 
-// ContextMetricsFlusher flushes several ContextMetrics
+// ContextMetricsFlusher sorts Metrics by context key, in a streaming fashion.
+// It accepts a collection of timestamped ContextMetrics instances,
+// each of which contains Metric instances organized by context key.  Its FlushAndClear
+// method then flushes those Metric instances one context key at a time, without
+// requiring the space to sort Metrics by context key.
 type ContextMetricsFlusher struct {
 	metrics []timestampedContextMetrics
 }
@@ -32,11 +36,11 @@ func (f *ContextMetricsFlusher) Append(bucketTimestamp float64, contextMetrics C
 	})
 }
 
-// FlushAndClear flushes contextMetrics to series and clear contextMetrics collection.
-// For each contextKey, FlushAndClear flushes every metrics (Same as ContextMetrics.Flush) and call
-// the callback with all series whose key context is the same.
-// If there are 3 context keys, the callback is called 3 times.
-// Note: The slice []*Serie in callback is reused.
+// FlushAndClear flushes Metrics appended to this instance, and clears the instance.
+// For each context key present in any of the ContextMetrics instances, it constructs
+// a slice containing all Serie instances with that context key, and passes that slice to
+// `callback`. Any errors encountered flushing the Metric instances are returned,
+// but such errors do not interrupt the flushing operation.
 func (f *ContextMetricsFlusher) FlushAndClear(callback func([]*Serie)) map[ckey.ContextKey][]error {
 	errors := make(map[ckey.ContextKey][]error)
 	var series []*Serie
