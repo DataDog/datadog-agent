@@ -198,6 +198,17 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
+  timeout-java:
+    runtime: java8.al2
+    handler: TimeoutHandler
+    timeout: 3
+    package:
+      individually: true
+      artifact: src/java-tests/timeout/target/timeout-dev.jar
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+
   log-node:
     runtime: nodejs14.x
     handler: src/log.logTest
