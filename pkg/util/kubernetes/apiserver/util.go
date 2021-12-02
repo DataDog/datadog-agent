@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -30,7 +29,6 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 	var g errgroup.Group
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
-	//syncTimeout := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
 	for name := range informers {
 		name := name // https://golang.org/doc/faq#closures_and_goroutines
 		config := retry.Config{
@@ -41,16 +39,15 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 		}
 		g.Go(func() error {
 			nextTry := config.InitialRetryDelay
-			tryCount := 0
 			lastTry := false
 			for {
 				ctx, cancel := context.WithTimeout(context.Background(), nextTry)
 				defer cancel()
 				start := time.Now()
 				if !cache.WaitForCacheSync(ctx.Done(), informers[name].HasSynced) {
-					log.Warnf("couldn't sync informer %s in %v", tryCount, name, time.Now().Sub(start))
-					nextTry = nextTry + (1<<tryCount)*time.Second
-					tryCount++
+					log.Warnf("couldn't sync informer %s in %v", name, time.Now().Sub(start))
+					nextTry = nextTry + (1<<config.RetryCount)*time.Second
+					config.RetryCount++
 					log.Warnf("increase kube_cache_sync_timeout_seconds to %s", nextTry)
 					if nextTry >= config.MaxRetryDelay {
 						nextTry = config.MaxRetryDelay
