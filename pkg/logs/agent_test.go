@@ -140,13 +140,13 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
 	// The context gets canceled when the agent stops. at this point the additional sender is stuck
 	// trying to establish a connection. agent.Stop will cancel it and the error telemetry will be updated
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
-		return int64(1) == metrics.DestinationErrors.Value()
+		return int64(2) == metrics.DestinationErrors.Value()
 	})
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), int64(0), metrics.LogsSent.Value())
-	assert.Equal(suite.T(), "1", metrics.DestinationLogsDropped.Get("fake:").String())
+	assert.Equal(suite.T(), "2", metrics.DestinationLogsDropped.Get("fake:").String())
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
 }
 
@@ -174,14 +174,14 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
 	// The context gets canceled when the agent stops. at this point the additional sender is stuck
 	// trying to establish a connection. agent.Stop will cancel it and the error telemetry will be updated
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
-		return int64(1) == metrics.DestinationErrors.Value()
+		return int64(2) == metrics.DestinationErrors.Value()
 	})
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), int64(2), metrics.LogsSent.Value())          // From the main endpoint
-	assert.Equal(suite.T(), int64(1), metrics.DestinationErrors.Value()) // From the additional endpoint
-	assert.Equal(suite.T(), "1", metrics.DestinationLogsDropped.Get("still_fake").String())
+	assert.Equal(suite.T(), int64(2), metrics.DestinationErrors.Value()) // From the additional endpoint
+	assert.Equal(suite.T(), "2", metrics.DestinationLogsDropped.Get("still_fake").String())
 }
 
 func TestAgentTestSuite(t *testing.T) {

@@ -12,13 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-type destinationContext struct {
+type destinationState struct {
 	isRetrying        bool
 	input             chan *message.Payload
 	retryStateChanged chan bool
 }
 
-func (d *destinationContext) updateAndGetIsRetrying() bool {
+func (d *destinationState) updateAndGetIsRetrying() bool {
 	select {
 	case d.isRetrying = <-d.retryStateChanged:
 	default:
@@ -26,7 +26,7 @@ func (d *destinationContext) updateAndGetIsRetrying() bool {
 	return d.isRetrying
 }
 
-func (d *destinationContext) close() {
+func (d *destinationState) close() {
 	close(d.input)
 	close(d.retryStateChanged)
 }
@@ -55,7 +55,6 @@ func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload
 
 // Start starts the sender.
 func (s *Sender) Start() {
-	s.stop = make(chan struct{}, 1)
 	go s.run()
 }
 
@@ -68,10 +67,10 @@ func (s *Sender) Stop() {
 }
 
 func (s *Sender) run() {
-	reliableDestinations := buildDestinationContexts(s.destinations.Reliable, s.outputChan, s.bufferSize)
+	reliableDestinations := buildDestinationStates(s.destinations.Reliable, s.outputChan, s.bufferSize)
 
 	sink := additionalDestinationsSink(s.bufferSize)
-	additionalDestinations := buildDestinationContexts(s.destinations.Additionals, sink, s.bufferSize)
+	additionalDestinations := buildDestinationStates(s.destinations.Additionals, sink, s.bufferSize)
 
 payloadLoop:
 	for payload := range s.inputChan {
@@ -87,9 +86,9 @@ payloadLoop:
 			case <-s.stop:
 				break payloadLoop
 			default:
-				for _, destCtx := range reliableDestinations {
-					if !destCtx.updateAndGetIsRetrying() {
-						destCtx.input <- payload
+				for _, destState := range reliableDestinations {
+					if !destState.updateAndGetIsRetrying() {
+						destState.input <- payload
 						sent = true
 					}
 				}
@@ -103,32 +102,32 @@ payloadLoop:
 			}
 		}
 
-		for _, destCtx := range reliableDestinations {
+		for _, destState := range reliableDestinations {
 			// if an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
 			// loss on intermittent failures.
-			if destCtx.isRetrying {
+			if destState.isRetrying {
 				select {
-				case destCtx.input <- payload:
+				case destState.input <- payload:
 				default:
 				}
 			}
 		}
 
 		// Attempt to send to additional destination
-		for _, destCtx := range additionalDestinations {
+		for _, destState := range additionalDestinations {
 			select {
-			case destCtx.input <- payload:
+			case destState.input <- payload:
 			default:
 			}
 		}
 	}
 
 	// Cleanup
-	for _, destCtx := range reliableDestinations {
-		destCtx.close()
+	for _, destState := range reliableDestinations {
+		destState.close()
 	}
-	for _, destCtx := range additionalDestinations {
-		destCtx.close()
+	for _, destState := range additionalDestinations {
+		destState.close()
 	}
 	s.done <- struct{}{}
 }
@@ -144,12 +143,12 @@ func additionalDestinationsSink(bufferSize int) chan *message.Payload {
 	return sink
 }
 
-func buildDestinationContexts(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*destinationContext {
-	contexts := []*destinationContext{}
+func buildDestinationStates(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*destinationState {
+	states := []*destinationState{}
 	for _, input := range destinations {
-		destCtx := &destinationContext{false, make(chan *message.Payload, bufferSize), make(chan bool, 1)}
-		contexts = append(contexts, destCtx)
-		input.Start(destCtx.input, destCtx.retryStateChanged, output)
+		destState := &destinationState{false, make(chan *message.Payload, bufferSize), make(chan bool, 1)}
+		states = append(states, destState)
+		input.Start(destState.input, destState.retryStateChanged, output)
 	}
-	return contexts
+	return states
 }

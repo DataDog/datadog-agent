@@ -161,6 +161,25 @@ func TestDestinationSend429Retries(t *testing.T) {
 	server.stop()
 }
 
+func TestDestinationContextCancel(t *testing.T) {
+	server := NewHTTPServerTest(429)
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	isRetryingChan := make(chan bool, 1)
+	server.destination.Start(input, isRetryingChan, output)
+
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	assert.True(t, <-isRetryingChan)
+
+	server.destination.destinationsContext.Stop()
+
+	// If this blocks - the test will timeout and fail. This should not block as the destination context
+	// has been canceled and the payload will be dropped. In the real agent, this channel would be closed
+	// by the caller while the agent is shutting down
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	server.stop()
+}
+
 func TestDestinationSend400(t *testing.T) {
 	server := NewHTTPServerTest(400)
 	input := make(chan *message.Payload)
