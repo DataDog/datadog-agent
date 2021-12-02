@@ -6,6 +6,7 @@
 package tcp
 
 import (
+	"expvar"
 	"net"
 	"time"
 
@@ -29,6 +30,7 @@ type Destination struct {
 // NewDestination returns a new destination.
 func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext) *Destination {
 	prefix := endpoint.APIKey + string(' ')
+	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 	return &Destination{
 		prefixer:            newPrefixer(prefix),
 		delimiter:           NewDelimiter(useProto),
@@ -56,7 +58,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 			if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
 				// the connection manager is not meant to fail,
 				// this can happen only when the context is cancelled.
-				incrementErrors()
+				d.incrementErrors()
 				return
 			}
 			d.connCreationTime = time.Now()
@@ -73,13 +75,13 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 		frame, err := d.delimiter.delimit(content)
 		if err != nil {
 			// the delimiter can fail when the payload can not be framed correctly.
-			incrementErrors()
+			d.incrementErrors()
 			return
 		}
 
 		_, err = d.conn.Write(frame)
 		if err != nil {
-			incrementErrors()
+			d.incrementErrors()
 			d.connManager.CloseConnection(d.conn)
 			d.conn = nil
 
@@ -94,10 +96,14 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 			d.connManager.CloseConnection(d.conn)
 			d.conn = nil
 		}
+		return
 	}
 }
 
-func incrementErrors() {
+func (d *Destination) incrementErrors() {
+	host := d.connManager.endpoint.Host
+	metrics.DestinationLogsDropped.Add(host, 1)
+	metrics.TlmLogsDropped.Inc(host)
 	metrics.DestinationErrors.Add(1)
 	metrics.TlmDestinationErrors.Inc()
 }
