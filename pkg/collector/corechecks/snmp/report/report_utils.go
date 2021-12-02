@@ -1,6 +1,7 @@
 package report
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,6 +37,9 @@ func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 				return valuestore.ResultValue{}, err
 			}
 			value = valuestore.ResultValue{Value: replacedVal}
+		} else {
+			// TODO: TEST ME
+			return valuestore.ResultValue{}, fmt.Errorf("match pattern `%v` does not match string `%s`", symbol.MatchPattern, strValue)
 		}
 	}
 	return value, nil

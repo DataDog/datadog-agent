@@ -38,6 +38,10 @@ metadata:
         symbols:
           - OID: 1.3.6.1.2.1.1.1.0
             name: sysDescr
+            match_pattern: 'DoesNotMatch'
+            match_value: 'LINUX ($1)'
+          - OID: 1.3.6.1.2.1.1.1.0
+            name: sysDescr
             match_pattern: ':\s+Linux\s+(\S+)\s+:'
             match_value: 'LINUX ($1)'
             # Example sysDescr: BIG-IP Virtual Edition : Linux 3.10.0-862.14.4.el7.ve.x86_64 : BIG-IP software release 15.0.1, build 0.0.11
