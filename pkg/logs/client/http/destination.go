@@ -117,7 +117,8 @@ func errorToTag(err error) string {
 }
 
 // Start starts reading the input channel
-func (d *Destination) Start(input chan *message.Payload, isRetrying chan bool, output chan *message.Payload) {
+func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) (isRetrying chan bool) {
+	isRetrying = make(chan bool, 1)
 	go func() {
 
 		var startIdle = time.Now()
@@ -131,7 +132,9 @@ func (d *Destination) Start(input chan *message.Payload, isRetrying chan bool, o
 			d.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
 			startIdle = time.Now()
 		}
+		close(isRetrying)
 	}()
+	return isRetrying
 }
 
 func (d *Destination) sendConcurrent(payload *message.Payload, isRetrying chan bool, output chan *message.Payload) {

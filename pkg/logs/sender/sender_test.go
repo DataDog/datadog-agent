@@ -25,21 +25,21 @@ type mockDestination struct {
 
 func newMockDestination() *mockDestination {
 	return &mockDestination{
-		isRetrying: nil,
+		isRetrying: make(chan bool, 1),
 		started:    make(chan bool),
 	}
 }
 
-func (m *mockDestination) Start(input chan *message.Payload, isRetrying chan bool, output chan *message.Payload) {
-	m.Lock()
-	m.isRetrying = isRetrying
-	m.Unlock()
+func (m *mockDestination) Start(input chan *message.Payload, output chan *message.Payload) (isRetrying chan bool) {
 	go func() {
 		for payload := range input {
 			_ = payload
 		}
 	}()
 	m.started <- true
+	m.Lock()
+	defer m.Unlock()
+	return m.isRetrying
 }
 
 func (m *mockDestination) setRetrying(val bool) {

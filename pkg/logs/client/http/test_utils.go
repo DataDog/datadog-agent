@@ -17,11 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
+// StatusCodeContainer is a lock around the status code to return
 type StatusCodeContainer struct {
 	sync.Mutex
 	statusCode int
 }
-type HTTPServerTest struct {
+
+// TestServer a test server
+type TestServer struct {
 	httpServer          *httptest.Server
 	destCtx             *client.DestinationsContext
 	destination         *Destination
@@ -30,7 +33,8 @@ type HTTPServerTest struct {
 	statusCodeContainer *StatusCodeContainer
 }
 
-func NewHTTPServerTest(statusCode int) *HTTPServerTest {
+// NewTestServer returns a new server
+func NewTestServer(statusCode int) *TestServer {
 	statusCodeContainer := &StatusCodeContainer{statusCode: statusCode}
 	var request http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +54,7 @@ func NewHTTPServerTest(statusCode int) *HTTPServerTest {
 		UseSSL: false,
 	}
 	dest := NewDestination(endpoint, JSONContentType, destCtx, 0, true, 0)
-	return &HTTPServerTest{
+	return &TestServer{
 		httpServer:          ts,
 		destCtx:             destCtx,
 		destination:         dest,
@@ -60,12 +64,14 @@ func NewHTTPServerTest(statusCode int) *HTTPServerTest {
 	}
 }
 
-func (s *HTTPServerTest) stop() {
+// Stop stops the server
+func (s *TestServer) Stop() {
 	s.destCtx.Start()
 	s.httpServer.Close()
 }
 
-func (s *HTTPServerTest) ChangeStatus(statusCode int) {
+// ChangeStatus changes the status to return
+func (s *TestServer) ChangeStatus(statusCode int) {
 	s.statusCodeContainer.Lock()
 	s.statusCodeContainer.statusCode = statusCode
 	s.statusCodeContainer.Unlock()

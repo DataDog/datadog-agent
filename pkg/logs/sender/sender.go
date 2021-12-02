@@ -155,10 +155,11 @@ func additionalDestinationsSink(bufferSize int) chan *message.Payload {
 func buildDestinationStates(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*destinationState {
 	states := []*destinationState{}
 	for _, input := range destinations {
-		destState := &destinationState{sync.Mutex{}, false, make(chan *message.Payload, bufferSize), make(chan bool, 1)}
+		inputChan := make(chan *message.Payload, bufferSize)
+		retryStateChanged := input.Start(inputChan, output)
+		destState := &destinationState{sync.Mutex{}, false, inputChan, retryStateChanged}
 		states = append(states, destState)
 		destState.start()
-		input.Start(destState.input, destState.retryStateChanged, output)
 	}
 	return states
 }

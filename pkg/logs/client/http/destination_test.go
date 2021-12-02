@@ -56,24 +56,23 @@ func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
 }
 
 func TestDestinationSend200(t *testing.T) {
-	server := NewHTTPServerTest(200)
+	server := NewTestServer(200)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetrying := make(chan bool)
-	server.destination.Start(input, isRetrying, output)
+	isRetrying := server.destination.Start(input, output)
+	_ = isRetrying
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
 
-	server.stop()
+	server.Stop()
 }
 
 func TestDestinationSend500Retries(t *testing.T) {
-	server := NewHTTPServerTest(500)
+	server := NewTestServer(500)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetryingChan := make(chan bool, 1)
-	server.destination.Start(input, isRetryingChan, output)
+	isRetryingChan := server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	assert.True(t, <-isRetryingChan)
@@ -82,15 +81,14 @@ func TestDestinationSend500Retries(t *testing.T) {
 	server.ChangeStatus(200)
 	<-output
 
-	server.stop()
+	server.Stop()
 }
 
 func TestDestinationSend429Retries(t *testing.T) {
-	server := NewHTTPServerTest(429)
+	server := NewTestServer(429)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetryingChan := make(chan bool, 1)
-	server.destination.Start(input, isRetryingChan, output)
+	isRetryingChan := server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	assert.True(t, <-isRetryingChan)
@@ -99,15 +97,14 @@ func TestDestinationSend429Retries(t *testing.T) {
 	server.ChangeStatus(200)
 	<-output
 
-	server.stop()
+	server.Stop()
 }
 
 func TestDestinationContextCancel(t *testing.T) {
-	server := NewHTTPServerTest(429)
+	server := NewTestServer(429)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetryingChan := make(chan bool, 1)
-	server.destination.Start(input, isRetryingChan, output)
+	isRetryingChan := server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	assert.True(t, <-isRetryingChan)
@@ -118,15 +115,14 @@ func TestDestinationContextCancel(t *testing.T) {
 	// has been canceled and the payload will be dropped. In the real agent, this channel would be closed
 	// by the caller while the agent is shutting down
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	server.stop()
+	server.Stop()
 }
 
 func TestDestinationSend400(t *testing.T) {
-	server := NewHTTPServerTest(400)
+	server := NewTestServer(400)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetryingChan := make(chan bool, 1)
-	server.destination.Start(input, isRetryingChan, output)
+	isRetryingChan := server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
@@ -145,21 +141,21 @@ func TestDestinationSend400(t *testing.T) {
 	default:
 	}
 
-	server.stop()
+	server.Stop()
 }
 
 func TestConnectivityCheck(t *testing.T) {
 	// Connectivity is ok when server return 200
-	server := NewHTTPServerTest(200)
-	connectivity := CheckConnectivity(server.endpoint)
+	server := NewTestServer(200)
+	connectivity := CheckConnectivity(server.Endpoint)
 	assert.Equal(t, config.HTTPConnectivitySuccess, connectivity)
-	server.stop()
+	server.Stop()
 
 	// Connectivity is ok when server return 500
-	server = NewHTTPServerTest(500)
-	connectivity = CheckConnectivity(server.endpoint)
+	server = NewTestServer(500)
+	connectivity = CheckConnectivity(server.Endpoint)
 	assert.Equal(t, config.HTTPConnectivityFailure, connectivity)
-	server.stop()
+	server.Stop()
 }
 
 func TestErrorToTag(t *testing.T) {
@@ -169,7 +165,7 @@ func TestErrorToTag(t *testing.T) {
 }
 
 func TestDestinationSendsV2Protocol(t *testing.T) {
-	server := NewHTTPServerTest(200)
+	server := NewTestServer(200)
 	defer server.httpServer.Close()
 
 	server.destination.protocol = "test-proto"
@@ -179,7 +175,7 @@ func TestDestinationSendsV2Protocol(t *testing.T) {
 }
 
 func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
-	server := NewHTTPServerTest(200)
+	server := NewTestServer(200)
 	defer server.httpServer.Close()
 
 	err := server.destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})

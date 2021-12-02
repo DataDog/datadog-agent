@@ -129,7 +129,8 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 
 func (suite *AgentTestSuite) TestAgentHttp() {
 
-	server := http.NewHTTPServerTest(200)
+	server := http.NewTestServer(200)
+	defer server.Stop()
 	server.Endpoint.IsReliable = true
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
@@ -230,7 +231,8 @@ func (suite *AgentTestSuite) TestAgentUnreliableAdditinalEndpointFailsHttp() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
-	server := http.NewHTTPServerTest(200)
+	server := http.NewTestServer(200)
+	defer server.Stop()
 	server.Endpoint.IsReliable = true
 
 	additionalEndpoint := config.Endpoint{Host: "still_fake", Port: 0}
@@ -258,10 +260,12 @@ func (suite *AgentTestSuite) TestReliableAdditionalSender() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
-	server1 := http.NewHTTPServerTest(200)
+	server1 := http.NewTestServer(200)
+	defer server1.Stop()
 	server1.Endpoint.IsReliable = true
 
-	server2 := http.NewHTTPServerTest(200)
+	server2 := http.NewTestServer(200)
+	defer server2.Stop()
 	server2.Endpoint.IsReliable = true
 
 	endpoints := config.NewEndpoints(server1.Endpoint, []config.Endpoint{server2.Endpoint}, false, true)
@@ -288,10 +292,10 @@ func (suite *AgentTestSuite) TestFailingReliableAdditionalSenderRecovers() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
-	server1 := http.NewHTTPServerTest(200)
+	server1 := http.NewTestServer(200)
 	server1.Endpoint.IsReliable = true
 
-	server2 := http.NewHTTPServerTest(500)
+	server2 := http.NewTestServer(500)
 	server2.Endpoint.IsReliable = true
 
 	endpoints := config.NewEndpoints(server1.Endpoint, []config.Endpoint{server2.Endpoint}, false, true)
