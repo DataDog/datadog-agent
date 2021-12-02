@@ -59,6 +59,7 @@ type Destination struct {
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
 	lastError           error
+	isRetrying          bool
 	shouldRetry         bool
 	expVars             *expvar.Map
 }
@@ -101,6 +102,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
 		lastError:           nil,
+		isRetrying:          false,
 		shouldRetry:         shouldRetry,
 		expVars:             expVars,
 	}
@@ -117,8 +119,7 @@ func errorToTag(err error) string {
 }
 
 // Start starts reading the input channel
-func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) (isRetrying chan bool) {
-	isRetrying = make(chan bool, 1)
+func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) {
 	go func() {
 
 		var startIdle = time.Now()
@@ -127,34 +128,39 @@ func (d *Destination) Start(input chan *message.Payload, output chan *message.Pa
 			d.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
 			var startInUse = time.Now()
 
-			d.sendConcurrent(p, isRetrying, output)
+			d.sendConcurrent(p, output)
 
 			d.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
 			startIdle = time.Now()
 		}
-		close(isRetrying)
 	}()
-	return isRetrying
 }
 
-func (d *Destination) sendConcurrent(payload *message.Payload, isRetrying chan bool, output chan *message.Payload) {
+// GetIsRetrying returns true if the destination is retrying
+func (d *Destination) GetIsRetrying() bool {
+	d.Lock()
+	defer d.Unlock()
+	return d.isRetrying
+}
+
+func (d *Destination) sendConcurrent(payload *message.Payload, output chan *message.Payload) {
 	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 	if cap(d.climit) == 0 {
-		d.sendAndRetry(payload, isRetrying, output)
+		d.sendAndRetry(payload, output)
 		return
 	}
 
 	go func() {
 		d.climit <- struct{}{}
 		go func() {
-			d.sendAndRetry(payload, isRetrying, output)
+			d.sendAndRetry(payload, output)
 			<-d.climit
 		}()
 	}()
 }
 
 // Send sends a payload over HTTP,
-func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan bool, output chan *message.Payload) {
+func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload) {
 	for {
 
 		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
@@ -179,23 +185,15 @@ func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan boo
 			d.Lock()
 			if _, ok := err.(*client.RetryableError); ok {
 				d.nbErrors = d.backoff.IncError(d.nbErrors)
-
-				if d.lastError == nil && isRetrying != nil {
-					isRetrying <- true
-				}
-
 				d.lastError = err
+				d.isRetrying = true
 				d.Unlock()
 				continue
 
 			} else {
 				d.nbErrors = d.backoff.DecError(d.nbErrors)
-
-				if d.lastError != nil && isRetrying != nil {
-					isRetrying <- false
-				}
-
 				d.lastError = nil
+				d.isRetrying = false
 				d.Unlock()
 			}
 		}

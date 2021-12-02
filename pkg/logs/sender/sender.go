@@ -6,7 +6,6 @@
 package sender
 
 import (
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -14,30 +13,8 @@ import (
 )
 
 type destinationState struct {
-	sync.Mutex
-	isRetrying        bool
-	input             chan *message.Payload
-	retryStateChanged chan bool
-}
-
-func (d *destinationState) getRetryState() bool {
-	d.Lock()
-	defer d.Unlock()
-	return d.isRetrying
-}
-
-func (d *destinationState) start() {
-	go func() {
-		for retryState := range d.retryStateChanged {
-			d.Lock()
-			d.isRetrying = retryState
-			d.Unlock()
-		}
-	}()
-}
-
-func (d *destinationState) close() {
-	close(d.input)
+	input       chan *message.Payload
+	destination client.Destination
 }
 
 // Sender sends logs to different destinations.
@@ -96,7 +73,7 @@ payloadLoop:
 				break payloadLoop
 			default:
 				for _, destState := range reliableDestinations {
-					if !destState.getRetryState() {
+					if !destState.destination.GetIsRetrying() {
 						destState.input <- payload
 						sent = true
 					}
@@ -114,7 +91,7 @@ payloadLoop:
 		for _, destState := range reliableDestinations {
 			// if an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
 			// loss on intermittent failures.
-			if destState.getRetryState() {
+			if destState.destination.GetIsRetrying() {
 				select {
 				case destState.input <- payload:
 				default:
@@ -133,10 +110,10 @@ payloadLoop:
 
 	// Cleanup
 	for _, destState := range reliableDestinations {
-		destState.close()
+		close(destState.input)
 	}
 	for _, destState := range additionalDestinations {
-		destState.close()
+		close(destState.input)
 	}
 	s.done <- struct{}{}
 }
@@ -154,12 +131,11 @@ func additionalDestinationsSink(bufferSize int) chan *message.Payload {
 
 func buildDestinationStates(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*destinationState {
 	states := []*destinationState{}
-	for _, input := range destinations {
+	for _, destination := range destinations {
 		inputChan := make(chan *message.Payload, bufferSize)
-		retryStateChanged := input.Start(inputChan, output)
-		destState := &destinationState{sync.Mutex{}, false, inputChan, retryStateChanged}
+		destState := &destinationState{input: inputChan, destination: destination}
 		states = append(states, destState)
-		destState.start()
+		destination.Start(inputChan, output)
 	}
 	return states
 }

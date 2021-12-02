@@ -19,33 +19,36 @@ import (
 
 type mockDestination struct {
 	sync.Mutex
-	isRetrying chan bool
+	isRetrying bool
 	started    chan bool
 }
 
 func newMockDestination() *mockDestination {
 	return &mockDestination{
-		isRetrying: make(chan bool, 1),
+		isRetrying: false,
 		started:    make(chan bool),
 	}
 }
 
-func (m *mockDestination) Start(input chan *message.Payload, output chan *message.Payload) (isRetrying chan bool) {
+func (m *mockDestination) Start(input chan *message.Payload, output chan *message.Payload) {
 	go func() {
 		for payload := range input {
 			_ = payload
 		}
 	}()
 	m.started <- true
-	m.Lock()
-	defer m.Unlock()
-	return m.isRetrying
 }
 
 func (m *mockDestination) setRetrying(val bool) {
 	m.Lock()
-	m.isRetrying <- val
+	m.isRetrying = val
 	m.Unlock()
+}
+
+func (m *mockDestination) GetIsRetrying() bool {
+	m.Lock()
+	defer m.Unlock()
+	return m.isRetrying
 }
 
 func newMessage(content []byte, source *config.LogSource, status string) *message.Payload {

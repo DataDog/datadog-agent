@@ -8,6 +8,7 @@ package tcp
 import (
 	"expvar"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -19,6 +20,7 @@ import (
 
 // Destination is responsible for shipping logs to a remote server over TCP.
 type Destination struct {
+	sync.Mutex
 	prefixer            *prefixer
 	delimiter           Delimiter
 	connManager         *ConnectionManager
@@ -26,6 +28,7 @@ type Destination struct {
 	conn                net.Conn
 	connCreationTime    time.Time
 	shouldRetry         bool
+	isRetrying          bool
 }
 
 // NewDestination returns a new destination.
@@ -38,23 +41,28 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		connManager:         NewConnectionManager(endpoint),
 		destinationsContext: destinationsContext,
 		shouldRetry:         shouldRetry,
+		isRetrying:          false,
 	}
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
 // TODO: return retry channel and close it
-func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) (isRetrying chan bool) {
-	isRetrying = make(chan bool, 1)
+func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) {
 	go func() {
 		for payload := range input {
-			d.sendAndRetry(payload, isRetrying, output)
+			d.sendAndRetry(payload, output)
 		}
-		close(isRetrying)
 	}()
-	return isRetrying
 }
 
-func (d *Destination) sendAndRetry(payload *message.Payload, isRetrying chan bool, output chan *message.Payload) {
+// GetIsRetrying returns true if the destination is retrying
+func (d *Destination) GetIsRetrying() bool {
+	d.Lock()
+	defer d.Unlock()
+	return d.isRetrying
+}
+
+func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload) {
 	for {
 		if d.conn == nil {
 			var err error

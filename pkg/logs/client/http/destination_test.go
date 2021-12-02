@@ -8,9 +8,11 @@ package http
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -59,8 +61,7 @@ func TestDestinationSend200(t *testing.T) {
 	server := NewTestServer(200)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetrying := server.destination.Start(input, output)
-	_ = isRetrying
+	server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
@@ -72,10 +73,14 @@ func TestDestinationSend500Retries(t *testing.T) {
 	server := NewTestServer(500)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetryingChan := server.destination.Start(input, output)
+	server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	assert.True(t, <-isRetryingChan)
+
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+		return server.destination.GetIsRetrying()
+	})
+	assert.True(t, server.destination.GetIsRetrying())
 
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
@@ -88,10 +93,14 @@ func TestDestinationSend429Retries(t *testing.T) {
 	server := NewTestServer(429)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetryingChan := server.destination.Start(input, output)
+	server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	assert.True(t, <-isRetryingChan)
+
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+		return server.destination.GetIsRetrying()
+	})
+	assert.True(t, server.destination.GetIsRetrying())
 
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
@@ -104,10 +113,14 @@ func TestDestinationContextCancel(t *testing.T) {
 	server := NewTestServer(429)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetryingChan := server.destination.Start(input, output)
+	server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	assert.True(t, <-isRetryingChan)
+
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+		return server.destination.GetIsRetrying()
+	})
+	assert.True(t, server.destination.GetIsRetrying())
 
 	server.destination.destinationsContext.Stop()
 
@@ -122,25 +135,18 @@ func TestDestinationSend400(t *testing.T) {
 	server := NewTestServer(400)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetryingChan := server.destination.Start(input, output)
+	server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
-	select {
-	case <-isRetryingChan:
-		assert.Fail(t, "the error channel should be empty")
-	default:
-	}
+
+	assert.False(t, server.destination.GetIsRetrying())
 
 	// Should not retry 400 - no error reported back (because it's not retryable) so input should be unblocked
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
-	select {
-	case <-isRetryingChan:
-		assert.Fail(t, "the error channel should be empty")
-	default:
-	}
 
+	assert.False(t, server.destination.GetIsRetrying())
 	server.Stop()
 }
 
