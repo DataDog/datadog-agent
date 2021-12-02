@@ -16,6 +16,77 @@ import (
 
 var questionMark = []byte("?")
 
+// metadataFinderFilter is a filter which attempts to collect metadata from a query, such as comments and tables.
+// It is meant to run before all the other filters.
+type metadataFinderFilter struct {
+	collectTableNames bool
+	collectComments   bool
+
+	// comments keeps track of comments encountered by the filter.
+	comments []string
+	// tablesSeen keeps track of unique table names encountered by the filter.
+	tablesSeen map[string]struct{}
+	// tablesCsv specifies a comma-separated list of tables.
+	tablesCsv strings.Builder
+}
+
+func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
+	if f.collectComments && token == Comment {
+		// A comment with line-breaks will be brought to a single line.
+		f.comments = append(f.comments, strings.TrimSpace(strings.Replace(string(buffer), "\n", " ", -1)))
+	}
+	if f.collectTableNames {
+		switch lastToken {
+		case From, Join:
+			// SELECT ... FROM [tableName]
+			// DELETE FROM [tableName]
+			// ... JOIN [tableName]
+			if r, _ := utf8.DecodeRune(buffer); !unicode.IsLetter(r) {
+				// first character in buffer is not a letter; we might have a nested
+				// query like SELECT * FROM (SELECT ...)
+				break
+			}
+			fallthrough
+		case Update, Into:
+			// UPDATE [tableName]
+			// INSERT INTO [tableName]
+			f.storeTableName(string(buffer))
+			return TableName, buffer, nil
+		}
+	}
+	return token, buffer, nil
+}
+
+func (f *metadataFinderFilter) storeTableName(name string) {
+	if _, ok := f.tablesSeen[name]; ok {
+		return
+	}
+	if f.tablesSeen == nil {
+		f.tablesSeen = make(map[string]struct{}, 1)
+	}
+	f.tablesSeen[name] = struct{}{}
+	if f.tablesCsv.Len() > 0 {
+		f.tablesCsv.WriteByte(',')
+	}
+	f.tablesCsv.WriteString(name)
+}
+
+// Results returns metadata collected by the filter for an SQL statement.
+func (f *metadataFinderFilter) Results() SQLMetadata {
+	return SQLMetadata{
+		TablesCSV: f.tablesCsv.String(),
+		Comments:  f.comments,
+	}
+}
+
+// Reset implements tokenFilter.
+func (f *metadataFinderFilter) Reset() {
+	for k := range f.tablesSeen {
+		delete(f.tablesSeen, k)
+	}
+	f.tablesCsv.Reset()
+}
+
 // discardFilter is a token filter which discards certain elements from a query, such as
 // comments and AS aliases by returning a nil buffer.
 type discardFilter struct {
@@ -220,77 +291,6 @@ func (o *Obfuscator) obfuscateSQLString(in string, opts *SQLConfig) (*Obfuscated
 		}
 	}
 	return out, err
-}
-
-// metadataFinderFilter is a filter which attempts to collect metadata from a query, such as comments and tables.
-// It is meant to run before all the other filters.
-type metadataFinderFilter struct {
-	collectTableNames bool
-	collectComments   bool
-
-	// comments keeps track of comments encountered by the filter.
-	comments []string
-	// tablesSeen keeps track of unique table names encountered by the filter.
-	tablesSeen map[string]struct{}
-	// tablesCsv specifies a comma-separated list of tables.
-	tablesCsv strings.Builder
-}
-
-func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
-	if f.collectComments && token == Comment {
-		// A comment with line-breaks will be brought to a single line.
-		f.comments = append(f.comments, strings.TrimSpace(strings.Replace(string(buffer), "\n", " ", -1)))
-	}
-	if f.collectTableNames {
-		switch lastToken {
-		case From, Join:
-			// SELECT ... FROM [tableName]
-			// DELETE FROM [tableName]
-			// ... JOIN [tableName]
-			if r, _ := utf8.DecodeRune(buffer); !unicode.IsLetter(r) {
-				// first character in buffer is not a letter; we might have a nested
-				// query like SELECT * FROM (SELECT ...)
-				break
-			}
-			fallthrough
-		case Update, Into:
-			// UPDATE [tableName]
-			// INSERT INTO [tableName]
-			f.storeTableName(string(buffer))
-			return TableName, buffer, nil
-		}
-	}
-	return token, buffer, nil
-}
-
-func (f *metadataFinderFilter) storeTableName(name string) {
-	if _, ok := f.tablesSeen[name]; ok {
-		return
-	}
-	if f.tablesSeen == nil {
-		f.tablesSeen = make(map[string]struct{}, 1)
-	}
-	f.tablesSeen[name] = struct{}{}
-	if f.tablesCsv.Len() > 0 {
-		f.tablesCsv.WriteByte(',')
-	}
-	f.tablesCsv.WriteString(name)
-}
-
-// Results returns metadata collected by the filter for an SQL statement.
-func (f *metadataFinderFilter) Results() SQLMetadata {
-	return SQLMetadata{
-		TablesCSV: f.tablesCsv.String(),
-		Comments:  f.comments,
-	}
-}
-
-// Reset implements tokenFilter.
-func (f *metadataFinderFilter) Reset() {
-	for k := range f.tablesSeen {
-		delete(f.tablesSeen, k)
-	}
-	f.tablesCsv.Reset()
 }
 
 // ObfuscatedQuery specifies information about an obfuscated SQL query.
