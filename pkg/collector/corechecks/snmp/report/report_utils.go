@@ -42,10 +42,8 @@ func processValue(symbol checkconfig.SymbolConfig, value valuestore.ResultValue)
 		value = extractedValue
 	}
 	if symbol.MatchPatternCompiled != nil {
-		// TODO: TEST ME
 		strValue, err := value.ToString()
 		if err != nil {
-			// TODO: TEST ME
 			log.Debugf("error converting value to string (value=%v):", value, err)
 			return valuestore.ResultValue{}, err
 		}
@@ -53,13 +51,10 @@ func processValue(symbol checkconfig.SymbolConfig, value valuestore.ResultValue)
 		if symbol.MatchPatternCompiled.MatchString(strValue) {
 			replacedVal := checkconfig.RegexReplaceValue(strValue, symbol.MatchPatternCompiled, symbol.MatchValue)
 			if replacedVal == "" {
-				// TODO: TEST ME
-				log.Debugf("pattern `%v` failed to match `%v` with template `%v`", strValue, symbol.MatchValue)
-				return valuestore.ResultValue{}, err
+				return valuestore.ResultValue{}, fmt.Errorf("pattern `%v` failed to match `%v` with template `%s`", symbol.MatchPattern, strValue, symbol.MatchValue)
 			}
 			value = valuestore.ResultValue{Value: replacedVal}
 		} else {
-			// TODO: TEST ME
 			return valuestore.ResultValue{}, fmt.Errorf("match pattern `%v` does not match string `%s`", symbol.MatchPattern, strValue)
 		}
 	}

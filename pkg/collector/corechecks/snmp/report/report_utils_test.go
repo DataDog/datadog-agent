@@ -23,7 +23,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name:   "valid case",
+			name:   "OK oid value case",
 			values: mockValues,
 			symbol: checkconfig.SymbolConfig{OID: "1.2.3.4", Name: "mySymbol"},
 			expectedValue: valuestore.ResultValue{
@@ -49,6 +49,84 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			},
 			expectedValue: valuestore.ResultValue{},
 			expectedError: "extract value extractValuePattern does not match (extractValuePattern=abc, srcValue=value1)",
+		},
+		{
+			name:   "OK match pattern without replace",
+			values: mockValues,
+			symbol: checkconfig.SymbolConfig{
+				OID:                  "1.2.3.4",
+				Name:                 "mySymbol",
+				MatchPatternCompiled: regexp.MustCompile("value\\d"),
+				MatchValue:           "matched-value-with-digit",
+			},
+			expectedValue: valuestore.ResultValue{
+				Value: "matched-value-with-digit",
+			},
+			expectedError: "",
+		},
+		{
+			name:   "Error match pattern does not match",
+			values: mockValues,
+			symbol: checkconfig.SymbolConfig{
+				OID:                  "1.2.3.4",
+				Name:                 "mySymbol",
+				MatchPattern:         "doesNotMatch",
+				MatchPatternCompiled: regexp.MustCompile("doesNotMatch"),
+				MatchValue:           "noMatch",
+			},
+			expectedValue: valuestore.ResultValue{},
+			expectedError: "match pattern `doesNotMatch` does not match string `value1`",
+		},
+		{
+			name:   "Error match pattern template does not match",
+			values: mockValues,
+			symbol: checkconfig.SymbolConfig{
+				OID:                  "1.2.3.4",
+				Name:                 "mySymbol",
+				MatchPattern:         "value(\\d)",
+				MatchPatternCompiled: regexp.MustCompile("value(\\d)"),
+				MatchValue:           "$2",
+			},
+			expectedValue: valuestore.ResultValue{},
+			expectedError: "pattern `value(\\d)` failed to match `value1` with template `$2`",
+		},
+		{
+			name:   "OK Extract value case",
+			values: mockValues,
+			symbol: checkconfig.SymbolConfig{
+				OID:                  "1.2.3.4",
+				Name:                 "mySymbol",
+				ExtractValue:         "[a-z]+(\\d)",
+				ExtractValueCompiled: regexp.MustCompile("[a-z]+(\\d)"),
+			},
+			expectedValue: valuestore.ResultValue{
+				Value: "1",
+			},
+			expectedError: "",
+		},
+		{
+			name:   "Error extract value pattern des not contain any matching group",
+			values: mockValues,
+			symbol: checkconfig.SymbolConfig{
+				OID:                  "1.2.3.4",
+				Name:                 "mySymbol",
+				ExtractValue:         "[a-z]+\\d",
+				ExtractValueCompiled: regexp.MustCompile("[a-z]+\\d"),
+			},
+			expectedValue: valuestore.ResultValue{},
+			expectedError: "extract value pattern des not contain any matching group",
+		},
+		{
+			name:   "Error extract value extractValuePattern does not match",
+			values: mockValues,
+			symbol: checkconfig.SymbolConfig{
+				OID:                  "1.2.3.4",
+				Name:                 "mySymbol",
+				ExtractValue:         "[a-z]+(\\d)",
+				ExtractValueCompiled: regexp.MustCompile("doesNotMatch"),
+			},
+			expectedValue: valuestore.ResultValue{},
+			expectedError: "extract value extractValuePattern does not match",
 		},
 	}
 	for _, tt := range tests {
