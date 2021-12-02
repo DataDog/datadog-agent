@@ -114,7 +114,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 				ExtractValueCompiled: regexp.MustCompile("[a-z]+\\d"),
 			},
 			expectedValue: valuestore.ResultValue{},
-			expectedError: "extract value pattern des not contain any matching group",
+			expectedError: "extract value pattern des not contain any matching group (extractValuePattern=[a-z]+\\d, srcValue=value1)",
 		},
 		{
 			name:   "Error extract value extractValuePattern does not match",
@@ -126,7 +126,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 				ExtractValueCompiled: regexp.MustCompile("doesNotMatch"),
 			},
 			expectedValue: valuestore.ResultValue{},
-			expectedError: "extract value extractValuePattern does not match",
+			expectedError: "extract value extractValuePattern does not match (extractValuePattern=doesNotMatch, srcValue=value1)",
 		},
 	}
 	for _, tt := range tests {
