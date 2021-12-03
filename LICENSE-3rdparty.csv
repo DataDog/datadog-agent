@@ -195,7 +195,6 @@ core,github.com/cilium/ebpf/internal/unix,MIT,Authors of Cilium | Cloudflare | N
 core,github.com/cilium/ebpf/perf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go Authors
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
-core,github.com/cobaugh/osrelease,BSD-3-Clause,Andrew Cobaugh
 core,github.com/containerd/cgroups/stats/v1,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/api/events,Apache-2.0,The containerd Authors
