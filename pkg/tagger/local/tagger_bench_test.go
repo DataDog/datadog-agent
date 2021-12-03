@@ -10,11 +10,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func initTagger() *Tagger {
-	catalog := collectors.Catalog{}
-	tagger := NewTagger(catalog)
+	tagger := NewTagger(workloadmeta.GetGlobalStore())
 	tagger.Init()
 	tagger.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
