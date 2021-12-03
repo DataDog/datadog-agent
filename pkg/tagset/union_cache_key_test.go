@@ -39,3 +39,25 @@ func BenchmarkUnionCacheKey(b *testing.B) {
 		bHash += bIncr
 	}
 }
+
+func TestUnioncCacheKey_Fuzz(t *testing.T) {
+	type pair struct {
+		a, b uint64
+	}
+	seen := map[uint64]pair{}
+	fuzz(t, func(seed int64) {
+		r := rand.New(rand.NewSource(seed))
+		for i := 0; i < 10000; i++ {
+			p := pair{
+				a: r.Uint64(),
+				b: r.Uint64(),
+			}
+			k := unionCacheKey(p.a, p.b)
+			if existing, found := seen[k]; found {
+				require.Equal(t, existing, p)
+			} else {
+				seen[k] = p
+			}
+		}
+	})
+}

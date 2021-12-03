@@ -12,7 +12,7 @@ import (
 func TestSliceBuilder_Fuzz(t *testing.T) {
 	f := newNullFactory()
 	var lastSb *SliceBuilder
-	fuzz(func(seed int64) {
+	fuzz(t, func(seed int64) {
 		r := rand.New(rand.NewSource(seed))
 		levels := r.Intn(10) + 1
 

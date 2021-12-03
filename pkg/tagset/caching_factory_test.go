@@ -20,7 +20,7 @@ func TestCachingFactory(t *testing.T) {
 
 func TestCachingFactory_Union_Fuzz(t *testing.T) {
 	f := NewCachingFactory(100, 1)
-	fuzz(func(seed int64) {
+	fuzz(t, func(seed int64) {
 		r := rand.New(rand.NewSource(seed))
 
 		bothBuilder := f.NewBuilder(30)
