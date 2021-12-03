@@ -3,6 +3,7 @@ package tagset
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -84,4 +85,35 @@ func TestSliceBuilder_AddKV(t *testing.T) {
 	t012 := sb.FreezeSlice(0, 3)
 	t012.validate(t)
 	require.Equal(t, []string{"cluster:k", "container:abc", "host:123", "task:92489"}, t012.Sorted())
+}
+
+func ExampleSliceBuilder() {
+	regions := []string{"emea", "us", "antarctic"}
+	datasets := []string{"data.world", "kaggle"}
+	shards := []int{1, 4, 19}
+
+	bldr := DefaultFactory.NewSliceBuilder(3, 5) // stage 1: adding tags
+	for _, rgn := range regions {
+		bldr.AddKV(0, "region", rgn)
+	}
+	for _, ds := range datasets {
+		bldr.AddKV(1, "dataset", ds)
+	}
+	for _, shard := range shards {
+		bldr.AddKV(2, "shard", strconv.Itoa(shard))
+	}
+
+	lowCardTags := bldr.FreezeSlice(0, 1) // stage 2: frozen
+	medCardTags := bldr.FreezeSlice(0, 2)
+	allTags := bldr.FreezeSlice(0, 3)
+
+	bldr.Close() // stage 3: closed
+
+	fmt.Printf("%s\n", lowCardTags.Sorted())
+	fmt.Printf("%s\n", medCardTags.Sorted())
+	fmt.Printf("%s\n", allTags.Sorted())
+	// Output:
+	// [region:antarctic region:emea region:us]
+	// [dataset:data.world dataset:kaggle region:antarctic region:emea region:us]
+	// [dataset:data.world dataset:kaggle region:antarctic region:emea region:us shard:1 shard:19 shard:4]
 }

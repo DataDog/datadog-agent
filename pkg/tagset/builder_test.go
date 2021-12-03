@@ -1,6 +1,8 @@
 package tagset
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -65,4 +67,19 @@ func TestBuilder_Contains(t *testing.T) {
 
 	require.True(t, bldr.Contains("host:foo"))
 	require.False(t, bldr.Contains("host:bing"))
+}
+
+func ExampleBuilder() {
+	shards := []int{1, 4, 19}
+
+	bldr := DefaultFactory.NewBuilder(5) // stage 1: adding tags
+	for _, shard := range shards {
+		bldr.AddKV("shard", strconv.Itoa(shard))
+	}
+
+	tags := bldr.Freeze() // stage 2: frozen
+	bldr.Close()          // stage 3: closed
+
+	fmt.Printf("%s", tags.Sorted())
+	// Output: [shard:1 shard:19 shard:4]
 }

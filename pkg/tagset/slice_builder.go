@@ -17,7 +17,12 @@ import (
 //     2. frozen (begins on call to bldr.FreezeSlice).
 //     3. closed (begins on call to bldr.Close).
 //
-// The Add* methods may only be called in the "adding tags" stage. No methods may be called in the "closed" stage.
+// The Add* methods may only be called in the "adding tags" stage. No methods
+// may be called in the "closed" stage.
+//
+// In general, the easiest way to ensure these stages are followed (and allow reviewers
+// to verify this) is to use a builder in a single method, as shown in the example.  Avoid
+// storing builders in structs.
 type SliceBuilder struct {
 	factory Factory
 
