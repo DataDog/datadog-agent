@@ -112,10 +112,7 @@ func (mr *MountResolver) SyncCache(proc *process.Process) error {
 		if _, exists := mr.mounts[e.MountID]; exists {
 			continue
 		}
-		mr.insert(*e)
-
-		// init discarder revisions
-		mr.probe.inodeDiscarders.initRevision(e)
+		mr.insert(e)
 	}
 
 	return nil
@@ -207,14 +204,12 @@ func (mr *MountResolver) Insert(e model.MountEvent) error {
 		return errors.Errorf("couldn't insert mount_id %d: mount_point_error:%v root_error:%v", e.MountID, e.MountPointPathResolutionError, e.RootPathResolutionError)
 	}
 
-	mr.insert(e)
+	mr.insert(&e)
 
-	// init discarder revisions
-	mr.probe.inodeDiscarders.initRevision(&e)
 	return nil
 }
 
-func (mr *MountResolver) insert(e model.MountEvent) {
+func (mr *MountResolver) insert(e *model.MountEvent) {
 	// umount the previous one if exists
 	if prev, ok := mr.mounts[e.MountID]; ok {
 		mr.delete(prev)
@@ -234,9 +229,17 @@ func (mr *MountResolver) insert(e model.MountEvent) {
 		deviceMounts = make(map[uint32]*model.MountEvent)
 		mr.devices[e.Device] = deviceMounts
 	}
-	deviceMounts[e.MountID] = &e
+	deviceMounts[e.MountID] = e
 
-	mr.mounts[e.MountID] = &e
+	mr.mounts[e.MountID] = e
+
+	// init discarder revisions
+	mr.probe.inodeDiscarders.initRevision(e)
+
+	// update symlinks
+	if e.IsOverlayFS() {
+		mr.probe.resolvers.SymlinkResolver.UpdateSymlinks(e.MountPointStr)
+	}
 }
 
 func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) string {

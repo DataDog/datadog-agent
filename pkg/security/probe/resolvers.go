@@ -194,6 +194,10 @@ func (r *Resolvers) Snapshot() error {
 	if err != nil {
 		return errors.Wrap(err, "unable to snapshot SELinux")
 	}
+
+	// just sync root, overlayfs will be synced by the mount resolver
+	r.SymlinkResolver.UpdateSymlinks("")
+
 	return snapshotSELinux(selinuxStatusMap)
 }
 
