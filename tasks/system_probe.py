@@ -603,6 +603,7 @@ def build_http_ebpf_files(ctx, build_dir, kernel_release=None):
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
+    compiled_programs = ["dns", "http", "offset-guess", "tracer", "go-tls"]
     network_flags = get_http_prebuilt_build_flags(network_c_dir, kernel_release=kernel_release)
 
     build_network_ebpf_compile_file(
@@ -795,6 +796,7 @@ def generate_runtime_files(ctx):
         "./pkg/collector/corechecks/ebpf/probe/oom_kill.go",
         "./pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go",
         "./pkg/network/http/compile.go",
+        "./pkg/network/http/gotls/compile.go",
         "./pkg/network/tracer/compile.go",
         "./pkg/network/tracer/connection/kprobe/compile.go",
         "./pkg/security/ebpf/compile.go",
@@ -836,6 +838,7 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
             "./pkg/network/ebpf/conntrack_types.go",
             "./pkg/network/ebpf/tuple_types.go",
             "./pkg/network/ebpf/kprobe_types.go",
+            "./pkg/network/ebpf/go_tls_types.go",
         ]
 
     env = {}

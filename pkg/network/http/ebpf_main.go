@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -67,6 +68,10 @@ type subprogram interface {
 	ConfigureOptions(*manager.Options)
 	Start()
 	Stop()
+}
+
+type postInitListener interface {
+	PostInit(*manager.Manager)
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
@@ -120,14 +125,19 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
+	// TODO: why swallow errors here?
 	sslProgram, _ := newSSLProgram(c, sockFD)
+	goTlsProgram, err := gotls.NewGoTLSProgram(c, sockFD)
+	if err != nil {
+		return nil, fmt.Errorf("could not initialize Go TLS program: %w", err)
+	}
 	program := &ebpfProgram{
 		Manager:                mgr,
 		bytecode:               bytecode,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{sslProgram},
+		subprograms:            []subprogram{sslProgram, goTlsProgram},
 	}
 
 	return program, nil
@@ -186,6 +196,12 @@ func (e *ebpfProgram) Init() error {
 	err := e.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
+	}
+
+	for _, s := range e.subprograms {
+		if p, ok := s.(postInitListener); ok {
+			p.PostInit(e.Manager)
+		}
 	}
 
 	return nil

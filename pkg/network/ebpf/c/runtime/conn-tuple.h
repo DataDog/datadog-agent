@@ -2,6 +2,7 @@
 #define __CONN_TUPLE_H
 
 #include "netns.h"
+#include "bpf_endian.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
