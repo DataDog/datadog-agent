@@ -92,6 +92,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			d.conn = nil
 
 			if d.shouldRetry {
+				d.Lock()
+				d.isRetrying = true
+				d.Unlock()
 				d.incrementErrors(false)
 				// TODO: report retries
 				// retry (will try to open a new connection)
@@ -100,6 +103,10 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 				d.incrementErrors(true)
 			}
 		}
+
+		d.Lock()
+		d.isRetrying = true
+		d.Unlock()
 
 		metrics.LogsSent.Add(1)
 		metrics.TlmLogsSent.Inc()

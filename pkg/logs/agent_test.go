@@ -184,6 +184,12 @@ func (suite *AgentTestSuite) TestAgentRetriesWithWrongBackendHttp() {
 	})
 	agent.Stop()
 
+	// The context gets canceled when the agent stops. at this point the additional sender is stuck
+	// trying to establish a connection. agent.Stop will cancel it and the error telemetry will be updated
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
+		return metrics.DestinationErrors.Value() > 0
+	})
+
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 
@@ -245,6 +251,9 @@ func (suite *AgentTestSuite) TestAgentUnreliableAdditinalEndpointFailsHttp() {
 	// Give the agent at most one second to send the logs.
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return int64(4) == metrics.LogsSent.Value()
+	})
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
+		return int64(2) == metrics.DestinationErrors.Value()
 	})
 	agent.Stop()
 

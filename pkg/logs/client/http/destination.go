@@ -189,13 +189,11 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 				d.isRetrying = true
 				d.Unlock()
 				continue
-
-			} else {
-				d.nbErrors = d.backoff.DecError(d.nbErrors)
-				d.lastError = nil
-				d.isRetrying = false
-				d.Unlock()
 			}
+			d.nbErrors = d.backoff.DecError(d.nbErrors)
+			d.lastError = nil
+			d.isRetrying = false
+			d.Unlock()
 		}
 
 		metrics.LogsSent.Add(int64(len(payload.Messages)))
