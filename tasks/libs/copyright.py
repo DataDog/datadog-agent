@@ -79,7 +79,7 @@ class CopyrightLinter:
                 filtered_files.append(filepath)
 
         excluded_files_cnt = all_matching_files_cnt - len(filtered_files)
-        print(f"[WARN] Excluding {excluded_files_cnt} files based on path filters!")
+        print(f"[INFO] Excluding {excluded_files_cnt} files based on path filters!")
 
         return sorted(filtered_files)
 
@@ -108,21 +108,23 @@ class CopyrightLinter:
     def _has_copyright(filepath, debug=False):
         header = CopyrightLinter._get_header(filepath)
         if header is None:
-            print("Mismatch found! Could not find any content in file!")
+            print("[WARN] Mismatch found! Could not find any content in file!")
             return False
 
         if len(header) > 0 and CopyrightLinter._is_excluded_header(header, exclude=COMPILED_HEADER_EXCLUSION_REGEX):
             if debug:
-                print(f"[WARN] Excluding {filepath} based on header '{header[0]}'")
+                print(f"[INFO] Excluding {filepath} based on header '{header[0]}'")
             return True
 
         if len(header) <= 3:
-            print("Mismatch found! File too small for header stanza!")
+            print("[WARN] Mismatch found! File too small for header stanza!")
             return False
 
         for line_idx, matcher in enumerate(COMPILED_COPYRIGHT_REGEX):
             if not re.match(matcher, header[line_idx]):
-                print(f"Mismatch found! Expected '{COPYRIGHT_REGEX[line_idx]}' pattern but got '{header[line_idx]}'")
+                print(
+                    f"[WARN] Mismatch found! Expected '{COPYRIGHT_REGEX[line_idx]}' pattern but got '{header[line_idx]}'"
+                )
                 return False
 
         return True
@@ -160,15 +162,15 @@ class CopyrightLinter:
         git_repo_dir = CopyrightLinter._get_repo_dir()
 
         if debug:
-            print(f"Repo root: {git_repo_dir}")
-            print(f"Finding all files in {git_repo_dir} matching '{GLOB_PATTERN}'...")
+            print(f"[DEBG] Repo root: {git_repo_dir}")
+            print(f"[DEBG] Finding all files in {git_repo_dir} matching '{GLOB_PATTERN}'...")
 
         matching_files = CopyrightLinter._get_matching_files(
             git_repo_dir,
             GLOB_PATTERN,
             exclude=COMPILED_PATH_EXCLUSION_REGEX,
         )
-        print(f"Found {len(matching_files)} files matching '{GLOB_PATTERN}'")
+        print(f"[INFO] Found {len(matching_files)} files matching '{GLOB_PATTERN}'")
 
         failing_files = CopyrightLinter._assert_copyrights(matching_files, debug=debug)
         if len(failing_files) > 0:
