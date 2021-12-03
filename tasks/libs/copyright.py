@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import re
 import subprocess
 import sys
@@ -45,38 +44,39 @@ class CopyrightLinter:
     @staticmethod
     def _get_repo_dir():
         script_dir = PurePosixPath(__file__).parent
-        current_dir = Path.cwd()
 
-        os.chdir(script_dir)
-        repo_dir = subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode(sys.stdout.encoding).strip()
-        os.chdir(current_dir)
+        repo_dir = (
+            subprocess.check_output(
+                ['git', 'rev-parse', '--show-toplevel'],
+                cwd=script_dir,
+            )
+            .decode(sys.stdout.encoding)
+            .strip()
+        )
 
         return PurePosixPath(repo_dir)
+
+    @staticmethod
+    def _is_excluded_path(filepath, exclude_matchers):
+        for matcher in exclude_matchers:
+            if re.search(matcher, filepath.as_posix()):
+                return True
+
+        return False
 
     @staticmethod
     def _get_matching_files(root_dir, glob_pattern, exclude=None):
         if exclude is None:
             exclude = []
 
-        all_matching_files = Path(root_dir).glob(glob_pattern)
-
-        # `all_matching_files` is a generator so we have to do the counting ourselves
+        # Glob is a generator so we have to do the counting ourselves
         all_matching_files_cnt = 0
 
         filtered_files = []
-        for filepath in all_matching_files:
+        for filepath in Path(root_dir).glob(glob_pattern):
             all_matching_files_cnt += 1
-
-            excluded = False
-            for matcher in exclude:
-                if re.search(matcher, filepath.as_posix()):
-                    excluded = True
-                    break
-
-            if excluded:
-                continue
-
-            filtered_files.append(filepath)
+            if not CopyrightLinter._is_excluded_path(filepath, exclude):
+                filtered_files.append(filepath)
 
         excluded_files_cnt = all_matching_files_cnt - len(filtered_files)
         print(f"[WARN] Excluding {excluded_files_cnt} files based on path filters!")
@@ -141,7 +141,7 @@ class CopyrightLinter:
             failing_files.append(filepath)
 
         total_files = len(files)
-        if failing_files != 0:
+        if failing_files:
             pct_failing = (len(failing_files) / total_files) * 100
             print()
             print(

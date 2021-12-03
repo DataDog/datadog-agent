@@ -552,8 +552,7 @@ def lint_python(ctx):
 @task
 def lint_copyrights(_):
     """
-    Checks that all files matching the search pattern (default: '**/*.go')
-    contain the appropriate copyright header.
+    Checks that all Go files contain the appropriate copyright header.
     """
 
     CopyrightLinter().assert_compliance()
