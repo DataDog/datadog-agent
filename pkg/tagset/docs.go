@@ -29,7 +29,7 @@
 // is available for general use, and purpose-specific factories can be created
 // for more intensive tag operations.
 //
-// In general, factories are not thread-safe
+// In general, factories are not thread-safe.
 //
 // Builders
 //
