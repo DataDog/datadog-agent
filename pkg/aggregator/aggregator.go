@@ -505,7 +505,7 @@ func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series
 	tagsetTlm.updateHugeSeriesTelemetry(&series)
 }
 
-func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {
+func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metrics.SerieSink) {
 	recurrentSeriesLock.Lock()
 	// Adding recurrentSeries to the flushed ones
 	for _, extra := range recurrentSeries {
@@ -535,13 +535,13 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 				})
 		}
 		newSerie.Points = updatedPoints
-		series = append(series, newSerie)
+		series.Append(newSerie)
 	}
 	recurrentSeriesLock.Unlock()
 
 	// Send along a metric that showcases that this Agent is running (internally, in backend,
 	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
-	series = append(series, &metrics.Serie{
+	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           agg.tags(true),
@@ -551,7 +551,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	})
 
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
-	series = append(series, &metrics.Serie{
+	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
 		Tags:           agg.tags(false),
@@ -559,7 +559,10 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	})
+}
 
+func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {
+	agg.appendDefaultSeries(start, &series)
 	addFlushCount("Series", int64(len(series)))
 
 	// For debug purposes print out all metrics/tag combinations
