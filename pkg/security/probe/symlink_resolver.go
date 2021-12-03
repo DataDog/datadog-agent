@@ -9,7 +9,9 @@
 package probe
 
 import (
-	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"unsafe"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -18,37 +20,79 @@ import (
 
 // SymlinkResolver defines a symlink resolver
 type SymlinkResolver struct {
+	sync.RWMutex
+
 	cache map[unsafe.Pointer]*eval.StringValues
+	index map[string][]*eval.StringValues
+	added map[string]bool
 }
 
-// Resolve resolves the given symlinks
-func (s *SymlinkResolver) Resolve(key unsafe.Pointer, path ...string) *eval.StringValues {
-	if values, exists := s.cache[key]; exists {
-		return values
+// InitStringValues initialize the symlinks resolution, should be called only during the
+// rules compilations
+func (s *SymlinkResolver) InitStringValues(key unsafe.Pointer, paths ...string) {
+	var values eval.StringValues
+
+	for _, path := range paths {
+		values.AppendScalarValue(path)
+		s.added[path] = true
+
+		allValues := s.index[path]
+		allValues = append(allValues, &values)
+		s.index[path] = allValues
 	}
 
-	values := &eval.StringValues{}
+	s.cache[key] = &values
+}
 
-	for _, p := range path {
-		// re-add existing value
-		values.AppendScalarValue(p)
-
-		dest, err := os.Readlink(p)
+func (s *SymlinkResolver) UpdateSymlinks(root string) {
+	for path, allValues := range s.index {
+		dest, err := filepath.EvalSymlinks(filepath.Join(root, path))
 		if err != nil {
 			continue
 		}
-		seclog.Tracef("new symlink resolved : src %s dst %s\n", p, dest)
-		values.AppendScalarValue(dest)
+		dest = strings.TrimPrefix(dest, root)
+
+		if s.added[dest] {
+			continue
+		}
+
+		seclog.Tracef("symlink resolved %s(%s) => %s\n", path, root, dest)
+
+		s.Lock()
+		for _, values := range allValues {
+			values.AppendScalarValue(dest)
+			s.added[dest] = true
+		}
+		s.Unlock()
 	}
-
-	s.cache[key] = values
-
-	return values
 }
 
-// NewSymLinkResolver returns a new symlink resolver
-func NewSymLinkResolver() *SymlinkResolver {
-	return &SymlinkResolver{
-		cache: make(map[unsafe.Pointer]*eval.StringValues),
+// GetStringValues returns the string values for the given key
+func (s *SymlinkResolver) GetStringValues(key unsafe.Pointer) *eval.StringValues {
+	s.RLock()
+	defer s.RUnlock()
+
+	if values := s.cache[key]; values != nil {
+		return values
 	}
+
+	// return empty values to avoid crash, this should never append except during reload
+	return &eval.StringValues{}
+}
+
+// Reset all the caches
+func (s *SymlinkResolver) Reset() {
+	s.RLock()
+	defer s.RUnlock()
+
+	s.cache = make(map[unsafe.Pointer]*eval.StringValues)
+	s.index = make(map[string][]*eval.StringValues)
+	s.added = make(map[string]bool)
+}
+
+// NewSymLinkResolver returns a new
+func NewSymLinkResolver() *SymlinkResolver {
+	sr := &SymlinkResolver{}
+	sr.Reset()
+	return sr
 }

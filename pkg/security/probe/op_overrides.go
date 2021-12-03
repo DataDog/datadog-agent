@@ -34,11 +34,11 @@ var (
 
 			// pre-cache at compile time
 			probe := opts.UserCtx.(*Probe)
-			probe.resolvers.SymlinkResolver.Resolve(key, value)
+			probe.resolvers.SymlinkResolver.InitStringValues(key, value)
 
 			evaluator := eval.StringValuesEvaluator{
 				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
-					return probe.resolvers.SymlinkResolver.Resolve(key, value)
+					return probe.resolvers.SymlinkResolver.GetStringValues(key)
 				},
 			}
 
@@ -53,11 +53,11 @@ var (
 
 			// pre-cache at compile time
 			probe := opts.UserCtx.(*Probe)
-			probe.resolvers.SymlinkResolver.Resolve(key, values...)
+			probe.resolvers.SymlinkResolver.InitStringValues(key, values...)
 
 			evaluator := eval.StringValuesEvaluator{
 				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
-					return probe.resolvers.SymlinkResolver.Resolve(key, values...)
+					return probe.resolvers.SymlinkResolver.GetStringValues(key)
 				},
 			}
 
@@ -73,11 +73,11 @@ var (
 
 			// pre-cache at compile time
 			probe := opts.UserCtx.(*Probe)
-			probe.resolvers.SymlinkResolver.Resolve(key, value)
+			probe.resolvers.SymlinkResolver.InitStringValues(key, value)
 
 			evaluator := eval.StringValuesEvaluator{
 				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
-					return probe.resolvers.SymlinkResolver.Resolve(key, value)
+					return probe.resolvers.SymlinkResolver.GetStringValues(key)
 				},
 			}
 
@@ -92,11 +92,11 @@ var (
 
 			// pre-cache at compile time
 			probe := opts.UserCtx.(*Probe)
-			probe.resolvers.SymlinkResolver.Resolve(key, values...)
+			probe.resolvers.SymlinkResolver.InitStringValues(key, values...)
 
 			evaluator := eval.StringValuesEvaluator{
 				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
-					return probe.resolvers.SymlinkResolver.Resolve(key, values...)
+					return probe.resolvers.SymlinkResolver.GetStringValues(key)
 				},
 			}
 
