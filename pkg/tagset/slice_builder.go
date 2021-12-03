@@ -115,8 +115,8 @@ func (bldr *SliceBuilder) Add(level int, tag string) {
 	var newTags []string
 	var newHashes []uint64
 
-	// reallocate the storage if there is not room in the existing array, and
-	// copy the existing data into the new array
+	// reallocate the storage if there is not enough room in the existing
+	// array, and copy the existing data into the new array
 	if cap(bldr.tags) < newLen {
 		newTags = make([]string, newLen, newLen*2)
 		newHashes = make([]uint64, newLen, newLen*2)

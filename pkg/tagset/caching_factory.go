@@ -17,7 +17,7 @@ type cachingFactory struct {
 	baseFactory
 
 	// Tags instances are cached by 64-bit cache keys that can have a range of
-	// meanings; each CacheID identifies a different such meaning. Caches with
+	// meanings; each CacheID identifies a different meaning. Caches with
 	// different CacheIDs are stored independently.
 	caches [numCacheIDs]tagsCache
 }
