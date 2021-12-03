@@ -91,8 +91,9 @@ type MetadataResourceConfig struct {
 
 // MetadataField holds configs for a metadata field
 type MetadataField struct {
-	Symbol SymbolConfig `yaml:"symbol"`
-	Value  string       `yaml:"value"`
+	Symbol  SymbolConfig   `yaml:"symbol"`
+	Symbols []SymbolConfig `yaml:"symbols"`
+	Value   string         `yaml:"value"`
 }
 
 // newMetadataResourceConfig returns a new metadata resource config
