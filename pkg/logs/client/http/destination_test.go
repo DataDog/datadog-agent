@@ -8,11 +8,9 @@ package http
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -70,56 +68,65 @@ func TestDestinationSend200(t *testing.T) {
 }
 
 func TestDestinationSend500Retries(t *testing.T) {
-	server := NewTestServer(500)
+	respondChan := make(chan struct{})
+	server := NewTestServerWithConcurrency(500, 0, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
-		return server.destination.GetIsRetrying()
-	})
+	// In a retry loop. let the server respond once
+	<-respondChan
+	// once it responds a second time, we know `isRetrying` has been set
+	<-respondChan
 	assert.True(t, server.destination.GetIsRetrying())
 
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
+	<-respondChan
 	<-output
 
 	server.Stop()
 }
 
 func TestDestinationSend429Retries(t *testing.T) {
-	server := NewTestServer(429)
+	respondChan := make(chan struct{})
+	server := NewTestServerWithConcurrency(429, 0, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
-		return server.destination.GetIsRetrying()
-	})
+	// In a retry loop. let the server respond once
+	<-respondChan
+	// once it responds a second time, we know `isRetrying` has been set
+	<-respondChan
 	assert.True(t, server.destination.GetIsRetrying())
 
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
+	// unblock the response
+	<-respondChan
 	<-output
 
 	server.Stop()
 }
 
 func TestDestinationContextCancel(t *testing.T) {
-	server := NewTestServer(429)
+	respondChan := make(chan struct{})
+	server := NewTestServerWithConcurrency(429, 0, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	server.destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
-		return server.destination.GetIsRetrying()
-	})
+	// In a retry loop. let the server respond once
+	<-respondChan
+	// once it responds a second time, we know `isRetrying` has been set
+	<-respondChan
 	assert.True(t, server.destination.GetIsRetrying())
 
 	server.destination.destinationsContext.Stop()
@@ -247,12 +254,7 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 
-	shutdownChan := make(chan struct{})
-
-	go func() {
-		server.destination.run(input, output)
-		shutdownChan <- struct{}{}
-	}()
+	stopChan := server.destination.Start(input, output)
 
 	payloads := []*message.Payload{
 		{Encoded: []byte("a")},
@@ -275,11 +277,11 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 	<-respondChan
 
 	select {
-	case <-shutdownChan:
+	case <-stopChan:
 		assert.Fail(t, "Should still be waiting for the last payload to finish")
 	default:
 	}
 
 	<-respondChan
-	<-shutdownChan
+	<-stopChan
 }

@@ -121,11 +121,13 @@ func errorToTag(err error) string {
 }
 
 // Start starts reading the input channel
-func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) {
-	go d.run(input, output)
+func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) (stopChan chan struct{}) {
+	stopChan = make(chan struct{})
+	go d.run(input, output, stopChan)
+	return stopChan
 }
 
-func (d *Destination) run(input chan *message.Payload, output chan *message.Payload) {
+func (d *Destination) run(input chan *message.Payload, output chan *message.Payload, stopChan chan struct{}) {
 	var startIdle = time.Now()
 
 	for p := range input {
@@ -143,6 +145,7 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 	d.Lock()
 	d.isRetrying = false
 	d.Unlock()
+	stopChan <- struct{}{}
 }
 
 // GetIsRetrying returns true if the destination is retrying

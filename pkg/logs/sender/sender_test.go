@@ -30,13 +30,16 @@ func newMockDestination() *mockDestination {
 	}
 }
 
-func (m *mockDestination) Start(input chan *message.Payload, output chan *message.Payload) {
+func (m *mockDestination) Start(input chan *message.Payload, output chan *message.Payload) (stopChan chan struct{}) {
+	stopChan = make(chan struct{})
 	go func() {
 		for payload := range input {
 			_ = payload
 		}
+		stopChan <- struct{}{}
 	}()
 	m.started <- true
+	return stopChan
 }
 
 func (m *mockDestination) setRetrying(val bool) {

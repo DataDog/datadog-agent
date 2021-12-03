@@ -15,6 +15,7 @@ import (
 type destinationState struct {
 	input       chan *message.Payload
 	destination client.Destination
+	stopChan    chan struct{}
 }
 
 // Sender sends logs to different destinations.
@@ -100,9 +101,11 @@ func (s *Sender) run() {
 	// Cleanup
 	for _, destState := range reliableDestinations {
 		close(destState.input)
+		<-destState.stopChan
 	}
 	for _, destState := range additionalDestinations {
 		close(destState.input)
+		<-destState.stopChan
 	}
 	s.done <- struct{}{}
 }
@@ -122,9 +125,9 @@ func buildDestinationStates(destinations []client.Destination, output chan *mess
 	states := []*destinationState{}
 	for _, destination := range destinations {
 		inputChan := make(chan *message.Payload, bufferSize)
-		destState := &destinationState{input: inputChan, destination: destination}
+		stopChan := destination.Start(inputChan, output)
+		destState := &destinationState{input: inputChan, destination: destination, stopChan: stopChan}
 		states = append(states, destState)
-		destination.Start(inputChan, output)
 	}
 	return states
 }
