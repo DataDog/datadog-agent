@@ -492,6 +492,11 @@ func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.Sk
 func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
 	log.Debugf("Flushing %d series to the forwarder", len(series))
 	err := agg.serializer.SendSeries(series)
+	updateSerieTelemetry(start, len(series), err)
+	tagsetTlm.updateHugeSeriesTelemetry(&series)
+}
+
+func updateSerieTelemetry(start time.Time, serieCount int, err error) {
 	state := stateOk
 	if err != nil {
 		log.Warnf("Error flushing series: %v", err)
@@ -499,10 +504,8 @@ func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series
 		state = stateError
 	}
 	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
-	aggregatorSeriesFlushed.Add(int64(len(series)))
-	tlmFlush.Add(float64(len(series)), "series", state)
-
-	tagsetTlm.updateHugeSeriesTelemetry(&series)
+	aggregatorSeriesFlushed.Add(int64(serieCount))
+	tlmFlush.Add(float64(serieCount), "series", state)
 }
 
 func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metrics.SerieSink) {
