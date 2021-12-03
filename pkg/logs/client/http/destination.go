@@ -53,6 +53,7 @@ type Destination struct {
 	client              *httputils.ResetClient
 	destinationsContext *client.DestinationsContext
 	climit              chan struct{} // semaphore for limiting concurrent background sends
+	wg                  sync.WaitGroup
 	backoff             backoff.Policy
 	nbErrors            int
 	blockedUntil        time.Time
@@ -73,8 +74,8 @@ func NewDestination(endpoint config.Endpoint, contentType string, destinationsCo
 }
 
 func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int, shouldRetry bool, pipelineID int) *Destination {
-	if maxConcurrentBackgroundSends < 0 {
-		maxConcurrentBackgroundSends = 0
+	if maxConcurrentBackgroundSends <= 0 {
+		maxConcurrentBackgroundSends = 1
 	}
 
 	expVars := &expvar.Map{}
@@ -98,6 +99,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
+		wg:                  sync.WaitGroup{},
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
@@ -120,24 +122,27 @@ func errorToTag(err error) string {
 
 // Start starts reading the input channel
 func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) {
-	go func() {
+	go d.run(input, output)
+}
 
-		var startIdle = time.Now()
+func (d *Destination) run(input chan *message.Payload, output chan *message.Payload) {
+	var startIdle = time.Now()
 
-		for p := range input {
-			d.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
-			var startInUse = time.Now()
+	for p := range input {
+		d.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
+		var startInUse = time.Now()
 
-			d.sendConcurrent(p, output)
+		d.sendConcurrent(p, output)
 
-			d.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
-			startIdle = time.Now()
-		}
+		d.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
+		startIdle = time.Now()
+	}
+	// Wait for any pending concurrent sends to finish or terminate
+	d.wg.Wait()
 
-		d.Lock()
-		d.isRetrying = false
-		d.Unlock()
-	}()
+	d.Lock()
+	d.isRetrying = false
+	d.Unlock()
 }
 
 // GetIsRetrying returns true if the destination is retrying
@@ -148,16 +153,12 @@ func (d *Destination) GetIsRetrying() bool {
 }
 
 func (d *Destination) sendConcurrent(payload *message.Payload, output chan *message.Payload) {
-	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
-	if cap(d.climit) == 0 {
-		d.sendAndRetry(payload, output)
-		return
-	}
-
+	d.wg.Add(1)
 	d.climit <- struct{}{}
 	go func() {
 		d.sendAndRetry(payload, output)
 		<-d.climit
+		d.wg.Done()
 	}()
 }
 

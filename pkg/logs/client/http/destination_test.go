@@ -238,3 +238,48 @@ func TestDestinationConcurrentSends(t *testing.T) {
 	// order in which messages are received here is not deterministic so compare values
 	assert.ElementsMatch(t, payloads, receivedPayloads)
 }
+
+// This test ensure the destination's final state is isRetrying = false even if there are pending concurrent sends.
+func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
+	// make the server return 500, so the payloads get stuck retrying
+	respondChan := make(chan struct{})
+	server := NewTestServerWithConcurrency(500, 2, respondChan)
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload, 10)
+
+	shutdownChan := make(chan struct{})
+
+	go func() {
+		server.destination.run(input, output)
+		shutdownChan <- struct{}{}
+	}()
+
+	payloads := []*message.Payload{
+		{Encoded: []byte("a")},
+		{Encoded: []byte("b")},
+		{Encoded: []byte("c")},
+	}
+
+	for _, p := range payloads {
+		input <- p
+		<-respondChan
+	}
+	// trigger shutdown
+	close(input)
+
+	// unblock the destination
+	server.ChangeStatus(200)
+	// trigger the 200 response to unblock
+	// let 2 payloads flow though
+	<-respondChan
+	<-respondChan
+
+	select {
+	case <-shutdownChan:
+		assert.Fail(t, "Should still be waiting for the last payload to finish")
+	default:
+	}
+
+	<-respondChan
+	<-shutdownChan
+}

@@ -33,11 +33,12 @@ type TestServer struct {
 	statusCodeContainer *StatusCodeContainer
 }
 
+// NewTestServer creates a new test server
 func NewTestServer(statusCode int) *TestServer {
 	return NewTestServerWithConcurrency(statusCode, 0, nil)
 }
 
-// NewTestServer returns a new server
+// NewTestServerWithConcurrency creates a new test server with concurrency and response control
 func NewTestServerWithConcurrency(statusCode int, senders int, respondChan chan struct{}) *TestServer {
 	statusCodeContainer := &StatusCodeContainer{statusCode: statusCode}
 	var request http.Request
