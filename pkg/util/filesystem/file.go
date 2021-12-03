@@ -7,10 +7,7 @@ package filesystem
 
 import (
 	"bufio"
-	"fmt"
 	"os"
-	"os/user"
-	"strconv"
 )
 
 // FileExists returns true if a file exists and is accessible, false otherwise
@@ -33,26 +30,4 @@ func ReadLines(filename string) ([]string, error) {
 		ret = append(ret, scanner.Text())
 	}
 	return ret, scanner.Err()
-}
-
-// ChownDDAgent makes a file owned by the dd-agent user
-func ChownDDAgent(path string) error {
-	usr, err := user.Lookup("dd-agent")
-	if err == nil {
-		usrID, err := strconv.Atoi(usr.Uid)
-		if err != nil {
-			return fmt.Errorf("couldn't parse UID (%s): %w", usr.Uid, err)
-		}
-
-		grpID, err := strconv.Atoi(usr.Gid)
-		if err != nil {
-			return fmt.Errorf("couldn't parse GID (%s): %w", usr.Gid, err)
-		}
-
-		if err = os.Chown(path, usrID, grpID); err != nil {
-			return fmt.Errorf("couldn't set user and group owner for %s: %w", path, err)
-		}
-	}
-
-	return nil
 }

@@ -50,7 +50,12 @@ func NewListener(socketAddr string) (*UDSListener, error) {
 		return nil, fmt.Errorf("can't set the socket at write only: %s", err)
 	}
 
-	if err := filesystem.ChownDDAgent(socketAddr); err != nil {
+	perms, err := filesystem.NewPermission()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := perms.RestrictAccessToUser(socketAddr); err != nil {
 		return nil, err
 	}
 
