@@ -22,7 +22,7 @@ func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, tim
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return fmt.Errorf("timeout after waiting for %v, expected at least %d devices but %d has been discovered", duration, expectedDeviceCount, deviceCount)
+	return fmt.Errorf("timeout after waiting for %v, expected at least %d devices but %d has been discovered", timeout, expectedDeviceCount, deviceCount)
 }
 
 func TestDiscovery(t *testing.T) {
