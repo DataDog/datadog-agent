@@ -4,6 +4,8 @@
 #include "tracer.h"
 #include <linux/types.h>
 
+#include "sockfd-shared-maps.h"
+
 // This map is used to to temporarily store function arguments (sockfd) for
 // sockfd_lookup_light function calls, so they can be acessed by the corresponding kretprobe.
 // * Key is the pid_tgid;
@@ -12,15 +14,6 @@ struct bpf_map_def SEC("maps/sockfd_lookup_args") sockfd_lookup_args = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
     .value_size = sizeof(__u32),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/sock_by_pid_fd") sock_by_pid_fd = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(pid_fd_t),
-    .value_size = sizeof(struct sock*),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",

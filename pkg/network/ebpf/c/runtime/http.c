@@ -3,6 +3,7 @@
 #include "ip.h"
 #include "ipv6.h"
 #include "http.h"
+#include "http-notifications.h"
 #include "http-buffer.h"
 #include "sockfd.h"
 #include "conn-tuple.h"

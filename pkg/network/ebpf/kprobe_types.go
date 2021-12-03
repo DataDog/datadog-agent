@@ -60,11 +60,13 @@ type ConnTag = uint64
 const (
 	GnuTLS  ConnTag = C.LIBGNUTLS
 	OpenSSL ConnTag = C.LIBSSL
+	Go      ConnTag = C.GO
 )
 
 var (
 	StaticTags = map[ConnTag]string{
 		GnuTLS:  "tls.library:gnutls",
 		OpenSSL: "tls.library:openssl",
+		Go:      "tls.library:go",
 	}
 )

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
+	"github.com/DataDog/datadog-agent/pkg/network/go/goid"
 )
 
 type inspectionState struct {
@@ -133,12 +134,20 @@ func (i *inspectionState) run() (*Result, error) {
 		return nil, err
 	}
 
-	// Scan for functions and struct offsets
+	// Scan for goroutine metadata, functions, struct offsets, and static itab entries
+	goroutineIDMetadata, err := i.getGoroutineIDMetadata()
+	if err != nil {
+		return nil, err
+	}
 	functions, err := i.findFunctions()
 	if err != nil {
 		return nil, err
 	}
 	structOffsets, err := i.findStructOffsets()
+	if err != nil {
+		return nil, err
+	}
+	staticItabEntries, err := i.findStaticItabEntries()
 	if err != nil {
 		return nil, err
 	}
@@ -148,8 +157,10 @@ func (i *inspectionState) run() (*Result, error) {
 		ABI:                  i.abi,
 		GoVersion:            i.goVersion,
 		IncludesDebugSymbols: i.dwarfInspectionState != nil,
+		GoroutineIDMetadata:  goroutineIDMetadata,
 		Functions:            functions,
 		StructOffsets:        structOffsets,
+		StaticItabEntries:    staticItabEntries,
 	}, nil
 }
 
@@ -200,6 +211,180 @@ func (i *inspectionState) findGoVersionAndABI() (goversion.GoVersion, GoABI, err
 	}
 
 	return parsed, abi, nil
+}
+
+// findStaticItabEntries scans the ELF symbols in the binary
+// to find the desired itab index values for the given struct,interface pairs.
+// This is used at runtime by Go to identify `interface{}` values.
+func (i *inspectionState) findStaticItabEntries() ([]StaticItabEntry, error) {
+	if len(i.symbols) == 0 {
+		// The binary has no symbols; we won't be able to find any static itab entries.
+		return nil, nil
+	}
+
+	staticItabEntries := []StaticItabEntry{}
+
+	for _, config := range i.config.StaticItabEntries {
+		itabSymbol := i.getELFSymbol(fmt.Sprintf("go.itab.%s,%s", config.StructName, config.InterfaceName))
+		if itabSymbol == nil {
+			return nil, fmt.Errorf("could not find %q <> %q's itab ELF symbol", config.StructName, config.InterfaceName)
+		}
+
+		staticItabEntries = append(staticItabEntries, StaticItabEntry{
+			StructName:    config.StructName,
+			InterfaceName: config.InterfaceName,
+			EntryIndex:    itabSymbol.Value,
+		})
+	}
+
+	return staticItabEntries, nil
+}
+
+// getELFSymbol searches for a symbol in the binary with a matching name.
+// If no such symbol is found, returns `nil`.
+func (i *inspectionState) getELFSymbol(name string) *elf.Symbol {
+	for _, symbol := range i.symbols {
+		if symbol.Name == name {
+			s := symbol
+			return &s
+		}
+	}
+	return nil
+}
+
+// getGoroutineIDMetadata collects enough metadata about the binary
+// to be able to reliably determine the goroutine ID from the context of an eBPF uprobe.
+// This is accomplished by finding the offset of the `goid` field in the `runtime.g` struct,
+// which is the goroutine context struct.
+//
+// A pointer to this struct is always stored in thread-local-strorage (TLS),
+// but it might also be in a dedicated register (which is faster to access),
+// depending on the ABI and architecture:
+// 1. If it has a dedicated register, this function gives the register number
+// 2. Otherwise, this function finds the offset in TLS that the pointer exists at.
+//
+// See:
+// - https://go.googlesource.com/proposal/+/master/design/40724-register-calling.md#go_s-current-stack_based-abi
+// - https://go.googlesource.com/go/+/refs/heads/dev.regabi/src/cmd/compile/internal-abi.md#amd64-architecture
+// - https://github.com/golang/go/blob/61011de1af0bc6ab286c4722632719d3da2cf746/src/runtime/runtime2.go#L403
+// - https://github.com/golang/go/blob/61011de1af0bc6ab286c4722632719d3da2cf746/src/runtime/runtime2.go#L436
+func (i *inspectionState) getGoroutineIDMetadata() (GoroutineIDMetadata, error) {
+	goroutineIDOffset, err := i.getGoroutineIDOffset()
+	if err != nil {
+		return GoroutineIDMetadata{}, fmt.Errorf("could not find goroutine ID offset in goroutine context struct: %w", err)
+	}
+
+	// On x86_64 and the register ABI, the runtime.g pointer (current goroutine context struct) is stored in a register (r14):
+	// https://go.googlesource.com/go/+/refs/heads/dev.regabi/src/cmd/compile/internal-abi.md#amd64-architecture
+	// Additionally, on all architectures other than x86_64 and x86 (in all Go versions),
+	// the runtime.g pointer is stored on a register.
+	// On x86_64 pre-Go 1.17 and on x86 (in all Go versions),
+	// the runtime.g pointer is stored in the thread's thread-local-storage.
+	var runtimeGInRegister bool
+	if i.arch == GoArchX86_64 {
+		runtimeGInRegister = i.abi == GoABIRegister
+	} else {
+		runtimeGInRegister = true
+	}
+
+	var runtimeGRegister int
+	var runtimeGTLSAddrOffset uint64
+	if runtimeGInRegister {
+		switch i.arch {
+		case GoArchX86_64:
+			// https://go.googlesource.com/go/+/refs/heads/dev.regabi/src/cmd/compile/internal-abi.md#amd64-architecture
+			runtimeGRegister = 14
+		case GoArchARM64:
+			// https://golang.org/doc/asm#arm64
+			// TODO make sure this is valid
+			runtimeGRegister = 27
+		}
+	} else {
+		offset, err := i.getRuntimeGAddrTLSOffset()
+		if err != nil {
+			return GoroutineIDMetadata{}, fmt.Errorf("could not get offset of runtime.g offset in TLS: %w", err)
+		}
+
+		runtimeGTLSAddrOffset = offset
+	}
+
+	return GoroutineIDMetadata{
+		GoroutineIDOffset:     goroutineIDOffset,
+		RuntimeGInRegister:    runtimeGInRegister,
+		RuntimeGRegister:      runtimeGRegister,
+		RuntimeGTLSAddrOffset: runtimeGTLSAddrOffset,
+	}, nil
+}
+
+// getRuntimeGAddrTLSOffset determines what the offset
+// of the `runtime.g` value is in thread-local-storage.
+//
+// This implementation is based on github.com/go-delve/delve/pkg/proc.(*BinaryInfo).setGStructOffsetElf:
+// - https://github.com/go-delve/delve/blob/75bbbbb60cecda0d65c63de7ae8cb8b8412d6fc3/pkg/proc/bininfo.go#L1413
+// which is licensed under MIT.
+func (i *inspectionState) getRuntimeGAddrTLSOffset() (uint64, error) {
+	// This is a bit arcane. Essentially:
+	// - If the program is pure Go, it can do whatever it wants, and puts the G
+	//   pointer at %fs-8 on 64 bit.
+	// - %Gs is the index of private storage in GDT on 32 bit, and puts the G
+	//   pointer at -4(tls).
+	// - Otherwise, Go asks the external linker to place the G pointer by
+	//   emitting runtime.tlsg, a TLS symbol, which is relocated to the chosen
+	//   offset in libc's TLS block.
+	// - On ARM64 (but really, any architecture other than i386 and 86x64) the
+	//   offset is calculate using runtime.tls_g and the formula is different.
+
+	var tls *elf.Prog
+	for _, prog := range i.elfFile.Progs {
+		if prog.Type == elf.PT_TLS {
+			tls = prog
+			break
+		}
+	}
+
+	switch i.arch {
+	case GoArchX86_64:
+		tlsg := i.getELFSymbol("runtime.tlsg")
+		if tlsg == nil || tls == nil {
+			return ^uint64(i.arch.PointerSize()) + 1, nil //-ptrSize
+		}
+
+		// According to https://reviews.llvm.org/D61824, linkers must pad the actual
+		// size of the TLS segment to ensure that (tlsoffset%align) == (vaddr%align).
+		// This formula, copied from the lld code, matches that.
+		// https://github.com/llvm-mirror/lld/blob/9aef969544981d76bea8e4d1961d3a6980980ef9/ELF/InputSection.cpp#L643
+		memsz := tls.Memsz + (-tls.Vaddr-tls.Memsz)&(tls.Align-1)
+
+		// The TLS register points to the end of the TLS block, which is
+		// tls.Memsz long. runtime.tlsg is an offset from the beginning of that block.
+		return ^(memsz) + 1 + tlsg.Value, nil // -tls.Memsz + tlsg.Value
+
+	case GoArchARM64:
+		tlsg := i.getELFSymbol("runtime.tls_g")
+		if tlsg == nil || tls == nil {
+			return 2 * uint64(i.arch.PointerSize()), nil
+		}
+
+		return tlsg.Value + uint64(i.arch.PointerSize()*2) + ((tls.Vaddr - uint64(i.arch.PointerSize()*2)) & (tls.Align - 1)), nil
+
+	default:
+		return 0, fmt.Errorf("binary is for unsupported architecture")
+	}
+}
+
+func (i *inspectionState) getGoroutineIDOffset() (uint64, error) {
+	if i.dwarfInspectionState == nil {
+		// The binary has been stripped; we won't be able to find the struct's offset.
+		// Fall back to a static lookup table
+		return goid.GetGoroutineIDOffset(i.goVersion, string(i.arch))
+	}
+
+	goroutineIDOffset, err := i.dwarfInspectionState.typeFinder.FindStructFieldOffset("runtime.g", "goid")
+	if err != nil {
+		return 0, err
+	}
+
+	return goroutineIDOffset, nil
 }
 
 func (i *inspectionState) findFunctions() ([]FunctionMetadata, error) {

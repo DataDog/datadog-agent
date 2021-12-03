@@ -73,3 +73,18 @@ func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error
 
 	return ebpfReader, nil
 }
+
+// ReadGoTLSModule from the asset file
+func ReadGoTLSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	file := "go-tls.o"
+	if debug {
+		file = "go-tls-debug.o"
+	}
+
+	ebpfReader, err := bytecode.GetReader(bpfDir, file)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't find asset: %s", err)
+	}
+
+	return ebpfReader, nil
+}

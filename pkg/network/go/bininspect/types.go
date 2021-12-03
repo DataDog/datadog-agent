@@ -11,8 +11,9 @@ import (
 // such as the struct offsets to obtain
 // and the functions to examine.
 type Config struct {
-	Functions     []FunctionConfig
-	StructOffsets []StructOffsetConfig
+	Functions         []FunctionConfig
+	StructOffsets     []StructOffsetConfig
+	StaticItabEntries []StaticItabEntryConfig
 }
 
 // Result is the result of the binary inspection process.
@@ -21,10 +22,14 @@ type Result struct {
 	ABI                  GoABI
 	GoVersion            goversion.GoVersion
 	IncludesDebugSymbols bool
+	GoroutineIDMetadata  GoroutineIDMetadata
 	Functions            []FunctionMetadata
 	// If IncludesDebugSymbols is false, then this slice will be nil/empty
 	// (regardless of the struct offset configs).
 	StructOffsets []StructOffset
+	// If IncludesDebugSymbols is false, then this slice will be nil/empty
+	// (regardless of the static itab entry configs).
+	StaticItabEntries []StaticItabEntry
 }
 
 // GoArch only includes supported architectures,
@@ -37,6 +42,23 @@ const (
 	// GoArchARM64 corresponds to ARM 64-bit ("arm64")
 	GoArchARM64 GoArch = "arm64"
 )
+
+// GoroutineIDMetadata contains information
+// that can be used to reliably determine the ID
+// of the currently-running goroutine from an eBPF uprobe.
+type GoroutineIDMetadata struct {
+	// The offset of the `goid` field within `runtime.g`
+	GoroutineIDOffset uint64
+	// Whether the pointer to the current `runtime.g` value is in a register.
+	// If true, then `RuntimeGRegister` is given.
+	// Otherwise, `RuntimeGTLSAddrOffset` is given
+	RuntimeGInRegister bool
+
+	// The register that the pointer to the current `runtime.g` is in.
+	RuntimeGRegister int
+	// The offset of the `runtime.g` value within thread-local-storage.
+	RuntimeGTLSAddrOffset uint64
+}
 
 // PointerSize gets the size, in bytes, of pointers on the architecture
 func (a *GoArch) PointerSize() uint {
@@ -205,4 +227,57 @@ type StructOffset struct {
 	FieldName string
 	// Offset (in bytes) of the field from the struct's address
 	Offset uint64
+}
+
+// StaticItabEntryConfig controls the extraction
+// of a single (struct, interface) pair that are expected to have a static i-table
+// (interface table) entry in the binary being inspected.
+// I-table entries associate a specific struct and interface together,
+// and are pointed to by a pointer in `interface{}` values at runtime.
+// As such, they are useful to resolve the concrete type of `interface{}` values from eBPF.
+// In general, i-table entries are either created "statically" (during compilation)
+// or "dynamically" (at runtime, as types are cast).
+// By definition, dynamically-created i-table entries
+// cannot be statically extracted from a binary,
+// so it is only possible to get the corresponding i-table entry
+// if it was statically created at compile time.
+//
+// The docs in runtime/iface.go describe when these i-table entries are generated, namely:
+// > [the] compiler statically generates itab's for all interface/type pairs
+// > used in switches (which are added to itabTable in itabsinit)
+// (source: https://github.com/golang/go/blob/36be0beb05043e8ef3b8d108e9f8977b5eac0c87/src/runtime/iface.go#L70-L73)
+//
+// More information:
+// - https://github.com/teh-cmc/go-internals/blob/master/chapter2_interfaces/README.md
+// - https://github.com/golang/go/blob/36be0beb05043e8ef3b8d108e9f8977b5eac0c87/src/runtime/iface.go
+// - https://github.com/golang/go/blob/c5c1955077cb94736b0f311b3a02419d166f45ac/src/cmd/compile/internal/reflectdata/reflect.go#L1282
+//
+// Note that if a binary is missing its ELF symbols
+// (likely due to being stripped at some point),
+// the static itab entries can't be resolved using the current method.
+// It seems like the Go compiler embeds itab information in its "symtab" data:
+// https://github.com/golang/go/blob/c5c1955077cb94736b0f311b3a02419d166f45ac/src/runtime/symtab.go#L437
+// so there might be another way of resolving the static itab entries,
+// even on a stripped binary.
+type StaticItabEntryConfig struct {
+	// Fully-qualified name of the struct,
+	// with an `*` in front if the struct implements the interface
+	// as a pointer receiver
+	StructName string
+	// Fully-qualified name of the interface
+	InterfaceName string
+}
+
+// StaticItabEntry conatains the result of finding a single static i-table entry
+// (including the original struct/interface it is an entry for).
+type StaticItabEntry struct {
+	// Fully-qualified name of the struct,
+	// with an `*` in front if the struct implements the interface
+	// as a pointer receiver
+	StructName string
+	// Fully-qualified name of the interface
+	InterfaceName string
+	// The value of `runtime.iface.tab` that `interface{}` values will have
+	// when they match the given struct + interface pair
+	EntryIndex uint64
 }
