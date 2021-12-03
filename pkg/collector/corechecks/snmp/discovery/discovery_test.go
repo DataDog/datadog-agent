@@ -13,6 +13,18 @@ import (
 	"time"
 )
 
+func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {
+	var deviceCount int
+	for start := time.Now(); time.Since(start) < timeout; {
+		deviceCount = len(discovery.GetDiscoveredDeviceConfigs())
+		if deviceCount >= expectedDeviceCount {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("timeout after waiting for %v, expected at least %d devices but %d has been discovered", duration, expectedDeviceCount, deviceCount)
+}
+
 func TestDiscovery(t *testing.T) {
 	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscovery"))
 	config.Datadog.Set("run_path", path)
@@ -134,18 +146,6 @@ func TestDiscoveryCache(t *testing.T) {
 		actualDiscoveredIpsFromCache = append(actualDiscoveredIpsFromCache, deviceCk.GetIPAddress())
 	}
 	assert.ElementsMatch(t, expectedDiscoveredIps, actualDiscoveredIpsFromCache)
-}
-
-func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {
-	var deviceCount int
-	for start := time.Now(); time.Since(start) < timeout; {
-		deviceCount = len(discovery.GetDiscoveredDeviceConfigs())
-		if deviceCount >= expectedDeviceCount {
-			return nil
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return fmt.Errorf("timeout after waiting for %v, expected at least %d devices but %d has been discovered", duration, expectedDeviceCount, deviceCount)
 }
 
 func TestDiscoveryTicker(t *testing.T) {
