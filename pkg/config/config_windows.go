@@ -19,6 +19,8 @@ var (
 	defaultGuiPort              = 5002
 	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	defaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
+	defaultProcessAgentLogFile  = "c:\\programdata\\datadog\\logs\\process-agent.log"
+
 	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	defaultSystemProbeAddress     = "localhost:3333"
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"

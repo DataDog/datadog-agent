@@ -100,7 +100,6 @@ type AgentConfig struct {
 	Enabled                   bool
 	HostName                  string
 	APIEndpoints              []apicfg.Endpoint
-	LogFile                   string
 	LogLevel                  string
 	LogToConsole              bool
 	QueueSize                 int // The number of items allowed in each delivery queue.
@@ -197,7 +196,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	ac := &AgentConfig{
 		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
-		LogFile:      defaultLogFilePath,
 		LogLevel:     "info",
 		LogToConsole: false,
 
@@ -314,7 +312,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// (Re)configure the logging from our configuration
-	if err := setupLogger(loggerName, cfg.LogFile, cfg); err != nil {
+	logFile := config.Datadog.GetString("process_config.log_file")
+	if err := setupLogger(loggerName, logFile, cfg); err != nil {
 		log.Errorf("failed to setup configured logger: %s", err)
 		return nil, err
 	}

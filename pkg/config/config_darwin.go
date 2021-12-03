@@ -13,6 +13,7 @@ const (
 	defaultGuiPort              = 5002
 	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	defaultSecurityAgentLogFile = "/opt/datadog-agent/logs/security-agent.log"
+	defaultProcessAgentLogFile  = "/opt/datadog-agent/logs/process-agent.log"
 	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	defaultSystemProbeAddress     = "/opt/datadog-agent/run/sysprobe.sock"
 	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"

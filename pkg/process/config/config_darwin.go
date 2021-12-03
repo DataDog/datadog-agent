@@ -11,8 +11,6 @@ import (
 )
 
 const (
-	defaultLogFilePath = "/opt/datadog-agent/logs/process-agent.log"
-
 	// Agent 6
 	defaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
 
