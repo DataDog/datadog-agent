@@ -39,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
@@ -568,14 +567,7 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
 	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
-	w, err := scrubber.NewWriter(flarePath, os.ModePerm)
-	if err != nil {
-		fmt.Println("Error while writing the check file:", err)
-		return
-	}
-	defer w.Close()
-
-	_, err = w.Write(checkFileOutput.Bytes())
+	err := ioutil.WriteFile(flarePath, checkFileOutput.Bytes(), os.ModePerm)
 
 	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)

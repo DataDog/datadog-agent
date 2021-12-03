@@ -396,14 +396,7 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(data)
-	return err
+	return writeScrubbedFile(f, data)
 }
 
 func addParentPerms(dirPath string, permsInfos permissionsInfos) {
@@ -486,13 +479,7 @@ func zipExpVar(tempDir, hostname string) error {
 			return err
 		}
 
-		w, err := newScrubberWriter(f, os.ModePerm)
-		if err != nil {
-			return err
-		}
-		defer w.Close()
-
-		_, err = w.Write(yamlValue)
+		err = writeScrubbedFile(f, yamlValue)
 		if err != nil {
 			return err
 		}
@@ -503,15 +490,9 @@ func zipExpVar(tempDir, hostname string) error {
 		apmPort = config.Datadog.GetString("apm_config.receiver_port")
 	}
 	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
 	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/debug/vars", apmPort))
 	if err != nil {
-		_, err := fmt.Fprintf(w, "Error retrieving vars: %v", err)
-		return err
+		return writeScrubbedFile(f, []byte(fmt.Sprintf("Error retrieving vars: %v", err)))
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -519,8 +500,8 @@ func zipExpVar(tempDir, hostname string) error {
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(w, "Got response %s from /debug/vars:\n%s", resp.Status, slurp)
-		return err
+		return writeScrubbedFile(f,
+			[]byte(fmt.Sprintf("Got response %s from /debug/vars:\n%s", resp.Status, slurp)))
 	}
 	var all map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&all); err != nil {
@@ -530,25 +511,18 @@ func zipExpVar(tempDir, hostname string) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(v)
-	return err
+	return writeScrubbedFile(f, v)
 }
 
 func zipSystemProbeStats(tempDir, hostname string) error {
 	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
-	sysProbeWriter, err := newScrubberWriter(sysProbeFile, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer sysProbeWriter.Close()
 
 	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
 	if err != nil {
 		return err
 	}
-	_, err = sysProbeWriter.Write(sysProbeBuf)
-	return err
+	return writeScrubbedFile(sysProbeFile, sysProbeBuf)
 }
 
 func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
@@ -563,13 +537,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(c)
+	err = writeScrubbedFile(f, c)
 	if err != nil {
 		return err
 	}
@@ -620,14 +588,7 @@ func zipSecrets(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(b.Bytes())
-	return err
+	return writeScrubbedFile(f, b.Bytes())
 }
 
 func zipDiagnose(tempDir, hostname string) error {
@@ -643,14 +604,7 @@ func zipDiagnose(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(b.Bytes())
-	return err
+	return writeScrubbedFile(f, b.Bytes())
 }
 
 func zipFile(originalPath, zippedPath string) error {
@@ -719,32 +673,13 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(data)
-	return err
+	return writeScrubbedFile(f, data)
 }
 
 // Used for testing mock HTTP server
 var taggerListURL string
 
 func zipTaggerList(tempDir, hostname string) error {
-	f := filepath.Join(tempDir, hostname, "tagger-list.json")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return err
@@ -761,36 +696,28 @@ func zipTaggerList(tempDir, hostname string) error {
 		return err
 	}
 
+	f := filepath.Join(tempDir, hostname, "tagger-list.json")
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
 	// Pretty print JSON output
 	var b bytes.Buffer
 	writer := bufio.NewWriter(&b)
 	err = json.Indent(&b, r, "", "\t")
 	if err != nil {
-		_, err = w.Write(r)
-		return err
+		return writeScrubbedFile(f, r)
 	}
 	writer.Flush()
 
-	_, err = w.Write(b.Bytes())
-	return err
+	return writeScrubbedFile(f, b.Bytes())
 }
 
 // workloadListURL allows mocking the agent HTTP server
 var workloadListURL string
 
 func zipWorkloadList(tempDir, hostname string) error {
-	f := filepath.Join(tempDir, hostname, "workload-list.log")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return err
@@ -817,9 +744,14 @@ func zipWorkloadList(tempDir, hostname string) error {
 	writer := bufio.NewWriter(&b)
 	workload.Write(writer)
 	_ = writer.Flush()
-	_, err = w.Write(b.Bytes())
 
-	return err
+	f := filepath.Join(tempDir, hostname, "workload-list.log")
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	return writeScrubbedFile(f, b.Bytes())
 }
 
 func zipHealth(tempDir, hostname string) error {
@@ -838,14 +770,7 @@ func zipHealth(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(yamlValue)
-	return err
+	return writeScrubbedFile(f, yamlValue)
 }
 
 func zipInstallInfo(tempDir, hostname string) error {
@@ -887,15 +812,12 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm)
+	// read the entire body, so that it can be scrubbed in its entirety
+	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
-	defer w.Close()
-
-	_, err = io.Copy(w, resp.Body)
-
-	return err
+	return writeScrubbedFile(f, data)
 }
 
 func zipPerformanceProfile(tempDir, hostname string, pdata ProfileData) error {
@@ -938,16 +860,15 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 					return err
 				}
 
-				w, err := newScrubberWriter(f, os.ModePerm)
+				data, err := ioutil.ReadFile(src)
 				if err != nil {
-					return err
-				}
-				defer w.Close()
-
-				if _, err = w.WriteFromFile(src); err != nil {
 					if os.IsNotExist(err) {
 						log.Warnf("the specified path: %s does not exist", filePath)
 					}
+					return err
+				}
+				err = writeScrubbedFile(f, data)
+				if err != nil {
 					return err
 				}
 
@@ -976,11 +897,14 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 	return nil
 }
 
-// newScrubberWriter creates a new scrubber.Writer, configured to always buffer
-// output and with additional replacers added to scrub third-party credentials
-// likely to be seen in flares.
-func newScrubberWriter(f string, p os.FileMode) (*scrubber.Writer, error) {
-	return flareScrubber.NewWriter(f, os.ModePerm)
+// writeScrubbedFile writes the given data to the given file, after applying
+// flareScrubber to it.
+func writeScrubbedFile(filename string, data []byte) error {
+	scrubbed, err := flareScrubber.ScrubBytes(data)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filename, scrubbed, os.ModePerm)
 }
 
 func ensureParentDirsExist(p string) error {
@@ -1021,13 +945,11 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 			return err
 		}
 
-		w, err := newScrubberWriter(f, os.ModePerm)
+		data, err := ioutil.ReadFile(filePath)
 		if err != nil {
 			return err
 		}
-		defer w.Close()
-
-		_, err = w.WriteFromFile(filePath)
+		err = writeScrubbedFile(f, data)
 		if err != nil {
 			return err
 		}
