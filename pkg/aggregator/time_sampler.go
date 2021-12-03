@@ -13,10 +13,9 @@ import (
 )
 
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
-// from the same bucket can be merged into one
+// from the same bucket can be merged into one. Series must have the same contextKey.
 type SerieSignature struct {
 	mType      metrics.APIMetricType
-	contextKey ckey.ContextKey
 	nameSuffix string
 }
 
@@ -140,8 +139,9 @@ func (s *TimeSampler) dedupSerieBySerieSignature(rawSeries []*metrics.Serie) []*
 	var series []*metrics.Serie
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 
+	// rawSeries have the same context key.
 	for _, serie := range rawSeries {
-		serieSignature := SerieSignature{serie.MType, serie.ContextKey, serie.NameSuffix}
+		serieSignature := SerieSignature{serie.MType, serie.NameSuffix}
 
 		if existingSerie, ok := serieBySignature[serieSignature]; ok {
 			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
