@@ -26,8 +26,8 @@ type metadataFinderFilter struct {
 	comments []string
 	// tablesSeen keeps track of unique table names encountered by the filter.
 	tablesSeen map[string]struct{}
-	// tablesCsv specifies a comma-separated list of tables.
-	tablesCsv strings.Builder
+	// tablesCSV specifies a comma-separated list of tables.
+	tablesCSV strings.Builder
 }
 
 func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
@@ -65,16 +65,16 @@ func (f *metadataFinderFilter) storeTableName(name string) {
 		f.tablesSeen = make(map[string]struct{}, 1)
 	}
 	f.tablesSeen[name] = struct{}{}
-	if f.tablesCsv.Len() > 0 {
-		f.tablesCsv.WriteByte(',')
+	if f.tablesCSV.Len() > 0 {
+		f.tablesCSV.WriteByte(',')
 	}
-	f.tablesCsv.WriteString(name)
+	f.tablesCSV.WriteString(name)
 }
 
 // Results returns metadata collected by the filter for an SQL statement.
 func (f *metadataFinderFilter) Results() SQLMetadata {
 	return SQLMetadata{
-		TablesCSV: f.tablesCsv.String(),
+		TablesCSV: f.tablesCSV.String(),
 		Comments:  f.comments,
 	}
 }
@@ -84,7 +84,7 @@ func (f *metadataFinderFilter) Reset() {
 	for k := range f.tablesSeen {
 		delete(f.tablesSeen, k)
 	}
-	f.tablesCsv.Reset()
+	f.tablesCSV.Reset()
 }
 
 // discardFilter is a token filter which discards certain elements from a query, such as
