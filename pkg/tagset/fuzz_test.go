@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// fuzz implements poor-soul's attempt at fuzzing.  The idea is to catch edge
+// fuzz implements poor-soul's attempt at fuzzing. The idea is to catch edge
 // cases by running a bunch of random, but deterministic (the same on every
-// run), scenarios.  In "-short" mode it runs for about 100ms; otherwise about
+// run), scenarios. In "-short" mode it runs for about 100ms; otherwise about
 // 1s.
 func fuzz(test func(int64)) {
 	finish := time.Now().Add(1 * time.Second)

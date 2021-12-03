@@ -25,25 +25,25 @@ type SliceBuilder struct {
 	levels int
 
 	// Offsets into the tags/hashes arrays, such that level L is represented as
-	// tags[offsets[L]:offsets[L+1]].  This slice has length (levels+1).
+	// tags[offsets[L]:offsets[L+1]]. This slice has length (levels+1).
 	offsets []int
 
 	// The built slice of tags
 	tags []string
 
 	// Hashes of individual tags, with each element corresponding to the hash
-	// of that tag.  INVARIANT: len(tags) == len(hashes), cap(tags) ==
+	// of that tag. INVARIANT: len(tags) == len(hashes), cap(tags) ==
 	// cap(hashes)
 	hashes []uint64
 
-	// Hashes of all tags at each level.  This slice has length levels.
+	// Hashes of all tags at each level. This slice has length levels.
 	levelHashes []uint64
 
 	// all seen tags (regardless of level)
 	seen map[uint64]struct{}
 }
 
-// newSliceBuilder creates a new builder.  This must be reset()
+// newSliceBuilder creates a new builder. This must be reset()
 // before use.
 func newSliceBuilder(factory Factory) *SliceBuilder {
 	return &SliceBuilder{
@@ -94,7 +94,7 @@ func (bldr *SliceBuilder) reset(levels, capacity int) {
 	bldr.seen = map[uint64]struct{}{}
 }
 
-// Add adds the given tag to the builder at the given level.  If the tag is
+// Add adds the given tag to the builder at the given level. If the tag is
 // already in the builder, it is not added again (regardless of the existing
 // tag's level).
 func (bldr *SliceBuilder) Add(level int, tag string) {
@@ -147,7 +147,7 @@ func (bldr *SliceBuilder) Add(level int, tag string) {
 	}
 }
 
-// AddKV adds the tag "k:v" to the builder at the given level.  If the tag is
+// AddKV adds the tag "k:v" to the builder at the given level. If the tag is
 // already in the builder, it is not added again (regardless of the existing
 // tag's level).
 func (bldr *SliceBuilder) AddKV(level int, k, v string) {
@@ -167,9 +167,9 @@ func (bldr *SliceBuilder) FreezeSlice(a, b int) *Tags {
 		hash ^= lh
 	}
 
-	// Whether to use the byTagsetHashCache here is a judgement call.  The
+	// Whether to use the byTagsetHashCache here is a judgement call. The
 	// downside is that it may end up caching a Tags that refers to a slice
-	// larger than necessary.  It's also an additional hash-table lookup when
+	// larger than necessary. It's also an additional hash-table lookup when
 	// we already have all of the data necessary to create a new Tags instance.
 	// That said, in cases where only low-cardinality tags are used, it may
 	// result in significant memory savings.

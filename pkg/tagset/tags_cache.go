@@ -11,7 +11,7 @@ type tagsCache struct {
 	untilRotate int
 
 	// tagests contains the constitutent tagset maps. This is a slice of length
-	// cacheCount.  The first map is the newest, into which new values will be
+	// cacheCount. The first map is the newest, into which new values will be
 	// inserted.
 	maps []map[uint64]*Tags
 }
@@ -40,7 +40,7 @@ func (tc *tagsCache) getCachedTags(key uint64, miss func() *Tags) *Tags {
 }
 
 // getCachedTagsErr is like getCachedTags, but works for miss() functions that can
-// return an error.  Errors are not cached.
+// return an error. Errors are not cached.
 func (tc *tagsCache) getCachedTagsErr(key uint64, miss func() (*Tags, error)) (*Tags, error) {
 	v, ok := tc.search(key)
 	if !ok {
@@ -54,7 +54,7 @@ func (tc *tagsCache) getCachedTagsErr(key uint64, miss func() (*Tags, error)) (*
 	return v, nil
 }
 
-// search searches for a key in maps older than the first.  If found, the key
+// search searches for a key in maps older than the first. If found, the key
 // is copied to the first map and returned.
 func (tc *tagsCache) search(key uint64) (*Tags, bool) {
 
@@ -77,7 +77,7 @@ func (tc *tagsCache) search(key uint64) (*Tags, bool) {
 	return nil, false
 }
 
-// insert inserts a key into the first map.  It also performs rotation, if
+// insert inserts a key into the first map. It also performs rotation, if
 // necessary.
 func (tc *tagsCache) insert(key uint64, val *Tags) {
 	tc.maps[0][key] = val

@@ -14,13 +14,13 @@ import (
 )
 
 // Tags contains a set of tags, along with a 64-bit hash considered to be
-// unique to that set of tags.  Tags in the tagset are unique.  The order of
+// unique to that set of tags. Tags in the tagset are unique. The order of
 // the tags is undefined.
 //
 // The constructor functions associated with this type use the default factory.
 type Tags struct {
 	// Tags is the central struct in this package, so instances are created
-	// directly in many locations in the package.  All must adhere to the
+	// directly in many locations in the package. All must adhere to the
 	// invariants described here.
 
 	// tags are the tags contained in this tagset. They must be unique.
@@ -79,7 +79,7 @@ func (tags *Tags) Hash() uint64 {
 	return tags.hash
 }
 
-// Sorted returns a copy of the tags in this tagset, sorted.  This is intended
+// Sorted returns a copy of the tags in this tagset, sorted. This is intended
 // for ease of assertions in tests, and not for use in production code.
 func (tags *Tags) Sorted() []string {
 	clone := make([]string, len(tags.tags))
@@ -108,7 +108,7 @@ func (tags *Tags) IsSubsetOf(other *Tags) bool {
 	return true
 }
 
-// WithKey returns the tags in this tagset whih have the given key.  This
+// WithKey returns the tags in this tagset whih have the given key. This
 // means all tags which begin with `key:`.
 func (tags *Tags) WithKey(key string) []string {
 	matches := []string{}
@@ -121,7 +121,7 @@ func (tags *Tags) WithKey(key string) []string {
 	return matches
 }
 
-// FindByKey returns the first tag in this tagset that has the given key.  If
+// FindByKey returns the first tag in this tagset that has the given key. If
 // multiple tags have the given key, it is undefined which tag is returned.
 func (tags *Tags) FindByKey(key string) string {
 	pfx := key + ":"
@@ -140,7 +140,7 @@ func (tags *Tags) ForEach(each func(tag string)) {
 	}
 }
 
-// UnsafeReadOnlySlice returns the slice of strings contained in this tagset.  As the
+// UnsafeReadOnlySlice returns the slice of strings contained in this tagset. As the
 // name suggests, the returned slice must not be modified, including being used
 // as the first argument to `append`.
 //

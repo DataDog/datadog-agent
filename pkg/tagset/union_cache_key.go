@@ -12,13 +12,13 @@ import (
 //
 // To memoize `Union(a, b)`, we need a 64-bit cache key based on the hashes of the
 // input tagsets, `cachekey(a.Hash, b.Hash)`, that will uniquely identify those
-// two inputs with a collision probability close to 1/2**64.  Note that this cachekey
-// is _not_ the hash of the union.  In other words,
+// two inputs with a collision probability close to 1/2**64. Note that this cachekey
+// is _not_ the hash of the union. In other words,
 //
 //     Union(a, b).Hash != cachekey(a.Hash, b.Hash)
 //
 // The concern about collisions is not with random choices of input sets, but for
-// similar sets.  For example, given
+// similar sets. For example, given
 //
 //     Union(["abc"], ["ghi"])                = ["abc", "ghi"]
 //     Union(["abc", "def"], ["def", "ghi"])  = ["abc", "def", "ghi"]

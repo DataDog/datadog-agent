@@ -2,7 +2,7 @@ package tagset
 
 import "sort"
 
-// NOTE: this functionality is copied from ./pkg/util.  It will probably not be
+// NOTE: this functionality is copied from ./pkg/util. It will probably not be
 // a part of the pkg/tagset module for very long, so this duplication is
 // acceptable.
 

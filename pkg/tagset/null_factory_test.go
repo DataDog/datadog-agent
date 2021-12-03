@@ -19,7 +19,7 @@ func TestNullFactory(t *testing.T) {
 	testFactory(t, func() Factory { return newNullFactory() })
 }
 
-// A nullFactory caches nothing.  It is useful for tests that need a factory.
+// A nullFactory caches nothing. It is useful for tests that need a factory.
 type nullFactory struct {
 	baseFactory
 }

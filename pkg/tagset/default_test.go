@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// These tests just provide coverage of the default stubs.  Other tests
+// These tests just provide coverage of the default stubs. Other tests
 // perform more thorough validation of the functionality.
 
 func TestEmptyTags(t *testing.T) {

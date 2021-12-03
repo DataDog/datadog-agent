@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.Datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package tagset supports creation and manipulation of sets of tags.  It
+// Package tagset supports creation and manipulation of sets of tags. It
 // does so in a safe and efficient fashion, supporting:
 //
 //     - consistent hashing of tagsets to recognize commonalities
@@ -19,13 +19,13 @@
 // Tags
 //
 // The Tags type is an opaque, immutable data structure representing a set of
-// tags.  Agent code that handles tags, but does not manipulate them, need only
+// tags. Agent code that handles tags, but does not manipulate them, need only
 // use this type.
 //
 // Factories
 //
-// Factories are responsible for making new Tags instances.  Beneath a simple
-// interface, factories support optimization and deduplication.  A global factory
+// Factories are responsible for making new Tags instances. Beneath a simple
+// interface, factories support optimization and deduplication. A global factory
 // is available for general use, and purpose-specific factories can be created
 // for more intensive tag operations.
 //

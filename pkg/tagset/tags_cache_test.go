@@ -149,8 +149,8 @@ func TestTagsCacheRecaching(t *testing.T) {
 	require.Equal(t, "expected", v.String())
 
 	// now loop a few times, inserting 15 things (which causes a rotation) and
-	// then querying 0x9999 again, which should re-cache it in the new map.  So
-	// the 0x9999 query should never miss.  The re-cache counts as an insert,
+	// then querying 0x9999 again, which should re-cache it in the new map. So
+	// the 0x9999 query should never miss. The re-cache counts as an insert,
 	// so we use cacheCount=3, allowing that sometimes 0x9999 slips to the third
 	// map.
 	for i := 0; i < 20; i++ {
@@ -167,7 +167,7 @@ func TestTagsCacheMinimal(t *testing.T) {
 	f := newNullFactory()
 
 	// use the smallest allowed cache, in case this causes any infinite
-	// rotation loops or other bugs.  Note that this configuration caches nothing!
+	// rotation loops or other bugs. Note that this configuration caches nothing!
 	tc := newTagsCache(1, 1)
 
 	v := tc.getCachedTags(0x9999, func() *Tags { return f.NewTags([]string{"expected"}) })

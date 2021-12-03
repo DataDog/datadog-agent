@@ -25,7 +25,7 @@ type Builder struct {
 	frozen  *Tags
 }
 
-// newBuilder creates a new builder.  This must be reset()
+// newBuilder creates a new builder. This must be reset()
 // before use.
 func newBuilder(factory Factory) *Builder {
 	return &Builder{
@@ -87,7 +87,7 @@ func (bldr *Builder) Contains(tag string) bool {
 	return has
 }
 
-// Freeze "freezes" the builder and returns the resulting tagset.  The Add methods
+// Freeze "freezes" the builder and returns the resulting tagset. The Add methods
 // cannot be called after freezing.
 func (bldr *Builder) Freeze() *Tags {
 	if bldr.frozen == nil {

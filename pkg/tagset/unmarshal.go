@@ -8,11 +8,11 @@ import (
 )
 
 // UnmarshalBuilder implements json.Unmarshaler and yaml.Unmarshaler for tags,
-// acting as a mutable wrapper for the immutable Tags type.  It is safe to use
+// acting as a mutable wrapper for the immutable Tags type. It is safe to use
 // the zero value of this struct in a call to json.Unmarshal, and it is safe to
 // reuse the struct for multiple, sequential Unmarshal operations.
 type UnmarshalBuilder struct {
-	// Factory is the factory to use to construct the resulting Tags.  If this
+	// Factory is the factory to use to construct the resulting Tags. If this
 	// is nil, the default factory is used.
 	Factory Factory
 
@@ -60,7 +60,7 @@ func (bldr *UnmarshalBuilder) UnmarshalJSON(data []byte) error {
 //
 // Note that unmarshalling a null value will not call this method, and the
 // `Tags` field will retain whatever value it had before the `yaml.Unmarshal`
-// call, possibly leaking data.  This is a limitation of the `gopkg.in/yaml.v2`
+// call, possibly leaking data. This is a limitation of the `gopkg.in/yaml.v2`
 // package.
 func (bldr *UnmarshalBuilder) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	factory := bldr.Factory
@@ -69,8 +69,8 @@ func (bldr *UnmarshalBuilder) UnmarshalYAML(unmarshal func(interface{}) error) e
 	}
 
 	// Unlike UnmarshalJSON, we have nothing convenient to hash here in order
-	// to recognize a YAML value we have seen before.  That's OK, as YAML
-	// unmarshaling is known to be slow in many respects.  The use of
+	// to recognize a YAML value we have seen before. That's OK, as YAML
+	// unmarshaling is known to be slow in many respects. The use of
 	// `NewTags`, below, will still deduplicate tagsets.
 
 	// unmarshal the underlying array of strings

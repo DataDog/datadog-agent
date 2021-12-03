@@ -17,7 +17,7 @@ package tagset
 // can be used interchangeably and are entirely thread-safe.
 //
 // Tags instances returned from different factories may be used
-// interchangeably.  The only disadvantage of using multiple factories is a
+// interchangeably. The only disadvantage of using multiple factories is a
 // reduced cache rate due to not sharing caches between those factories.
 //
 // This interface contains un-exported methods, so it cannot be implemented outside
@@ -25,13 +25,13 @@ package tagset
 type Factory interface {
 	// Tags constructors
 
-	// NewTags creates a new *Tags with the given tags.  The provided slice is
+	// NewTags creates a new *Tags with the given tags. The provided slice is
 	// not used after the function returns, and may be re-used by the
 	// caller.
 	NewTags(src []string) *Tags
 
-	// NewUniqueTags creates a new *Tags.  This method assumes the tags in the
-	// given slice are unique.  The provided slice is not used after the
+	// NewUniqueTags creates a new *Tags. This method assumes the tags in the
+	// given slice are unique. The provided slice is not used after the
 	// function returns, and may be re-used by the caller.
 	NewUniqueTags(src ...string) *Tags
 
@@ -58,7 +58,7 @@ type Factory interface {
 	// Combination
 
 	// Union combines two *Tags instances that are not known to be
-	// disjoint.  That is, there may exist tags that are in both tagsets.
+	// disjoint. That is, there may exist tags that are in both tagsets.
 	Union(a, b *Tags) *Tags
 
 	// DisjointUnion combines two *Tags instances when the caller is
@@ -66,7 +66,7 @@ type Factory interface {
 	DisjointUnion(a, b *Tags) *Tags
 
 	// getCachedTags returns a Tags instance with the given cache key
-	// in the given cache.  If the cache element does not exist, then the
+	// in the given cache. If the cache element does not exist, then the
 	// miss function is called to generate it.
 	getCachedTags(cacheID cacheID, key uint64, miss func() *Tags) *Tags
 

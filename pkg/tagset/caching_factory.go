@@ -17,29 +17,29 @@ type cachingFactory struct {
 	baseFactory
 
 	// Tags instances are cached by 64-bit cache keys that can have a range of
-	// meanings; each CacheID identifies a different such meaning.  Caches with
+	// meanings; each CacheID identifies a different such meaning. Caches with
 	// different CacheIDs are stored independently.
 	caches [numCacheIDs]tagsCache
 }
 
 var _ Factory = (*cachingFactory)(nil)
 
-// NewCachingFactory creates a new caching factory.  A caching factory caches
+// NewCachingFactory creates a new caching factory. A caching factory caches
 // Tags instances when they are seen, and uses those cached values when possible
 // to reduce CPU and memory usage.
 //
 // The size of the factory's cache is proportional to cacheSize: double this
-// parameter and memory usage will roughly double.  The cache size must be at
+// parameter and memory usage will roughly double. The cache size must be at
 // least 1.
 //
 // For a given cache size, the cacheWidth parameter determines how well the
-// cache handles eviction.  If set to 1, the entire cache is thrown out when it
-// is full.  Larger values do a better job of holding on to
+// cache handles eviction. If set to 1, the entire cache is thrown out when it
+// is full. Larger values do a better job of holding on to
 // less-frequently-referenced values, at the expense of more CPU time spent
-// searching for cached instances.  A value of 5 is a nice starting point.  The
+// searching for cached instances. A value of 5 is a nice starting point. The
 // cache width must be at least 1.
 //
-// Caching factories are not threadsafe.  Wrap with a ThreadsafeFactory if
+// Caching factories are not threadsafe. Wrap with a ThreadsafeFactory if
 // thread safety is required.
 func NewCachingFactory(cacheSize, cacheWidth int) Factory {
 	if cacheSize < 1 {
