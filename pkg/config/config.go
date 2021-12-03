@@ -221,7 +221,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("log_file", "")
 	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
 	config.BindEnvAndSetDefault("log_file_max_rolls", 1)
-	config.BindEnvAndSetDefault("log_level", "info")
+	config.BindEnvAndSetDefault("log_level", "info", "LOG_LEVEL", "DD_LOG_LEVEL")
 	config.BindEnvAndSetDefault("log_to_syslog", false)
 	config.BindEnvAndSetDefault("log_to_console", true)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
@@ -710,9 +710,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
-
-	// Process agent
-
 	// Logs Agent
 
 	// External Use: modify those parameters to configure the logs-agent.

@@ -194,8 +194,8 @@ func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
 	os.Setenv("LOG_LEVEL", "debug")
 	defer os.Unsetenv("LOG_LEVEL")
 
-	agentConfig, _ := NewAgentConfig("test", "", "")
-	assert.Equal(t, "error", agentConfig.LogLevel)
+	_, _ = NewAgentConfig("test", "", "")
+	assert.Equal(t, "error", config.Datadog.GetString("log_level"))
 }
 
 func TestGetHostname(t *testing.T) {
@@ -213,7 +213,7 @@ func TestDefaultConfig(t *testing.T) {
 	agentConfig := NewDefaultAgentConfig(false)
 
 	// assert that some sane defaults are set
-	assert.Equal("info", agentConfig.LogLevel)
+	assert.Equal("info", config.Datadog.GetString("log_level"))
 	assert.Equal(true, agentConfig.AllowRealTime)
 	assert.Equal(true, agentConfig.Scrubber.Enabled)
 

@@ -100,7 +100,6 @@ type AgentConfig struct {
 	Enabled                   bool
 	HostName                  string
 	APIEndpoints              []apicfg.Endpoint
-	LogLevel                  string
 	LogToConsole              bool
 	QueueSize                 int // The number of items allowed in each delivery queue.
 	RTQueueSize               int // the number of items allowed in real-time delivery queue
@@ -196,7 +195,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	ac := &AgentConfig{
 		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
-		LogLevel:     "info",
 		LogToConsole: false,
 
 		// Allow buffering up to 60 megabytes of payload data in total
@@ -347,11 +345,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		cfg.proxy = nil
 	}
 
-	// Python-style log level has WARNING vs WARN
-	if strings.ToLower(cfg.LogLevel) == "warning" {
-		cfg.LogLevel = "warn"
-	}
-
 	if err := validate.ValidHostname(cfg.HostName); err != nil {
 		// lookup hostname if there is no config override or if the override is invalid
 		if hostname, err := getHostname(context.TODO(), cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
@@ -436,12 +429,9 @@ func loadEnvVariables() {
 		{"DD_BIND_HOST", "bind_host"},
 		{"HTTPS_PROXY", "proxy.https"},
 		{"DD_PROXY_HTTPS", "proxy.https"},
-
 		{"DD_LOGS_STDOUT", "log_to_console"},
 		{"LOG_TO_CONSOLE", "log_to_console"},
 		{"DD_LOG_TO_CONSOLE", "log_to_console"},
-		{"LOG_LEVEL", "log_level"}, // Support LOG_LEVEL and DD_LOG_LEVEL but prefer DD_LOG_LEVEL
-		{"DD_LOG_LEVEL", "log_level"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
@@ -644,7 +634,7 @@ func constructProxy(host, scheme string, port int, user, password string) (proxy
 func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig) error {
 	return config.SetupLogger(
 		loggerName,
-		cfg.LogLevel,
+		config.Datadog.GetString("log_level"),
 		logFile,
 		config.GetSyslogURI(),
 		config.Datadog.GetBool("syslog_rfc"),

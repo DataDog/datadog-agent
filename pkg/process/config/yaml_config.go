@@ -279,11 +279,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Pull additional parameters from the global config file.
-	if level := config.Datadog.GetString("log_level"); level != "" {
-		a.LogLevel = level
-	}
-
 	if k := "dogstatsd_port"; config.Datadog.IsSet(k) {
 		a.StatsdPort = config.Datadog.GetInt(k)
 	}
