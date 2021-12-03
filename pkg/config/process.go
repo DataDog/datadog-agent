@@ -39,7 +39,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
-	config.BindEnvAndSetDefault("process_config.log_file", defaultProcessAgentLogFile)
+	config.BindEnvAndSetDefault("process_config.log_file", defaultProcessAgentLogFile, "DD_PROCESS_CONFIG_LOG_FILE", "DD_PROCESS_AGENT_LOG_FILE")
 	config.SetKnown("process_config.internal_profiling.enabled")
 
 	config.BindEnvAndSetDefault("process_config.remote_tagger", true)
