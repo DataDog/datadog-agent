@@ -50,12 +50,12 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 					nextTry = nextTry + (1<<config.RetryCount)*time.Second
 					config.RetryCount++
 					log.Warnf("increase kube_cache_sync_timeout_seconds to %s", nextTry)
+					if lastTry {
+						return fmt.Errorf("couldn't sync informer %s in %v", name, time.Now().Sub(start))
+					}
 					if nextTry >= config.MaxRetryDelay {
 						nextTry = config.MaxRetryDelay
 						lastTry = true
-					}
-					if lastTry {
-						return fmt.Errorf("couldn't sync informer %s in %v", name, time.Now().Sub(start))
 					}
 				} else {
 					log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Now().Sub(start), informers[name].LastSyncResourceVersion())
