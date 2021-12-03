@@ -1017,7 +1017,6 @@ api_key:
   # max_cpu_percent: 50
 
   ## @param obfuscation - object - optional
-  ## @env DD_APM_CONFIG_OBFUSCATION_* - optional
   ## Defines obfuscation rules for sensitive data. Disabled by default.
   ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#agent-trace-obfuscation
   #
