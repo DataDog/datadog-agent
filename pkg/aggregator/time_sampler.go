@@ -122,11 +122,11 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 		contextMetricsFlusher.Append(float64(cutoffTime-s.interval), contextMetrics)
 	}
 
+	// serieBySignature is reused for each call of dedupSerieBySerieSignature to avoid allocations.
+	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
 		// Note: rawSeries is reused at each call
-		for _, serie := range s.dedupSerieBySerieSignature(rawSeries) {
-			series.Append(serie)
-		}
+		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature)
 	})
 
 	// Delete the contexts associated to an expired counter
@@ -135,9 +135,15 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 	}
 }
 
-func (s *TimeSampler) dedupSerieBySerieSignature(rawSeries []*metrics.Serie) []*metrics.Serie {
-	var series []*metrics.Serie
-	serieBySignature := make(map[SerieSignature]*metrics.Serie)
+func (s *TimeSampler) dedupSerieBySerieSignature(
+	rawSeries []*metrics.Serie,
+	serieSink metrics.SerieSink,
+	serieBySignature map[SerieSignature]*metrics.Serie) {
+
+	// clear the map. Reuse serieBySignature
+	for k := range serieBySignature {
+		delete(serieBySignature, k)
+	}
 
 	// rawSeries have the same context key.
 	for _, serie := range rawSeries {
@@ -158,11 +164,12 @@ func (s *TimeSampler) dedupSerieBySerieSignature(rawSeries []*metrics.Serie) []*
 			serie.Interval = s.interval
 
 			serieBySignature[serieSignature] = serie
-			series = append(series, serie)
 		}
 	}
 
-	return series
+	for _, serie := range serieBySignature {
+		serieSink.Append(serie)
+	}
 }
 
 func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
