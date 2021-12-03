@@ -4,14 +4,19 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"net"
+	"path/filepath"
 	"testing"
 	"time"
 )
 
 func TestDiscovery(t *testing.T) {
+	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscovery"))
+	config.Datadog.Set("run_path", path)
+
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -37,7 +42,7 @@ func TestDiscovery(t *testing.T) {
 	}
 	discovery := NewDiscovery(checkConfig)
 	discovery.Start()
-	time.Sleep(100 * time.Millisecond)
+	assert.NoError(t, waitForDiscoveredDevices(&discovery, 7, 2*time.Second))
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
@@ -60,7 +65,9 @@ func TestDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryCache(t *testing.T) {
-	SetTestRunPath()
+	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscoveryCache"))
+	config.Datadog.Set("run_path", path)
+
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -85,7 +92,7 @@ func TestDiscoveryCache(t *testing.T) {
 	}
 	discovery := NewDiscovery(checkConfig)
 	discovery.Start()
-	time.Sleep(100 * time.Millisecond)
+	assert.NoError(t, waitForDiscoveredDevices(&discovery, 4, 2*time.Second))
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
@@ -117,7 +124,7 @@ func TestDiscoveryCache(t *testing.T) {
 	}
 	discovery2 := NewDiscovery(checkConfig)
 	discovery2.Start()
-	time.Sleep(100 * time.Millisecond)
+	assert.NoError(t, waitForDiscoveredDevices(&discovery2, 4, 2*time.Second))
 	discovery2.Stop()
 
 	deviceConfigsFromCache := discovery2.GetDiscoveredDeviceConfigs()
@@ -127,6 +134,18 @@ func TestDiscoveryCache(t *testing.T) {
 		actualDiscoveredIpsFromCache = append(actualDiscoveredIpsFromCache, deviceCk.GetIPAddress())
 	}
 	assert.ElementsMatch(t, expectedDiscoveredIps, actualDiscoveredIpsFromCache)
+}
+
+func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {
+	var deviceCount int
+	for start := time.Now(); time.Since(start) < timeout; {
+		deviceCount = len(discovery.GetDiscoveredDeviceConfigs())
+		if deviceCount >= expectedDeviceCount {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("timeout after waiting for %v, expected at least %d devices but %d has been discovered", duration, expectedDeviceCount, deviceCount)
 }
 
 func TestDiscoveryTicker(t *testing.T) {
