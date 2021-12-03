@@ -84,11 +84,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Whether or not the process-agent should output logs to console
-	if config.Datadog.GetBool("log_to_console") {
-		a.LogToConsole = true
-	}
-
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.

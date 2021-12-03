@@ -100,7 +100,6 @@ type AgentConfig struct {
 	Enabled                   bool
 	HostName                  string
 	APIEndpoints              []apicfg.Endpoint
-	LogToConsole              bool
 	QueueSize                 int // The number of items allowed in each delivery queue.
 	RTQueueSize               int // the number of items allowed in real-time delivery queue
 	ProcessQueueBytes         int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
@@ -195,7 +194,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	ac := &AgentConfig{
 		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
-		LogToConsole: false,
 
 		// Allow buffering up to 60 megabytes of payload data in total
 		ProcessQueueBytes: 60 * 1000 * 1000,
@@ -430,8 +428,6 @@ func loadEnvVariables() {
 		{"HTTPS_PROXY", "proxy.https"},
 		{"DD_PROXY_HTTPS", "proxy.https"},
 		{"DD_LOGS_STDOUT", "log_to_console"},
-		{"LOG_TO_CONSOLE", "log_to_console"},
-		{"DD_LOG_TO_CONSOLE", "log_to_console"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
