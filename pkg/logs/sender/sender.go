@@ -24,7 +24,6 @@ type Sender struct {
 	outputChan   chan *message.Payload
 	destinations *client.Destinations
 	done         chan struct{}
-	stop         chan struct{}
 	bufferSize   int
 }
 
@@ -35,7 +34,6 @@ func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload
 		outputChan:   outputChan,
 		destinations: destinations,
 		done:         make(chan struct{}),
-		stop:         make(chan struct{}, 1),
 		bufferSize:   bufferSize,
 	}
 }
@@ -49,7 +47,6 @@ func (s *Sender) Start() {
 // this call blocks until inputChan is flushed
 func (s *Sender) Stop() {
 	close(s.inputChan)
-	s.stop <- struct{}{}
 	<-s.done
 }
 

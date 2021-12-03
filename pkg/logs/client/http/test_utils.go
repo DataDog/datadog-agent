@@ -26,8 +26,8 @@ type StatusCodeContainer struct {
 // TestServer a test server
 type TestServer struct {
 	httpServer          *httptest.Server
-	destCtx             *client.DestinationsContext
-	destination         *Destination
+	DestCtx             *client.DestinationsContext
+	Destination         *Destination
 	Endpoint            config.Endpoint
 	request             *http.Request
 	statusCodeContainer *StatusCodeContainer
@@ -35,11 +35,11 @@ type TestServer struct {
 
 // NewTestServer creates a new test server
 func NewTestServer(statusCode int) *TestServer {
-	return NewTestServerWithConcurrency(statusCode, 0, nil)
+	return NewTestServerWithOptions(statusCode, 0, true, nil)
 }
 
-// NewTestServerWithConcurrency creates a new test server with concurrency and response control
-func NewTestServerWithConcurrency(statusCode int, senders int, respondChan chan struct{}) *TestServer {
+// NewTestServerWithOptions creates a new test server with concurrency and response control
+func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool, respondChan chan struct{}) *TestServer {
 	statusCodeContainer := &StatusCodeContainer{statusCode: statusCode}
 	var request http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -61,11 +61,11 @@ func NewTestServerWithConcurrency(statusCode int, senders int, respondChan chan 
 		Port:   port,
 		UseSSL: false,
 	}
-	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, true, 0)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, 0)
 	return &TestServer{
 		httpServer:          ts,
-		destCtx:             destCtx,
-		destination:         dest,
+		DestCtx:             destCtx,
+		Destination:         dest,
 		Endpoint:            endpoint,
 		request:             &request,
 		statusCodeContainer: statusCodeContainer,
@@ -74,7 +74,7 @@ func NewTestServerWithConcurrency(statusCode int, senders int, respondChan chan 
 
 // Stop stops the server
 func (s *TestServer) Stop() {
-	s.destCtx.Start()
+	s.DestCtx.Stop()
 	s.httpServer.Close()
 }
 

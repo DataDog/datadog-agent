@@ -297,50 +297,6 @@ func (suite *AgentTestSuite) TestReliableAdditionalSender() {
 	assert.Equal(suite.T(), int64(0), metrics.DestinationErrors.Value())
 }
 
-func (suite *AgentTestSuite) TestFailingReliableAdditionalSenderRecovers() {
-	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
-	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
-	l := mock.NewMockLogsIntake(suite.T())
-	defer l.Close()
-
-	server1 := http.NewTestServer(200)
-	server1.Endpoint.IsReliable = true
-
-	server2 := http.NewTestServer(500)
-	server2.Endpoint.IsReliable = true
-
-	endpoints := config.NewEndpoints(server1.Endpoint, []config.Endpoint{server2.Endpoint}, false, true)
-
-	agent, sources, _ := createAgent(endpoints)
-
-	agent.Start()
-	sources.AddSource(suite.source)
-
-	// wait for the failing sender to report errors
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 5*time.Second, func() bool {
-		return metrics.DestinationErrors.Value() > 0
-	})
-
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
-
-	// Only 2 so far because sever2 is failing
-	assert.Equal(suite.T(), int64(2), metrics.LogsSent.Value())
-	// should have errors from server 2
-	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
-
-	server2.ChangeStatus(200)
-
-	// wait for server2 to recover and get the logs
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
-		return int64(4) == metrics.LogsSent.Value()
-	})
-
-	agent.Stop()
-
-	assert.Equal(suite.T(), int64(4), metrics.LogsSent.Value())
-}
-
 func TestAgentTestSuite(t *testing.T) {
 	suite.Run(t, new(AgentTestSuite))
 }

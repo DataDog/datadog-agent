@@ -59,7 +59,7 @@ func TestDestinationSend200(t *testing.T) {
 	server := NewTestServer(200)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	server.destination.Start(input, output)
+	server.Destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
@@ -69,10 +69,10 @@ func TestDestinationSend200(t *testing.T) {
 
 func TestDestinationSend500Retries(t *testing.T) {
 	respondChan := make(chan struct{})
-	server := NewTestServerWithConcurrency(500, 0, respondChan)
+	server := NewTestServerWithOptions(500, 0, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	server.destination.Start(input, output)
+	server.Destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 
@@ -80,7 +80,7 @@ func TestDestinationSend500Retries(t *testing.T) {
 	<-respondChan
 	// once it responds a second time, we know `isRetrying` has been set
 	<-respondChan
-	assert.True(t, server.destination.GetIsRetrying())
+	assert.True(t, server.Destination.GetIsRetrying())
 
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
@@ -92,10 +92,10 @@ func TestDestinationSend500Retries(t *testing.T) {
 
 func TestDestinationSend429Retries(t *testing.T) {
 	respondChan := make(chan struct{})
-	server := NewTestServerWithConcurrency(429, 0, respondChan)
+	server := NewTestServerWithOptions(429, 0, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	server.destination.Start(input, output)
+	server.Destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 
@@ -103,7 +103,7 @@ func TestDestinationSend429Retries(t *testing.T) {
 	<-respondChan
 	// once it responds a second time, we know `isRetrying` has been set
 	<-respondChan
-	assert.True(t, server.destination.GetIsRetrying())
+	assert.True(t, server.Destination.GetIsRetrying())
 
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
@@ -116,10 +116,10 @@ func TestDestinationSend429Retries(t *testing.T) {
 
 func TestDestinationContextCancel(t *testing.T) {
 	respondChan := make(chan struct{})
-	server := NewTestServerWithConcurrency(429, 0, respondChan)
+	server := NewTestServerWithOptions(429, 0, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	server.destination.Start(input, output)
+	server.Destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 
@@ -127,9 +127,9 @@ func TestDestinationContextCancel(t *testing.T) {
 	<-respondChan
 	// once it responds a second time, we know `isRetrying` has been set
 	<-respondChan
-	assert.True(t, server.destination.GetIsRetrying())
+	assert.True(t, server.Destination.GetIsRetrying())
 
-	server.destination.destinationsContext.Stop()
+	server.Destination.destinationsContext.Stop()
 
 	// If this blocks - the test will timeout and fail. This should not block as the destination context
 	// has been canceled and the payload will be dropped. In the real agent, this channel would be closed
@@ -142,18 +142,18 @@ func TestDestinationSend400(t *testing.T) {
 	server := NewTestServer(400)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	server.destination.Start(input, output)
+	server.Destination.Start(input, output)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
 
-	assert.False(t, server.destination.GetIsRetrying())
+	assert.False(t, server.Destination.GetIsRetrying())
 
 	// Should not retry 400 - no error reported back (because it's not retryable) so input should be unblocked
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
 
-	assert.False(t, server.destination.GetIsRetrying())
+	assert.False(t, server.Destination.GetIsRetrying())
 	server.Stop()
 }
 
@@ -181,8 +181,8 @@ func TestDestinationSendsV2Protocol(t *testing.T) {
 	server := NewTestServer(200)
 	defer server.httpServer.Close()
 
-	server.destination.protocol = "test-proto"
-	err := server.destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
+	server.Destination.protocol = "test-proto"
+	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
 	assert.Nil(t, err)
 	assert.Equal(t, server.request.Header.Get("dd-protocol"), "test-proto")
 }
@@ -191,7 +191,7 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 	server := NewTestServer(200)
 	defer server.httpServer.Close()
 
-	err := server.destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
+	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
 	assert.Nil(t, err)
 	assert.Empty(t, server.request.Header.Values("dd-protocol"))
 }
@@ -199,11 +199,11 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 func TestDestinationConcurrentSends(t *testing.T) {
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan struct{})
-	server := NewTestServerWithConcurrency(500, 2, respondChan)
+	server := NewTestServerWithOptions(500, 2, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 
-	server.destination.Start(input, output)
+	server.Destination.Start(input, output)
 
 	payloads := []*message.Payload{
 		// the first two messages will be blocked in concurrent send goroutines
@@ -250,11 +250,11 @@ func TestDestinationConcurrentSends(t *testing.T) {
 func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan struct{})
-	server := NewTestServerWithConcurrency(500, 2, respondChan)
+	server := NewTestServerWithOptions(500, 2, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 
-	stopChan := server.destination.Start(input, output)
+	stopChan := server.Destination.Start(input, output)
 
 	payloads := []*message.Payload{
 		{Encoded: []byte("a")},

@@ -185,6 +185,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		}
 
 		if err == context.Canceled {
+			d.Lock()
+			d.isRetrying = false
+			d.Unlock()
 			log.Warnf("Could not send payload: %v", err)
 			return
 		}
