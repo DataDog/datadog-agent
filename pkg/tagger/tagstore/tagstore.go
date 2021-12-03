@@ -25,8 +25,7 @@ import (
 )
 
 const (
-	tagInfoBufferSize = 50
-	deletedTTL        = 5 * time.Minute
+	deletedTTL = 5 * time.Minute
 )
 
 // ErrNotFound is returned when entity id is not found in the store.
@@ -55,7 +54,7 @@ func newTagStoreWithClock(clock clock.Clock) *TagStore {
 	return &TagStore{
 		telemetry:  make(map[string]map[string]float64),
 		store:      make(map[string]*EntityTags),
-		InfoIn:     make(chan []*collectors.TagInfo, tagInfoBufferSize),
+		InfoIn:     make(chan []*collectors.TagInfo),
 		subscriber: subscriber.NewSubscriber(),
 		clock:      clock,
 	}
