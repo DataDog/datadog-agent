@@ -80,10 +80,10 @@ func (f *threadsafeFactory) Union(a, b *Tags) *Tags {
 	return tags
 }
 
-// DisjointUnion implements Factory.DisjoingUnion
-func (f *threadsafeFactory) DisjointUnion(a, b *Tags) *Tags {
+// UnsafeDisjointUnion implements Factory.DisjoingUnion
+func (f *threadsafeFactory) UnsafeDisjointUnion(a, b *Tags) *Tags {
 	f.Lock()
-	tags := f.Factory.DisjointUnion(a, b)
+	tags := f.Factory.UnsafeDisjointUnion(a, b)
 	f.Unlock()
 	return tags
 }

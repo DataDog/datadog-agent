@@ -152,8 +152,8 @@ func (f *cachingFactory) Union(a, b *Tags) *Tags {
 	})
 }
 
-// DisjointUnion implements Factory.DisjointUnion
-func (f *cachingFactory) DisjointUnion(a, b *Tags) *Tags {
+// UnsafeDisjointUnion implements Factory.UnsafeDisjointUnion
+func (f *cachingFactory) UnsafeDisjointUnion(a, b *Tags) *Tags {
 	hash := a.hash ^ b.hash
 	return f.getCachedTags(byTagsetHashCache, hash, func() *Tags {
 

@@ -95,8 +95,8 @@ func (f *nullFactory) Union(a, b *Tags) *Tags {
 	return f.NewTagsFromMap(tags)
 }
 
-// DisjointUnion implements Factory.DisjoingUnion
-func (f *nullFactory) DisjointUnion(a, b *Tags) *Tags {
+// UnsafeDisjointUnion implements Factory.DisjoingUnion
+func (f *nullFactory) UnsafeDisjointUnion(a, b *Tags) *Tags {
 	tags := make([]string, len(a.tags)+len(b.tags))
 	copy(tags[:len(a.tags)], a.tags)
 	copy(tags[len(a.tags):], b.tags)

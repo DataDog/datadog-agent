@@ -46,7 +46,7 @@ func TestUnion(t *testing.T) {
 }
 
 func TestDisjointUnion(t *testing.T) {
-	tags := DisjointUnion(
+	tags := UnsafeDisjointUnion(
 		NewTags([]string{"a", "b", "c"}),
 		NewTags([]string{"d", "e"}),
 	)

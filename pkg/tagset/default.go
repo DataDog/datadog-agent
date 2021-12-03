@@ -49,7 +49,7 @@ func Union(a, b *Tags) *Tags {
 	return DefaultFactory.Union(a, b)
 }
 
-// DisjointUnion calls DefaultFactory.DisjointUnion
-func DisjointUnion(a, b *Tags) *Tags {
-	return DefaultFactory.DisjointUnion(a, b)
+// UnsafeDisjointUnion calls DefaultFactory.UnsafeDisjointUnion
+func UnsafeDisjointUnion(a, b *Tags) *Tags {
+	return DefaultFactory.UnsafeDisjointUnion(a, b)
 }
