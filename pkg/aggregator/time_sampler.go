@@ -94,7 +94,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
+func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	counterContextsToDelete := map[ckey.ContextKey]struct{}{}
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
@@ -123,18 +123,17 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 		contextMetricsFlusher.Append(float64(cutoffTime-s.interval), contextMetrics)
 	}
 
-	var series []*metrics.Serie
 	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
 		// Note: rawSeries is reused at each call
-		series = append(series, s.dedupSerieBySerieSignature(rawSeries)...)
+		for _, serie := range s.dedupSerieBySerieSignature(rawSeries) {
+			series.Append(serie)
+		}
 	})
 
 	// Delete the contexts associated to an expired counter
 	for context := range counterContextsToDelete {
 		delete(s.counterLastSampledByContext, context)
 	}
-
-	return series
 }
 
 func (s *TimeSampler) dedupSerieBySerieSignature(rawSeries []*metrics.Serie) []*metrics.Serie {
@@ -183,11 +182,11 @@ func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
 	return sketches
 }
 
-func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink) metrics.SketchSeriesList {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
-	series := s.flushSeries(cutoffTime)
+	s.flushSeries(cutoffTime, series)
 	sketches := s.flushSketches(cutoffTime)
 
 	// expiring contexts
@@ -196,7 +195,7 @@ func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSe
 
 	aggregatorDogstatsdContexts.Set(int64(s.contextResolver.length()))
 	tlmDogstatsdContexts.Set(float64(s.contextResolver.length()))
-	return series, sketches
+	return sketches
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,
