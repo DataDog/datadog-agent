@@ -17,7 +17,7 @@
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "nightly-a7": {
-        "INTEGRATIONS_CORE_VERSION": "7.33.x",
+        "INTEGRATIONS_CORE_VERSION": "2ba9e6079aef19161266525bba9f0e284855f71f",
         "OMNIBUS_SOFTWARE_VERSION": "7.33.x",
         "OMNIBUS_RUBY_VERSION": "7.33.x",
         "JMXFETCH_VERSION": "0.44.3",
