@@ -6,7 +6,6 @@
 package sender
 
 import (
-	"context"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -22,7 +21,9 @@ var (
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	buffer *MessageBuffer
+	inputChan  chan *message.Message
+	outputChan chan *message.Payload
+	buffer     *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
 	pipelineName     string
 	serializer       Serializer
@@ -30,15 +31,18 @@ type batchStrategy struct {
 	contentEncoding  ContentEncoding
 	syncFlushTrigger chan struct{} // trigger a synchronous flush
 	clock            clock.Clock
+	done             chan struct{}
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
-func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxBatchSize int, maxContentSize int, pipelineName string, contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
+func NewBatchStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, serializer Serializer, batchWait time.Duration, maxBatchSize int, maxContentSize int, pipelineName string, contentEncoding ContentEncoding) Strategy {
+	return newBatchStrategyWithClock(inputChan, outputChan, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
 }
 
-func newBatchStrategyWithClock(serializer Serializer, batchWait time.Duration, maxBatchSize int, maxContentSize int, pipelineName string, clock clock.Clock, contentEncoding ContentEncoding) Strategy {
+func newBatchStrategyWithClock(inputChan chan *message.Message, outputChan chan *message.Payload, serializer Serializer, batchWait time.Duration, maxBatchSize int, maxContentSize int, pipelineName string, clock clock.Clock, contentEncoding ContentEncoding) Strategy {
 	return &batchStrategy{
+		inputChan:        inputChan,
+		outputChan:       outputChan,
 		buffer:           NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:       serializer,
 		batchWait:        batchWait,
@@ -49,33 +53,35 @@ func newBatchStrategyWithClock(serializer Serializer, batchWait time.Duration, m
 	}
 }
 
-func (s *batchStrategy) Flush(ctx context.Context) {
+// Stop flushes the buffer and stops the strategy
+func (s *batchStrategy) Stop() {
 	s.syncFlushTrigger <- struct{}{}
+	close(s.inputChan)
 }
 
 // Send accumulates messages to a buffer and sends them when the buffer is full or outdated.
-func (s *batchStrategy) Start(inputChan chan *message.Message, outputChan chan *message.Payload) {
+func (s *batchStrategy) Start() {
 
 	go func() {
 		flushTicker := s.clock.Ticker(s.batchWait)
 		defer func() {
-			s.flushBuffer(outputChan)
+			s.flushBuffer(s.outputChan)
 			flushTicker.Stop()
 		}()
 		for {
 			select {
-			case m, isOpen := <-inputChan:
+			case m, isOpen := <-s.inputChan:
 
 				if !isOpen {
 					// inputChan has been closed, no more payloads are expected
 					return
 				}
-				s.processMessage(m, outputChan)
+				s.processMessage(m, s.outputChan)
 			case <-flushTicker.C:
 				// the first message that was added to the buffer has been here for too long, send the payload now
-				s.flushBuffer(outputChan)
+				s.flushBuffer(s.outputChan)
 			case <-s.syncFlushTrigger:
-				s.flushBuffer(outputChan)
+				s.flushBuffer(s.outputChan)
 			}
 		}
 	}()

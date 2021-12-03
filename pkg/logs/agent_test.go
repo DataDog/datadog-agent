@@ -252,15 +252,17 @@ func (suite *AgentTestSuite) TestAgentUnreliableAdditinalEndpointFailsHttp() {
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return int64(4) == metrics.LogsSent.Value()
 	})
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
-		return int64(2) == metrics.DestinationErrors.Value()
-	})
+
 	agent.Stop()
+
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
+		return metrics.DestinationErrors.Value() > 0
+	})
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
-	assert.Equal(suite.T(), int64(4), metrics.LogsSent.Value())          // 4 total sends
-	assert.Equal(suite.T(), int64(2), metrics.DestinationErrors.Value()) // 2 failures
+	assert.Equal(suite.T(), int64(4), metrics.LogsSent.Value())
+	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
 }
 
 func (suite *AgentTestSuite) TestReliableAdditionalSender() {

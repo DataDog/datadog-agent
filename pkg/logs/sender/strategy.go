@@ -5,15 +5,9 @@
 
 package sender
 
-import (
-	"context"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-)
-
 // Strategy should contain all logic to send logs to a remote destination
 // and forward them the next stage of the pipeline.
 type Strategy interface {
-	Start(inputChan chan *message.Message, outputChan chan *message.Payload)
-	Flush(ctx context.Context)
+	Start()
+	Stop()
 }

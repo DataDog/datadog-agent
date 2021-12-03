@@ -17,7 +17,8 @@ func TestStreamStrategy(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	StreamStrategy.Start(input, output)
+	s := NewStreamStrategy(input, output)
+	s.Start()
 
 	content := []byte("a")
 	message1 := message.NewMessage(content, nil, "", 0)
@@ -34,31 +35,36 @@ func TestStreamStrategy(t *testing.T) {
 	payload = <-output
 	assert.Equal(t, message2, payload.Messages[0])
 	assert.Equal(t, content, payload.Encoded)
+	s.Stop()
 }
 
 func TestStreamStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
+	s := NewStreamStrategy(input, output)
+
 	message := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {
 		input <- message
-		close(input)
+		s.Stop()
 	}()
 
-	StreamStrategy.Start(input, output)
+	s.Start()
 }
 
 func TestStreamStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
+	s := NewStreamStrategy(input, output)
+
 	message := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {
 		input <- message
-		close(input)
+		s.Stop()
 		assert.Equal(t, message, <-output)
 	}()
 
-	StreamStrategy.Start(input, output)
+	s.Start()
 }

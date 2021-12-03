@@ -58,33 +58,22 @@ func (s *Sender) run() {
 	sink := additionalDestinationsSink(s.bufferSize)
 	additionalDestinations := buildDestinationStates(s.destinations.Additionals, sink, s.bufferSize)
 
-payloadLoop:
 	for payload := range s.inputChan {
-		select {
-		case <-s.stop:
-			break payloadLoop
-		default:
-		}
 
 		sent := false
 		for !sent {
-			select {
-			case <-s.stop:
-				break payloadLoop
-			default:
-				for _, destState := range reliableDestinations {
-					if !destState.destination.GetIsRetrying() {
-						destState.input <- payload
-						sent = true
-					}
+			for _, destState := range reliableDestinations {
+				if !destState.destination.GetIsRetrying() {
+					destState.input <- payload
+					sent = true
 				}
+			}
 
-				if !sent {
-					// Using a busy loop is much simpler than trying to join an arbitrary number of channels and
-					// wait for just one of them. This is an exceptional case so it has little overhead since it
-					// will only happen when there is no possible way to send logs.
-					time.Sleep(100 * time.Millisecond)
-				}
+			if !sent {
+				// Using a busy loop is much simpler than trying to join an arbitrary number of channels and
+				// wait for just one of them. This is an exceptional case so it has little overhead since it
+				// will only happen when there is no possible way to send logs.
+				time.Sleep(100 * time.Millisecond)
 			}
 		}
 

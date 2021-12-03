@@ -141,9 +141,10 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender  *sender.Sender
-	in      chan *message.Message
-	auditor auditor.Auditor
+	sender   *sender.Sender
+	strategy sender.Strategy
+	in       chan *message.Message
+	auditor  auditor.Auditor
 }
 
 type passthroughPipelineDesc struct {
@@ -197,21 +198,22 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		encoder = sender.IdentityContentType
 	}
 
-	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, encoder)
-	strategy.Start(inputChan, senderInput)
+	strategy := sender.NewBatchStrategy(inputChan, senderInput, sender.ArraySerializer, endpoints.BatchWait, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, encoder)
 
 	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
 	return &passthroughPipeline{
-		sender:  sender.NewSender(senderInput, a.Channel(), destinations, 100),
-		in:      inputChan,
-		auditor: a,
+		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 100),
+		strategy: strategy,
+		in:       inputChan,
+		auditor:  a,
 	}, nil
 }
 
 func (p *passthroughPipeline) Start() {
 	p.auditor.Start()
+	p.strategy.Start()
 	if p.sender != nil {
 		p.sender.Start()
 	}
@@ -219,6 +221,7 @@ func (p *passthroughPipeline) Start() {
 
 func (p *passthroughPipeline) Stop() {
 	p.sender.Stop()
+	p.strategy.Stop()
 	p.auditor.Stop()
 }
 

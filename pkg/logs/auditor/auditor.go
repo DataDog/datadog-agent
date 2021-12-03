@@ -121,6 +121,8 @@ func (a *RegistryAuditor) closeChannels() {
 // Channel returns the channel to use to communicate with the auditor or nil
 // if the auditor is currently stopped.
 func (a *RegistryAuditor) Channel() chan *message.Payload {
+	a.chansMutex.Lock()
+	defer a.chansMutex.Unlock()
 	return a.inputChan
 }
 

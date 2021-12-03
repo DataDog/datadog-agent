@@ -52,6 +52,9 @@ func (d *Destination) Start(input chan *message.Payload, output chan *message.Pa
 		for payload := range input {
 			d.sendAndRetry(payload, output)
 		}
+		d.Lock()
+		d.isRetrying = false
+		d.Unlock()
 	}()
 }
 

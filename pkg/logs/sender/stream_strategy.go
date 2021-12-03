@@ -6,29 +6,40 @@
 package sender
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// StreamStrategy is a shared stream strategy.
-var StreamStrategy Strategy = &streamStrategy{}
-
 // streamStrategy contains all the logic to send one log at a time.
-type streamStrategy struct{}
+type streamStrategy struct {
+	inputChan  chan *message.Message
+	outputChan chan *message.Payload
+	done       chan struct{}
+}
 
-func (s *streamStrategy) Flush(ctx context.Context) {
-	// nothing to do
+// NewStreamStrategy creates a new stream strategy
+func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload) Strategy {
+	return &streamStrategy{
+		inputChan:  inputChan,
+		outputChan: outputChan,
+		done:       make(chan struct{}),
+	}
 }
 
 // Send sends one message at a time and forwards them to the next stage of the pipeline.
-func (s *streamStrategy) Start(inputChan chan *message.Message, outputChan chan *message.Payload) {
+func (s *streamStrategy) Start() {
 	go func() {
-		for msg := range inputChan {
+		for msg := range s.inputChan {
 			if msg.Origin != nil {
 				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
-			outputChan <- &message.Payload{Messages: []*message.Message{msg}, Encoded: msg.Content}
+			s.outputChan <- &message.Payload{Messages: []*message.Message{msg}, Encoded: msg.Content}
 		}
+		s.done <- struct{}{}
 	}()
+}
+
+// Stop stops the strategy
+func (s *streamStrategy) Stop() {
+	close(s.inputChan)
+	<-s.done
 }

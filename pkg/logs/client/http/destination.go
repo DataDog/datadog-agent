@@ -133,6 +133,10 @@ func (d *Destination) Start(input chan *message.Payload, output chan *message.Pa
 			d.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
 			startIdle = time.Now()
 		}
+
+		d.Lock()
+		d.isRetrying = false
+		d.Unlock()
 	}()
 }
 

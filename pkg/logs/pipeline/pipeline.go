@@ -22,6 +22,7 @@ import (
 type Pipeline struct {
 	InputChan chan *message.Message
 	processor *processor.Processor
+	strategy  sender.Strategy
 	sender    *sender.Sender
 }
 
@@ -34,8 +35,7 @@ func NewPipeline(outputChan chan *message.Payload, processingRules []*config.Pro
 
 	var logsSender *sender.Sender
 
-	strategy := getStrategy(endpoints, serverless, pipelineID)
-	strategy.Start(strategyInput, senderInput)
+	strategy := getStrategy(strategyInput, senderInput, endpoints, serverless, pipelineID)
 	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.ChanSize)
 
 	var encoder processor.Encoder
@@ -55,6 +55,7 @@ func NewPipeline(outputChan chan *message.Payload, processingRules []*config.Pro
 	return &Pipeline{
 		InputChan: inputChan,
 		processor: processor,
+		strategy:  strategy,
 		sender:    logsSender,
 	}
 }
@@ -62,12 +63,14 @@ func NewPipeline(outputChan chan *message.Payload, processingRules []*config.Pro
 // Start launches the pipeline
 func (p *Pipeline) Start() {
 	p.sender.Start()
+	p.strategy.Start()
 	p.processor.Start()
 }
 
 // Stop stops the pipeline
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
+	p.strategy.Stop()
 	p.sender.Stop()
 }
 
@@ -98,7 +101,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 	return client.NewDestinations(reliable, additionals)
 }
 
-func getStrategy(endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
+func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		var encoder sender.ContentEncoding
 		if endpoints.Main.UseCompression {
@@ -106,7 +109,7 @@ func getStrategy(endpoints *config.Endpoints, serverless bool, pipelineID int) s
 		} else {
 			encoder = sender.IdentityContentType
 		}
-		return sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
+		return sender.NewBatchStrategy(inputChan, outputChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
-	return sender.StreamStrategy
+	return sender.NewStreamStrategy(inputChan, outputChan)
 }
