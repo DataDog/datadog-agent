@@ -31,7 +31,6 @@ type batchStrategy struct {
 	contentEncoding  ContentEncoding
 	syncFlushTrigger chan struct{} // trigger a synchronous flush
 	clock            clock.Clock
-	done             chan struct{}
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits

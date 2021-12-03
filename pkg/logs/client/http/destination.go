@@ -154,12 +154,10 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 		return
 	}
 
+	d.climit <- struct{}{}
 	go func() {
-		d.climit <- struct{}{}
-		go func() {
-			d.sendAndRetry(payload, output)
-			<-d.climit
-		}()
+		d.sendAndRetry(payload, output)
+		<-d.climit
 	}()
 }
 
@@ -167,11 +165,13 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload) {
 	for {
 
+		d.Lock()
 		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
 		if d.blockedUntil.After(time.Now()) {
 			log.Debugf("%s: sleeping until %v before retrying", d.url, d.blockedUntil)
 			d.waitForBackoff()
 		}
+		d.Unlock()
 
 		err := d.unconditionalSend(payload)
 

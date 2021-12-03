@@ -33,15 +33,22 @@ type TestServer struct {
 	statusCodeContainer *StatusCodeContainer
 }
 
-// NewTestServer returns a new server
 func NewTestServer(statusCode int) *TestServer {
+	return NewTestServerWithConcurrency(statusCode, 0, nil)
+}
+
+// NewTestServer returns a new server
+func NewTestServerWithConcurrency(statusCode int, senders int, respondChan chan struct{}) *TestServer {
 	statusCodeContainer := &StatusCodeContainer{statusCode: statusCode}
 	var request http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		statusCodeContainer.Lock()
 		w.WriteHeader(statusCodeContainer.statusCode)
-		statusCodeContainer.Unlock()
 		request = *r
+		if respondChan != nil {
+			respondChan <- struct{}{}
+		}
+		statusCodeContainer.Unlock()
 	}))
 	url := strings.Split(ts.URL, ":")
 	port, _ := strconv.Atoi(url[2])
@@ -53,7 +60,7 @@ func NewTestServer(statusCode int) *TestServer {
 		Port:   port,
 		UseSSL: false,
 	}
-	dest := NewDestination(endpoint, JSONContentType, destCtx, 0, true, 0)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, true, 0)
 	return &TestServer{
 		httpServer:          ts,
 		destCtx:             destCtx,

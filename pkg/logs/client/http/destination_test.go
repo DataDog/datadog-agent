@@ -188,3 +188,53 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Empty(t, server.request.Header.Values("dd-protocol"))
 }
+
+func TestDestinationConcurrentSends(t *testing.T) {
+	// make the server return 500, so the payloads get stuck retrying
+	respondChan := make(chan struct{})
+	server := NewTestServerWithConcurrency(500, 2, respondChan)
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload, 10)
+
+	server.destination.Start(input, output)
+
+	payloads := []*message.Payload{
+		// the first two messages will be blocked in concurrent send goroutines
+		{Encoded: []byte("a")},
+		{Encoded: []byte("b")},
+		// the third message will be read out by the main batch sender loop and will be blocked waiting for one of the
+		// first two concurrent sends to complete
+		{Encoded: []byte("c")},
+	}
+
+	for _, p := range payloads {
+		input <- p
+		<-respondChan
+	}
+
+	select {
+	case input <- &message.Payload{Encoded: []byte("a")}:
+		assert.Fail(t, "should not have been able to write into the channel as the input channel is expected to be backed up due to reaching max concurrent sends")
+	default:
+	}
+
+	close(input)
+
+	// unblock the destination
+	server.ChangeStatus(200)
+	// trigger the 200 response to unblock
+	<-respondChan
+
+	var receivedPayloads []*message.Payload
+
+	for p := range output {
+		receivedPayloads = append(receivedPayloads, p)
+		if len(receivedPayloads) == len(payloads) {
+			break
+		}
+		<-respondChan
+	}
+
+	// order in which messages are received here is not deterministic so compare values
+	assert.ElementsMatch(t, payloads, receivedPayloads)
+}
