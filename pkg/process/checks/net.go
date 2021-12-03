@@ -189,16 +189,16 @@ func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[st
 	dbentry := &model.DNSDatabaseEntry{
 		NameOffsets: make([]int32, len(entry.Names)),
 	}
-	for _, name := range entry.Names {
+	for entryidx, name := range entry.Names {
 		// at this point, the NameOffsets slice is actually a slice of indices into
 		// the name slice.  It will be converted prior to encoding.
 		if idx, ok := namemap[name]; ok {
-			dbentry.NameOffsets = append(dbentry.NameOffsets, idx)
+			dbentry.NameOffsets[entryidx] = idx
 		} else {
 			dblen := int32(len(*namedb))
 			*namedb = append(*namedb, name)
 			namemap[name] = dblen
-			dbentry.NameOffsets = append(dbentry.NameOffsets, dblen)
+			dbentry.NameOffsets[entryidx] = dblen
 		}
 
 	}
@@ -304,6 +304,9 @@ func batchConnections(
 		namedb := make([]string, 0)
 
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+			if c.Raddr.Ip == "10.128.253.64" {
+				fmt.Printf("Found\n")
+			}
 			if entries, ok := dns[c.Raddr.Ip]; ok {
 				if _, present := batchDNS[c.Raddr.Ip]; !present {
 					// first, walks through and converts entries of type DNSEntry to DNSDatabaseEntry,
