@@ -88,7 +88,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 				MatchValue:           "$2",
 			},
 			expectedValue: valuestore.ResultValue{},
-			expectedError: "pattern `value(\\d)` failed to match `value1` with template `$2`",
+			expectedError: "the pattern `value(\\d)` matched value `value1`, but template `$2` is not compatible",
 		},
 		{
 			name:   "OK Extract value case",

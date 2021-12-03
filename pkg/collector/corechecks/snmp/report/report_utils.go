@@ -12,7 +12,7 @@ func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 	if err != nil {
 		return valuestore.ResultValue{}, err
 	}
-	return processValue(symbol, value)
+	return processValueUsingSymbolConfig(value, symbol)
 }
 
 func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol checkconfig.SymbolConfig) (map[string]valuestore.ResultValue, error) {
@@ -22,7 +22,7 @@ func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 		return nil, err
 	}
 	for index, value := range columnValues {
-		newValue, err := processValue(symbol, value)
+		newValue, err := processValueUsingSymbolConfig(value, symbol)
 		if err != nil {
 			continue
 		}
@@ -31,7 +31,7 @@ func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 	return newValues, nil
 }
 
-func processValue(symbol checkconfig.SymbolConfig, value valuestore.ResultValue) (valuestore.ResultValue, error) {
+func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol checkconfig.SymbolConfig) (valuestore.ResultValue, error) {
 	if symbol.ExtractValueCompiled != nil {
 		extractedValue, err := value.ExtractStringValue(symbol.ExtractValueCompiled)
 		if err != nil {
@@ -50,7 +50,7 @@ func processValue(symbol checkconfig.SymbolConfig, value valuestore.ResultValue)
 		if symbol.MatchPatternCompiled.MatchString(strValue) {
 			replacedVal := checkconfig.RegexReplaceValue(strValue, symbol.MatchPatternCompiled, symbol.MatchValue)
 			if replacedVal == "" {
-				return valuestore.ResultValue{}, fmt.Errorf("pattern `%v` failed to match `%v` with template `%s`", symbol.MatchPattern, strValue, symbol.MatchValue)
+				return valuestore.ResultValue{}, fmt.Errorf("the pattern `%v` matched value `%v`, but template `%s` is not compatible", symbol.MatchPattern, strValue, symbol.MatchValue)
 			}
 			value = valuestore.ResultValue{Value: replacedVal}
 		} else {
