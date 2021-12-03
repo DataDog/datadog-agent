@@ -1,7 +1,6 @@
 package devicecheck
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
@@ -70,8 +68,8 @@ func (d *DeviceCheck) GetIDTags() []string {
 	return d.config.DeviceIDTags
 }
 
-// GetHostname returns DeviceID as hostname if UseDeviceIDAsHostname is true
-func (d *DeviceCheck) GetHostname() string {
+// GetDeviceHostname returns DeviceID as hostname if UseDeviceIDAsHostname is true
+func (d *DeviceCheck) GetDeviceHostname() string {
 	if d.config.UseDeviceIDAsHostname {
 		return deviceHostnamePrefix + d.config.DeviceID
 	}
@@ -112,26 +110,17 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	}
 
 	d.submitTelemetryMetrics(startTime, tags)
-	err := d.setExternalTags(tags)
-	if err != nil && checkErr == nil {
-		checkErr = err
-	}
+	d.setDeviceHostExternalTags()
 	return checkErr
 }
 
-func (d *DeviceCheck) setExternalTags(deviceTags []string) error {
-	hostname := d.GetHostname()
-	if hostname == "" {
-		coreHostname, err := coreutil.GetHostname(context.TODO())
-		if err != nil {
-			log.Warnf("Error getting hostname: ", err)
-			return err
-		}
-		hostname = coreHostname
+func (d *DeviceCheck) setDeviceHostExternalTags() {
+	deviceHostname := d.GetDeviceHostname()
+	if deviceHostname == "" {
+		return
 	}
 	agentTags := config.GetConfiguredTags(false)
-	externalhost.SetExternalTags(hostname, common.SnmpIntegrationName, agentTags)
-	return nil
+	externalhost.SetExternalTags(deviceHostname, common.SnmpIntegrationName, agentTags)
 }
 
 func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *valuestore.ResultValueStore, error) {
