@@ -244,7 +244,10 @@ func ResetCaptureTagger() {
 }
 
 func init() {
-	SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+	// all binaries are expected to provide their own tagger at startup. we
+	// provide a fake tagger on init for testing purposes, as calling
+	// the global tagger without proper initialization is very common there.
+	SetDefaultTagger(local.NewFakeTagger())
 }
 
 // EnrichTags extends a tag list with origin detection tags

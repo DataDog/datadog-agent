@@ -14,7 +14,6 @@ import (
 	lsched "github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	lstatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,11 +27,10 @@ import (
 // tagger, collector, scheduler and autodiscovery
 func LoadComponents(ctx context.Context, confdPath string) {
 	if flavor.GetFlavor() != flavor.ClusterAgent {
-		workloadmeta.GetGlobalStore().Start(ctx)
+		store := workloadmeta.GetGlobalStore()
+		store.Start(ctx)
 
-		// start the tagger. must be done before autodiscovery, as it needs to
-		// be the first subscribed to metadata store to avoid race conditions.
-		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+		tagger.SetDefaultTagger(local.NewTagger(store))
 		if err := tagger.Init(); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}

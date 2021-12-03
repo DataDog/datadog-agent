@@ -29,13 +29,15 @@ const (
 	gardenSource    = workloadmetaCollectorName + "-" + string(workloadmeta.KindGardenContainer)
 )
 
+// CollectorPriorities holds collector priorities
+var CollectorPriorities = make(map[string]CollectorPriority)
+
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
 	store    workloadmeta.Store
 	children map[string]map[string]struct{}
 	out      chan<- []*TagInfo
-	stop     chan struct{}
 
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
@@ -53,12 +55,63 @@ type WorkloadMetaCollector struct {
 	collectEC2ResourceTags bool
 }
 
-// Detect initializes the WorkloadMetaCollector.
-func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
-	c.out = out
-	c.stop = make(chan struct{})
-	c.children = make(map[string]map[string]struct{})
-	c.collectEC2ResourceTags = config.Datadog.GetBool("ecs_collect_resource_tags_ec2")
+func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
+	c.containerLabelsAsTags, c.globContainerLabels = utils.InitMetadataAsTags(labelsAsTags)
+	c.containerEnvAsTags, c.globContainerEnvLabels = utils.InitMetadataAsTags(envAsTags)
+}
+
+func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags map[string]string) {
+	c.labelsAsTags, c.globLabels = utils.InitMetadataAsTags(labelsAsTags)
+	c.annotationsAsTags, c.globAnnotations = utils.InitMetadataAsTags(annotationsAsTags)
+	c.nsLabelsAsTags, c.globNsLabels = utils.InitMetadataAsTags(nsLabelsAsTags)
+}
+
+// Stream runs the continuous event watching loop and sends new tags to the
+// tagger based on the events sent by the workloadmeta.
+func (c *WorkloadMetaCollector) Stream(ctx context.Context) {
+	const name = "tagger-workloadmeta"
+
+	health := health.RegisterLiveness(name)
+	defer func() {
+		err := health.Deregister()
+		if err != nil {
+			log.Warnf("error de-registering health check: %s", err)
+		}
+	}()
+
+	ch := c.store.Subscribe(name, workloadmeta.TaggerPriority, nil)
+
+	log.Infof("workloadmeta tagger collector started")
+
+	for {
+		select {
+		case evBundle, ok := <-ch:
+			if !ok {
+				return nil
+			}
+
+			c.processEvents(evBundle)
+
+		case <-health.C:
+
+		case <-ctx.Done():
+			c.store.Unsubscribe(ch)
+
+			return
+		}
+	}
+}
+
+// NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
+// TODO(juliogreff): get a ref to the store instead of a chan
+func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Store, out chan<- []*TagInfo) *WorkloadMetaCollector {
+	c := &WorkloadMetaCollector{
+		out:                    out,
+		store:                  store,
+		staticTags:             fargateStaticTags(ctx),
+		children:               make(map[string]map[string]struct{}),
+		collectEC2ResourceTags: config.Datadog.GetBool("ecs_collect_resource_tags_ec2"),
+	}
 
 	containerLabelsAsTags := mergeMaps(
 		retrieveMappingFromConfig("docker_labels_as_tags"),
@@ -75,66 +128,7 @@ func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInf
 	nsLabelsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")
 	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags)
 
-	c.staticTags = fargateStaticTags(ctx)
-
-	return StreamCollection, nil
-}
-
-func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
-	c.containerLabelsAsTags, c.globContainerLabels = utils.InitMetadataAsTags(labelsAsTags)
-	c.containerEnvAsTags, c.globContainerEnvLabels = utils.InitMetadataAsTags(envAsTags)
-}
-
-func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags map[string]string) {
-	c.labelsAsTags, c.globLabels = utils.InitMetadataAsTags(labelsAsTags)
-	c.annotationsAsTags, c.globAnnotations = utils.InitMetadataAsTags(annotationsAsTags)
-	c.nsLabelsAsTags, c.globNsLabels = utils.InitMetadataAsTags(nsLabelsAsTags)
-}
-
-// Stream runs the continuous event watching loop and sends new tags to the
-// tagger based on the events sent by the workloadmeta.
-func (c *WorkloadMetaCollector) Stream() error {
-	const name = "tagger-workloadmeta"
-
-	health := health.RegisterLiveness(name)
-	defer func() {
-		err := health.Deregister()
-		if err != nil {
-			log.Warnf("error de-registering health check: %s", err)
-		}
-	}()
-
-	ch := c.store.Subscribe(name, workloadmeta.TaggerPriority, nil)
-
-	for {
-		select {
-		case evBundle, ok := <-ch:
-			if !ok {
-				return nil
-			}
-
-			c.processEvents(evBundle)
-
-		case <-health.C:
-
-		case <-c.stop:
-			c.store.Unsubscribe(ch)
-
-			return nil
-		}
-	}
-}
-
-// Stop shuts down the WorkloadMetaCollector.
-func (c *WorkloadMetaCollector) Stop() error {
-	c.stop <- struct{}{}
-	return nil
-}
-
-func workloadmetaFactory() Collector {
-	return &WorkloadMetaCollector{
-		store: workloadmeta.GetGlobalStore(),
-	}
+	return c
 }
 
 func fargateStaticTags(ctx context.Context) map[string]string {
@@ -209,15 +203,6 @@ func mergeMaps(first, second map[string]string) map[string]string {
 }
 
 func init() {
-	// NOTE: WorkloadMetaCollector is meant to be used as the single
-	// collector, while emitting TagInfos with different sources. This is
-	// different from the way older collectors work, where they have a
-	// single priority. Until they all go away, we need to register the
-	// collector with a dummy priority, then set the priority for the
-	// actual sources we emit manually
-
-	registerCollector(workloadmetaCollectorName, workloadmetaFactory, NodeRuntime)
-
 	CollectorPriorities[podSource] = NodeOrchestrator
 	CollectorPriorities[taskSource] = NodeOrchestrator
 	CollectorPriorities[containerSource] = NodeRuntime

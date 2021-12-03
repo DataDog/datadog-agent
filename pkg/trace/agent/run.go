@@ -18,7 +18,6 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -156,10 +155,10 @@ func Run(ctx context.Context) {
 	// starts the local tagger if apm_config says so, or if starting the
 	// remote tagger has failed.
 	if !remoteTagger {
-		// Start workload metadata store before tagger
-		workloadmeta.GetGlobalStore().Start(context.Background())
+		store := workloadmeta.GetGlobalStore()
+		store.Start(context.Background())
 
-		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+		tagger.SetDefaultTagger(local.NewTagger(store))
 		if err := tagger.Init(); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
