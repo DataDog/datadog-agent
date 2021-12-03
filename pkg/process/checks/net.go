@@ -304,9 +304,6 @@ func batchConnections(
 		namedb := make([]string, 0)
 
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
-			if c.Raddr.Ip == "10.128.253.64" {
-				fmt.Printf("Found\n")
-			}
 			if entries, ok := dns[c.Raddr.Ip]; ok {
 				if _, present := batchDNS[c.Raddr.Ip]; !present {
 					// first, walks through and converts entries of type DNSEntry to DNSDatabaseEntry,
