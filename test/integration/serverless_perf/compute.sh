@@ -11,7 +11,7 @@ do
     # create a new container to ensure cold start
     dockerId=$(docker run -d datadogci/lambda-extension)
     sleep 10
-    numberOfMillisecs=$(docker logs $dockerId | grep 'ready in' | grep -Eo '[0-9]{1,4}' | tail -3 | head -1)
+    numberOfMillisecs=$(docker logs "$dockerId" | grep 'ready in' | grep -Eo '[0-9]{1,4}' | tail -3 | head -1)
     totalMs=$((totalMs+numberOfMillisecs))
     echo "Iteration $i - Statup time = $numberOfMillisecs"
 done

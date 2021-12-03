@@ -37,24 +37,18 @@ type Store interface {
 // Kind is the kind of an entity.
 type Kind string
 
-// Source is the source name of an entity.
-type Source string
-
-// ContainerRuntime is the container runtime used by a container.
-type ContainerRuntime string
-
-// ECSLaunchType is the launch type of an ECS task.
-type ECSLaunchType string
-
-// EventType is the type of an event.
-type EventType int
-
-// List of enumerable constants for the types above.
+// Defined Kinds
 const (
 	KindContainer     Kind = "container"
 	KindKubernetesPod Kind = "kubernetes_pod"
 	KindECSTask       Kind = "ecs_task"
+)
 
+// Source is the source name of an entity.
+type Source string
+
+// Defined Sources
+const (
 	SourceDocker       Source = "docker"
 	SourceContainerd   Source = "containerd"
 	SourceECS          Source = "ecs"
@@ -62,14 +56,32 @@ const (
 	SourceKubelet      Source = "kubelet"
 	SourceKubeMetadata Source = "kube_metadata"
 	SourcePodman       Source = "podman"
+)
 
+// ContainerRuntime is the container runtime used by a container.
+type ContainerRuntime string
+
+// Defined ContainerRuntimes
+const (
 	ContainerRuntimeDocker     ContainerRuntime = "docker"
 	ContainerRuntimeContainerd ContainerRuntime = "containerd"
 	ContainerRuntimePodman     ContainerRuntime = "podman"
+)
 
+// ECSLaunchType is the launch type of an ECS task.
+type ECSLaunchType string
+
+// Defined ECSLaunchTypes
+const (
 	ECSLaunchTypeEC2     ECSLaunchType = "ec2"
 	ECSLaunchTypeFargate ECSLaunchType = "fargate"
+)
 
+// EventType is the type of an event.
+type EventType int
+
+// Defined EventTypes
+const (
 	EventTypeSet EventType = iota
 	EventTypeUnset
 )

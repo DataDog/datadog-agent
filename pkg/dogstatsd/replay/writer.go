@@ -220,7 +220,10 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 		tc.writer = bufio.NewWriter(target)
 	}
 
-	tc.shutdown = make(chan struct{})
+	// Do not use `tc.shutdown` directly as `tc.shutdown` can be set to nil
+	shutdown := make(chan struct{})
+	tc.shutdown = shutdown
+
 	tc.ongoing = true
 
 	err = tc.WriteHeader()
@@ -256,12 +259,8 @@ process:
 				log.Errorf("There was an issue writing the captured message to disk, stopping capture: %v", err)
 				tc.StopCapture()
 			}
-		case <-tc.shutdown:
+		case <-shutdown:
 			log.Debug("Capture shutting down")
-			tc.Lock()
-			tc.shutdown = nil
-			tc.Unlock()
-
 			break process
 		}
 	}
@@ -325,6 +324,7 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 
 	if tc.shutdown != nil {
 		close(tc.shutdown)
+		tc.shutdown = nil
 	}
 
 	log.Debug("Capture was stopped")
