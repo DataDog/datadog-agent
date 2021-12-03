@@ -54,6 +54,7 @@ from .test import (
     install_tools,
     integration_tests,
     junit_upload,
+    lint_copyrights,
     lint_filenames,
     lint_milestone,
     lint_python,
@@ -79,6 +80,7 @@ ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
+ns.add_task(lint_copyrights),
 ns.add_task(lint_teamassignment)
 ns.add_task(lint_releasenote)
 ns.add_task(lint_milestone)
