@@ -15,13 +15,14 @@ import (
 	"syscall"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/mailru/easyjson/jwriter"
 	"golang.org/x/sys/unix"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/mailru/easyjson/jwriter"
 )
 
 const (
@@ -61,6 +62,13 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
 	return &Event{}
+}
+
+// NetDeviceKey is used to uniquely identify a network device
+type NetDeviceKey struct {
+	IfIndex          uint32
+	NetNS            uint32
+	NetworkDirection manager.TrafficType
 }
 
 // Event describes a probe event

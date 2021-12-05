@@ -49,6 +49,7 @@ type EventHandler interface {
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
 	// Constants and configuration
+	tcPrograms     map[NetDeviceKey]*manager.Probe
 	manager        *manager.Manager
 	managerOptions manager.Options
 	config         *config.Config
@@ -182,10 +183,6 @@ func (p *Probe) Init(client *statsd.Client) error {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
 	}
 
-	if err := p.generateDynamicProbes(); err != nil {
-		return errors.Wrap(err, "couldn't generate probes")
-	}
-
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return errors.Wrap(err, "failed to init manager")
 	}
@@ -231,33 +228,11 @@ func (p *Probe) Start() error {
 		return err
 	}
 
+	if err := p.snapshotNetworkDevices(); err != nil {
+		return err
+	}
+
 	return p.monitor.Start(p.ctx, &p.wg)
-}
-
-// generateDynamicProbes generated probes
-func (p *Probe) generateDynamicProbes() error {
-	netIfs, err := net.Interfaces()
-	if err != nil {
-		return errors.Wrap(err, "couldn't list network interfaces")
-	}
-
-	var selector manager.AllOf
-	for _, netIf := range netIfs {
-		for _, tcProbe := range probes.GetTCProbes() {
-			newProbe := tcProbe.Copy()
-			newProbe.UID = utils.RandString(10)
-			newProbe.Ifname = netIf.Name
-			newProbe.CopyProgram = true
-
-			p.manager.Probes = append(p.manager.Probes, newProbe)
-			selector.Selectors = append(selector.Selectors, &manager.ProbeSelector{
-				ProbeIdentificationPair: newProbe.ProbeIdentificationPair,
-			})
-		}
-	}
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, &selector)
-	probes.SelectorsPerEventType["dns"] = append(probes.SelectorsPerEventType["dns"], &selector)
-	return nil
 }
 
 // SetEventHandler set the probe event handler
@@ -611,6 +586,18 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode splice event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.NetDeviceEventType:
+		if _, err = event.NetDevice.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode net_device event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		p.setupNewTCClassifier(event.NetDevice.Device)
+	case model.VethPairEventType:
+		if _, err = event.VethPair.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		p.setupNewTCClassifier(event.VethPair.HostDevice)
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
@@ -911,6 +898,36 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts)
 }
 
+func (p *Probe) setupNewTCClassifier(device model.NetDevice) {
+	for _, tcProbe := range probes.GetTCProbes() {
+		newProbe := tcProbe.Copy()
+		newProbe.UID = probes.SecurityAgentUID + device.GetKey()
+		newProbe.Ifindex = int32(device.IfIndex)
+		newProbe.IfindexNetns = uint64(device.NetNS)
+
+		if err := p.manager.CloneProgram(probes.SecurityAgentUID, newProbe, nil, nil); err != nil {
+			seclog.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err)
+		} else {
+			p.tcPrograms[NetDeviceKey{IfIndex: device.IfIndex, NetNS: device.NetNS, NetworkDirection: tcProbe.NetworkDirection}] = newProbe
+		}
+	}
+}
+
+// snapshotNetworkDevices sets up TC probes on existing network devices
+func (p *Probe) snapshotNetworkDevices() error {
+	netIfs, err := net.Interfaces()
+	if err != nil {
+		return errors.Wrap(err, "couldn't list network interfaces")
+	}
+
+	var netdev model.NetDevice
+	for _, netIf := range netIfs {
+		netdev.IfIndex = uint32(netIf.Index)
+		p.setupNewTCClassifier(netdev)
+	}
+	return nil
+}
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	erpc, err := NewERPC()
@@ -929,6 +946,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		cancelFnc:      cancel,
 		statsdClient:   client,
 		erpc:           erpc,
+		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
 	}
 
 	if err = p.detectKernelVersion(); err != nil {

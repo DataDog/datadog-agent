@@ -171,6 +171,8 @@ type Event struct {
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
 	CgroupTracing    CgroupTracingEvent    `field:"-"`
+	NetDevice        NetDeviceEvent        `field:"-"`
+	VethPair         VethPairEvent         `field:"-"`
 }
 
 // GetType returns the event type
@@ -751,4 +753,33 @@ type DNSEvent struct {
 	DNSServerIPFamily uint64 `field:"dns_server_ip_family"` // DNS server IP family (IPv4 or IPv6) of the DNS server IP
 	DNSServerIP       net.IP `field:"dns_server_ip"`        // DNS server IP to which the request was sent
 	Name              string `field:"name"`                 // name field of the DNS request
+}
+
+// NetDevice represents a network device
+type NetDevice struct {
+	Name        string
+	NetNS       uint32
+	IfIndex     uint32
+	PeerNetNS   uint32
+	PeerIfIndex uint32
+}
+
+func (d NetDevice) GetKey() string {
+	return fmt.Sprintf("%v_%v", d.IfIndex, d.NetNS)
+}
+
+// NetDeviceEvent representes a network device event
+type NetDeviceEvent struct {
+	SyscallEvent
+
+	Device NetDevice
+	Flag   uint16
+}
+
+// VethPairEvent represents a veth pair event
+type VethPairEvent struct {
+	SyscallEvent
+
+	HostDevice NetDevice
+	PeerDevice NetDevice
 }

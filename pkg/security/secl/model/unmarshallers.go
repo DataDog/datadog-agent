@@ -810,3 +810,62 @@ func decodeDNS(raw []byte) string {
 	}
 	return rep
 }
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (d *NetDevice) UnmarshalBinary(data []byte) (int, error) {
+	if len(data[:]) < 32 {
+		return 0, ErrNotEnoughData
+	}
+
+	var err error
+	d.Name, err = UnmarshalString(data[0:16], 16)
+	if err != nil {
+		return 0, err
+	}
+	d.NetNS = ByteOrder.Uint32(data[16:20])
+	d.IfIndex = ByteOrder.Uint32(data[20:24])
+	d.PeerNetNS = ByteOrder.Uint32(data[24:28])
+	d.PeerIfIndex = ByteOrder.Uint32(data[28:32])
+	return 32, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *NetDeviceEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	cursor := read
+
+	read, err = e.Device.UnmarshalBinary(data[cursor:])
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
+
+	e.Flag = ByteOrder.Uint16(data[cursor : cursor+2])
+	return cursor + 2, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *VethPairEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	cursor := read
+
+	read, err = e.HostDevice.UnmarshalBinary(data[cursor:])
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
+
+	read, err = e.PeerDevice.UnmarshalBinary(data[cursor:])
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
+
+	return cursor, nil
+}

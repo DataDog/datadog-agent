@@ -61,6 +61,7 @@
 #include "tc.h"
 #include "module.h"
 #include "signal.h"
+#include "net_device.h"
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;
