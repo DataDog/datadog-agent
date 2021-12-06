@@ -351,7 +351,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "gt_400")
-		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
+		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %s", resp.Status, logURL, string(body))
 	}
 
 	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName)
