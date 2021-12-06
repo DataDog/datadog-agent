@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    APM: Add telemetry proxy endpoint to Trace Agent to allow Instrumentation Libraries to submit telemetry data
+    APM: Add proxy endpoint to allow Instrumentation Libraries to submit telemetry data.
 
