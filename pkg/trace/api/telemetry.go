@@ -115,7 +115,6 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			http.Error(w, msg, http.StatusMethodNotAllowed)
 		})
 	}
-
 	transport := telemetryMultiTransport{
 		Transport: r.conf.NewHTTPTransport(),
 		Endpoints: r.conf.TelemetryConfig.Endpoints,
