@@ -20,11 +20,11 @@ import (
 func TestStartTrue(t *testing.T) {
 	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
-	assert.True(t, Start("127.0.0.1:7000", "127.0.0.1:7001"))
+	assert.True(t, Start(nil, "127.0.0.1:7000", "127.0.0.1:7001"))
 }
 
 func TestStartFalse(t *testing.T) {
-	assert.False(t, Start("127.0.0.1:5000", "127.0.0.1:5001"))
+	assert.False(t, Start(nil, "127.0.0.1:5000", "127.0.0.1:5001"))
 }
 
 type assertSuccessProcessor struct{}

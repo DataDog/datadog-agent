@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,10 +25,12 @@ type runtimeProxy struct {
 
 // Start starts the proxy
 // This proxy allows us to inspect traffic from/to the AWS Lambda Runtime API
-func Start(proxyHostPort string, originalRuntimeHostPort string) bool {
+func Start(daemon *daemon.Daemon, proxyHostPort string, originalRuntimeHostPort string) bool {
 	if strings.ToLower(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")) == "true" {
 		log.Debug("the experimental proxy feature is enabled")
-		go setup(proxyHostPort, originalRuntimeHostPort, &proxyProcessor{})
+		go setup(proxyHostPort, originalRuntimeHostPort, &proxyProcessor{
+			outChanel: daemon.TraceAgent.Get().In,
+		})
 		return true
 	}
 	return false
