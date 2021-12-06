@@ -3,7 +3,7 @@
 # Usage - run commands from repo root:
 # To check if new changes to the extension cause changes to any snapshots:
 #   BUILD_EXTENSION=true aws-vault exec sandbox-account-admin -- ./run.sh
-# To regeenerate snapshots:
+# To regennerate snapshots:
 #   UPDATE_SNAPSHOTS=true aws-vault exec sandbox-account-admin -- ./run.sh
 
 LOGS_WAIT_SECONDS=600
