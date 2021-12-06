@@ -425,7 +425,6 @@ func loadEnvVariables() {
 		{"DD_BIND_HOST", "bind_host"},
 		{"HTTPS_PROXY", "proxy.https"},
 		{"DD_PROXY_HTTPS", "proxy.https"},
-		{"DD_LOGS_STDOUT", "log_to_console"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
