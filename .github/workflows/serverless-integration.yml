@@ -1,7 +1,7 @@
 name: "Serverless Integration Tests"
 
 on:
-  pull_request:
+  push:
     paths:
       - 'cmd/serverless/**'
       - 'pkg/serverless/**'
