@@ -6,6 +6,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -316,6 +317,10 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	pkgs, err := packages.Load(&cfg, filename)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
+		return nil, errors.New("failed to get syntax from parse file")
 	}
 
 	pkg := pkgs[0]
