@@ -202,7 +202,7 @@ elif [ "$OS" = "Debian" ]; then
     $sudo_cmd apt-get install -y apt-transport-https
     # Only install dirmngr if it's available in the cache
     # it may not be available on Ubuntu <= 14.04 but it's not required there
-    cache_output=`apt-cache search dirmngr`
+    cache_output=$(apt-cache search dirmngr)
     if [ ! -z "$cache_output" ]; then
       $sudo_cmd apt-get install -y dirmngr
     fi
@@ -317,7 +317,7 @@ $sudo_cmd sh -c "echo '$install_info_content' > $ETCDIR/install_info"
 
 service_cmd="service"
 if [ "$SUSE11" == "yes" ]; then
-  service_cmd=`$sudo_cmd which service`
+  service_cmd=$($sudo_cmd which service)
 fi
 
 # Use /usr/sbin/service by default.
