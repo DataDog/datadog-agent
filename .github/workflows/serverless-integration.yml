@@ -25,9 +25,6 @@ jobs:
       - name: Install Serverless Framework
         run: sudo yarn global add serverless --prefix /usr/local
 
-      - name: Create folder
-        run: pwd && mkdir -p ~/dd
-
       - name: Checkout the datadog-lambda-extension repository
         uses: actions/checkout@v2
         with:
