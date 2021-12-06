@@ -15,11 +15,11 @@ set -e
 
 script_utc_start_time=$(date -u +"%Y%m%dT%H%M%S")
 
-if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-    echo "No AWS credentials were found in the environment."
-    echo "Note that only Datadog employees can run these integration tests."
-    exit 1
-fi
+# if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+#     echo "No AWS credentials were found in the environment."
+#     echo "Note that only Datadog employees can run these integration tests."
+#     exit 1
+# fi
 
 # Move into the root directory, so this script can be called from any directory
 SERVERLESS_INTEGRATION_TESTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
