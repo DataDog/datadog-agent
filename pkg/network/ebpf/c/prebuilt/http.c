@@ -333,9 +333,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs* ctx) {
 
     char buffer[HTTP_BUFFER_SIZE];
     __builtin_memset(buffer, 0, sizeof(buffer));
-    if (read_len < sizeof(buffer)) {
-        bpf_probe_read(buffer, read_len, args->buf);
-    } else {
+    if (read_len >= HTTP_BUFFER_SIZE) {
         bpf_probe_read(buffer, sizeof(buffer), args->buf);
     }
 
@@ -362,9 +360,7 @@ int uprobe__gnutls_record_send(struct pt_regs* ctx) {
 
     char buffer[HTTP_BUFFER_SIZE];
     __builtin_memset(buffer, 0, sizeof(buffer));
-    if (data_size < sizeof(buffer)) {
-        bpf_probe_read(buffer, data_size, data);
-    } else {
+    if (data_size >= HTTP_BUFFER_SIZE) {
         bpf_probe_read(buffer, sizeof(buffer), data);
     }
 
