@@ -61,16 +61,6 @@ func TestSplitTag(t *testing.T) {
 	}
 }
 
-// mockConfig is a single config entry mocking util with automatic reset
-//
-// Usage: defer mockConfig(key, new_value)()
-// will automatically revert previous once current scope exits
-func mockConfig(k string, v interface{}) func() {
-	oldConfig := config.Datadog
-	config.Mock().Set(k, v)
-	return func() { config.Datadog = oldConfig }
-}
-
 func TestTelemetryEndpointsConfig(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		cfg := New()
@@ -83,7 +73,8 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 
 	t.Run("dd_url", func(t *testing.T) {
-		defer mockConfig("apm_config.telemetry.dd_url", "http://example.com")()
+		defer cleanConfig()
+		config.Datadog.Set("apm_config.telemetry.dd_url", "http://example.com")
 
 		cfg := New()
 		err := cfg.applyDatadogConfig()
@@ -94,7 +85,8 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 
 	t.Run("dd_url-fail", func(t *testing.T) {
-		defer mockConfig("apm_config.telemetry.dd_url", "111://abc.com")()
+		defer cleanConfig()
+		config.Datadog.Set("apm_config.telemetry.dd_url", "111://abc.com")
 
 		cfg := New()
 		err := cfg.applyDatadogConfig()
@@ -103,8 +95,24 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		assert.False(t, cfg.TelemetryConfig.Enabled)
 	})
 
+	t.Run("dd_url-fallback", func(t *testing.T) {
+		defer cleanConfig()
+		config.Datadog.Set("apm_config.telemetry.dd_url", "111://abc.com")
+		additionalEndpoints := make(map[string]string)
+		additionalEndpoints["https://test_backend_2.example.com"] = "test_apikey_2"
+		config.Datadog.Set("apm_config.telemetry.additional_endpoints", additionalEndpoints)
+
+		cfg := New()
+		err := cfg.applyDatadogConfig()
+
+		assert.NoError(t, err)
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Equal(t, "test_backend_2.example.com", cfg.TelemetryConfig.Endpoints[0].Host)
+	})
+
 	t.Run("site", func(t *testing.T) {
-		defer mockConfig("site", "new_site.example.com")()
+		defer cleanConfig()
+		config.Datadog.Set("site", "new_site.example.com")
 
 		cfg := New()
 		err := cfg.applyDatadogConfig()
@@ -116,11 +124,11 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 
 	t.Run("additional-hosts", func(t *testing.T) {
+		defer cleanConfig()
 		additionalEndpoints := make(map[string]string)
 		additionalEndpoints["test_backend_2.example.com"] = "test_apikey_2"
 		additionalEndpoints["test_backend_3.example.com"] = "test_apikey_3"
-
-		defer mockConfig("apm_config.telemetry.additional_endpoints", additionalEndpoints)()
+		config.Datadog.Set("apm_config.telemetry.additional_endpoints", additionalEndpoints)
 
 		cfg := New()
 		err := cfg.applyDatadogConfig()
@@ -138,11 +146,11 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 
 	t.Run("additional-urls", func(t *testing.T) {
+		defer cleanConfig()
 		additionalEndpoints := make(map[string]string)
 		additionalEndpoints["http://test_backend_2.example.com"] = "test_apikey_2"
 		additionalEndpoints["http://test_backend_3.example.com"] = "test_apikey_3"
-
-		defer mockConfig("apm_config.telemetry.additional_endpoints", additionalEndpoints)()
+		config.Datadog.Set("apm_config.telemetry.additional_endpoints", additionalEndpoints)
 
 		cfg := New()
 		err := cfg.applyDatadogConfig()
@@ -159,21 +167,20 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("include-malformed", func(t *testing.T) {
+	t.Run("skip-malformed", func(t *testing.T) {
+		defer cleanConfig()
 		additionalEndpoints := make(map[string]string)
 		additionalEndpoints["11://test_backend_2.example.com///"] = "test_apikey_2"
 		additionalEndpoints["http://test_backend_3.example.com/"] = "test_apikey_3"
+		config.Datadog.Set("apm_config.telemetry.additional_endpoints", additionalEndpoints)
 
-		defer mockConfig("apm_config.telemetry.additional_endpoints", additionalEndpoints)()
 		cfg := New()
 		err := cfg.applyDatadogConfig()
 		assert.NoError(t, err)
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
-		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 2)
 		assert.Equal(t, "instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
-		assert.Equal(t, "test_backend_3.example.com", cfg.TelemetryConfig.Endpoints[2].Host)
-		//malformed url is kept to be backwards compatible with `apm_config.additional_endpoints` implementation
-		assert.Equal(t, "11://test_backend_2.example.com///", cfg.TelemetryConfig.Endpoints[1].Host)
+		assert.Equal(t, "test_backend_3.example.com", cfg.TelemetryConfig.Endpoints[1].Host)
 	})
 }

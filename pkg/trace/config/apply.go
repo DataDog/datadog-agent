@@ -208,26 +208,17 @@ type WriterConfig struct {
 	FlushPeriodSeconds float64 `mapstructure:"flush_period_seconds"`
 }
 
-func appendAdditionalEndpoints(endpoints []*Endpoint, cfgName string) []*Endpoint {
-	if config.Datadog.IsSet(cfgName) {
-		for endpoint, keys := range config.Datadog.GetStringMapStringSlice(cfgName) {
+func appendAdditionalEndpoints(endpoints []*Endpoint, cfgKey string) []*Endpoint {
+	if config.Datadog.IsSet(cfgKey) {
+		for url, keys := range config.Datadog.GetStringMapStringSlice(cfgKey) {
 			if len(keys) == 0 {
-				log.Errorf("'%s' entries must have at least one API key present", cfgName)
+				log.Errorf("'%s' entries must have at least one API key present", cfgKey)
 				continue
 			}
-			host := endpoint
-			if u, err := url.Parse(endpoint); err != nil {
-				log.Errorf("Error parsing %s '%s': %v", cfgName, endpoint, err)
-			} else {
-				host = u.Host
 
-				if host == "" {
-					host = u.String()
-				}
-			}
 			for _, key := range keys {
 				key = config.SanitizeAPIKey(key)
-				endpoints = append(endpoints, &Endpoint{Host: host, APIKey: key})
+				endpoints = append(endpoints, &Endpoint{Host: url, APIKey: key})
 			}
 		}
 	}
@@ -385,26 +376,24 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	if config.Datadog.GetBool("apm_config.telemetry.enabled") {
-		c.TelemetryConfig.Endpoints[0].Host = config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url")
-		site := config.Datadog.GetString("site")
-		if site == "" {
-			site = config.DefaultSite
-		}
-		main := telemetryEndpointPrefix + site
-		if v := config.Datadog.GetString("apm_config.telemetry.dd_url"); v != "" {
-			main = v
-		}
+		endpoints := []*Endpoint{{
+			Host:   config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
+			APIKey: c.Endpoints[0].APIKey,
+		}}
+		endpoints = appendAdditionalEndpoints(endpoints, "apm_config.telemetry.additional_endpoints")
+		// convert any URLs into Hostnames
 		c.TelemetryConfig.Endpoints = []*Endpoint{}
-		if u, err := url.Parse(main); err != nil {
-			log.Errorf("error parsing main telemetry intake URL %s: %v", main, err)
-		} else {
-			c.TelemetryConfig.Endpoints = append(c.TelemetryConfig.Endpoints, &Endpoint{
-				APIKey: c.Endpoints[0].APIKey,
-				Host:   u.Host,
-			})
+		for _, endpoint := range endpoints {
+			u, err := url.Parse(endpoint.Host)
+			if err != nil {
+				log.Errorf("Error parsing Telemetry endpoint: %s", endpoint.Host)
+				continue
+			}
+			if u.Host != "" {
+				endpoint.Host = u.Host
+			}
+			c.TelemetryConfig.Endpoints = append(c.TelemetryConfig.Endpoints, endpoint)
 		}
-		c.TelemetryConfig.Endpoints = appendAdditionalEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
-		// Enable if we at least have 1 valid Endpoint configured
 		if len(c.TelemetryConfig.Endpoints) > 0 {
 			c.TelemetryConfig.Enabled = true
 		}

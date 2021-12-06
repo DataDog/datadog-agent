@@ -252,7 +252,7 @@ func (c *AgentConfig) acquireHostname() error {
 		return errors.New("empty hostname disallowed")
 	}
 	c.Hostname = reply.Hostname
-	log.Debugf("Acquired hostname from gRPC: %s", c.Hostname)
+	log.Errorf("Acquired hostname from gRPC: %s", c.Hostname)
 	return nil
 }
 
