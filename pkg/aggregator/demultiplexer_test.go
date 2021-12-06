@@ -31,6 +31,7 @@ func resetDemuxInstance(require *require.Assertions) {
 func demuxTestOptions() DemultiplexerOptions {
 	opts := DefaultDemultiplexerOptions(nil)
 	opts.FlushInterval = time.Hour
+	opts.DontStartForwarders = true
 	return opts
 }
 
@@ -79,7 +80,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// options noop event platform forwarder
 
 	opts = demuxTestOptions()
-	opts.NoopEventPlatformForwarder = true
+	opts.UseNoopEventPlatformForwarder = true
 	demux = InitAndStartAgentDemultiplexer(opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)

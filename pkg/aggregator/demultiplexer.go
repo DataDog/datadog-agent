@@ -22,15 +22,15 @@ import (
 // Initialized by InitAndStartAgentDemultiplexer or InitAndStartServerlessDemultiplexer,
 // could be nil otherwise.
 //
-// Deprecated.
+// The plan is to deprecated this global instance at some point.
 var demultiplexerInstance Demultiplexer
+
+var demultiplexerInstanceMu sync.Mutex
 
 // Demultiplexer is composed of multiple samplers (check and time/dogstatsd)
 // a shared forwarder, the event platform forwarder, orchestrator data buffers
-// and other data that need to then be sent to the forwarders.
+// and other data that need to be sent to the forwarders.
 // DemultiplexerOptions let you configure which forwarders have to be started.
-// They are not started automatically if `options.StartForwarders` is not
-// explicitly set to `true`.
 type Demultiplexer interface {
 	// General
 
@@ -72,25 +72,24 @@ type Demultiplexer interface {
 
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent
 type AgentDemultiplexer struct {
-	sync.Mutex
+	m sync.Mutex
 
 	// options are the options with which the demultiplexer has been created
 	options    DemultiplexerOptions
 	aggregator *BufferedAggregator
-	output
+	dataOutputs
 	*senders
 }
 
 // DemultiplexerOptions are the options used to initialize a Demultiplexer.
-// Note that forwarders are started automatically only if `StartForwarders`
-// is set to `true`.
 type DemultiplexerOptions struct {
-	ForwarderOptions           *forwarder.Options
-	NoopEventPlatformForwarder bool
-	NoEventPlatformForwarder   bool
-	NoOrchestratorForwarder    bool
-	FlushInterval              time.Duration
-	StartForwarders            bool // unit tests don't need the forwarders to be instanciated
+	ForwarderOptions              *forwarder.Options
+	UseNoopEventPlatformForwarder bool
+	NoEventPlatformForwarder      bool
+	NoOrchestratorForwarder       bool
+	FlushInterval                 time.Duration
+
+	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 }
 
 type forwarders struct {
@@ -99,7 +98,7 @@ type forwarders struct {
 	eventPlatform epforwarder.EventPlatformForwarder
 }
 
-type output struct {
+type dataOutputs struct {
 	forwarders       forwarders
 	sharedSerializer serializer.MetricSerializer
 }
@@ -120,6 +119,9 @@ func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOption
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
 func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	demultiplexerInstanceMu.Lock()
+	defer demultiplexerInstanceMu.Unlock()
+
 	// prepare the multiple forwarders
 	// -------------------------------
 
@@ -132,7 +134,7 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 
 	// event platform forwarder
 	var eventPlatformForwarder epforwarder.EventPlatformForwarder
-	if !options.NoEventPlatformForwarder && options.NoopEventPlatformForwarder {
+	if !options.NoEventPlatformForwarder && options.UseNoopEventPlatformForwarder {
 		eventPlatformForwarder = epforwarder.NewNoopEventPlatformForwarder()
 	} else if !options.NoEventPlatformForwarder {
 		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
@@ -152,10 +154,6 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 
 	// --
 
-	if demultiplexerInstance != nil {
-		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
-	}
-
 	demux := &AgentDemultiplexer{
 		options: options,
 
@@ -163,7 +161,7 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 		aggregator: agg,
 
 		// Output
-		output: output{
+		dataOutputs: dataOutputs{
 
 			forwarders: forwarders{
 				shared:        sharedForwarder,
@@ -177,6 +175,9 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 		senders: newSenders(agg),
 	}
 
+	if demultiplexerInstance != nil {
+		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
+	}
 	demultiplexerInstance = demux
 
 	go demux.Run()
@@ -185,7 +186,7 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 
 // Run runs all demultiplexer parts
 func (d *AgentDemultiplexer) Run() {
-	if d.options.StartForwarders {
+	if !d.options.DontStartForwarders {
 		if d.forwarders.orchestrator != nil {
 			d.forwarders.orchestrator.Start() //nolint:errcheck
 		} else {
@@ -208,35 +209,35 @@ func (d *AgentDemultiplexer) Run() {
 }
 
 // AddAgentStartupTelemetry adds a startup event and count to be sent on the next flush
-func (d *AgentDemultiplexer) AddAgentStartupTelemetry(str string) {
-	if str != "" {
-		d.aggregator.AddAgentStartupTelemetry(str)
+func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
+	if agentVersion != "" {
+		d.aggregator.AddAgentStartupTelemetry(agentVersion)
 	}
 }
 
 // Stop stops the demultiplexer
 func (d *AgentDemultiplexer) Stop(flush bool) {
-	d.Lock()
-	defer d.Unlock()
+	d.m.Lock()
+	defer d.m.Unlock()
 
 	if d.aggregator != nil {
 		d.aggregator.Stop(flush)
 	}
 	d.aggregator = nil
 
-	if d.options.StartForwarders {
-		if d.output.forwarders.orchestrator != nil {
-			d.output.forwarders.orchestrator.Stop()
+	if !d.options.DontStartForwarders {
+		if d.dataOutputs.forwarders.orchestrator != nil {
+			d.dataOutputs.forwarders.orchestrator.Stop()
 		}
-		if d.output.forwarders.eventPlatform != nil {
-			d.output.forwarders.eventPlatform.Stop()
+		if d.dataOutputs.forwarders.eventPlatform != nil {
+			d.dataOutputs.forwarders.eventPlatform.Stop()
 		}
-		if d.output.forwarders.shared != nil {
-			d.output.forwarders.shared.Stop()
+		if d.dataOutputs.forwarders.shared != nil {
+			d.dataOutputs.forwarders.shared.Stop()
 		}
 	}
 
-	d.output.sharedSerializer = nil
+	d.dataOutputs.sharedSerializer = nil
 	d.senders = nil
 
 	demultiplexerInstance = nil
@@ -245,8 +246,8 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 // FlushAggregatedData flushes all data from the aggregator to the serializer
 // FIXME(remy): document thread-safety once aggregated API has been implemented
 func (d *AgentDemultiplexer) FlushAggregatedData(start time.Time, waitForSerializer bool) {
-	d.Lock()
-	defer d.Unlock()
+	d.m.Lock()
+	defer d.m.Unlock()
 
 	if d.aggregator != nil {
 		d.aggregator.Flush(start, waitForSerializer)
@@ -270,7 +271,7 @@ func (d *AgentDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
 //
 // Deprecated.
 func (d *AgentDemultiplexer) Serializer() serializer.MetricSerializer {
-	return d.output.sharedSerializer
+	return d.dataOutputs.sharedSerializer
 }
 
 // Aggregator returns an aggregator that anyone can use. This method exists

@@ -136,9 +136,8 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
 			opts := aggregator.DefaultDemultiplexerOptions(nil)
 			opts.FlushInterval = 0
-			opts.NoopEventPlatformForwarder = true
+			opts.UseNoopEventPlatformForwarder = true
 			opts.NoOrchestratorForwarder = true
-			opts.StartForwarders = true
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 			common.LoadComponents(config.Datadog.GetString("confd_path"))

@@ -366,7 +366,6 @@ func StartAgent() error {
 	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
-	opts.StartForwarders = true
 	// Enable core agent specific features like persistence-to-disk
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 

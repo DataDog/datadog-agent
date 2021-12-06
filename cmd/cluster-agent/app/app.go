@@ -219,7 +219,6 @@ func start(cmd *cobra.Command, args []string) error {
 	forwarderOpts.DisableAPIKeyChecking = true
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.NoEventPlatformForwarder = true
-	opts.StartForwarders = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 

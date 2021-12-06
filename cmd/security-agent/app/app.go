@@ -256,7 +256,6 @@ func RunAgent(ctx context.Context) (err error) {
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.NoEventPlatformForwarder = true
 	opts.NoOrchestratorForwarder = true
-	opts.StartForwarders = true // will only run the default forwarder
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
