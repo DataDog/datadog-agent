@@ -1,11 +1,11 @@
 name: "Serverless Integration Tests"
-on: push
 
-  # push:
-    # paths:
-    #   - 'cmd/serverless/**'
-    #   - 'pkg/serverless/**'
-    #   - 'test/integration/serverless/**'
+on:
+  push:
+    paths:
+      - 'cmd/serverless/**'
+      - 'pkg/serverless/**'
+      - 'test/integration/serverless/**'
 
 jobs:
   test:
@@ -39,4 +39,4 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
         run: BUILD_EXTENSION=true .test/integration/serverless/run.sh
-        working_directory: go/src/github.com/DataDog/datadog-agent
+        working-directory: go/src/github.com/DataDog/datadog-agent
