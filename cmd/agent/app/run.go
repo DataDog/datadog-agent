@@ -85,6 +85,8 @@ var (
 
 	configService *remoteconfig.Service
 
+	demux aggregator.Demultiplexer
+
 	runCmd = &cobra.Command{
 		Use:   "run",
 		Short: "Run the Agent",
@@ -364,10 +366,10 @@ func StartAgent() error {
 	}
 
 	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+	// Enable core agent specific features like persistence-to-disk
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
-	// Enable core agent specific features like persistence-to-disk
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
@@ -482,6 +484,10 @@ func StopAgent() {
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
+
+	if demux != nil {
+		demux.Stop(true)
+	}
 
 	logs.Stop()
 	gui.StopGUIServer()
