@@ -39,7 +39,6 @@ var (
 	filename  string
 	pkgname   string
 	output    string
-	strict    bool
 	verbose   bool
 	mock      bool
 	genDoc    bool
@@ -288,9 +287,6 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 							delete(dejavu, fieldName)
 						}
 
-						if strict {
-							log.Panicf("Don't know what to do with %s: %s", fieldName, spew.Sdump(field.Type))
-						}
 						if verbose {
 							log.Printf("Don't know what to do with %s: %s", fieldName, spew.Sdump(field.Type))
 						}
