@@ -120,6 +120,7 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 		return
 	}
 	agentTags := config.GetConfiguredTags(false)
+	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
 	externalhost.SetExternalTags(deviceHostname, common.SnmpIntegrationName, agentTags)
 }
 
