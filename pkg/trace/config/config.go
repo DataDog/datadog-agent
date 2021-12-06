@@ -197,7 +197,8 @@ func New() *AgentConfig {
 		DDAgentBin:   defaultDDAgentBin,
 		OTLPReceiver: &OTLP{},
 		TelemetryConfig: &TelemetryConfig{
-			Endpoints: []*Endpoint{{Host: "https://instrumentation-telemetry-intake.datadoghq.com"}}},
+			Endpoints: []*Endpoint{{Host: "https://instrumentation-telemetry-intake.datadoghq.com"}},
+		},
 	}
 }
 
