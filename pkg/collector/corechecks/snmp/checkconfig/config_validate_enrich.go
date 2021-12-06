@@ -90,11 +90,8 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 					continue
 				}
 				field := res.Fields[fieldName]
-				if field.Value == "" && field.Symbol.OID == "" {
-					errors = append(errors, fmt.Sprintf("field `%s`: value or symbol cannot be both empty", fieldName))
-				}
-				if field.Value != "" && field.Symbol.OID != "" {
-					errors = append(errors, fmt.Sprintf("field `%s`: value or symbol cannot be both defined", fieldName))
+				for i := range field.Symbols {
+					errors = append(errors, validateEnrichSymbol(&field.Symbols[i])...)
 				}
 				if field.Symbol.OID != "" {
 					errors = append(errors, validateEnrichSymbol(&field.Symbol)...)

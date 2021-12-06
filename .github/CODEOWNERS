@@ -183,6 +183,7 @@
 /pkg/util/kernel/                       @DataDog/agent-network
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/orchestrator/                 @DataDog/container-app
+/pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/agent-core
@@ -221,7 +222,8 @@
 /test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-core
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
-/test/e2e/                              @DataDog/container-integrations
+/test/e2e/                              @DataDog/container-integrations @DataDog/agent-security
+/test/e2e/cws-tests/                    @DataDog/agent-security
 /test/integration/                      @DataDog/container-integrations
 /test/integration/serverless            @DataDog/serverless
 /test/integration/serverless_perf       @DataDog/serverless

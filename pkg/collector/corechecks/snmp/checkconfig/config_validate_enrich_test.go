@@ -370,20 +370,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		expectedMetadata MetadataConfig
 	}{
 		{
-			name: "either field symbol or value must be provided",
-			metadata: MetadataConfig{
-				"device": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
-						"name": {},
-					},
-				},
-			},
-			expectedErrors: []string{
-				"field `name`: value or symbol cannot be both empty",
-			},
-		},
-		{
-			name: "both field symbol and value cannot be provided",
+			name: "both field symbol and value can be provided",
 			metadata: MetadataConfig{
 				"device": MetadataResourceConfig{
 					Fields: map[string]MetadataField{
@@ -397,8 +384,58 @@ func Test_validateEnrichMetadata(t *testing.T) {
 					},
 				},
 			},
+			expectedMetadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "hey",
+							Symbol: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "someSymbol",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid regex pattern for symbol",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Symbol: SymbolConfig{
+								OID:          "1.2.3",
+								Name:         "someSymbol",
+								ExtractValue: "(\\w[)",
+							},
+						},
+					},
+				},
+			},
 			expectedErrors: []string{
-				"field `name`: value or symbol cannot be both defined",
+				"cannot compile `extract_value`",
+			},
+		},
+		{
+			name: "invalid regex pattern for multiple symbols",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Symbols: []SymbolConfig{
+								{
+									OID:          "1.2.3",
+									Name:         "someSymbol",
+									ExtractValue: "(\\w[)",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"cannot compile `extract_value`",
 			},
 		},
 		{

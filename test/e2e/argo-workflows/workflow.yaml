@@ -11,6 +11,10 @@ spec:
       - name: datadog-agent-image-tag
       - name: datadog-cluster-agent-image-repository
       - name: datadog-cluster-agent-image-tag
+  volumes:
+  - name: datadog-agent-volume
+    hostPath:
+      path: /host/datadog-agent
   templates:
     - name: main
       inputs:
@@ -95,6 +99,10 @@ spec:
                 value: "{{inputs.parameters.datadog-agent-image-repository}}"
               - name: agent-image-tag
                 value: "{{inputs.parameters.datadog-agent-image-tag}}"
+              - name: dd-url
+                value: "http://fake-datadog.{{workflow.namespace}}.svc.cluster.local"
+              - name: site
+                value: ""
               - name: cluster-agent-image-repository
                 value: "{{inputs.parameters.datadog-cluster-agent-image-repository}}"
               - name: cluster-agent-image-tag
