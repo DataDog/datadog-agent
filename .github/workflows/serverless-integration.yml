@@ -5,10 +5,12 @@ on:
     paths:
       - 'cmd/serverless/**'
       - 'pkg/serverless/**'
+      - 'test/integration/serverless/**'
   pull_request:
     paths:
       - 'cmd/serverless/**'
       - 'pkg/serverless/**'
+      - 'test/integration/serverless/**'
 
 jobs:
   test:
