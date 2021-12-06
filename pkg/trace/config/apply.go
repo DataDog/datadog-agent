@@ -236,7 +236,9 @@ func appendAdditionalEndpoints(endpoints []*Endpoint, cfgName string) []*Endpoin
 
 func (c *AgentConfig) applyDatadogConfig() error {
 	if len(c.Endpoints) == 0 {
-		c.Endpoints = []*Endpoint{{}}
+		c.Endpoints = []*Endpoint{{
+			Host: apiEndpointPrefix + config.DefaultSite,
+		}}
 	}
 	if config.Datadog.IsSet("api_key") {
 		c.Endpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
@@ -251,16 +253,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.StatsdPort = config.Datadog.GetInt("dogstatsd_port")
 	}
 
-	site := config.Datadog.GetString("site")
-	if site != "" {
-		c.Endpoints[0].Host = apiEndpointPrefix + site
-	}
-	if host := config.Datadog.GetString("apm_config.apm_dd_url"); host != "" {
-		c.Endpoints[0].Host = host
-		if site != "" {
-			log.Infof("'site' and 'apm_dd_url' are both set, using endpoint: %q", host)
-		}
-	}
+	c.Endpoints[0].Host = config.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
 	c.Endpoints = appendAdditionalEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if config.Datadog.IsSet("proxy.no_proxy") {
@@ -381,8 +374,18 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		GRPCPort:        grpcPort,
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
-	c.TelemetryConfig = &TelemetryConfig{}
+	if c.TelemetryConfig == nil {
+		c.TelemetryConfig = &TelemetryConfig{}
+	}
+
+	if len(c.TelemetryConfig.Endpoints) == 0 {
+		c.TelemetryConfig.Endpoints = []*Endpoint{{
+			Host: telemetryEndpointPrefix + config.DefaultSite,
+		}}
+	}
+
 	if config.Datadog.GetBool("apm_config.telemetry.enabled") {
+		c.TelemetryConfig.Endpoints[0].Host = config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url")
 		site := config.Datadog.GetString("site")
 		if site == "" {
 			site = config.DefaultSite
@@ -514,7 +517,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.GetBool("apm_config.internal_profiling.enabled") {
 		profilingSite := config.Datadog.GetString("internal_profiling.profile_dd_url")
 		if profilingSite == "" {
-			profilingSite = site
+			profilingSite = config.Datadog.GetString("site")
 		}
 
 		c.ProfilingSettings = &profiling.Settings{
