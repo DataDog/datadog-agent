@@ -95,7 +95,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
-		logTicker.StartIfNeeded()
+		logTicker.Start()
 		stream, err := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
 		if err != nil {
 			rsa.connected.Store(false)
@@ -166,7 +166,7 @@ type BackoffTicker struct {
 }
 
 // StartIfNeeded starts the backoff ticker, if not already started
-func (t *BackoffTicker) StartIfNeeded() {
+func (t *BackoffTicker) Start() {
 	if t.ticker == nil {
 		t.ticker = newLogBackoffTicker()
 	}
