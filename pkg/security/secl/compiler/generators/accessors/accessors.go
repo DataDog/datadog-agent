@@ -9,8 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
-	"go/build"
-	"go/parser"
 	"go/types"
 	"io/ioutil"
 	"log"
@@ -26,6 +24,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/loader"
+	pckg "golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc"
@@ -318,38 +317,24 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 }
 
 func parseFile(filename string, pkgName string) (*common.Module, error) {
-	buildContext := build.Default
-	buildContext.BuildTags = append(buildContext.BuildTags, strings.Split(buildTags, ",")...)
-
-	conf := loader.Config{
-		ParserMode:  parser.ParseComments,
-		AllowErrors: true,
-		TypeChecker: types.Config{
-			Error: func(err error) {
-				if verbose {
-					log.Print(err)
-				}
-			},
-		},
-		Build: &buildContext,
+	cfg := pckg.Config{
+		Mode: pckg.NeedName | pckg.NeedSyntax | pckg.NeedTypes | pckg.NeedTypesInfo | pckg.NeedImports | pckg.NeedDeps | pckg.NeedModule,
 	}
 
-	astFile, err := conf.ParseFile(filename, nil)
+	pkgs, err := pckg.Load(&cfg, filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %s", filename, err)
+		return nil, err
 	}
 
-	conf.Import(pkgName)
+	pkg := pkgs[0]
+	astFile := pkg.Syntax[0]
 
-	program, err = conf.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load %s (%s): %s", filename, pkgName, err)
+	packages = make(map[string]*types.Package)
+	for _, typePackage := range pkg.Imports {
+		p := typePackage.Types
+		packages[p.Path()] = p
 	}
-
-	packages = make(map[string]*types.Package, len(program.AllPackages))
-	for typePackage := range program.AllPackages {
-		packages[typePackage.Path()] = typePackage
-	}
+	packages[pkgName] = pkg.Types
 
 	var buildTags []string
 	for _, comment := range astFile.Comments {
