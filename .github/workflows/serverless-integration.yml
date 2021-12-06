@@ -1,11 +1,11 @@
 name: "Serverless Integration Tests"
 
-on: push
-  # push:
-  #   paths:
-  #     - 'cmd/serverless/**'
-  #     - 'pkg/serverless/**'
-  #     - 'test/integration/serverless/**'
+on:
+  push:
+    paths:
+      - 'cmd/serverless/**'
+      - 'pkg/serverless/**'
+      - 'test/integration/serverless/**'
 
 jobs:
   test:
@@ -29,6 +29,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: DataDog/datadog-lambda-extension
+          # TODO: Remove when PR in other repo is merged
           ref: refs/heads/ngh/fix-agent-path
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
