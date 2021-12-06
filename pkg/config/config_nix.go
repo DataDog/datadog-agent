@@ -21,6 +21,7 @@ const (
 	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	defaultSystemProbeAddress     = "/opt/datadog-agent/run/sysprobe.sock"
 	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
+	defaultDDAgentBin             = "/opt/datadog-agent/bin/agent/agent"
 )
 
 // called by init in config.go, to ensure any os-specific config is done

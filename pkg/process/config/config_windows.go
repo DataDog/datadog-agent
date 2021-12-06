@@ -15,15 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-const (
-	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
-	defaultSystemProbeAddress = "localhost:3333"
-)
-
-var (
-	// Agent 6
-	defaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
-)
+// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
+const defaultSystemProbeAddress = "localhost:3333"
 
 func init() {
 	if pd, err := winutil.GetProgramDataDir(); err == nil {

@@ -188,14 +188,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Overrides the path to the Agent bin used for getting the hostname. The default is usually fine.
-	a.DDAgentBin = defaultDDAgentBin
-	if k := key(ns, "dd_agent_bin"); config.Datadog.IsSet(k) {
-		if agentBin := config.Datadog.GetString(k); agentBin != "" {
-			a.DDAgentBin = agentBin
-		}
-	}
-
 	// Overrides the grpc connection timeout setting to the main agent.
 	if k := key(ns, "grpc_connection_timeout_secs"); config.Datadog.IsSet(k) {
 		a.grpcConnectionTimeout = config.Datadog.GetDuration(k) * time.Second

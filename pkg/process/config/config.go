@@ -108,9 +108,7 @@ type AgentConfig struct {
 	MaxPerMessage             int
 	MaxCtrProcessesPerMessage int // The maximum number of processes that belong to a container for a given message
 	MaxConnsPerMessage        int
-	AllowRealTime             bool
 	Transport                 *http.Transport `json:"-"`
-	DDAgentBin                string
 	StatsdHost                string
 	StatsdPort                int
 	ProcessExpVarPort         int
@@ -205,7 +203,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		MaxPerMessage:             maxMessageBatch,
 		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
 		MaxConnsPerMessage:        600,
-		AllowRealTime:             true,
 		HostName:                  "",
 		Transport:                 NewDefaultTransport(),
 		ProcessExpVarPort:         6062,
@@ -345,7 +342,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 
 	if err := validate.ValidHostname(cfg.HostName); err != nil {
 		// lookup hostname if there is no config override or if the override is invalid
-		if hostname, err := getHostname(context.TODO(), cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
+		agentBin := config.Datadog.GetString("process_config.dd_agent_bin")
+		if hostname, err := getHostname(context.TODO(), agentBin, cfg.grpcConnectionTimeout); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname: %v", err)
