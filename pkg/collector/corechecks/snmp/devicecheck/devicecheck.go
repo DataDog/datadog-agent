@@ -121,7 +121,7 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	}
 	agentTags := config.GetConfiguredTags(false)
 	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
-	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceId, agentTags)
+	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
 }
 
 func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *valuestore.ResultValueStore, error) {

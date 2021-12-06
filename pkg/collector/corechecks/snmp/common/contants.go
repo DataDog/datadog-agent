@@ -6,5 +6,5 @@ const MetadataDeviceResource = "device"
 // SnmpIntegrationName is the name of the snmp integration
 const SnmpIntegrationName = "snmp"
 
-// SnmpExternalTagsSourceId is the source id used for external tags
-const SnmpExternalTagsSourceId = "snmp"
+// SnmpExternalTagsSourceType is the source id used for external tags
+const SnmpExternalTagsSourceType = "snmp"
