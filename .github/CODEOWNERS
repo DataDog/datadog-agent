@@ -224,6 +224,7 @@
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/e2e/                              @DataDog/container-integrations @DataDog/agent-security
 /test/e2e/cws-tests/                    @DataDog/agent-security
+test/e2e/containers/otlp_sender/        @DataDog/agent-platform
 /test/integration/                      @DataDog/container-integrations
 /test/integration/serverless            @DataDog/serverless
 /test/integration/serverless_perf       @DataDog/serverless
