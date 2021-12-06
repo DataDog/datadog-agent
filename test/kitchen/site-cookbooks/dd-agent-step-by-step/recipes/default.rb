@@ -9,20 +9,30 @@
 
 case node['platform_family']
 when 'debian'
-  execute 'install dirmngr' do
-    command <<-EOF
-      sudo apt-get update
-      cache_output=`apt-cache search dirmngr`
-      if [ ! -z "$cache_output" ]; then
-        sudo apt-get install -y dirmngr
-      fi
-    EOF
+  apt_package 'dependencies for importing APT keys'
+    package_name ['apt-transport-https', 'curl', 'gnupg']
   end
 
   execute 'install debian' do
+    apt_trusted_d_keyring='/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg'
+    apt_usr_share_keyring='/usr/share/keyrings/datadog-archive-keyring.gpg'
+
     command <<-EOF
       sudo sh -c "echo \'deb #{node['dd-agent-step-by-step']['aptrepo']} #{node['dd-agent-step-by-step']['aptrepo_dist']} #{node['dd-agent-step-by-step']['agent_major_version']}\' > /etc/apt/sources.list.d/datadog.list"
-      sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A2923DFF56EDA6E76E55E492D3A80E30382E94DE
+      sudo touch #{apt_usr_share_keyring} && sudo chmod a+r #{apt_usr_share_keyring}
+      for key in DATADOG_APT_KEY_CURRENT.public DATADOG_APT_KEY_F14F620E.public DATADOG_APT_KEY_382E94DE.public; do
+        sudo curl --retry 5 -o "/tmp/${key}" "https://keys.datadoghq.com/${key}"
+        sudo cat "/tmp/${key}" | sudo gpg --import --batch --no-default-keyring --keyring "#{apt_usr_share_keyring}"
+      done
+    EOF
+
+    if (platform?('ubuntu') && node['platform_version'].to_i < 16) || (platform?('debian') && node['platform_version'].to_i < 9)
+      command <<-EOF
+        sudo cp #{apt_usr_share_keyring} #{apt_trusted_d_keyring}
+      EOF
+    end
+
+    command <<-EOF
       sudo apt-get update
       sudo apt-get install #{node['dd-agent-step-by-step']['package_name']} -y -q
     EOF
