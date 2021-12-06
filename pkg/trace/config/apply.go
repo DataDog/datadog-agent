@@ -31,10 +31,6 @@ const (
 	telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 )
 
-// telemetryEndpointPrefix is the URL prefix for Instrumentation telemetry endpoint
-const telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
-const defaultSite = "datadoghq.com"
-
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
 	// BindHost specifies the host to bind the receiver to.
@@ -212,6 +208,32 @@ type WriterConfig struct {
 	FlushPeriodSeconds float64 `mapstructure:"flush_period_seconds"`
 }
 
+func appendAdditionalEndpoints(endpoints []*Endpoint, cfgName string) []*Endpoint {
+	if config.Datadog.IsSet(cfgName) {
+		for endpoint, keys := range config.Datadog.GetStringMapStringSlice(cfgName) {
+			if len(keys) == 0 {
+				log.Errorf("'%s' entries must have at least one API key present", cfgName)
+				continue
+			}
+			host := endpoint
+			if u, err := url.Parse(endpoint); err != nil {
+				log.Errorf("Error parsing %s '%s': %v", cfgName, endpoint, err)
+			} else {
+				host = u.Host
+
+				if host == "" {
+					host = u.String()
+				}
+			}
+			for _, key := range keys {
+				key = config.SanitizeAPIKey(key)
+				endpoints = append(endpoints, &Endpoint{Host: host, APIKey: key})
+			}
+		}
+	}
+	return endpoints
+}
+
 func (c *AgentConfig) applyDatadogConfig() error {
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*Endpoint{{}}
@@ -239,18 +261,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			log.Infof("'site' and 'apm_dd_url' are both set, using endpoint: %q", host)
 		}
 	}
-	if config.Datadog.IsSet("apm_config.additional_endpoints") {
-		for url, keys := range config.Datadog.GetStringMapStringSlice("apm_config.additional_endpoints") {
-			if len(keys) == 0 {
-				log.Errorf("'additional_endpoints' entries must have at least one API key present")
-				continue
-			}
-			for _, key := range keys {
-				key = config.SanitizeAPIKey(key)
-				c.Endpoints = append(c.Endpoints, &Endpoint{Host: url, APIKey: key})
-			}
-		}
-	}
+	c.Endpoints = appendAdditionalEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if config.Datadog.IsSet("proxy.no_proxy") {
 		proxyList := config.Datadog.GetStringSlice("proxy.no_proxy")
@@ -372,55 +383,29 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	// Instrumentation Telemetry config
-	c.TelemetryConfig = &TelemetryConfig{
-		Enabled: config.Datadog.GetBool("apm_config.telemetry.enabled"),
-	}
-	if c.TelemetryConfig.Enabled {
+	c.TelemetryConfig = &TelemetryConfig{}
+	if config.Datadog.GetBool("apm_config.telemetry.enabled") {
 		site := config.Datadog.GetString("site")
 		if site == "" {
-			site = defaultSite
+			site = config.DefaultSite
 		}
 		main := telemetryEndpointPrefix + site
 		if v := config.Datadog.GetString("apm_config.telemetry.dd_url"); v != "" {
 			main = v
 		}
-		u, err := url.Parse(main)
-		if err != nil {
-			// if the main intake URL is invalid we don't use additional endpoints
+		c.TelemetryConfig.Endpoints = []*Endpoint{}
+		if u, err := url.Parse(main); err != nil {
 			log.Errorf("error parsing main telemetry intake URL %s: %v", main, err)
-			c.TelemetryConfig.Enabled = false
 		} else {
-			c.TelemetryConfig.Endpoints = []*Endpoint{{
+			c.TelemetryConfig.Endpoints = append(c.TelemetryConfig.Endpoints, &Endpoint{
 				APIKey: c.Endpoints[0].APIKey,
 				Host:   u.Host,
-			}}
+			})
 		}
-
-		additionalEndpointsCfg := "apm_config.telemetry.additional_endpoints"
-
-		if config.Datadog.IsSet(additionalEndpointsCfg) {
-			extra := config.Datadog.GetStringMapStringSlice(additionalEndpointsCfg)
-			for endpoint, keys := range extra {
-				u, err := url.Parse(endpoint)
-
-				if err != nil {
-					log.Errorf("Error parsing additional telemetry intake URL %s: %v", endpoint, err)
-					continue
-				}
-
-				// If endpoint is specified without a scheme. Then use whole string as Host name
-				host := u.Host
-				if host == "" {
-					host = u.String()
-				}
-
-				for _, key := range keys {
-					c.TelemetryConfig.Endpoints = append(c.TelemetryConfig.Endpoints, &Endpoint{
-						Host:   host,
-						APIKey: config.SanitizeAPIKey(key),
-					})
-				}
-			}
+		c.TelemetryConfig.Endpoints = appendAdditionalEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
+		// Enable if we at least have 1 valid Endpoint configured
+		if len(c.TelemetryConfig.Endpoints) > 0 {
+			c.TelemetryConfig.Enabled = true
 		}
 	}
 

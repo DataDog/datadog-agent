@@ -159,7 +159,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("skip-additional", func(t *testing.T) {
+	t.Run("include-malformed", func(t *testing.T) {
 		additionalEndpoints := make(map[string]string)
 		additionalEndpoints["11://test_backend_2.example.com///"] = "test_apikey_2"
 		additionalEndpoints["http://test_backend_3.example.com/"] = "test_apikey_3"
@@ -170,8 +170,10 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
-		assert.Len(t, cfg.TelemetryConfig.Endpoints, 2)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
 		assert.Equal(t, "instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
-		assert.Equal(t, "test_backend_3.example.com", cfg.TelemetryConfig.Endpoints[1].Host)
+		assert.Equal(t, "test_backend_3.example.com", cfg.TelemetryConfig.Endpoints[2].Host)
+		//malformed url is kept to be backwards compatible with `apm_config.additional_endpoints` implementation
+		assert.Equal(t, "11://test_backend_2.example.com///", cfg.TelemetryConfig.Endpoints[1].Host)
 	})
 }
