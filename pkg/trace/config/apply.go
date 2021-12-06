@@ -26,7 +26,11 @@ import (
 )
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
-const apiEndpointPrefix = "https://trace.agent."
+const (
+    apiEndpointPrefix = "https://trace.agent."
+    telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
+)
+    
 
 // telemetryEndpointPrefix is the URL prefix for Instrumentation telemetry endpoint
 const telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
