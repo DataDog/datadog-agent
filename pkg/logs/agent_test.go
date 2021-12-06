@@ -167,36 +167,6 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
 }
 
-func (suite *AgentTestSuite) TestAgentRetriesWithWrongBackendHttp() {
-	endpoint := config.Endpoint{Host: "fake:", Port: 0, IsReliable: true}
-	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, true)
-
-	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
-	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
-
-	agent, sources, _ := createAgent(endpoints)
-
-	agent.Start()
-	sources.AddSource(suite.source)
-	// Give the agent at most one second to process the logs.
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
-		return suite.fakeLogs == metrics.LogsProcessed.Value()
-	})
-	agent.Stop()
-
-	// The context gets canceled when the agent stops. at this point the additional sender is stuck
-	// trying to establish a connection. agent.Stop will cancel it and the error telemetry will be updated
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
-		return metrics.DestinationErrors.Value() > 0
-	})
-
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
-
-	assert.Equal(suite.T(), int64(0), metrics.LogsSent.Value())
-	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
-}
-
 func (suite *AgentTestSuite) TestAgentUnreliableAdditinalEndpointFailsTcp() {
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
 	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
@@ -231,41 +201,7 @@ func (suite *AgentTestSuite) TestAgentUnreliableAdditinalEndpointFailsTcp() {
 	assert.Equal(suite.T(), "2", metrics.DestinationLogsDropped.Get("still_fake").String())
 }
 
-func (suite *AgentTestSuite) TestAgentUnreliableAdditinalEndpointFailsHttp() {
-	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
-	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
-	l := mock.NewMockLogsIntake(suite.T())
-	defer l.Close()
-
-	server := http.NewTestServer(200)
-	defer server.Stop()
-	server.Endpoint.IsReliable = true
-
-	additionalEndpoint := config.Endpoint{Host: "still_fake", Port: 0}
-	endpoints := config.NewEndpoints(server.Endpoint, []config.Endpoint{additionalEndpoint}, false, true)
-
-	agent, sources, _ := createAgent(endpoints)
-
-	agent.Start()
-	sources.AddSource(suite.source)
-	// Give the agent at most one second to send the logs.
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
-		return int64(4) == metrics.LogsSent.Value()
-	})
-
-	agent.Stop()
-
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
-		return metrics.DestinationErrors.Value() > 0
-	})
-
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
-	assert.Equal(suite.T(), int64(4), metrics.LogsSent.Value())
-	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
-}
-
-func (suite *AgentTestSuite) TestReliableAdditionalSender() {
+func (suite *AgentTestSuite) TestReliableAdditionalEndpointHttp() {
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
 	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
 	l := mock.NewMockLogsIntake(suite.T())
