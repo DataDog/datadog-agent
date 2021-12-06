@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// IsEnabled no-op
+// IsEnabled always returns false since OTLP is disabled in the serverless agent flavor
 func IsEnabled(cfg config.Config) bool {
 	return false
 }
