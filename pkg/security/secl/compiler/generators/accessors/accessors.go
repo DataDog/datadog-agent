@@ -23,8 +23,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
-	"golang.org/x/tools/go/loader"
-	pckg "golang.org/x/tools/go/packages"
+	"golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc"
@@ -35,21 +34,20 @@ const (
 )
 
 var (
-	filename  string
-	pkgname   string
-	output    string
-	verbose   bool
-	mock      bool
-	genDoc    bool
-	program   *loader.Program
-	packages  map[string]*types.Package
-	buildTags string
+	filename          string
+	pkgname           string
+	output            string
+	verbose           bool
+	mock              bool
+	genDoc            bool
+	packagesLookupMap map[string]*types.Package
+	buildTags         string
 )
 
 var module *common.Module
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
-	if typePackage, found := packages[pkg]; found {
+	if typePackage, found := packagesLookupMap[pkg]; found {
 		return typePackage.Scope().Lookup(symbol), nil
 	}
 
@@ -311,11 +309,11 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 }
 
 func parseFile(filename string, pkgName string) (*common.Module, error) {
-	cfg := pckg.Config{
-		Mode: pckg.NeedName | pckg.NeedSyntax | pckg.NeedTypes | pckg.NeedTypesInfo | pckg.NeedImports | pckg.NeedDeps | pckg.NeedModule,
+	cfg := packages.Config{
+		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps | packages.NeedModule,
 	}
 
-	pkgs, err := pckg.Load(&cfg, filename)
+	pkgs, err := packages.Load(&cfg, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -323,12 +321,12 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	pkg := pkgs[0]
 	astFile := pkg.Syntax[0]
 
-	packages = make(map[string]*types.Package)
+	packagesLookupMap = make(map[string]*types.Package)
 	for _, typePackage := range pkg.Imports {
 		p := typePackage.Types
-		packages[p.Path()] = p
+		packagesLookupMap[p.Path()] = p
 	}
-	packages[pkgName] = pkg.Types
+	packagesLookupMap[pkgName] = pkg.Types
 
 	var buildTags []string
 	for _, comment := range astFile.Comments {
