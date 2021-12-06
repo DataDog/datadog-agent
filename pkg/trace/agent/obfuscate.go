@@ -125,12 +125,12 @@ func newCreditCardsObfuscator(cfg config.CreditCardsConfig) *ccObfuscator {
 	cco := &ccObfuscator{luhn: cfg.Luhn}
 	if cfg.Enabled {
 		// obfuscator disabled
-		pb.SetMetaHook(cco.MetaHook)
+		pb.SetMetaHooks(cco.MetaHook, cco.MetaStructHook)
 	}
 	return cco
 }
 
-func (cco *ccObfuscator) Stop() { pb.SetMetaHook(nil) }
+func (cco *ccObfuscator) Stop() { pb.SetMetaHooks(nil, nil) }
 
 // MetaHook checks the tag with the given key and val and returns the final
 // value to be assigned to this tag.
@@ -173,6 +173,53 @@ func (cco *ccObfuscator) MetaHook(k, v string) (newval string) {
 	}
 	if obfuscate.IsCardNumber(v, cco.luhn) {
 		return "?"
+	}
+	return v
+}
+
+// MetaStructHook checks the message inside `v` for credit card information and obfuscates it.
+func (cco *ccObfuscator) MetaStructHook(k string, v []byte) (newval []byte) {
+	if k != "appsec" {
+		// Do not obfuscate unknown structures
+		log.Debugf("Obfuscating unknown meta struct is not supported for key: %v", k)
+		return v
+	}
+	var (
+		changed      bool
+		appsecstruct pb.AppSecStruct
+	)
+	_, err := appsecstruct.UnmarshalMsg(v)
+	if err != nil {
+		// Not an appsec struct, ignore the value and log an error
+		log.Errorf("Error obfuscating appsec struct: %v", err)
+		return v
+	}
+	for _, trigger := range appsecstruct.GetTriggers() {
+		for _, rulematch := range trigger.GetRuleMatches() {
+			for _, parameter := range rulematch.GetParameters() {
+				if obfuscate.IsCardNumber(parameter.Value, cco.luhn) {
+					parameter.Value = "?"
+					changed = true
+				}
+				if parameter.Highlight == nil {
+					continue
+				}
+				for j, highlight := range parameter.Highlight {
+					if obfuscate.IsCardNumber(highlight, cco.luhn) {
+						parameter.Highlight[j] = "?"
+						changed = true
+					}
+				}
+			}
+		}
+	}
+	if changed {
+		newval, err := appsecstruct.MarshalMsg(nil)
+		if err != nil {
+			log.Errorf("Error replacing obfuscated appsec struct: %v", err)
+			return v
+		}
+		return newval
 	}
 	return v
 }
