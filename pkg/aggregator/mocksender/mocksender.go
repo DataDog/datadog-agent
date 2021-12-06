@@ -21,6 +21,7 @@ func NewMockSender(id check.ID) *MockSender {
 
 	opts := aggregator.DefaultDemultiplexerOptions(nil)
 	opts.FlushInterval = 1 * time.Hour
+	opts.DontStartForwarders = true
 	aggregator.InitAndStartAgentDemultiplexer(opts, "")
 
 	SetSender(mockSender, id)

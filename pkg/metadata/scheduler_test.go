@@ -53,7 +53,9 @@ func TestNewScheduler(t *testing.T) {
 	enableFirstRunCollection = false
 	defer func() { enableFirstRunCollection = true }()
 
-	demux := aggregator.InitAndStartAgentDemultiplexer(aggregator.DefaultDemultiplexerOptions(nil), "hostname")
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
 	c := NewScheduler(demux)
 
 	assert.Equal(t, demux, c.demux)
@@ -190,6 +192,8 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 }
 
 func buildDemultiplexer() aggregator.Demultiplexer {
-	demux := aggregator.InitAndStartAgentDemultiplexer(aggregator.DefaultDemultiplexerOptions(nil), "hostname")
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
 	return demux
 }

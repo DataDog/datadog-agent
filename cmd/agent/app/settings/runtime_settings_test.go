@@ -20,7 +20,9 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	assert := assert.New(t)
 	var err error
 
-	demux := aggregator.InitAndStartAgentDemultiplexer(aggregator.DefaultDemultiplexerOptions(nil), "hostname")
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
 	common.DSD, err = dogstatsd.NewServer(demux, nil)
 	require.Nil(t, err)
 
