@@ -111,7 +111,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		}
 
 		d.Lock()
-		d.isRetrying = true
+		d.isRetrying = false
 		d.Unlock()
 
 		metrics.LogsSent.Add(1)
