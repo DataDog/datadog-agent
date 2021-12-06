@@ -68,18 +68,12 @@ if node['dd-agent-upgrade']['add_new_repo']
       action :nothing
     end
 
-    deb_repo_with_options = if node['dd-agent-upgrade']['aptrepo'].nil?
-                              "[signed-by=#{apt_usr_share_keyring}] #{apt_repo_uri}"
-                            else
-                              node['dd-agent-upgrade']['aptrepo']
-                            end
-
     file '/etc/apt/sources.list.d/datadog.list' do
       action :create
       owner 'root'
       group 'root'
       mode '0644'
-      content "deb #{deb_repo_with_options} #{node['dd-agent-upgrade']['aptrepo_dist']} #{node['dd-agent-upgrade']['agent_major_version']}"
+      content "deb [signed-by=#{apt_usr_share_keyring}] #{apt_repo_uri} #{node['dd-agent-upgrade']['aptrepo_dist']} #{node['dd-agent-upgrade']['agent_major_version']}"
       notifies :update, 'apt_update[datadog]', :immediately
     end
 
