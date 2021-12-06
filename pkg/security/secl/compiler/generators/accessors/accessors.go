@@ -60,7 +60,7 @@ func resolveSymbol(pkg, symbol string) (types.Object, error) {
 		return typePackage.Scope().Lookup(symbol), nil
 	}
 
-	return nil, fmt.Errorf("Failed to retrieve package info for %s", pkg)
+	return nil, fmt.Errorf("failed to retrieve package info for %s", pkg)
 }
 
 func origTypeToBasicType(kind string) string {
@@ -336,14 +336,14 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 
 	astFile, err := conf.ParseFile(filename, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse %s: %s", filename, err)
+		return nil, fmt.Errorf("failed to parse %s: %s", filename, err)
 	}
 
 	conf.Import(pkgName)
 
 	program, err = conf.Load()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load %s (%s): %s", filename, pkgName, err)
+		return nil, fmt.Errorf("failed to load %s (%s): %s", filename, pkgName, err)
 	}
 
 	packages = make(map[string]*types.Package, len(program.AllPackages))
