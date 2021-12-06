@@ -165,7 +165,7 @@ type BackoffTicker struct {
 	ticker *backoff.Ticker
 }
 
-// StartIfNeeded starts the backoff ticker, if not already started
+// Start starts the backoff ticker, if not already started
 func (t *BackoffTicker) Start() {
 	if t.ticker == nil {
 		t.ticker = newLogBackoffTicker()
