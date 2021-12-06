@@ -19,6 +19,7 @@ const (
 	KubeServices       = "kubernetes-services"
 	KubeServicesFile   = "kubernetes-services-file"
 	KubeEndpoints      = "kubernetes-endpoints"
+	KubeEndpointsFile  = "kubernetes-endpoints-file"
 	PrometheusPods     = "prometheus-pods"
 	PrometheusServices = "prometheus-services"
 	SNMP               = "snmp"

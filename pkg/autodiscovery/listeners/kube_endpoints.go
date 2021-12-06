@@ -36,15 +36,16 @@ const (
 
 // KubeEndpointsListener listens to kubernetes endpoints creation
 type KubeEndpointsListener struct {
-	endpointsInformer infov1.EndpointsInformer
-	endpointsLister   listv1.EndpointsLister
-	serviceInformer   infov1.ServiceInformer
-	serviceLister     listv1.ServiceLister
-	endpoints         map[k8stypes.UID][]*KubeEndpointService
-	promInclAnnot     types.PrometheusAnnotations
-	newService        chan<- Service
-	delService        chan<- Service
-	m                 sync.RWMutex
+	endpointsInformer  infov1.EndpointsInformer
+	endpointsLister    listv1.EndpointsLister
+	serviceInformer    infov1.ServiceInformer
+	serviceLister      listv1.ServiceLister
+	endpoints          map[k8stypes.UID][]*KubeEndpointService
+	promInclAnnot      types.PrometheusAnnotations
+	newService         chan<- Service
+	delService         chan<- Service
+	targetAllEndpoints bool
+	m                  sync.RWMutex
 }
 
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
@@ -63,7 +64,7 @@ func init() {
 	Register("kube_endpoints", NewKubeEndpointsListener)
 }
 
-func NewKubeEndpointsListener(config.Listeners) (ServiceListener, error) {
+func NewKubeEndpointsListener(conf config.Listeners) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -80,13 +81,16 @@ func NewKubeEndpointsListener(config.Listeners) (ServiceListener, error) {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
+	_, kubeEndpointsFileEnabled := conf.EnabledProviders["kube_endpoints_file"]
+
 	return &KubeEndpointsListener{
-		endpoints:         make(map[k8stypes.UID][]*KubeEndpointService),
-		endpointsInformer: endpointsInformer,
-		endpointsLister:   endpointsInformer.Lister(),
-		serviceInformer:   serviceInformer,
-		serviceLister:     serviceInformer.Lister(),
-		promInclAnnot:     getPrometheusIncludeAnnotations(),
+		endpoints:          make(map[k8stypes.UID][]*KubeEndpointService),
+		endpointsInformer:  endpointsInformer,
+		endpointsLister:    endpointsInformer.Lister(),
+		serviceInformer:    serviceInformer,
+		serviceLister:      serviceInformer.Lister(),
+		promInclAnnot:      getPrometheusIncludeAnnotations(),
+		targetAllEndpoints: kubeEndpointsFileEnabled,
 	}, nil
 }
 
@@ -261,12 +265,20 @@ func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat) || l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
+func (l *KubeEndpointsListener) shouldIgnore(kep *v1.Endpoints) bool {
+	if l.targetAllEndpoints {
+		return false
+	}
+
+	return !l.isEndpointsAnnotated(kep)
+}
+
 func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExistingService, checkServiceAnnotations bool) {
 	if kep == nil {
 		return
 	}
 
-	if checkServiceAnnotations && !l.isEndpointsAnnotated(kep) {
+	if checkServiceAnnotations && l.shouldIgnore(kep) {
 		// Ignore endpoints with no AD annotation on their corresponding service if checkServiceAnnotations
 		// Typically we are called with checkServiceAnnotations = false when updates are due to changes on Kube Service object
 		return
