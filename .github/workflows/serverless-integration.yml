@@ -1,6 +1,6 @@
 name: "Serverless Integration Tests"
-
 on: push
+
   # push:
     # paths:
     #   - 'cmd/serverless/**'
