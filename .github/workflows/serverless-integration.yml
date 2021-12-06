@@ -1,11 +1,11 @@
 name: "Serverless Integration Tests"
 
-on:
-  push:
-    paths:
-      - 'cmd/serverless/**'
-      - 'pkg/serverless/**'
-      - 'test/integration/serverless/**'
+on: push
+  # push:
+  #   paths:
+  #     - 'cmd/serverless/**'
+  #     - 'pkg/serverless/**'
+  #     - 'test/integration/serverless/**'
 
 jobs:
   test:
