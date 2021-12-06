@@ -103,14 +103,18 @@ func (r *Rule) GetEvaluator() *RuleEvaluator {
 }
 
 // GetEventTypes - Returns a list of all the event that the `Expression` handles
-func (r *Rule) GetEventTypes() []EventType {
+func (r *Rule) GetEventTypes() ([]EventType, error) {
+	if r.evaluator == nil {
+		return nil, &ErrRuleNotCompiled{RuleID: r.ID}
+	}
+
 	eventTypes := r.evaluator.EventTypes
 
 	for _, macro := range r.Opts.Macros {
 		eventTypes = append(eventTypes, macro.GetEventTypes()...)
 	}
 
-	return eventTypes
+	return eventTypes, nil
 }
 
 // GetAst - Returns the representation of the SECL `Expression`
@@ -258,6 +262,12 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 func (r *Rule) GenEvaluator(model Model, opts *Opts) error {
 	r.Model = model
 	r.Opts = opts
+
+	if r.ast == nil {
+		if err := r.Parse(); err != nil {
+			return err
+		}
+	}
 
 	evaluator, err := ruleToEvaluator(r.ast, model, opts)
 	if err != nil {

@@ -81,7 +81,7 @@ func (b *Boolean) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 //UnmarshalYAML unmarshalls MetricTagConfigList
-func (a *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var multi []MetricTagConfig
 	err := unmarshal(&multi)
 	if err != nil {
@@ -95,6 +95,6 @@ func (a *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) e
 			multi = append(multi, MetricTagConfig{symbolTag: tag})
 		}
 	}
-	*a = multi
+	*mtcl = multi
 	return nil
 }

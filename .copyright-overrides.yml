@@ -83,6 +83,7 @@ github.com/xeipuuv/gojsonpointer: xeipuuv ( https://github.com/xeipuuv )
 github.com/xeipuuv/gojsonreference: xeipuuv ( https://github.com/xeipuuv )
 github.com/xeipuuv/gojsonschema: xeipuuv ( https://github.com/xeipuuv )
 github.com/open-policy-agent/opa: The OPA Authors
+github.com/containernetworking/cni: CNI authors
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: aptly authors

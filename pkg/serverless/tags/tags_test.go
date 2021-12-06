@@ -315,3 +315,20 @@ func TestExtractRuntimeFromOsReleaseFileInvalidPath(t *testing.T) {
 	result := getRuntimeFromOsReleaseFile("/invalid/path")
 	assert.Equal(t, "", result)
 }
+
+func TestCleanRuntimeValid(t *testing.T) {
+	runtimes := []string{
+		"AWS_Lambda_rapid",
+		"AWS_Lambda_nodejs14.x",
+		"AWS_Lambda_rapid",
+	}
+	assert.Equal(t, "AWS_Lambda_nodejs14.x", cleanRuntimes(runtimes))
+}
+
+func TestCleanRuntimeInvalid(t *testing.T) {
+	runtimes := []string{
+		"toto",
+		"AWS_Lambda_nodejs14.x",
+	}
+	assert.Equal(t, "", cleanRuntimes(runtimes))
+}

@@ -125,6 +125,9 @@ static __always_inline int http_begin_response(http_transaction_t *http, const c
     __u8 space_found = 0;
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
+	    // buffer might contain a null terminator in the middle
+        if (buffer[i] == 0) break;
+
         if (!space_found && buffer[i] == ' ') {
             space_found = 1;
         } else if (space_found && status_code < 100) {

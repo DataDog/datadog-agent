@@ -69,15 +69,15 @@ class RemoteAPI(object):
             if r.status_code == 401:
                 print(self.authorization_error_message)
 
-                print("{} says: {}".format(self.api_name, r.json()))
+                print(f"{self.api_name} says: {r.json()}")
                 raise Exit(code=1)
         except requests.exceptions.Timeout:
-            print("Connection to {} ({}) timed out.".format(self.api_name, url))
+            print(f"Connection to {self.api_name} ({url}) timed out.")
             raise Exit(code=1)
         except requests.exceptions.RequestException as e:
             m = errno_regex.match(str(e))
             if not m:
-                print("Unknown error raised connecting to {} ({}): {}".format(self.api_name, url, e))
+                print(f"Unknown error raised connecting to {self.api_name} ({url}): {e}")
 
             # Parse errno to give a better explanation
             # Requests doesn't have granularity at the level we want:
@@ -86,11 +86,11 @@ class RemoteAPI(object):
             message = m.group(2)
 
             if errno_code == errno.ENOEXEC:
-                exit_msg = "Error resolving {}: {}".format(url, message)
+                exit_msg = f"Error resolving {url}: {message}"
             elif errno_code == errno.ECONNREFUSED:
-                exit_msg = "Connection to {} ({}) refused".format(self.api_name, url)
+                exit_msg = f"Connection to {self.api_name} ({url}) refused"
             else:
-                exit_msg = "Error while connecting to {}: {}".format(url, str(e))
+                exit_msg = f"Error while connecting to {url}: {str(e)}"
             raise Exit(message=exit_msg, code=1)
 
         if json_output:

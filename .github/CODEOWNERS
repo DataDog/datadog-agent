@@ -140,6 +140,7 @@
 /pkg/status/                            @DataDog/agent-core
 /pkg/telemetry/                         @DataDog/agent-core
 /pkg/version/                           @DataDog/agent-core
+/pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-core
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
@@ -182,6 +183,7 @@
 /pkg/util/kernel/                       @DataDog/agent-network
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/orchestrator/                 @DataDog/container-app
+/pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/agent-core
@@ -220,8 +222,11 @@
 /test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-core
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
-/test/e2e/                              @DataDog/container-integrations
+/test/e2e/                              @DataDog/container-integrations @DataDog/agent-security
+/test/e2e/cws-tests/                    @DataDog/agent-security
 /test/integration/                      @DataDog/container-integrations
+/test/integration/serverless            @DataDog/serverless
+/test/integration/serverless_perf       @DataDog/serverless
 /test/kitchen/                          @DataDog/agent-platform
 /test/kitchen/kitchen-azure-security-agent-test.yml @DataDog/agent-security
 /test/kitchen/kitchen-vagrant-security-agent.yml @DataDog/agent-security

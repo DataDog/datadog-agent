@@ -106,6 +106,7 @@ core,github.com/OneOfOne/xxhash,Apache-2.0,OneOfOne (https://github.com/OneOfOne
 core,github.com/PuerkitoBio/purell,BSD-3-Clause,Martin Angers
 core,github.com/PuerkitoBio/urlesc,BSD-3-Clause,The Go Authors
 core,github.com/StackExchange/wmi,MIT,Stack Exchange
+core,github.com/acobaugh/osrelease,BSD-3-Clause,Andrew Cobaugh
 core,github.com/alecthomas/jsonschema,MIT,Alec Thomas
 core,github.com/alecthomas/participle,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer,MIT,Alec Thomas
@@ -179,7 +180,6 @@ core,github.com/benbjohnson/clock,MIT,Ben Johnson
 core,github.com/benesch/cgosymbolizer,BSD-3-Clause,Cockroach Labs
 core,github.com/beorn7/perks/quantile,MIT,Blake Mizerany
 core,github.com/bhmj/jsonslice,MIT,bhmj
-core,github.com/bits-and-blooms/bitset,BSD-3-Clause,Will Fitzgerald
 core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Tobias Rehbein <tobias.rehbein@web.de>
 core,github.com/blang/semver,MIT,Benedikt Lang <github at benediktlang.de>
 core,github.com/bmizerany/pat,MIT,"Keith Rarick, Blake Mizerany"
@@ -195,7 +195,6 @@ core,github.com/cilium/ebpf/internal/unix,MIT,Authors of Cilium | Cloudflare | N
 core,github.com/cilium/ebpf/perf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go Authors
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
-core,github.com/cobaugh/osrelease,BSD-3-Clause,Andrew Cobaugh
 core,github.com/containerd/cgroups/stats/v1,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/api/events,Apache-2.0,The containerd Authors
@@ -260,6 +259,13 @@ core,github.com/containerd/continuity/sysx,Apache-2.0,The containerd Authors
 core,github.com/containerd/fifo,Apache-2.0,The containerd Authors
 core,github.com/containerd/ttrpc,Apache-2.0,The containerd Authors
 core,github.com/containerd/typeurl,Apache-2.0,The containerd Authors
+core,github.com/containernetworking/cni/libcni,Apache-2.0,CNI authors
+core,github.com/containernetworking/cni/pkg/invoke,Apache-2.0,CNI authors
+core,github.com/containernetworking/cni/pkg/types,Apache-2.0,CNI authors
+core,github.com/containernetworking/cni/pkg/types/020,Apache-2.0,CNI authors
+core,github.com/containernetworking/cni/pkg/types/current,Apache-2.0,CNI authors
+core,github.com/containernetworking/cni/pkg/utils,Apache-2.0,CNI authors
+core,github.com/containernetworking/cni/pkg/version,Apache-2.0,CNI authors
 core,github.com/coreos/go-semver/semver,Apache-2.0,CoreOS Project
 core,github.com/coreos/go-systemd/daemon,Apache-2.0,CoreOS Project
 core,github.com/coreos/go-systemd/dbus,Apache-2.0,CoreOS Project
@@ -268,6 +274,7 @@ core,github.com/coreos/go-systemd/sdjournal,Apache-2.0,CoreOS Project
 core,github.com/coreos/go-systemd/v22/dbus,Apache-2.0,CoreOS Project
 core,github.com/coreos/pkg/capnslog,Apache-2.0,CoreOS Project
 core,github.com/coreos/pkg/dlopen,Apache-2.0,CoreOS Project
+core,github.com/cri-o/ocicni/pkg/ocicni,Apache-2.0,"Red Hat, Inc"
 core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Docker Inc & Go Authors | SUSE LLC
 core,github.com/davecgh/go-spew/spew,ISC,Dave Collins <dave@davec.name>
 core,github.com/dgraph-io/ristretto,Apache-2.0,"Dgraph Labs, Inc. and Contributors"
@@ -454,14 +461,14 @@ core,github.com/jstemmer/go-junit-report/parser,MIT,Joel Stemmer
 core,github.com/kardianos/osext,BSD-3-Clause,The Go Authors
 core,github.com/karrick/godirwalk,BSD-2-Clause,Karrick McDermott
 core,github.com/kjk/lzma,BSD-3-Clause,Andrei Vieru
-core,github.com/klauspost/compress,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
-core,github.com/klauspost/compress/flate,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
-core,github.com/klauspost/compress/fse,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
-core,github.com/klauspost/compress/gzip,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
-core,github.com/klauspost/compress/huff0,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
-core,github.com/klauspost/compress/internal/snapref,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
-core,github.com/klauspost/compress/zstd,BSD-3-Clause,Caleb Spare | Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
-core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Caleb Spare | Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
+core,github.com/klauspost/compress,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
+core,github.com/klauspost/compress/flate,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
+core,github.com/klauspost/compress/fse,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
+core,github.com/klauspost/compress/gzip,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
+core,github.com/klauspost/compress/huff0,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
+core,github.com/klauspost/compress/internal/snapref,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
+core,github.com/klauspost/compress/zstd,BSD-3-Clause,Caleb Spare | Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
+core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Caleb Spare | Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
 core,github.com/klauspost/pgzip,MIT,Klaus Post
 core,github.com/knadh/koanf,MIT,Kailash Nadh. https://github.com/knadh
 core,github.com/knadh/koanf/maps,MIT,Kailash Nadh. https://github.com/knadh
@@ -584,6 +591,7 @@ core,github.com/opencontainers/runtime-spec/specs-go,Apache-2.0,The Linux Founda
 core,github.com/opencontainers/selinux/go-selinux,Apache-2.0,OpenContainers Authors
 core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,OpenContainers Authors
 core,github.com/opencontainers/selinux/pkg/pwalk,Apache-2.0,OpenContainers Authors
+core,github.com/opencontainers/selinux/pkg/pwalkdir,Apache-2.0,OpenContainers Authors
 core,github.com/openshift/api/quota/v1,Apache-2.0,David Eads | Michal Fojtik
 core,github.com/patrickmn/go-cache,MIT,Alex Edwards <ajmedwards@gmail.com> | Dustin Sallings <dustin@spy.net> | Jason Mooberry <jasonmoo@me.com> | Patrick Mylund Nielsen and the go-cache contributors | Sergey Shepelev <temotor@gmail.com>
 core,github.com/pborman/uuid,BSD-3-Clause,Google Inc | Paul Borman <borman@google.com>
@@ -615,6 +623,7 @@ core,github.com/rcrowley/go-metrics,BSD-2-Clause-Views,Richard Crowley
 core,github.com/richardartoul/molecule,MIT,Richard Artoul
 core,github.com/richardartoul/molecule/src/codec,Apache-2.0,Richard Artoul
 core,github.com/richardartoul/molecule/src/protowire,BSD-3-Clause,Richard Artoul | The Go Authors
+core,github.com/rivo/uniseg,MIT,Oliver Kuederle
 core,github.com/robfig/cron/v3,MIT,Rob Figueiredo
 core,github.com/rs/cors,MIT,Olivier Poitrey <rs@dailymotion.com>
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,Samuel Stauffer <samuel@descolada.com>
@@ -1055,6 +1064,7 @@ core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Datadog, 
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/log,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/version,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler,Apache-2.0,"Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pprofutils,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/Knetic/govaluate.v3,MIT,"George Lester | abrander (panic-finding testing tool) | benpaxton (fix for missing type checks during literal elide process) | bgaifullin (lifting restriction on complex/struct types) | dpaolella (exposure of variables used in an expression) | iasci (ternary operator) | oxtoacart (parameter structures, deferred parameter retrieval) | prashantv (optimization of bools) | vjeantet (regex support) | wmiller848 (bitwise operators) | xfennec (fix for dates being parsed in the current Location)"
 core,gopkg.in/inf.v0,BSD-3-Clause,Péter Surányi | The Go Authors
 core,gopkg.in/natefinch/lumberjack.v2,MIT,Nate Finch

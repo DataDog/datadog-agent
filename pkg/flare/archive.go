@@ -691,7 +691,7 @@ func zipFile(originalPath, zippedPath string) error {
 }
 
 func zipRegistryJSON(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"))
+	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json")
 	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
 	return zipFile(originalPath, zippedPath)
 }

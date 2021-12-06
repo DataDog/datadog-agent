@@ -153,7 +153,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"column symbols [{1.2 abc  <nil>}] doesn't have a 'metric_tags' section",
+				"column symbols [{1.2 abc  <nil>   <nil>}] doesn't have a 'metric_tags' section",
 			},
 		},
 		{
@@ -302,28 +302,28 @@ func Test_validateEnrichMetrics(t *testing.T) {
 			expectedMetrics: []MetricsConfig{
 				{
 					Symbol: SymbolConfig{
-						OID:                 "1.2.3",
-						Name:                "myMetric",
-						ExtractValue:        `(\d+)C`,
-						ExtractValuePattern: regexp.MustCompile(`(\d+)C`),
+						OID:                  "1.2.3",
+						Name:                 "myMetric",
+						ExtractValue:         `(\d+)C`,
+						ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
 					},
 				},
 				{
 					Symbols: []SymbolConfig{
 						{
-							OID:                 "1.2",
-							Name:                "hey",
-							ExtractValue:        `(\d+)C`,
-							ExtractValuePattern: regexp.MustCompile(`(\d+)C`),
+							OID:                  "1.2",
+							Name:                 "hey",
+							ExtractValue:         `(\d+)C`,
+							ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
 						},
 					},
 					MetricTags: MetricTagConfigList{
 						MetricTagConfig{
 							Column: SymbolConfig{
-								OID:                 "1.2.3",
-								Name:                "abc",
-								ExtractValue:        `(\d+)C`,
-								ExtractValuePattern: regexp.MustCompile(`(\d+)C`),
+								OID:                  "1.2.3",
+								Name:                 "abc",
+								ExtractValue:         `(\d+)C`,
+								ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
 							},
 							Tag: "hello",
 						},
@@ -357,6 +357,210 @@ func Test_validateEnrichMetrics(t *testing.T) {
 			}
 			if tt.expectedMetrics != nil {
 				assert.Equal(t, tt.expectedMetrics, tt.metrics)
+			}
+		})
+	}
+}
+
+func Test_validateEnrichMetadata(t *testing.T) {
+	tests := []struct {
+		name             string
+		metadata         MetadataConfig
+		expectedErrors   []string
+		expectedMetadata MetadataConfig
+	}{
+		{
+			name: "both field symbol and value can be provided",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "hey",
+							Symbol: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "someSymbol",
+							},
+						},
+					},
+				},
+			},
+			expectedMetadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "hey",
+							Symbol: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "someSymbol",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid regex pattern for symbol",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Symbol: SymbolConfig{
+								OID:          "1.2.3",
+								Name:         "someSymbol",
+								ExtractValue: "(\\w[)",
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"cannot compile `extract_value`",
+			},
+		},
+		{
+			name: "invalid regex pattern for multiple symbols",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Symbols: []SymbolConfig{
+								{
+									OID:          "1.2.3",
+									Name:         "someSymbol",
+									ExtractValue: "(\\w[)",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"cannot compile `extract_value`",
+			},
+		},
+		{
+			name: "field regex pattern is compiled",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Symbol: SymbolConfig{
+								OID:          "1.2.3",
+								Name:         "someSymbol",
+								ExtractValue: "(\\w)",
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{},
+			expectedMetadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Symbol: SymbolConfig{
+								OID:                  "1.2.3",
+								Name:                 "someSymbol",
+								ExtractValue:         "(\\w)",
+								ExtractValueCompiled: regexp.MustCompile(`(\w)`),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid resource",
+			metadata: MetadataConfig{
+				"invalid-res": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "hey",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"invalid resource: invalid-res",
+			},
+		},
+		{
+			name: "invalid field",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"invalid-field": {
+							Value: "hey",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"invalid resource (device) field: invalid-field",
+			},
+		},
+		{
+			name: "invalid idtags",
+			metadata: MetadataConfig{
+				"interface": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"invalid-field": {
+							Value: "hey",
+						},
+					},
+					IDTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "abc",
+							},
+							Match: "([a-z)",
+							Tags: map[string]string{
+								"foo": "bar",
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"invalid resource (interface) field: invalid-field",
+				"cannot compile `match` (`([a-z)`)",
+			},
+		},
+		{
+			name: "device resource does not support id_tags",
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "hey",
+						},
+					},
+					IDTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "abc",
+							},
+							Tag: "abc",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"device resource does not support custom id_tags",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errors := validateEnrichMetadata(tt.metadata)
+			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
+			for i := range errors {
+				assert.Contains(t, errors[i], tt.expectedErrors[i])
+			}
+			if tt.expectedMetadata != nil {
+				assert.Equal(t, tt.expectedMetadata, tt.metadata)
 			}
 		})
 	}

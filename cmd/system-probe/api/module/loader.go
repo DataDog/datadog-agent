@@ -16,6 +16,7 @@ var l *loader
 func init() {
 	l = &loader{
 		modules: make(map[config.ModuleName]Module),
+		errors:  make(map[config.ModuleName]error),
 	}
 }
 
@@ -26,6 +27,7 @@ func init() {
 type loader struct {
 	sync.Mutex
 	modules map[config.ModuleName]Module
+	errors  map[config.ModuleName]error
 	stats   map[string]interface{}
 	cfg     *config.Config
 	router  *Router
@@ -48,11 +50,13 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 		// In case a module failed to be started, do not make the whole `system-probe` abort.
 		// Let `system-probe` run the other modules.
 		if err != nil {
+			l.errors[factory.Name] = err
 			log.Errorf("new module `%s` error: %s", factory.Name, err)
 			continue
 		}
 
 		if err = module.Register(router); err != nil {
+			l.errors[factory.Name] = err
 			log.Errorf("error registering HTTP endpoints for module `%s` error: %s", factory.Name, err)
 			continue
 		}
@@ -96,8 +100,10 @@ func RestartModule(factory Factory) error {
 
 	newModule, err := factory.Fn(l.cfg)
 	if err != nil {
+		l.errors[factory.Name] = err
 		return err
 	}
+	delete(l.errors, factory.Name)
 	log.Infof("module %s restarted", factory.Name)
 
 	err = newModule.Register(l.router)
@@ -125,6 +131,7 @@ func Close() {
 }
 
 func updateStats() {
+	start := time.Now()
 	then := time.Now()
 	ticker := time.NewTicker(10 * time.Second)
 	for now := range ticker.C {
@@ -138,9 +145,13 @@ func updateStats() {
 		for name, module := range l.modules {
 			l.stats[string(name)] = module.GetStats()
 		}
+		for name, err := range l.errors {
+			l.stats[string(name)] = map[string]string{"Error": err.Error()}
+		}
 
-		l.stats["updated_at"] = now
+		l.stats["updated_at"] = now.Unix()
 		l.stats["delta_seconds"] = now.Sub(then).Seconds()
+		l.stats["uptime"] = now.Sub(start).String()
 		then = now
 		l.Unlock()
 	}
