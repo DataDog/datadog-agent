@@ -381,8 +381,6 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		GRPCPort:        grpcPort,
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
-
-	// Instrumentation Telemetry config
 	c.TelemetryConfig = &TelemetryConfig{}
 	if config.Datadog.GetBool("apm_config.telemetry.enabled") {
 		site := config.Datadog.GetString("site")
@@ -408,8 +406,6 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			c.TelemetryConfig.Enabled = true
 		}
 	}
-
-	// Obfuscation config
 	c.Obfuscation = new(ObfuscationConfig)
 	if config.Datadog.IsSet("apm_config.obfuscation") {
 		var o ObfuscationConfig
@@ -421,7 +417,6 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			}
 		}
 	}
-
 	{
 		// TODO(x): There is an issue with config.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
