@@ -96,8 +96,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
 		logTicker.StartIfNeeded()
-		stream, _ := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
-		err := errors.New("test backoff")
+		stream, err := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
 		if err != nil {
 			rsa.connected.Store(false)
 
