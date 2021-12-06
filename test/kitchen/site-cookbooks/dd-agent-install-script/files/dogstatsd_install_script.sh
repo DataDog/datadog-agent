@@ -255,7 +255,7 @@ elif [ "$OS" = "Debian" ]; then
         $sudo_cmd DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
-    $sudo_cmd sh -c "echo 'deb [signed-by=${apt_usr_share_keyring}] https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.li    st.d/datadog.list"
+    $sudo_cmd sh -c "echo 'deb [signed-by=${apt_usr_share_keyring}] https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
 
     if [ ! -f $apt_usr_share_keyring ]; then
         $sudo_cmd touch $apt_usr_share_keyring
