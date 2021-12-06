@@ -381,12 +381,10 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		if site == "" {
 			site = defaultSite
 		}
-
 		main := telemetryEndpointPrefix + site
 		if v := config.Datadog.GetString("apm_config.telemetry.dd_url"); v != "" {
 			main = v
 		}
-
 		u, err := url.Parse(main)
 		if err != nil {
 			// if the main intake URL is invalid we don't use additional endpoints
