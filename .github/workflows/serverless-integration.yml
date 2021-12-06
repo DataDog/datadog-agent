@@ -28,20 +28,12 @@ jobs:
       - name: Checkout the datadog-lambda-extension repository
         uses: actions/checkout@v2
         with:
-          repository: DataDog/datadog-agent
+          repository: DataDog/datadog-lambda-extension
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
       - name: Run tests
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
-        run: |
-          pwd
-          cd ..
-          ls
-          cd datadog-lambda-extension
-          ls
-          cd scripts
-          ls
-        # run: BUILD_EXTENSION=true ./test/integration/serverless/run.sh
+        run: BUILD_EXTENSION=true ./test/integration/serverless/run.sh
         working-directory: go/src/github.com/DataDog/datadog-agent
