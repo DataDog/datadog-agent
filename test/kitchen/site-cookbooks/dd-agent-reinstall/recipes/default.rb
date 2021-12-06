@@ -33,7 +33,11 @@ if node['dd-agent-reinstall']['add_new_repo']
       make_cache true
       # Older versions of yum embed M2Crypto with SSL that doesn't support TLS1.2
       protocol = node['platform_version'].to_i < 6 ? 'http' : 'https'
-      gpgkey "#{protocol}://yum.datadoghq.com/DATADOG_RPM_KEY.public"
+      gpgkey [
+        "#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public",
+        "#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public",
+        "#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
+      ]
     end
   when 'suse'
     old_key_local_path = ::File.join(Chef::Config[:file_cache_path], 'DATADOG_RPM_KEY.public')
@@ -59,7 +63,7 @@ if node['dd-agent-reinstall']['add_new_repo']
       gpgcheck false
       # Older versions of yum embed M2Crypto with SSL that doesn't support TLS1.2
       protocol = node['platform_version'].to_i < 6 ? 'http' : 'https'
-      gpgkey "#{protocol}://yum.datadoghq.com/DATADOG_RPM_KEY.public"
+      gpgkey "#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public"
       gpgautoimportkeys false
     end
   end
