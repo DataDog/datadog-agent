@@ -68,7 +68,7 @@ func TestDestinationSend200(t *testing.T) {
 }
 
 func TestDestinationSend500Retries(t *testing.T) {
-	respondChan := make(chan struct{})
+	respondChan := make(chan int)
 	server := NewTestServerWithOptions(500, 0, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
@@ -84,14 +84,19 @@ func TestDestinationSend500Retries(t *testing.T) {
 
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
-	<-respondChan
+	// Drain any retries
+	for {
+		if (<-respondChan) == 200 {
+			break
+		}
+	}
 	<-output
 
 	server.Stop()
 }
 
 func TestDestinationSend429Retries(t *testing.T) {
-	respondChan := make(chan struct{})
+	respondChan := make(chan int)
 	server := NewTestServerWithOptions(429, 0, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
@@ -107,15 +112,19 @@ func TestDestinationSend429Retries(t *testing.T) {
 
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
-	// unblock the response
-	<-respondChan
+	// Drain any retries
+	for {
+		if (<-respondChan) == 200 {
+			break
+		}
+	}
 	<-output
 
 	server.Stop()
 }
 
 func TestDestinationContextCancel(t *testing.T) {
-	respondChan := make(chan struct{})
+	respondChan := make(chan int)
 	server := NewTestServerWithOptions(429, 0, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
@@ -198,7 +207,7 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 
 func TestDestinationConcurrentSends(t *testing.T) {
 	// make the server return 500, so the payloads get stuck retrying
-	respondChan := make(chan struct{})
+	respondChan := make(chan int)
 	server := NewTestServerWithOptions(500, 2, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
@@ -229,8 +238,12 @@ func TestDestinationConcurrentSends(t *testing.T) {
 
 	// unblock the destination
 	server.ChangeStatus(200)
-	// trigger the 200 response to unblock
-	<-respondChan
+	// Drain the pending retries
+	for {
+		if (<-respondChan) == 200 {
+			break
+		}
+	}
 
 	var receivedPayloads []*message.Payload
 
@@ -249,7 +262,7 @@ func TestDestinationConcurrentSends(t *testing.T) {
 // This test ensure the destination's final state is isRetrying = false even if there are pending concurrent sends.
 func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 	// make the server return 500, so the payloads get stuck retrying
-	respondChan := make(chan struct{})
+	respondChan := make(chan int)
 	server := NewTestServerWithOptions(500, 2, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
@@ -271,10 +284,17 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 
 	// unblock the destination
 	server.ChangeStatus(200)
-	// trigger the 200 response to unblock
+	// Drain the pending retries
+	for {
+		if (<-respondChan) == 200 {
+			break
+		}
+	}
 	// let 2 payloads flow though
+	// the first 200 was triggered, collect the output
+	<-output
 	<-respondChan
-	<-respondChan
+	<-output
 
 	select {
 	case <-stopChan:
@@ -283,5 +303,7 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 	}
 
 	<-respondChan
+	<-output
 	<-stopChan
+	server.Stop()
 }

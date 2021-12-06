@@ -60,7 +60,7 @@ func TestSenderSingleDestination(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
-	respondChan := make(chan struct{})
+	respondChan := make(chan int)
 
 	server := http.NewTestServerWithOptions(200, 0, true, respondChan)
 
@@ -86,10 +86,10 @@ func TestSenderDualReliableDestination(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
-	respondChan1 := make(chan struct{})
+	respondChan1 := make(chan int)
 	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1)
 
-	respondChan2 := make(chan struct{})
+	respondChan2 := make(chan int)
 	server2 := http.NewTestServerWithOptions(200, 0, true, respondChan2)
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
@@ -119,10 +119,10 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
-	respondChan1 := make(chan struct{})
+	respondChan1 := make(chan int)
 	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1)
 
-	respondChan2 := make(chan struct{})
+	respondChan2 := make(chan int)
 	server2 := http.NewTestServerWithOptions(200, 0, false, respondChan2)
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
@@ -150,10 +150,10 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
-	reliableRespond := make(chan struct{})
+	reliableRespond := make(chan int)
 	reliableServer := http.NewTestServerWithOptions(200, 0, true, reliableRespond)
 
-	unreliableRespond := make(chan struct{})
+	unreliableRespond := make(chan int)
 	unreliableServer := http.NewTestServerWithOptions(200, 0, false, unreliableRespond)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
@@ -197,10 +197,10 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
-	reliableRespond1 := make(chan struct{})
+	reliableRespond1 := make(chan int)
 	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1)
 
-	reliableRespond2 := make(chan struct{})
+	reliableRespond2 := make(chan int)
 	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
@@ -241,10 +241,10 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
-	reliableRespond1 := make(chan struct{})
+	reliableRespond1 := make(chan int)
 	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1)
 
-	reliableRespond2 := make(chan struct{})
+	reliableRespond2 := make(chan int)
 	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
@@ -278,7 +278,12 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 
 	// Recover the first server
 	reliableServer1.ChangeStatus(200)
-	<-reliableRespond1 // respond 200
+	// Drain any retries
+	for {
+		if (<-reliableRespond1) == 200 {
+			break
+		}
+	}
 
 	<-output // get the buffered log line that was stuck
 

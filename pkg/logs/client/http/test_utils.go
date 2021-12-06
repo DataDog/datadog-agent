@@ -31,6 +31,7 @@ type TestServer struct {
 	Endpoint            config.Endpoint
 	request             *http.Request
 	statusCodeContainer *StatusCodeContainer
+	stopChan            chan struct{}
 }
 
 // NewTestServer creates a new test server
@@ -39,17 +40,33 @@ func NewTestServer(statusCode int) *TestServer {
 }
 
 // NewTestServerWithOptions creates a new test server with concurrency and response control
-func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool, respondChan chan struct{}) *TestServer {
+func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool, respondChan chan int) *TestServer {
 	statusCodeContainer := &StatusCodeContainer{statusCode: statusCode}
 	var request http.Request
+	var mu = sync.Mutex{}
+	var stopChan = make(chan struct{}, 1)
+	stopped := false
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		statusCodeContainer.Lock()
+		code := statusCodeContainer.statusCode
 		w.WriteHeader(statusCodeContainer.statusCode)
+		statusCodeContainer.Unlock()
+		mu.Lock()
+		if stopped {
+			mu.Unlock()
+			return
+		}
+
 		request = *r
 		if respondChan != nil {
-			respondChan <- struct{}{}
+			select {
+			case respondChan <- code:
+			case <-stopChan:
+				stopped = true
+			}
 		}
-		statusCodeContainer.Unlock()
+		mu.Unlock()
 	}))
 	url := strings.Split(ts.URL, ":")
 	port, _ := strconv.Atoi(url[2])
@@ -69,11 +86,13 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 		Endpoint:            endpoint,
 		request:             &request,
 		statusCodeContainer: statusCodeContainer,
+		stopChan:            stopChan,
 	}
 }
 
 // Stop stops the server
 func (s *TestServer) Stop() {
+	s.stopChan <- struct{}{}
 	s.DestCtx.Stop()
 	s.httpServer.Close()
 }
