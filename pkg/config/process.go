@@ -6,6 +6,11 @@ import (
 )
 
 func setupProcesses(config Config) {
+	// Simple macro that allows env variables to be assigned to a prefix
+	prEnv := func(env string) []string {
+		return []string{"DD_PROCESS_CONFIG_" + env, "DD_PROCESS_AGENT_" + env}
+	}
+
 	config.SetDefault("process_config.enabled", "false")
 	// process_config.enabled is only used on Windows by the core agent to start the process agent service.
 	// it can be set from file, but not from env. Override it with value from DD_PROCESS_AGENT_ENABLED.
@@ -28,7 +33,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.blacklist_patterns")
 	config.SetKnown("process_config.intervals.container")
 	config.SetKnown("process_config.intervals.container_realtime")
-	config.BindEnvAndSetDefault("process_config.dd_agent_bin", defaultDDAgentBin, "DD_PROCESS_AGENT_DD_AGENT_BIN", "DD_PROCESS_CONFIG_DD_AGENT_BIN")
+	config.BindEnvAndSetDefault("process_config.dd_agent_bin", defaultDDAgentBin, prEnv("DD_AGENT_BIN")...)
 	config.SetKnown("process_config.custom_sensitive_words")
 	config.SetKnown("process_config.scrub_args")
 	config.SetKnown("process_config.strip_proc_arguments")
@@ -39,7 +44,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
-	config.BindEnvAndSetDefault("process_config.log_file", defaultProcessAgentLogFile, "DD_PROCESS_CONFIG_LOG_FILE", "DD_PROCESS_AGENT_LOG_FILE")
+	config.BindEnvAndSetDefault("process_config.log_file", defaultProcessAgentLogFile, prEnv("LOG_FILE")...)
 	config.SetKnown("process_config.internal_profiling.enabled")
 
 	config.BindEnvAndSetDefault("process_config.remote_tagger", true)
