@@ -78,7 +78,7 @@ func TestMetricDimensionsStringNoTagsChange(t *testing.T) {
 
 }
 
-var testDims metricsDimensions = metricsDimensions{
+var testDims = metricsDimensions{
 	name: "test.metric",
 	tags: []string{"key:val"},
 	host: "host",

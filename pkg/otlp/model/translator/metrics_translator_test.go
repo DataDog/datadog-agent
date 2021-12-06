@@ -245,7 +245,7 @@ func seconds(i int) pdata.Timestamp {
 	return pdata.NewTimestampFromTime(time.Unix(int64(i), 0))
 }
 
-var exampleDims metricsDimensions = newDims("metric.example")
+var exampleDims = newDims("metric.example")
 
 func TestMapIntMonotonicMetrics(t *testing.T) {
 	// Create list of values
