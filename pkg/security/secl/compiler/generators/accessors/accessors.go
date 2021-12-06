@@ -310,7 +310,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 
 func parseFile(filename string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
-		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps | packages.NeedModule,
+		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
 	}
 
 	pkgs, err := packages.Load(&cfg, filename)
