@@ -73,7 +73,7 @@ if node['dd-agent-upgrade']['add_new_repo']
       owner 'root'
       group 'root'
       mode '0644'
-      content "deb [signed-by=#{apt_usr_share_keyring}] #{apt_repo_uri} #{node['dd-agent-upgrade']['aptrepo_dist']} #{node['dd-agent-upgrade']['agent_major_version']}"
+      content "deb [signed-by=#{apt_usr_share_keyring}] #{node['dd-agent-upgrade']['aptrepo']} #{node['dd-agent-upgrade']['aptrepo_dist']} #{node['dd-agent-upgrade']['agent_major_version']}"
       notifies :update, 'apt_update[datadog]', :immediately
     end
 
