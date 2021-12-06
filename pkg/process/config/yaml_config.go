@@ -266,14 +266,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	if k := "dogstatsd_port"; config.Datadog.IsSet(k) {
-		a.StatsdPort = config.Datadog.GetInt(k)
-	}
-
-	if bindHost := config.GetBindHost(); bindHost != "" {
-		a.StatsdHost = bindHost
-	}
-
 	// Build transport (w/ proxy if needed)
 	a.Transport = httputils.CreateHTTPTransport()
 

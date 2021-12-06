@@ -109,8 +109,6 @@ type AgentConfig struct {
 	MaxCtrProcessesPerMessage int // The maximum number of processes that belong to a container for a given message
 	MaxConnsPerMessage        int
 	Transport                 *http.Transport `json:"-"`
-	StatsdHost                string
-	StatsdPort                int
 	ProcessExpVarPort         int
 
 	// profiling settings, or nil if profiling is not enabled
@@ -207,10 +205,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		Transport:                 NewDefaultTransport(),
 		ProcessExpVarPort:         6062,
 		ContainerHostType:         model.ContainerHostType_notSpecified,
-
-		// Statsd for internal instrumentation
-		StatsdHost: "127.0.0.1",
-		StatsdPort: 8125,
 
 		// System probe collection configuration
 		EnableSystemProbe:  false,
