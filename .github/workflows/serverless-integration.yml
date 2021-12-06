@@ -35,5 +35,13 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
-        run: BUILD_EXTENSION=true ./test/integration/serverless/run.sh
+        run: |
+          pwd
+          cd ..
+          ls
+          cd datadog-lambda-extension
+          ls
+          cd scripts
+          ls
+        # run: BUILD_EXTENSION=true ./test/integration/serverless/run.sh
         working-directory: go/src/github.com/DataDog/datadog-agent

@@ -25,8 +25,6 @@ script_utc_start_time=$(date -u +"%Y%m%dT%H%M%S")
 SERVERLESS_INTEGRATION_TESTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "$SERVERLESS_INTEGRATION_TESTS_DIR/../../.."
 
-# TODO: Get this working in CI environment
-pwd
 LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
 
 if [ "$BUILD_EXTENSION" == "true" ]; then
