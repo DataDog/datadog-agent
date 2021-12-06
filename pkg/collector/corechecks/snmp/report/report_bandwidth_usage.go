@@ -51,7 +51,7 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 		return fmt.Errorf("bandwidth usage: missing `ifHighSpeed` metric, skipping metric. fullIndex=%s", fullIndex)
 	}
 
-	metricValues, err := values.GetColumnValues(symbol.OID)
+	metricValues, err := getColumnValueFromSymbol(values, symbol)
 	if err != nil {
 		return fmt.Errorf("bandwidth usage: missing `%s` metric, skipping this row. fullIndex=%s", symbol.Name, fullIndex)
 	}
@@ -79,6 +79,6 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 	}
 	usageValue := ((octetsFloatValue * 8) / (ifHighSpeedFloatValue * (1e6))) * 100.0
 
-	ms.sendMetric(usageName+".rate", valuestore.ResultValue{SubmissionType: "counter", Value: usageValue}, tags, "counter", checkconfig.MetricsConfigOption{}, nil)
+	ms.sendMetric(usageName+".rate", valuestore.ResultValue{SubmissionType: "counter", Value: usageValue}, tags, "counter", checkconfig.MetricsConfigOption{})
 	return nil
 }

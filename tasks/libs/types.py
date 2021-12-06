@@ -18,13 +18,13 @@ class Test:
         # Find the *_test.go file in the package folder that has the test
         try:
             output = subprocess.run(
-                ['grep -Rl --include="*_test.go" \'{}\' \'{}\''.format(self.name, self.package)],
+                [f"grep -Rl --include=\"*_test.go\" '{self.name}' '{self.package}'"],
                 shell=True,
                 stdout=subprocess.PIPE,
             )
             return output.stdout.decode('utf-8').splitlines()[0]
         except Exception as e:
-            print("Exception '{}' while finding test {} from package {}.".format(e, self.name, self.package))
+            print(f"Exception '{e}' while finding test {self.name} from package {self.package}.")
             print("Setting file to '.none' to notify Agent Platform")
             return '.none'
 
@@ -62,24 +62,24 @@ class SlackMessage:
             jobs_info = []
             for job in jobs:
                 num_retries = len(job["retry_summary"]) - 1
-                job_info = "<{url}|{name}>".format(url=job["url"], name=job["name"])
+                job_info = f"<{job['url']}|{job['name']}>"
                 if num_retries > 0:
-                    job_info += " ({retries} retries)".format(retries=num_retries)
+                    job_info += f" ({num_retries} retries)"
 
                 jobs_info.append(job_info)
 
             print(
-                "- {jobs} (`{stage}` stage)".format(jobs=", ".join(jobs_info), stage=stage),
+                f"- {', '.join(jobs_info)} (`{stage}` stage)",
                 file=buffer,
             )
 
     def __render_tests_section(self, buffer):
         print(self.TEST_SECTION_HEADER, file=buffer)
         for (test_name, test_package), jobs in self.failed_tests.items():
-            job_list = ", ".join("<{}|{}>".format(job["url"], job["name"]) for job in jobs[: self.MAX_JOBS_PER_TEST])
+            job_list = ", ".join(f"<{job['url']}|{job['name']}>" for job in jobs[: self.MAX_JOBS_PER_TEST])
             if len(jobs) > self.MAX_JOBS_PER_TEST:
-                job_list += " and {} more".format(len(jobs) - self.MAX_JOBS_PER_TEST)
-            print("- `{}` from package `{}` (in {})".format(test_name, test_package, job_list), file=buffer)
+                job_list += f" and {len(jobs) - self.MAX_JOBS_PER_TEST} more"
+            print(f"- `{test_name}` from package `{test_package}` (in {job_list})", file=buffer)
 
     def __str__(self):
         buffer = io.StringIO()

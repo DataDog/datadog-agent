@@ -281,6 +281,35 @@ func TestZipLogFiles(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestZipRegistryJSON(t *testing.T) {
+	srcDir, err := ioutil.TempDir("", "run")
+	require.NoError(t, err)
+	defer os.RemoveAll(srcDir)
+	dstDir, err := ioutil.TempDir("", "TestZipRegistryJSON")
+	require.NoError(t, err)
+	defer os.RemoveAll(dstDir)
+
+	// create non-empty registry.json file
+	file, err := os.Create(filepath.Join(srcDir, "registry.json"))
+	require.NoError(t, err)
+	_, err = file.WriteString("{\"key\":\"value\"}")
+	require.NoError(t, err)
+	err = file.Close()
+	require.NoError(t, err)
+
+	tempRunPath := config.Datadog.GetString("logs_config.run_path")
+	config.Datadog.Set("logs_config.run_path", srcDir)
+	defer config.Datadog.Set("logs_config.run_path", tempRunPath)
+
+	err = zipRegistryJSON(dstDir, "test")
+	assert.NoError(t, err)
+
+	// Check all the log files are in the destination path, at the right subdirectories
+	stat, err := os.Stat(filepath.Join(dstDir, "test", "registry.json"))
+	assert.NoError(t, err)
+	assert.Greater(t, stat.Size(), int64(0))
+}
+
 func TestZipTaggerList(t *testing.T) {
 	tagMap := make(map[string]response.TaggerListEntity)
 	tagMap["random_entity_name"] = response.TaggerListEntity{

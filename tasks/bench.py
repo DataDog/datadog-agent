@@ -87,13 +87,13 @@ def dogstatsd(ctx):
     """
     bin_path = os.path.join(BENCHMARKS_BIN_PATH, bin_name("dogstatsd"))
     branch_name = os.environ.get("DD_REPO_BRANCH_NAME") or get_git_branch_name()
-    options = "-branch {}".format(branch_name)
+    options = f"-branch {branch_name}"
 
     key = os.environ.get("DD_AGENT_API_KEY")
     if key:
-        options += " -api-key {}".format(key)
+        options += f" -api-key {key}"
 
-    ctx.run("{} -pps=5000 -dur 45 -ser 5 -brk -inc 1000 {}".format(bin_path, options))
+    ctx.run(f"{bin_path} -pps=5000 -dur 45 -ser 5 -brk -inc 1000 {options}")
 
 
 # Temporarily keep compatibility after typo fix
@@ -109,17 +109,15 @@ def aggregator(ctx):
     """
     bin_path = os.path.join(BENCHMARKS_BIN_PATH, bin_name("aggregator"))
     branch_name = os.environ.get("DD_REPO_BRANCH_NAME") or get_git_branch_name()
-    options = "-branch {}".format(branch_name)
+    options = f"-branch {branch_name}"
 
     key = os.environ.get("DD_AGENT_API_KEY")
     if key:
-        options += " -api-key {}".format(key)
+        options += f" -api-key {key}"
 
-    ctx.run("{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json {}".format(bin_path, options))
+    ctx.run(f"{bin_path} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json {options}")
     ctx.run(
-        "{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json -memory -duration 10 {}".format(
-            bin_path, options
-        )
+        f"{bin_path} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json -memory -duration 10 {options}"
     )
 
 
@@ -130,4 +128,4 @@ def kubernetes_state(ctx):
     """
     bin_path = os.path.join(BENCHMARKS_BIN_PATH, bin_name("kubernetes_state"))
 
-    ctx.run("{}".format(bin_path))
+    ctx.run(f"{bin_path}")

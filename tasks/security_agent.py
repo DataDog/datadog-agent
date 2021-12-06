@@ -31,7 +31,7 @@ CLANG_EXE_CMD = "clang {flags} '{c_file}' -o '{out_file}'"
 def get_go_env(ctx, go_version):
     goenv = {}
     if go_version:
-        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        lines = ctx.run(f"gimme {go_version}").stdout.split("\n")
         for line in lines:
             for env_var in GIMME_ENV_VARS:
                 if env_var in line:
@@ -73,14 +73,10 @@ def build(
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run(
-            "windmc --target {target_arch}  -r cmd/security-agent/windows_resources cmd/security-agent/windows_resources/security-agent-msg.mc".format(
-                target_arch=windres_target
-            )
+            f"windmc --target {windres_target}  -r cmd/security-agent/windows_resources cmd/security-agent/windows_resources/security-agent-msg.mc"
         )
         ctx.run(
-            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/security-agent/windows_resources/security-agent.rc --target {target_arch} -O coff -o cmd/security-agent/rsrc.syso".format(
-                maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
-            )
+            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/security-agent/windows_resources/security-agent.rc --target {windres_target} -O coff -o cmd/security-agent/rsrc.syso"
         )
 
     # TODO use pkg/version for this
@@ -95,7 +91,7 @@ def build(
 
     goenv = {}
     if go_version:
-        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        lines = ctx.run(f"gimme {go_version}").stdout.split("\n")
         for line in lines:
             for env_var in GIMME_ENV_VARS:
                 if env_var in line:
@@ -110,7 +106,7 @@ def build(
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
-    ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
+    ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(
         build="security-agent"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
@@ -159,10 +155,10 @@ def gen_mocks(ctx):
         "Scheduler",
     ]
 
-    interface_regex = "|".join(f"^{i}$" for i in interfaces)
+    interface_regex = "|".join(f"^{i}\\$" for i in interfaces)
 
     with ctx.cd("./pkg/compliance"):
-        ctx.run("mockery --case snake -r --name=\"{}\"".format(interface_regex))
+        ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
 
 
 @task
@@ -184,11 +180,7 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
 def build_go_syscall_tester(ctx, build_dir):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
-    ctx.run(
-        "go build -o {} -tags syscalltesters {}/syscall_go_tester.go ".format(
-            syscall_tester_exe_file, syscall_tester_go_dir
-        )
-    )
+    ctx.run(f"go build -o {syscall_tester_exe_file} -tags syscalltesters {syscall_tester_go_dir}/syscall_go_tester.go ")
     return syscall_tester_exe_file
 
 

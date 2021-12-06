@@ -66,9 +66,7 @@ def genconfig(
         plat = platforms.get(platform)
         if not plat:
             raise Exit(
-                message="Unknown platform {platform}.  Known platforms are {avail}\n".format(
-                    platform=platform, avail=list(platforms.keys())
-                ),
+                message=f"Unknown platform {platform}.  Known platforms are {list(platforms.keys())}\n",
                 code=2,
             )
 
@@ -76,19 +74,14 @@ def genconfig(
         prov = plat.get(provider)
         if not prov:
             raise Exit(
-                message="Unknown provider {prov}.  Known providers for platform {plat} are {avail}\n".format(
-                    prov=provider, plat=platform, avail=list(plat.keys())
-                ),
+                message=f"Unknown provider {provider}.  Known providers for platform {platform} are {list(plat.keys())}\n",
                 code=3,
             )
 
         ar = prov.get(arch)
         if not ar:
             raise Exit(
-                message="Unknown architecture {arch}. "
-                "Known architectures for platform {plat} provider {prov} are {avail}\n".format(
-                    arch=arch, prov=provider, plat=platform, avail=list(prov.keys())
-                ),
+                message=f"Unknown architecture {arch}. Known architectures for platform {platform} provider {provider} are {list(prov.keys())}\n",
                 code=4,
             )
 
@@ -98,46 +91,44 @@ def genconfig(
 
         osimages = load_targets(ctx, ar, osversions)
 
-        print("Chose os targets {}\n".format(osimages))
+        print(f"Chose os targets {osimages}\n")
         for osimage in osimages:
-            testplatformslist.append("{},{}".format(osimage, ar[osimage]))
+            testplatformslist.append(f"{osimage},{ar[osimage]}")
 
     elif platlist:
         # platform list should be in the form of driver,os,arch,image
         for entry in platlist:
             driver, os, arch, image = entry.split(",")
             if provider and driver != provider:
-                raise Exit(
-                    message="Can only use one driver type per config ( {} != {} )\n".format(provider, driver), code=1
-                )
+                raise Exit(message=f"Can only use one driver type per config ( {provider} != {driver} )\n", code=1)
 
             provider = driver
             # check to see if we know this one
             if not platforms.get(os):
-                raise Exit(message="Unknown OS in {}\n".format(entry), code=4)
+                raise Exit(message=f"Unknown OS in {entry}\n", code=4)
 
             if not platforms[os].get(driver):
-                raise Exit(message="Unknown driver in {}\n".format(entry), code=5)
+                raise Exit(message=f"Unknown driver in {entry}\n", code=5)
 
             if not platforms[os][driver].get(arch):
-                raise Exit(message="Unknown architecture in {}\n".format(entry), code=5)
+                raise Exit(message=f"Unknown architecture in {entry}\n", code=5)
 
             if not platforms[os][driver][arch].get(image):
-                raise Exit(message="Unknown image in {}\n".format(entry), code=6)
+                raise Exit(message=f"Unknown image in {entry}\n", code=6)
 
-            testplatformslist.append("{},{}".format(image, platforms[os][driver][arch][image]))
+            testplatformslist.append(f"{image},{platforms[os][driver][arch][image]}")
 
     print("Using the following test platform(s)\n")
     for logplat in testplatformslist:
-        print("  {}".format(logplat))
+        print(f"  {logplat}")
     testplatforms = "|".join(testplatformslist)
 
     # create the kitchen.yml file
     with open('tmpkitchen.yml', 'w') as kitchenyml:
         # first read the correct driver
-        print("Adding driver file drivers/{}-driver.yml\n".format(provider))
+        print(f"Adding driver file drivers/{provider}-driver.yml\n")
 
-        with open("drivers/{}-driver.yml".format(provider), 'r') as driverfile:
+        with open(f"drivers/{provider}-driver.yml", 'r') as driverfile:
             kitchenyml.write(driverfile.read())
 
         # read the generic contents
@@ -145,11 +136,11 @@ def genconfig(
             kitchenyml.write(commonfile.read())
 
         # now open the requested test files
-        for f in glob.glob("test-definitions/{}.yml".format(testfiles)):
+        for f in glob.glob(f"test-definitions/{testfiles}.yml"):
             if f.lower().endswith("platforms-common.yml"):
                 print("Skipping common file\n")
             with open(f, 'r') as infile:
-                print("Adding file {}\n".format(f))
+                print(f"Adding file {f}\n")
                 kitchenyml.write(infile.read())
 
     env = {}
@@ -181,7 +172,7 @@ def load_targets(_, targethash, selections):
     returnlist = []
     commentpattern = re.compile("^comment")
     for selection in selections.split(","):
-        selectionpattern = re.compile("^{}$".format(selection))
+        selectionpattern = re.compile(f"^{selection}$")
 
         matched = False
         for key in targethash:
@@ -192,10 +183,10 @@ def load_targets(_, targethash, selections):
                 if key not in returnlist:
                     returnlist.append(key)
                 else:
-                    print("Skipping duplicate target key {} (matched search {})\n".format(key, selection))
+                    print(f"Skipping duplicate target key {key} (matched search {selection})\n")
 
         if not matched:
-            raise Exit(message="Couldn't find any match for target {}\n".format(selection), code=7)
+            raise Exit(message=f"Couldn't find any match for target {selection}\n", code=7)
     return returnlist
 
 

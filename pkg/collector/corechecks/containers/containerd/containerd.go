@@ -180,7 +180,7 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 	for _, ctn := range containers {
 		info, err := cu.Info(ctn)
 		if err != nil {
-			log.Errorf("Could not retrieve the metadata of the container: %s", ctn.ID()[:12])
+			log.Errorf("Could not retrieve the metadata of the container %s: %s", ctn.ID()[:12], err)
 			continue
 		}
 

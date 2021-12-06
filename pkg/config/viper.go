@@ -28,7 +28,10 @@ type safeConfig struct {
 	sync.RWMutex
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
-	configEnvVars  []string
+
+	// configEnvVars is the set of env vars that are consulted for
+	// configuration values.
+	configEnvVars map[string]struct{}
 }
 
 // Set wraps Viper for concurrent access
@@ -294,7 +297,7 @@ func (c *safeConfig) BindEnv(input ...string) {
 		if c.envKeyReplacer != nil {
 			key = c.envKeyReplacer.Replace(key)
 		}
-		c.configEnvVars = append(c.configEnvVars, key)
+		c.configEnvVars[key] = struct{}{}
 	}
 
 	_ = c.Viper.BindEnv(input...)
@@ -411,7 +414,11 @@ func (c *safeConfig) BindPFlag(key string, flag *pflag.Flag) error {
 
 // GetEnvVars implements the Config interface
 func (c *safeConfig) GetEnvVars() []string {
-	return c.configEnvVars
+	vars := make([]string, 0, len(c.configEnvVars))
+	for v := range c.configEnvVars {
+		vars = append(vars, v)
+	}
+	return vars
 }
 
 // BindEnvAndSetDefault implements the Config interface
@@ -423,7 +430,8 @@ func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...st
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) Config {
 	config := safeConfig{
-		Viper: viper.New(),
+		Viper:         viper.New(),
+		configEnvVars: map[string]struct{}{},
 	}
 	config.SetConfigName(name)
 	config.SetEnvPrefix(envPrefix)

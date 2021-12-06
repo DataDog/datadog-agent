@@ -110,6 +110,19 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
+			taggerEntityID := buildTaggerEntityID(entityID)
+
+			// keep track of children of this entity from previous
+			// iterations ...
+			unseen := make(map[string]struct{})
+			for childTaggerID := range c.children[taggerEntityID] {
+				unseen[childTaggerID] = struct{}{}
+			}
+
+			// ... and create a new empty map to store the children
+			// seen in this iteration.
+			c.children[taggerEntityID] = make(map[string]struct{})
+
 			switch entityID.Kind {
 			case workloadmeta.KindContainer:
 				tagInfos = append(tagInfos, c.handleContainer(ev)...)
@@ -120,6 +133,17 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
+
+			// remove the children seen in this iteration from the
+			// unseen list ...
+			for childTaggerID := range c.children[taggerEntityID] {
+				delete(unseen, childTaggerID)
+			}
+
+			// ... and remove entities for everything that has been
+			// left
+			source := buildTaggerSource(entityID)
+			tagInfos = append(tagInfos, c.handleDeleteChildren(source, unseen)...)
 
 		case workloadmeta.EventTypeUnset:
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
@@ -482,13 +506,20 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*TagInfo {
 
 	children := c.children[taggerEntityID]
 
-	source := fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind))
+	source := buildTaggerSource(entityID)
 	tagInfos := make([]*TagInfo, 0, len(children)+1)
 	tagInfos = append(tagInfos, &TagInfo{
 		Source:       source,
 		Entity:       taggerEntityID,
 		DeleteEntity: true,
 	})
+	tagInfos = append(tagInfos, c.handleDeleteChildren(source, children)...)
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleDeleteChildren(source string, children map[string]struct{}) []*TagInfo {
+	tagInfos := make([]*TagInfo, 0, len(children))
 
 	for childEntityID := range children {
 		t := TagInfo{
@@ -542,6 +573,10 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		log.Errorf("can't recognize entity %q with kind %q, but building a a tagger ID anyway", entityID.ID, entityID.Kind)
 		return containers.BuildEntityName(string(entityID.Kind), entityID.ID)
 	}
+}
+
+func buildTaggerSource(entityID workloadmeta.EntityID) string {
+	return fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind))
 }
 
 func parseJSONValue(value string, tags *utils.TagList) error {

@@ -415,3 +415,28 @@ func TestRuleSetFilters7(t *testing.T) {
 		t.Fatal("shouldn't get any approver")
 	}
 }
+
+func TestGetRuleEventType(t *testing.T) {
+	rule := &eval.Rule{
+		ID:         "aaa",
+		Expression: `open.filename == "test"`,
+	}
+	if err := rule.GenEvaluator(&testModel{}, &eval.Opts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	eventType, err := GetRuleEventType(rule)
+	if err != nil {
+		t.Fatalf("should get an event type: %s", err)
+	}
+
+	event := &testEvent{}
+	fieldEventType, err := event.GetFieldEventType("open.filename")
+	if err != nil {
+		t.Fatal("should get a field event type")
+	}
+
+	if eventType != fieldEventType {
+		t.Fatal("unexpected event type")
+	}
+}
