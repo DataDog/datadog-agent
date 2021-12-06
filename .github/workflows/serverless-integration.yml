@@ -30,11 +30,6 @@ jobs:
       - name: Install Serverless Framework
         run: sudo yarn global add serverless --prefix /usr/local
 
-      # - name: Install dependencies
-      #   # if: steps.cache-node-modules.outputs.cache-hit != 'true'
-      #   working-directory: integration_tests
-      #   run: yarn install
-
       - name: Create folder
         run: pwd && mkdir -p ~/dd
 
@@ -45,14 +40,8 @@ jobs:
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
       - name: Run tests
-        # env:
-        #   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        #   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: ls 
-        # run: BUILD_EXTENSION=true .test/integration/serverless/run.sh
-
-      - name: Run tests
-        # env:
-        #   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        #   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: cd go/src/github.com/DataDog/ && ls
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
+        run: BUILD_EXTENSION=true .test/integration/serverless/run.sh
+        working_directory: go/src/github.com/DataDog/datadog-agent
