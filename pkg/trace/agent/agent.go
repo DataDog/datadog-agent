@@ -258,7 +258,6 @@ func (a *Agent) Process(p *api.Payload) {
 				}
 			}
 			a.obfuscateSpan(span)
-
 			Truncate(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
