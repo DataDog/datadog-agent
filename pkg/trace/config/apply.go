@@ -27,10 +27,9 @@ import (
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 const (
-    apiEndpointPrefix = "https://trace.agent."
-    telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
+	apiEndpointPrefix       = "https://trace.agent."
+	telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 )
-    
 
 // telemetryEndpointPrefix is the URL prefix for Instrumentation telemetry endpoint
 const telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
@@ -397,10 +396,10 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			}}
 		}
 
-		additionalEndpoitnsCfg := "apm_config.telemetry.additional_endpoints"
+		additionalEndpointsCfg := "apm_config.telemetry.additional_endpoints"
 
-		if config.Datadog.IsSet(additionalEndpoitnsCfg) {
-			extra := config.Datadog.GetStringMapStringSlice(additionalEndpoitnsCfg)
+		if config.Datadog.IsSet(additionalEndpointsCfg) {
+			extra := config.Datadog.GetStringMapStringSlice(additionalEndpointsCfg)
 			for endpoint, keys := range extra {
 				u, err := url.Parse(endpoint)
 
