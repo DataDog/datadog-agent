@@ -64,7 +64,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	}
 }
 
-func TestTelemetryProxyMultipleEndpoitns(t *testing.T) {
+func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	var endpointCalled uint64
 
 	mainBackend := assertingServer(t, func(req *http.Request, body []byte) error {
