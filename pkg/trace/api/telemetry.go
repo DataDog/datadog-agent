@@ -84,16 +84,13 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 	if len(m.Endpoints) == 1 {
 		return m.roundTrip(req, m.Endpoints[0])
 	}
-
 	slurp, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
-
 	newreq := req.Clone(req.Context())
 	newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
 	rresp, rerr := m.roundTrip(newreq, m.Endpoints[0])
-
 	for _, endpoint := range m.Endpoints[1:] {
 		newreq := req.Clone(req.Context())
 		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
