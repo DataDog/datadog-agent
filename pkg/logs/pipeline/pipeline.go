@@ -7,6 +7,7 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -31,12 +32,12 @@ func NewPipeline(outputChan chan *message.Payload, processingRules []*config.Pro
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID)
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
-	senderInput := make(chan *message.Payload, config.ChanSize)
+	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
 	var logsSender *sender.Sender
 
 	strategy := getStrategy(strategyInput, senderInput, endpoints, serverless, pipelineID)
-	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.ChanSize)
+	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	var encoder processor.Encoder
 	if serverless {
@@ -84,11 +85,13 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 	additionals := []client.Destination{}
 
 	if endpoints.UseHTTP {
-		for _, endpoint := range endpoints.GetReliableEndpoints() {
-			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, pipelineID))
+		for i, endpoint := range endpoints.GetReliableEndpoints() {
+			telemetryName := fmt.Sprintf("logs_%d_reliable_%d", pipelineID, i)
+			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName))
 		}
-		for _, endpoint := range endpoints.GetUnReliableEndpoints() {
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, pipelineID))
+		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
+			telemetryName := fmt.Sprintf("logs_%d_unreliable_%d", pipelineID, i)
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
 		}
 		return client.NewDestinations(reliable, additionals)
 	}

@@ -78,7 +78,7 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 		Port:   port,
 		UseSSL: false,
 	}
-	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, 0)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test")
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,

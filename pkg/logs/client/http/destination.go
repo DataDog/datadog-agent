@@ -35,7 +35,6 @@ var (
 	errServer = errors.New("server error")
 	tlmSend   = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
 
-	destinationExpVars = expvar.NewMap("http_destination")
 	expVarIdleMsMapKey = "idleMs"
 	expVarInUseMapKey  = "inUseMs"
 )
@@ -69,11 +68,11 @@ type Destination struct {
 // If `maxConcurrentBackgroundSends` > 0, then at most that many background payloads will be sent concurrently, else
 // there is no concurrency and the background sending pipeline will block while sending each payload.
 // TODO: add support for SOCKS5
-func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, maxConcurrentBackgroundSends int, shouldRetry bool, pipelineID int) *Destination {
-	return newDestination(endpoint, contentType, destinationsContext, time.Second*10, maxConcurrentBackgroundSends, shouldRetry, pipelineID)
+func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, maxConcurrentBackgroundSends int, shouldRetry bool, telemetryName string) *Destination {
+	return newDestination(endpoint, contentType, destinationsContext, time.Second*10, maxConcurrentBackgroundSends, shouldRetry, telemetryName)
 }
 
-func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int, shouldRetry bool, pipelineID int) *Destination {
+func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int, shouldRetry bool, telemetryName string) *Destination {
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
 	}
@@ -81,7 +80,9 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 	expVars := &expvar.Map{}
 	expVars.AddFloat(expVarIdleMsMapKey, 0)
 	expVars.AddFloat(expVarInUseMapKey, 0)
-	destinationExpVars.Set(fmt.Sprintf("%s_%d", endpoint.Host, pipelineID), expVars)
+	if telemetryName != "" {
+		metrics.DestinationExpVars.Set(telemetryName, expVars)
+	}
 
 	policy := backoff.NewPolicy(
 		endpoint.BackoffFactor,
@@ -327,7 +328,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	ctx.Start()
 	defer ctx.Stop()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, 0)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "")
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := destination.unconditionalSend(&emptyPayload)
 	if err != nil {
