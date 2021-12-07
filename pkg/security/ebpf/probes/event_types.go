@@ -226,8 +226,8 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "linkat"}, EntryAndExit),
 		},
-
-		// selinux
+	},
+	"selinux": {
 		// This needs to be best effort, as sel_write_disable is in the process to be removed
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_disable", EBPFFuncName: "kprobe_sel_write_disable"}},
