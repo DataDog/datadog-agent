@@ -8,25 +8,16 @@ package flare
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func addMetadata(tempDir, hostname, filename string, data []byte) error {
 	f := filepath.Join(tempDir, hostname, filename)
-	w, err := scrubber.NewWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(data)
-	return err
+	return writeScrubbedFile(f, data)
 }
 
 func zipMetadataInventories(tempDir, hostname string) error {
