@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ProxyProcessor is a InvocationProcessor implementation
 type ProxyProcessor struct{}
 
 func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetails) {

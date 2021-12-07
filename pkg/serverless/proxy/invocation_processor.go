@@ -5,7 +5,10 @@
 
 package proxy
 
+// InvocationProcessor is the interface to implement to received invocation lifecycle hooks
 type InvocationProcessor interface {
+	// OnInvokeStart is the hook triggered when an invocation has started
 	OnInvokeStart(startDetails *InvocationStartDetails)
+	// OnInvokeEnd is the hook triggered when an invocation has ended
 	OnInvokeEnd(endDetails *InvocationEndDetails)
 }

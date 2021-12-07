@@ -23,8 +23,7 @@ type proxyTransport struct {
 func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error) {
 	log.Debug("[proxy] new request to %s", request.URL)
 
-	// enrich the currentInvocationDetails object
-	enrichCurrentInvocation(p, request)
+	processRequest(p, request)
 
 	response, err := http.DefaultTransport.RoundTrip(request)
 	if err != nil {
@@ -44,7 +43,7 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 		return nil, errors.New("invalid payload format")
 	}
 
-	// enrich the currentInvocationDetails when /next response is received
+	// triggers onInvokeStart when /next response is received
 	if request.Method == "GET" && strings.HasSuffix(request.URL.String(), "/next") {
 		details := &InvocationStartDetails{
 			StartTime:          time.Now(),
@@ -57,7 +56,7 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 	return response, nil
 }
 
-func enrichCurrentInvocation(p *proxyTransport, request *http.Request) {
+func processRequest(p *proxyTransport, request *http.Request) {
 	if request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/response") {
 		details := &InvocationEndDetails{
 			EndTime: time.Now(),
