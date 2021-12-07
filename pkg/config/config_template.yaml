@@ -2325,8 +2325,8 @@ api_key:
 ## @param containerd_namespace - string - optional - default: k8s.io
 ## @env DD_CONTAINERD_NAMESPACE - string - optional - default: k8s.io
 ## Activating the Containerd check also activates the CRI check, as it contains an additional subset of useful metrics.
-## Specify here the namespace that Containerd is using on your system. As the Containerd check
-## only supports Kubernetes, the default value is `k8s.io`
+## Specify here the namespace that Containerd is using on your system. When using Kubernetes it defaults to "k8s.io".
+## Outside Kubernetes, it defaults to "" which will report metrics and events from all namespaces.
 ## https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
 #
 # containerd_namespace: k8s.io
