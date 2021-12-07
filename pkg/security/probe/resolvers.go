@@ -66,7 +66,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
 		TagsResolver:      NewTagsResolver(config),
-		SymlinkResolver:   NewSymLinkResolver(),
+		SymlinkResolver:   NewSymLinkResolver(probe.UptadeApprovers),
 	}
 
 	processResolver, err := NewProcessResolver(probe, resolvers, probe.statsdClient, NewProcessResolverOpts(probe.config.CookieCacheSize))
@@ -184,6 +184,8 @@ func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
 		return err
 	}
+
+	r.SymlinkResolver.Start(ctx)
 	r.MountResolver.Start(ctx)
 
 	if err := r.TagsResolver.Start(ctx); err != nil {

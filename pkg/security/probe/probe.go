@@ -72,7 +72,9 @@ type Probe struct {
 	pidDiscarders      *pidDiscarders
 	inodeDiscarders    *inodeDiscarders
 	flushingDiscarders int64
-	approvers          map[eval.EventType]activeApprovers
+
+	apprroversLock sync.RWMutex
+	approvers      map[eval.EventType]activeApprovers
 
 	constantOffsets map[string]uint64
 }
@@ -646,6 +648,13 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, fla
 	return table.Put(ebpf.Uint32MapItem(et), policy)
 }
 
+func (p *Probe) UptadeApprovers(field eval.Field, path string) {
+	p.apprroversLock.Lock()
+	defer p.apprroversLock.Unlock()
+
+	fmt.Printf("AAAAAAAAAAAAAAAaa: %s -> %s\n", field, path)
+}
+
 // SetApprovers applies approvers and removes the unused ones
 func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	handler, exists := allApproversHandlers[eventType]
@@ -665,6 +674,8 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 		}
 	}
 
+	p.apprroversLock.Lock()
+	defer p.apprroversLock.Unlock()
 	if previousApprovers, exist := p.approvers[eventType]; exist {
 		previousApprovers.Sub(newApprovers)
 		for _, previousApprover := range previousApprovers {

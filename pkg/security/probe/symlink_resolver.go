@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -18,34 +19,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-// SymlinkResolver defines a symlink resolver
+// Targets defines the mapping between a path field and all its values
+type Targets struct {
+	Field  eval.Field
+	Values eval.StringValues
+}
+
+// SymlinkResolver defines a SymlinkResolver
 type SymlinkResolver struct {
 	sync.RWMutex
 
-	cache map[unsafe.Pointer]*eval.StringValues
-	index map[string][]*eval.StringValues
-	added map[string]bool
+	OnNewSymlink func(field eval.Field, path string)
+
+	requests chan string
+	cache    map[unsafe.Pointer]*eval.StringValues
+	index    map[string][]*Targets
+	added    map[string]bool
 }
 
 // InitStringValues initialize the symlinks resolution, should be called only during the
 // rules compilations
-func (s *SymlinkResolver) InitStringValues(key unsafe.Pointer, paths ...string) {
-	var values eval.StringValues
-
-	for _, path := range paths {
-		values.AppendScalarValue(path)
-		s.added[path] = true
-
-		allValues := s.index[path]
-		allValues = append(allValues, &values)
-		s.index[path] = allValues
+func (s *SymlinkResolver) InitStringValues(key unsafe.Pointer, field eval.Field, paths ...string) {
+	//var target eval.StringValues
+	target := Targets{
+		Field: field,
 	}
 
-	s.cache[key] = &values
+	for _, path := range paths {
+		target.Values.AppendScalarValue(path)
+		s.added[path] = true
+
+		targets := s.index[path]
+		targets = append(targets, &target)
+		s.index[path] = targets
+	}
+
+	s.cache[key] = &target.Values
 }
 
+// UpdateSymlinks updates the symlinks for the given path
 func (s *SymlinkResolver) UpdateSymlinks(root string) {
-	for path, allValues := range s.index {
+	for path, targets := range s.index {
 		dest, err := filepath.EvalSymlinks(filepath.Join(root, path))
 		if err != nil {
 			continue
@@ -59,9 +73,13 @@ func (s *SymlinkResolver) UpdateSymlinks(root string) {
 		seclog.Tracef("symlink resolved %s(%s) => %s\n", path, root, dest)
 
 		s.Lock()
-		for _, values := range allValues {
-			values.AppendScalarValue(dest)
+		for _, target := range targets {
+			target.Values.AppendScalarValue(dest)
 			s.added[dest] = true
+
+			if s.OnNewSymlink != nil {
+				s.OnNewSymlink(target.Field, dest)
+			}
 		}
 		s.Unlock()
 	}
@@ -80,19 +98,41 @@ func (s *SymlinkResolver) GetStringValues(key unsafe.Pointer) *eval.StringValues
 	return &eval.StringValues{}
 }
 
+// ScheduleUpdate schedules a symlink update
+func (s *SymlinkResolver) ScheduleUpdate(root string) {
+	s.requests <- root
+}
+
+// Start start the resolver
+func (s *SymlinkResolver) Start(ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case root := <-s.requests:
+				s.UpdateSymlinks(root)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
 // Reset all the caches
 func (s *SymlinkResolver) Reset() {
 	s.RLock()
 	defer s.RUnlock()
 
 	s.cache = make(map[unsafe.Pointer]*eval.StringValues)
-	s.index = make(map[string][]*eval.StringValues)
+	s.index = make(map[string][]*Targets)
 	s.added = make(map[string]bool)
 }
 
 // NewSymLinkResolver returns a new
-func NewSymLinkResolver() *SymlinkResolver {
-	sr := &SymlinkResolver{}
+func NewSymLinkResolver(onNewSymlink func(field eval.Field, path string)) *SymlinkResolver {
+	sr := &SymlinkResolver{
+		OnNewSymlink: onNewSymlink,
+		requests:     make(chan string, 1000),
+	}
 	sr.Reset()
 	return sr
 }
