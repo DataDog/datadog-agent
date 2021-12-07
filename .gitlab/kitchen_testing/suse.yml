@@ -67,15 +67,11 @@ kitchen_suse_step_by_step_agent-a6:
   extends:
     - .kitchen_scenario_suse_a6
     - .kitchen_test_step_by_step_agent
-  rules:
-    !reference [.on_deploy_a6]
 
 kitchen_suse_step_by_step_agent-a7:
   extends:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_step_by_step_agent
-  rules:
-    !reference [.on_deploy_a7]
 
 kitchen_suse_upgrade5_agent-a6:
   extends:
