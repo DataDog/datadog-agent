@@ -35,9 +35,11 @@ func checkRuleID(ruleID string) bool {
 
 // GetValidMacroAndRules returns valid macro, rules definitions
 func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition, *multierror.Error) {
-	var result *multierror.Error
-	var macros []*MacroDefinition
-	var rules []*RuleDefinition
+	var (
+		result *multierror.Error
+		macros []*MacroDefinition
+		rules  []*RuleDefinition
+	)
 
 	for _, macroDef := range p.Macros {
 		if macroDef.ID == "" {
@@ -49,10 +51,11 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 			continue
 		}
 
-		if macroDef.Expression == "" {
-			result = multierror.Append(result, &ErrMacroLoad{Definition: macroDef, Err: errors.New("no expression defined")})
+		if macroDef.Expression == "" && len(macroDef.Values) == 0 {
+			result = multierror.Append(result, &ErrMacroLoad{Definition: macroDef, Err: errors.New("no expression and no values defined")})
 			continue
 		}
+
 		macros = append(macros, macroDef)
 	}
 
@@ -94,8 +97,11 @@ func LoadPolicy(r io.Reader, name string) (*Policy, error) {
 // LoadPolicies loads the policies listed in the configuration and apply them to the given ruleset
 func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 	var (
-		result   *multierror.Error
-		allRules []*RuleDefinition
+		result     *multierror.Error
+		allRules   []*RuleDefinition
+		allMacros  []*MacroDefinition
+		macroIndex = make(map[string]*MacroDefinition)
+		ruleIndex  = make(map[string]*RuleDefinition)
 	)
 
 	policyFiles, err := os.ReadDir(policiesDir)
@@ -138,16 +144,43 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 		}
 
 		if len(macros) > 0 {
-			// Add the macros to the ruleset and generate macros evaluators
-			if mErr := ruleSet.AddMacros(macros); mErr.ErrorOrNil() != nil {
-				result = multierror.Append(result, err)
+			for _, macro := range macros {
+				if existingMacro := macroIndex[macro.ID]; existingMacro != nil {
+					if macro.Merge != nil && *macro.Merge == false {
+						result = multierror.Append(result, &ErrMacroLoad{Definition: macro, Err: ErrInternalIDConflict})
+						continue
+					}
+					existingMacro.Values = append(existingMacro.Values, macro.Values...)
+					ruleSet.logger.Debugf("Appended values %v to existing macro: %v", macro.Values, existingMacro.Values)
+				} else {
+					macroIndex[macro.ID] = macro
+					allMacros = append(allMacros, macro)
+				}
 			}
 		}
 
 		// aggregates them as we may need to have all the macro before compiling
 		if len(rules) > 0 {
-			allRules = append(allRules, rules...)
+			for _, rule := range rules {
+				if existingRule := ruleIndex[rule.ID]; existingRule != nil {
+					if rule.Merge == nil || *rule.Merge == false {
+						result = multierror.Append(result, &ErrRuleLoad{Definition: rule, Err: ErrInternalIDConflict})
+						continue
+					}
+
+					existingRule.Expression += " " + rule.Expression
+					ruleSet.logger.Debugf("Appended %s to expression: %s", rule.Expression, existingRule.Expression)
+				} else {
+					ruleIndex[rule.ID] = rule
+					allRules = append(allRules, rule)
+				}
+			}
 		}
+	}
+
+	// Add the macros to the ruleset and generate macros evaluators
+	if mErr := ruleSet.AddMacros(allMacros); mErr.ErrorOrNil() != nil {
+		result = multierror.Append(result, err)
 	}
 
 	// Add rules to the ruleset and generate rules evaluators

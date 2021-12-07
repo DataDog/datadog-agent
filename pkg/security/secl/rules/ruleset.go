@@ -20,8 +20,10 @@ type MacroID = string
 
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
-	ID         MacroID `yaml:"id"`
-	Expression string  `yaml:"expression"`
+	ID         MacroID  `yaml:"id"`
+	Expression string   `yaml:"expression"`
+	Values     []string `yaml:"values"`
+	Merge      *bool    `yaml:"merge"`
 }
 
 // Macro describes a macro of a ruleset
@@ -40,6 +42,7 @@ type RuleDefinition struct {
 	Expression  string            `yaml:"expression"`
 	Description string            `yaml:"description"`
 	Tags        map[string]string `yaml:"tags"`
+	Merge       *bool             `yaml:"merge"`
 	Policy      *Policy
 }
 
@@ -74,7 +77,6 @@ type RuleSet struct {
 	loadedPolicies   map[string]string
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*Rule
-	macros           map[eval.RuleID]*Macro
 	model            eval.Model
 	eventCtor        func() eval.Event
 	listeners        []RuleSetListener
@@ -123,24 +125,25 @@ func (rs *RuleSet) AddMacros(macros []*MacroDefinition) *multierror.Error {
 
 // AddMacro parses the macro AST and adds it to the list of macros of the ruleset
 func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
+	var err error
+
 	if _, exists := rs.opts.Macros[macroDef.ID]; exists {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("multiple definition with the same ID")}
 	}
 
-	macro := &Macro{
-		Macro: &eval.Macro{
-			ID:         macroDef.ID,
-			Expression: macroDef.Expression,
-		},
-		Definition: macroDef,
-	}
+	macro := &Macro{Definition: macroDef}
 
-	if err := macro.Parse(); err != nil {
-		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.Wrap(err, "syntax error")}
-	}
-
-	if err := macro.GenEvaluator(rs.model, &rs.opts.Opts); err != nil {
-		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.Wrap(err, "compilation error")}
+	switch {
+	case macroDef.Expression != "" && len(macroDef.Values) > 0:
+		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("only one of 'expression' and 'values' can be defined")}
+	case macroDef.Expression != "":
+		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, &rs.opts.Opts); err != nil {
+			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
+		}
+	default:
+		if macro.Macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, &rs.opts.Opts); err != nil {
+			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
+		}
 	}
 
 	rs.opts.AddMacro(macro.Macro)

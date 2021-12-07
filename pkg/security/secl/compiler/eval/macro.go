@@ -6,6 +6,8 @@
 package eval
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
@@ -16,9 +18,8 @@ type MacroID = string
 
 // Macro - Macro object identified by an `ID` containing a SECL `Expression`
 type Macro struct {
-	ID         MacroID
-	Expression string
-	Opts       *Opts
+	ID   MacroID
+	Opts *Opts
 
 	evaluator *MacroEvaluator
 	ast       *ast.Macro
@@ -29,6 +30,40 @@ type MacroEvaluator struct {
 	Value       interface{}
 	EventTypes  []EventType
 	FieldValues map[Field][]FieldValue
+}
+
+func NewMacro(id, expression string, model Model, opts *Opts) (*Macro, error) {
+	macro := &Macro{
+		ID:   id,
+		Opts: opts,
+	}
+
+	if err := macro.Parse(expression); err != nil {
+		return nil, fmt.Errorf("syntax error: +w", err)
+	}
+
+	if err := macro.GenEvaluator(expression, model, opts); err != nil {
+		return nil, fmt.Errorf("compilation error: +w", err)
+	}
+
+	return macro, nil
+}
+
+func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error) {
+	var evaluator StringValuesEvaluator
+	for _, value := range values {
+		fieldValue := FieldValue{
+			Type:  ScalarValueType,
+			Value: value,
+		}
+		evaluator.AppendFieldValues(fieldValue)
+	}
+
+	return &Macro{
+		ID:        id,
+		Opts:      opts,
+		evaluator: &MacroEvaluator{Value: &evaluator},
+	}, nil
 }
 
 // GetEvaluator - Returns the MacroEvaluator of the Macro corresponding to the SECL `Expression`
@@ -42,8 +77,8 @@ func (m *Macro) GetAst() *ast.Macro {
 }
 
 // Parse - Transforms the SECL `Expression` into its AST representation
-func (m *Macro) Parse() error {
-	astMacro, err := ast.ParseMacro(m.Expression)
+func (m *Macro) Parse(expression string) error {
+	astMacro, err := ast.ParseMacro(expression)
 	if err != nil {
 		return err
 	}
@@ -87,13 +122,13 @@ func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*
 }
 
 // GenEvaluator - Compiles and generates the evalutor
-func (m *Macro) GenEvaluator(model Model, opts *Opts) error {
+func (m *Macro) GenEvaluator(expression string, model Model, opts *Opts) error {
 	m.Opts = opts
 
 	evaluator, err := macroToEvaluator(m.ast, model, opts, "")
 	if err != nil {
 		if err, ok := err.(*ErrAstToEval); ok {
-			return errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: m.Expression}, "macro syntax error")
+			return errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: expression}, "macro syntax error")
 		}
 		return errors.Wrap(err, "macro compilation error")
 	}
