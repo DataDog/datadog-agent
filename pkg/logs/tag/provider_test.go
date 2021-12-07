@@ -53,7 +53,7 @@ wait:
 		case tt = <-tagsChan:
 			break wait
 		default:
-			clock.Add(100 * time.Millisecond)
+			clock.Add(90 * time.Millisecond)
 		}
 	}
 
