@@ -11,6 +11,6 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Add CODEOWNER Label To PR
-      uses: pratikmallya/autolabeler-codeowners@releases/v1
+      uses: kacper-murzyn/autolabeler-codeowners
       with:
         githubToken: ${{ secrets.GITHUB_TOKEN }}
