@@ -41,24 +41,42 @@ func TestProviderExpectedTags(t *testing.T) {
 	var tt []string
 
 	// this will block for two (mock) seconds, so do it in a goroutine
-	gotTags := make(chan struct{})
+	tagsChan := make(chan []string)
 	go func() {
-		tt = pp.GetTags()
-		close(gotTags)
+		tagsChan <- pp.GetTags()
 	}()
 
-	clock.Add(time.Second)
-	require.Empty(t, tt) // still waiting..
+wait:
+	for {
+		select {
+		case tt = <-tagsChan:
+			break wait
+		default:
+			clock.Add(100 * time.Millisecond)
+		}
+	}
 
-	clock.Add(2 * time.Second)
-	<-gotTags // got the tags now!
 	sort.Strings(tags)
 	sort.Strings(tt)
 	require.Equal(t, tags, tt)
 
 	// let the deadline expire
 	clock.Add(expectedTagsDuration)
-
 	// tags are now empty
 	require.Empty(t, pp.GetTags())
+}
+
+func TestTHing(t *testing.T) {
+
+	clock := clock.NewMock()
+	proceed := make(chan struct{})
+	go func() {
+		// time.Sleep(300 * time.Millisecond) // make me fail
+		clock.Sleep(1 * time.Second)
+		close(proceed)
+	}()
+
+	// time.Sleep(300 * time.Millisecond) // make me pass
+	clock.Add(time.Second)
+	<-proceed
 }
