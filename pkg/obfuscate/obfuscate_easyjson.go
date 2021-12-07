@@ -87,7 +87,6 @@ func easyjson4ef41860EncodeGithubComDataDogDatadogAgentPkgObfuscate(out *jwriter
 	if !first {
 		out.RawByte(',')
 	}
-	first = false
 	out.RawString("\"Cache\":")
 	out.Bool(bool(in.Cache))
 	out.RawByte('}')
