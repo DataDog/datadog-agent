@@ -12,7 +12,7 @@ import (
 
 type ProxyProcessor struct{}
 
-func (pp *ProxyProcessor) onInvokeStart(startDetails *proxy.InvocationStartDetails) {
+func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetails) {
 	log.Debug("[proxy] onInvokeStart ------")
 	log.Debug("[proxy] Invocation has started at :", startDetails.StartTime)
 	log.Debug("[proxy] Invocation invokeHeaders are :", startDetails.InvokeHeaders)
@@ -20,7 +20,7 @@ func (pp *ProxyProcessor) onInvokeStart(startDetails *proxy.InvocationStartDetai
 	log.Debug("[proxy] ---------------------------------------")
 }
 
-func (pp *ProxyProcessor) onInvokeEnd(endDetails *proxy.InvocationEndDetails) {
+func (pp *ProxyProcessor) OnInvokeEnd(endDetails *proxy.InvocationEndDetails) {
 	log.Debug("[proxy] onInvokeEnd ------")
 	log.Debug("[proxy] Invocation has finished at :", endDetails.EndTime)
 	log.Debug("[proxy] Invocation isError is :", endDetails.IsError)

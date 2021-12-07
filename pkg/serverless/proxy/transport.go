@@ -17,7 +17,7 @@ import (
 )
 
 type proxyTransport struct {
-	processor invocationProcessor
+	processor InvocationProcessor
 }
 
 func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -51,7 +51,7 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 			InvokeHeaders:      response.Header,
 			InvokeEventPayload: string(dumpedResponse[indexPayload:]),
 		}
-		p.processor.onInvokeStart(details)
+		p.processor.OnInvokeStart(details)
 	}
 
 	return response, nil
@@ -63,13 +63,13 @@ func enrichCurrentInvocation(p *proxyTransport, request *http.Request) {
 			EndTime: time.Now(),
 			IsError: false,
 		}
-		p.processor.onInvokeEnd(details)
+		p.processor.OnInvokeEnd(details)
 	} else if request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/error") {
 		details := &InvocationEndDetails{
 			EndTime: time.Now(),
 			IsError: true,
 		}
-		p.processor.onInvokeEnd(details)
+		p.processor.OnInvokeEnd(details)
 	} else {
 		log.Debug("[proxy] unknown verb/url (%s/%s) pattern found, ignoring", request.Method, request.URL.String())
 	}

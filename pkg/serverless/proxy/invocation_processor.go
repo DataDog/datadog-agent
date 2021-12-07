@@ -5,7 +5,7 @@
 
 package proxy
 
-type invocationProcessor interface {
-	onInvokeStart(startDetails *InvocationStartDetails)
-	onInvokeEnd(endDetails *InvocationEndDetails)
+type InvocationProcessor interface {
+	OnInvokeStart(startDetails *InvocationStartDetails)
+	OnInvokeEnd(endDetails *InvocationEndDetails)
 }

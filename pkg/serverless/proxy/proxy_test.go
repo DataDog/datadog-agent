@@ -19,7 +19,7 @@ import (
 
 type testProcessorResponseValid struct{}
 
-func (tp *testProcessorResponseValid) onInvokeStart(startDetails *InvocationStartDetails) {
+func (tp *testProcessorResponseValid) OnInvokeStart(startDetails *InvocationStartDetails) {
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
@@ -31,7 +31,7 @@ func (tp *testProcessorResponseValid) onInvokeStart(startDetails *InvocationStar
 	}
 }
 
-func (tp *testProcessorResponseValid) onInvokeEnd(endDetails *InvocationEndDetails) {
+func (tp *testProcessorResponseValid) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	if endDetails.IsError != false {
 		panic("isError")
 	}
@@ -42,7 +42,7 @@ func (tp *testProcessorResponseValid) onInvokeEnd(endDetails *InvocationEndDetai
 
 type testProcessorResponseError struct{}
 
-func (tp *testProcessorResponseError) onInvokeStart(startDetails *InvocationStartDetails) {
+func (tp *testProcessorResponseError) OnInvokeStart(startDetails *InvocationStartDetails) {
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
@@ -54,7 +54,7 @@ func (tp *testProcessorResponseError) onInvokeStart(startDetails *InvocationStar
 	}
 }
 
-func (tp *testProcessorResponseError) onInvokeEnd(endDetails *InvocationEndDetails) {
+func (tp *testProcessorResponseError) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	if endDetails.IsError != true {
 		panic("isError")
 	}

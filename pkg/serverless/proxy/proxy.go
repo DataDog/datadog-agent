@@ -18,12 +18,12 @@ import (
 type runtimeProxy struct {
 	target    *url.URL
 	proxy     *httputil.ReverseProxy
-	processor invocationProcessor
+	processor InvocationProcessor
 }
 
 // Start starts the proxy
 // This proxy allows us to inspect traffic from/to the AWS Lambda Runtime API
-func Start(proxyHostPort string, originalRuntimeHostPort string, processor invocationProcessor) bool {
+func Start(proxyHostPort string, originalRuntimeHostPort string, processor InvocationProcessor) bool {
 	if strings.ToLower(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")) == "true" {
 		log.Debug("the experimental proxy feature is enabled")
 		go setup(proxyHostPort, originalRuntimeHostPort, processor)
@@ -32,7 +32,7 @@ func Start(proxyHostPort string, originalRuntimeHostPort string, processor invoc
 	return false
 }
 
-func setup(proxyHostPort string, originalRuntimeHostPort string, processor invocationProcessor) {
+func setup(proxyHostPort string, originalRuntimeHostPort string, processor InvocationProcessor) {
 	proxy := startProxy(originalRuntimeHostPort, processor)
 
 	mux := http.NewServeMux()
@@ -57,7 +57,7 @@ func (rp *runtimeProxy) handle(w http.ResponseWriter, r *http.Request) {
 	rp.proxy.ServeHTTP(w, r)
 }
 
-func startProxy(target string, processor invocationProcessor) *runtimeProxy {
+func startProxy(target string, processor InvocationProcessor) *runtimeProxy {
 	url := &url.URL{
 		Scheme: "http",
 		Host:   target,
