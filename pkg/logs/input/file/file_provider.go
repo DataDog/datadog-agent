@@ -121,9 +121,9 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 // CollectFiles returns all the files matching the source path.
 func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
 	path := source.Config.Path
-	fileExists := p.exists(path)
+	_, err := os.Stat(path)
 	switch {
-	case fileExists:
+	case err == nil:
 		return []*File{
 			NewFile(path, source, false),
 		}, nil
@@ -131,7 +131,7 @@ func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
 		pattern := path
 		return p.searchFiles(pattern, source)
 	default:
-		return nil, fmt.Errorf("file %s does not exist", path)
+		return nil, fmt.Errorf("cannot read file %s: %s", path, err)
 	}
 }
 
