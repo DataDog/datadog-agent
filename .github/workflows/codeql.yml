@@ -47,6 +47,7 @@ jobs:
           setup-python-dependencies: false
           config-file: /home/runner/work/datadog-agent/datadog-agent/go/src/github.com/DataDog/datadog-agent/.github/codeql_config.yml
           source-root: go/src/github.com/DataDog/datadog-agent
+          # Define a fixed CodeQL bundle version
           tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-20211115/codeql-bundle-linux64.tar.gz
 
       - env:
