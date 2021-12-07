@@ -48,7 +48,7 @@ when 'rhel'
       baseurl = #{node['dd-agent-step-by-step']['yumrepo']}
       enabled=1
       gpgcheck=1
-      repo_gpgcheck=0
+      repo_gpgcheck=1
       gpgkey=#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public
              #{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public
              #{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public
@@ -70,7 +70,7 @@ when 'suse'
       baseurl = #{node['dd-agent-step-by-step']['yumrepo_suse']}
       enabled=1
       gpgcheck=1
-      repo_gpgcheck=0
+      repo_gpgcheck=1
       gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public
              https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public
              https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public
