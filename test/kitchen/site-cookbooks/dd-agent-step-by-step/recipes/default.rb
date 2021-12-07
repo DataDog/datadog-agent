@@ -57,7 +57,7 @@ when 'rhel'
 
   execute 'install rhel' do
     command <<-EOF
-      sudo yum makecache
+      sudo yum makecache -y
       sudo yum install -y #{node['dd-agent-step-by-step']['package_name']}
     EOF
   end
