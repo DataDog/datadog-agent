@@ -227,6 +227,8 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "linkat"}, EntryAndExit),
 		},
 	},
+
+	// List of probes to activate to capture selinux events
 	"selinux": {
 		// This needs to be best effort, as sel_write_disable is in the process to be removed
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
