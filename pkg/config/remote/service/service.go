@@ -496,12 +496,12 @@ func NewService(opts Opts) (*Service, error) {
 		opts.TracerCacheSize = defaultTracerCacheSize
 	}
 
-	opts.TracerCacheTTL = time.Second * config.Datadog.GetDuration("remote_configuration.tracer_cache.ttl_seconds")
+	opts.TracerCacheTTL = config.Datadog.GetDuration("remote_configuration.tracer_cache.ttl_seconds")
 	if opts.TracerCacheTTL <= 0 {
 		opts.TracerCacheTTL = defaultTracerCacheTTL
 	}
 
-	if opts.TracerCacheTTL <= 5 || opts.TracerCacheTTL <= 10 {
+	if opts.TracerCacheTTL <= 5 || opts.TracerCacheTTL >= 60 {
 		log.Warnf("Configured tracer cache ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", 5, 10, opts.TracerCacheTTL, defaultTracerCacheTTL)
 		opts.TracerCacheTTL = defaultTracerCacheTTL
 	}
