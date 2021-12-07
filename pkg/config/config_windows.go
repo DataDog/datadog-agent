@@ -6,8 +6,10 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -46,3 +48,15 @@ func osinit() {
 
 // NewAssetFs  Should never be called on non-android
 func setAssetFs(config Config) {}
+
+func init() {
+	if pd, err := winutil.GetProgramDataDir(); err == nil {
+		defaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
+	}
+	if _here, err := executable.Folder(); err == nil {
+		agentFilePath := filepath.Join(_here, "..", "..", "embedded", "agent.exe")
+		if _, err := os.Stat(agentFilePath); err == nil {
+			defaultDDAgentBin = agentFilePath
+		}
+	}
+}
