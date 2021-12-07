@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -1713,6 +1715,9 @@ metric_tags:
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
+	config.Datadog.Set("hostname", "test-hostname")
+	config.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1856,6 +1861,22 @@ use_device_id_as_hostname: true
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, hostname, snmpGlobalTagsWithLoader)
+
+	// Test SetExternalTags
+	host := "device:default:1.2.3.4"
+	sourceType := "snmp"
+	externalTags := []string{"agent_tag1:val1", "agent_tag2:val2"}
+	eTags := externalhost.ExternalTags{sourceType: externalTags}
+
+	p := *externalhost.GetPayload()
+	var hostTags []interface{}
+	for _, curHostTags := range p {
+		if curHostTags[0].(string) == host {
+			hostTags = curHostTags
+		}
+	}
+	assert.Contains(t, hostTags, host)
+	assert.Contains(t, hostTags, eTags)
 }
 
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {

@@ -96,12 +96,20 @@ func TestRegoCheck(t *testing.T) {
 
 				import data.datadog as dd
 
+				process_data(p) = d {
+					d := {
+						"process.name": p.name,
+						"process.exe": p.exe,
+						"process.cmdLine": p.cmdLine,
+					}
+				}
+
 				default valid = false
 
 				findings[f] {
 					p := input.processes[_]
 					p.flags["--path"] == "foo"
-					f := dd.passed_finding("process", "42", dd.process_data(p))
+					f := dd.passed_finding("process", "42", process_data(p))
 				}
 			`,
 			findings: "data.test.findings",
@@ -145,12 +153,20 @@ func TestRegoCheck(t *testing.T) {
 
 				import data.datadog as dd
 
+				process_data(p) = d {
+					d := {
+						"process.name": p.name,
+						"process.exe": p.exe,
+						"process.cmdLine": p.cmdLine,
+					}
+				}
+
 				default valid = false
 
 				findings[f] {
 					p := input.processes[_]
 					p.flags["--path"] == "foo"
-					f := dd.failing_finding("process", "42", dd.process_data(p))
+					f := dd.failing_finding("process", "42", process_data(p))
 				}
 			`,
 			findings: "data.test.findings",
