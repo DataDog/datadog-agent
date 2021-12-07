@@ -248,6 +248,8 @@ type BufferedAggregator struct {
 
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
+
+	flushMetricsAndSerializeInParallelChanSize int
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
@@ -264,6 +266,11 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	if config.Datadog.GetBool("heroku_dyno") {
 		// Override the agentName if this Agent is configured to report as Heroku Dyno
 		agentName = flavor.HerokuAgent
+	}
+
+	var flushMetricsAndSerializeInParallelChanSize int
+	if config.Datadog.GetBool("flush_metrics_and_serialize_in_parallel") {
+		flushMetricsAndSerializeInParallelChanSize = config.Datadog.GetInt("flush_metrics_and_serialize_in_parallel_chan_size")
 	}
 
 	aggregator := &BufferedAggregator{
@@ -299,6 +306,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentTags:               tagger.AgentTags,
 		ServerlessFlush:         make(chan bool),
 		ServerlessFlushDone:     make(chan struct{}),
+		flushMetricsAndSerializeInParallelChanSize: flushMetricsAndSerializeInParallelChanSize,
 	}
 
 	return aggregator
@@ -593,6 +601,27 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	}
 }
 
+type iterableSerieInfo struct {
+	count uint64
+	err   error
+}
+
+func (agg *BufferedAggregator) sendIterableSeries(
+	start time.Time,
+	series *metrics.IterableSeries,
+	iterableSerieInfoChan chan<- iterableSerieInfo) {
+	agg.appendDefaultSeries(start, series)
+
+	go func() {
+		log.Debugf("Flushing series to the forwarder")
+
+		err := agg.serializer.SendIterableSeries(series)
+		// if err == nil, SenderStopped was called and it is safe to read the number of series.
+		count := series.GetSeriesAppenedCount()
+		iterableSerieInfoChan <- iterableSerieInfo{count: count, err: err}
+	}()
+}
+
 func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.SketchSeriesList, waitForSerializer bool) {
 	// Serialize and forward sketches in a separate goroutine
 	addFlushCount("Sketches", int64(len(sketches)))
@@ -606,10 +635,28 @@ func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.Sk
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSerializer bool) {
-	series, sketches := agg.GetSeriesAndSketches(start)
+	if agg.flushMetricsAndSerializeInParallelChanSize == 0 {
+		series, sketches := agg.GetSeriesAndSketches(start)
+		agg.sendSketches(start, sketches, waitForSerializer)
+		agg.sendSeries(start, series, waitForSerializer)
+	} else {
+		logPayloads := config.Datadog.GetBool("log_payloads")
+		series := metrics.NewIterableSeries(func(s *metrics.Serie) {
+			if logPayloads {
+				log.Debugf("Flushing the following metrics: %s", s)
+			}
+			tagsetTlm.updateHugeSerieTelemetry(s)
+		}, agg.flushMetricsAndSerializeInParallelChanSize)
+		c := make(chan iterableSerieInfo)
+		agg.sendIterableSeries(start, series, c)
+		sketches := agg.getSeriesAndSketches(start, series)
+		series.SenderStopped()
 
-	agg.sendSketches(start, sketches, waitForSerializer)
-	agg.sendSeries(start, series, waitForSerializer)
+		agg.sendSketches(start, sketches, waitForSerializer)
+		info := <-c
+		addFlushCount("Series", int64(info.count))
+		updateSerieTelemetry(start, int(info.count), info.err)
+	}
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
