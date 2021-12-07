@@ -13,4 +13,4 @@ jobs:
     - name: Add CODEOWNER Label To PR
       uses: pratikmallya/autolabeler-codeowners@releases/v1
       with:
-        githubToken: ${{ secrets.githubToken }}
+        githubToken: ${{ secrets.GITHUB_TOKEN }}
