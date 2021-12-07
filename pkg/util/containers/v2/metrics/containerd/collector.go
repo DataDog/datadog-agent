@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -47,8 +48,9 @@ func init() {
 }
 
 type containerdCollector struct {
-	client         cutil.ContainerdItf
-	lastScrapeTime time.Time
+	client            cutil.ContainerdItf
+	lastScrapeTime    time.Time
+	workloadmetaStore workloadmeta.Store
 }
 
 func newContainerdCollector() (*containerdCollector, error) {
@@ -61,7 +63,10 @@ func newContainerdCollector() (*containerdCollector, error) {
 		return nil, provider.ConvertRetrierErr(err)
 	}
 
-	return &containerdCollector{client: client}, nil
+	return &containerdCollector{
+		client:            client,
+		workloadmetaStore: workloadmeta.GetGlobalStore(),
+	}, nil
 }
 
 // ID returns the collector ID.
@@ -71,6 +76,12 @@ func (c *containerdCollector) ID() string {
 
 // GetContainerStats returns stats by container ID.
 func (c *containerdCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+	namespace, err := c.containerNamespace(containerID)
+	if err != nil {
+		return nil, err
+	}
+	c.client.SetCurrentNamespace(namespace)
+
 	metrics, err := c.getContainerdMetrics(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -114,6 +125,12 @@ func (c *containerdCollector) GetContainerStats(containerID string, cacheValidit
 
 // GetContainerNetworkStats returns network stats by container ID.
 func (c *containerdCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
+	namespace, err := c.containerNamespace(containerID)
+	if err != nil {
+		return nil, err
+	}
+	c.client.SetCurrentNamespace(namespace)
+
 	metrics, err := c.getContainerdMetrics(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -399,4 +416,13 @@ func getOpenFileDescriptors(processes []containerd.ProcessInfo) int {
 	}
 
 	return fileDescCount
+}
+
+func (c *containerdCollector) containerNamespace(containerID string) (string, error) {
+	container, err := c.workloadmetaStore.GetContainer(containerID)
+	if err != nil {
+		return "", err
+	}
+
+	return container.Namespace, nil
 }
