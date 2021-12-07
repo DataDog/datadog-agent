@@ -289,8 +289,8 @@ api_key:
 #
 # forwarder_requeue_buffer_size: 100
 
-## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
-## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba
+## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle"]
+## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
 ## and alibaba providers. Some cloud provider are not enabled by default to not
@@ -306,12 +306,14 @@ api_key:
 ## "azure"   Azure
 ## "alibaba" Alibaba
 ## "tencent" Tencent
+## "oracle"  Oracle Cloud
 #
 # cloud_provider_metadata:
 #   - "aws"
 #   - "gcp"
 #   - "azure"
 #   - "alibaba"
+#   - "oracle"
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS - boolean - optional - default: false
