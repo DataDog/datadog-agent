@@ -315,25 +315,17 @@ func TestProcess(t *testing.T) {
 		agnt := NewAgent(ctx, cfg)
 		defer cancel()
 
-		traces := pb.Traces{{{
-			Service:  "aws.lambda",
-			TraceID:  1,
-			SpanID:   1,
-			Resource: "my test resource",
-			Start:    time.Now().Add(-time.Second).UnixNano(),
-			Duration: (500 * time.Millisecond).Nanoseconds(),
-			Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
-		}}}
-
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Spans[0].Service = "aws.lambda"
 		go agnt.Process(&api.Payload{
-			Traces: traces,
-			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
 		timeout := time.After(2 * time.Second)
 		var span *pb.Span
 		select {
 		case ss := <-agnt.TraceWriter.In:
-			span = ss.Traces[0].Spans[0]
+			span = ss.TracerPayload.Chunks[0].Spans[0]
 		case <-timeout:
 			t.Fatal("timed out")
 		}

@@ -250,8 +250,11 @@ func (a *Agent) Process(p *api.Payload) {
 					traceutil.SetMeta(span, k, v)
 				}
 			}
-			a.rewriteServerlessService(span)
-			a.obfuscator.Obfuscate(span)
+			if span.Service == "aws.lambda" && a.conf.GlobalTags["service"] != "" {
+				// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
+				span.Service = a.conf.GlobalTags["service"]
+			}
+			a.obfuscateSpan(span)
 			Truncate(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
