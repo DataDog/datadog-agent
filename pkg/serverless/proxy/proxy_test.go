@@ -17,47 +17,57 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type testProcessorResponseValid struct{}
+
+func (tp *testProcessorResponseValid) onInvokeStart(startDetails *InvocationStartDetails) {
+	if startDetails.StartTime.IsZero() {
+		panic("isZero")
+	}
+	if len(startDetails.InvokeHeaders) != 3 {
+		panic("headers")
+	}
+	if !strings.HasSuffix(startDetails.InvokeEventPayload, "ok") {
+		panic("payload")
+	}
+}
+
+func (tp *testProcessorResponseValid) onInvokeEnd(endDetails *InvocationEndDetails) {
+	if endDetails.IsError != false {
+		panic("isError")
+	}
+	if endDetails.EndTime.IsZero() {
+		panic("isZero")
+	}
+}
+
+type testProcessorResponseError struct{}
+
+func (tp *testProcessorResponseError) onInvokeStart(startDetails *InvocationStartDetails) {
+	if startDetails.StartTime.IsZero() {
+		panic("isZero")
+	}
+	if len(startDetails.InvokeHeaders) != 3 {
+		panic("headers")
+	}
+	if !strings.HasSuffix(startDetails.InvokeEventPayload, "ok") {
+		panic("payload")
+	}
+}
+
+func (tp *testProcessorResponseError) onInvokeEnd(endDetails *InvocationEndDetails) {
+	if endDetails.IsError != true {
+		panic("isError")
+	}
+}
+
 func TestStartTrue(t *testing.T) {
 	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
-	assert.True(t, Start(nil, "127.0.0.1:7000", "127.0.0.1:7001"))
+	assert.True(t, Start("127.0.0.1:7000", "127.0.0.1:7001", &testProcessorResponseValid{}))
 }
 
 func TestStartFalse(t *testing.T) {
-	assert.False(t, Start(nil, "127.0.0.1:5000", "127.0.0.1:5001"))
-}
-
-type assertSuccessProcessor struct{}
-
-func (ap *assertSuccessProcessor) process(invocationDetails *invocationDetails) {
-	commonAssert(invocationDetails)
-	if invocationDetails.isError != false {
-		panic("isError")
-	}
-}
-
-type assertFailureProcessor struct{}
-
-func (ap *assertFailureProcessor) process(invocationDetails *invocationDetails) {
-	commonAssert(invocationDetails)
-	if invocationDetails.isError != true {
-		panic("isError")
-	}
-}
-
-func commonAssert(invocationDetails *invocationDetails) {
-	if invocationDetails.startTime.IsZero() {
-		panic("startTime")
-	}
-	if invocationDetails.endTime.IsZero() {
-		panic("endTime")
-	}
-	if len(invocationDetails.invokeHeaders) != 3 {
-		panic("headers")
-	}
-	if !strings.HasSuffix(invocationDetails.invokeEventPayload, "ok") {
-		panic("payload")
-	}
+	assert.False(t, Start("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{}))
 }
 
 func TestProxyResponseValid(t *testing.T) {
@@ -76,7 +86,7 @@ func TestProxyResponseValid(t *testing.T) {
 	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
 
-	go setup("127.0.0.1:5000", "127.0.0.1:5001", &assertSuccessProcessor{})
+	go setup("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{})
 	resp, err := http.Get("http://127.0.0.1:5000/xxx/next")
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -101,7 +111,7 @@ func TestProxyResponseError(t *testing.T) {
 	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
 
-	go setup("127.0.0.1:6000", "127.0.0.1:6001", &assertFailureProcessor{})
+	go setup("127.0.0.1:6000", "127.0.0.1:6001", &testProcessorResponseError{})
 	resp, err := http.Get("http://127.0.0.1:6000/xxx/next")
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)

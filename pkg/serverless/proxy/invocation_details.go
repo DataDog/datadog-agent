@@ -9,24 +9,17 @@ import (
 	"time"
 )
 
-// invocationDetails stores information about the current invocation.
-// This structure is passed to the process method of the invocationProcessor interface to build a span for instance
-type invocationDetails struct {
-	startTime          time.Time
-	endTime            time.Time
-	isError            bool
-	invokeHeaders      map[string][]string
-	invokeEventPayload string
+// InvocationStartDetails stores information about the start of an invocation.
+// This structure is passed to the onInvokeStart method of the invocationProcessor interface
+type InvocationStartDetails struct {
+	StartTime          time.Time
+	InvokeHeaders      map[string][]string
+	InvokeEventPayload string
 }
 
-func (i *invocationDetails) isComplete() bool {
-	return !i.startTime.IsZero() && !i.endTime.IsZero() && i.invokeHeaders != nil && len(i.invokeEventPayload) > 0
-}
-
-func (i *invocationDetails) reset() {
-	i.startTime = time.Time{}
-	i.endTime = time.Time{}
-	i.isError = false
-	i.invokeHeaders = nil
-	i.invokeEventPayload = ""
+// InvocationEndDetails stores information about the end of an invocation.
+// This structure is passed to the onInvokeEnd method of the invocationProcessor interface
+type InvocationEndDetails struct {
+	EndTime time.Time
+	IsError bool
 }

@@ -12,25 +12,21 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type runtimeProxy struct {
-	target                   *url.URL
-	proxy                    *httputil.ReverseProxy
-	currentInvocationDetails *invocationDetails
-	processor                invocationProcessor
+	target    *url.URL
+	proxy     *httputil.ReverseProxy
+	processor invocationProcessor
 }
 
 // Start starts the proxy
 // This proxy allows us to inspect traffic from/to the AWS Lambda Runtime API
-func Start(daemon *daemon.Daemon, proxyHostPort string, originalRuntimeHostPort string) bool {
+func Start(proxyHostPort string, originalRuntimeHostPort string, processor invocationProcessor) bool {
 	if strings.ToLower(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")) == "true" {
 		log.Debug("the experimental proxy feature is enabled")
-		go setup(proxyHostPort, originalRuntimeHostPort, &proxyProcessor{
-			outChanel: daemon.TraceAgent.Get().In,
-		})
+		go setup(proxyHostPort, originalRuntimeHostPort, processor)
 		return true
 	}
 	return false
@@ -56,8 +52,7 @@ func setup(proxyHostPort string, originalRuntimeHostPort string, processor invoc
 
 func (rp *runtimeProxy) handle(w http.ResponseWriter, r *http.Request) {
 	rp.proxy.Transport = &proxyTransport{
-		currentInvocationDetails: rp.currentInvocationDetails,
-		processor:                rp.processor,
+		processor: rp.processor,
 	}
 	rp.proxy.ServeHTTP(w, r)
 }
@@ -68,9 +63,8 @@ func startProxy(target string, processor invocationProcessor) *runtimeProxy {
 		Host:   target,
 	}
 	return &runtimeProxy{
-		target:                   url,
-		proxy:                    httputil.NewSingleHostReverseProxy(url),
-		currentInvocationDetails: &invocationDetails{},
-		processor:                processor,
+		target:    url,
+		proxy:     httputil.NewSingleHostReverseProxy(url),
+		processor: processor,
 	}
 }
