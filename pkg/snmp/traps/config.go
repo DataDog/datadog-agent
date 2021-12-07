@@ -25,6 +25,7 @@ type Config struct {
 	CommunityStrings []string `mapstructure:"community_strings" yaml:"community_strings"`
 	BindHost         string   `mapstructure:"bind_host" yaml:"bind_host"`
 	StopTimeout      int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
+	PacketsChanSize  int      `mapstructure:"packets_chan_size" yaml:"packets_chan_size"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
@@ -50,6 +51,9 @@ func ReadConfig() (*Config, error) {
 	}
 	if c.StopTimeout == 0 {
 		c.StopTimeout = defaultStopTimeout
+	}
+	if c.PacketsChanSize == 0 {
+		c.PacketsChanSize = defaultPacketsChanSize
 	}
 
 	return &c, nil

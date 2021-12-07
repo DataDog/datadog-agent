@@ -69,7 +69,7 @@ func NewTrapServer() (*TrapServer, error) {
 		return nil, err
 	}
 
-	packets := make(PacketsChannel, packetsChanSize)
+	packets := make(PacketsChannel, config.PacketsChanSize)
 
 	listener, err := startSNMPv2Listener(config, packets)
 	if err != nil {

@@ -579,7 +579,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
 	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
-	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
+	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5)        // in seconds
+	config.BindEnvAndSetDefault("snmp_traps_config.packets_chan_size", 100) // in seconds
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
