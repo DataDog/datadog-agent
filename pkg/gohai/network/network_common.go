@@ -38,6 +38,8 @@ func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}, err error
 	}
 	for _, iface := range ifaces {
 		_iface := make(map[string]interface{})
+		_ipv4 := []string{}
+		_ipv6 := []string{}
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			// interface down or loopback interface
 			continue
@@ -53,16 +55,18 @@ func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}, err error
 				continue
 			}
 			if ip.To4() == nil {
-				_iface["ipv6"] = ip.String()
+				_ipv6 = append(_ipv6, ip.String())
 				_iface["ipv6-network"] = network.String()
 			} else {
-				_iface["ipv4"] = ip.String()
+				_ipv4 = append(_ipv4, ip.String())
 				_iface["ipv4-network"] = network.String()
 			}
 			if len(iface.HardwareAddr.String()) > 0 {
 				_iface["macaddress"] = iface.HardwareAddr.String()
 			}
 		}
+		_iface["ipv4"] = _ipv4
+		_iface["ipv6"] = _ipv6
 		if len(_iface) > 0 {
 			_iface["name"] = iface.Name
 			multiNetworkInfo = append(multiNetworkInfo, _iface)
