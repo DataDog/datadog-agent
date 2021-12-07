@@ -205,7 +205,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 	if tkn.lastChar == 0 {
 		tkn.advance()
 	}
-	tkn.skipBlank()
+	tkn.SkipBlank()
 
 	switch ch := tkn.lastChar; {
 	case isLeadingLetter(ch):
@@ -382,7 +382,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 	}
 }
 
-func (tkn *SQLTokenizer) skipBlank() {
+func (tkn *SQLTokenizer) SkipBlank() {
 	for unicode.IsSpace(tkn.lastChar) {
 		tkn.advance()
 	}
