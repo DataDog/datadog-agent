@@ -12,6 +12,8 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"reflect"
+
 	"sync/atomic"
 	"testing"
 	"time"
@@ -429,5 +431,68 @@ func TestTags(t *testing.T) {
 			agg.agentTags = tt.agentTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
 		})
+	}
+}
+
+func TestAggregatorFlush(t *testing.T) {
+	var series []*metrics.Serie
+	s := &serializer.MockSerializer{}
+	s.On("SendSeries", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+		series = append(series, args.Get(0).(metrics.Series)...)
+	})
+	s.On("SendServiceChecks", mock.Anything).Return(nil)
+
+	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+	expectedSeries := flushSomeSamples(agg)
+	assertSeriesEqual(t, series, expectedSeries)
+}
+
+func flushSomeSamples(agg *BufferedAggregator) map[string]*metrics.Serie {
+	timeSamplerBucketSize := float64(10)
+	timestamps := []float64{0, timeSamplerBucketSize}
+	sampleCount := 100
+	expectedSeries := make(map[string]*metrics.Serie)
+
+	for v, timestamp := range timestamps {
+		value := float64(v + 1)
+		for i := 0; i < sampleCount; i++ {
+			name := fmt.Sprintf("serie%d", i)
+			agg.addSample(&metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType}, timestamp)
+			if _, found := expectedSeries[name]; !found {
+				expectedSeries[name] = &metrics.Serie{
+					Name:     name,
+					MType:    metrics.APICountType,
+					Interval: int64(timeSamplerBucketSize),
+					Tags:     make([]string, 0)}
+			}
+			expectedSeries[name].Points = append(expectedSeries[name].Points, metrics.Point{Ts: timestamp, Value: value})
+		}
+	}
+	agg.Flush(time.Unix(int64(timeSamplerBucketSize*2), 0), true)
+	return expectedSeries
+}
+
+func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map[string]*metrics.Serie) {
+	defaultSeries := []string{"n_o_i_n_d_e_x.datadog.agent.payload.dropped", "datadog.agent.running"}
+	r := require.New(t)
+	r.Equal(len(defaultSeries)+len(expectedSeries), len(series))
+
+	for _, serie := range series {
+		expected, found := expectedSeries[serie.Name]
+		if !found {
+			for _, s := range defaultSeries {
+				if s == serie.Name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("Cannot found serie: %s", serie.Name)
+			}
+			break
+		}
+		// ignore context key
+		expected.ContextKey = serie.ContextKey
+		r.True(reflect.DeepEqual(expected, serie))
 	}
 }
