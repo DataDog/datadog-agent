@@ -94,3 +94,8 @@ func (series *IterableSeries) MoveNext() bool {
 	series.current, ok = <-series.c
 	return ok
 }
+
+// Current returns the current serie.
+func (series *IterableSeries) Current() *Serie {
+	return series.current
+}

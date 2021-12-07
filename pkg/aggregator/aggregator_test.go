@@ -435,16 +435,51 @@ func TestTags(t *testing.T) {
 }
 
 func TestAggregatorFlush(t *testing.T) {
-	var series []*metrics.Serie
-	s := &serializer.MockSerializer{}
-	s.On("SendSeries", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-		series = append(series, args.Get(0).(metrics.Series)...)
-	})
-	s.On("SendServiceChecks", mock.Anything).Return(nil)
+	defer config.Datadog.Set("flush_metrics_and_serialize_in_parallel", nil)
 
-	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
-	expectedSeries := flushSomeSamples(agg)
-	assertSeriesEqual(t, series, expectedSeries)
+	tests := []struct {
+		name    string
+		enabled bool
+		on      func(*serializer.MockSerializer, *[]*metrics.Serie)
+	}{
+		{
+			name: "flush_metrics_and_serialize_in_parallel false",
+			on: func(s *serializer.MockSerializer, series *[]*metrics.Serie) {
+				s.On("SendSeries", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+					*series = append(*series, args.Get(0).(metrics.Series)...)
+				})
+			},
+			enabled: false,
+		},
+		{
+			name: "flush_metrics_and_serialize_in_parallel true",
+			on: func(s *serializer.MockSerializer, series *[]*metrics.Serie) {
+				s.On("SendIterableSeries", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+					var iterableSeries = args.Get(0).(*metrics.IterableSeries)
+					defer iterableSeries.IterationStopped()
+
+					for iterableSeries.MoveNext() {
+						*series = append(*series, iterableSeries.Current())
+					}
+				})
+			},
+			enabled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config.Datadog.Set("flush_metrics_and_serialize_in_parallel", tt.enabled)
+			var series []*metrics.Serie
+			s := &serializer.MockSerializer{}
+			tt.on(s, &series)
+			s.On("SendServiceChecks", mock.Anything).Return(nil)
+			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+			expectedSeries := flushSomeSamples(agg)
+			assertSeriesEqual(t, series, expectedSeries)
+			s.AssertExpectations(t)
+		})
+	}
 }
 
 func flushSomeSamples(agg *BufferedAggregator) map[string]*metrics.Serie {
