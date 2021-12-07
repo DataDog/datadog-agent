@@ -215,7 +215,8 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 	}
 }
 
-// Stop stops the demultiplexer
+// Stop stops the demultiplexer.
+// Resources are released, the instance should not be used after a call to `Stop()`.
 func (d *AgentDemultiplexer) Stop(flush bool) {
 	d.m.Lock()
 	defer d.m.Unlock()
@@ -228,18 +229,20 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	if !d.options.DontStartForwarders {
 		if d.dataOutputs.forwarders.orchestrator != nil {
 			d.dataOutputs.forwarders.orchestrator.Stop()
+			d.dataOutputs.forwarders.orchestrator = nil
 		}
 		if d.dataOutputs.forwarders.eventPlatform != nil {
 			d.dataOutputs.forwarders.eventPlatform.Stop()
+			d.dataOutputs.forwarders.eventPlatform = nil
 		}
 		if d.dataOutputs.forwarders.shared != nil {
 			d.dataOutputs.forwarders.shared.Stop()
+			d.dataOutputs.forwarders.shared = nil
 		}
 	}
 
 	d.dataOutputs.sharedSerializer = nil
 	d.senders = nil
-
 	demultiplexerInstance = nil
 }
 
