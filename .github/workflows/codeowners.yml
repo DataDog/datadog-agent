@@ -1,0 +1,13 @@
+name: codeowner-autolabel
+
+on: [push]
+  branches:
+    - 'kacper-murzyn/**'
+jobs:
+  autolabeler-codeowners:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - uses: pratikmallya/autolabeler-codeowners@releases/v1
+      with:
+        githubToken: ${{ secrets.githubToken }}
