@@ -382,6 +382,8 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 	}
 }
 
+// SkipBlank moves the tokenizer forward until hitting a non-whitespace character
+// The whitespace definition used here is the same as unicode.IsSpace
 func (tkn *SQLTokenizer) SkipBlank() {
 	for unicode.IsSpace(tkn.lastChar) {
 		tkn.advance()
@@ -732,6 +734,7 @@ func (tkn *SQLTokenizer) bytes() []byte {
 	return ret
 }
 
+// Offset exports the tokenizer's current position in the query
 func (tkn *SQLTokenizer) Offset() int {
 	return tkn.off
 }
