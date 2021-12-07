@@ -8,6 +8,8 @@ import (
 
 	"github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -66,8 +68,8 @@ func (d *DeviceCheck) GetIDTags() []string {
 	return d.config.DeviceIDTags
 }
 
-// GetHostname returns DeviceID as hostname if UseDeviceIDAsHostname is true
-func (d *DeviceCheck) GetHostname() string {
+// GetDeviceHostname returns DeviceID as hostname if UseDeviceIDAsHostname is true
+func (d *DeviceCheck) GetDeviceHostname() string {
 	if d.config.UseDeviceIDAsHostname {
 		return deviceHostnamePrefix + d.config.DeviceID
 	}
@@ -108,7 +110,18 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	}
 
 	d.submitTelemetryMetrics(startTime, tags)
+	d.setDeviceHostExternalTags()
 	return checkErr
+}
+
+func (d *DeviceCheck) setDeviceHostExternalTags() {
+	deviceHostname := d.GetDeviceHostname()
+	if deviceHostname == "" {
+		return
+	}
+	agentTags := config.GetConfiguredTags(false)
+	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
+	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
 }
 
 func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *valuestore.ResultValueStore, error) {

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package kernel
@@ -13,7 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cobaugh/osrelease"
+	"github.com/acobaugh/osrelease"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"

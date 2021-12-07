@@ -11,11 +11,15 @@ import (
 
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
-	OID          string `yaml:"OID"`
-	Name         string `yaml:"name"`
-	ExtractValue string `yaml:"extract_value"`
+	OID  string `yaml:"OID"`
+	Name string `yaml:"name"`
 
-	ExtractValuePattern *regexp.Regexp
+	ExtractValue         string `yaml:"extract_value"`
+	ExtractValueCompiled *regexp.Regexp
+
+	MatchPattern         string `yaml:"match_pattern"`
+	MatchValue           string `yaml:"match_value"`
+	MatchPatternCompiled *regexp.Regexp
 }
 
 // MetricTagConfig holds metric tag info
@@ -23,7 +27,9 @@ type MetricTagConfig struct {
 	Tag string `yaml:"tag"`
 
 	// Table config
-	Index  uint         `yaml:"index"`
+	Index uint `yaml:"index"`
+
+	// TODO: refactor to rename to `symbol` instead (keep backward compat with `column`)
 	Column SymbolConfig `yaml:"column"`
 
 	// Symbol config
@@ -76,10 +82,10 @@ type MetricsConfig struct {
 }
 
 // GetTags retrieve tags using the metric config and values
-func (m *MetricsConfig) GetTags(fullIndex string, values *valuestore.ResultValueStore) []string {
+func (mtcl MetricTagConfigList) GetTags(fullIndex string, values *valuestore.ResultValueStore) []string {
 	var rowTags []string
 	indexes := strings.Split(fullIndex, ".")
-	for _, metricTag := range m.MetricTags {
+	for _, metricTag := range mtcl {
 		// get tag using `index` field
 		if metricTag.Index > 0 {
 			index := metricTag.Index - 1 // `index` metric config is 1-based
@@ -102,6 +108,7 @@ func (m *MetricsConfig) GetTags(fullIndex string, values *valuestore.ResultValue
 		}
 		// get tag using another column value
 		if metricTag.Column.OID != "" {
+			// TODO: Support extract value see II-635
 			columnValues, err := values.GetColumnValues(metricTag.Column.OID)
 			if err != nil {
 				log.Debugf("error getting column value: %v", err)
@@ -164,7 +171,7 @@ func (mtc *MetricTagConfig) GetTags(value string) []string {
 		if mtc.pattern.MatchString(value) {
 			for key, val := range mtc.Tags {
 				normalizedTemplate := normalizeRegexReplaceValue(val)
-				replacedVal := regexReplaceValue(value, mtc.pattern, normalizedTemplate)
+				replacedVal := RegexReplaceValue(value, mtc.pattern, normalizedTemplate)
 				if replacedVal == "" {
 					log.Debugf("pattern `%v` failed to match `%v` with template `%v`", value, normalizedTemplate)
 					continue
@@ -176,7 +183,8 @@ func (mtc *MetricTagConfig) GetTags(value string) []string {
 	return tags
 }
 
-func regexReplaceValue(value string, pattern *regexp.Regexp, normalizedTemplate string) string {
+// RegexReplaceValue replaces a value using a regex and template
+func RegexReplaceValue(value string, pattern *regexp.Regexp, normalizedTemplate string) string {
 	result := []byte{}
 	for _, submatches := range pattern.FindAllStringSubmatchIndex(value, 1) {
 		result = pattern.ExpandString(result, normalizedTemplate, value, submatches)

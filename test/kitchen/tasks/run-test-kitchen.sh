@@ -33,10 +33,6 @@ mkdir -p ~/.ssh
 if [ "$KITCHEN_PROVIDER" == "azure" ]; then
   # Setup the azure credentials, grabbing them from AWS if they do not exist in the environment already
   # If running locally, they should be imported into the environment
-  if [ ! -f /root/.azure/credentials ]; then
-    mkdir -p /root/.azure
-    touch /root/.azure/credentials
-  fi
 
   # These should not be printed out
   set +x
@@ -70,8 +66,9 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
     exit 1
   fi
 
-  # Create the Azure credentials file
-  (echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > /root/.azure/credentials
+  # Create the Azure credentials file as requried by the kitchen-azurerm driver
+  mkdir -p ~/.azure/
+  (echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > ~/.azure/credentials
   set -x
 
 elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
@@ -80,7 +77,7 @@ fi
 
 # Generate a password to use for the windows servers
 if [ -z ${SERVER_PASSWORD+x} ]; then
-  export SERVER_PASSWORD="$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)0aZ"
+  export SERVER_PASSWORD="$(tr -dc A-Za-z0-9 < /dev/urandom | head -c32)0aZ"
 fi
 
 if [[ $# == 0 ]]; then
@@ -124,8 +121,8 @@ set +o pipefail
 # Initially test every suite, as we only generate those we want to run
 test_suites=".*"
 # This for loop retries kitchen tests failing because of infrastructure/networking issues
-for attempt in $(seq 0 ${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}); do
-  bundle exec kitchen verify "$test_suites" -c -d always 2>&1 | tee /tmp/runlog$attempt
+for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
+  bundle exec kitchen verify "$test_suites" -c -d always 2>&1 | tee "/tmp/runlog${attempt}"
   result=${PIPESTATUS[0]}
   # Before destroying the kitchen machines, get the list of failed suites,
   # as their status will be reset to non-failing once they're destroyed.
@@ -139,11 +136,11 @@ for attempt in $(seq 0 ${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}); do
       # if kitchen test succeeded, exit with 0
       exit 0
   else
-    if ! invoke kitchen.should-rerun-failed /tmp/runlog$attempt; then
+    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}"; then
       # if kitchen test failed and shouldn't be rerun, exit with 1
       exit 1
     else
-      cp -R ${DD_AGENT_TESTING_DIR}/.kitchen/logs ${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}
+      cp -R "${DD_AGENT_TESTING_DIR}"/.kitchen/logs "${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}"
       # Only keep test suites that have a non-null error code
       # Build the result as a regexp: "test_suite1|test_suite2|test_suite3", as kitchen only
       # supports one instance name or a regexp as argument.

@@ -257,26 +257,6 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	eventPayload.AssertNumberOfCalls(t, "CreateMarshalersBySourceType", 1)
 }
 
-func TestSendEvents(t *testing.T) {
-	mockConfig := config.Mock()
-
-	f := &forwarder.MockedForwarder{}
-	f.On("SubmitEvents", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	mockConfig.Set("use_v2_api.events", true)
-	defer mockConfig.Set("use_v2_api.events", nil)
-
-	s := NewSerializer(f, nil)
-
-	payload := createTestEventsPayload(&testPayload{})
-	err := s.SendEvents(payload)
-	require.Nil(t, err)
-	f.AssertExpectations(t)
-
-	errPayload := createTestEventsPayload(&testErrorPayload{})
-	err = s.SendEvents(errPayload)
-	require.NotNil(t, err)
-}
-
 func TestSendV1ServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1CheckRuns", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
@@ -421,9 +401,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	s.SendProcessesMetadata("test")
 
 	f.AssertNotCalled(t, "SubmitMetadata")
-	f.AssertNotCalled(t, "SubmitEvents")
 	f.AssertNotCalled(t, "SubmitV1CheckRuns")
-	f.AssertNotCalled(t, "SubmitServiceChecks")
 	f.AssertNotCalled(t, "SubmitV1Series")
 	f.AssertNotCalled(t, "SubmitSketchSeries")
 

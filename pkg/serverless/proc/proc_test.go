@@ -43,9 +43,11 @@ func TestSearchProcsForEnvVariableFromPidCorrect(t *testing.T) {
 
 func TestSearchProcsForEnvVariableFound(t *testing.T) {
 	result := SearchProcsForEnvVariable("./testData", "env1")
-	assert.Equal(t, "value1", result)
+	expected := []string{"value1"}
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, expected[0], result[0])
 }
 func TestSearchProcsForEnvVariableNotFound(t *testing.T) {
 	result := SearchProcsForEnvVariable("./testData", "xxx")
-	assert.Equal(t, "", result)
+	assert.Equal(t, 0, len(result))
 }

@@ -5,7 +5,7 @@ import os
 import shutil
 import sys
 import tempfile
-from subprocess import CalledProcessError, check_output
+from subprocess import check_output
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -65,23 +65,10 @@ def build(
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "system-probe", "windows_resources")
 
-        ctx.run(
-            "windmc --target {target_arch} -r {resdir} {resdir}/system-probe-msg.mc".format(
-                resdir=resdir, target_arch=windres_target
-            )
-        )
+        ctx.run(f"windmc --target {windres_target} -r {resdir} {resdir}/system-probe-msg.mc")
 
         ctx.run(
-            "windres "
-            "--define MAJ_VER={maj_ver} "
-            "--define MIN_VER={min_ver} "
-            "--define PATCH_VER={patch_ver} "
-            "-i cmd/system-probe/windows_resources/system-probe.rc "
-            "--target {target_arch} "
-            "-O coff "
-            "-o cmd/system-probe/rsrc.syso".format(
-                maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
-            )
+            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/system-probe/windows_resources/system-probe.rc --target {windres_target} -O coff -o cmd/system-probe/rsrc.syso"
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
@@ -197,7 +184,7 @@ def kitchen_prepare(ctx, windows=is_windows):
     for pkg in TEST_PACKAGES_LIST:
         target_packages += (
             check_output(
-                'go list -f "{{{{ .Dir }}}}" -mod=mod -tags "{tags}" {pkg}'.format(tags=",".join(build_tags), pkg=pkg),
+                f"go list -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
                 shell=True,
             )
             .decode('utf-8')
@@ -249,16 +236,13 @@ def kitchen_test(ctx, target=None, arch="x86_64"):
 
     if not (target in images):
         print(
-            "please run inv -e system-probe.kitchen-test --target <IMAGE>, where <IMAGE> is one of the following:\n%s"
-            % (list(images.keys()))
+            f"please run inv -e system-probe.kitchen-test --target <IMAGE>, where <IMAGE> is one of the following:\n{list(images.keys())}"
         )
         raise Exit(code=1)
 
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            "inv kitchen.genconfig --platform {platform} --osversions {target} --provider vagrant --testfiles system-probe-test".format(
-                target=target, platform=images[target]
-            ),
+            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test",
             env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox"},
         )
         ctx.run("kitchen test")
@@ -317,7 +301,7 @@ def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
     if fail_on_issue:
         fmt_cmd = fmt_cmd + " --Werror"
 
-    ctx.run("{cmd} {files}".format(cmd=fmt_cmd, files=" ".join(targets)))
+    ctx.run(f"{fmt_cmd} {' '.join(targets)}")
 
 
 @task
@@ -340,16 +324,16 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False):
     network_files = list(base_files)
     network_files.extend(glob.glob(network_c_dir + "/**/*.c"))
     network_flags = list(build_flags)
-    network_flags.append("-I{}".format(network_c_dir))
-    network_flags.append("-I{}".format(os.path.join(network_c_dir, "prebuilt")))
-    network_flags.append("-I{}".format(os.path.join(network_c_dir, "runtime")))
+    network_flags.append(f"-I{network_c_dir}")
+    network_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
+    network_flags.append(f"-I{os.path.join(network_c_dir, 'runtime')}")
     run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix, fail_on_issue=fail_on_issue)
 
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_files = list(base_files)
     security_files.extend(glob.glob(security_agent_c_dir + "/**/*.c"))
     security_flags = list(build_flags)
-    security_flags.append("-I{}".format(security_agent_c_dir))
+    security_flags.append(f"-I{security_agent_c_dir}")
     security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
     run_tidy(ctx, files=security_files, build_flags=security_flags, fix=fix, fail_on_issue=fail_on_issue)
 
@@ -361,25 +345,13 @@ def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False):
     if fail_on_issue:
         flags.append("--warnings-as-errors='*'")
 
-    ctx.run(
-        "clang-tidy {flags} {files} -- {build_flags}".format(
-            flags=" ".join(flags), build_flags=" ".join(build_flags), files=" ".join(files)
-        )
-    )
+    ctx.run(f"clang-tidy {' '.join(flags)} {' '.join(files)} -- {' '.join(build_flags)}")
 
 
 @task
 def object_files(ctx, parallel_build=True):
     """object_files builds the eBPF object files"""
     build_object_files(ctx, parallel_build=parallel_build)
-
-
-def get_ebpf_c_files():
-    files = glob.glob("pkg/ebpf/c/**/*.c")
-    files.extend(glob.glob("pkg/network/ebpf/c/**/*.c"))
-    files.extend(glob.glob("pkg/security/ebpf/c/**/*.c"))
-    files.extend(glob.glob("pkg/collector/corechecks/ebpf/c/**/*.c"))
-    return files
 
 
 def get_ebpf_targets():
@@ -415,7 +387,7 @@ def get_linux_header_dirs():
     # fallback to the running kernel/build headers via /lib/modules/$(uname -r)/build/
     if len(linux_headers) == 0:
         uname_r = check_output('''uname -r''', shell=True).decode('utf-8').strip()
-        build_dir = "/lib/modules/{}/build".format(uname_r)
+        build_dir = f"/lib/modules/{uname_r}/build"
         if os.path.isdir(build_dir):
             linux_headers = [build_dir]
 
@@ -439,9 +411,9 @@ def get_linux_header_dirs():
         "include",
         "include/uapi",
         "include/generated/uapi",
-        "arch/{}/include".format(arch),
-        "arch/{}/include/uapi".format(arch),
-        "arch/{}/include/generated".format(arch),
+        f"arch/{arch}/include",
+        f"arch/{arch}/include/uapi",
+        f"arch/{arch}/include/generated",
     ]
 
     dirs = []
@@ -467,7 +439,7 @@ def get_ebpf_build_flags():
         '-Wunused',
         '-Wall',
         '-Werror',
-        "-include {}".format(os.path.join(c_dir, "asm_goto_workaround.h")),
+        f"-include {os.path.join(c_dir, 'asm_goto_workaround.h')}",
         '-O2',
         '-emit-llvm',
         # Some linux distributions enable stack protector by default which is not available on eBPF
@@ -476,7 +448,7 @@ def get_ebpf_build_flags():
         '-fno-unwind-tables',
         '-fno-asynchronous-unwind-tables',
         '-fno-jump-tables',
-        "-I{}".format(c_dir),
+        f"-I{c_dir}",
     ]
 
     header_dirs = get_linux_header_dirs()
@@ -487,15 +459,15 @@ def get_ebpf_build_flags():
 
 
 def build_network_ebpf_compile_file(ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags):
-    src_file = os.path.join(network_prebuilt_dir, "{}.c".format(p))
+    src_file = os.path.join(network_prebuilt_dir, f"{p}.c")
     if not debug:
-        bc_file = os.path.join(build_dir, "{}.bc".format(p))
+        bc_file = os.path.join(build_dir, f"{p}.bc")
         return ctx.run(
             CLANG_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file),
             asynchronous=parallel_build,
         )
     else:
-        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
+        debug_bc_file = os.path.join(build_dir, f"{p}-debug.bc")
         return ctx.run(
             CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file),
             asynchronous=parallel_build,
@@ -504,15 +476,15 @@ def build_network_ebpf_compile_file(ctx, parallel_build, build_dir, p, debug, ne
 
 def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags):
     if not debug:
-        bc_file = os.path.join(build_dir, "{}.bc".format(p))
-        obj_file = os.path.join(build_dir, "{}.o".format(p))
+        bc_file = os.path.join(build_dir, f"{p}.bc")
+        obj_file = os.path.join(build_dir, f"{p}.o")
         return ctx.run(
             LLC_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file),
             asynchronous=parallel_build,
         )
     else:
-        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
-        debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
+        debug_bc_file = os.path.join(build_dir, f"{p}-debug.bc")
+        debug_obj_file = os.path.join(build_dir, f"{p}-debug.o")
         return ctx.run(
             LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file),
             asynchronous=parallel_build,
@@ -527,7 +499,7 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
     compiled_programs = ["dns", "http", "offset-guess", "tracer"]
 
     network_flags = get_ebpf_build_flags()
-    network_flags.append("-I{}".format(network_c_dir))
+    network_flags.append(f"-I{network_c_dir}")
 
     flavor = []
     for prog in compiled_programs:
@@ -565,7 +537,7 @@ def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
     security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
 
     security_flags = get_ebpf_build_flags()
-    security_flags.append("-I{}".format(security_agent_c_dir))
+    security_flags.append(f"-I{security_agent_c_dir}")
 
     # compile
     promises = []
@@ -634,8 +606,8 @@ def build_object_files(ctx, parallel_build):
     build_dir = os.path.join(bpf_dir, "bytecode", "build")
     build_runtime_dir = os.path.join(build_dir, "runtime")
 
-    ctx.run("mkdir -p {build_dir}".format(build_dir=build_dir))
-    ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
+    ctx.run(f"mkdir -p {build_dir}")
+    ctx.run(f"mkdir -p {build_runtime_dir}")
 
     bindata_files = []
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
@@ -658,18 +630,21 @@ def generate_runtime_files(ctx):
         "./pkg/security/probe/compile.go",
     ]
     for f in runtime_compiler_files:
-        ctx.run("go generate -mod=mod -tags {tags} {file}".format(file=f, tags=BPF_TAG))
+        ctx.run(f"go generate -mod=mod -tags {BPF_TAG} {f}")
 
 
-def replace_cgo_tag_absolute_path(file_path, absolute_path, relative_path):
+def replace_cgo_tag_absolute_path(file_path):
     # read
     f = open(file_path)
     lines = []
     for line in f:
         if line.startswith("// cgo -godefs"):
-            lines.append(line.replace(absolute_path, relative_path))
-        else:
-            lines.append(line)
+            path = line.split()[-1]
+            if path.startswith("/"):
+                _, filename = os.path.split(path)
+                lines.append(line.replace(path, filename))
+                continue
+        lines.append(line)
     f.close()
 
     # write
@@ -695,35 +670,18 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
 
     for f in def_files:
         fdir, file = os.path.split(f)
-        absolute_input_file = os.path.abspath(f)
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
-            output_file = "{base}_{platform}.go".format(base=base, platform=platform)
-            ctx.run(
-                "go tool cgo -godefs -- -fsigned-char {file} > {output_file}".format(file=file, output_file=output_file)
-            )
-            ctx.run("gofmt -w -s {output_file}".format(output_file=output_file))
+            output_file = f"{base}_{platform}.go"
+            ctx.run(f"go tool cgo -godefs -- -fsigned-char {file} > {output_file}")
+            ctx.run(f"gofmt -w -s {output_file}")
             if replace_absolutes:
                 # replace absolute path with relative ones in generated file
-                replace_cgo_tag_absolute_path(os.path.join(fdir, output_file), absolute_input_file, file)
+                replace_cgo_tag_absolute_path(os.path.join(fdir, output_file))
 
 
 def is_root():
     return os.getuid() == 0
-
-
-def should_docker_use_sudo(_):
-    # We are already root
-    if is_root():
-        return False
-
-    with open(os.devnull, 'w') as FNULL:
-        try:
-            check_output(['docker', 'info'], stderr=FNULL)
-        except CalledProcessError:
-            return True
-
-    return False
 
 
 @contextlib.contextmanager

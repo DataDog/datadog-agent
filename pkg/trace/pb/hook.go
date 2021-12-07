@@ -5,7 +5,9 @@
 
 package pb
 
-import "sync"
+import (
+	"sync"
+)
 
 var (
 	mu       sync.RWMutex // guards metahook

@@ -70,7 +70,7 @@ def fmt(ctx, targets, fail_on_fmt=False):
     result = ctx.run("gofmt -l -w -s " + " ".join(targets))
     if result.stdout:
         files = {x for x in result.stdout.split("\n") if x}
-        print("Reformatted the following files: {}".format(','.join(files)))
+        print(f"Reformatted the following files: {','.join(files)}")
         if fail_on_fmt:
             print("Code was not properly formatted, exiting...")
             raise Exit(code=1)
@@ -92,8 +92,8 @@ def lint(ctx, targets):
         targets = targets.split(',')
 
     # add the /... suffix to the targets
-    targets_list = ["{}/...".format(t) for t in targets]
-    cmd = "revive {}".format(' '.join(targets_list))
+    targets_list = [f"{t}/..." for t in targets]
+    cmd = f"revive {' '.join(targets_list)}"
     if ctx.config.run.echo:
         # Hack so the command is printed if invoke -e is used
         # We use hide=True later to hide the output, but it also hides the command
@@ -116,15 +116,15 @@ def lint(ctx, targets):
 
         if skipped_files:
             for skipped in skipped_files:
-                print("Allowed errors in allowlisted file {}".format(skipped))
+                print(f"Allowed errors in allowlisted file {skipped}")
 
         # add whitespace for readability
         print()
 
         if files:
-            print("Linting issues found in {} files.".format(len(files)))
+            print(f"Linting issues found in {len(files)} files.")
             for f in files:
-                print("Error in {}".format(f))
+                print(f"Error in {f}")
             raise Exit(code=1)
 
     print("revive found no issues")
@@ -144,14 +144,14 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
         targets = targets.split(',')
 
     # add the /... suffix to the targets
-    args = ["{}/...".format(t) for t in targets]
+    args = [f"{t}/..." for t in targets]
     tags = build_tags or get_default_build_tags(build="test", arch=arch)
     tags.append("dovet")
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     env["CGO_ENABLED"] = "1"
 
-    ctx.run("go vet -tags \"{}\" ".format(" ".join(tags)) + " ".join(args), env=env)
+    ctx.run(f"go vet -tags \"{' '.join(tags)}\" " + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("go vet found no issues")
@@ -171,7 +171,7 @@ def cyclo(ctx, targets, limit=15):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    ctx.run("gocyclo -over {} ".format(limit) + " ".join(targets))
+    ctx.run(f"gocyclo -over {limit} " + " ".join(targets))
     # gocyclo exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("gocyclo found no issues")
@@ -194,9 +194,9 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64")
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:
-        print("running golangci on {}".format(target))
+        print(f"running golangci on {target}")
         ctx.run(
-            "golangci-lint run --timeout 10m0s --build-tags '{}' {}".format(" ".join(tags), "{}/...".format(target)),
+            f"golangci-lint run --timeout 10m0s --build-tags '{' '.join(tags)}' {target}/...",
             env=env,
         )
 
@@ -294,9 +294,9 @@ def deps(ctx, verbose=False):
     print("downloading dependencies")
     start = datetime.datetime.now()
     verbosity = ' -x' if verbose else ''
-    ctx.run("go mod download{}".format(verbosity))
+    ctx.run(f"go mod download{verbosity}")
     dep_done = datetime.datetime.now()
-    print("go mod download, elapsed: {}".format(dep_done - start))
+    print(f"go mod download, elapsed: {dep_done - start}")
 
 
 @task
@@ -309,14 +309,14 @@ def deps_vendored(ctx, verbose=False):
     start = datetime.datetime.now()
     verbosity = ' -v' if verbose else ''
 
-    ctx.run("go mod vendor{}".format(verbosity))
-    ctx.run("go mod tidy{}".format(verbosity))
+    ctx.run(f"go mod vendor{verbosity}")
+    ctx.run(f"go mod tidy{verbosity}")
 
     # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
     # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
     # For this reason, we need to use a 3rd party tool to copy these files.
     # We won't need this if/when we change to non-vendored modules
-    ctx.run('modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{}'.format(verbosity))
+    ctx.run(f'modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{verbosity}')
 
     # If github.com/DataDog/datadog-agent gets vendored too - nuke it
     # This may happen because of the introduction of nested modules
@@ -325,7 +325,7 @@ def deps_vendored(ctx, verbose=False):
         shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
 
     dep_done = datetime.datetime.now()
-    print("go mod vendor, elapsed: {}".format(dep_done - start))
+    print(f"go mod vendor, elapsed: {dep_done - start}")
 
 
 @task
@@ -346,11 +346,11 @@ def lint_licenses(ctx):
 
     removed_licenses = [ele for ele in new_licenses if ele not in licenses]
     for license in removed_licenses:
-        print("+ {}".format(license))
+        print(f"+ {license}")
 
     added_licenses = [ele for ele in licenses if ele not in new_licenses]
     for license in added_licenses:
-        print("- {}".format(license))
+        print(f"- {license}")
 
     if len(removed_licenses) + len(added_licenses) > 0:
         raise Exit(
@@ -378,7 +378,7 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     for line in new_licenses:
         if ',UNKNOWN' in line:
             unknown_licenses = True
-            print("! {}".format(line))
+            print(f"! {line}")
 
     if unknown_licenses:
         raise Exit(
@@ -398,7 +398,7 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
         for license in new_licenses:
             if verbose:
                 print(license)
-            f.write('{}\n'.format(license))
+            f.write(f'{license}\n')
     print("licenses files generated")
 
 
@@ -411,7 +411,7 @@ def generate_protobuf(ctx):
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
 
-    print("nuking old definitions at: {}".format(proto_root))
+    print(f"nuking old definitions at: {proto_root}")
     file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.go"))
     for file_path in file_list:
         try:
@@ -421,48 +421,27 @@ def generate_protobuf(ctx):
 
     with ctx.cd(repo_root):
         # protobuf defs
-        print("generating protobuf code from: {}".format(proto_root))
+        print(f"generating protobuf code from: {proto_root}")
 
         files = []
         for path in Path(os.path.join(proto_root, "datadog")).rglob('*.proto'):
             files.append(path.as_posix())
 
-        ctx.run(
-            "protoc -I{include_path} --go_out=plugins=grpc:{out_path} {targets}".format(
-                include_path=proto_root,
-                out_path=repo_root,
-                targets=' '.join(files),
-            )
-        )
+        ctx.run(f"protoc -I{proto_root} --go_out=plugins=grpc:{repo_root} {' '.join(files)}")
         # grpc-gateway logic
-        ctx.run(
-            "protoc -I{include_path} --grpc-gateway_out=logtostderr=true:{out_path} {targets}".format(
-                include_path=proto_root,
-                out_path=repo_root,
-                targets=' '.join(files),
-            )
-        )
+        ctx.run(f"protoc -I{proto_root} --grpc-gateway_out=logtostderr=true:{repo_root} {' '.join(files)}")
         # mockgen
         pbgo_dir = os.path.join(proto_root, "pbgo")
         mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
         try:
             os.mkdir(mockgen_out)
         except FileExistsError:
-            print("{} folder already exists".format(mockgen_out))
+            print(f"{mockgen_out} folder already exists")
 
-        ctx.run(
-            "mockgen -source={in_path}/api.pb.go -destination={out_path}/api_mockgen.pb.go".format(
-                in_path=pbgo_dir, out_path=mockgen_out
-            )
-        )
+        ctx.run(f"mockgen -source={pbgo_dir}/api.pb.go -destination={mockgen_out}/api_mockgen.pb.go")
 
     # generate messagepack marshallers
-    ctx.run(
-        "msgp -file {in_path} -o={out_path}".format(
-            in_path='pkg/proto/pbgo/config.pb.go',
-            out_path='pkg/proto/pbgo/config_gen.go',
-        )
-    )
+    ctx.run("msgp -file pkg/proto/pbgo/config.pb.go -o=pkg/proto/pbgo/config_gen.go")
 
 
 @task
@@ -488,7 +467,7 @@ def generate(ctx, mod="mod"):
     """
     Run go generate required package
     """
-    ctx.run("go generate -mod={} ".format(mod) + " ".join(GO_GENERATE_TARGETS))
+    ctx.run(f"go generate -mod={mod} " + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")
 
 
@@ -500,7 +479,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             ctx.run("go mod tidy")
             res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
             if res.exited is None or res.exited > 0:
-                errors_found.append("go.mod or go.sum for {} module is out of sync".format(mod.import_path))
+                errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
     generate_dummy_package(ctx, test_folder)
     with ctx.cd(test_folder):

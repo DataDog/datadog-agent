@@ -180,8 +180,8 @@ bulk_max_repetitions: 20
 		},
 		{Symbol: SymbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
 	}
-	metrics = append(metrics, mockProfilesDefinitions()["f5-big-ip"].Metrics...)
 	metrics = append(metrics, MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
+	metrics = append(metrics, mockProfilesDefinitions()["f5-big-ip"].Metrics...)
 
 	metricsTags := []MetricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
@@ -284,10 +284,9 @@ profiles:
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
 	metrics := []MetricsConfig{
+		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
 		{Symbol: SymbolConfig{OID: "1.4.5", Name: "myMetric"}, ForcedType: "gauge"},
 	}
-	//metrics = append(metrics, mockProfilesDefinitions()["f5-big-ip"].Metrics...)
-	metrics = append(metrics, MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
 
 	metricsTags := []MetricTagConfig{
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
@@ -874,12 +873,55 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		},
 	}
 	profile1 := profileDefinition{
-		Device: deviceMeta{
+		Device: DeviceMeta{
 			Vendor: "a-vendor",
 		},
 		Metrics: metrics,
 		MetricTags: []MetricTagConfig{
 			{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+		},
+		Metadata: MetadataConfig{
+			"device": {
+				Fields: map[string]MetadataField{
+					"description": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.1.99.3.0",
+							Name: "sysDescr",
+						},
+					},
+					"name": {
+						Symbols: []SymbolConfig{
+							{
+								OID:  "1.3.6.1.2.1.1.99.1.0",
+								Name: "symbol1",
+							},
+							{
+								OID:  "1.3.6.1.2.1.1.99.2.0",
+								Name: "symbol2",
+							},
+						},
+					},
+				},
+			},
+			"interface": {
+				Fields: map[string]MetadataField{
+					"oper_status": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.99",
+							Name: "someIfSymbol",
+						},
+					},
+				},
+				IDTags: MetricTagConfigList{
+					{
+						Tag: "interface",
+						Column: SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "ifName",
+						},
+					},
+				},
+			},
 		},
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
@@ -913,6 +955,25 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		Profiles:              mockProfiles,
 		CollectDeviceMetadata: true,
 	}
+	err = c.RefreshWithProfile("profile1")
+	assert.NoError(t, err)
+	assert.Equal(t, OidConfig{
+		ScalarOids: []string{
+			"1.2.3.4.5",
+			"1.3.6.1.2.1.1.99.1.0",
+			"1.3.6.1.2.1.1.99.2.0",
+			"1.3.6.1.2.1.1.99.3.0",
+		},
+		ColumnOids: []string{
+			"1.2.3.4.6",
+			"1.2.3.4.7",
+			"1.3.6.1.2.1.2.2.1.99",
+			"1.3.6.1.2.1.31.1.1.1.1",
+		},
+	}, c.OidConfig)
+
+	// With metadata disabled
+	c.CollectDeviceMetadata = false
 	err = c.RefreshWithProfile("profile1")
 	assert.NoError(t, err)
 	assert.Equal(t, OidConfig{
@@ -1509,12 +1570,12 @@ func TestCheckConfig_Copy(t *testing.T) {
 		OidBatchSize:       10,
 		BulkMaxRepetitions: 10,
 		Profiles: profileDefinitionMap{"f5-big-ip": profileDefinition{
-			Device: deviceMeta{Vendor: "f5"},
+			Device: DeviceMeta{Vendor: "f5"},
 		}},
 		ProfileTags: []string{"profile_tag:atag"},
 		Profile:     "f5",
 		ProfileDef: &profileDefinition{
-			Device: deviceMeta{Vendor: "f5"},
+			Device: DeviceMeta{Vendor: "f5"},
 		},
 		ExtraTags:             []string{"ExtraTags:tag"},
 		InstanceTags:          []string{"InstanceTags:tag"},

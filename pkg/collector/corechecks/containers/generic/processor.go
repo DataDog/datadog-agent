@@ -109,9 +109,8 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Rate, "container.cpu.usage", containerStats.CPU.Total, tags)
 		p.sendMetric(sender.Rate, "container.cpu.user", containerStats.CPU.User, tags)
 		p.sendMetric(sender.Rate, "container.cpu.system", containerStats.CPU.System, tags)
-		p.sendMetric(sender.Rate, "container.cpu.throttled.time", containerStats.CPU.ThrottledTime, tags)
+		p.sendMetric(sender.Rate, "container.cpu.throttled", containerStats.CPU.ThrottledTime, tags)
 		p.sendMetric(sender.Rate, "container.cpu.throttled.periods", containerStats.CPU.ThrottledPeriods, tags)
-		p.sendMetric(sender.Gauge, "container.cpu.shares", containerStats.CPU.Shares, tags)
 		// Convert CPU Limit to nanoseconds to allow easy percentage computation in the App.
 		if containerStats.CPU.Limit != nil {
 			p.sendMetric(sender.Gauge, "container.cpu.limit", util.Float64Ptr(*containerStats.CPU.Limit*float64(time.Second/100)), tags)
@@ -126,7 +125,7 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Gauge, "container.memory.rss", containerStats.Memory.RSS, tags)
 		p.sendMetric(sender.Gauge, "container.memory.cache", containerStats.Memory.Cache, tags)
 		p.sendMetric(sender.Gauge, "container.memory.swap", containerStats.Memory.Swap, tags)
-		p.sendMetric(sender.Gauge, "container.memory.oomevents", containerStats.Memory.OOMEvents, tags)
+		p.sendMetric(sender.Gauge, "container.memory.oom_events", containerStats.Memory.OOMEvents, tags)
 		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.PrivateWorkingSet, tags)
 		p.sendMetric(sender.Gauge, "container.memory.commit", containerStats.Memory.CommitBytes, tags)
 		p.sendMetric(sender.Gauge, "container.memory.commit.peak", containerStats.Memory.CommitPeakBytes, tags)
