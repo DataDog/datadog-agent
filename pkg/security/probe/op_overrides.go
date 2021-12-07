@@ -31,9 +31,13 @@ var (
 				return nil, errors.New("non scalar overriden is not supported")
 			}
 
+			if fieldEvaluator.Field == "" {
+				return eval.StringEquals(a, b, opts, state)
+			}
+
 			// pre-cache at compile time
 			probe := opts.UserCtx.(*Probe)
-			probe.resolvers.SymlinkResolver.InitStringValues(key, value)
+			probe.resolvers.SymlinkResolver.InitStringValues(key, fieldEvaluator.Field, value)
 
 			evaluator := eval.StringValuesEvaluator{
 				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
@@ -44,6 +48,10 @@ var (
 			return eval.StringValuesContains(fieldEvaluator, &evaluator, opts, state)
 		},
 		StringValuesContains: func(a *eval.StringEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+			if a.Field == "" {
+				return eval.StringValuesContains(a, b, opts, state)
+			}
+
 			if !b.IsScalar() {
 				return nil, errors.New("non scalar overriden is not supported")
 			}
@@ -57,7 +65,7 @@ var (
 
 			// pre-cache at compile time
 			probe := opts.UserCtx.(*Probe)
-			probe.resolvers.SymlinkResolver.InitStringValues(key, values...)
+			probe.resolvers.SymlinkResolver.InitStringValues(key, a.Field, values...)
 
 			evaluator := eval.StringValuesEvaluator{
 				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
@@ -69,6 +77,10 @@ var (
 		},
 		// ex: process.ancestors.file.path
 		StringArrayContains: func(a *eval.StringEvaluator, b *eval.StringArrayEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+			if b.Field == "" {
+				return eval.StringArrayContains(a, b, opts, state)
+			}
+
 			if !a.IsScalar() {
 				return nil, errors.New("non scalar overriden is not supported")
 			}
@@ -77,7 +89,7 @@ var (
 
 			// pre-cache at compile time
 			probe := opts.UserCtx.(*Probe)
-			probe.resolvers.SymlinkResolver.InitStringValues(key, value)
+			probe.resolvers.SymlinkResolver.InitStringValues(key, b.Field, value)
 
 			evaluator := eval.StringValuesEvaluator{
 				EvalFnc: func(ctx *eval.Context) *eval.StringValues {
@@ -88,6 +100,10 @@ var (
 			return eval.StringValuesContains(a, &evaluator, opts, state)
 		},
 		StringArrayMatches: func(a *eval.StringArrayEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+			if a.Field == "" {
+				return eval.StringArrayMatches(a, b, opts, state)
+			}
+
 			if !b.IsScalar() {
 				return nil, errors.New("non scalar overriden is not supported")
 			}
@@ -101,7 +117,7 @@ var (
 
 			// pre-cache at compile time
 			probe := opts.UserCtx.(*Probe)
-			probe.resolvers.SymlinkResolver.InitStringValues(key, values...)
+			probe.resolvers.SymlinkResolver.InitStringValues(key, a.Field, values...)
 
 			evaluator := eval.StringValuesEvaluator{
 				EvalFnc: func(ctx *eval.Context) *eval.StringValues {

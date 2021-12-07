@@ -238,7 +238,7 @@ func (mr *MountResolver) insert(e *model.MountEvent) {
 
 	// update symlinks
 	if e.IsOverlayFS() {
-		mr.probe.resolvers.SymlinkResolver.UpdateSymlinks(e.MountPointStr)
+		mr.probe.resolvers.SymlinkResolver.ScheduleUpdate(e.MountPointStr)
 	}
 }
 
