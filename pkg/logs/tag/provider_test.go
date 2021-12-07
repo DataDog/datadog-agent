@@ -62,21 +62,7 @@ wait:
 
 	// let the deadline expire
 	clock.Add(expectedTagsDuration)
+
 	// tags are now empty
 	require.Empty(t, pp.GetTags())
-}
-
-func TestTHing(t *testing.T) {
-
-	clock := clock.NewMock()
-	proceed := make(chan struct{})
-	go func() {
-		// time.Sleep(300 * time.Millisecond) // make me fail
-		clock.Sleep(1 * time.Second)
-		close(proceed)
-	}()
-
-	// time.Sleep(300 * time.Millisecond) // make me pass
-	clock.Add(time.Second)
-	<-proceed
 }
