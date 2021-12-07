@@ -1,7 +1,7 @@
 name: codeowner-autolabel
 
 on:
-  push:
+  pull_request:
     branches:
       - 'kacper-murzyn/**'
 jobs:
