@@ -32,16 +32,16 @@ func (s *Subscriber) Get(req *pbgo.GetConfigsRequest) (*pbgo.ConfigResponse, err
 		return nil, errors.New("not allowed")
 	}
 	s.once.Do(s.subscribe)
-FOO:
+LOOP:
 	for {
 		select {
 		case s.tracerInfos <- req.TracerInfo:
-			break FOO
+			break LOOP
 		default:
 			select {
 			case <-s.tracerInfos:
 				log.Warnf("Cannot add more tracers. Dropping request.")
-			default: //
+			default: // no-op
 			}
 		}
 	}
