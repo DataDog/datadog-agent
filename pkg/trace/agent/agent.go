@@ -250,12 +250,9 @@ func (a *Agent) Process(p *api.Payload) {
 					traceutil.SetMeta(span, k, v)
 				}
 			}
-			// rewrite the service name to the correct value if it has been incorrectly set to "aws.lambda"
-			if span.Service == "aws.lambda" && a.conf.GlobalTags != nil {
-				service := a.conf.GlobalTags["service"]
-				if len(service) > 0 {
-					span.Service = service
-				}
+			if span.Service == "aws.lambda" && a.conf.GlobalTags["service"] != "" {
+				// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
+				span.Service = a.conf.GlobalTags["service"]
 			}
 			a.obfuscateSpan(span)
 			Truncate(span)
