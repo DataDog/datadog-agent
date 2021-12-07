@@ -35,9 +35,8 @@ var CollectorPriorities = make(map[string]CollectorPriority)
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
-	store    workloadmeta.Store
-	children map[string]map[string]struct{}
-	out      chan<- []*TagInfo
+	store workloadmeta.Store
+	out   chan<- []*TagInfo
 
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
@@ -109,7 +108,6 @@ func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Store, out
 		out:                    out,
 		store:                  store,
 		staticTags:             fargateStaticTags(ctx),
-		children:               make(map[string]map[string]struct{}),
 		collectEC2ResourceTags: config.Datadog.GetBool("ecs_collect_resource_tags_ec2"),
 	}
 

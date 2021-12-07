@@ -18,14 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleKubePod(t *testing.T) {
 	const (
 		fullyFleshedContainerID = "foobarquux"
-		noEnvContainerID        = "foobarbaz"
 		containerName           = "agent"
 		runtimeContainerName    = "k8s_datadog-agent_agent"
 		podName                 = "datadog-agent-foobar"
@@ -47,42 +45,6 @@ func TestHandleKubePod(t *testing.T) {
 	}
 
 	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
-	fullyFleshedContainerTaggerEntityID := fmt.Sprintf("container_id://%s", fullyFleshedContainerID)
-	noEnvContainerTaggerEntityID := fmt.Sprintf("container_id://%s", noEnvContainerID)
-
-	image := workloadmeta.ContainerImage{
-		ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-		RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-		Name:      "datadog/agent",
-		ShortName: "agent",
-		Tag:       "latest",
-	}
-
-	store := workloadmetatesting.NewStore()
-	store.Set(&workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   fullyFleshedContainerID,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: runtimeContainerName,
-		},
-		Image: image,
-		EnvVars: map[string]string{
-			"DD_ENV":     env,
-			"DD_SERVICE": svc,
-			"DD_VERSION": version,
-		},
-	})
-	store.Set(&workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   noEnvContainerID,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: runtimeContainerName,
-		},
-	})
 
 	tests := []struct {
 		name              string
@@ -93,7 +55,7 @@ func TestHandleKubePod(t *testing.T) {
 		expected          []*TagInfo
 	}{
 		{
-			name: "fully formed pod (no containers)",
+			name: "fully formed pod",
 			annotationsAsTags: map[string]string{
 				"gitcommit": "+gitcommit",
 				"component": "component",
@@ -201,108 +163,6 @@ func TestHandleKubePod(t *testing.T) {
 			},
 		},
 		{
-			name: "pod with fully formed container, standard tags from env",
-			pod: workloadmeta.KubernetesPod{
-				EntityID: podEntityID,
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:      podName,
-					Namespace: podNamespace,
-				},
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
-						ID:    fullyFleshedContainerID,
-						Name:  containerName,
-						Image: image,
-					},
-				},
-			},
-			expected: []*TagInfo{
-				{
-					Source:       podSource,
-					Entity:       podTaggerEntityID,
-					HighCardTags: []string{},
-					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
-					},
-					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-					}),
-					StandardTags: []string{},
-				},
-				{
-					Source: podSource,
-					Entity: fullyFleshedContainerTaggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
-						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
-					},
-					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
-					},
-					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
-						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-						"image_name:datadog/agent",
-						"image_tag:latest",
-						"short_image:agent",
-					}, standardTags...),
-					StandardTags: standardTags,
-				},
-			},
-		},
-		{
-			name: "pod with container, standard tags from labels",
-			pod: workloadmeta.KubernetesPod{
-				EntityID: podEntityID,
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:      podName,
-					Namespace: podNamespace,
-					Labels: map[string]string{
-						"tags.datadoghq.com/agent.env":     env,
-						"tags.datadoghq.com/agent.service": svc,
-						"tags.datadoghq.com/agent.version": version,
-					},
-				},
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
-						ID:   noEnvContainerID,
-						Name: containerName,
-					},
-				},
-			},
-			expected: []*TagInfo{
-				{
-					Source:       podSource,
-					Entity:       podTaggerEntityID,
-					HighCardTags: []string{},
-					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
-					},
-					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-					}),
-					StandardTags: []string{},
-				},
-				{
-					Source: podSource,
-					Entity: noEnvContainerTaggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", noEnvContainerID),
-						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
-					},
-					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
-					},
-					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
-					}, standardTags...),
-					StandardTags: standardTags,
-				},
-			},
-		},
-		{
 			name: "pod from openshift deployment",
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -337,10 +197,7 @@ func TestHandleKubePod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:    store,
-				children: make(map[string]map[string]struct{}),
-			}
+			collector := &WorkloadMetaCollector{}
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags)
 
@@ -355,28 +212,10 @@ func TestHandleKubePod(t *testing.T) {
 }
 
 func TestHandleECSTask(t *testing.T) {
-	const (
-		containerID   = "foobarquux"
-		containerName = "agent"
-	)
-
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindECSTask,
 		ID:   "foobar",
 	}
-
-	taggerEntityID := fmt.Sprintf("container_id://%s", containerID)
-
-	store := workloadmetatesting.NewStore()
-	store.Set(&workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   containerID,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: containerName,
-		},
-	})
 
 	tests := []struct {
 		name     string
@@ -384,89 +223,15 @@ func TestHandleECSTask(t *testing.T) {
 		expected []*TagInfo
 	}{
 		{
-			name: "basic ECS EC2 task",
-			task: workloadmeta.ECSTask{
-				EntityID: entityID,
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: "foobar",
-				},
-				Tags: map[string]string{
-					"aws:ecs:clusterName": "ecs-cluster",
-					"aws:ecs:serviceName": "datadog-agent",
-					"owner_team":          "container-integrations",
-				},
-				ContainerInstanceTags: map[string]string{
-					"instance_type": "g4dn.xlarge",
-				},
-				ClusterName: "ecs-cluster",
-				Family:      "datadog-agent",
-				Version:     "1",
-				LaunchType:  workloadmeta.ECSLaunchTypeEC2,
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
-						ID:   containerID,
-						Name: containerName,
-					},
-				},
-			},
-			expected: []*TagInfo{
-				{
-					Source:       taskSource,
-					Entity:       taggerEntityID,
-					HighCardTags: []string{},
-					OrchestratorCardTags: []string{
-						"task_arn:foobar",
-					},
-					LowCardTags: []string{
-						"cluster_name:ecs-cluster",
-						"ecs_cluster_name:ecs-cluster",
-						"ecs_container_name:agent",
-						"instance_type:g4dn.xlarge",
-						"owner_team:container-integrations",
-						"task_family:datadog-agent",
-						"task_name:datadog-agent",
-						"task_version:1",
-					},
-					StandardTags: []string{},
-				},
-			},
-		},
-		{
 			name: "basic ECS Fargate task",
 			task: workloadmeta.ECSTask{
 				EntityID: entityID,
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "foobar",
 				},
-				ClusterName: "ecs-cluster",
-				Family:      "datadog-agent",
-				Version:     "1",
-				LaunchType:  workloadmeta.ECSLaunchTypeFargate,
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
-						ID:   containerID,
-						Name: containerName,
-					},
-				},
+				LaunchType: workloadmeta.ECSLaunchTypeFargate,
 			},
 			expected: []*TagInfo{
-				{
-					Source:       taskSource,
-					Entity:       taggerEntityID,
-					HighCardTags: []string{},
-					OrchestratorCardTags: []string{
-						"task_arn:foobar",
-					},
-					LowCardTags: []string{
-						"cluster_name:ecs-cluster",
-						"ecs_cluster_name:ecs-cluster",
-						"ecs_container_name:agent",
-						"task_family:datadog-agent",
-						"task_name:datadog-agent",
-						"task_version:1",
-					},
-					StandardTags: []string{},
-				},
 				{
 					Source:       taskSource,
 					Entity:       OrchestratorScopeEntityID,
@@ -484,8 +249,6 @@ func TestHandleECSTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			collector := &WorkloadMetaCollector{
-				store:                  store,
-				children:               make(map[string]map[string]struct{}),
 				collectEC2ResourceTags: true,
 			}
 
@@ -501,12 +264,88 @@ func TestHandleECSTask(t *testing.T) {
 
 func TestHandleContainer(t *testing.T) {
 	const (
-		containerName = "foobar"
-		podNamespace  = "default"
-		env           = "production"
-		svc           = "datadog-agent"
-		version       = "7.32.0"
+		containerID   = "foobar"
+		containerName = "k8s-foobar-datadog-agent"
+
+		podID            = "foobar"
+		podName          = "datadog-agent-deadbeef"
+		podNamespace     = "default"
+		podContainerName = "agent"
+
+		taskID            = "foobar"
+		taskContainerName = "agent"
+
+		env     = "production"
+		svc     = "datadog-agent"
+		version = "7.32.0"
 	)
+
+	podImage := workloadmeta.ContainerImage{
+		ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		Name:      "datadog/agent",
+		ShortName: "agent",
+		Tag:       "latest",
+	}
+
+	image := workloadmeta.ContainerImage{
+		ID:        "docker.io/datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		RawName:   "docker.io/datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		Name:      "docker.io/datadog/agent",
+		ShortName: "agent",
+		Tag:       "latest",
+	}
+
+	store := workloadmetatesting.NewStore()
+	store.Set(&workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      podName,
+			Namespace: podNamespace,
+			Labels: map[string]string{
+				"tags.datadoghq.com/agent.env":     env,
+				"tags.datadoghq.com/agent.service": svc,
+				"tags.datadoghq.com/agent.version": version,
+			},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:    containerID,
+				Name:  podContainerName,
+				Image: podImage,
+			},
+		},
+	})
+	store.Set(&workloadmeta.ECSTask{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindECSTask,
+			ID:   taskID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "foobar",
+		},
+		Tags: map[string]string{
+			"aws:ecs:clusterName": "ecs-cluster",
+			"aws:ecs:serviceName": "datadog-agent",
+			"owner_team":          "container-integrations",
+		},
+		ContainerInstanceTags: map[string]string{
+			"instance_type": "g4dn.xlarge",
+		},
+		ClusterName: "ecs-cluster",
+		Family:      "datadog-agent",
+		Version:     "1",
+		LaunchType:  workloadmeta.ECSLaunchTypeEC2,
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   containerID,
+				Name: taskContainerName,
+			},
+		},
+	})
 
 	standardTags := []string{
 		fmt.Sprintf("env:%s", env),
@@ -516,7 +355,7 @@ func TestHandleContainer(t *testing.T) {
 
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindContainer,
-		ID:   "foobar",
+		ID:   containerID,
 	}
 
 	taggerEntityID := fmt.Sprintf("container_id://%s", entityID.ID)
@@ -541,13 +380,7 @@ func TestHandleContainer(t *testing.T) {
 					},
 				},
 				Runtime: workloadmeta.ContainerRuntimeDocker,
-				Image: workloadmeta.ContainerImage{
-					ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-					RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-					Name:      "datadog/agent",
-					ShortName: "agent",
-					Tag:       "latest",
-				},
+				Image:   image,
 			},
 			expected: []*TagInfo{
 				{
@@ -559,10 +392,10 @@ func TestHandleContainer(t *testing.T) {
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
-						"docker_image:datadog/agent:latest",
-						"image_name:datadog/agent",
-						"image_tag:latest",
-						"short_image:agent",
+						fmt.Sprintf("docker_image:%s:%s", image.Name, image.Tag),
+						fmt.Sprintf("image_name:%s", image.Name),
+						fmt.Sprintf("image_tag:%s", image.Tag),
+						fmt.Sprintf("short_image:%s", image.ShortName),
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
@@ -708,6 +541,85 @@ func TestHandleContainer(t *testing.T) {
 						"docker_image:redis", // Notice that there's no tag
 						"image_name:redis",
 						"short_image:redis",
+					},
+				},
+			},
+		},
+		{
+			name: "k8s container",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+					Labels: map[string]string{
+						"io.kubernetes.pod.uid": podID,
+					},
+				},
+				Image: image,
+			},
+			expected: []*TagInfo{
+				{
+					Source: containerSource,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"docker_image:redis", // Notice that there's no tag
+						"image_name:redis",
+						"short_image:redis",
+						fmt.Sprintf("container_id:%s", entityID.ID),
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("display_container_name:%s_%s", podContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: append([]string{
+						fmt.Sprintf("image_id:%s", podImage.ID),
+						fmt.Sprintf("image_name:%s", podImage.Name),
+						fmt.Sprintf("image_tag:%s", podImage.Tag),
+						fmt.Sprintf("kube_container_name:%s", podContainerName),
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						fmt.Sprintf("short_image:%s", podImage.ShortName),
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "ecs container",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+					Labels: map[string]string{
+						"com.amazonaws.ecs.task-arn": taskID,
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source: containerSource,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_id:%s", entityID.ID),
+						fmt.Sprintf("container_name:%s", containerName),
+					},
+					OrchestratorCardTags: []string{
+						"task_arn:foobar",
+					},
+					LowCardTags: append([]string{
+						"cluster_name:ecs-cluster",
+						"ecs_cluster_name:ecs-cluster",
+						"ecs_container_name:agent",
+						"instance_type:g4dn.xlarge",
+						"owner_team:container-integrations",
+						"task_family:datadog-agent",
+						"task_name:datadog-agent",
+						"task_version:1",
 					}),
 					StandardTags: []string{},
 				},
@@ -887,7 +799,10 @@ func TestHandleContainer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{}
+			collector := &WorkloadMetaCollector{
+				store:                  store,
+				collectEC2ResourceTags: true,
+			}
 			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
 
 			actual := collector.handleContainer(workloadmeta.Event{
@@ -918,32 +833,11 @@ func TestHandleDelete(t *testing.T) {
 			Name:      podName,
 			Namespace: podNamespace,
 		},
-		Containers: []workloadmeta.OrchestratorContainer{
-			{
-				ID:   containerID,
-				Name: containerName,
-			},
-		},
 	}
 
 	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
-	containerTaggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
-	store := workloadmetatesting.NewStore()
-	store.Set(&workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   containerID,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: containerName,
-		},
-	})
-
-	collector := &WorkloadMetaCollector{
-		store:    store,
-		children: make(map[string]map[string]struct{}),
-	}
+	collector := &WorkloadMetaCollector{}
 
 	collector.handleKubePod(workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
@@ -956,11 +850,6 @@ func TestHandleDelete(t *testing.T) {
 			Entity:       podTaggerEntityID,
 			DeleteEntity: true,
 		},
-		{
-			Source:       podSource,
-			Entity:       containerTaggerEntityID,
-			DeleteEntity: true,
-		},
 	}
 
 	actual := collector.handleDelete(workloadmeta.Event{
@@ -969,75 +858,6 @@ func TestHandleDelete(t *testing.T) {
 	})
 
 	assertTagInfoListEqual(t, expected, actual)
-}
-
-func TestHandlePodWithDeletedContainer(t *testing.T) {
-	// This test checks that we get events to delete a container that no longer
-	// exists even if it belonged to a pod that still exists.
-
-	containerToBeDeletedID := "delete"
-	containerToBeDeletedTaggerEntityID := fmt.Sprintf("container_id://%s", containerToBeDeletedID)
-
-	pod := &workloadmeta.KubernetesPod{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesPod,
-			ID:   "123",
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:      "datadog-agent",
-			Namespace: "default",
-		},
-		Containers: []workloadmeta.OrchestratorContainer{},
-	}
-	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", pod.ID)
-
-	collectorCh := make(chan []*TagInfo, 10)
-
-	collector := &WorkloadMetaCollector{
-		store: workloadmetatesting.NewStore(),
-		children: map[string]map[string]struct{}{
-			// Notice that here we set the container that belonged to the pod
-			// but that no longer exists
-			podTaggerEntityID: {
-				containerToBeDeletedTaggerEntityID: struct{}{},
-			},
-		},
-		out: collectorCh,
-	}
-
-	eventBundle := workloadmeta.EventBundle{
-		Events: []workloadmeta.Event{
-			{
-				Type:   workloadmeta.EventTypeSet,
-				Entity: pod,
-			},
-		},
-		Ch: make(chan struct{}),
-	}
-
-	collector.processEvents(eventBundle)
-	close(collectorCh)
-
-	expected := &TagInfo{
-		Source:       podSource,
-		Entity:       containerToBeDeletedTaggerEntityID,
-		DeleteEntity: true,
-	}
-
-	// We should receive an event to set the pod and another to delete the
-	// container. Here we're only interested in the latter, because the former
-	// is already checked in other tests.
-	found := false
-	for evBundle := range collectorCh {
-		for _, event := range evBundle {
-			if cmp.Equal(event, expected) {
-				found = true
-				break
-			}
-		}
-	}
-
-	assert.True(t, found, "TagInfo of deleted container not returned")
 }
 
 func TestHandleContainerStaticTags(t *testing.T) {
