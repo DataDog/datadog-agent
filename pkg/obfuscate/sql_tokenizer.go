@@ -732,6 +732,10 @@ func (tkn *SQLTokenizer) bytes() []byte {
 	return ret
 }
 
+func (tkn *SQLTokenizer) Offset() int {
+	return tkn.off
+}
+
 func isLeadingLetter(ch rune) bool {
 	return unicode.IsLetter(ch) || ch == '_' || ch == '@'
 }
