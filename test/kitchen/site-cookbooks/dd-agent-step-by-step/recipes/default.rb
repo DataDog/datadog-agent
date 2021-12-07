@@ -9,15 +9,12 @@
 
 case node['platform_family']
 when 'debian'
-  apt_package 'dependencies for importing APT keys' do
-    package_name ['apt-transport-https', 'curl', 'gnupg']
-  end
+  apt_trusted_d_keyring='/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg'
+  apt_usr_share_keyring='/usr/share/keyrings/datadog-archive-keyring.gpg'
 
-  execute 'install debian' do
-    apt_trusted_d_keyring='/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg'
-    apt_usr_share_keyring='/usr/share/keyrings/datadog-archive-keyring.gpg'
-
+  execute 'create /usr/share keyring and source list' do
     command <<-EOF
+      sudo apt-get install -y apt-transport-https curl gnupg
       sudo sh -c "echo \'deb [signed-by=#{apt_usr_share_keyring}] #{node['dd-agent-step-by-step']['aptrepo']} #{node['dd-agent-step-by-step']['aptrepo_dist']} #{node['dd-agent-step-by-step']['agent_major_version']}\' > /etc/apt/sources.list.d/datadog.list"
       sudo touch #{apt_usr_share_keyring} && sudo chmod a+r #{apt_usr_share_keyring}
       for key in DATADOG_APT_KEY_CURRENT.public DATADOG_APT_KEY_F14F620E.public DATADOG_APT_KEY_382E94DE.public; do
@@ -25,13 +22,16 @@ when 'debian'
         sudo cat "/tmp/${key}" | sudo gpg --import --batch --no-default-keyring --keyring "#{apt_usr_share_keyring}"
       done
     EOF
+  end
 
-    if (platform?('ubuntu') && node['platform_version'].to_i < 16) || (platform?('debian') && node['platform_version'].to_i < 9)
-      command <<-EOF
-        sudo cp #{apt_usr_share_keyring} #{apt_trusted_d_keyring}
-      EOF
-    end
+  execute 'create /etc/apt keyring' do
+    only_if { (platform?('ubuntu') && node['platform_version'].to_i < 16) || (platform?('debian') && node['platform_version'].to_i < 9) }
+    command <<-EOF
+      sudo cp #{apt_usr_share_keyring} #{apt_trusted_d_keyring}
+    EOF
+  end
 
+  execute 'install debian' do
     command <<-EOF
       sudo apt-get update
       sudo apt-get install #{node['dd-agent-step-by-step']['package_name']} -y -q
