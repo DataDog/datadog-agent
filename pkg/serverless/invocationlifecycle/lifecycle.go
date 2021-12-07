@@ -13,6 +13,7 @@ import (
 // ProxyProcessor is a InvocationProcessor implementation
 type ProxyProcessor struct{}
 
+// OnInvokeStart is the hook triggered when an invocation has started
 func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetails) {
 	log.Debug("[proxy] onInvokeStart ------")
 	log.Debug("[proxy] Invocation has started at :", startDetails.StartTime)
@@ -21,6 +22,7 @@ func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetai
 	log.Debug("[proxy] ---------------------------------------")
 }
 
+// OnInvokeEnd is the hook triggered when an invocation has ended
 func (pp *ProxyProcessor) OnInvokeEnd(endDetails *proxy.InvocationEndDetails) {
 	log.Debug("[proxy] onInvokeEnd ------")
 	log.Debug("[proxy] Invocation has finished at :", endDetails.EndTime)
