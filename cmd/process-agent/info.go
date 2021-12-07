@@ -19,6 +19,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -63,7 +64,7 @@ const (
   RTProcess Bytes enqueued: {{.Status.RTProcessQueueBytes}}
   Pod Bytes enqueued: {{.Status.PodQueueBytes}}
 
-  Logs: {{.Status.Config.LogFile}}{{if .Status.ProxyURL}}
+  Logs: {{.Status.LogFile}}{{if .Status.ProxyURL}}
   HttpProxy: {{.Status.ProxyURL}}{{end}}{{if ne .Status.ContainerID ""}}
   Container ID: {{.Status.ContainerID}}{{end}}
 
@@ -270,6 +271,10 @@ type StatusInfo struct {
 	ProxyURL            string                 `json:"proxy_url"`
 }
 
+func (_ StatusInfo) LogFile() string {
+	return ddconfig.Datadog.GetString("process_config.log_file")
+}
+
 func initInfo(_ *config.AgentConfig) error {
 	var err error
 
@@ -282,6 +287,8 @@ func initInfo(_ *config.AgentConfig) error {
 		},
 	}
 	infoOnce.Do(func() {
+		ddconfig.Load()
+
 		expvar.NewInt("pid").Set(int64(os.Getpid()))
 		expvar.Publish("uptime", expvar.Func(publishUptime))
 		expvar.Publish("version", expvar.Func(publishVersion))
