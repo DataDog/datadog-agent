@@ -80,6 +80,15 @@ func (f *Fetcher) FetchString(ctx context.Context) (string, error) {
 	return v.(string), nil
 }
 
+// FetchStringSlice is a convenience wrapper around Fetch that returns a string
+func (f *Fetcher) FetchStringSlice(ctx context.Context) ([]string, error) {
+	v, err := f.Fetch(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return v.([]string), nil
+}
+
 // Reset resets the cached value (used for testing)
 func (f *Fetcher) Reset() {
 	f.Lock()
