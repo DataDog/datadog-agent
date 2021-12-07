@@ -20,7 +20,8 @@ func TestProviderExpectedTags(t *testing.T) {
 	clock := clock.NewMock()
 
 	oldStartTime := coreConfig.StartTime
-	coreConfig.StartTime = clock.Now()
+	then := clock.Now()
+	coreConfig.StartTime = then
 	defer func() {
 		coreConfig.StartTime = oldStartTime
 	}()
@@ -55,6 +56,9 @@ wait:
 			clock.Add(100 * time.Millisecond)
 		}
 	}
+
+	// Ensure we waited at least 2 seconds
+	require.True(t, clock.Now().After(then.Add(2*time.Second)))
 
 	sort.Strings(tags)
 	sort.Strings(tt)
