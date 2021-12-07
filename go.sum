@@ -123,6 +123,8 @@ github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c h1:a9O
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c/go.mod h1:lMIXf2EAzxbIv2zEvWu1bdqlaclUWoCtN13MHuPcY5I=
 github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd h1:tvXbvgbfV9OkVQPwdla2Fk7SPT1ICAM6fpFsuKbOhEI=
 github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd/go.mod h1:sMLDxV2xjWr4YWY5DH/N7udDsLVhJ9xKinFTAIcgSyI=
+github.com/DataDog/gohai v0.0.0-20211126091652-d183ed971098 h1:ANBijoD3xHRs6po7uejTdUHmCnL7Gr0MlE4RSiSBR1E=
+github.com/DataDog/gohai v0.0.0-20211126091652-d183ed971098/go.mod h1:sMLDxV2xjWr4YWY5DH/N7udDsLVhJ9xKinFTAIcgSyI=
 github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321/go.mod h1:tGQp6XG4XpOyy67WG/YWXVxzOY6LejK35e8KcQhtRIQ=
 github.com/DataDog/gopsutil v0.0.0-20211112180027-9aa392ae181a h1:+ewksFmUfoU2gtQRaNkJwbxGr/ZbwrSDDmAXLj/cO+s=
 github.com/DataDog/gopsutil v0.0.0-20211112180027-9aa392ae181a/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
