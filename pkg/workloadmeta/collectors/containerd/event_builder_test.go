@@ -26,6 +26,7 @@ import (
 
 func TestBuildCollectorEvent(t *testing.T) {
 	containerID := "10"
+	namespace := "test_namespace"
 
 	container := mockedContainer{
 		mockID: func() string {
@@ -36,6 +37,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 	client := containerdClient(&container)
 
 	workloadMetaContainer, err := buildWorkloadMetaContainer(&container, &client)
+	workloadMetaContainer.Namespace = namespace
 	assert.NoError(t, err)
 
 	containerCreationEvent, err := proto.Marshal(&events.ContainerCreate{
@@ -97,7 +99,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "container create event",
 			event: containerdevents.Envelope{
-				Topic: containerCreationTopic,
+				Namespace: namespace,
+				Topic:     containerCreationTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.ContainerCreate", Value: containerCreationEvent,
 				},
@@ -111,7 +114,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "container update event",
 			event: containerdevents.Envelope{
-				Topic: containerUpdateTopic,
+				Namespace: namespace,
+				Topic:     containerUpdateTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.ContainerUpdate", Value: containerUpdateEvent,
 				},
@@ -125,7 +129,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "container delete event",
 			event: containerdevents.Envelope{
-				Topic: containerDeletionTopic,
+				Namespace: namespace,
+				Topic:     containerDeletionTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.ContainerDelete", Value: containerDeleteEvent,
 				},
@@ -142,7 +147,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "unknown event",
 			event: containerdevents.Envelope{
-				Topic: "Unknown Topic", // This causes the error
+				Namespace: namespace,
+				Topic:     "Unknown Topic", // This causes the error
 				Event: &types.Any{
 					// Uses delete, but could be any other event in this test
 					TypeUrl: "containerd.events.ContainerDelete", Value: containerDeleteEvent,
@@ -153,7 +159,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "event without ID",
 			event: containerdevents.Envelope{
-				Topic: containerCreationTopic,
+				Namespace: namespace,
+				Topic:     containerCreationTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.ContainerCreate", Value: eventWithoutID,
 				},
@@ -163,7 +170,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task start event",
 			event: containerdevents.Envelope{
-				Topic: TaskStartTopic,
+				Namespace: namespace,
+				Topic:     TaskStartTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskStart", Value: taskStartEvent,
 				},
@@ -177,7 +185,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task OOM event",
 			event: containerdevents.Envelope{
-				Topic: TaskOOMTopic,
+				Namespace: namespace,
+				Topic:     TaskOOMTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskOOM", Value: taskOOMEvent,
 				},
@@ -191,7 +200,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task exit event",
 			event: containerdevents.Envelope{
-				Topic: TaskExitTopic,
+				Namespace: namespace,
+				Topic:     TaskExitTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskExit", Value: taskExitEvent,
 				},
@@ -205,7 +215,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task delete event",
 			event: containerdevents.Envelope{
-				Topic: TaskDeleteTopic,
+				Namespace: namespace,
+				Topic:     TaskDeleteTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskDelete", Value: taskDeleteEvent,
 				},
@@ -219,7 +230,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task paused event",
 			event: containerdevents.Envelope{
-				Topic: TaskStartTopic,
+				Namespace: namespace,
+				Topic:     TaskStartTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskPaused", Value: taskPausedEvent,
 				},
@@ -233,7 +245,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task resumed event",
 			event: containerdevents.Envelope{
-				Topic: TaskStartTopic,
+				Namespace: namespace,
+				Topic:     TaskStartTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskResumed", Value: taskResumedEvent,
 				},
