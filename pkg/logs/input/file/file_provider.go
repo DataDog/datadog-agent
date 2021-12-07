@@ -131,7 +131,7 @@ func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
 		pattern := path
 		return p.searchFiles(pattern, source)
 	default:
-		return nil, fmt.Errorf("file %s does not exist", path)
+		return nil, fmt.Errorf("file %s does not exist or cannot be read by agent", path)
 	}
 }
 
