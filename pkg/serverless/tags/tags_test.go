@@ -275,7 +275,8 @@ func TestAddColdStartTagWithColdStart(t *testing.T) {
 	})
 }
 
-func TestBuildTagMapWithMemoryTag(t *testing.T) {
+func TestBuildTagMapWithRuntimeAndMemoryTag(t *testing.T) {
+	os.Setenv("AWS_EXECUTION_ENV", "AWS_Lambda_java")
 	os.Setenv("AWS_LAMBDA_FUNCTION_MEMORY_SIZE", "128")
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
