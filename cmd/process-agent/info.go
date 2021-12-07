@@ -271,7 +271,8 @@ type StatusInfo struct {
 	ProxyURL            string                 `json:"proxy_url"`
 }
 
-func (_ StatusInfo) LogFile() string {
+// LogFile returns the location of the log file. This is used for the template.
+func (StatusInfo) LogFile() string {
 	return ddconfig.Datadog.GetString("process_config.log_file")
 }
 
