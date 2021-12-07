@@ -9,7 +9,7 @@
 
 case node['platform_family']
 when 'debian'
-  apt_package 'dependencies for importing APT keys'
+  apt_package 'dependencies for importing APT keys' do
     package_name ['apt-transport-https', 'curl', 'gnupg']
   end
 
