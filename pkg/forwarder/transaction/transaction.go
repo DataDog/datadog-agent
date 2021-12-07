@@ -335,6 +335,14 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		tlmTxHTTPErrors.Inc(t.Domain, transactionEndpointName, statusCode)
 	}
 
+	limit := 100
+	if limit < len(body) {
+		// Truncate HTTP response body by first 100 bytes
+		// to tell which of those tools a response comes
+		// and prevent from logging a huge message.
+		body = body[:limit]
+	}
+
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
