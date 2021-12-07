@@ -287,8 +287,6 @@ func initInfo(_ *config.AgentConfig) error {
 		},
 	}
 	infoOnce.Do(func() {
-		ddconfig.Load()
-
 		expvar.NewInt("pid").Set(int64(os.Getpid()))
 		expvar.Publish("uptime", expvar.Func(publishUptime))
 		expvar.Publish("version", expvar.Func(publishVersion))
