@@ -14,8 +14,10 @@ var (
 
 // EndLineMatcher defines the criterion to whether to end a line or not.
 type EndLineMatcher interface {
-	// Match takes the existing bytes and the bytes to be appended, returns
-	// true if the combination matches the end of line condition.
+
+	// Match takes the existing bytes (the entire slice) and the bytes to be
+	// appended (appender[start:end+1]), and returns true if the combination
+	// matches the end of line condition at the end.
 	Match(exists []byte, appender []byte, start int, end int) bool
 	SeparatorLen() int
 }
@@ -47,7 +49,7 @@ func NewBytesSequenceMatcher(sequence []byte) *BytesSequenceMatcher {
 // Match returns true whenever it finds a matching sequence at the end of append(exists, appender[start:end+1])
 func (b *BytesSequenceMatcher) Match(exists []byte, appender []byte, start int, end int) bool {
 	// Total read message is append(exists,appender[start:end]) and the decoder just read appender[end]
-	// Thus the separator sequence is checked against append(exists, appender[start:end+1])
+	// Thus the separator sequence is checked against append(exists, appender[start:end+1]...)
 	l := len(exists) + ((end + 1) - start)
 	if l < len(b.sequence) {
 		return false
