@@ -46,6 +46,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.expvar_port")
 	config.BindEnvAndSetDefault("process_config.log_file", defaultProcessAgentLogFile, prEnv("LOG_FILE")...)
 	config.SetKnown("process_config.internal_profiling.enabled")
+	config.SetDefault("process_config.grpc_connection_timeout_secs", 60) // Note that this is an integer, not a duration
 
 	config.BindEnvAndSetDefault("process_config.remote_tagger", true)
 

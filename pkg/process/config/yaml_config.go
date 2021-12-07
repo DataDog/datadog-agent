@@ -188,11 +188,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Overrides the grpc connection timeout setting to the main agent.
-	if k := key(ns, "grpc_connection_timeout_secs"); config.Datadog.IsSet(k) {
-		a.grpcConnectionTimeout = config.Datadog.GetDuration(k) * time.Second
-	}
-
 	// Windows: Sets windows process table refresh rate (in number of check runs)
 	if argRefresh := config.Datadog.GetInt(key(ns, "windows", "args_refresh_interval")); argRefresh != 0 {
 		a.Windows.ArgsRefreshInterval = argRefresh

@@ -200,7 +200,7 @@ func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
 
 func TestGetHostname(t *testing.T) {
 	ctx := context.Background()
-	cfg := NewDefaultAgentConfig(false)
+	_ = NewDefaultAgentConfig(false)
 	h, err := getHostname(ctx, config.Datadog.GetString("process_config.dd_agent_bin"), 0)
 	assert.Nil(t, err)
 	// verify we fall back to getting os hostname

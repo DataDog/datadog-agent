@@ -133,8 +133,6 @@ type AgentConfig struct {
 
 	// Windows-specific config
 	Windows WindowsConfig
-
-	grpcConnectionTimeout time.Duration
 }
 
 // CheckIsEnabled returns a bool indicating if the given check name is enabled.
@@ -234,8 +232,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			ArgsRefreshInterval: 15, // with default 20s check interval we refresh every 5m
 			AddNewArgs:          true,
 		},
-
-		grpcConnectionTimeout: defaultGRPCConnectionTimeout,
 	}
 
 	// Set default values for proc/sys paths if unset.
@@ -337,7 +333,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	if err := validate.ValidHostname(cfg.HostName); err != nil {
 		// lookup hostname if there is no config override or if the override is invalid
 		agentBin := config.Datadog.GetString("process_config.dd_agent_bin")
-		if hostname, err := getHostname(context.TODO(), agentBin, cfg.grpcConnectionTimeout); err == nil {
+		connectionTimeout := config.Datadog.GetDuration("process_config.grpc_connection_timeout_secs") * time.Second
+		if hostname, err := getHostname(context.TODO(), agentBin, connectionTimeout); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname: %v", err)
