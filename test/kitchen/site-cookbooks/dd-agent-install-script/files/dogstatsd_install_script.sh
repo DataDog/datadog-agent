@@ -243,7 +243,7 @@ elif [ "$OS" = "Debian" ]; then
     apt_usr_share_keyring="/usr/share/keyrings/datadog-archive-keyring.gpg"
 
     printf "\033[34m\n* Installing apt-transport-https, curl and gnupg\n\033[0m\n"
-    $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-tra    nsport-https.\033[0m\n"
+    $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
     # installing curl might trigger install of additional version of libssl; this will fail the installation process,
     # see https://unix.stackexchange.com/q/146283 for reference - we use DEBIAN_FRONTEND=noninteractive to fix that
     if [ -z "$sudo_cmd" ]; then
