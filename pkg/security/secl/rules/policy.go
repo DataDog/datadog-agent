@@ -51,11 +51,6 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 			continue
 		}
 
-		if macroDef.Expression == "" && len(macroDef.Values) == 0 {
-			result = multierror.Append(result, &ErrMacroLoad{Definition: macroDef, Err: errors.New("no expression and no values defined")})
-			continue
-		}
-
 		macros = append(macros, macroDef)
 	}
 
@@ -71,7 +66,7 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 			continue
 		}
 
-		if ruleDef.Expression == "" {
+		if ruleDef.Expression == "" && ruleDef.Merge != nil && *ruleDef.Merge == false {
 			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no expression defined")})
 			continue
 		}
@@ -146,12 +141,9 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 		if len(macros) > 0 {
 			for _, macro := range macros {
 				if existingMacro := macroIndex[macro.ID]; existingMacro != nil {
-					if macro.Merge != nil && *macro.Merge == false {
-						result = multierror.Append(result, &ErrMacroLoad{Definition: macro, Err: ErrInternalIDConflict})
-						continue
+					if err := existingMacro.MergeWith(macro); err != nil {
+						result = multierror.Append(result, err)
 					}
-					existingMacro.Values = append(existingMacro.Values, macro.Values...)
-					ruleSet.logger.Debugf("Appended values %v to existing macro: %v", macro.Values, existingMacro.Values)
 				} else {
 					macroIndex[macro.ID] = macro
 					allMacros = append(allMacros, macro)
@@ -163,13 +155,9 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 		if len(rules) > 0 {
 			for _, rule := range rules {
 				if existingRule := ruleIndex[rule.ID]; existingRule != nil {
-					if rule.Merge == nil || *rule.Merge == false {
-						result = multierror.Append(result, &ErrRuleLoad{Definition: rule, Err: ErrInternalIDConflict})
-						continue
+					if err := existingRule.MergeWith(rule); err != nil {
+						result = multierror.Append(result, err)
 					}
-
-					existingRule.Expression += " " + rule.Expression
-					ruleSet.logger.Debugf("Appended %s to expression: %s", rule.Expression, existingRule.Expression)
 				} else {
 					ruleIndex[rule.ID] = rule
 					allRules = append(allRules, rule)

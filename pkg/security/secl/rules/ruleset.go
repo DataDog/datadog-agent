@@ -26,6 +26,15 @@ type MacroDefinition struct {
 	Merge      *bool    `yaml:"merge"`
 }
 
+// MergeWith merges macro m2 into m
+func (m *MacroDefinition) MergeWith(m2 *MacroDefinition) error {
+	if m2.Merge != nil && *m2.Merge == false {
+		return &ErrMacroLoad{Definition: m2, Err: ErrInternalIDConflict}
+	}
+	m.Values = append(m.Values, m2.Values...)
+	return nil
+}
+
 // Macro describes a macro of a ruleset
 type Macro struct {
 	*eval.Macro
@@ -43,6 +52,7 @@ type RuleDefinition struct {
 	Description string            `yaml:"description"`
 	Tags        map[string]string `yaml:"tags"`
 	Merge       *bool             `yaml:"merge"`
+	Disabled    bool              `yaml:"disabled"`
 	Policy      *Policy
 }
 
@@ -55,6 +65,17 @@ func (rd *RuleDefinition) GetTags() []string {
 			fmt.Sprintf("%s:%s", k, v))
 	}
 	return tags
+}
+
+// MergeWith merges rule rd2 into rd
+func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
+	if rd2.Merge == nil || *rd2.Merge == false {
+		return &ErrRuleLoad{Definition: rd2, Err: ErrInternalIDConflict}
+	}
+
+	rd.Expression += " " + rd2.Expression
+	rd.Disabled = rd2.Disabled
+	return nil
 }
 
 // Rule describes a rule of a ruleset
@@ -189,6 +210,10 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
+	if ruleDef.Disabled {
+		return nil, nil
+	}
+
 	for _, id := range rs.opts.ReservedRuleIDs {
 		if id == ruleDef.ID {
 			return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrInternalIDConflict}
