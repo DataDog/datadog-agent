@@ -50,6 +50,17 @@ api_key:
 #
 # skip_ssl_validation: false
 
+## @param sslkeylogfile - string - optional - default: ""
+## @env DD_SSLKEYLOGFILE - string - optional - default: ""
+## sslkeylogfile specifies a destination for TLS master secrets
+## in NSS key log format to allow external programs
+## such as Wireshark to decrypt TLS connections.
+## For more details, see https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format.
+## Use of sslkeylogfile compromises security and should only be
+## used for debugging.
+# sslkeylogfile: ""
+
+
 ## @param force_tls_12 - boolean - optional - default: false
 ## @env DD_FORCE_TLS_12 - boolean - optional - default: false
 ## Setting this option to "true" forces the Agent to only use TLS 1.2 when
