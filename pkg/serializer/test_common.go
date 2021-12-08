@@ -57,3 +57,8 @@ func (s *MockSerializer) SendProcessesMetadata(data interface{}) error {
 func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error {
 	return s.Called(msgs, hostName, clusterID, payloadType).Error(0)
 }
+
+// SendContainerLifecycleEvent serializes & send container lifecycle event payloads
+func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifeCycleMessage, hostname string) error {
+	return s.Called(msgs, hostname).Error(0)
+}

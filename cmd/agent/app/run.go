@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -59,6 +60,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
@@ -86,6 +88,7 @@ var (
 	pidfilePath string
 
 	orchestratorForwarder  *forwarder.DefaultForwarder
+	contlcycleForwarder    *forwarder.DefaultForwarder
 	eventPlatformForwarder epforwarder.EventPlatformForwarder
 	configService          *remoteconfig.Service
 
@@ -382,11 +385,19 @@ func StartAgent() error {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}
 
+	// setup the container lifecycle events forwarder
+	contlcycleForwarder = containerlifecycle.NewForwarder()
+	if contlcycleForwarder != nil {
+		if err := contlcycleForwarder.Start(); err != nil {
+			log.Errorf("Error starting container lifecycle forwarder: %w", err)
+		}
+	}
+
 	eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
 	eventPlatformForwarder.Start()
 
 	// setup the aggregator
-	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder)
+	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder, contlcycleForwarder)
 	agg := aggregator.InitAggregator(s, eventPlatformForwarder, hostname)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 

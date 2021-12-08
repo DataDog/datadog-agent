@@ -55,7 +55,7 @@ func TestNewScheduler(t *testing.T) {
 
 	fwd := forwarder.NewDefaultForwarder(forwarder.NewOptionsWithResolvers(nil))
 	fwd.Start()
-	s := serializer.NewSerializer(fwd, nil)
+	s := serializer.NewSerializer(fwd, nil, nil)
 	c := NewScheduler(s)
 
 	assert.Equal(t, fwd, c.srl.Forwarder)
@@ -67,7 +67,7 @@ func TestStopScheduler(t *testing.T) {
 
 	fwd := forwarder.NewDefaultForwarder(forwarder.NewOptionsWithResolvers(nil))
 	fwd.Start()
-	s := serializer.NewSerializer(fwd, nil)
+	s := serializer.NewSerializer(fwd, nil, nil)
 	c := NewScheduler(s)
 
 	mockCollector := MockCollector{}
@@ -94,7 +94,7 @@ func TestAddCollector(t *testing.T) {
 
 	fwd := forwarder.NewDefaultForwarder(forwarder.NewOptionsWithResolvers(nil))
 	fwd.Start()
-	s := serializer.NewSerializer(fwd, nil)
+	s := serializer.NewSerializer(fwd, nil, nil)
 	c := NewScheduler(s)
 	RegisterCollector("testCollector", mockCollector)
 
@@ -129,7 +129,7 @@ func TestAddCollectorWithInit(t *testing.T) {
 
 	fwd := forwarder.NewDefaultForwarder(forwarder.NewOptionsWithResolvers(nil))
 	fwd.Start()
-	s := serializer.NewSerializer(fwd, nil)
+	s := serializer.NewSerializer(fwd, nil, nil)
 	c := NewScheduler(s)
 	RegisterCollector("testCollectorWithInit", mockCollectorWithInit)
 
@@ -167,7 +167,7 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 
 	fwd := forwarder.NewDefaultForwarder(forwarder.NewOptionsWithResolvers(nil))
 	fwd.Start()
-	s := serializer.NewSerializer(fwd, nil)
+	s := serializer.NewSerializer(fwd, nil, nil)
 	c := NewScheduler(s)
 	RegisterCollector("testCollector", mockCollector)
 

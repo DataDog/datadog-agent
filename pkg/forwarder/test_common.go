@@ -162,3 +162,8 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }
+
+// SubmitContainerLifecycleEvents mock
+func (tf *MockedForwarder) SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
+}

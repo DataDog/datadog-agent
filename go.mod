@@ -254,3 +254,5 @@ exclude github.com/containerd/containerd v1.5.0-beta.1
 
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
 replace github.com/golang/glog v1.0.0 => github.com/paulcacheux/glog v1.0.1-0.20211019114809-ec0f43a655b9
+
+replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.5-0.20211208161748-ff0564469354

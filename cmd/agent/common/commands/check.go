@@ -139,7 +139,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			eventPlatformForwarder := epforwarder.NewNoopEventPlatformForwarder()
 			eventPlatformForwarder.Start()
 
-			s := serializer.NewSerializer(common.Forwarder, nil)
+			s := serializer.NewSerializer(common.Forwarder, nil, nil)
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
 			agg := aggregator.InitAggregatorWithFlushInterval(s, eventPlatformForwarder, hostname, 0)
 			common.LoadComponents(config.Datadog.GetString("confd_path"))

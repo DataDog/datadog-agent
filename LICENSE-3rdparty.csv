@@ -23,6 +23,7 @@ core,code.cloudfoundry.org/lager,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,code.cloudfoundry.org/tlsconfig,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,contrib.go.opencensus.io/exporter/prometheus,Apache-2.0,OpenCensus Authors
 core,github.com/AlekSi/pointer,MIT,Alexey Palazhchenko
+core,github.com/DataDog/agent-payload/v5/contlcycle,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/gogen,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/process,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc"
