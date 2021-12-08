@@ -90,11 +90,8 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 					continue
 				}
 				field := res.Fields[fieldName]
-				if field.Value == "" && field.Symbol.OID == "" {
-					errors = append(errors, fmt.Sprintf("field `%s`: value or symbol cannot be both empty", fieldName))
-				}
-				if field.Value != "" && field.Symbol.OID != "" {
-					errors = append(errors, fmt.Sprintf("field `%s`: value or symbol cannot be both defined", fieldName))
+				for i := range field.Symbols {
+					errors = append(errors, validateEnrichSymbol(&field.Symbols[i])...)
 				}
 				if field.Symbol.OID != "" {
 					errors = append(errors, validateEnrichSymbol(&field.Symbol)...)
@@ -127,7 +124,15 @@ func validateEnrichSymbol(symbol *SymbolConfig) []string {
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("cannot compile `extract_value` (%s): %s", symbol.ExtractValue, err.Error()))
 		} else {
-			symbol.ExtractValuePattern = pattern
+			symbol.ExtractValueCompiled = pattern
+		}
+	}
+	if symbol.MatchPattern != "" {
+		pattern, err := regexp.Compile(symbol.MatchPattern)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("cannot compile `extract_value` (%s): %s", symbol.ExtractValue, err.Error()))
+		} else {
+			symbol.MatchPatternCompiled = pattern
 		}
 	}
 	return errors
