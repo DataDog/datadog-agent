@@ -372,16 +372,12 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			APIKey: c.Endpoints[0].APIKey,
 		}}
 		endpoints = appendEndpoints(endpoints, "apm_config.telemetry.additional_endpoints")
-		// convert any URLs into Hostnames
+		// check if endpoint URLs are valid, skip any invalid ones
 		c.TelemetryConfig.Endpoints = []*Endpoint{}
 		for _, endpoint := range endpoints {
-			u, err := url.Parse(endpoint.Host)
-			if err != nil {
+			if _, err := url.Parse(endpoint.Host); err != nil {
 				log.Errorf("Error parsing Telemetry endpoint: %s", endpoint.Host)
 				continue
-			}
-			if u.Host != "" {
-				endpoint.Host = u.Host
 			}
 			c.TelemetryConfig.Endpoints = append(c.TelemetryConfig.Endpoints, endpoint)
 		}

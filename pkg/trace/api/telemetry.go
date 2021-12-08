@@ -8,6 +8,7 @@ import (
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -113,9 +114,23 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			http.Error(w, msg, http.StatusMethodNotAllowed)
 		})
 	}
+	// extract only valid Hostnames from configured endpoints
+	endpoints := []*config.Endpoint{}
+	for _, endpoint := range r.conf.TelemetryConfig.Endpoints {
+		u, err := url.Parse(endpoint.Host)
+		if err != nil {
+			continue
+		}
+		if u.Host != "" {
+			endpoint.Host = u.Host
+		}
+
+		endpoints = append(endpoints, endpoint)
+	}
+
 	transport := telemetryMultiTransport{
 		Transport: r.conf.NewHTTPTransport(),
-		Endpoints: r.conf.TelemetryConfig.Endpoints,
+		Endpoints: endpoints,
 		Director: func(req *http.Request) {
 			req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 			req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)

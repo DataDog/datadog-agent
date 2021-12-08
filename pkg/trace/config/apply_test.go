@@ -69,19 +69,19 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, cfg.TelemetryConfig.Enabled)
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-		assert.Equal(t, "instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("dd_url", func(t *testing.T) {
 		defer cleanConfig()
-		config.Datadog.Set("apm_config.telemetry.dd_url", "http://example.com")
+		config.Datadog.Set("apm_config.telemetry.dd_url", "http://example.com/")
 
 		cfg := New()
 		err := cfg.applyDatadogConfig()
 
 		assert.NoError(t, err)
 		assert.True(t, cfg.TelemetryConfig.Enabled)
-		assert.Equal(t, "example.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "http://example.com/", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("dd_url-fail", func(t *testing.T) {
@@ -107,7 +107,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.True(t, cfg.TelemetryConfig.Enabled)
-		assert.Equal(t, "test_backend_2.example.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://test_backend_2.example.com", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("site", func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, cfg.TelemetryConfig.Enabled)
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-		assert.Equal(t, "instrumentation-telemetry-intake.new_site.example.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.new_site.example.com", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("additional-hosts", func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		err := cfg.applyDatadogConfig()
 
 		assert.NoError(t, err)
-		assert.Equal(t, "instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
@@ -156,14 +156,14 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		err := cfg.applyDatadogConfig()
 
 		assert.NoError(t, err)
-		assert.Equal(t, "instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
 
 		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
-			assert.NotNil(t, additionalEndpoints["http://"+endpoint.Host])
-			assert.Equal(t, endpoint.APIKey, additionalEndpoints["http://"+endpoint.Host])
+			assert.NotNil(t, additionalEndpoints[endpoint.Host])
+			assert.Equal(t, endpoint.APIKey, additionalEndpoints[endpoint.Host])
 		}
 	})
 
@@ -180,7 +180,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 2)
-		assert.Equal(t, "instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
-		assert.Equal(t, "test_backend_3.example.com", cfg.TelemetryConfig.Endpoints[1].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "http://test_backend_3.example.com/", cfg.TelemetryConfig.Endpoints[1].Host)
 	})
 }
