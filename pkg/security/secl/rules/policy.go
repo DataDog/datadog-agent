@@ -68,7 +68,7 @@ func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition,
 			continue
 		}
 
-		if ruleDef.Expression == "" && ruleDef.Merge != nil && *ruleDef.Merge == false {
+		if ruleDef.Expression == "" && !ruleDef.Disabled {
 			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no expression defined")})
 			continue
 		}

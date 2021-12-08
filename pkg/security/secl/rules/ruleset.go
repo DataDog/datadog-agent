@@ -18,20 +18,33 @@ import (
 // MacroID represents the ID of a macro
 type MacroID = string
 
+// CombinePolicy represents the policy to use to combine rules and macros
+type CombinePolicy = string
+
+const (
+	NoPolicy       CombinePolicy = ""
+	MergePolicy                  = "merge"
+	OverridePolicy               = "override"
+)
+
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
-	ID         MacroID  `yaml:"id"`
-	Expression string   `yaml:"expression"`
-	Values     []string `yaml:"values"`
-	Merge      *bool    `yaml:"merge"`
+	ID         MacroID       `yaml:"id"`
+	Expression string        `yaml:"expression"`
+	Values     []string      `yaml:"values"`
+	Combine    CombinePolicy `yaml:"combine"`
 }
 
 // MergeWith merges macro m2 into m
 func (m *MacroDefinition) MergeWith(m2 *MacroDefinition) error {
-	if m2.Merge != nil && *m2.Merge == false {
+	switch m2.Combine {
+	case MergePolicy:
+		m.Values = append(m.Values, m2.Values...)
+	case OverridePolicy:
+		m.Values = m2.Values
+	default:
 		return &ErrMacroLoad{Definition: m2, Err: ErrInternalIDConflict}
 	}
-	m.Values = append(m.Values, m2.Values...)
 	return nil
 }
 
@@ -51,7 +64,7 @@ type RuleDefinition struct {
 	Expression  string            `yaml:"expression"`
 	Description string            `yaml:"description"`
 	Tags        map[string]string `yaml:"tags"`
-	Merge       *bool             `yaml:"merge"`
+	Combine     CombinePolicy     `yaml:"combine"`
 	Disabled    bool              `yaml:"disabled"`
 	Policy      *Policy
 }
@@ -69,12 +82,16 @@ func (rd *RuleDefinition) GetTags() []string {
 
 // MergeWith merges rule rd2 into rd
 func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
-	if rd2.Merge == nil || *rd2.Merge == false {
+	switch rd2.Combine {
+	case OverridePolicy:
+		rd.Expression = rd2.Expression
+		rd.Disabled = rd2.Disabled
+	case MergePolicy:
+		rd.Expression += " " + rd2.Expression
+		rd.Disabled = rd2.Disabled
+	default:
 		return &ErrRuleLoad{Definition: rd2, Err: ErrInternalIDConflict}
 	}
-
-	rd.Expression += " " + rd2.Expression
-	rd.Disabled = rd2.Disabled
 	return nil
 }
 

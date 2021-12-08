@@ -30,15 +30,15 @@ func savePolicy(filename string, testPolicy *Policy) error {
 func TestMacroMerge(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(testConstants, testSupportedDiscarders, enabled, nil, nil, nil))
-
 	testPolicy := &Policy{
 		Name: "test-policy",
 		Macros: []*MacroDefinition{{
 			ID:     "test_macro",
 			Values: []string{"/usr/bin/vi"},
 		}, {
-			ID:     "test_macro",
-			Values: []string{"/usr/bin/vim"},
+			ID:      "test_macro",
+			Values:  []string{"/usr/bin/vim"},
+			Combine: MergePolicy,
 		}},
 	}
 
@@ -62,10 +62,9 @@ func TestMacroMerge(t *testing.T) {
 	}
 
 	sort.Strings(macro.Definition.Values)
-	assert.Equal(t, macro.Definition.Values, []string{"/usr/bin/vi", "/usr/bin/vim"})
+	assert.Equal(t, []string{"/usr/bin/vi", "/usr/bin/vim"}, macro.Definition.Values)
 
-	falseBool := false
-	testPolicy.Macros[1].Merge = &falseBool
+	testPolicy.Macros[1].Combine = ""
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -80,8 +79,6 @@ func TestRuleMerge(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(testConstants, testSupportedDiscarders, enabled, nil, nil, nil))
 
-	trueBool := true
-
 	testPolicy := &Policy{
 		Name: "test-policy",
 		Rules: []*RuleDefinition{{
@@ -90,7 +87,7 @@ func TestRuleMerge(t *testing.T) {
 		}, {
 			ID:         "test_rule",
 			Expression: `&& process.uid != 0`,
-			Merge:      &trueBool,
+			Combine:    MergePolicy,
 		}},
 	}
 
@@ -116,7 +113,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Errorf("expected expression to be %s, got %s", expectedExpression, rule.Expression)
 	}
 
-	testPolicy.Rules[1].Merge = nil
+	testPolicy.Rules[1].Combine = ""
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
