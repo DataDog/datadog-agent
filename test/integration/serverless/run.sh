@@ -18,7 +18,11 @@ script_utc_start_time=$(date -u +"%Y%m%dT%H%M%S")
 if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     echo "No AWS credentials were found in the environment."
     echo "Note that only Datadog employees can run these integration tests."
-    exit 1
+    echo "Exiting without running tests..."
+    
+    # If credentials are not available, the run is considered a success
+    # so as not to break CI for external users 
+    exit 0
 fi
 
 # Move into the root directory, so this script can be called from any directory

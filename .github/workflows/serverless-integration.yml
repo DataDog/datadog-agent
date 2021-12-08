@@ -33,7 +33,6 @@ jobs:
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
       - name: Run tests if AWS credentials are available
-        if: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID != null && secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY != null }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }} 
