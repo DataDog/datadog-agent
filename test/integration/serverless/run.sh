@@ -10,6 +10,7 @@ LOGS_WAIT_SECONDS=600
 
 DEFAULT_NODE_LAYER_VERSION=66
 DEFAULT_PYTHON_LAYER_VERSION=49
+DEFAULT_JAVA_TRACE_LAYER_VERSION=8
 
 set -e
 
@@ -22,7 +23,7 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
 fi
 
 # Move into the root directory, so this script can be called from any directory
-SERVERLESS_INTEGRATION_TESTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 cd "$SERVERLESS_INTEGRATION_TESTS_DIR/../../.."
 
 # TODO: Get this working in CI environment
@@ -42,6 +43,7 @@ fi
 cd "./test/integration/serverless"
 
 # build and zip recorder extension
+echo
 echo "Building recorder extension"
 cd recorder-extension
 GOOS=linux GOARCH=amd64 go build -o extensions/recorder-extension main.go
@@ -49,6 +51,7 @@ zip -rq ext.zip extensions/* -x ".*" -x "__MACOSX" -x "extensions/.*"
 cd ..
 
 # build Go Lambda functions
+echo
 echo "Building Go Lambda functions"
 go_test_dirs=("with-ddlambda" "without-ddlambda" "log-with-ddlambda" "log-without-ddlambda" "timeout" "trace")
 cd src
@@ -56,7 +59,16 @@ for go_dir in "${go_test_dirs[@]}"; do
     env GOOS=linux go build -ldflags="-s -w" -o bin/"$go_dir" go-tests/"$go_dir"/main.go
 done
 
+#build Java functions
+echo
+echo "Building Java Lambda Functions"
+java_test_dirs=("with-ddlambda" "trace" "log" "timeout" "error")
+for java_dir in "${java_test_dirs[@]}"; do
+    mvn package -f java-tests/"${java_dir}"/pom.xml
+done
+
 #build .NET functions
+echo
 echo "Building .NET Lambda functions"
 cd csharp-tests
 dotnet restore
@@ -66,6 +78,7 @@ dotnet lambda package --configuration Release --framework netcoreapp3.1 --output
 set -e
 cd ../../
 
+echo
 if [ -z "$NODE_LAYER_VERSION" ]; then
     echo "NODE_LAYER_VERSION not found, using the default"
     export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION
@@ -76,9 +89,14 @@ if [ -z "$PYTHON_LAYER_VERSION" ]; then
     export PYTHON_LAYER_VERSION=$DEFAULT_PYTHON_LAYER_VERSION
 fi
 
+if [ -z "$JAVA_TRACE_LAYER_VERSION" ]; then
+    echo "JAVA_TRACE_LAYER_VERSION not found, using the default"
+    export JAVA_TRACE_LAYER_VERSION=$DEFAULT_JAVA_TRACE_LAYER_VERSION
+fi
+
 echo "NODE_LAYER_VERSION set to: $NODE_LAYER_VERSION"
 echo "PYTHON_LAYER_VERSION set to: $PYTHON_LAYER_VERSION"
-
+echo "JAVA_TRACE_LAYER_VERSION set to: $JAVA_TRACE_LAYER_VERSION"
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
 
@@ -97,12 +115,11 @@ NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
 
 # invoke functions
 
-metric_function_names=("enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "error-python" "error-node")
-log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda")
-trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go")
+metric_function_names=("with-ddlambda-java" "enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "timeout-java" "error-python" "error-node" "error-java")
+log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda" "log-java")
+trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go" "simple-trace-java")
 
 all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
-
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
     serverless invoke --stage "${stage}" -f "${function_name}"
@@ -205,11 +222,11 @@ for function_name in "${all_functions[@]}"; do
     if [ ! -f "$function_snapshot_path" ]; then
         # If no snapshot file exists yet, we create one
         echo "Writing logs to $function_snapshot_path because no snapshot exists yet"
-        echo "$logs" > "$function_snapshot_path"
+        echo "$logs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         # If $UPDATE_SNAPSHOTS is set to true write the new logs over the current snapshot
         echo "Overwriting log snapshot for $function_snapshot_path"
-        echo "$logs" > "$function_snapshot_path"
+        echo "$logs" >"$function_snapshot_path"
     else
         # Compare new logs to snapshots
         diff_output=$(echo "$logs" | diff - "$function_snapshot_path")

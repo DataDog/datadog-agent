@@ -33,6 +33,15 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload v4.73.0+incompatible
-	github.com/DataDog/datadog-agent v0.0.0-20210616155722-298368b28184
+	github.com/Azure/go-autorest/autorest v0.11.18 // indirect
+	github.com/DataDog/agent-payload v4.89.0+incompatible
+	github.com/DataDog/datadog-agent v0.0.0-20211208145626-871818bed028
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-20211201172000-1fd9a353e8e4 // indirect
+	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
+	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249 // indirect
+	github.com/go-kit/kit v0.10.0 // indirect
+	github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31 // indirect
+	honnef.co/go/tools v0.1.1 // indirect
+	k8s.io/client-go v12.0.0+incompatible // indirect
+	k8s.io/kubernetes v1.20.5 // indirect
 )
