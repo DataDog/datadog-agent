@@ -3,6 +3,26 @@
 
 extern std::wstring versionhistoryfilename;
 
+void cleanupFolders()
+{
+    std::wstring embedded = installdir + L"\\embedded";
+    RemoveDirectory(embedded.c_str());
+    
+    std::wstring dir_to_delete;
+    dir_to_delete = installdir + L"bin";
+    DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
+    dir_to_delete = installdir + L"embedded2";
+    DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
+    // python 3, on startup, leaves a bunch of __pycache__ directories,
+    // so we have to be more aggressive.
+    dir_to_delete = installdir + L"embedded3";
+    DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
+    DeleteFilesInDirectory(dir_to_delete.c_str(), L"__pycache__", true);
+
+    // If installdir is not empty, this call will fail but that's ok
+    (void)RemoveDirectory(installdir);
+}
+
 UINT doUninstallAs(UNINSTALL_TYPE t)
 {
 
@@ -146,8 +166,7 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
             DoStartSvc(agentService);
         }
     }
-    std::wstring embedded = installdir + L"\\embedded";
-    RemoveDirectory(embedded.c_str());
+    cleanupFolders();
     if (t == UNINSTALL_UNINSTALL)
     {
         if (regkey.deleteSubKey(strUninstallKeyName.c_str()))
