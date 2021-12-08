@@ -35,10 +35,12 @@ type telemetryMultiTransport struct {
 }
 
 func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.Endpoint) (*http.Response, error) {
-	now := time.Now()
 	tags := []string{
-		"type:telemetry", fmt.Sprintf("endpoint:%s", endpoint.Host),
+		fmt.Sprintf("endpoint:%s", endpoint.Host),
 	}
+	defer func(now time.Time) {
+		metrics.Timing("datadog.trace_agent.telemetry_proxy.roundtrip_ms", time.Since(now), tags, 1)
+	}(time.Now())
 
 	req.Host = endpoint.Host
 	req.URL.Host = endpoint.Host
@@ -48,9 +50,8 @@ func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.
 	m.Director(req)
 
 	resp, err := m.Transport.RoundTrip(req)
-	metrics.Timing("datadog.trace_agent.proxy.roundtrip.duration", time.Since(now), tags, 1)
 	if err != nil {
-		metrics.Count("datadog.trace_agent.proxy.roundtrip.errors", 1, tags, 1)
+		metrics.Count("datadog.trace_agent.telemetry_proxy.roundtrip.errors", 1, tags, 1)
 	}
 	return resp, err
 }
