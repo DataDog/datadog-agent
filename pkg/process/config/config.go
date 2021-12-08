@@ -36,13 +36,9 @@ import (
 	"google.golang.org/grpc"
 )
 
-const (
-	// defaultProxyPort is the default port used for proxies.
-	// This mirrors the configuration for the infrastructure agent.
-	defaultProxyPort = 3128
-
-	defaultGRPCConnectionTimeout = 60 * time.Second
-)
+// defaultProxyPort is the default port used for proxies.
+// This mirrors the configuration for the infrastructure agent.
+const defaultProxyPort = 3128
 
 // Name for check performed by process-agent or system-probe
 const (
@@ -96,6 +92,7 @@ type WindowsConfig struct {
 
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
+// Deprecated. Use `pkg/config` directly.
 type AgentConfig struct {
 	Enabled                   bool
 	HostName                  string
