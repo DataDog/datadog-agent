@@ -23,7 +23,7 @@ fi
 
 # Move into the root directory, so this script can be called from any directory
 SERVERLESS_INTEGRATION_TESTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-cd $SERVERLESS_INTEGRATION_TESTS_DIR/../../..
+cd "$SERVERLESS_INTEGRATION_TESTS_DIR/../../.."
 
 # TODO: Get this working in CI environment
 LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
@@ -84,7 +84,7 @@ stage=$(xxd -l 4 -c 4 -p </dev/random)
 
 function remove_stack() {
     echo "Removing stack for stage : ${stage}"
-    serverless remove --stage ${stage}
+    serverless remove --stage "${stage}"
 }
 
 # always remove the stacks before exiting, no matter what
@@ -93,7 +93,7 @@ trap remove_stack EXIT
 # deploy the stack
 NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
     PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} \
-    serverless deploy --stage ${stage}
+    serverless deploy --stage "${stage}"
 
 # invoke functions
 
@@ -105,13 +105,13 @@ all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace
 
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage ${stage} -f ${function_name}
+    serverless invoke --stage "${stage}" -f "${function_name}"
 done
 #wait 30 seconds to make sure metrics aren't merged into a single metric
 sleep 30
 for function_name in "${all_functions[@]}"; do
     # two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
-    return_value=$(serverless invoke --stage ${stage} -f ${function_name})
+    return_value=$(serverless invoke --stage "${stage}" -f "${function_name}")
     # Compare new return value to snapshot
     diff_output=$(echo "$return_value" | diff - "./snapshots/expectedInvocationResult")
     if [ "$?" -eq 1 ] && { [ "${function_name:0:7}" != timeout ] && [ "${function_name:0:5}" != error ]; }; then
@@ -133,7 +133,7 @@ for function_name in "${all_functions[@]}"; do
     echo "Fetching logs for ${function_name} on ${stage}"
     retry_counter=0
     while [ $retry_counter -lt 10 ]; do
-        raw_logs=$(NODE_LAYER_VERSION=${NODE_LAYER_VERSION} PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} serverless logs --stage ${stage} -f $function_name --startTime $script_utc_start_time)
+        raw_logs=$(NODE_LAYER_VERSION=${NODE_LAYER_VERSION} PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION} serverless logs --stage "${stage}" -f "$function_name" --startTime "$script_utc_start_time")
         fetch_logs_exit_code=$?
         if [ $fetch_logs_exit_code -eq 1 ]; then
             echo "Retrying fetch logs for $function_name..."
@@ -202,17 +202,17 @@ for function_name in "${all_functions[@]}"; do
 
     function_snapshot_path="./snapshots/${function_name}"
 
-    if [ ! -f $function_snapshot_path ]; then
+    if [ ! -f "$function_snapshot_path" ]; then
         # If no snapshot file exists yet, we create one
         echo "Writing logs to $function_snapshot_path because no snapshot exists yet"
-        echo "$logs" >$function_snapshot_path
+        echo "$logs" > "$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         # If $UPDATE_SNAPSHOTS is set to true write the new logs over the current snapshot
         echo "Overwriting log snapshot for $function_snapshot_path"
-        echo "$logs" >$function_snapshot_path
+        echo "$logs" > "$function_snapshot_path"
     else
         # Compare new logs to snapshots
-        diff_output=$(echo "$logs" | diff - $function_snapshot_path)
+        diff_output=$(echo "$logs" | diff - "$function_snapshot_path")
         if [ $? -eq 1 ]; then
             echo "Failed: Mismatch found between new $function_name logs (first) and snapshot (second):"
             echo "$diff_output"

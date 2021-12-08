@@ -219,14 +219,7 @@ func zipClusterAgentClusterChecks(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(b.Bytes())
-	return err
+	return writeScrubbedFile(f, b.Bytes())
 }
 
 func zipHPAStatus(tempDir, hostname string) error {
@@ -287,14 +280,7 @@ func zipClusterAgentDiagnose(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(b.Bytes())
-	return err
+	return writeScrubbedFile(f, b.Bytes())
 }
 
 func zipClusterAgentTelemetry(tempDir, hostname string) error {
@@ -309,12 +295,5 @@ func zipClusterAgentTelemetry(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newScrubberWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(payload)
-	return err
+	return writeScrubbedFile(f, payload)
 }

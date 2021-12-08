@@ -103,14 +103,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	openSSLProgram, _ := newOpenSSLProgram(c, sockFD)
+	sslProgram, _ := newSSLProgram(c, sockFD)
 	program := &ebpfProgram{
 		Manager:                mgr,
 		bytecode:               bytecode,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{openSSLProgram},
+		subprograms:            []subprogram{sslProgram},
 	}
 
 	return program, nil
