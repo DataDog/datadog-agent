@@ -1,0 +1,6 @@
+kubernetes==20.13.0
+datadog-api-client==1.6.0
+pyaml==21.10.1
+docker==5.0.3
+retry==0.9.2
+emoji==1.6.1

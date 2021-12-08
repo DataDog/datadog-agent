@@ -1,0 +1,69 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package telemetry
+
+import "github.com/DataDog/datadog-agent/pkg/telemetry"
+
+const subsystem = "workloadmeta"
+
+var (
+	// StatusSuccess is the value for the "status" tag that represents a successful operation
+	StatusSuccess = "success"
+	// StatusError is the value for the "status" tag that represents an error
+	StatusError = "error"
+
+	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
+)
+
+var (
+	// StoredEntities tracks how many entities are stored in the workloadmeta store.
+	StoredEntities = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"stored_entities",
+		[]string{"kind", "source"},
+		"Number of entities in the store.",
+		commonOpts,
+	)
+
+	// Subscribers tracks the number of subscribers.
+	Subscribers = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"subscribers",
+		[]string{},
+		"Number of subscribers.",
+		commonOpts,
+	)
+
+	// EventsReceived tracks the number of events received.
+	EventsReceived = telemetry.NewCounterWithOpts(
+		subsystem,
+		"events_received",
+		[]string{"kind", "source"},
+		"Number of events received by the workloadmeta store.",
+		commonOpts,
+	)
+
+	// PullErrors tracks the number of errors that the workloadmeta received
+	// when pulling from the collectors.
+	PullErrors = telemetry.NewCounterWithOpts(
+		subsystem,
+		"pull_errors",
+		[]string{"collector_id"},
+		"Pulls by the workloadmeta to the collectors that returned an error",
+		commonOpts,
+	)
+
+	// NotificationsSent tracks the number of notifications sent from the
+	// workloadmeta store to its subscribers. Note that each notification can
+	// include multiple events.
+	NotificationsSent = telemetry.NewCounterWithOpts(
+		subsystem,
+		"notifications_sent",
+		[]string{"subscriber_name", "status"},
+		"Number of notifications sent by workloadmeta to its subscribers",
+		commonOpts,
+	)
+)

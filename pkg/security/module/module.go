@@ -223,9 +223,16 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 	}
 
 	if m.config.RuntimeEnabled {
-		if eventTypes, exists := categories[model.RuntimeCategory]; exists {
-			for _, eventType := range eventTypes {
-				enabled[eventType] = true
+		// everything but FIM
+		for _, category := range model.GetAllCategories() {
+			if category == model.FIMCategory {
+				continue
+			}
+
+			if eventTypes, exists := categories[category]; exists {
+				for _, eventType := range eventTypes {
+					enabled[eventType] = true
+				}
 			}
 		}
 	}

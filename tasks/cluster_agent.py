@@ -52,18 +52,18 @@ def build(
     )
 
     if policies_version is None:
-        print("Loading release versions for {}".format(release_version))
+        print(f"Loading release versions for {release_version}")
         env = load_release_versions(ctx, release_version)
         if "SECURITY_AGENT_POLICIES_VERSION" in env:
             policies_version = env["SECURITY_AGENT_POLICIES_VERSION"]
-            print("Security Agent polices for {}: {}".format(release_version, policies_version))
+            print(f"Security Agent polices for {release_version}: {policies_version}")
 
     build_context = "Dockerfiles/cluster-agent"
-    policies_path = "{}/security-agent-policies".format(build_context)
-    ctx.run("rm -rf {}".format(policies_path))
-    ctx.run("git clone {} {}".format(POLICIES_REPO, policies_path))
+    policies_path = f"{build_context}/security-agent-policies"
+    ctx.run(f"rm -rf {policies_path}")
+    ctx.run(f"git clone {POLICIES_REPO} {policies_path}")
     if policies_version != "master":
-        ctx.run("cd {} && git checkout {}".format(policies_path, policies_version))
+        ctx.run(f"cd {policies_path} && git checkout {policies_version}")
 
 
 @task
@@ -93,21 +93,18 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     # We need docker for the kubeapiserver integration tests
     tags = get_default_build_tags(build="cluster-agent") + ["docker"]
 
-    test_args = {
-        "go_mod": go_mod,
-        "go_build_tags": " ".join(get_build_tags(tags, [])),
-        "race_opt": "-race" if race else "",
-        "exec_opts": "",
-    }
+    go_build_tags = " ".join(get_build_tags(tags, []))
+    race_opt = "-race" if race else ""
+    exec_opts = ""
 
     # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
     # to the call, we don't want them because while calling invoke below, invoke
     # thinks that the parameters are for it to interpret.
     # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
-        test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
+        exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+    go_cmd = f'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
         "./test/integration/util/kube_apiserver",
@@ -115,7 +112,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     ]
 
     for prefix in prefixes:
-        ctx.run("{} {}".format(go_cmd, prefix))
+        ctx.run(f"{go_cmd} {prefix}")
 
 
 @task
@@ -127,22 +124,22 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
     dca_binary = glob.glob(os.path.join(BIN_PATH, "datadog-cluster-agent"))
     # get the last debian package built
     if not dca_binary:
-        print("No bin found in {}".format(BIN_PATH))
+        print(f"No bin found in {BIN_PATH}")
         print("See cluster-agent.build")
         raise Exit(code=1)
     latest_file = max(dca_binary, key=os.path.getctime)
-    ctx.run("chmod +x {}".format(latest_file))
+    ctx.run(f"chmod +x {latest_file}")
 
     build_context = "Dockerfiles/cluster-agent"
-    exec_path = "{}/datadog-cluster-agent.{}".format(build_context, arch)
-    dockerfile_path = "{}/{}/Dockerfile".format(build_context, arch)
+    exec_path = f"{build_context}/datadog-cluster-agent.{arch}"
+    dockerfile_path = f"{build_context}/{arch}/Dockerfile"
 
     shutil.copy2(latest_file, exec_path)
-    ctx.run("docker build -t {} {} -f {}".format(tag, build_context, dockerfile_path))
-    ctx.run("rm {}".format(exec_path))
+    ctx.run(f"docker build -t {tag} {build_context} -f {dockerfile_path}")
+    ctx.run(f"rm {exec_path}")
 
     if push:
-        ctx.run("docker push {}".format(tag))
+        ctx.run(f"docker push {tag}")
 
 
 @task

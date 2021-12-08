@@ -132,10 +132,10 @@ def wwhrd_licenses(ctx):
             overrides[pkg] = lic
 
     def is_excluded(pkg):
-        if package in exceptions:
+        if pkg in exceptions:
             return True
         for exception in exceptions_wildcard:
-            if package.startswith(exception):
+            if pkg.startswith(exception):
                 return True
         return False
 
@@ -155,7 +155,7 @@ def wwhrd_licenses(ctx):
                 elif val.startswith('package='):
                     package = val[len('package=') :]
                     if is_excluded(package):
-                        print("Skipping {} ({}) excluded in .wwhrd.yml".format(package, license))
+                        print(f"Skipping {package} ({license}) excluded in .wwhrd.yml")
                     else:
                         if package in overrides:
                             license = overrides[package]
@@ -174,7 +174,7 @@ def wwhrd_licenses(ctx):
                     lfp.flush()
 
                     temp_path = os.path.dirname(lfp.name)
-                    result = ctx.run("license-detector -f json {}".format(temp_path), hide="out")
+                    result = ctx.run(f"license-detector -f json {temp_path}", hide="out")
                     if result.stdout:
                         results = json.loads(result.stdout)
                         for project in results:
@@ -185,7 +185,7 @@ def wwhrd_licenses(ctx):
                             license = project['matches'][0]['license']
                         licenses.append({"component": "core", "package": pkg, "license": license})
         except RequestException:
-            print("There was an issue reaching license {} for pkg {}".format(pkg, lic))
+            print(f"There was an issue reaching license {pkg} for pkg {lic}")
             raise Exit(code=1)
 
     return licenses

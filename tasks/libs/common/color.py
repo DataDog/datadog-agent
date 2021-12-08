@@ -8,4 +8,4 @@ def color_message(message, color):
         "bold": "\33[1m",
     }
     endc = "\033[0m"
-    return "{}{}{}".format(colors[color], message, endc) if color in colors else message
+    return f"{colors[color]}{message}{endc}" if color in colors else message

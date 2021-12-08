@@ -64,3 +64,15 @@ k8s-e2e-tags-7:
     - AGENT_VERSION=$(inv -e agent.version --major-version 7)
     - DCA_VERSION=$(inv -e cluster-agent.version)
     - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
+
+k8s-e2e-cws:
+  extends: .k8s_e2e_template
+  rules:
+    !reference [.on_dev_branch_manual]
+  needs: []
+  script:
+    - set +x
+    - export DATADOG_AGENT_SITE=datadoghq.com
+    - export DATADOG_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_api_key --with-decryption --query "Parameter.Value" --out text)
+    - export DATADOG_AGENT_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_app_key --with-decryption --query "Parameter.Value" --out text)
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=cws

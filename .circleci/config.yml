@@ -29,11 +29,11 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen18-godeps-{{ .Branch }}-{{ .Revision }}
-          - gen18-godeps-{{ .Branch }}-
-          - gen18-godeps-main-
+          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
+          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-
+          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-main-
     - save_cache: &save_deps
-        key: gen18-godeps-{{ .Branch }}-{{ .Revision }}
+        key: gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
@@ -63,7 +63,7 @@ jobs:
           command: |
             python3 -m pip install wheel
             python3 -m pip install -r requirements.txt
-            python3 -m pip install codecov~=2.1.11 flake8~=3.9.2 flake8-bugbear~=21.4.3 flake8-unused-arguments==0.0.6 black~=21.8b0 isort~=5.9.3
+            python3 -m pip install -r .circleci/requirements.txt
       - run:
           name: grab go deps
           command: |

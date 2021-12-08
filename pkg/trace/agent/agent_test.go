@@ -19,12 +19,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
@@ -303,6 +303,33 @@ func TestProcess(t *testing.T) {
 			t.Fatal("timed out")
 		}
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
+	})
+
+	t.Run("serverlessServiceRewrite", func(t *testing.T) {
+		cfg := config.New()
+		cfg.GlobalTags = map[string]string{
+			"service": "myTestService",
+		}
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Spans[0].Service = "aws.lambda"
+		go agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+		timeout := time.After(2 * time.Second)
+		var span *pb.Span
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			span = ss.TracerPayload.Chunks[0].Spans[0]
+		case <-timeout:
+			t.Fatal("timed out")
+		}
+		assert.Equal(t, "myTestService", span.Service)
 	})
 
 	t.Run("chunking", func(t *testing.T) {
@@ -858,7 +885,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 // Mimicks behaviour of agent Process function
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
-		obfuscate.NewObfuscator(nil).Obfuscate(span)
+		(&Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{})}).obfuscateSpan(span)
 		Truncate(span)
 	}
 	return t
@@ -1086,7 +1113,7 @@ func TestConvertStats(t *testing.T) {
 	}
 	a := Agent{
 		Blacklister: filters.NewBlacklister([]string{"blocked_resource"}),
-		obfuscator:  obfuscate.NewObfuscator(nil),
+		obfuscator:  obfuscate.NewObfuscator(obfuscate.Config{}),
 		Replacer:    filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
 		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname"},
 	}

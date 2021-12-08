@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -116,141 +118,131 @@ tags:
 		},
 	}
 
-	bulkPackets := []gosnmp.SnmpPacket{
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.14.1",
-					Type:  gosnmp.Integer,
-					Value: 141,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.2.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte("desc1"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.20.1",
-					Type:  gosnmp.Integer,
-					Value: 201,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.6.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte("00:00:00:00:00:01"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.7.1",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.14.2",
-					Type:  gosnmp.Integer,
-					Value: 142,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.2.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte("desc2"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.20.2",
-					Type:  gosnmp.Integer,
-					Value: 202,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.6.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte("00:00:00:00:00:02"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.7.2",
-					Type:  gosnmp.Integer,
-					Value: 3,
-				},
+	bulkBatch1Packet1 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.14.1",
+				Type:  gosnmp.Integer,
+				Value: 141,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("desc1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.20.1",
+				Type:  gosnmp.Integer,
+				Value: 201,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:01"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.14.2",
+				Type:  gosnmp.Integer,
+				Value: 142,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("desc2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.20.2",
+				Type:  gosnmp.Integer,
+				Value: 202,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:02"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.2",
+				Type:  gosnmp.Integer,
+				Value: 3,
 			},
 		},
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.15.1",
-					Type:  gosnmp.Integer,
-					Value: 141,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.3.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte("none"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.21.1",
-					Type:  gosnmp.Integer,
-					Value: 201,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.7.2",
-					Type:  gosnmp.Integer,
-					Value: 3,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.8.2",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
+	}
+	bulkBatch1Packet2 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			// no more oids for batch 1
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
 			},
 		},
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.8.1",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte("nameRow1"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte("descRow1"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.8.2",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte("nameRow2"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte("descRow2"),
-				},
+	}
+
+	bulkBatch2Packet1 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("nameRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("descRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("nameRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("descRow2"),
 			},
 		},
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.9.2",
-					Type:  gosnmp.TimeTicks,
-					Value: 123,
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.2.2",
-					Type:  gosnmp.Integer,
-					Value: 596,
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.19.2",
-					Type:  gosnmp.TimeTicks,
-					Value: 707,
-				},
+	}
+
+	bulkBatch2Packe2 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			// no more matching oids for batch 2
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
 			},
 		},
 	}
@@ -258,10 +250,10 @@ tags:
 	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", mock.Anything).Return(&packet, nil)
 	sess.On("Get", mock.Anything).Return(&packet, nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2", "1.3.6.1.2.1.2.2.1.6.2", "1.3.6.1.2.1.2.2.1.7.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[2], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8.2", "1.3.6.1.2.1.31.1.1.1.1.2", "1.3.6.1.2.1.31.1.1.1.18.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[3], nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch1Packet1, nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2", "1.3.6.1.2.1.2.2.1.6.2", "1.3.6.1.2.1.2.2.1.7.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch1Packet2, nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch2Packet1, nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8.2", "1.3.6.1.2.1.31.1.1.1.1.2", "1.3.6.1.2.1.31.1.1.1.18.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch2Packe2, nil)
 
 	err = chk.Run()
 	assert.Nil(t, err)
@@ -390,7 +382,7 @@ profiles:
 `)
 
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -402,9 +394,9 @@ profiles:
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
-				Name:  "1.3.6.1.2.1.1.5.0",
-				Type:  gosnmp.OctetString,
-				Value: []byte("foo_sys_name"),
+				Name:  "1.2.3.4.5",
+				Type:  gosnmp.Null,
+				Value: nil,
 			},
 			{
 				Name:  "1.3.6.1.2.1.1.1.0",
@@ -417,14 +409,28 @@ profiles:
 				Value: "1.2.3.4",
 			},
 			{
+				Name:  "1.3.6.1.2.1.1.3.0",
+				Type:  gosnmp.TimeTicks,
+				Value: 20,
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.5.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("foo_sys_name"),
+			},
+			{
 				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 				Type:  gosnmp.Integer,
 				Value: 30,
 			},
 			{
-				Name:  "1.3.6.1.2.1.1.3.0",
-				Type:  gosnmp.TimeTicks,
-				Value: 20,
+				Name: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
+				Type: gosnmp.Null,
+			},
+			{
+				Name:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("a-serial-num"),
 			},
 		},
 	}
@@ -440,11 +446,6 @@ profiles:
 				Name:  "1.3.6.1.2.1.2.2.1.14.1",
 				Type:  gosnmp.Integer,
 				Value: 141,
-			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.2.1",
-				Type:  gosnmp.OctetString,
-				Value: []byte("ifDescRow1"),
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.1",
@@ -480,11 +481,6 @@ profiles:
 				Name:  "1.3.6.1.2.1.2.2.1.14.2",
 				Type:  gosnmp.Integer,
 				Value: 142,
-			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.2.2",
-				Type:  gosnmp.OctetString,
-				Value: []byte("ifDescRow2"),
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.2",
@@ -556,18 +552,18 @@ profiles:
 
 	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{
-		"1.3.6.1.2.1.1.5.0",
+		"1.2.3.4.5",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
-		"1.2.3.4.5",
-		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.4.1.3375.2.1.3.3.3.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
 		"1.3.6.1.2.1.2.2.1.13",
 		"1.3.6.1.2.1.2.2.1.14",
-		"1.3.6.1.2.1.2.2.1.2",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
 		"1.3.6.1.2.1.2.2.1.8",
@@ -602,13 +598,6 @@ profiles:
         "device_namespace:default",
         "snmp_device:1.2.3.4"
       ],
-      "name": "foo_sys_name",
-      "description": "my_desc",
-      "ip_address": "1.2.3.4",
-      "sys_object_id": "1.2.3.4",
-      "profile": "f5-big-ip",
-      "vendor": "f5",
-      "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
@@ -621,28 +610,36 @@ profiles:
         "some_tag:some_tag_value",
         "suffix:oo_sys_name"
       ],
-      "status": 1
+      "ip_address": "1.2.3.4",
+      "status": 1,
+      "name": "foo_sys_name",
+      "description": "my_desc",
+      "sys_object_id": "1.2.3.4",
+      "profile": "f5-big-ip",
+      "vendor": "f5",
+      "subnet": "127.0.0.0/30",
+      "serial_number": "a-serial-num"
     }
   ],
   "interfaces": [
     {
       "device_id": "default:1.2.3.4",
-      "id_tags": ["interface:nameRow1"],
+      "id_tags": ["custom-tag:nameRow1","interface:nameRow1"],
       "index": 1,
       "name": "nameRow1",
       "alias": "descRow1",
-      "description": "ifDescRow1",
+      "description": "Row1",
       "mac_address": "00:00:00:00:00:01",
       "admin_status": 1,
       "oper_status": 1
     },
     {
       "device_id": "default:1.2.3.4",
-	  "id_tags": ["interface:nameRow2"],
+	  "id_tags": ["custom-tag:nameRow2","interface:nameRow2"],
       "index": 2,
       "name": "nameRow2",
       "alias": "descRow2",
-      "description": "ifDescRow2",
+      "description": "Row2",
       "mac_address": "00:00:00:00:00:02",
       "admin_status": 1,
       "oper_status": 1
@@ -878,7 +875,7 @@ func TestCheck_Run(t *testing.T) {
 			sysObjectIDPacket:     sysObjectIDPacketOkMock,
 			valuesPacket:          valuesPacketErrMock,
 			valuesError:           fmt.Errorf("no value"),
-			expectedErr:           "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0]`: no value",
+			expectedErr:           "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.2.3.4.5 1.3.6.1.2.1.1.3.0 1.3.6.1.2.1.1.5.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999]`: no value",
 		},
 		{
 			name:                  "failed to fetch sysobjectid and failed to fetch values",
@@ -927,7 +924,7 @@ community_string: public
 
 			sess.On("GetNext", []string{"1.3"}).Return(&tt.reachableValuesPacket, tt.reachableGetNextError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
-			sess.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&tt.valuesPacket, tt.valuesError)
+			sess.On("Get", []string{"1.2.3.4.5", "1.3.6.1.2.1.1.3.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999"}).Return(&tt.valuesPacket, tt.valuesError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
 
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1165,10 +1162,10 @@ tags:
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(sysObjectIDPacket, fmt.Errorf("no value"))
 
 	sess.On("Get", []string{
-		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.5.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
 		//"1.3.6.1.2.1.2.2.1.13",
@@ -1201,20 +1198,18 @@ tags:
         "device_namespace:default",
         "snmp_device:1.2.3.4"
       ],
-      "name": "foo_sys_name",
-      "description": "my_desc",
-      "ip_address": "1.2.3.4",
-      "sys_object_id": "1.2.3.4",
-      "profile": "",
-      "vendor": "",
-      "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
         "mytag:val1",
         "snmp_device:1.2.3.4"
       ],
-      "status": 1
+      "ip_address": "1.2.3.4",
+      "status": 1,
+      "name": "foo_sys_name",
+      "description": "my_desc",
+      "sys_object_id": "1.2.3.4",
+      "subnet": "127.0.0.0/30"
     }
   ],
   "interfaces": [
@@ -1290,13 +1285,13 @@ tags:
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("no value"))
 
 	sess.On("Get", []string{
-		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.5.0",
 	}).Return(nilPacket, fmt.Errorf("device failure"))
 
-	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure"
+	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0 1.3.6.1.2.1.1.5.0]`: device failure"
 
 	err = chk.Run()
 	assert.EqualError(t, err, expectedErrMsg)
@@ -1317,20 +1312,15 @@ tags:
         "device_namespace:default",
         "snmp_device:1.2.3.5"
       ],
-      "name": "",
-      "description": "",
-      "ip_address": "1.2.3.5",
-      "sys_object_id": "",
-      "profile": "",
-      "vendor": "",
-      "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
         "mytag:val1",
         "snmp_device:1.2.3.5"
       ],
-      "status": 2
+      "ip_address": "1.2.3.5",
+      "status": 2,
+      "subnet": "127.0.0.0/30"
     }
   ],
   "collect_timestamp":946684800
@@ -1577,20 +1567,16 @@ metric_tags:
         "device_namespace:default",
         "snmp_device:%s"
       ],
-      "name": "foo_sys_name",
-      "description": "",
-      "ip_address": "%s",
-      "sys_object_id": "",
-      "profile": "",
-      "vendor": "",
-      "subnet": "10.10.0.0/30",
       "tags": [
         "autodiscovery_subnet:10.10.0.0/30",
         "device_namespace:default",
         "snmp_device:%s",
         "snmp_host:foo_sys_name"
       ],
-      "status": 1
+      "ip_address": "%s",
+      "status": 1,
+      "name": "foo_sys_name",
+      "subnet": "10.10.0.0/30"
     }
   ],
   "interfaces": [
@@ -1716,6 +1702,9 @@ metric_tags:
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
+	config.Datadog.Set("hostname", "test-hostname")
+	config.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1859,6 +1848,22 @@ use_device_id_as_hostname: true
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, hostname, snmpGlobalTagsWithLoader)
+
+	// Test SetExternalTags
+	host := "device:default:1.2.3.4"
+	sourceType := "snmp"
+	externalTags := []string{"agent_tag1:val1", "agent_tag2:val2"}
+	eTags := externalhost.ExternalTags{sourceType: externalTags}
+
+	p := *externalhost.GetPayload()
+	var hostTags []interface{}
+	for _, curHostTags := range p {
+		if curHostTags[0].(string) == host {
+			hostTags = curHostTags
+		}
+	}
+	assert.Contains(t, hostTags, host)
+	assert.Contains(t, hostTags, eTags)
 }
 
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {

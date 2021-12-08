@@ -149,15 +149,14 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 
 	expectedTags := []string{"runtime:docker"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 13)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 13)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 12)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "container.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "container.cpu.usage", 100, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "container.cpu.user", 300, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "container.cpu.system", 200, "", expectedTags)
-	mockSender.AssertMetric(t, "Rate", "container.cpu.throttled.time", 100, "", expectedTags)
+	mockSender.AssertMetric(t, "Rate", "container.cpu.throttled", 100, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "container.cpu.throttled.periods", 0, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "container.cpu.shares", 400, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.cpu.limit", 500000000, "", expectedTags)
 
 	mockSender.AssertMetric(t, "Gauge", "container.memory.usage", 100, "", expectedTags)
@@ -167,7 +166,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "container.memory.rss", 300, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.memory.cache", 200, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.memory.swap", 0, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "container.memory.oomevents", 10, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "container.memory.oom_events", 10, "", expectedTags)
 
 	expectedFooTags := extraTags(expectedTags, "device_name:/dev/foo")
 	mockSender.AssertMetric(t, "Rate", "container.io.read", 100, "", expectedFooTags)

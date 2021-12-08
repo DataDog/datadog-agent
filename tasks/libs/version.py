@@ -16,13 +16,13 @@ class Version:
         return getattr(self, part) if getattr(self, part) is not None else 0
 
     def __str__(self):
-        version = "{}{}.{}".format(self.prefix, self.major, self.minor)
+        version = f"{self.prefix}{self.major}.{self.minor}"
         if self.patch is not None:
-            version = "{}.{}".format(version, self.patch)
+            version = f"{version}.{self.patch}"
         if self.devel:
-            version = "{}-devel".format(version)
+            version = f"{version}-devel"
         if self.rc is not None and self.rc != 0:
-            version = "{}-rc.{}".format(version, self.rc)
+            version = f"{version}-rc.{self.rc}"
         return version
 
     def __eq__(self, other):
@@ -30,7 +30,7 @@ class Version:
             return False
 
         if not isinstance(other, Version):
-            raise TypeError("Cannot compare Version object with {}".format(type(other)))
+            raise TypeError(f"Cannot compare Version object with {type(other)}")
 
         res = True
         # If one value is None, it is equivalent to 0
@@ -44,7 +44,7 @@ class Version:
             return True
 
         if not isinstance(other, Version):
-            raise TypeError("Cannot compare Version object with {}".format(type(other)))
+            raise TypeError(f"Cannot compare Version object with {type(other)}")
 
         for part in ["major", "minor", "patch"]:
             self_part = self._safe_value(part)
@@ -76,7 +76,7 @@ class Version:
         """
         Returns the name of the release branch associated to this version.
         """
-        return "{}.{}.x".format(self._safe_value("major"), self._safe_value("minor"))
+        return f"{self._safe_value('major')}.{self._safe_value('minor')}.x"
 
     def non_devel_version(self):
         new_version = self.clone()

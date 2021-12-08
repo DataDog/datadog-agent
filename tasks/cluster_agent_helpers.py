@@ -48,7 +48,7 @@ def build_common(
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
-        "bin_name": os.path.join(bin_path, bin_name("datadog-cluster-agent{suffix}".format(suffix=bin_suffix))),
+        "bin_name": os.path.join(bin_path, bin_name(f"datadog-cluster-agent{bin_suffix}")),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
@@ -97,7 +97,7 @@ def clean_common(ctx, rmdir):
 
     # remove the bin/agent folder
     print("Remove agent binary folder")
-    ctx.run("rm -rf ./bin/{rmdir}".format(rmdir=rmdir))
+    ctx.run(f"rm -rf ./bin/{rmdir}")
 
 
 def version_common(ctx, url_safe, git_sha_length):

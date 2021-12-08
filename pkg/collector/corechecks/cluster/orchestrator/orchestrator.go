@@ -60,6 +60,8 @@ var (
 		"cronjobs",
 		"daemonsets",
 		"statefulsets",
+		"persistentvolumes",
+		"persistentvolumeclaims",
 	}
 )
 
