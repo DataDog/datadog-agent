@@ -3,14 +3,14 @@ name: codeowner-autolabel
 on:
   pull_request:
     branches:
-      - 'kacper-murzyn/**'
+      - main
 jobs:
   autolabeler-codeowners:
     runs-on: ubuntu-latest
-    name: PR + CODEOWNERS Workflows
+    name: Codeowners labeling
     steps:
     - uses: actions/checkout@v1
-    - name: Add CODEOWNER Label To PR
+    - name: Add 'team' label to PR
       uses: kacper-murzyn/autolabeler-codeowners@release/dd-1
       with:
         githubToken: ${{ secrets.GITHUB_TOKEN }}
