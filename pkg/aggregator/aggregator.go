@@ -601,15 +601,10 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	}
 }
 
-type iterableSerieInfo struct {
-	count uint64
-	err   error
-}
-
 func (agg *BufferedAggregator) sendIterableSeries(
 	start time.Time,
 	series *metrics.IterableSeries,
-	iterableSerieInfoChan chan<- iterableSerieInfo) {
+	done chan<- struct{}) {
 	agg.appendDefaultSeries(start, series)
 
 	go func() {
@@ -618,7 +613,9 @@ func (agg *BufferedAggregator) sendIterableSeries(
 		err := agg.serializer.SendIterableSeries(series)
 		// if err == nil, SenderStopped was called and it is safe to read the number of series.
 		count := series.GetSeriesAppenedCount()
-		iterableSerieInfoChan <- iterableSerieInfo{count: count, err: err}
+		addFlushCount("Series", int64(count))
+		updateSerieTelemetry(start, int(count), err)
+		close(done)
 	}()
 }
 
@@ -647,15 +644,14 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSe
 			}
 			tagsetTlm.updateHugeSerieTelemetry(s)
 		}, agg.flushMetricsAndSerializeInParallelChanSize)
-		c := make(chan iterableSerieInfo)
-		agg.sendIterableSeries(start, series, c)
+		done := make(chan struct{})
+		agg.sendIterableSeries(start, series, done)
 		sketches := agg.getSeriesAndSketches(start, series)
 		series.SenderStopped()
-
+		if waitForSerializer {
+			<-done
+		}
 		agg.sendSketches(start, sketches, waitForSerializer)
-		info := <-c
-		addFlushCount("Series", int64(info.count))
-		updateSerieTelemetry(start, int(info.count), info.err)
 	}
 }
 
