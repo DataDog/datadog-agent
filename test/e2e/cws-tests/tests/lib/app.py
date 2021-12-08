@@ -8,7 +8,6 @@ from datadog_api_client.v2.models import (
     LogsListRequest,
     LogsListRequestPage,
     LogsQueryFilter,
-    LogsQueryOptions,
     LogsSort,
     SecurityMonitoringRuleCaseCreate,
     SecurityMonitoringRuleCreatePayload,
