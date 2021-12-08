@@ -78,15 +78,6 @@ spec:
                 - name: namespace
                   value: "{{workflow.namespace}}"
 
-          - name: start-otlp-test
-            templateRef:
-              name: otlp-test
-              template: create
-            arguments:
-              parameters:
-                - name: namespace
-                  value: "{{workflow.namespace}}"
-
         - - name: fake-dd-reset
             templateRef:
               name: fake-datadog
@@ -156,15 +147,6 @@ spec:
           - name: test-dsd
             templateRef:
               name: dsd-hostname
-              template: test
-            arguments:
-              parameters:
-                - name: namespace
-                  value: "{{workflow.namespace}}"
-
-          - name: test-otlp
-            templateRef:
-              name: otlp-test
               template: test
             arguments:
               parameters:
@@ -263,15 +245,6 @@ spec:
               parameters:
                 - name: namespace
                   value: "{{workflow.namespace}}"
-          
-          - name: stop-otlp-test
-            templateRef:
-              name: otlp-test
-              template: delete
-            arguments:
-              parameters:
-                - name: namespace
-                  value: "{{workflow.namespace}}"
 
           - name: stop-logs-hello-world
             templateRef:
@@ -326,11 +299,3 @@ spec:
               parameters:
               - name: namespace
                 value: "{{workflow.namespace}}"
-          - name: diagnose-otlp-test
-            templateRef:
-              name: otlp-test
-              template: diagnose
-            arguments:
-              parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"      
