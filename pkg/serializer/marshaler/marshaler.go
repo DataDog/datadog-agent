@@ -58,8 +58,8 @@ type StreamJSONMarshaler interface {
 //
 //  defer m.IterationStopped()
 //	m.WriteHeader(stream)
-//	for MoveNext() {
-//		WriteCurrentItem(stream)
+//	for m.MoveNext() {
+//		m.WriteCurrentItem(stream)
 //  }
 //	m.WriteFooter(stream)
 type IterableStreamJSONMarshaler interface {

@@ -44,7 +44,7 @@ func (a *IterableStreamJSONMarshalerAdapter) DescribeCurrentItem() string {
 	return a.marshaler.DescribeItem(a.index)
 }
 
-// MoveNext move the the next value. `HasNextValue` must return true.
+// MoveNext moves to the next value. Returns false when reaching the end of the iteration.
 func (a *IterableStreamJSONMarshalerAdapter) MoveNext() bool {
 	if a.index >= a.marshaler.Len() {
 		return false

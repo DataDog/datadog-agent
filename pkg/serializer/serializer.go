@@ -302,7 +302,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 	return s.Forwarder.SubmitServiceChecks(serviceCheckPayloads, extraHeaders)
 }
 
-// SendIterableSeries serializes a list of Serie and sends the payload to the forwarder
+// SendIterableSeries serializes a list of series and sends the payload to the forwarder
 func (s *Serializer) SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
