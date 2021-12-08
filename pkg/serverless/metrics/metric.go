@@ -117,7 +117,7 @@ func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forw
 	}
 	f := forwarder.NewSyncForwarder(resolver.NewSingleDomainResolvers(keysPerDomain), forwarderTimeout)
 	f.Start() //nolint:errcheck
-	serializer := serializer.NewSerializer(f, nil)
+	serializer := serializer.NewSerializer(f, nil, nil)
 	return aggregator.InitAggregator(serializer, nil, "serverless")
 }
 

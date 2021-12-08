@@ -121,6 +121,8 @@ var (
 	aggregatorDogstatsdContexts                = expvar.Int{}
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
+	aggregatorContainerLifecycleEvents         = expvar.Int{}
+	aggregatorContainerLifecycleEventErrors    = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -170,6 +172,8 @@ func init() {
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
+	aggregatorExpvars.Set("ContainerLifecycleEvents", &aggregatorContainerLifecycleEvents)
+	aggregatorExpvars.Set("ContainerLifecycleEventErrors", &aggregatorContainerLifecycleEventErrors)
 
 	tagsetTlm = newTagsetTelemetry([]uint64{90, 100})
 
@@ -222,6 +226,7 @@ type BufferedAggregator struct {
 	checkHistogramBucketIn chan senderHistogramBucket
 	orchestratorMetadataIn chan senderOrchestratorMetadata
 	eventPlatformIn        chan senderEventPlatformEvent
+	contlcycleIn           chan senderContainerLifecycleEvent
 
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
 	// Used by the Dogstatsd Batcher.
@@ -281,6 +286,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
 		eventPlatformIn:        make(chan senderEventPlatformEvent, bufferSize),
+		contlcycleIn:           make(chan senderContainerLifecycleEvent, bufferSize),
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
@@ -849,6 +855,14 @@ func (agg *BufferedAggregator) run() {
 				}
 			}
 			tlmFlush.Add(1, event.eventType, state)
+		case event := <-agg.contlcycleIn:
+			aggregatorContainerLifecycleEvents.Add(1)
+			go func(contlcycle senderContainerLifecycleEvent) {
+				if err := agg.serializer.SendContainerLifecycleEvent(event.msgs, agg.hostname); err != nil {
+					aggregatorContainerLifecycleEventErrors.Add(1)
+					log.Errorf("Error submitting container lifecycle data: %w", err)
+				}
+			}(event)
 		}
 	}
 }

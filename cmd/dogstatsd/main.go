@@ -185,7 +185,7 @@ func runAgent(ctx context.Context) (err error) {
 	}
 	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f, nil)
+	s := serializer.NewSerializer(f, nil, nil)
 
 	hname, err := util.GetHostname(context.TODO())
 	if err != nil {

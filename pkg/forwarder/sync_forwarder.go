@@ -141,3 +141,8 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Head
 func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }
+
+// SubmitContainerLifecycleEvents sends container lifecycle events
+func (f *SyncForwarder) SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error {
+	return f.defaultForwarder.SubmitContainerLifecycleEvents(payload, extra)
+}
