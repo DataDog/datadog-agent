@@ -141,9 +141,10 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender  sender.Sender
-	in      chan *message.Message
-	auditor auditor.Auditor
+	sender   *sender.Sender
+	strategy sender.Strategy
+	in       chan *message.Message
+	auditor  auditor.Auditor
 }
 
 type passthroughPipelineDesc struct {
@@ -178,26 +179,43 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	if endpoints.BatchMaxSize <= pkgconfig.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
-	main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
-	additionals := []client.Destination{}
-	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+	reliable := []client.Destination{}
+	for i, endpoint := range endpoints.GetReliableEndpoints() {
+		telemetryName := fmt.Sprintf("%s_%d_reliable_%d", desc.eventType, pipelineID, i)
+		reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName))
 	}
-	destinations := client.NewDestinations(main, additionals)
+	additionals := []client.Destination{}
+	for i, endpoint := range endpoints.GetUnReliableEndpoints() {
+		telemetryName := fmt.Sprintf("%s_%d_unreliable_%d", desc.eventType, pipelineID, i)
+		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
+	}
+	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, 100)
-	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, pipelineID)
+	senderInput := make(chan *message.Payload, 100)
+
+	var encoder sender.ContentEncoding
+	if endpoints.Main.UseCompression {
+		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+	} else {
+		encoder = sender.IdentityContentType
+	}
+
+	strategy := sender.NewBatchStrategy(inputChan, senderInput, sender.ArraySerializer, endpoints.BatchWait, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, encoder)
+
 	a := auditor.NewNullAuditor()
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
-		desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
+	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
+		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
 	return &passthroughPipeline{
-		sender:  sender.NewSingleSender(inputChan, a.Channel(), destinations, strategy),
-		in:      inputChan,
-		auditor: a,
+		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 100),
+		strategy: strategy,
+		in:       inputChan,
+		auditor:  a,
 	}, nil
 }
 
 func (p *passthroughPipeline) Start() {
 	p.auditor.Start()
+	p.strategy.Start()
 	if p.sender != nil {
 		p.sender.Start()
 	}
@@ -205,6 +223,7 @@ func (p *passthroughPipeline) Start() {
 
 func (p *passthroughPipeline) Stop() {
 	p.sender.Stop()
+	p.strategy.Stop()
 	p.auditor.Stop()
 }
 

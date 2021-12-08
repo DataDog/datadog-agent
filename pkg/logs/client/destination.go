@@ -5,8 +5,10 @@
 
 package client
 
+import "github.com/DataDog/datadog-agent/pkg/logs/message"
+
 // Destination sends a payload to a specific endpoint over a given network protocol.
 type Destination interface {
-	Send(payload []byte) error
-	SendAsync(payload []byte)
+	Start(input chan *message.Payload, output chan *message.Payload) (stopChan chan struct{})
+	GetIsRetrying() bool
 }
