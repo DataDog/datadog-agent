@@ -196,7 +196,7 @@
                        Name="ConfigRoot"
                        Type="string"
                        Value="[APPLICATIONDATADIRECTORY]"/>
-        <util:RemoveFolderEx On="uninstall" Property="APPLICATIONROOTDIRECTORY"/>
+        <util:RemoveFolderEx On="uninstall" Property="PROJECTLOCATION"/>
       </Component>
     </DirectoryRef>
     <!-- Let's ship our dist folder with the service and gui executables -->
