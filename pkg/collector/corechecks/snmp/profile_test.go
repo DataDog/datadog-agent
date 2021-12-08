@@ -170,6 +170,18 @@ profiles:
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow1"),
 			},
+			//"1.3.6.1.2.1.4.20.1.1",  # ipAdEntAddr
+			//"1.3.6.1.2.1.4.20.1.2",  # ipAdEntIfIndex
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.1.127.0.0.1",
+				Type:  gosnmp.IPAddress,
+				Value: "127.0.0.1",
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.127.0.0.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.13.2",
 				Type:  gosnmp.Integer,
@@ -209,6 +221,26 @@ profiles:
 				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.1.127.0.0.2",
+				Type:  gosnmp.IPAddress,
+				Value: "127.0.0.2",
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.127.0.0.2",
+				Type:  gosnmp.Integer,
+				Value: 2,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
 				Name:  "9", // exit table
@@ -283,6 +315,8 @@ profiles:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.1",
+		"1.3.6.1.2.1.4.20.1.2",
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = chk.Run()
@@ -334,7 +368,8 @@ profiles:
       "description": "ifDesc1",
       "mac_address": "00:00:00:00:00:01",
       "admin_status": 1,
-      "oper_status": 1
+      "oper_status": 1,
+      "ip_address":"127.0.0.1"
     },
     {
       "device_id": "profile-metadata:1.2.3.4",
@@ -345,7 +380,8 @@ profiles:
       "description": "ifDesc2",
       "mac_address": "00:00:00:00:00:02",
       "admin_status": 1,
-      "oper_status": 1
+      "oper_status": 1,
+      "ip_address":"127.0.0.2"
     }
   ],
   "collect_timestamp":946684800

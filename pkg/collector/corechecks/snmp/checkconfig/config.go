@@ -620,6 +620,8 @@ func (c *CheckConfig) parseColumnOids(metrics []MetricsConfig, metadataConfigs M
 		}
 		for _, metricTag := range metric.MetricTags {
 			oids = append(oids, metricTag.Column.OID)
+			// TODO: handle symbol
+
 		}
 	}
 	if c.CollectDeviceMetadata {
@@ -628,9 +630,16 @@ func (c *CheckConfig) parseColumnOids(metrics []MetricsConfig, metadataConfigs M
 				continue
 			}
 			for _, field := range metadataConfig.Fields {
+
 				oids = append(oids, field.Symbol.OID)
+				if field.Symbol.IndexFromOidValue != "" {
+					// TODO: test me
+					oids = append(oids, field.Symbol.IndexFromOidValue)
+				}
+
 				for _, symbol := range field.Symbols {
 					oids = append(oids, symbol.OID)
+					// TODO: handle symbol
 				}
 			}
 			for _, tagConfig := range metadataConfig.IDTags {
