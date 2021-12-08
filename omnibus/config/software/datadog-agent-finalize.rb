@@ -56,7 +56,7 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
 
-            # On Windows, zip up the python directory
+            # On Windows, zip up the python directory. x=5 means normal compression, s=on makes a solid archive
             command "7z a -mx=5 -ms=on #{install_dir}/embedded3.7z #{windows_safe_path(python_3_embedded)}"
             delete windows_safe_path(python_3_embedded)
             if with_python_runtime? "2"
@@ -219,7 +219,7 @@ build do
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
-            
+
             # remove docker configuration
             delete "#{install_dir}/etc/conf.d/docker.d"
 
