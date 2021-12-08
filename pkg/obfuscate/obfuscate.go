@@ -107,11 +107,11 @@ type SQLConfig struct {
 	// in addition to obfuscating.
 	TableNames bool `json:"table_names"`
 
-	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
-	CollectComments bool `json:"collect_comments"`
-
 	// CollectCommands specifies whether the obfuscator should extract and return commands as SQL metadata when obfuscating.
 	CollectCommands bool `json:"collect_commands"`
+
+	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
+	CollectComments bool `json:"collect_comments"`
 
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits"`
