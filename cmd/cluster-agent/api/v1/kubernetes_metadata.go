@@ -17,18 +17,19 @@ import (
 )
 
 func installKubernetesMetadataEndpoints(r *mux.Router) {
+	r.HandleFunc("/annotations/node/{nodeName}", getNodeAnnotations).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}", getPodMetadataForNode).Methods("GET")
 	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")
-	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
-	r.HandleFunc("/tags/namespace/{ns}", getNamespaceMetadata).Methods("GET")
+	r.HandleFunc("/tags/node/{nodeName}", getNodeLabels).Methods("GET")
+	r.HandleFunc("/tags/namespace/{ns}", getNamespaceLabels).Methods("GET")
 	r.HandleFunc("/cluster/id", getClusterID).Methods("GET")
 }
 
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels
-func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
+func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClient, string) (map[string]string, error), what string) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/node/localhost
@@ -62,9 +63,9 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	var labelBytes []byte
 	nodeName := vars["nodeName"]
-	nodeLabels, err := as.GetNodeLabels(cl, nodeName)
+	nodeData, err := f(cl, nodeName)
 	if err != nil {
-		log.Errorf("Could not retrieve the node labels of %s: %v", nodeName, err.Error()) //nolint:errcheck
+		log.Errorf("Could not retrieve the node %s of %s: %v", what, nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		apiRequests.Inc(
 			"getNodeMetadata",
@@ -72,9 +73,9 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	labelBytes, err = json.Marshal(nodeLabels)
+	labelBytes, err = json.Marshal(nodeData)
 	if err != nil {
-		log.Errorf("Could not process the labels of the node %s from the informer's cache: %v", nodeName, err.Error()) //nolint:errcheck
+		log.Errorf("Could not process the %s of the node %s from the informer's cache: %v", what, nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		apiRequests.Inc(
 			"getNodeMetadata",
@@ -96,11 +97,19 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 		"getNodeMetadata",
 		strconv.Itoa(http.StatusNotFound),
 	)
-	fmt.Fprintf(w, "Could not find labels on the node: %s", nodeName)
+	fmt.Fprintf(w, "Could not find %s on the node: %s", what, nodeName)
 }
 
-// getNamespaceMetadata is only used when the node agent hits the DCA for the list of labels
-func getNamespaceMetadata(w http.ResponseWriter, r *http.Request) {
+func getNodeLabels(w http.ResponseWriter, r *http.Request) {
+	getNodeMetadata(w, r, as.GetNodeLabels, "labels")
+}
+
+func getNodeAnnotations(w http.ResponseWriter, r *http.Request) {
+	getNodeMetadata(w, r, as.GetNodeAnnotations, "annotations")
+}
+
+// getNamespaceLabels is only used when the node agent hits the DCA for the list of labels
+func getNamespaceLabels(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/namespace/default

@@ -2527,6 +2527,15 @@ api_key:
 #
 # DD_KUBERNETES_NODE_LABELS_AS_TAGS='{"NODE_LABEL": "TAG_KEY"}'
 
+## @param kubernetes_node_annotations_as_host_aliases - list - optional
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - list - optional
+## Configure node annotations that should be collected and used as host aliases.
+#
+# kubernetes_node_annotations_as_host_aliases:
+# - cluster.k8s.io/machine
+#
+# DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS='["cluster.k8s.io/machine"]'
+
 ## @param cluster_name - string - optional
 ## @env DD_CLUSTER_NAME - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.

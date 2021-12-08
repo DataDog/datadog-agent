@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/tencent"
 )
 
@@ -114,6 +115,13 @@ func GetHostAliases(ctx context.Context) []string {
 		log.Debugf("no Kubernetes Host Alias (through kubelet API): %s", err)
 	} else if k8sAlias != "" {
 		aliases = append(aliases, k8sAlias)
+	}
+
+	k8sAliases, err := kubernetes.GetHostAliases(ctx)
+	if err != nil {
+		log.Debugf("no Kubernetes Host Alias (through kube API server): %s", err)
+	} else if k8sAliases != nil {
+		aliases = append(aliases, k8sAliases...)
 	}
 
 	tencentAlias, err := tencent.GetHostAlias(ctx)
