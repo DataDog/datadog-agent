@@ -18,6 +18,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const defaultPolicy = "default.policy"
+
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
 	Name    string
@@ -103,7 +105,16 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 	if err != nil {
 		return multierror.Append(result, ErrPoliciesLoad{Name: policiesDir, Err: err})
 	}
-	sort.Slice(policyFiles, func(i, j int) bool { return policyFiles[i].Name() < policyFiles[j].Name() })
+	sort.Slice(policyFiles, func(i, j int) bool {
+		switch {
+		case policyFiles[i].Name() == defaultPolicy:
+			return true
+		case policyFiles[j].Name() == defaultPolicy:
+			return false
+		default:
+			return policyFiles[i].Name() < policyFiles[j].Name()
+		}
+	})
 
 	// Load and parse policies
 	for _, policyPath := range policyFiles {
