@@ -5,6 +5,8 @@ description: JSON schema documentation of the CWS backend event
 disable_edit: true
 ---
 
+{{ warning_message }}
+
 When activity matches a [Cloud Workload Security][1] (CWS) [Agent expression][2], a CWS log will be collected from the system containing all the relevant context about the activity.
 
 This log is sent to Datadog, where it is analyzed. Based on analysis, CWS logs can trigger Security Signals or they can be stored as logs for audit, threat investigation purposes.
