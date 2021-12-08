@@ -21,7 +21,7 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     echo "Exiting without running tests..."
     
     # If credentials are not available, the run is considered a success
-    # so as not to break CI for external users 
+    # so as not to break CI for external users that don't have access to GitHub secrets 
     exit 0
 fi
 
