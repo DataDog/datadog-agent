@@ -312,7 +312,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 func parseFile(filename string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=mod"},
+		BuildFlags: []string{"-mod=mod", fmt.Sprintf("-tags=%s", buildTags)},
 	}
 
 	pkgs, err := packages.Load(&cfg, filename)
