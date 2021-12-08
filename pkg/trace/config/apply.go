@@ -208,7 +208,10 @@ type WriterConfig struct {
 	FlushPeriodSeconds float64 `mapstructure:"flush_period_seconds"`
 }
 
-func appendAdditionalEndpoints(endpoints []*Endpoint, cfgKey string) []*Endpoint {
+// appendEndpoints appends any endpoint configuration found at the given cfgKey.
+// The format for cfgKey should be a map which has the URL as a key and one or
+// more API keys as an array value.
+func appendEndpoints(endpoints []*Endpoint, cfgKey string) []*Endpoint {
 	if config.Datadog.IsSet(cfgKey) {
 		for url, keys := range config.Datadog.GetStringMapStringSlice(cfgKey) {
 			if len(keys) == 0 {
