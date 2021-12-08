@@ -30,9 +30,10 @@
 
 /.circleci/                             @DataDog/agent-platform
 
-/.github/CODEOWNERS                     @DataDog/do-not-notify
-/.github/*_TEMPLATE.md                  @DataDog/agent-all
-/.github/dependabot.yaml                @DataDog/agent-platform
+/.github/CODEOWNERS                                 @DataDog/do-not-notify
+/.github/*_TEMPLATE.md                              @DataDog/agent-all
+/.github/dependabot.yaml                            @DataDog/agent-platform
+/.github/workflows/serverless-integration.yml       @DataDog/serverless
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
