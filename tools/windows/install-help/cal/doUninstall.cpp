@@ -20,7 +20,7 @@ void cleanupFolders()
     DeleteFilesInDirectory(dir_to_delete.c_str(), L"__pycache__", true);
 
     // If installdir is not empty, this call will fail but that's ok
-    (void)RemoveDirectory(installdir);
+    (void)RemoveDirectory(installdir.c_str());
 }
 
 UINT doUninstallAs(UNINSTALL_TYPE t)
