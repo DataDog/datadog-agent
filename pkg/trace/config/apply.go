@@ -218,7 +218,6 @@ func appendEndpoints(endpoints []*Endpoint, cfgKey string) []*Endpoint {
 				log.Errorf("'%s' entries must have at least one API key present", cfgKey)
 				continue
 			}
-
 			for _, key := range keys {
 				key = config.SanitizeAPIKey(key)
 				endpoints = append(endpoints, &Endpoint{Host: url, APIKey: key})
