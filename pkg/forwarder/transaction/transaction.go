@@ -11,7 +11,7 @@ import (
 	"crypto/tls"
 	"expvar"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptrace"
 	"strconv"
@@ -315,7 +315,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := readResponseBody(resp.Body)
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)
 		return 0, nil, err
@@ -333,14 +333,6 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		codeCount.Add(1)
 		transactionsHTTPErrors.Add(1)
 		tlmTxHTTPErrors.Inc(t.Domain, transactionEndpointName, statusCode)
-	}
-
-	limit := 100
-	if limit < len(body) {
-		// Truncate HTTP response body by first 100 bytes
-		// to tell which of those tools a response comes
-		// and prevent from logging a huge message.
-		body = body[:limit]
 	}
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
@@ -391,4 +383,19 @@ func (t *HTTPTransaction) SerializeTo(serializer TransactionsSerializer) error {
 	}
 	log.Trace("The transaction is not stored on disk because `storableOnDisk` is false.")
 	return nil
+}
+
+// readResponseBody read HTTP response body. If body is more than 1000 bytes
+// truncates it to  prevent from logging a huge message.
+// 1000 bytes are enough to tell which tools a response comes.
+func readResponseBody(body io.ReadCloser) ([]byte, error) {
+	b, err := io.ReadAll(body)
+	if err != nil {
+		return nil, err
+	}
+	firstBytes := 1000
+	if firstBytes < len(b) {
+		b = b[:firstBytes]
+	}
+	return b, nil
 }
