@@ -68,9 +68,9 @@ func (s *Sender) run() {
 			}
 
 			if !sent {
-				// Using a busy loop is much simpler than trying to join an arbitrary number of channels and
-				// wait for just one of them. This is an exceptional case so it has little overhead since it
-				// will only happen when there is no possible way to send logs.
+				// Throttle the poll loop while waiting for a status change from one
+				// of the destinations. This will only happen when all reliable destinations
+				// are blocked so logs have no where to go.
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
@@ -95,7 +95,7 @@ func (s *Sender) run() {
 		}
 	}
 
-	// Cleanup
+	// Cleanup the destinations
 	for _, destState := range reliableDestinations {
 		close(destState.input)
 		<-destState.stopChan

@@ -46,7 +46,6 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
-// TODO: return retry channel and close it
 func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) (stopChan chan struct{}) {
 	stopChan = make(chan struct{})
 	go func() {
@@ -102,7 +101,6 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 				d.isRetrying = true
 				d.Unlock()
 				d.incrementErrors(false)
-				// TODO: report retries
 				// retry (will try to open a new connection)
 				continue
 			} else {
