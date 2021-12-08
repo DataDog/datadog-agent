@@ -56,6 +56,7 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
+	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
@@ -79,6 +80,7 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
+	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 	assert := assert.New(t)
@@ -101,6 +103,7 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	defer restoreGlobalConfig()
 
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
+	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 

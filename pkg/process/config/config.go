@@ -92,6 +92,7 @@ type WindowsConfig struct {
 
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
+//
 // Deprecated. Use `pkg/config` directly.
 type AgentConfig struct {
 	Enabled                   bool
