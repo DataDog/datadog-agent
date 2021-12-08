@@ -8,6 +8,13 @@ from pathlib import Path, PurePosixPath
 
 GLOB_PATTERN = "**/*.go"
 
+COPYRIGHT_HEADER = """
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+""".strip()
+
 COPYRIGHT_REGEX = [
     r'^// Unless explicitly stated otherwise all files in this repository are licensed$',
     r'^// under the Apache License Version 2.0\.$',
@@ -40,6 +47,9 @@ class CopyrightLinter:
     """
     This class is used to enforce copyright headers on specified file patterns
     """
+
+    def __init__(self, debug=False):
+        self._debug = debug
 
     @staticmethod
     def _get_repo_dir():
@@ -104,15 +114,14 @@ class CopyrightLinter:
 
         return False
 
-    @staticmethod
-    def _has_copyright(filepath, debug=False):
+    def _has_copyright(self, filepath):
         header = CopyrightLinter._get_header(filepath)
         if header is None:
             print("[WARN] Mismatch found! Could not find any content in file!")
             return False
 
         if len(header) > 0 and CopyrightLinter._is_excluded_header(header, exclude=COMPILED_HEADER_EXCLUSION_REGEX):
-            if debug:
+            if self._debug:
                 print(f"[INFO] Excluding {filepath} based on header '{header[0]}'")
             return True
 
@@ -129,12 +138,11 @@ class CopyrightLinter:
 
         return True
 
-    @staticmethod
-    def _assert_copyrights(files, debug=False):
+    def _assert_copyrights(self, files):
         failing_files = []
         for filepath in files:
-            if CopyrightLinter._has_copyright(filepath, debug=debug):
-                if debug:
+            if self._has_copyright(filepath):
+                if self._debug:
                     print(f"[ OK ] {filepath}")
 
                 continue
@@ -153,15 +161,61 @@ class CopyrightLinter:
 
         return failing_files
 
-    def assert_compliance(self, debug=False):
+    def _prepend_header(self, filepath, dry_run=True):
+        with open(filepath, 'r+') as file_obj:
+            existing_content = file_obj.read()
+
+            if dry_run:
+                return True
+
+            file_obj.seek(0)
+            new_content = COPYRIGHT_HEADER + "\n\n" + existing_content
+            file_obj.write(new_content)
+
+        # Verify result. A problem here is not benign so we stop the whole run.
+        if not self._has_copyright(filepath):
+            raise Exception(f"[ERROR] Header prepend failed to produce correct output for {filepath}!")
+
+        return True
+
+    def _fix_file_header(self, filepath, dry_run=True):
+        header = CopyrightLinter._get_header(filepath)
+
+        # Empty file - ignore
+        if len(header) < 1:
+            return False
+
+        # If the file starts with a comment and it's not a build comment,
+        # there is likely a manual fix to the header needed
+        if header[0].startswith("//") and not header[0].startswith("// +build "):
+            return False
+
+        if dry_run:
+            return True
+
+        return self._prepend_header(filepath, dry_run=dry_run)
+
+    def _fix(self, failing_files, dry_run=True):
+        failing_files_cnt = len(failing_files)
+        errors = []
+        for idx, filepath in enumerate(failing_files):
+            print(f"[INFO] ({idx+1:3d}/{failing_files_cnt:3}) Fixing '{filepath}'...")
+
+            if not self._fix_file_header(filepath, dry_run=dry_run):
+                error_message = f"'{filepath}' could not be fixed!"
+                print(f"[WARN] ({idx+1:3d}/{failing_files_cnt:3}) {error_message}")
+                errors.append(Exception(error_message))
+
+        return errors
+
+    def assert_compliance(self, fix=False, dry_run=True):
         """
         This method applies the GLOB_PATTERN to the root of the repository and
         verifies that all files have the expected copyright header.
         """
-
         git_repo_dir = CopyrightLinter._get_repo_dir()
 
-        if debug:
+        if self._debug:
             print(f"[DEBG] Repo root: {git_repo_dir}")
             print(f"[DEBG] Finding all files in {git_repo_dir} matching '{GLOB_PATTERN}'...")
 
@@ -172,15 +226,23 @@ class CopyrightLinter:
         )
         print(f"[INFO] Found {len(matching_files)} files matching '{GLOB_PATTERN}'")
 
-        failing_files = CopyrightLinter._assert_copyrights(matching_files, debug=debug)
+        failing_files = self._assert_copyrights(matching_files)
         if len(failing_files) > 0:
-            print("CHECK: FAIL")
-            raise Exception(
-                f"Copyright linting found {len(failing_files)} files that did not have the expected header!"
-            )
+            if not fix:
+                print("CHECK: FAIL")
+                raise Exception(
+                    f"Copyright linting found {len(failing_files)} files that did not have the expected header!"
+                )
+
+            # If "fix=True", we will attempt to fix the failing files
+            errors = self._fix(failing_files, dry_run=dry_run)
+            if errors:
+                raise Exception(f"Copyright linter was unable to fix {len(errors)}/{len(failing_files)} files!")
+
+            return
 
         print("CHECK: OK")
 
 
 if __name__ == '__main__':
-    CopyrightLinter().assert_compliance(debug=True)
+    CopyrightLinter(debug=True).assert_compliance()
