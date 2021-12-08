@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 )
 
-// encryptionContextKey is the key added to the encryption context by the Lambda console UI
+// encryptionContextKey is the key added to the encryption context by the Lambda console
 const encryptionContextKey = "LambdaFunctionName"
 
 // functionNameEnvVar is the environment variable that stores the function name.
