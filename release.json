@@ -6,8 +6,8 @@
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "kserrania/use-omnibus-license",
-        "OMNIBUS_RUBY_VERSION": "kserrania/allow-standard-license-without-file",
+        "OMNIBUS_SOFTWARE_VERSION": "master",
+        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.44.3",
         "JMXFETCH_HASH": "50b22c3721419eeb7bb52bb6083641ff93c4fe12ae7a95fefd70892394976981",
         "MACOS_BUILD_VERSION": "master",
@@ -18,8 +18,8 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "kserrania/use-omnibus-license",
-        "OMNIBUS_RUBY_VERSION": "kserrania/allow-standard-license-without-file",
+        "OMNIBUS_SOFTWARE_VERSION": "master",
+        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.44.3",
         "JMXFETCH_HASH": "50b22c3721419eeb7bb52bb6083641ff93c4fe12ae7a95fefd70892394976981",
         "MACOS_BUILD_VERSION": "master",
