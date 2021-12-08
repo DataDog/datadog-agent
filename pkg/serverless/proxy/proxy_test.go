@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -87,6 +88,7 @@ func TestProxyResponseValid(t *testing.T) {
 	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
 
 	go setup("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{})
+	time.Sleep(100 * time.Millisecond)
 	resp, err := http.Get("http://127.0.0.1:5000/xxx/next")
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -112,6 +114,7 @@ func TestProxyResponseError(t *testing.T) {
 	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
 
 	go setup("127.0.0.1:6000", "127.0.0.1:6001", &testProcessorResponseError{})
+	time.Sleep(100 * time.Millisecond)
 	resp, err := http.Get("http://127.0.0.1:6000/xxx/next")
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
