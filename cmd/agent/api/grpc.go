@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	dsdReplay "github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -198,13 +199,13 @@ func (s *serverSecure) GetConfigs(ctx context.Context, in *pb.GetConfigsRequest)
 		return nil, errors.New("remote configuration service not initialized")
 	}
 
-	configs, err := s.configService.GetConfigs(in.Product.String())
+	configs, err := s.configService.GetConfigs(in.Product)
 	if err != nil {
 		return nil, err
 	}
 
 	return &pb.GetConfigsResponse{
-		ConfigResponses: configs,
+		ConfigResponses: []*pbgo.ConfigResponse{configs},
 	}, nil
 }
 

@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/service/tuf"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -74,7 +74,7 @@ func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) (conte
 	}
 
 	currentConfigSnapshotVersion := uint64(0)
-	client := tuf.NewDirectorPartialClient()
+	client := uptane.NewPartialClient()
 
 	go func() {
 		log.Debug("Waiting for configuration from remote config management")
