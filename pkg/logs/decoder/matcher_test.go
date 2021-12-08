@@ -44,7 +44,11 @@ func TestBytesSequenceMatcher_Match(t *testing.T) {
 		0x32, 0x00, 0x30, 0x00, 0x32, 0x00, 0x31, 0x00, 0x0a, 0x00, // "2021\n"
 		0x41, 0x00, 0x40, 0x00, 0x44, 0x00, // "BAD" (no newline)
 	}
-	testMatchAt(t, NewBytesSequenceMatcher([]byte{0x0a, 0x00}), input, 12)
+	testMatchAt(t, NewBytesSequenceMatcher([]byte{0x0a, 0x00}, 2), input, 12)
+}
+
+func TestBytesSequenceMatcher_Match_OneByte(t *testing.T) {
+	testMatchAt(t, NewBytesSequenceMatcher([]byte("\n"), 1), []byte("abcd\n1234"), 5)
 }
 
 func TestBytesSequenceMatcher_Match_Misaligned(t *testing.T) {
@@ -52,17 +56,17 @@ func TestBytesSequenceMatcher_Match_Misaligned(t *testing.T) {
 		0x42, 0x00, // B
 		0x41, 0x00, // A
 		0x44, 0x00, // D
-		0x70, 0x0a, // ਇ
+		0x70, 0x0a, // ਇ  // {0x0a, 0x00} is here, at an odd offset
 		0x00, 0x01, // Ā
 		0x44, 0x00, // D
 		0x4f, 0x00, // O
 		0x47, 0x00, // G
 		0x0a, 0x00, // \n
 	}
-	testMatchAt(t, NewBytesSequenceMatcher([]byte{0x0a, 0x00}), input, 18)
+	testMatchAt(t, NewBytesSequenceMatcher([]byte{0x0a, 0x00}, 2), input, 18)
 }
 
 func TestBytesSequenceMatcher_SeparatorLen(t *testing.T) {
-	nlm := NewBytesSequenceMatcher([]byte{0x0a, 0x00})
+	nlm := NewBytesSequenceMatcher([]byte{0x0a, 0x00}, 2)
 	require.Equal(t, 2, nlm.SeparatorLen())
 }
