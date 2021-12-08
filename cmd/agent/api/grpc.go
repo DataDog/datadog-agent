@@ -248,10 +248,10 @@ func (s *serverSecure) GetConfigUpdates(channel pb.AgentSecure_GetConfigUpdatesS
 			}
 		case <-ctx.Done():
 			log.Info("Stopping gRPC server")
+			s.configService.TracerInfos.Stop()
 			if ctx.Err() != context.Canceled {
 				return ctx.Err()
 			}
-			s.configService.TracerInfos.Stop()
 			return nil
 		case <-done:
 			log.Info("Stopping gRPC server")

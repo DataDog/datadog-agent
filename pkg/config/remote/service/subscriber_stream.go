@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type coreAgentStream struct {
+type subscriberStream struct {
 	mx                            sync.Mutex
 	rwmx                          sync.RWMutex
 	stream                        pbgo.AgentSecure_GetConfigUpdatesClient
@@ -21,8 +21,8 @@ type coreAgentStream struct {
 	tufClient                     *tuf.DirectorPartialClient
 }
 
-func newCoreAgentStream(streamCtx context.Context, conn *grpc.ClientConn) (*coreAgentStream, error) {
-	c := &coreAgentStream{
+func newSubscriberStream(streamCtx context.Context, conn *grpc.ClientConn) (*subscriberStream, error) {
+	c := &subscriberStream{
 		agentClient:                   pbgo.NewAgentSecureClient(conn),
 		tufClient:                     tuf.NewDirectorPartialClient(),
 		currentConfigSnapshotVersions: make(map[pbgo.Product]uint64),
@@ -31,7 +31,7 @@ func newCoreAgentStream(streamCtx context.Context, conn *grpc.ClientConn) (*core
 	return c, nil
 }
 
-func (c *coreAgentStream) startStream(streamCtx context.Context) {
+func (c *subscriberStream) startStream(streamCtx context.Context) {
 	var stream pbgo.AgentSecure_GetConfigUpdatesClient
 	var err error
 	for {
@@ -50,7 +50,7 @@ func (c *coreAgentStream) startStream(streamCtx context.Context) {
 	c.stream = stream
 }
 
-func (c *coreAgentStream) sendTracerInfos(streamCtx context.Context, tracerInfos chan *pbgo.TracerInfo, product pbgo.Product) {
+func (c *subscriberStream) sendTracerInfos(streamCtx context.Context, tracerInfos chan *pbgo.TracerInfo, product pbgo.Product) {
 	for {
 		select {
 		case tracerInfo := <-tracerInfos:
@@ -72,7 +72,7 @@ func (c *coreAgentStream) sendTracerInfos(streamCtx context.Context, tracerInfos
 	}
 }
 
-func (c *coreAgentStream) readConfigs(streamCtx context.Context, product pbgo.Product, callback SubscriberCallback) {
+func (c *subscriberStream) readConfigs(streamCtx context.Context, product pbgo.Product, callback SubscriberCallback) {
 	for {
 		log.Debug("Waiting for new config")
 		configResponse, err := c.stream.Recv()
@@ -102,13 +102,13 @@ func (c *coreAgentStream) readConfigs(streamCtx context.Context, product pbgo.Pr
 	}
 }
 
-func (c *coreAgentStream) setProductSnapshotsVersion(product pbgo.Product, version uint64) {
+func (c *subscriberStream) setProductSnapshotsVersion(product pbgo.Product, version uint64) {
 	c.rwmx.Lock()
 	defer c.rwmx.Unlock()
 	c.currentConfigSnapshotVersions[product] = version
 }
 
-func (c *coreAgentStream) getProductSnapshotsVersion(product pbgo.Product) uint64 {
+func (c *subscriberStream) getProductSnapshotsVersion(product pbgo.Product) uint64 {
 	c.rwmx.RLock()
 	defer c.rwmx.RUnlock()
 	return c.currentConfigSnapshotVersions[product]

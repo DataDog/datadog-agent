@@ -88,7 +88,7 @@ func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) (conte
 		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
 	})
 
-	coreAgentStream, err := newCoreAgentStream(streamCtx, conn)
+	subscriberStream, err := newSubscriberStream(streamCtx, conn)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to create core agent stream: %w", err)
@@ -101,14 +101,14 @@ func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) (conte
 				CurrentConfigSnapshotVersion: currentConfigSnapshotVersion,
 				Product:                      product,
 			}
-			coreAgentStream.startStream(streamCtx)
-			err := coreAgentStream.stream.Send(&request)
+			subscriberStream.startStream(streamCtx)
+			err := subscriberStream.stream.Send(&request)
 			if err != nil {
 				log.Errorf("Error sending message to core agent: %s", err)
 				time.Sleep(errorRetryInterval)
 				continue
 			}
-			coreAgentStream.readConfigs(streamCtx, product, callback)
+			subscriberStream.readConfigs(streamCtx, product, callback)
 		}
 	}()
 
@@ -145,14 +145,14 @@ func NewTracerGRPCSubscriber(product pbgo.Product, callback SubscriberCallback, 
 		return nil, err
 	}
 
-	coreAgentStream, err := newCoreAgentStream(streamCtx, conn)
+	subscriberStream, err := newSubscriberStream(streamCtx, conn)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to create core agent stream: %w", err)
 	}
 
-	go coreAgentStream.sendTracerInfos(streamCtx, tracerInfos, product)
-	go coreAgentStream.readConfigs(streamCtx, product, callback)
+	go subscriberStream.sendTracerInfos(streamCtx, tracerInfos, product)
+	go subscriberStream.readConfigs(streamCtx, product, callback)
 
 	return cancel, nil
 }
