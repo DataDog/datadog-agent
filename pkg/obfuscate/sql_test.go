@@ -146,8 +146,8 @@ func TestSQLMetadata(t *testing.T) {
 	}{
 		{
 			`
-		/* Multi-line comment */
-		SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT`,
+/* Multi-line comment */
+SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT`,
 			"SELECT * FROM clients WHERE ( clients.first_name = ? ) LIMIT ? BEGIN INSERT INTO owners ( created_at, first_name, locked, orders_count, updated_at ) VALUES ( ? ) COMMIT",
 			SQLMetadata{
 				TablesCSV: "clients,owners",
@@ -157,10 +157,10 @@ func TestSQLMetadata(t *testing.T) {
 		},
 		{
 			`
-		-- Single line comment
-		-- Another single line comment
-		-- Another another single line comment
-		UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s`,
+-- Single line comment
+-- Another single line comment
+-- Another another single line comment
+UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s`,
 			"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?",
 			SQLMetadata{
 				TablesCSV: "user_dash_pref",
@@ -175,34 +175,34 @@ func TestSQLMetadata(t *testing.T) {
 		{
 			// Complex query is sourced and modified from https://www.ibm.com/support/knowledgecenter/SSCRJT_6.0.0/com.ibm.swg.im.bigsql.doc/doc/tut_bsql_uc_complex_query.html
 			`
-		/* Multi-line comment
-		with line breaks */
-		WITH sales AS
-		(SELECT sf2.*
-			FROM gosalesdw28391.sls_order_method_dim AS md,
-				gosalesdw1920.sls_product_dim391 AS pd190,
-				gosalesdw3819.emp_employee_dim AS ed,
-				gosalesdw3919.sls_sales_fact3819 AS sf2
-			WHERE pd190.product_key = sf2.product_key
-			AND pd190.product_number381 > 10000
-			AND pd190.base_product_key > 30
-			AND md.order_method_key = sf2.order_method_key8319
-			AND md.order_method_code > 5
-			AND ed.employee_key = sf2.employee_key
-			AND ed.manager_code1 > 20),
-		inventory3118 AS
-		(SELECT if.*
-			FROM gosalesdw1592.go_branch_dim AS bd3221,
-			gosalesdw.dist_inventory_fact AS if
-			WHERE if.branch_key = bd3221.branch_key
-			AND bd3221.branch_code > 20)
-		SELECT sales1828.product_key AS PROD_KEY,
-		SUM(CAST (inventory3118.quantity_shipped AS BIGINT)) AS INV_SHIPPED3118,
-		SUM(CAST (sales1828.quantity AS BIGINT)) AS PROD_QUANTITY,
-		RANK() OVER ( ORDER BY SUM(CAST (sales1828.quantity AS BIGINT)) DESC) AS PROD_RANK
-		FROM sales1828, inventory3118
-		WHERE sales1828.product_key = inventory3118.product_key
-		GROUP BY sales1828.product_key`,
+/* Multi-line comment
+with line breaks */
+WITH sales AS
+(SELECT sf2.*
+	FROM gosalesdw28391.sls_order_method_dim AS md,
+		gosalesdw1920.sls_product_dim391 AS pd190,
+		gosalesdw3819.emp_employee_dim AS ed,
+		gosalesdw3919.sls_sales_fact3819 AS sf2
+	WHERE pd190.product_key = sf2.product_key
+	AND pd190.product_number381 > 10000
+	AND pd190.base_product_key > 30
+	AND md.order_method_key = sf2.order_method_key8319
+	AND md.order_method_code > 5
+	AND ed.employee_key = sf2.employee_key
+	AND ed.manager_code1 > 20),
+inventory3118 AS
+(SELECT if.*
+	FROM gosalesdw1592.go_branch_dim AS bd3221,
+	gosalesdw.dist_inventory_fact AS if
+	WHERE if.branch_key = bd3221.branch_key
+	AND bd3221.branch_code > 20)
+SELECT sales1828.product_key AS PROD_KEY,
+SUM(CAST (inventory3118.quantity_shipped AS BIGINT)) AS INV_SHIPPED3118,
+SUM(CAST (sales1828.quantity AS BIGINT)) AS PROD_QUANTITY,
+RANK() OVER ( ORDER BY SUM(CAST (sales1828.quantity AS BIGINT)) DESC) AS PROD_RANK
+FROM sales1828, inventory3118
+WHERE sales1828.product_key = inventory3118.product_key
+GROUP BY sales1828.product_key`,
 			"WITH sales SELECT sf2.* FROM gosalesdw28391.sls_order_method_dim, gosalesdw1920.sls_product_dim391, gosalesdw3819.emp_employee_dim, gosalesdw3919.sls_sales_fact3819 WHERE pd190.product_key = sf2.product_key AND pd190.product_number381 > ? AND pd190.base_product_key > ? AND md.order_method_key = sf2.order_method_key8319 AND md.order_method_code > ? AND ed.employee_key = sf2.employee_key AND ed.manager_code1 > ? ) inventory3118 SELECT if.* FROM gosalesdw1592.go_branch_dim, gosalesdw.dist_inventory_fact WHERE if.branch_key = bd3221.branch_key AND bd3221.branch_code > ? ) SELECT sales1828.product_key, SUM ( CAST ( inventory3118.quantity_shipped ) ), SUM ( CAST ( sales1828.quantity ) ), RANK ( ) OVER ( ORDER BY SUM ( CAST ( sales1828.quantity ) ) DESC ) FROM sales1828, inventory3118 WHERE sales1828.product_key = inventory3118.product_key GROUP BY sales1828.product_key",
 			SQLMetadata{
 				TablesCSV: "gosalesdw28391.sls_order_method_dim,gosalesdw1592.go_branch_dim,sales1828",
@@ -212,13 +212,13 @@ func TestSQLMetadata(t *testing.T) {
 		},
 		{
 			`
-		/*
-		Multi-line comment
-		with line breaks
-		*/
-		/* Two multi-line comments with
+/*
+Multi-line comment
+with line breaks
+*/
+/* Two multi-line comments with
 line breaks */
-		SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AND posts.published = 't'`,
+SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AND posts.published = 't'`,
 			"SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AND posts.published = ?",
 			SQLMetadata{
 				TablesCSV: "clients,posts",
@@ -231,9 +231,8 @@ line breaks */
 		},
 		{
 			`
-		-- Single line comment
-		CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE (UPDATE d1 SET (c1, c2, c3) = (c1 + 1, c2 + 1, c3 + 1))
-		`,
+-- Single line comment
+CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE (UPDATE d1 SET (c1, c2, c3) = (c1 + 1, c2 + 1, c3 + 1))`,
 			"CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE ( UPDATE d1 SET ( c1, c2, c3 ) = ( c1 + ? c2 + ? c3 + ? ) )",
 			SQLMetadata{
 				TablesCSV: "d1",
@@ -245,9 +244,8 @@ line breaks */
 		},
 		{
 			`
-		-- Testing table value constructor SQL expression
-		SELECT * FROM (VALUES (1, 'dog')) AS d (id, animal)
-		`,
+-- Testing table value constructor SQL expression
+SELECT * FROM (VALUES (1, 'dog')) AS d (id, animal)`,
 			"SELECT * FROM ( VALUES ( ? ) ) ( id, animal )",
 			SQLMetadata{
 				TablesCSV: "",
@@ -260,13 +258,12 @@ line breaks */
 		{
 			// Sourced from: SQL and Relational Theory, 2nd Edition by C.J. Date
 			`
-		-- Testing explicit table SQL expression
-		WITH T1 AS (SELECT PNO , PNAME , COLOR , WEIGHT , CITY FROM P WHERE  CITY = 'London'),
-		T2 AS (SELECT PNO, PNAME, COLOR, WEIGHT, CITY, 2 * WEIGHT AS NEW_WEIGHT, 'Oslo' AS NEW_CITY FROM T1),
-		T3 AS ( SELECT PNO , PNAME, COLOR, NEW_WEIGHT AS WEIGHT, NEW_CITY AS CITY FROM T2),
-		T4 AS ( TABLE P EXCEPT CORRESPONDING TABLE T1)
-		TABLE T4 UNION CORRESPONDING TABLE T3
-		`,
+-- Testing explicit table SQL expression
+WITH T1 AS (SELECT PNO , PNAME , COLOR , WEIGHT , CITY FROM P WHERE  CITY = 'London'),
+T2 AS (SELECT PNO, PNAME, COLOR, WEIGHT, CITY, 2 * WEIGHT AS NEW_WEIGHT, 'Oslo' AS NEW_CITY FROM T1),
+T3 AS ( SELECT PNO , PNAME, COLOR, NEW_WEIGHT AS WEIGHT, NEW_CITY AS CITY FROM T2),
+T4 AS ( TABLE P EXCEPT CORRESPONDING TABLE T1)
+TABLE T4 UNION CORRESPONDING TABLE T3`,
 			"WITH T1 SELECT PNO, PNAME, COLOR, WEIGHT, CITY FROM P WHERE CITY = ? ) T2 SELECT PNO, PNAME, COLOR, WEIGHT, CITY, ? * WEIGHT, ? FROM T1 ), T3 SELECT PNO, PNAME, COLOR, NEW_WEIGHT, NEW_CITY FROM T2 ), T4 TABLE P EXCEPT CORRESPONDING TABLE T1 ) TABLE T4 UNION CORRESPONDING TABLE T3",
 			SQLMetadata{
 				TablesCSV: "P,T1,T2",
