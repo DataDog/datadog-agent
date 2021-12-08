@@ -1,6 +1,8 @@
 package checks
 
-import "time"
+import (
+	"time"
+)
 
 func calculateCtrPct(cur, prev float64, sys2, sys1 uint64, numCPU int, before time.Time) float32 {
 	// -1 is returned if a cgroup file is missing or the `ContainerCPUStats` object is nil.
@@ -9,7 +11,7 @@ func calculateCtrPct(cur, prev float64, sys2, sys1 uint64, numCPU int, before ti
 		return -1
 	}
 	now := time.Now()
-	diff := now.Unix() - before.Unix()
+	diff := now.UnixNano() - before.UnixNano()
 	if before.IsZero() || diff <= 0 {
 		return 0
 	}
@@ -19,13 +21,15 @@ func calculateCtrPct(cur, prev float64, sys2, sys1 uint64, numCPU int, before ti
 		return 0
 	}
 
+	cpuDelta := float32(cur - prev)
+
 	// If we have system usage values then we need to calculate against those.
 	// XXX: Right now this only applies to ECS collection. Note that the inclusion of CPUs is
 	// necessary because the value gets normalized against the CPU limit, which also accounts for CPUs.
 	if sys1 >= 0 && sys2 > 0 && sys2 != sys1 {
-		cpuDelta := float32(cur - prev)
 		sysDelta := float32(sys2 - sys1)
 		return (cpuDelta / sysDelta) * float32(numCPU) * 100
 	}
-	return float32(cur-prev) / float32(diff)
+
+	return (cpuDelta / (float32(diff) * float32(numCPU))) * 100
 }

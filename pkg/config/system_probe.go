@@ -1,8 +1,11 @@
 package config
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -120,6 +123,15 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
+	httpRules := join(netNS, "http_replace_rules")
+	cfg.BindEnv(httpRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
+	cfg.SetEnvKeyTransformer(httpRules, func(in string) interface{} {
+		var out []map[string]string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Warnf(`%q can not be parsed: %v`, httpRules, err)
+		}
+		return out
+	})
 
 	// list of DNS query types to be recorded
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})

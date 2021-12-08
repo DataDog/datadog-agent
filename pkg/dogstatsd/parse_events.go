@@ -3,7 +3,6 @@ package dogstatsd
 import (
 	"bytes"
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -85,7 +84,9 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 
 	// Convert title length to workable type and do a basic validity check on value
 	titleLength, err := parseInt64(rawTitleLength)
-	if err != nil || titleLength < 0 {
+	// Before Go 1.17, we can use the following trick to define MaxInt
+	const MaxInt = ^uint(0) >> 1
+	if err != nil || titleLength < 0 || titleLength > int64(MaxInt) {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
 
@@ -96,7 +97,7 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 
 	// Convert text length to workable type and do a basic validity check on value
 	textLength, err := parseInt64(rawTextLength)
-	if err != nil || textLength < 0 {
+	if err != nil || textLength < 0 || textLength > int64(MaxInt) {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
 

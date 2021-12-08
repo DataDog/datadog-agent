@@ -70,6 +70,12 @@ var (
 		Short: "Run runtime self test",
 		RunE:  runRuntimeSelfTest,
 	}
+
+	reloadPoliciesCmd = &cobra.Command{
+		Use:   "reload",
+		Short: "Reload policies",
+		RunE:  reloadRuntimePolicies,
+	}
 )
 
 func init() {
@@ -80,6 +86,7 @@ func init() {
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	runtimeCmd.AddCommand(selfTestCmd)
+	runtimeCmd.AddCommand(reloadPoliciesCmd)
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
@@ -111,7 +118,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, enabled, sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, &securityLogger.PatternLogger{})
+	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SECLVariables, sprobe.SupportedDiscarders, enabled, sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, &securityLogger.PatternLogger{})
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts)
 
@@ -154,6 +161,21 @@ func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Printf("Runtime self test: error: %v\n", selfTestResult.Error)
 	}
+	return nil
+}
+
+func reloadRuntimePolicies(cmd *cobra.Command, args []string) error {
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	_, err = client.ReloadPolicies()
+	if err != nil {
+		return errors.Wrap(err, "unable to reload policies")
+	}
+
 	return nil
 }
 
@@ -204,7 +226,7 @@ func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient
 		return nil, err
 	}
 
-	agent, err := secagent.NewRuntimeSecurityAgent(hostname, reporter)
+	agent, err := secagent.NewRuntimeSecurityAgent(hostname, reporter, endpoints)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
 	}

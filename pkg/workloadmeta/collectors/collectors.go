@@ -10,10 +10,12 @@ package collectors
 
 import (
 	// this package only loads the collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/cloudfoundry"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/docker"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/ecs"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/ecsfargate"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/kubelet"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/kubemetadata"
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/podman"
 )

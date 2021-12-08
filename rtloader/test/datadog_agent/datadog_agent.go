@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"time"
 	"runtime"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/mailru/easyjson/jlexer"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
@@ -243,7 +243,7 @@ func readPersistentCache(key *C.char) *C.char {
 
 //export obfuscateSQL
 func obfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
-	var sqlOpts obfuscate.SQLOptions
+	var sqlOpts obfuscate.SQLConfig
 	if opts != nil {
 		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
 		sqlOpts.UnmarshalEasyJSON(jl)

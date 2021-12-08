@@ -105,7 +105,8 @@ const (
 type logMessage struct {
 	time    time.Time
 	logType string
-	// "extension" / "function" log messages contain a record which is basically a log string
+	// stringRecord is a string representation of the message's contents. It can be either received directly
+	// from the logs API or added by the extension after receiving it.
 	stringRecord string
 	objectRecord platformObjectRecord
 }
@@ -283,6 +284,10 @@ func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
+			// Do not send platform log messages without a stringRecord to the intake
+			if message.stringRecord == "" && message.logType != logTypeFunction {
+				continue
+			}
 			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, c.ExecutionContext.ARN, c.ExecutionContext.LastRequestID)
 			c.LogChannel <- logMessage
 		}

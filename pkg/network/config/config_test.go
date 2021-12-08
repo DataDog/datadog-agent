@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -228,5 +229,68 @@ func TestSettingMaxDNSStats(t *testing.T) {
 		cfg = New()
 
 		assert.Equal(t, 10000, cfg.MaxDNSStats)
+	})
+}
+
+func TestHTTPReplaceRules(t *testing.T) {
+	expected := []*ReplaceRule{
+		{
+			Pattern: "/users/(.*)",
+			Re:      regexp.MustCompile("/users/(.*)"),
+			Repl:    "/users/?",
+		},
+		{
+			Pattern: "foo",
+			Re:      regexp.MustCompile("foo"),
+			Repl:    "bar",
+		},
+		{
+			Pattern: "payment_id",
+			Re:      regexp.MustCompile("payment_id"),
+		},
+	}
+
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-HTTPReplaceRules.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
+        [
+          {
+            "pattern": "/users/(.*)",
+            "repl": "/users/?"
+          },
+          {
+            "pattern": "foo",
+            "repl": "bar"
+          },
+          {
+            "pattern": "payment_id"
+          }
+        ]
+        `)
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
 	})
 }

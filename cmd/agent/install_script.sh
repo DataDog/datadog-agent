@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.7.0.post
+install_script_version=1.7.1.post
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -268,7 +268,7 @@ if [ ! "$apikey" ]; then
 fi
 
 if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
-    printf "\033[31mThe full Datadog Agent isn't available for your architecture (armv7l).\nInstall the Datadog IoT Agent by setting DD_AGENT_FLAVOR='datadog-iot'agent'.\033[0m\n"
+    printf "\033[31mThe full Datadog Agent isn't available for your architecture (armv7l).\nInstall the Datadog IoT Agent by setting DD_AGENT_FLAVOR='datadog-iot-agent'.\033[0m\n"
     exit 1;
 fi
 
@@ -488,7 +488,7 @@ elif [ "$OS" = "SUSE" ]; then
   # See https://www.suse.com/releasenotes/x86_64/SUSE-SLES/15/#fate-324409
   SUSE_VER=$(cat /etc/os-release 2>/dev/null | grep VERSION_ID | tr -d '"' | tr . = | cut -d = -f 2 | xargs echo)
   gpgkeys="https://${keys_url}/DATADOG_RPM_KEY_CURRENT.public"
-  if [ -n "$SUSE_VER" ] && [ "$SUSE_VER" -ge 15 ]; then
+  if [ -n "$SUSE_VER" ] && [ "$SUSE_VER" -ge 15 ] && [ "$SUSE_VER" -ne 42 ]; then
     gpgkeys=''
     separator='\n       '
     for key_path in "${RPM_GPG_KEYS[@]}"; do
@@ -548,7 +548,11 @@ elif [ "$OS" = "SUSE" ]; then
   fi
   echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-  $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  if [ -z "$sudo_cmd" ]; then
+    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  else
+    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  fi
 
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.

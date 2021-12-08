@@ -2,6 +2,34 @@
 Release Notes
 =============
 
+.. _Release Notes_7.32.1:
+
+7.32.1 / 6.32.1
+======
+
+.. _Release Notes_7.32.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-11-18
+
+
+.. _Release Notes_7.32.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On ECS, fix the volume of calls to `ListTagsForResource` which led to ECS API throttling.
+
+- Fix incorrect use of a namespaced PID with the host procfs when parsing mountinfo to ensure debugfs is mounted correctly.
+  This issue was preventing system-probe startup in AWS ECS. This issue could also surface in other containerized environments
+  where PID namespaces are in use and ``/host/proc`` is mounted.
+
+- Fixes system-probe startup failure due to kernel version parsing on Linux 4.14.252+.
+  This specifically was affecting versions of Amazon Linux 2, but could affect any Linux kernel in the 4.14 tree with sublevel >= 252.
+
+
 .. _Release Notes_7.32.0:
 
 7.32.0 / 6.32.0

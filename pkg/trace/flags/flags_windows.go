@@ -23,6 +23,7 @@ func init() {
 		DefaultConfigPath = filepath.Join(pd, "datadog.yaml")
 	}
 }
+
 func registerOSSpecificFlags() {
 	flag.BoolVar(&Win.InstallService, "install-service", false, "Install the trace agent to the Service Control Manager")
 	flag.BoolVar(&Win.UninstallService, "uninstall-service", false, "Remove the trace agent from the Service Control Manager")

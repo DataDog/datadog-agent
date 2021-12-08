@@ -76,7 +76,6 @@ func runCheck(w http.ResponseWriter, r *http.Request) {
 		common.Coll.RunCheck(ch) //nolint:errcheck
 	}
 	log.Infof("Scheduled new check: " + name)
-	w.Write([]byte("Scheduled new check:" + name))
 }
 
 // Runs a specified check once

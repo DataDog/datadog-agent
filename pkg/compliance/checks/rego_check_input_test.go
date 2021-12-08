@@ -118,7 +118,17 @@ func TestRegoInputCheck(t *testing.T) {
 			expectedInput: `
 				{
 					"context": {
-						"hostname": "hostname_test"
+						"hostname": "hostname_test",
+						"ruleID": "rule-id",
+						"input": {
+							"processes": {
+								"process": {
+									"name": "proc1"
+								},
+								"tag": "processes",
+								"type": "array"
+							}
+						}
 					},
 					"processes": [
 						{

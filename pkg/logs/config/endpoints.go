@@ -6,6 +6,7 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -40,6 +41,7 @@ type Endpoint struct {
 	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
 	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
+	IsReliable              bool `mapstructure:"is_reliable" json:"is_reliable"`
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -54,6 +56,43 @@ type Endpoint struct {
 	Origin    IntakeOrigin
 }
 
+// GetStatus returns the endpoint status
+func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
+	compression := "uncompressed"
+	if e.UseCompression {
+		compression = "compressed"
+	}
+
+	host := e.Host
+	port := e.Port
+
+	var protocol string
+	if useHTTP {
+		if e.UseSSL {
+			protocol = "HTTPS"
+			if port == 0 {
+				port = 443 // use default port
+			}
+		} else {
+			protocol = "HTTP"
+			// this case technically can't happens. In order to
+			// disable SSL, user have to use a custom URL and
+			// specify the port manually.
+			if port == 0 {
+				port = 80 // use default port
+			}
+		}
+	} else {
+		if e.UseSSL {
+			protocol = "SSL encrypted TCP"
+		} else {
+			protocol = "TCP"
+		}
+	}
+
+	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
+}
+
 // Endpoints holds the main endpoint and additional ones to dualship logs.
 type Endpoints struct {
 	Main                   Endpoint
@@ -64,6 +103,16 @@ type Endpoints struct {
 	BatchMaxConcurrentSend int
 	BatchMaxSize           int
 	BatchMaxContentSize    int
+}
+
+// GetStatus returns the endpoints status, one line per endpoint
+func (e *Endpoints) GetStatus() []string {
+	result := make([]string, 0)
+	result = append(result, e.Main.GetStatus("", e.UseHTTP))
+	for _, additional := range e.Additionals {
+		result = append(result, additional.GetStatus("Additional: ", e.UseHTTP))
+	}
+	return result
 }
 
 // NewEndpoints returns a new endpoints composite with default batching settings
@@ -92,4 +141,27 @@ func NewEndpointsWithBatchSettings(main Endpoint, additionals []Endpoint, usePro
 		BatchMaxSize:           batchMaxSize,
 		BatchMaxContentSize:    batchMaxContentSize,
 	}
+}
+
+// GetReliableAdditionals returns additional endpoints that can be failed over to and block the pipeline in the
+// event of an outage and will retry errors. These endpoints are treated the same as the main endpoint.
+func (e *Endpoints) GetReliableAdditionals() []Endpoint {
+	endpoints := []Endpoint{}
+	for _, endpoint := range e.Additionals {
+		if endpoint.IsReliable {
+			endpoints = append(endpoints, endpoint)
+		}
+	}
+	return endpoints
+}
+
+// GetUnReliableAdditionals returns additional endpoints that do not guarantee logs are received in the event of an error.
+func (e *Endpoints) GetUnReliableAdditionals() []Endpoint {
+	endpoints := []Endpoint{}
+	for _, endpoint := range e.Additionals {
+		if !endpoint.IsReliable {
+			endpoints = append(endpoints, endpoint)
+		}
+	}
+	return endpoints
 }

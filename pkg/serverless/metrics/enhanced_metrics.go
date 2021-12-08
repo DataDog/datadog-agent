@@ -43,6 +43,7 @@ func getOutOfMemorySubstrings() []string {
 		"Runtime exited with error: signal: killed", // Node
 		"MemoryError", // Python
 		"failed to allocate memory (NoMemoryError)", // Ruby
+		"OutOfMemoryException",                      // .NET
 	}
 }
 

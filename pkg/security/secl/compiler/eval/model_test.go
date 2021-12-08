@@ -29,6 +29,7 @@ type testProcess struct {
 	name      string
 	uid       int
 	gid       int
+	pid       int
 	isRoot    bool
 	list      *list.List
 	array     []*testItem
@@ -186,6 +187,18 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 				(*testEvent)(ctx.Object).gidEvaluated = true
 
 				return (*testEvent)(ctx.Object).process.gid
+			},
+			Field: field,
+		}, nil
+
+	case "process.pid":
+
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				// to test optimisation
+				(*testEvent)(ctx.Object).uidEvaluated = true
+
+				return (*testEvent)(ctx.Object).process.pid
 			},
 			Field: field,
 		}, nil
@@ -371,6 +384,10 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 
 		return e.process.gid, nil
 
+	case "process.pid":
+
+		return e.process.pid, nil
+
 	case "process.is_root":
 
 		return e.process.isRoot, nil
@@ -416,6 +433,10 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 		return "*", nil
 
 	case "process.gid":
+
+		return "*", nil
+
+	case "process.pid":
 
 		return "*", nil
 
@@ -494,6 +515,11 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 		e.process.gid = value.(int)
 		return nil
 
+	case "process.pid":
+
+		e.process.pid = value.(int)
+		return nil
+
 	case "process.is_root":
 
 		e.process.isRoot = value.(bool)
@@ -546,6 +572,10 @@ func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.gid":
+
+		return reflect.Int, nil
+
+	case "process.pid":
 
 		return reflect.Int, nil
 

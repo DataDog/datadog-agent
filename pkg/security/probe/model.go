@@ -114,6 +114,11 @@ func (ev *Event) ResolveXAttrName(e *model.SetXAttrEvent) string {
 	return e.Name
 }
 
+// ResolveHelpers returns the list of eBPF helpers used by the current program
+func (ev *Event) ResolveHelpers(e *model.BPFProgram) []uint32 {
+	return e.Helpers
+}
+
 // ResolveXAttrNamespace returns the string representation of the extended attribute namespace
 func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 	if len(e.Namespace) == 0 {

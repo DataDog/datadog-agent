@@ -72,6 +72,24 @@ Patterns or regular expressions can be used in SECL expressions. They can be use
 | `~"pattern"`     | `~"/etc/*"`          | 7.27          |
 | `r"regexp"`      | `r"/etc/rc[0-9]+"`   | 7.27          |
 
+## Variables
+SECL variables are predefined variables that can be used as values or as part of values.
+
+For example, rule using a `process.pid` variable looks like this:
+
+{% raw %}
+{{< code-block lang="javascript" >}}
+open.file.path == "/proc/${process.pid}/maps"
+
+{{< /code-block >}}
+{% endraw %}
+
+List of the available variables:
+
+| SECL Variable         |  Definition                           | Agent Version |
+|-----------------------|---------------------------------------|---------------|
+| `process.pid`         | Process PID                           | 7.33          |
+
 ## Helpers
 Helpers exist in SECL that enable users to write advanced rules without needing to rely on generic techniques such as regex.
 

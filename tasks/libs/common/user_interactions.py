@@ -13,7 +13,7 @@ def yes_no_question(input_message, color="white", default=None):
         default_answer_prompt = "[y/N]"
 
     while choice not in valid_answers or valid_answers[choice] is None:
-        print(color_message("{} {} ".format(input_message, default_answer_prompt), color), end='')
+        print(color_message(f"{input_message} {default_answer_prompt} ", color), end='')
         choice = input().strip().lower()
 
     return valid_answers[choice]

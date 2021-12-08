@@ -120,14 +120,20 @@ func (l *KubeletListener) createContainerService(
 	container *workloadmeta.Container,
 	creationTime integration.CreationTime,
 ) {
+	// we need to take the container name and image from the pod spec, as
+	// the information from the container in the workloadmeta store might
+	// have extra information resolved by the container runtime that won't
+	// match what the user specified.
+	containerName := podContainer.Name
 	containerImg := podContainer.Image
+
 	if l.IsExcluded(
 		containers.GlobalFilter,
-		container.Name,
+		containerName,
 		containerImg.RawName,
 		pod.Namespace,
 	) {
-		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, containerImg.RawName, pod.Namespace)
+		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, containerName, containerImg.RawName, pod.Namespace)
 		return
 	}
 
@@ -169,22 +175,22 @@ func (l *KubeletListener) createContainerService(
 		// from metrics collection but keep them for collecting logs.
 		metricsExcluded: l.IsExcluded(
 			containers.MetricsFilter,
-			container.Name,
+			containerName,
 			containerImg.RawName,
 			pod.Namespace,
 		) || !container.State.Running,
 		logsExcluded: l.IsExcluded(
 			containers.LogsFilter,
-			container.Name,
+			containerName,
 			containerImg.RawName,
 			pod.Namespace,
 		),
 	}
 
-	adIdentifier := container.Name
+	adIdentifier := containerName
 
 	// Check for custom AD identifiers
-	if customADID, found := utils.GetCustomCheckID(pod.Annotations, container.Name); found {
+	if customADID, found := utils.GetCustomCheckID(pod.Annotations, containerName); found {
 		adIdentifier = customADID
 		svc.adIdentifiers = append(svc.adIdentifiers, customADID)
 	}

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
@@ -27,10 +28,11 @@ type FieldValueType int
 
 // Field value types
 const (
-	ScalarValueType  FieldValueType = 1 << 0
-	PatternValueType FieldValueType = 1 << 1
-	RegexpValueType  FieldValueType = 1 << 2
-	BitmaskValueType FieldValueType = 1 << 3
+	ScalarValueType   FieldValueType = 1 << 0
+	PatternValueType  FieldValueType = 1 << 1
+	RegexpValueType   FieldValueType = 1 << 2
+	BitmaskValueType  FieldValueType = 1 << 3
+	VariableValueType FieldValueType = 1 << 4
 )
 
 // defines factor applied by specific operator
@@ -43,6 +45,10 @@ const (
 	IteratorWeight       = 2000
 )
 
+var (
+	variableRegex = regexp.MustCompile(`\${[^}]*}`)
+)
+
 // FieldValue describes a field value with its type
 type FieldValue struct {
 	Value interface{}
@@ -51,11 +57,18 @@ type FieldValue struct {
 	Regexp *regexp.Regexp
 }
 
+// VariableValue describes secl variable
+type VariableValue struct {
+	IntFnc    func(ctx *Context) int
+	StringFnc func(ctx *Context) string
+}
+
 // Opts are the options to be passed to the evaluator
 type Opts struct {
 	LegacyAttributes map[Field]Field
 	Constants        map[string]interface{}
 	Macros           map[MacroID]*Macro
+	Variables        map[string]VariableValue
 }
 
 // Evaluator is the interface of an evaluator
@@ -440,6 +453,94 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *state) (interface{}, 
 	}
 
 	return nil, array.Pos, NewError(array.Pos, "unknow array element type")
+}
+
+func isVariableName(str string) (string, bool) {
+	if strings.HasPrefix(str, "${") && strings.HasSuffix(str, "}") {
+		return str[2 : len(str)-1], true
+	}
+	return "", false
+}
+
+func intEvaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+	value, exists := opts.Variables[varname]
+	if !exists {
+		return nil, pos, NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
+	}
+
+	if value.IntFnc == nil {
+		return nil, pos, NewError(pos, fmt.Sprintf("variable type not supported '%s'", varname))
+	}
+	return &IntEvaluator{
+		EvalFnc: func(ctx *Context) int {
+			return value.IntFnc(ctx)
+		},
+	}, pos, nil
+}
+
+func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+	var evaluators []*StringEvaluator
+
+	doLoc := func(sub string) error {
+		if varname, ok := isVariableName(sub); ok {
+			value, exists := opts.Variables[varname]
+			if !exists {
+				return NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
+			}
+			if value.IntFnc != nil {
+				evaluators = append(evaluators, &StringEvaluator{
+					EvalFnc: func(ctx *Context) string {
+						return strconv.FormatInt(int64(value.IntFnc(ctx)), 10)
+					},
+				})
+			} else if value.StringFnc != nil {
+				evaluators = append(evaluators, &StringEvaluator{
+					EvalFnc: func(ctx *Context) string {
+						return value.StringFnc(ctx)
+					},
+				})
+			} else {
+				return NewError(pos, fmt.Sprintf("variable type not supported '%s'", varname))
+			}
+		} else {
+			evaluators = append(evaluators, &StringEvaluator{Value: sub})
+		}
+
+		return nil
+	}
+
+	var last int
+	for _, loc := range variableRegex.FindAllIndex([]byte(str), -1) {
+		if loc[0] > 0 {
+			if err := doLoc(str[last:loc[0]]); err != nil {
+				return nil, pos, err
+			}
+		}
+		if err := doLoc(str[loc[0]:loc[1]]); err != nil {
+			return nil, pos, err
+		}
+		last = loc[1]
+	}
+	if last < len(str)-1 {
+		if err := doLoc(str[last:]); err != nil {
+			return nil, pos, err
+		}
+	}
+
+	return &StringEvaluator{
+		valueType: VariableValueType,
+		EvalFnc: func(ctx *Context) string {
+			var result string
+			for _, evaluator := range evaluators {
+				if evaluator.EvalFnc != nil {
+					result += evaluator.EvalFnc(ctx)
+				} else {
+					result += evaluator.Value
+				}
+			}
+			return result
+		},
+	}, pos, nil
 }
 
 func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, lexer.Position, error) {
@@ -979,14 +1080,28 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 			return &IntEvaluator{
 				Value: *obj.Number,
 			}, obj.Pos, nil
+		case obj.NumberVariable != nil:
+			varname, ok := isVariableName(*obj.NumberVariable)
+			if !ok {
+				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("internal variable error '%s'", varname))
+			}
+
+			return intEvaluatorFromVariable(varname, obj.Pos, opts)
 		case obj.Duration != nil:
 			return &IntEvaluator{
 				Value:      *obj.Duration,
 				isDuration: true,
 			}, obj.Pos, nil
 		case obj.String != nil:
+			str := *obj.String
+
+			// contains variables
+			if len(variableRegex.FindAllIndex([]byte(str), -1)) > 0 {
+				return stringEvaluatorFromVariable(str, obj.Pos, opts)
+			}
+
 			return &StringEvaluator{
-				Value:     *obj.String,
+				Value:     str,
 				valueType: ScalarValueType,
 			}, obj.Pos, nil
 		case obj.Pattern != nil:

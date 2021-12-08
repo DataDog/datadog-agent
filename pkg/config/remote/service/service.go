@@ -389,15 +389,12 @@ func (s *Service) UnregisterSubscriber(unregister *Subscriber) {
 // Start the remote configuration management service
 func (s *Service) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
-	ticker := time.NewTicker(s.opts.RefreshInterval)
-
 	go func() {
-		defer ticker.Stop()
 		defer cancel()
 
 		for {
 			select {
-			case <-ticker.C:
+			case <-time.After(s.opts.RefreshInterval):
 				s.refresh()
 			case <-ctx.Done():
 				return

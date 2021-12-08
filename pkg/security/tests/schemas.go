@@ -31,8 +31,13 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 	switch t := input.(type) {
 	case float64:
 		inode = uint64(t)
+	case *big.Int:
+		inode = t.Uint64()
 	case *big.Float:
 		inode, _ = t.Uint64()
+	case *big.Rat:
+		f, _ := t.Float64()
+		inode = uint64(f)
 	default:
 		return false
 	}
@@ -93,4 +98,8 @@ func validateLinkSchema(t *testing.T, event *sprobe.Event) bool {
 
 func validateSpanSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateSchema(t, event, "file:///schemas/span.schema.json")
+}
+
+func validateBPFSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///schemas/bpf.schema.json")
 }

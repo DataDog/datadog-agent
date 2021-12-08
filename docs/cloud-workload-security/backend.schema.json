@@ -13,6 +13,10 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/SELinuxEvent"
     },
+    "bpf": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/BPFEvent"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -36,6 +40,68 @@
   "additionalProperties": false,
   "type": "object",
   "definitions": {
+    "BPFEvent": {
+      "required": [
+        "cmd"
+      ],
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "description": "BPF command"
+        },
+        "map": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/BPFMap",
+          "description": "BPF map"
+        },
+        "program": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/BPFProgram",
+          "description": "BPF program"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "BPFMap": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the BPF map"
+        },
+        "map_type": {
+          "type": "string",
+          "description": "Type of the BPF map"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "BPFProgram": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the BPF program"
+        },
+        "program_type": {
+          "type": "string",
+          "description": "Type of the BPF program"
+        },
+        "attach_type": {
+          "type": "string",
+          "description": "Attach type of the BPF program"
+        },
+        "helpers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of helpers used by the BPF program"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "ContainerContext": {
       "properties": {
         "id": {

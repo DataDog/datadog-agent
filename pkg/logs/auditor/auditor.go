@@ -39,9 +39,10 @@ type Registry interface {
 // A RegistryEntry represents an entry in the registry where we keep track
 // of current offsets
 type RegistryEntry struct {
-	LastUpdated time.Time
-	Offset      string
-	TailingMode string
+	LastUpdated        time.Time
+	Offset             string
+	TailingMode        string
+	IngestionTimestamp int64
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -166,7 +167,7 @@ func (a *RegistryAuditor) run() {
 				return
 			}
 			// update the registry with new entry
-			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode)
+			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp)
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
 			a.cleanupRegistry()
@@ -218,7 +219,7 @@ func (a *RegistryAuditor) cleanupRegistry() {
 }
 
 // updateRegistry updates the registry entry matching identifier with new the offset and timestamp
-func (a *RegistryAuditor) updateRegistry(identifier string, offset string, tailingMode string) {
+func (a *RegistryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -227,10 +228,20 @@ func (a *RegistryAuditor) updateRegistry(identifier string, offset string, taili
 		// specially want to avoid storing the offset
 		return
 	}
+
+	// Don't update the registry with a value older than the current one
+	// This can happen when dual shipping and 2 destinations are sending the same payload successfully
+	if v, ok := a.registry[identifier]; ok {
+		if v.IngestionTimestamp > ingestionTimestamp {
+			return
+		}
+	}
+
 	a.registry[identifier] = &RegistryEntry{
-		LastUpdated: time.Now().UTC(),
-		Offset:      offset,
-		TailingMode: tailingMode,
+		LastUpdated:        time.Now().UTC(),
+		Offset:             offset,
+		TailingMode:        tailingMode,
+		IngestionTimestamp: ingestionTimestamp,
 	}
 }
 

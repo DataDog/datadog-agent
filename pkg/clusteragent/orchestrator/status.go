@@ -13,8 +13,7 @@ import (
 	"expvar"
 	"fmt"
 
-	"k8s.io/client-go/kubernetes"
-
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -22,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+
+	"k8s.io/client-go/kubernetes"
 )
 
 type stats struct {
@@ -53,7 +54,6 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	}
 
 	setClusterName(ctx, status)
-	setCollectionIsWorking(status)
 
 	// get orchestrator endpoints
 	endpoints := map[string][]string{}
@@ -69,6 +69,39 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 		}
 	}
 	status["OrchestratorEndpoints"] = endpoints
+	setCacheInformationDCAMode(status)
+	setCollectionIsWorkingDCAMode(status)
+
+	// rewriting DCA Mode in case we are running in cluster check mode.
+	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && config.Datadog.GetBool("cluster_checks.enabled") {
+		// we need to check first whether we have dispatched checks to CLC
+		stats, err := clusterchecks.GetStats()
+		if err != nil {
+			status["CLCError"] = err.Error()
+		} else {
+			// this and the cache section will only be shown on the DCA leader
+			if !stats.Active {
+				status["CLCEnabled"] = true
+				status["CollectionWorking"] = "Clusterchecks are activated but still warming up, the collection could be running on CLC Runners. To verify that we need the clusterchecks to be warmed up."
+			} else {
+				if _, ok := stats.CheckNames[orchestrator.CheckName]; ok {
+					status["CLCEnabled"] = true
+					status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
+					status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
+				}
+			}
+		}
+	}
+
+	// get options
+	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
+		status["ContainerScrubbing"] = "Container scrubbing: enabled"
+	}
+
+	return status
+}
+
+func setCacheInformationDCAMode(status map[string]interface{}) {
 
 	// get cache size
 	status["CacheNumber"] = orchestrator.KubernetesResourceCache.ItemCount()
@@ -102,13 +135,6 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 		}
 	}
 	status["CacheInformation"] = cacheStats
-
-	// get options
-	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
-		status["ContainerScrubbing"] = "Container scrubbing: enabled"
-	}
-
-	return status
 }
 
 func setClusterName(ctx context.Context, status map[string]interface{}) {
@@ -126,8 +152,8 @@ func setClusterName(ctx context.Context, status map[string]interface{}) {
 	}
 }
 
-// setCollectionIsWorking checks whether collection is running by checking telemetry/cache data
-func setCollectionIsWorking(status map[string]interface{}) {
+// setCollectionIsWorkingDCAMode checks whether collection is running by checking telemetry/cache data
+func setCollectionIsWorkingDCAMode(status map[string]interface{}) {
 	engine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		status["CollectionWorking"] = "The collection has not run successfully because no leader has been elected."

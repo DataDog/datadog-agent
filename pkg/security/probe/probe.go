@@ -535,6 +535,11 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.BPFEventType:
+		if _, err = event.BPF.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode bpf event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
@@ -939,6 +944,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "vfs_rename_input_type",
 			Value: getVFSRenameInputType(p),
+		},
+		manager.ConstantEditor{
+			Name:  "check_helper_call_input",
+			Value: getCheckHelperCallInputType(p),
 		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)

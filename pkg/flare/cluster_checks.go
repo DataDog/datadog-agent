@@ -21,7 +21,7 @@ import (
 )
 
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
-func GetClusterChecks(w io.Writer) error {
+func GetClusterChecks(w io.Writer, checkName string) error {
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", config.Datadog.GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
@@ -74,7 +74,7 @@ func GetClusterChecks(w io.Writer) error {
 	if len(cr.Dangling) > 0 {
 		fmt.Fprintln(w, fmt.Sprintf("=== %s configurations ===", color.RedString("Unassigned")))
 		for _, c := range cr.Dangling {
-			PrintConfig(w, c)
+			PrintConfig(w, c, checkName)
 		}
 		fmt.Fprintln(w, "")
 	}
@@ -101,7 +101,7 @@ func GetClusterChecks(w io.Writer) error {
 		}
 		fmt.Fprintln(w, fmt.Sprintf("\n===== Checks on %s =====", color.HiMagentaString(node.Name)))
 		for _, c := range node.Configs {
-			PrintConfig(w, c)
+			PrintConfig(w, c, checkName)
 		}
 	}
 
@@ -109,7 +109,7 @@ func GetClusterChecks(w io.Writer) error {
 }
 
 // GetEndpointsChecks dumps the endpointschecks dispatching state to the writer
-func GetEndpointsChecks(w io.Writer) error {
+func GetEndpointsChecks(w io.Writer, checkName string) error {
 	if !endpointschecksEnabled() {
 		return nil
 	}
@@ -146,7 +146,7 @@ func GetEndpointsChecks(w io.Writer) error {
 	// Print summary of pod-backed endpointschecks
 	fmt.Fprintln(w, fmt.Sprintf("\n===== %d Pod-backed Endpoints-Checks scheduled =====", len(cr.Configs)))
 	for _, c := range cr.Configs {
-		PrintConfig(w, c)
+		PrintConfig(w, c, checkName)
 	}
 
 	return nil

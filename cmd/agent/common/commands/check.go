@@ -568,14 +568,11 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
 	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
-	w, err := scrubber.NewWriter(flarePath, os.ModePerm)
+	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {
-		fmt.Println("Error while writing the check file:", err)
-		return
+		fmt.Println("Error while scrubbing the check file:", err)
 	}
-	defer w.Close()
-
-	_, err = w.Write(checkFileOutput.Bytes())
+	err = ioutil.WriteFile(flarePath, scrubbed, os.ModePerm)
 
 	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)

@@ -82,12 +82,10 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		}
 		numEvents++
 	}
-
 	if t.DroppedTrace {
 		// we are not keeping anything out of this trace, except the events
 		t.Spans = events
 	}
-
 	return numEvents, numExtracted
 }
 

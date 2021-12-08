@@ -18,6 +18,7 @@ import (
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/topdown/print"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
@@ -174,10 +175,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			continue
 		}
 
-		tagName := input.TagName
-		if tagName == "" {
-			tagName = string(input.Kind())
-		}
+		tagName := extractTagName(&input)
 
 		inputType, err := input.ValidateInputType()
 		if err != nil {
@@ -245,6 +243,14 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 	return input, nil
 }
 
+func extractTagName(input *compliance.RegoInput) string {
+	tagName := input.TagName
+	if tagName == "" {
+		return string(input.Kind())
+	}
+	return tagName
+}
+
 func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, instance eval.Instance) {
 	vars, exists := input[key]
 	if !exists {
@@ -256,14 +262,53 @@ func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, i
 	}
 }
 
+func buildMappedInputs(inputs []compliance.RegoInput) map[string]compliance.RegoInput {
+	res := make(map[string]compliance.RegoInput)
+	for _, input := range inputs {
+		tagName := extractTagName(&input)
+
+		if _, present := res[tagName]; present {
+			log.Warnf("error building mapped input context: duplicated tag")
+			return nil
+		}
+
+		res[tagName] = input
+	}
+	return res
+}
+
+func roundTrip(inputs interface{}) (interface{}, error) {
+	output, err := yaml.Marshal(inputs)
+	if err != nil {
+		return nil, err
+	}
+	var res interface{}
+	if err := yaml.Unmarshal(output, &res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func (r *regoCheck) buildContextInput(env env.Env) eval.RegoInputMap {
 	context := make(map[string]interface{})
+	context["ruleID"] = r.ruleID
 	context["hostname"] = env.Hostname()
+
 	if r.ruleScope == compliance.KubernetesClusterScope {
 		context["kubernetes_cluster"], _ = env.KubeClient().ClusterID()
 	}
 	if r.ruleScope == compliance.KubernetesNodeScope {
 		context["kubernetes_node_labels"] = env.NodeLabels()
+	}
+
+	mappedInputs := buildMappedInputs(r.inputs)
+	if mappedInputs != nil {
+		preparedInputs, err := roundTrip(mappedInputs)
+		if err != nil {
+			log.Warnf("failed to build mapped inputs in context")
+		} else {
+			context["input"] = preparedInputs
+		}
 	}
 
 	return context

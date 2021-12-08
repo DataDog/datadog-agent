@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	// register all workloadmeta collectors
@@ -30,7 +31,9 @@ func LoadComponents(confdPath string) {
 	// start the tagger. must be done before autodiscovery, as it needs to
 	// be the first subscribed to metadata store to avoid race conditions.
 	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-	tagger.Init()
+	if err := tagger.Init(); err != nil {
+		log.Errorf("failed to start the tagger: %s", err)
+	}
 
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment, if available

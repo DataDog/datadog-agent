@@ -4,6 +4,7 @@ include:
   - /.gitlab/deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
+  - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
@@ -52,6 +53,7 @@ stages:
   - deps_build
   - deps_fetch
   - source_test
+  - source_test_junit_upload
   - binary_build
   - integration_test
   - package_build
@@ -129,9 +131,9 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v5855338-b3cbe72
+  DATADOG_AGENT_BUILDIMAGES: v6041145-dc43691
   DATADOG_AGENT_BUILDERS: v5641696-27f2a62
-  DATADOG_AGENT_WINBUILDIMAGES: v5782992-59363bf
+  DATADOG_AGENT_WINBUILDIMAGES: v6062872-fdb9f45
   DATADOG_AGENT_ARMBUILDIMAGES: v5782992-59363bf
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v5782992-59363bf
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v5782992-59363bf

@@ -253,9 +253,9 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 			LanguageVersion: tagstats.LangVersion,
 			TracerVersion:   tagstats.TracerVersion,
 		}
-		if containerTags := getContainerTags(p.TracerPayload.ContainerID); containerTags != "" {
+		if ctags := getContainerTags(p.TracerPayload.ContainerID); ctags != "" {
 			p.TracerPayload.Tags = map[string]string{
-				tagContainersTags: containerTags,
+				tagContainersTags: ctags,
 			}
 		}
 		o.out <- &p
@@ -338,7 +338,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 		Meta:     rattr,
 		Metrics:  map[string]float64{},
 	}
-	span.Meta["otlp.trace_id"] = hex.EncodeToString(in.TraceId)
+	span.Meta["otel.trace_id"] = hex.EncodeToString(in.TraceId)
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			span.Meta["version"] = ver

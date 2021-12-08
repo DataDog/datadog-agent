@@ -75,7 +75,7 @@ def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
                         continue
                     failed_tests[(package, name)] = Test(owners, name, package)
                 elif action == "pass" and (package, name) in failed_tests:
-                    print("Test {} from package {} passed after retry, removing from output".format(name, package))
+                    print(f"Test {name} from package {package} passed after retry, removing from output")
                     del failed_tests[(package, name)]
 
     return failed_tests.values()
@@ -101,13 +101,13 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
 
 def base_message(header):
     return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} failed.
-{commit_title} (<{commit_url}|{commit_short_sha}>) by {author}""".format(
+{commit_title} (<{commit_url}|{commit_short_sha}>) by {author}""".format(  # noqa: FS002
         header=header,
         pipeline_url=os.getenv("CI_PIPELINE_URL"),
         pipeline_id=os.getenv("CI_PIPELINE_ID"),
         commit_ref_name=os.getenv("CI_COMMIT_REF_NAME"),
         commit_title=os.getenv("CI_COMMIT_TITLE"),
-        commit_url="{project_url}/commit/{commit_sha}".format(
+        commit_url="{project_url}/commit/{commit_sha}".format(  # noqa: FS002
             project_url=os.getenv("CI_PROJECT_URL"), commit_sha=os.getenv("CI_COMMIT_SHA")
         ),
         commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA"),

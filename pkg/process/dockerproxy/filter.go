@@ -143,7 +143,7 @@ func extractProxyTarget(p *process.FilledProcess) *proxy {
 		case "-container-ip":
 			proxy.target.Ip = cmd[i+1]
 		case "-container-port":
-			port, err := strconv.Atoi(cmd[i+1])
+			port, err := strconv.ParseInt(cmd[i+1], 10, 32)
 			if err != nil {
 				return nil
 			}

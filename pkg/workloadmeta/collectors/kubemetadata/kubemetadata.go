@@ -69,7 +69,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 		c.dcaEnabled = false
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
-			log.Errorf("Could not initialise the communication with the cluster agent: %w", errDCA)
+			log.Errorf("Could not initialise the communication with the cluster agent: %s", errDCA.Error())
 
 			// Continue to retry while we can
 			if retry.IsErrWillRetry(errDCA) {

@@ -13,7 +13,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -21,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/docker/docker/api/types"
 )
@@ -65,16 +63,10 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 		shaResolvedInspect, _ := du.ResolveImageName(context.TODO(), m)
 		return []byte(shaResolvedInspect)
 	}
-	imgRx.ReplaceAllFunc(serialized, replFunc)
+	serialized = imgRx.ReplaceAllFunc(serialized, replFunc)
 
 	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
-	w, err := scrubber.NewWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-	_, err = w.Write(serialized)
-	return err
+	return writeScrubbedFile(f, serialized)
 }
 
 func zipDockerPs(tempDir, hostname string) error {
@@ -106,17 +98,7 @@ func zipDockerPs(tempDir, hostname string) error {
 
 	// Write to file
 	f := filepath.Join(tempDir, hostname, "docker_ps.log")
-	file, err := scrubber.NewWriter(f, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	_, err = file.Write(output.Bytes())
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return writeScrubbedFile(f, output.Bytes())
 }
 
 // trimCommand removes arguments from command string

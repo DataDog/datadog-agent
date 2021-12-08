@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -159,7 +158,7 @@ func TestGetLambdaSourceNilScheduler(t *testing.T) {
 func TestGetLambdaSourceNilSource(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	scheduler.CreateScheduler(logSources, services, workloadmetatesting.NewStore())
+	scheduler.CreateScheduler(logSources, services)
 	assert.Nil(t, GetLambdaSource())
 }
 
@@ -173,7 +172,7 @@ func TestGetLambdaSourceValidSource(t *testing.T) {
 	})
 	logSources.AddSource(chanSource)
 	services := service.NewServices()
-	scheduler.CreateScheduler(logSources, services, workloadmetatesting.NewStore())
+	scheduler.CreateScheduler(logSources, services)
 	assert.NotNil(t, GetLambdaSource())
 }
 
@@ -407,6 +406,70 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 		{
 			stringRecord: "hi, log 1",
 		},
+		{
+			stringRecord: "hi, log 2",
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	select {
+	case received := <-logChannel:
+		assert.NotNil(t, received)
+		assert.Equal(t, "myARN", received.Lambda.ARN)
+		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
+	}
+}
+
+func TestProcessLogMessageNoStringRecordPlatformLog(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+
+	logCollection := &LambdaLogsCollector{
+		ExecutionContext: &ExecutionContext{
+			ARN:           "myARN",
+			LastRequestID: "myRequestID",
+		},
+		LogsEnabled: true,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+	}
+
+	logMessages := []logMessage{
+		{
+			logType: logTypePlatformRuntimeDone,
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	select {
+	case <-logChannel:
+		assert.Fail(t, "We should not have received logs")
+	case <-time.After(100 * time.Millisecond):
+		// nothing to do here
+	}
+}
+
+func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+
+	logCollection := &LambdaLogsCollector{
+		ExecutionContext: &ExecutionContext{
+			ARN:           "myARN",
+			LastRequestID: "myRequestID",
+		},
+		LogsEnabled: true,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+	}
+
+	logMessages := []logMessage{
 		{
 			stringRecord: "hi, log 2",
 		},

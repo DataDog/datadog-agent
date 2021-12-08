@@ -91,6 +91,9 @@ var (
 
 		"io.rancher.stack.name":         "rancher_stack",
 		"io.rancher.stack_service.name": "rancher_service",
+
+		// Automatically extract git commit sha from image for source code integration
+		"org.opencontainers.image.revision": "git.commit.sha",
 	}
 
 	highCardOrchestratorLabels = map[string]string{
@@ -107,6 +110,19 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
+			taggerEntityID := buildTaggerEntityID(entityID)
+
+			// keep track of children of this entity from previous
+			// iterations ...
+			unseen := make(map[string]struct{})
+			for childTaggerID := range c.children[taggerEntityID] {
+				unseen[childTaggerID] = struct{}{}
+			}
+
+			// ... and create a new empty map to store the children
+			// seen in this iteration.
+			c.children[taggerEntityID] = make(map[string]struct{})
+
 			switch entityID.Kind {
 			case workloadmeta.KindContainer:
 				tagInfos = append(tagInfos, c.handleContainer(ev)...)
@@ -114,9 +130,22 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
+			case workloadmeta.KindGardenContainer:
+				tagInfos = append(tagInfos, c.handleGardenContainer(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
+
+			// remove the children seen in this iteration from the
+			// unseen list ...
+			for childTaggerID := range c.children[taggerEntityID] {
+				delete(unseen, childTaggerID)
+			}
+
+			// ... and remove entities for everything that has been
+			// left
+			source := buildTaggerSource(entityID)
+			tagInfos = append(tagInfos, c.handleDeleteChildren(source, unseen)...)
 
 		case workloadmeta.EventTypeUnset:
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
@@ -340,6 +369,17 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 
 	return tagInfos
 }
+func (c *WorkloadMetaCollector) handleGardenContainer(ev workloadmeta.Event) []*TagInfo {
+	container := ev.Entity.(*workloadmeta.GardenContainer)
+
+	return []*TagInfo{
+		{
+			Source:       gardenSource,
+			Entity:       buildTaggerEntityID(container.EntityID),
+			HighCardTags: container.Tags,
+		},
+	}
+}
 
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tags *utils.TagList) {
 	for name, value := range pod.Labels {
@@ -432,10 +472,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	tags.AddLow("image_id", image.ID)
 
 	// enrich with standard tags from labels for this container if present
+	containerName := podContainer.Name
 	standardTagKeys := map[string]string{
-		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tagKeyEnv):     tagKeyEnv,
-		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tagKeyVersion): tagKeyVersion,
-		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tagKeyService): tagKeyService,
+		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", containerName, tagKeyEnv):     tagKeyEnv,
+		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", containerName, tagKeyVersion): tagKeyVersion,
+		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", containerName, tagKeyService): tagKeyService,
 	}
 	c.extractFromMapWithFn(pod.Labels, standardTagKeys, tags.AddStandard)
 
@@ -443,7 +484,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
 
 	// container-specific tags provided through pod annotation
-	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, container.Name)
+	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, containerName)
 	c.extractTagsFromJSONInMap(annotation, pod.Annotations, tags)
 
 	low, orch, high, standard := tags.Compute()
@@ -478,13 +519,20 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*TagInfo {
 
 	children := c.children[taggerEntityID]
 
-	source := fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind))
+	source := buildTaggerSource(entityID)
 	tagInfos := make([]*TagInfo, 0, len(children)+1)
 	tagInfos = append(tagInfos, &TagInfo{
 		Source:       source,
 		Entity:       taggerEntityID,
 		DeleteEntity: true,
 	})
+	tagInfos = append(tagInfos, c.handleDeleteChildren(source, children)...)
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleDeleteChildren(source string, children map[string]struct{}) []*TagInfo {
+	tagInfos := make([]*TagInfo, 0, len(children))
 
 	for childEntityID := range children {
 		t := TagInfo{
@@ -528,7 +576,7 @@ func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[s
 
 func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 	switch entityID.Kind {
-	case workloadmeta.KindContainer:
+	case workloadmeta.KindContainer, workloadmeta.KindGardenContainer:
 		return containers.BuildTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesPod:
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
@@ -538,6 +586,10 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		log.Errorf("can't recognize entity %q with kind %q, but building a a tagger ID anyway", entityID.ID, entityID.Kind)
 		return containers.BuildEntityName(string(entityID.Kind), entityID.ID)
 	}
+}
+
+func buildTaggerSource(entityID workloadmeta.EntityID) string {
+	return fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind))
 }
 
 func parseJSONValue(value string, tags *utils.TagList) error {

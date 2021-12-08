@@ -213,7 +213,9 @@ func runAgent(ctx context.Context) (err error) {
 		workloadmeta.GetGlobalStore().Start(context.Background())
 
 		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-		tagger.Init()
+		if err := tagger.Init(); err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, nil, hname)

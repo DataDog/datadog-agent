@@ -21,13 +21,13 @@ func (c *cgroupV2) GetPIDStats(stats *PIDStats) error {
 
 	stats.PIDs = nil
 	if err := parseFile(c.fr, c.pathFor("cgroup.procs"), func(s string) error {
-		pid, err := strconv.ParseInt(s, 10, 64)
+		pid, err := strconv.Atoi(s)
 		if err != nil {
 			reportError(newValueError(s, err))
 			return nil
 		}
 
-		stats.PIDs = append(stats.PIDs, int(pid))
+		stats.PIDs = append(stats.PIDs, pid)
 
 		return nil
 	}); err != nil {

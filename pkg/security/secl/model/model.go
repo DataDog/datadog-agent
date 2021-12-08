@@ -143,6 +143,7 @@ type Event struct {
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 
 	SELinux SELinuxEvent `field:"selinux" event:"selinux"` // [7.30] [Kernel] An SELinux operation was run
+	BPF     BPFEvent     `field:"bpf" event:"bpf"`         // [7.33] [Kernel] A BPF command was executed
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
@@ -571,4 +572,29 @@ type UtimesEvent struct {
 	File  FileEvent `field:"file"`
 	Atime time.Time `field:"-"`
 	Mtime time.Time `field:"-"`
+}
+
+// BPFEvent represents a BPF event
+type BPFEvent struct {
+	SyscallEvent
+
+	Map     BPFMap     `field:"map"`  // eBPF map involved in the BPF command
+	Program BPFProgram `field:"prog"` // eBPF program involved in the BPF command
+	Cmd     uint32     `field:"cmd"`  // BPF command name
+}
+
+// BPFMap represents a BPF map
+type BPFMap struct {
+	ID   uint32 `field:"-"`    // ID of the eBPF map
+	Type uint32 `field:"type"` // Type of the eBPF map
+	Name string `field:"-"`    // Name of the eBPF map
+}
+
+// BPFProgram represents a BPF program
+type BPFProgram struct {
+	ID         uint32   `field:"-"`                // ID of the eBPF program
+	Type       uint32   `field:"type"`             // Type of the eBPF program
+	AttachType uint32   `field:"attach_type"`      // Attach type of the eBPF program
+	Helpers    []uint32 `field:"-,ResolveHelpers"` // eBPF helpers used by the eBPF program
+	Name       string   `field:"-"`                // Name of the eBPF program
 }
