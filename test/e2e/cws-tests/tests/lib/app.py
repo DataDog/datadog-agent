@@ -40,10 +40,6 @@ def get_app_log(api_client, query):
             query=query,
             to="now",
         ),
-        options=LogsQueryOptions(
-            time_offset=1,
-            timezone="GMT",
-        ),
         page=LogsListRequestPage(
             limit=25,
         ),
@@ -166,8 +162,8 @@ class App:
 
         return fp.name
 
-    def wait_app_log(self, query, tries=30, delay=5):
+    def wait_app_log(self, query, tries=30, delay=10):
         return retry_call(get_app_log, fargs=[self.api_client, query], tries=tries, delay=delay)
 
-    def wait_app_signal(self, query, tries=30, delay=5):
+    def wait_app_signal(self, query, tries=30, delay=10):
         return retry_call(get_app_signal, fargs=[self.api_client, query], tries=tries, delay=delay)
