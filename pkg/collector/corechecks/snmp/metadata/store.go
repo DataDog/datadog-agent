@@ -90,6 +90,12 @@ func (s Store) GetScalarAsString(field string) string {
 	return strVal
 }
 
+// ScalarFieldHasValue test if scalar field has value
+func (s Store) ScalarFieldHasValue(field string) bool {
+	_, ok := s.scalarValues[field]
+	return ok
+}
+
 // GetColumnIndexes get column indexes for a field
 func (s Store) GetColumnIndexes(field string) []string {
 	column, ok := s.columnValues[field]

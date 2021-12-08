@@ -69,6 +69,9 @@ func (c *NTPCheck) String() string {
 	return "ntp"
 }
 
+// for testing
+var getCloudProviderNTPHosts = cloudproviders.GetCloudProviderNTPHosts
+
 func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() ([]string, error)) error {
 	var instance ntpInstanceConfig
 	var initConf ntpInitConfig
@@ -77,7 +80,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	defaultPort := 123
 	defaultOffsetThreshold := 60
 
-	defaultHosts := cloudproviders.GetCloudProviderNTPHosts(context.TODO())
+	defaultHosts := getCloudProviderNTPHosts(context.TODO())
 
 	// Default to our domains on pool.ntp.org if no cloud provider detected
 	if defaultHosts == nil {

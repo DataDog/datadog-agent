@@ -600,6 +600,9 @@ func (c *CheckConfig) parseScalarOids(metrics []MetricsConfig, metricTags []Metr
 			}
 			for _, field := range metadataConfig.Fields {
 				oids = append(oids, field.Symbol.OID)
+				for _, symbol := range field.Symbols {
+					oids = append(oids, symbol.OID)
+				}
 			}
 			// we don't support tags for now for resource (e.g. device) based on scalar OIDs
 			// profile root level `metric_tags` (tags used for both metadata, metrics, service checks)
@@ -626,6 +629,9 @@ func (c *CheckConfig) parseColumnOids(metrics []MetricsConfig, metadataConfigs M
 			}
 			for _, field := range metadataConfig.Fields {
 				oids = append(oids, field.Symbol.OID)
+				for _, symbol := range field.Symbols {
+					oids = append(oids, symbol.OID)
+				}
 			}
 			for _, tagConfig := range metadataConfig.IDTags {
 				oids = append(oids, tagConfig.Column.OID)

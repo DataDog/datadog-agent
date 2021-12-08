@@ -193,6 +193,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba"})
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
+	config.BindEnvAndSetDefault("sslkeylogfile", "")
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("hostname_file", "")
 	config.BindEnvAndSetDefault("tags", []string{})
@@ -384,9 +385,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
 
-	config.BindEnvAndSetDefault("use_v2_api.events", false)
 	config.BindEnvAndSetDefault("use_v2_api.series", false)
-	config.BindEnvAndSetDefault("use_v2_api.service_checks", false)
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.BindEnvAndSetDefault("enable_payloads.events", true)
 	config.BindEnvAndSetDefault("enable_payloads.series", true)

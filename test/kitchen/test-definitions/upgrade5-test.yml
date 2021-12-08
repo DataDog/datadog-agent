@@ -12,7 +12,6 @@ suites:
     <% end %>
   run_list:
     - "recipe[dd-agent-disable-system-repos]"
-    - "recipe[dd-agent-debian-workaround]"
     - "recipe[dd-agent-rhel-workaround]"
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-5]"  # Setup agent 5

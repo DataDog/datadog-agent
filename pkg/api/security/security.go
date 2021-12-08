@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -229,5 +230,26 @@ func validateAuthToken(authToken string) error {
 	if len(authToken) < authTokenMinimalLen {
 		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
 	}
+	return nil
+}
+
+// writes auth token(s) to a file with the same permissions as datadog.yaml
+func saveAuthToken(token, tokenPath string) error {
+	if err := ioutil.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+		return err
+	}
+
+	perms, err := filesystem.NewPermission()
+	if err != nil {
+		return err
+	}
+
+	if err := perms.RestrictAccessToUser(tokenPath); err != nil {
+		log.Infof("Wrote auth token acl")
+	} else {
+		log.Errorf("Failed to write auth token acl %s", err)
+		return err
+	}
+
 	return nil
 }
