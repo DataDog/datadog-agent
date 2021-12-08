@@ -212,15 +212,16 @@ type WriterConfig struct {
 // The format for cfgKey should be a map which has the URL as a key and one or
 // more API keys as an array value.
 func appendEndpoints(endpoints []*Endpoint, cfgKey string) []*Endpoint {
-	if config.Datadog.IsSet(cfgKey) {
-		for url, keys := range config.Datadog.GetStringMapStringSlice(cfgKey) {
-			if len(keys) == 0 {
-				log.Errorf("'%s' entries must have at least one API key present", cfgKey)
-				continue
-			}
-			for _, key := range keys {
-				endpoints = append(endpoints, &Endpoint{Host: url, APIKey: config.SanitizeAPIKey(key)})
-			}
+	if !config.Datadog.IsSet(cfgKey) {
+		return endpoints
+	}
+	for url, keys := range config.Datadog.GetStringMapStringSlice(cfgKey) {
+		if len(keys) == 0 {
+			log.Errorf("'%s' entries must have at least one API key present", cfgKey)
+			continue
+		}
+		for _, key := range keys {
+			endpoints = append(endpoints, &Endpoint{Host: url, APIKey: config.SanitizeAPIKey(key)})
 		}
 	}
 	return endpoints
@@ -228,9 +229,7 @@ func appendEndpoints(endpoints []*Endpoint, cfgKey string) []*Endpoint {
 
 func (c *AgentConfig) applyDatadogConfig() error {
 	if len(c.Endpoints) == 0 {
-		c.Endpoints = []*Endpoint{{
-			Host: apiEndpointPrefix + config.DefaultSite,
-		}}
+		c.Endpoints = []*Endpoint{{}}
 	}
 	if config.Datadog.IsSet("api_key") {
 		c.Endpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
@@ -246,7 +245,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	c.Endpoints[0].Host = config.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
-	c.Endpoints = appendAdditionalEndpoints(c.Endpoints, "apm_config.additional_endpoints")
+	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if config.Datadog.IsSet("proxy.no_proxy") {
 		proxyList := config.Datadog.GetStringSlice("proxy.no_proxy")
@@ -366,22 +365,13 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		GRPCPort:        grpcPort,
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
-	if c.TelemetryConfig == nil {
-		c.TelemetryConfig = &TelemetryConfig{}
-	}
-
-	if len(c.TelemetryConfig.Endpoints) == 0 {
-		c.TelemetryConfig.Endpoints = []*Endpoint{{
-			Host: telemetryEndpointPrefix + config.DefaultSite,
-		}}
-	}
 
 	if config.Datadog.GetBool("apm_config.telemetry.enabled") {
 		endpoints := []*Endpoint{{
 			Host:   config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
 			APIKey: c.Endpoints[0].APIKey,
 		}}
-		endpoints = appendAdditionalEndpoints(endpoints, "apm_config.telemetry.additional_endpoints")
+		endpoints = appendEndpoints(endpoints, "apm_config.telemetry.additional_endpoints")
 		// convert any URLs into Hostnames
 		c.TelemetryConfig.Endpoints = []*Endpoint{}
 		for _, endpoint := range endpoints {
