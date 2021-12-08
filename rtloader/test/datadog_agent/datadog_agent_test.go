@@ -457,15 +457,6 @@ func TestObfuscateSql(t *testing.T) {
 			expected: "select * from table where id = ?",
 		},
 		{
-			name: "Test metadata comments",
-			code: fmt.Sprintf(`
-	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
-	with open(r'%s', 'w') as f:
-		f.write(str(result['metadata']['comments'][0]))
-	`, tmpfile.Name()),
-			expected: "-- SQL test comment",
-		},
-		{
 			name: "Test metadata tables_csv",
 			code: fmt.Sprintf(`
 	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
@@ -473,6 +464,24 @@ func TestObfuscateSql(t *testing.T) {
 		f.write(str(result['metadata']['tables_csv']))
 	`, tmpfile.Name()),
 			expected: "table",
+		},
+		{
+			name: "Test metadata commands",
+			code: fmt.Sprintf(`
+	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
+	with open(r'%s', 'w') as f:
+		f.write(str(result['metadata']['commands'][0]))
+	`, tmpfile.Name()),
+			expected: "SELECT",
+		},
+		{
+			name: "Test metadata comments",
+			code: fmt.Sprintf(`
+	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
+	with open(r'%s', 'w') as f:
+		f.write(str(result['metadata']['comments'][0]))
+	`, tmpfile.Name()),
+			expected: "-- SQL test comment",
 		},
 	}
 

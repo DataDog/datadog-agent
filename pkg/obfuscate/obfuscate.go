@@ -110,6 +110,9 @@ type SQLConfig struct {
 	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
 	CollectComments bool `json:"collect_comments"`
 
+	// CollectCommands specifies whether the obfuscator should extract and return commands as SQL metadata when obfuscating.
+	CollectCommands bool `json:"collect_commands"`
+
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits"`
 
@@ -132,6 +135,8 @@ type SQLConfig struct {
 type SQLMetadata struct {
 	// TablesCSV is a comma-separated list of tables that the query addresses.
 	TablesCSV string `json:"tables_csv"`
+	// Comments in a SQL statement.
+	Commands []string `json:"commands"`
 	// Comments in a SQL statement.
 	Comments []string `json:"comments"`
 }

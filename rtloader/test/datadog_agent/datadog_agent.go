@@ -259,8 +259,9 @@ func obfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		obfuscatedQuery := obfuscate.ObfuscatedQuery{
 			Query: "select * from table where id = ?",
 			Metadata: obfuscate.SQLMetadata{
-				Comments:  []string{"-- SQL test comment"},
 				TablesCSV: "table",
+				Commands:  []string{"SELECT"},
+				Comments:  []string{"-- SQL test comment"},
 			},
 		}
 		out, err := json.Marshal(obfuscatedQuery)

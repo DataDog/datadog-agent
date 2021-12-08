@@ -56,6 +56,7 @@ const (
 	NE
 	Not
 	As
+	Select
 	From
 	Update
 	Insert
@@ -109,6 +110,7 @@ var tokenKindStrings = map[TokenKind]string{
 	NE:                           "NE",
 	Not:                          "NOT",
 	As:                           "As",
+	Select:                       "Select",
 	From:                         "From",
 	Update:                       "Update",
 	Insert:                       "Insert",
@@ -179,6 +181,7 @@ var keywords = map[string]TokenKind{
 	"SAVEPOINT": Savepoint,
 	"LIMIT":     Limit,
 	"AS":        As,
+	"SELECT":    Select,
 	"FROM":      From,
 	"UPDATE":    Update,
 	"INSERT":    Insert,

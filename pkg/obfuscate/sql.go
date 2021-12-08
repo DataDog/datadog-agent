@@ -20,20 +20,29 @@ var questionMark = []byte("?")
 // It is meant to run before all the other filters.
 type metadataFinderFilter struct {
 	collectTableNames bool
+	collectCommands   bool
 	collectComments   bool
 
-	// comments keeps track of comments encountered by the filter.
-	comments []string
 	// tablesSeen keeps track of unique table names encountered by the filter.
 	tablesSeen map[string]struct{}
 	// tablesCSV specifies a comma-separated list of tables.
 	tablesCSV strings.Builder
+	// commands keeps track of commands encountered by the filter.
+	commands []string
+	// comments keeps track of comments encountered by the filter.
+	comments []string
 }
 
 func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
 	if f.collectComments && token == Comment {
 		// A comment with line-breaks will be brought to a single line.
 		f.comments = append(f.comments, strings.TrimSpace(strings.Replace(string(buffer), "\n", " ", -1)))
+	}
+	if f.collectCommands {
+		switch token {
+		case Select, Update, Insert, Join:
+			f.commands = append(f.commands, strings.ToUpper(token.String()))
+		}
 	}
 	if f.collectTableNames {
 		switch lastToken {
@@ -75,6 +84,7 @@ func (f *metadataFinderFilter) storeTableName(name string) {
 func (f *metadataFinderFilter) Results() SQLMetadata {
 	return SQLMetadata{
 		TablesCSV: f.tablesCSV.String(),
+		Commands:  f.commands,
 		Comments:  f.comments,
 	}
 }
@@ -197,7 +207,7 @@ func (f *groupingFilter) Filter(token, lastToken TokenKind, buffer []byte) (toke
 	}
 
 	switch {
-	case f.groupMulti > 0 && lastToken == FilteredGroupableParenthesis && token == ID:
+	case f.groupMulti > 0 && lastToken == FilteredGroupableParenthesis && token == Select:
 		// this is the start of a new group that seems to be a nested query;
 		// cancel grouping.
 		f.Reset()
@@ -313,6 +323,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		lastToken TokenKind
 		metadata  = metadataFinderFilter{
 			collectTableNames: tokenizer.cfg.TableNames,
+			collectCommands:   tokenizer.cfg.CollectCommands,
 			collectComments:   tokenizer.cfg.CollectComments,
 		}
 		discard  = discardFilter{keepSQLAlias: tokenizer.cfg.KeepSQLAlias}
