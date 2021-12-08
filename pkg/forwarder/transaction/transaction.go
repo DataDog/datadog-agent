@@ -344,7 +344,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
-		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
+		log.Errorf("Error code %q received while sending transaction to %q: %q, dropping it", resp.Status, logURL, body)
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
@@ -359,7 +359,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "gt_400")
-		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, string(body))
+		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, body)
 	}
 
 	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName)
@@ -372,15 +372,15 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	if transactionsSuccess.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
-		log.Tracef("Url: %q payload: %s", logURL, string(body))
+		log.Tracef("Url: %q payload: %q", logURL, body)
 		return resp.StatusCode, body, nil
 	}
 	if transactionsSuccess.Value()%loggingFrequency == 0 {
 		log.Infof("Successfully posted payload to %q", logURL)
-		log.Tracef("Url: %q payload: %s", logURL, string(body))
+		log.Tracef("Url: %q payload: %q", logURL, body)
 		return resp.StatusCode, body, nil
 	}
-	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
+	log.Tracef("Successfully posted payload to %q: %q", logURL, body)
 	return resp.StatusCode, body, nil
 }
 
