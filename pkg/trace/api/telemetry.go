@@ -42,7 +42,6 @@ func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.
 	req.Host = endpoint.Host
 	req.URL.Host = endpoint.Host
 	req.URL.Scheme = "https"
-
 	req.Header.Set("DD-API-KEY", endpoint.APIKey)
 
 	m.Director(req)
