@@ -121,8 +121,6 @@ github.com/DataDog/ebpf-manager v0.0.0-20211116173716-a65628f678af h1:/VrEHsq0gj
 github.com/DataDog/ebpf-manager v0.0.0-20211116173716-a65628f678af/go.mod h1:05Y9FhEyILUdCovBthi5y4KPY8AfUg5EbMNC6RMQXDY=
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c h1:a9OMhZzrrB4nd2eAsXZIBkQ061Gb/QT4CI2g+OWWevs=
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c/go.mod h1:lMIXf2EAzxbIv2zEvWu1bdqlaclUWoCtN13MHuPcY5I=
-github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd h1:tvXbvgbfV9OkVQPwdla2Fk7SPT1ICAM6fpFsuKbOhEI=
-github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd/go.mod h1:sMLDxV2xjWr4YWY5DH/N7udDsLVhJ9xKinFTAIcgSyI=
 github.com/DataDog/gohai v0.0.0-20211126091652-d183ed971098 h1:ANBijoD3xHRs6po7uejTdUHmCnL7Gr0MlE4RSiSBR1E=
 github.com/DataDog/gohai v0.0.0-20211126091652-d183ed971098/go.mod h1:sMLDxV2xjWr4YWY5DH/N7udDsLVhJ9xKinFTAIcgSyI=
 github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321/go.mod h1:tGQp6XG4XpOyy67WG/YWXVxzOY6LejK35e8KcQhtRIQ=
