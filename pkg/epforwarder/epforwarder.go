@@ -191,7 +191,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, 100)
-	senderInput := make(chan *message.Payload, 100)
+	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
 	var encoder sender.ContentEncoding
 	if endpoints.Main.UseCompression {
@@ -206,7 +206,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
 	return &passthroughPipeline{
-		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 100),
+		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 10),
 		strategy: strategy,
 		in:       inputChan,
 		auditor:  a,

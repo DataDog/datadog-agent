@@ -254,7 +254,6 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	metrics.SenderLatency.Set(latency)
 
 	if err != nil {
-
 		if ctx.Err() == context.Canceled {
 			return ctx.Err()
 		}
