@@ -25,7 +25,7 @@ import (
 // response is discarded. There is no de-duplication done between endpoint
 // hosts or api keys.
 //
-// can be extended in the future to allow supporting more product endpoints
+// Could be extended in the future to allow supporting more product endpoints
 // by simply parametrizing metric tags, and logger names
 type telemetryMultiTransport struct {
 	Transport http.RoundTripper
