@@ -219,8 +219,7 @@ func appendEndpoints(endpoints []*Endpoint, cfgKey string) []*Endpoint {
 				continue
 			}
 			for _, key := range keys {
-				key = config.SanitizeAPIKey(key)
-				endpoints = append(endpoints, &Endpoint{Host: url, APIKey: key})
+				endpoints = append(endpoints, &Endpoint{Host: url, APIKey: config.SanitizeAPIKey(key)})
 			}
 		}
 	}
