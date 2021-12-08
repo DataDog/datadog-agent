@@ -553,8 +553,8 @@ func (tkn *SQLTokenizer) scanBindVar() (TokenKind, []byte) {
 		token = ListArg
 		tkn.advance()
 	}
-	if !isLetter(tkn.lastChar) {
-		tkn.setErr(`bind variables should start with letters, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
+	if !isLetter(tkn.lastChar) && !isDigit(tkn.lastChar) {
+		tkn.setErr(`bind variables should start with letters or digits, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
 		return LexError, tkn.bytes()
 	}
 	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' {
