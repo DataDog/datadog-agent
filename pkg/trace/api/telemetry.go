@@ -65,7 +65,6 @@ func NewReverseProxy(transport http.RoundTripper, logger *stdlog.Logger) http.Ha
 			req.Header.Set("User-Agent", "")
 		}
 	}
-
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  logger,
