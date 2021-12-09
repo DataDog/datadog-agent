@@ -22,6 +22,7 @@ type metadataFinderFilter struct {
 	collectTableNames bool
 	collectCommands   bool
 	collectComments   bool
+	replaceDigits     bool
 
 	// tablesSeen keeps track of unique table names encountered by the filter.
 	tablesSeen map[string]struct{}
@@ -59,7 +60,13 @@ func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte)
 		case Update, Into:
 			// UPDATE [tableName]
 			// INSERT INTO [tableName]
-			f.storeTableName(string(buffer))
+			tableName := string(buffer)
+			if f.replaceDigits {
+				tableNameCopy := make([]byte, len(buffer))
+				copy(tableNameCopy, buffer)
+				tableName = string(replaceDigits(tableNameCopy))
+			}
+			f.storeTableName(tableName)
 			return TableName, buffer, nil
 		}
 	}
@@ -325,6 +332,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 			collectTableNames: tokenizer.cfg.TableNames,
 			collectCommands:   tokenizer.cfg.CollectCommands,
 			collectComments:   tokenizer.cfg.CollectComments,
+			replaceDigits:     tokenizer.cfg.ReplaceDigits,
 		}
 		discard  = discardFilter{keepSQLAlias: tokenizer.cfg.KeepSQLAlias}
 		replace  = replaceFilter{replaceDigits: tokenizer.cfg.ReplaceDigits}

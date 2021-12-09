@@ -142,6 +142,7 @@ func TestSQLMetadata(t *testing.T) {
 	assert := assert.New(t)
 	for _, tt := range []struct {
 		in, out  string
+		cfg      SQLConfig
 		metadata SQLMetadata
 	}{
 		{
@@ -149,6 +150,12 @@ func TestSQLMetadata(t *testing.T) {
 /* Multi-line comment */
 SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT`,
 			"SELECT * FROM clients WHERE ( clients.first_name = ? ) LIMIT ? BEGIN INSERT INTO owners ( created_at, first_name, locked, orders_count, updated_at ) VALUES ( ? ) COMMIT",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+				ReplaceDigits:   false,
+			},
 			SQLMetadata{
 				TablesCSV: "clients,owners",
 				Commands:  []string{"SELECT", "INSERT"},
@@ -162,6 +169,12 @@ SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT I
 -- Another another single line comment
 UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s`,
 			"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+				ReplaceDigits:   false,
+			},
 			SQLMetadata{
 				TablesCSV: "user_dash_pref",
 				Commands:  []string{"UPDATE"},
@@ -203,9 +216,15 @@ RANK() OVER ( ORDER BY SUM(CAST (sales1828.quantity AS BIGINT)) DESC) AS PROD_RA
 FROM sales1828, inventory3118
 WHERE sales1828.product_key = inventory3118.product_key
 GROUP BY sales1828.product_key`,
-			"WITH sales SELECT sf2.* FROM gosalesdw28391.sls_order_method_dim, gosalesdw1920.sls_product_dim391, gosalesdw3819.emp_employee_dim, gosalesdw3919.sls_sales_fact3819 WHERE pd190.product_key = sf2.product_key AND pd190.product_number381 > ? AND pd190.base_product_key > ? AND md.order_method_key = sf2.order_method_key8319 AND md.order_method_code > ? AND ed.employee_key = sf2.employee_key AND ed.manager_code1 > ? ) inventory3118 SELECT if.* FROM gosalesdw1592.go_branch_dim, gosalesdw.dist_inventory_fact WHERE if.branch_key = bd3221.branch_key AND bd3221.branch_code > ? ) SELECT sales1828.product_key, SUM ( CAST ( inventory3118.quantity_shipped ) ), SUM ( CAST ( sales1828.quantity ) ), RANK ( ) OVER ( ORDER BY SUM ( CAST ( sales1828.quantity ) ) DESC ) FROM sales1828, inventory3118 WHERE sales1828.product_key = inventory3118.product_key GROUP BY sales1828.product_key",
+			"WITH sales SELECT sf?.* FROM gosalesdw?.sls_order_method_dim, gosalesdw?.sls_product_dim?, gosalesdw?.emp_employee_dim, gosalesdw?.sls_sales_fact? WHERE pd?.product_key = sf?.product_key AND pd?.product_number? > ? AND pd?.base_product_key > ? AND md.order_method_key = sf?.order_method_key? AND md.order_method_code > ? AND ed.employee_key = sf?.employee_key AND ed.manager_code? > ? ) inventory? SELECT if.* FROM gosalesdw?.go_branch_dim, gosalesdw.dist_inventory_fact WHERE if.branch_key = bd?.branch_key AND bd?.branch_code > ? ) SELECT sales?.product_key, SUM ( CAST ( inventory?.quantity_shipped ) ), SUM ( CAST ( sales?.quantity ) ), RANK ( ) OVER ( ORDER BY SUM ( CAST ( sales?.quantity ) ) DESC ) FROM sales?, inventory? WHERE sales?.product_key = inventory?.product_key GROUP BY sales?.product_key",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+				ReplaceDigits:   true,
+			},
 			SQLMetadata{
-				TablesCSV: "gosalesdw28391.sls_order_method_dim,gosalesdw1592.go_branch_dim,sales1828",
+				TablesCSV: "gosalesdw?.sls_order_method_dim,gosalesdw?.go_branch_dim,sales?",
 				Commands:  []string{"SELECT", "SELECT", "SELECT"},
 				Comments:  []string{"/* Multi-line comment with line breaks */"},
 			},
@@ -220,13 +239,16 @@ with line breaks
 line breaks */
 SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AND posts.published = 't'`,
 			"SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AND posts.published = ?",
+			SQLConfig{
+				TableNames:      false,
+				CollectCommands: false,
+				CollectComments: false,
+				ReplaceDigits:   false,
+			},
 			SQLMetadata{
-				TablesCSV: "clients,posts",
-				Commands:  []string{"SELECT", "JOIN"},
-				Comments: []string{
-					"/* Multi-line comment with line breaks */",
-					"/* Two multi-line comments with line breaks */",
-				},
+				TablesCSV: "",
+				Commands:  []string(nil),
+				Comments:  []string(nil),
 			},
 		},
 		{
@@ -234,6 +256,12 @@ SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AN
 -- Single line comment
 CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE (UPDATE d1 SET (c1, c2, c3) = (c1 + 1, c2 + 1, c3 + 1))`,
 			"CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE ( UPDATE d1 SET ( c1, c2, c3 ) = ( c1 + ? c2 + ? c3 + ? ) )",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+				ReplaceDigits:   false,
+			},
 			SQLMetadata{
 				TablesCSV: "d1",
 				Commands:  []string{"SELECT", "UPDATE"},
@@ -247,6 +275,12 @@ CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE (UPDATE d1 SET (c1, c2, c3) = (c1 
 -- Testing table value constructor SQL expression
 SELECT * FROM (VALUES (1, 'dog')) AS d (id, animal)`,
 			"SELECT * FROM ( VALUES ( ? ) ) ( id, animal )",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+				ReplaceDigits:   false,
+			},
 			SQLMetadata{
 				TablesCSV: "",
 				Commands:  []string{"SELECT"},
@@ -265,6 +299,12 @@ T3 AS ( SELECT PNO , PNAME, COLOR, NEW_WEIGHT AS WEIGHT, NEW_CITY AS CITY FROM T
 T4 AS ( TABLE P EXCEPT CORRESPONDING TABLE T1)
 TABLE T4 UNION CORRESPONDING TABLE T3`,
 			"WITH T1 SELECT PNO, PNAME, COLOR, WEIGHT, CITY FROM P WHERE CITY = ? ) T2 SELECT PNO, PNAME, COLOR, WEIGHT, CITY, ? * WEIGHT, ? FROM T1 ), T3 SELECT PNO, PNAME, COLOR, NEW_WEIGHT, NEW_CITY FROM T2 ), T4 TABLE P EXCEPT CORRESPONDING TABLE T1 ) TABLE T4 UNION CORRESPONDING TABLE T3",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+				ReplaceDigits:   false,
+			},
 			SQLMetadata{
 				TablesCSV: "P,T1,T2",
 				Commands:  []string{"SELECT", "SELECT", "SELECT"},
@@ -275,9 +315,7 @@ TABLE T4 UNION CORRESPONDING TABLE T3`,
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			oq, err := NewObfuscator(Config{
-				SQL: SQLConfig{TableNames: true, CollectCommands: true, CollectComments: true},
-			}).ObfuscateSQLString(tt.in)
+			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
 			assert.Equal(tt.metadata.TablesCSV, oq.Metadata.TablesCSV)
@@ -492,7 +530,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 			},
 			{
 				"SELECT host, status FROM ec2_status WHERE org_id = 42",
-				"ec2_status",
+				"ec?_status",
 				"SELECT host, status FROM ec?_status WHERE org_id = ?",
 			},
 			{
@@ -542,7 +580,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 			},
 			{
 				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
-				"sales_2019_07_01,item1001",
+				"sales_?_?_?,item?",
 				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
 			{
