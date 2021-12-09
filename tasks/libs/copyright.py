@@ -24,6 +24,12 @@ COPYRIGHT_REGEX = [
 
 # These path patterns are excluded from checks
 PATH_EXCLUSION_REGEX = [
+    # These are auto-generated files but without headers to indicate it
+    '/pkg/security/probe/accessors.go',
+    '/pkg/security/probe/custom_events_easyjson.go',
+    '/pkg/security/probe/serializers_easyjson.go',
+    '/pkg/security/secl/model/accessors.go',
+    # These are files that we should not add our copyright to
     '/third_party/golang/',
     '/third_party/kubernetes/',
 ]
