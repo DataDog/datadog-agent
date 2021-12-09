@@ -1,26 +1,51 @@
+// ReSharper disable CommentTypo
+// ReSharper disable IdentifierTypo
 #include "stdafx.h"
 #include "TargetMachine.h"
+#include <array>
 
 extern std::wstring versionhistoryfilename;
 
 void cleanupFolders()
 {
-    std::wstring embedded = installdir + L"\\embedded";
-    RemoveDirectory(embedded.c_str());
-    
-    std::wstring dir_to_delete;
-    dir_to_delete = installdir + L"bin";
-    DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
-    dir_to_delete = installdir + L"embedded2";
-    DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
-    // python 3, on startup, leaves a bunch of __pycache__ directories,
-    // so we have to be more aggressive.
-    dir_to_delete = installdir + L"embedded3";
-    DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
-    DeleteFilesInDirectory(dir_to_delete.c_str(), L"__pycache__", true);
+    std::error_code ec;
+    const std::filesystem::path installPath(installdir);
 
-    // If installdir is not empty, this call will fail but that's ok
-    (void)RemoveDirectory(installdir.c_str());
+    // embedded is a symlink to bin created by us in the customaction, remove it here
+    std::filesystem::remove(installPath / "embedded", ec);
+    if (ec)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not remove embedded folder: %s",ec.message().c_str());
+    }
+
+    // Nuke the embedded2/3 folders since we don't support patching the Python installation
+    // and it's not tracked by the MSI installer anymore
+    for (const auto &folder : {"embedded2","embedded3"})
+    {
+        std::filesystem::path folderPath = installPath / folder;
+        for (const auto &direntry : std::filesystem::recursive_directory_iterator(folderPath))
+        {
+            // Remove read-only if set
+            permissions(direntry, std::filesystem::perms::all, std::filesystem::perm_options::replace, ec);
+            if (ec)
+            {
+                WcaLog(LOGMSG_STANDARD, "Could not update permissions for %s: %s", direntry.path().c_str(),
+                       ec.message().c_str());
+            }
+        }
+        remove_all(folderPath, ec);
+        if (ec)
+        {
+            WcaLog(LOGMSG_STANDARD, "Could not delete folder %s: %s", folderPath.c_str(), ec.message().c_str());
+        }
+    }
+
+    // Remove the installdir only if it's empty
+    std::filesystem::remove(installPath, ec);
+    if (ec)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not delete folder %s: %s", installPath.c_str(), ec.message().c_str());
+    }
 }
 
 UINT doUninstallAs(UNINSTALL_TYPE t)
