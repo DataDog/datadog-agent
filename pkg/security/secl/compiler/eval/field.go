@@ -33,6 +33,7 @@ type FieldValue struct {
 	Regexp *regexp.Regexp
 }
 
+// Compile the regular expression or the pattern
 func (f *FieldValue) Compile() error {
 	switch f.Type {
 	case PatternValueType:

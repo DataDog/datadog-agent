@@ -34,7 +34,7 @@ type testProcess struct {
 	array     []*testItem
 	createdAt int64
 
-	// overriden values
+	// overridden values
 	orName        string
 	orNameValues  func() *StringValues
 	orArray       []*testItem

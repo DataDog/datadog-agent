@@ -39,6 +39,7 @@ func (o *Opts) WithLegacyFields(fields map[eval.Field]eval.Field) *Opts {
 // AddMacro add a macro
 func (o *Opts) AddMacro(macro *eval.Macro) *Opts {
 	o.Opts.AddMacro(macro)
+	return o
 }
 
 // WithUserContext set user context

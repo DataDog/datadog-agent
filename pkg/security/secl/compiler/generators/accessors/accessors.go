@@ -225,8 +225,6 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						}
 
 						if iterator := seclField.iterator; iterator != "" {
-							// TODO(safchain) what to do with iterator
-
 							qualifiedType := func(t string) string {
 								switch t {
 								case "int", "string", "bool":

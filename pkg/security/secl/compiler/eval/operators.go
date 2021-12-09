@@ -9,7 +9,7 @@ import (
 	"regexp"
 )
 
-// OpOverride defines a operator override function suite
+// OpOverrides defines operator override functions
 type OpOverrides struct {
 	StringEquals         func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
 	StringValuesContains func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
@@ -335,7 +335,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	}, nil
 }
 
-// StringArrayContains evaluates array of strings against a value
+// StringValuesContains evaluates a string against values
 func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 

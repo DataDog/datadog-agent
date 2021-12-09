@@ -68,7 +68,7 @@ func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	return nil
 }
 
-// AppendValue append a string value
+// AppendScalarValue append a scalar string value
 func (s *StringValues) AppendScalarValue(value string) {
 	if s.scalarCache == nil {
 		s.scalarCache = make(map[string]bool)

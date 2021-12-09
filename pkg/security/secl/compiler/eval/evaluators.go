@@ -28,6 +28,7 @@ type BoolEvaluator struct {
 	Weight      int
 	OpOverrides *OpOverrides
 
+	// used during compilation
 	isPartial bool
 }
 
@@ -59,6 +60,7 @@ type IntEvaluator struct {
 	Weight      int
 	OpOverrides *OpOverrides
 
+	// used during compilation
 	isPartial  bool
 	isDuration bool
 }
@@ -92,8 +94,10 @@ type StringEvaluator struct {
 	OpOverrides *OpOverrides
 	ValueType   FieldValueType
 
+	// used during compilation
 	isPartial bool
 
+	// cached version
 	regexp *regexp.Regexp
 }
 
@@ -117,7 +121,7 @@ func (s *StringEvaluator) IsScalar() bool {
 	return s.EvalFnc == nil
 }
 
-// IsScalar returns whether the evaluator is a scalar
+// GetValue returns the evaluator value
 func (s *StringEvaluator) GetValue(ctx *Context) string {
 	if s.EvalFnc == nil {
 		return s.Value
@@ -154,6 +158,7 @@ type StringArrayEvaluator struct {
 	Weight      int
 	OpOverrides *OpOverrides
 
+	// used during compilation
 	isPartial bool
 }
 
@@ -177,7 +182,7 @@ func (s *StringArrayEvaluator) IsScalar() bool {
 	return s.EvalFnc == nil
 }
 
-// IsScalar returns whether the evaluator is a scalar
+// AppendValue append the given value
 func (s *StringArrayEvaluator) AppendValue(value string) {
 	s.Values = append(s.Values, value)
 }
@@ -188,6 +193,7 @@ type StringValuesEvaluator struct {
 	Values  StringValues
 	Weight  int
 
+	// used during compilation
 	isPartial bool
 }
 
@@ -253,17 +259,6 @@ func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) error
 	}
 
 	return s.AppendFieldValues(values...)
-}
-
-// AppendStringEvaluator add string evaluator to the evaluator
-func (s *StringValuesEvaluator) AppendStringEvaluator(evaluators ...*StringEvaluator) error {
-	for _, evaluator := range evaluators {
-		if err := s.Values.AppendStringEvaluator(evaluator); err != nil {
-
-		}
-	}
-
-	return nil
 }
 
 // IntArrayEvaluator returns an array of int

@@ -44,6 +44,7 @@ func (o *Opts) AddMacro(macro *Macro) *Opts {
 		o.Macros = make(map[string]*Macro)
 	}
 	o.Macros[macro.ID] = macro
+	return o
 }
 
 // WithUserContext set user context
