@@ -59,14 +59,16 @@ func (s *SymlinkResolver) UpdateSymlinks(root string) {
 		if err != nil {
 			continue
 		}
-		dest = strings.TrimPrefix(dest, root)
+
+		if root != "/" {
+			dest = strings.TrimPrefix(dest, root)
+		}
 
 		if s.added[dest] {
 			continue
 		}
 
-		//seclog.Tracef("Dispatching custom event %s\n", prettyEvent)
-		log.Tracef("Symlink resolved %s(%s) => %s\n", path, root, dest)
+		log.Tracef("Symlink resolved %s(%s) => %s => %+v\n", path, root, dest, targets)
 
 		s.Lock()
 		for _, target := range targets {

@@ -617,10 +617,49 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, fla
 }
 
 func (p *Probe) UptadeApprovers(field eval.Field, path string) {
+	if !p.config.EnableApprovers {
+		return
+	}
+
+	eventType, err := p.event.GetFieldEventType(field)
+	if err != nil {
+		return
+	}
+
+	handler, exists := allApproversHandlers[eventType]
+	if !exists {
+		return
+	}
+
+	approvers := rules.Approvers{
+		field: []rules.FilterValue{
+			{
+				Field: field,
+				Value: path,
+				Type:  eval.ScalarValueType,
+			},
+		},
+	}
+
+	newApprovers, err := handler(p, approvers)
+	if err != nil {
+		log.Errorf("Error while adding approver `%s` for `%s`: %s", path, eventType, err)
+		return
+	}
+
+	for _, newApprover := range newApprovers {
+		seclog.Infof("Applying approver %+v", newApprover)
+		if err := newApprover.Apply(p); err != nil {
+			log.Errorf("Error while adding approver `%s` for `%s`: %s", path, eventType, err)
+			return
+		}
+	}
+
 	p.apprroversLock.Lock()
 	defer p.apprroversLock.Unlock()
-
-	fmt.Printf("AAAAAAAAAAAAAAAaa: %s -> %s\n", field, path)
+	for _, newApprover := range newApprovers {
+		p.approvers[eventType].Add(newApprover)
+	}
 }
 
 // SetApprovers applies approvers and removes the unused ones
@@ -632,7 +671,7 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 
 	newApprovers, err := handler(p, approvers)
 	if err != nil {
-		log.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
+		log.Errorf("Error while adding approvers, fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
 	}
 
 	for _, newApprover := range newApprovers {
@@ -644,6 +683,7 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 
 	p.apprroversLock.Lock()
 	defer p.apprroversLock.Unlock()
+
 	if previousApprovers, exist := p.approvers[eventType]; exist {
 		previousApprovers.Sub(newApprovers)
 		for _, previousApprover := range previousApprovers {
