@@ -135,9 +135,10 @@ type SQLConfig struct {
 type SQLMetadata struct {
 	// TablesCSV is a comma-separated list of tables that the query addresses.
 	TablesCSV string `json:"tables_csv"`
-	// Comments in a SQL statement.
+	// Commands holds commands executed in an SQL statement.
+	// e.g. SELECT, UPDATE, INSERT, DELETE, etc.
 	Commands []string `json:"commands"`
-	// Comments in a SQL statement.
+	// Comments holds comments in an SQL statement.
 	Comments []string `json:"comments"`
 }
 
