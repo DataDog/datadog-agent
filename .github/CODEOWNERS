@@ -118,8 +118,6 @@
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
 # Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
 # that should be fine since rarely we make PRs that only change those files alone.
-/releasenotes/                          @DataDog/do-not-notify
-/releasenotes-installscript/                  @DataDog/do-not-notify
 /go.mod                                 @DataDog/do-not-notify
 /go.sum                                 @DataDog/do-not-notify
 
@@ -208,7 +206,9 @@
 
 /pkg-config/                            @DataDog/agent-platform
 
-/releasenotes-dca/                      @DataDog/container-integrations
+/releasenotes/                          @DataDog/documentation
+/releasenotes-installscript/            @DataDog/documentation
+/releasenotes-dca/                      @DataDog/documentation @DataDog/container-integrations
 
 /rtloader/                              @DataDog/agent-core
 
