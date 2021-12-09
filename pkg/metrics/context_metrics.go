@@ -119,7 +119,7 @@ func flushToSeries(
 	return series
 }
 
-// mergeContextMetrics orders all Metric instances by context key,
+// aggregateContextMetricsByContextKey orders all Metric instances by context key,
 // representing the result as calls to the given callbacks.  The `callback` parameter
 // is called with each Metric in term, while `contextKeyChanged` is called after the
 // last Metric with each context key is processed. The last argument of the callback is the index
@@ -134,7 +134,7 @@ func flushToSeries(
 //     callback(key3, metric5, 0)
 //     callback(key3, metric6, 1)
 //     contextKeyChanged()
-func mergeContextMetrics(
+func aggregateContextMetricsByContextKey(
 	contextMetricsCollection []ContextMetrics,
 	callback func(ckey.ContextKey, Metric, int),
 	contextKeyChanged func()) {

@@ -52,7 +52,7 @@ func (f *ContextMetricsFlusher) FlushAndClear(callback func([]*Serie)) map[ckey.
 
 	errorsByContextKey := make(map[ckey.ContextKey]error)
 
-	mergeContextMetrics(
+	aggregateContextMetricsByContextKey(
 		contextMetricsCollection,
 		func(contextKey ckey.ContextKey, m Metric, contextMetricIndex int) {
 			series = flushToSeries(
