@@ -41,7 +41,7 @@ func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte)
 	}
 	if f.collectCommands {
 		switch token {
-		case Select, Update, Insert, Join:
+		case Select, Update, Insert, Delete, Join, Alter, Drop, Create, Grant, Revoke, Commit, Begin, Truncate:
 			f.commands = append(f.commands, strings.ToUpper(token.String()))
 		}
 	}

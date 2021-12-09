@@ -158,7 +158,7 @@ SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT I
 			},
 			SQLMetadata{
 				TablesCSV: "clients,owners",
-				Commands:  []string{"SELECT", "INSERT"},
+				Commands:  []string{"SELECT", "BEGIN", "INSERT", "COMMIT"},
 				Comments:  []string{"/* Multi-line comment */"},
 			},
 		},
@@ -167,8 +167,8 @@ SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT I
 -- Single line comment
 -- Another single line comment
 -- Another another single line comment
-UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s`,
-			"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?",
+GRANT USAGE, DELETE ON SCHEMA datadog TO datadog`,
+			"GRANT USAGE, DELETE ON SCHEMA datadog TO datadog",
 			SQLConfig{
 				TableNames:      true,
 				CollectCommands: true,
@@ -176,8 +176,8 @@ UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22
 				ReplaceDigits:   false,
 			},
 			SQLMetadata{
-				TablesCSV: "user_dash_pref",
-				Commands:  []string{"UPDATE"},
+				TablesCSV: "",
+				Commands:  []string{"GRANT", "DELETE"},
 				Comments: []string{
 					"-- Single line comment",
 					"-- Another single line comment",
@@ -252,22 +252,17 @@ SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AN
 			},
 		},
 		{
-			`
--- Single line comment
-CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE (UPDATE d1 SET (c1, c2, c3) = (c1 + 1, c2 + 1, c3 + 1))`,
+			`CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE (UPDATE d1 SET (c1, c2, c3) = (c1 + 1, c2 + 1, c3 + 1))`,
 			"CREATE TRIGGER dogwatcher SELECT ON w1 BEFORE ( UPDATE d1 SET ( c1, c2, c3 ) = ( c1 + ? c2 + ? c3 + ? ) )",
 			SQLConfig{
 				TableNames:      true,
 				CollectCommands: true,
-				CollectComments: true,
+				CollectComments: false,
 				ReplaceDigits:   false,
 			},
 			SQLMetadata{
 				TablesCSV: "d1",
-				Commands:  []string{"SELECT", "UPDATE"},
-				Comments: []string{
-					"-- Single line comment",
-				},
+				Commands:  []string{"CREATE", "SELECT", "UPDATE"},
 			},
 		},
 		{
@@ -278,15 +273,54 @@ SELECT * FROM (VALUES (1, 'dog')) AS d (id, animal)`,
 			SQLConfig{
 				TableNames:      true,
 				CollectCommands: true,
-				CollectComments: true,
+				CollectComments: false,
 				ReplaceDigits:   false,
 			},
 			SQLMetadata{
 				TablesCSV: "",
 				Commands:  []string{"SELECT"},
-				Comments: []string{
-					"-- Testing table value constructor SQL expression",
-				},
+			},
+		},
+		{
+			`ALTER TABLE table DROP COLUMN column`,
+			"ALTER TABLE table DROP COLUMN column",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: false,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "",
+				Commands:  []string{"ALTER", "DROP"},
+			},
+		},
+		{
+			`REVOKE ALL ON SCHEMA datadog FROM datadog`,
+			"REVOKE ALL ON SCHEMA datadog FROM datadog",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: false,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "datadog",
+				Commands:  []string{"REVOKE"},
+			},
+		},
+		{
+			`TRUNCATE TABLE datadog`,
+			"TRUNCATE TABLE datadog",
+			SQLConfig{
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: false,
+				ReplaceDigits:   false,
+			},
+			SQLMetadata{
+				TablesCSV: "",
+				Commands:  []string{"TRUNCATE"},
 			},
 		},
 		{
