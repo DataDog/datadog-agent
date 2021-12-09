@@ -19,7 +19,10 @@ var (
 	rootConfig1 []byte
 )
 
+// EmbeddedRoot is an embedded root
 type EmbeddedRoot []byte
+
+// EmbeddedRoots is a map of version => EmbeddedRoot
 type EmbeddedRoots map[uint64]EmbeddedRoot
 
 var rootsDirector = EmbeddedRoots{
@@ -30,6 +33,7 @@ var rootsConfig = EmbeddedRoots{
 	1: rootConfig1,
 }
 
+// RootsDirector returns all the roots of the director repo
 func RootsDirector() EmbeddedRoots {
 	if directorRoot := config.Datadog.GetString("remote_configuration.director_root"); directorRoot != "" {
 		return EmbeddedRoots{
@@ -39,6 +43,7 @@ func RootsDirector() EmbeddedRoots {
 	return rootsDirector
 }
 
+// RootsConfig returns all the roots of the director repo
 func RootsConfig() EmbeddedRoots {
 	if configRoot := config.Datadog.GetString("remote_configuration.config_root"); configRoot != "" {
 		return EmbeddedRoots{
@@ -48,10 +53,12 @@ func RootsConfig() EmbeddedRoots {
 	return rootsConfig
 }
 
+// Last returns the last root the EmbeddedRoots
 func (roots EmbeddedRoots) Last() EmbeddedRoot {
 	return roots[roots.LastVersion()]
 }
 
+// LastVersion returns the last version of the EmbeddedRoots
 func (roots EmbeddedRoots) LastVersion() uint64 {
 	return uint64(len(roots))
 }
