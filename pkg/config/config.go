@@ -356,7 +356,7 @@ func InitConfig(config Config) {
 
 		if pathExists("/host/etc") {
 			if val, isSet := os.LookupEnv("HOST_ETC"); !isSet {
-				// We want to detect the host disto informations instead of the one from the container.
+				// We want to detect the host distro informations instead of the one from the container.
 				// 'HOST_ETC' is used by some libraries like gopsutil and by the system-probe to
 				// download the right kernel headers.
 				os.Setenv("HOST_ETC", "/host/etc")
