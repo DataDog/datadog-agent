@@ -101,9 +101,7 @@ func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) (conte
 				CurrentConfigSnapshotVersion: currentConfigSnapshotVersion,
 				Product:                      product,
 			}
-			subscriberStream.startStream(streamCtx)
-			err := subscriberStream.stream.Send(&request)
-			if err != nil {
+			if err := subscriberStream.stream.Send(&request); err != nil {
 				log.Errorf("Error sending message to core agent: %s", err)
 				time.Sleep(errorRetryInterval)
 				continue

@@ -40,9 +40,9 @@ loop:
 		default:
 			select {
 			case <-s.tracerInfoChan:
-				log.Warnf("Cannot add more tracers. Dropping oldest request.")
+				log.Warnf("Cannot add more tracers. Dropping oldest tracer info.")
 			default:
-				log.Errorf("Cannot add more tracers and cannot empty chan. Dropping current request.")
+				log.Errorf("Cannot add more tracers and cannot empty chan. Dropping current tracer info.")
 				break loop
 			}
 		}

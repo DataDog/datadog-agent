@@ -273,7 +273,7 @@ func (c *agentSecureClient) GetConfigUpdates(ctx context.Context, opts ...grpc.C
 	if err != nil {
 		return nil, err
 	}
-	x := &agentSecureGetConfigUpdatesClient{stream}
+	x := &AgentSecureGetConfigUpdatesClient{stream}
 	return x, nil
 }
 
@@ -283,15 +283,15 @@ type AgentSecure_GetConfigUpdatesClient interface {
 	grpc.ClientStream
 }
 
-type agentSecureGetConfigUpdatesClient struct {
+type AgentSecureGetConfigUpdatesClient struct {
 	grpc.ClientStream
 }
 
-func (x *agentSecureGetConfigUpdatesClient) Send(m *SubscribeConfigRequest) error {
+func (x *AgentSecureGetConfigUpdatesClient) Send(m *SubscribeConfigRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *agentSecureGetConfigUpdatesClient) Recv() (*ConfigResponse, error) {
+func (x *AgentSecureGetConfigUpdatesClient) Recv() (*ConfigResponse, error) {
 	m := new(ConfigResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
