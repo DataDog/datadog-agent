@@ -387,7 +387,6 @@ func (t *HTTPTransaction) SerializeTo(serializer TransactionsSerializer) error {
 }
 
 // readResponseBody read HTTP response body. If body is more than 1000 bytes
-// truncates it to  prevent from logging a huge message. When EOF occurs,
 // truncates it to prevent from logging a huge message. When EOF occurs,
 // "<nil>" will be returned.
 // 1000 bytes are enough to tell which tools a response comes.
@@ -396,12 +395,13 @@ func readResponseBody(body io.ReadCloser) ([]byte, error) {
 		return []byte("<nil>"), nil
 	}
 	limit := 1000
-	b := make([]byte, limit)
+	b := make([]byte, limit+1) // For checking if the body will be truncated or not.
 	n, err := io.ReadFull(body, b)
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 	if limit < n {
+		n = limit
 		log.Warn("truncated http response body to the first 1000 bytes to prevent from logging a huge message")
 	}
 	if n == 0 {
