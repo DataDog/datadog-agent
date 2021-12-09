@@ -5,5 +5,9 @@
   "dependencies": [
     "gtest",
     "yaml-cpp"
+  ],
+  "builtin-baseline": "14543ba18235846803ab1d3534cf2f63c6024b20",
+  "overrides": [
+    { "name": "yaml-cpp", "version": "0.7.0" }
   ]
 }
