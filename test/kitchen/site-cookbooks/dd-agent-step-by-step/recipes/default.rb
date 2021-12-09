@@ -9,29 +9,29 @@
 
 case node['platform_family']
 when 'debian'
-  apt_package 'dependencies for importing APT keys'
-    package_name ['apt-transport-https', 'curl', 'gnupg']
-  end
+  apt_trusted_d_keyring='/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg'
+  apt_usr_share_keyring='/usr/share/keyrings/datadog-archive-keyring.gpg'
 
-  execute 'install debian' do
-    apt_trusted_d_keyring='/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg'
-    apt_usr_share_keyring='/usr/share/keyrings/datadog-archive-keyring.gpg'
-
+  execute 'create /usr/share keyring and source list' do
     command <<-EOF
-      sudo sh -c "echo \'deb #{node['dd-agent-step-by-step']['aptrepo']} #{node['dd-agent-step-by-step']['aptrepo_dist']} #{node['dd-agent-step-by-step']['agent_major_version']}\' > /etc/apt/sources.list.d/datadog.list"
+      sudo apt-get install -y apt-transport-https curl gnupg
+      sudo sh -c "echo \'deb [signed-by=#{apt_usr_share_keyring}] #{node['dd-agent-step-by-step']['aptrepo']} #{node['dd-agent-step-by-step']['aptrepo_dist']} #{node['dd-agent-step-by-step']['agent_major_version']}\' > /etc/apt/sources.list.d/datadog.list"
       sudo touch #{apt_usr_share_keyring} && sudo chmod a+r #{apt_usr_share_keyring}
       for key in DATADOG_APT_KEY_CURRENT.public DATADOG_APT_KEY_F14F620E.public DATADOG_APT_KEY_382E94DE.public; do
         sudo curl --retry 5 -o "/tmp/${key}" "https://keys.datadoghq.com/${key}"
         sudo cat "/tmp/${key}" | sudo gpg --import --batch --no-default-keyring --keyring "#{apt_usr_share_keyring}"
       done
     EOF
+  end
 
-    if (platform?('ubuntu') && node['platform_version'].to_i < 16) || (platform?('debian') && node['platform_version'].to_i < 9)
-      command <<-EOF
-        sudo cp #{apt_usr_share_keyring} #{apt_trusted_d_keyring}
-      EOF
-    end
+  execute 'create /etc/apt keyring' do
+    only_if { (platform?('ubuntu') && node['platform_version'].to_i < 16) || (platform?('debian') && node['platform_version'].to_i < 9) }
+    command <<-EOF
+      sudo cp #{apt_usr_share_keyring} #{apt_trusted_d_keyring}
+    EOF
+  end
 
+  execute 'install debian' do
     command <<-EOF
       sudo apt-get update
       sudo apt-get install #{node['dd-agent-step-by-step']['package_name']} -y -q
@@ -48,7 +48,7 @@ when 'rhel'
       baseurl = #{node['dd-agent-step-by-step']['yumrepo']}
       enabled=1
       gpgcheck=1
-      repo_gpgcheck=0
+      repo_gpgcheck=1
       gpgkey=#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public
              #{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public
              #{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public
@@ -57,7 +57,7 @@ when 'rhel'
 
   execute 'install rhel' do
     command <<-EOF
-      sudo yum makecache
+      sudo yum makecache -y
       sudo yum install -y #{node['dd-agent-step-by-step']['package_name']}
     EOF
   end
@@ -70,7 +70,7 @@ when 'suse'
       baseurl = #{node['dd-agent-step-by-step']['yumrepo_suse']}
       enabled=1
       gpgcheck=1
-      repo_gpgcheck=0
+      repo_gpgcheck=1
       gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public
              https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public
              https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public
