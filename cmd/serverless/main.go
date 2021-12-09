@@ -39,7 +39,7 @@ import (
 )
 
 var (
-	// serverlessAgentCmd is the root command!
+	// serverlessAgentCmd is the root command
 	serverlessAgentCmd = &cobra.Command{
 		Use:   "agent [command]",
 		Short: "Serverless Datadog Agent at your service.",
