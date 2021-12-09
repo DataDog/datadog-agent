@@ -26,6 +26,7 @@ var allowedEnvvarNames = []string{
 	// HOST vars used in containerized agent
 	"HOST_ETC",
 	"HOST_PROC",
+	"HOST_ROOT",
 
 	// Proxy settings
 	"HTTP_PROXY",
