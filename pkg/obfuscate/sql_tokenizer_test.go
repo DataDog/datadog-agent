@@ -10,23 +10,23 @@ import (
 	"testing"
 )
 
-func TestTokenizerIndex(t *testing.T) {
+func TestSQLTokenizerPosition(t *testing.T) {
 	assert := assert.New(t)
-
 	query := "SELECT username AS         person FROM users WHERE id=4"
-	tokenizer := NewSQLTokenizer(query, false, nil)
+	tok := NewSQLTokenizer(query, false, nil)
+	tokenCount := 0
 	for {
-		startPos := tokenizer.Position()
-		kind, buff := tokenizer.Scan()
+		startPos := tok.Position()
+		kind, buff := tok.Scan()
 		if kind == EndChar {
 			break
 		}
 		if kind == LexError {
 			assert.Fail("experienced an unexpected lexer error")
 		}
-
-		assert.Equal(string(buff), query[startPos:tokenizer.Position()])
-		tokenizer.SkipBlank()
+		assert.Equal(string(buff), query[startPos:tok.Position()])
+		tokenCount += 1
+		tok.SkipBlank()
 	}
-
+	assert.Equal(10, tokenCount)
 }
