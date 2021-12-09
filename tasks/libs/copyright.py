@@ -183,7 +183,7 @@ class CopyrightLinter:
 
     @staticmethod
     def _is_build_header(line):
-        return line.startswith("// +build ") or line.startswith("//go:build ")
+        return line.startswith("// +build ") or line.startswith("//+build ") or line.startswith("//go:build ")
 
     def _fix_file_header(self, filepath, dry_run=True):
         header = CopyrightLinter._get_header(filepath)
