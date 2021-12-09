@@ -17,7 +17,7 @@ func init() {
 
 // diagnose the Containerd socket connectivity
 func diagnose() error {
-	client, err := GetContainerdUtil()
+	client, err := NewContainerdUtil()
 	if err != nil {
 		return err
 	}

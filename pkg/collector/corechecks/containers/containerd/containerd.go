@@ -92,7 +92,7 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source 
 	}
 	c.filters = fil
 
-	c.client, err = cutil.GetContainerdUtil()
+	c.client, err = cutil.NewContainerdUtil()
 	if err != nil {
 		return err
 	}

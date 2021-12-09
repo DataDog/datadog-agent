@@ -67,9 +67,9 @@ type ContainerdUtil struct {
 	namespace         string
 }
 
-// GetContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
+// NewContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
 // Errors are handled in the retrier.
-func GetContainerdUtil() (ContainerdItf, error) {
+func NewContainerdUtil() (ContainerdItf, error) {
 	// A singleton does not work because different parts of the code
 	// (workloadmeta, checks, etc.) might need to fetch info from different
 	// namespaces at the same time.

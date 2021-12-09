@@ -80,7 +80,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	c.store = store
 
 	var err error
-	c.containerdClient, err = cutil.GetContainerdUtil()
+	c.containerdClient, err = cutil.NewContainerdUtil()
 	if err != nil {
 		return err
 	}

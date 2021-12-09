@@ -58,7 +58,7 @@ func newContainerdCollector() (*containerdCollector, error) {
 		return nil, provider.ErrPermaFail
 	}
 
-	client, err := cutil.GetContainerdUtil()
+	client, err := cutil.NewContainerdUtil()
 	if err != nil {
 		return nil, provider.ConvertRetrierErr(err)
 	}
