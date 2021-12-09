@@ -9,6 +9,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,4 +126,63 @@ func TestProcessCancel(t *testing.T) {
 
 	err := transaction.Process(ctx, client)
 	assert.Nil(t, err)
+}
+
+func Test_readResponseBody(t *testing.T) {
+	tests := []struct {
+		name       string
+		handleFunc http.HandlerFunc
+		want       []byte
+		wantErr    error
+	}{
+		{
+			name: "body is datadog",
+			handleFunc: func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte("datadog"))
+			},
+			want:    []byte("datadog"),
+			wantErr: nil,
+		},
+		{
+			name: "body size is just 1000 bytes",
+			handleFunc: func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(strings.Repeat(".", 1000)))
+			},
+			want:    []byte(strings.Repeat(".", 1000)),
+			wantErr: nil,
+		},
+		{
+			name: "truncated since body size is 1001 bytes",
+			handleFunc: func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(strings.Repeat(".", 1001)))
+			},
+			want:    []byte(strings.Repeat(".", 1000)),
+			wantErr: nil,
+		},
+		{
+			name: "body is empty",
+			handleFunc: func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(""))
+			},
+			want:    []byte("<nil>"),
+			wantErr: nil,
+		},
+		{
+			name:       "no body",
+			handleFunc: func(w http.ResponseWriter, r *http.Request) {},
+			want:       []byte("<nil>"),
+			wantErr:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			rec := httptest.NewRecorder()
+			tt.handleFunc(rec, req)
+			defer rec.Result().Body.Close()
+			got, err := readResponseBody(rec.Result().Body)
+			assert.Equal(t, tt.wantErr, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
