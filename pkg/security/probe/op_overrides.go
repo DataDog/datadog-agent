@@ -20,6 +20,10 @@ var (
 	// OverridePathnames is used to add symlinks to pathnames
 	OverridePathnames = &eval.OpOverrides{
 		StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+			if opts.UserCtx == nil {
+				return eval.StringEquals(a, b, opts, state)
+			}
+
 			var fieldEvaluator *eval.StringEvaluator
 			var key unsafe.Pointer
 			var value string
@@ -49,6 +53,10 @@ var (
 			return eval.StringValuesContains(fieldEvaluator, &evaluator, opts, state)
 		},
 		StringValuesContains: func(a *eval.StringEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+			if opts.UserCtx == nil {
+				return eval.StringValuesContains(a, b, opts, state)
+			}
+
 			if a.Field == "" {
 				return eval.StringValuesContains(a, b, opts, state)
 			}
@@ -73,6 +81,10 @@ var (
 		},
 		// ex: process.ancestors.file.path
 		StringArrayContains: func(a *eval.StringEvaluator, b *eval.StringArrayEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+			if opts.UserCtx == nil {
+				return eval.StringArrayContains(a, b, opts, state)
+			}
+
 			if b.Field == "" {
 				return eval.StringArrayContains(a, b, opts, state)
 			}
@@ -96,6 +108,10 @@ var (
 			return eval.StringValuesContains(a, &evaluator, opts, state)
 		},
 		StringArrayMatches: func(a *eval.StringArrayEvaluator, b *eval.StringValuesEvaluator, opts *eval.Opts, state *eval.State) (*eval.BoolEvaluator, error) {
+			if opts.UserCtx == nil {
+				return eval.StringArrayMatches(a, b, opts, state)
+			}
+
 			if a.Field == "" {
 				return eval.StringArrayMatches(a, b, opts, state)
 			}

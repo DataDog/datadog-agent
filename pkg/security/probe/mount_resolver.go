@@ -36,6 +36,11 @@ const (
 	deleteDelayTime = 5 * time.Second
 )
 
+//MountEventListener events progated to mount resolver listeners
+type MountEventListener interface {
+	OnMountEventInserted(e *model.MountEvent)
+}
+
 func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	// Has optional fields, which is a space separated list of values.
 	// Example: shared:2 master:7
@@ -87,6 +92,7 @@ type MountResolver struct {
 	deleteQueue      []deleteRequest
 	overlayPathCache *simplelru.LRU
 	parentPathCache  *simplelru.LRU
+	listerners       []MountEventListener
 }
 
 // SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
@@ -233,12 +239,13 @@ func (mr *MountResolver) insert(e *model.MountEvent) {
 
 	mr.mounts[e.MountID] = e
 
-	// init discarder revisions
-	mr.probe.inodeDiscarders.initRevision(e)
+	mr.NotifyNewInsert(e)
+}
 
-	// update symlinks
-	if e.IsOverlayFS() {
-		mr.probe.resolvers.SymlinkResolver.ScheduleUpdate(e.MountPointStr)
+// NotifyNewInsert notifies all the listeners
+func (mr *MountResolver) NotifyNewInsert(e *model.MountEvent) {
+	for _, listener := range mr.listerners {
+		listener.OnMountEventInserted(e)
 	}
 }
 
