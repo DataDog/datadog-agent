@@ -362,7 +362,7 @@ func InitConfig(config Config) {
 				os.Setenv("HOST_ETC", "/host/etc")
 				log.Debug("Setting environment variable HOST_ETC to '/host/etc'")
 			} else {
-				log.Debug("'/host/etc' folder detected but HOST_ETC is already set to '%s', leaving it untouched", val)
+				log.Debugf("'/host/etc' folder detected but HOST_ETC is already set to '%s', leaving it untouched", val)
 			}
 		}
 	} else {
