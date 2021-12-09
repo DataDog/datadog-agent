@@ -91,7 +91,6 @@ suites:
       agent_flavor: 'datadog-iot-agent'
       <% end %>
     dd-agent-install:
-      agent6: true
       agent_major_version: 7
       windows_agent_url: <%= windows_agent_url %>
       <% if ENV['AGENT_VERSION'] %>
@@ -117,7 +116,6 @@ suites:
       agent_flavor: 'datadog-iot-agent'
       <% end %>
     dd-agent-install:
-      agent6: true
       agent_major_version: 7
       windows_agent_url: <%= windows_agent_url %>
       <% if ENV['AGENT_VERSION'] %>
