@@ -19,6 +19,7 @@ var (
 	metaSnapshot = "snapshot.json"
 )
 
+//
 type localStore struct {
 	metasBucket []byte
 	rootsBucket []byte
