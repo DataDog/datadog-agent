@@ -140,6 +140,8 @@ func (s *StringEvaluator) Compile() error {
 			return fmt.Errorf("invalid regexp '%s': %s", s.Value, err)
 		}
 		s.regexp = reg
+	default:
+		return fmt.Errorf("invalid pattern or regexp '%s'", s.Value)
 	}
 	return nil
 }

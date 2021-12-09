@@ -322,6 +322,11 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	evalFnc := func(ctx *Context) bool {
 		return arrayOp(ea, eb(ctx))
 	}
+	if a.regexp != nil {
+		evalFnc = func(ctx *Context) bool {
+			return reArrayOp(a.regexp, eb(ctx))
+		}
+	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
@@ -341,10 +346,6 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
-
-	if a.Field != "" {
-		isPartialLeaf = true
-	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
@@ -418,10 +419,6 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts 
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
-
-	if a.Field != "" {
-		isPartialLeaf = true
-	}
 
 	arrayOp := func(a []string, b *StringValues) bool {
 		for _, as := range a {

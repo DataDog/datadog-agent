@@ -364,8 +364,8 @@ func TestRuleSetFilters4(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetEventApprovers("open", caps); err == nil {
-		t.Fatal("shouldn't get any approver")
+	if approvers, err := rs.GetEventApprovers("open", caps); err == nil {
+		t.Fatalf("shouldn't get any approver, got: %+v", approvers)
 	}
 
 	caps = FieldCapabilities{

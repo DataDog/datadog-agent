@@ -598,6 +598,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
 					}
 
+					// force pattern if needed
+					if nextString.ValueType == ScalarValueType {
+						nextString.ValueType = PatternValueType
+					}
+
 					if err := nextString.Compile(); err != nil {
 						return nil, obj.Pos, NewError(obj.Pos, err.Error())
 					}
@@ -616,6 +621,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				case "=~":
 					if nextString.EvalFnc != nil {
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
+					}
+
+					// force pattern if needed
+					if nextString.ValueType == ScalarValueType {
+						nextString.ValueType = PatternValueType
 					}
 
 					if err := nextString.Compile(); err != nil {
@@ -653,6 +663,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
 					}
 
+					// force pattern if needed
+					if nextString.ValueType == ScalarValueType {
+						nextString.ValueType = PatternValueType
+					}
+
 					if err := nextString.Compile(); err != nil {
 						return nil, obj.Pos, NewError(obj.Pos, err.Error())
 					}
@@ -665,6 +680,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				case "=~":
 					if nextString.EvalFnc != nil {
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
+					}
+
+					// force pattern if needed
+					if nextString.ValueType == ScalarValueType {
+						nextString.ValueType = PatternValueType
 					}
 
 					if err := nextString.Compile(); err != nil {

@@ -894,6 +894,17 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	return rules.NewRuleSet(&Model{}, eventCtor, opts)
 }
 
+// OnMountEventInserted implements the mount listener interface
+func (p *Probe) OnMountEventInserted(e *model.MountEvent) {
+	// init discarder revisions
+	p.inodeDiscarders.initRevision(e)
+
+	// update symlinks
+	if e.IsOverlayFS() {
+		p.resolvers.SymlinkResolver.ScheduleUpdate(e.MountPointStr)
+	}
+}
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	erpc, err := NewERPC()
@@ -1037,6 +1048,9 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		return nil, err
 	}
 	p.resolvers = resolvers
+
+	// add mount listener
+	p.resolvers.MountResolver.AddListener(p)
 
 	p.reOrderer = NewReOrderer(ctx,
 		p.handleEvent,

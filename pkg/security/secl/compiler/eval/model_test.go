@@ -36,9 +36,9 @@ type testProcess struct {
 
 	// overriden values
 	orName        string
-	orNameValues  func() StringValues
+	orNameValues  func() *StringValues
 	orArray       []*testItem
-	orArrayValues func() StringValues
+	orArrayValues func() *StringValues
 }
 
 type testItemListIterator struct {
@@ -345,7 +345,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			OpOverrides: &OpOverrides{
 				StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
-						EvalFnc: func(ctx *Context) StringValues {
+						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orNameValues()
 						},
 					}
@@ -354,7 +354,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 				},
 				StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
-						EvalFnc: func(ctx *Context) StringValues {
+						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orNameValues()
 						},
 					}
@@ -380,7 +380,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			OpOverrides: &OpOverrides{
 				StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
-						EvalFnc: func(ctx *Context) StringValues {
+						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orArrayValues()
 						},
 					}
@@ -389,7 +389,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 				},
 				StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
-						EvalFnc: func(ctx *Context) StringValues {
+						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orArrayValues()
 						},
 					}

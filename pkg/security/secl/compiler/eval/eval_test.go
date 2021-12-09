@@ -1025,10 +1025,10 @@ func TestOpOverrides(t *testing.T) {
 	}
 
 	// values that will be returned by the operator override
-	event.process.orNameValues = func() StringValues {
+	event.process.orNameValues = func() *StringValues {
 		var values StringValues
-		values.AppendValue("abc")
-		return values
+		values.AppendScalarValue("abc")
+		return &values
 	}
 
 	event.process.orArray = []*testItem{
@@ -1036,10 +1036,10 @@ func TestOpOverrides(t *testing.T) {
 	}
 
 	// values that will be returned by the operator override
-	event.process.orArrayValues = func() StringValues {
+	event.process.orArrayValues = func() *StringValues {
 		var values StringValues
-		values.AppendValue("abc")
-		return values
+		values.AppendScalarValue("abc")
+		return &values
 	}
 
 	tests := []struct {
@@ -1047,9 +1047,11 @@ func TestOpOverrides(t *testing.T) {
 		Expected bool
 	}{
 		{Expr: `process.or_name == "not"`, Expected: true},
+		{Expr: `process.or_name != "not"`, Expected: false},
 		{Expr: `process.or_name in ["not"]`, Expected: true},
 		{Expr: `process.or_array.value == "not"`, Expected: true},
 		{Expr: `process.or_array.value in ["not"]`, Expected: true},
+		{Expr: `process.or_array.value not in ["not"]`, Expected: false},
 	}
 
 	for _, test := range tests {
@@ -1060,6 +1062,71 @@ func TestOpOverrides(t *testing.T) {
 
 		if result != test.Expected {
 			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
+func TestOpOverridePartials(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			orName: "abc",
+		},
+	}
+
+	// values that will be returned by the operator override
+	event.process.orNameValues = func() *StringValues {
+		var values StringValues
+		values.AppendScalarValue("abc")
+		return &values
+	}
+
+	event.process.orArray = []*testItem{
+		{key: 1000, value: "abc", flag: true},
+	}
+
+	// values that will be returned by the operator override
+	event.process.orArrayValues = func() *StringValues {
+		var values StringValues
+		values.AppendScalarValue("abc")
+		return &values
+	}
+
+	tests := []struct {
+		Expr        string
+		Field       string
+		IsDiscarder bool
+	}{
+		{Expr: `process.or_name == "not"`, Field: "process.or_name", IsDiscarder: false},
+		{Expr: `process.or_name != "not"`, Field: "process.or_name", IsDiscarder: true},
+		{Expr: `process.or_name != "not" || true`, Field: "process.or_name", IsDiscarder: false},
+		{Expr: `process.or_name in ["not"]`, Field: "process.or_name", IsDiscarder: false},
+		{Expr: `process.or_array.value == "not"`, Field: "process.or_array.value", IsDiscarder: false},
+		{Expr: `process.or_array.value in ["not"]`, Field: "process.or_array.value", IsDiscarder: false},
+		{Expr: `process.or_array.value not in ["not"]`, Field: "process.or_array.value", IsDiscarder: true},
+		{Expr: `process.or_array.value not in ["not"] || true`, Field: "process.or_array.value", IsDiscarder: false},
+	}
+
+	ctx := NewContext(unsafe.Pointer(event))
+
+	for _, test := range tests {
+		model := &testModel{}
+		opts := &Opts{Constants: testConstants}
+
+		rule, err := parseRule(test.Expr, model, opts)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+		if err := rule.GenPartials(); err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		result, err := rule.PartialEval(ctx, test.Field)
+		if err != nil {
+			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
+		}
+
+		if !result != test.IsDiscarder {
+			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
 		}
 	}
 }
