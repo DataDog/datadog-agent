@@ -129,7 +129,10 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 
 func TestTelemetryConfig(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
-		defer mockConfig("apm_config.telemetry.enabled", false)()
+		defer mockConfigMap(map[string]interface{}{
+			"apm_config.telemetry.enabled": false,
+			"api_key":                      "api_key",
+		})()
 
 		req, rec := newRequestRecorder(t)
 		recv := NewHTTPReceiver(loadConfig(t), nil, nil, nil)
@@ -139,7 +142,10 @@ func TestTelemetryConfig(t *testing.T) {
 	})
 
 	t.Run("no-endpoints", func(t *testing.T) {
-		defer mockConfig("apm_config.telemetry.dd_url", "111://malformed.dd_url.com")()
+		defer mockConfigMap(map[string]interface{}{
+			"apm_config.telemetry.dd_url": "111://malformed.dd_url.com",
+			"api_key":                     "api_key",
+		})()
 
 		req, rec := newRequestRecorder(t)
 		recv := NewHTTPReceiver(loadConfig(t), nil, nil, nil)
@@ -156,6 +162,7 @@ func TestTelemetryConfig(t *testing.T) {
 			"apm_config.telemetry.dd_url":               "111://malformed.dd_url.com",
 			"apm_config.telemetry.additional_endpoints": additionalEndpoints,
 			"skip_ssl_validation":                       true,
+			"api_key":                                   "api_key",
 		})()
 		req, rec := newRequestRecorder(t)
 		recv := NewHTTPReceiver(loadConfig(t), nil, nil, nil)
