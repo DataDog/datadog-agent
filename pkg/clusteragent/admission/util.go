@@ -55,7 +55,7 @@ func shouldFallback(v *version.Info) (bool, error) {
 }
 
 func useAdmissionV1(discoveryCl discovery.DiscoveryInterface) (bool, error) {
-	_, resources, err := discoveryCl.ServerGroupsAndResources()
+	_, resources, err := common.KubeGroupsAndResources(discoveryCl)
 	if err != nil {
 		return false, err
 	}

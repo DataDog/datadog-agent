@@ -277,24 +277,6 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Info("Orchestrator explorer is disabled")
 	}
 
-	if config.Datadog.GetBool("admission_controller.enabled") {
-		admissionCtx := admissionpkg.ControllerContext{
-			IsLeaderFunc:        le.IsLeader,
-			LeaderSubscribeFunc: le.Subscribe,
-			SecretInformers:     apiCl.CertificateSecretInformerFactory,
-			WebhookInformers:    apiCl.WebhookConfigInformerFactory,
-			Client:              apiCl.Cl,
-			DiscoveryClient:     apiCl.DiscoveryCl,
-			StopCh:              stopCh,
-		}
-		err = admissionpkg.StartControllers(admissionCtx)
-		if err != nil {
-			log.Errorf("Could not start admission controller: %v", err)
-		}
-	} else {
-		log.Info("Admission controller is disabled")
-	}
-
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -332,25 +314,6 @@ func start(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
-	// Admission Controller Goroutine
-	if config.Datadog.GetBool("admission_controller.enabled") {
-		// Setup the the k8s admission webhook server
-		server := admissioncmd.NewServer()
-		server.Register(config.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
-		server.Register(config.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)
-
-		// Start the k8s admission webhook server
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			errServ := server.Run(mainCtx, apiCl.Cl)
-			if errServ != nil {
-				log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
-			}
-		}()
-	}
-
 	// Compliance
 	if config.Datadog.GetBool("compliance_config.enabled") {
 		wg.Add(1)
@@ -361,6 +324,42 @@ func start(cmd *cobra.Command, args []string) error {
 				log.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
+	}
+
+	if config.Datadog.GetBool("admission_controller.enabled") {
+		admissionCtx := admissionpkg.ControllerContext{
+			IsLeaderFunc:        le.IsLeader,
+			LeaderSubscribeFunc: le.Subscribe,
+			SecretInformers:     apiCl.CertificateSecretInformerFactory,
+			WebhookInformers:    apiCl.WebhookConfigInformerFactory,
+			Client:              apiCl.Cl,
+			DiscoveryClient:     apiCl.DiscoveryCl,
+			StopCh:              stopCh,
+		}
+
+		err = admissionpkg.StartControllers(admissionCtx)
+		if err != nil {
+			log.Errorf("Could not start admission controller: %v", err)
+		} else {
+			// Webhook and secret controllers are started successfully
+			// Setup the the k8s admission webhook server
+			server := admissioncmd.NewServer()
+			server.Register(config.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
+			server.Register(config.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)
+
+			// Start the k8s admission webhook server
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				errServ := server.Run(mainCtx, apiCl.Cl)
+				if errServ != nil {
+					log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
+				}
+			}()
+		}
+	} else {
+		log.Info("Admission controller is disabled")
 	}
 
 	log.Infof("All components started. Cluster Agent now running.")
