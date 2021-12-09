@@ -598,6 +598,9 @@ func TestInvalidHostname(t *testing.T) {
 	providers.Register(providerMocks.FakeContainerImpl{})
 	defer providers.Deregister()
 
+	// Lower the GRPC timeout, otherwise the test will time out in CI
+	config.Datadog.Set("process_config.grpc_connection_timeout_secs", 1)
+
 	// Input yaml file has an invalid hostname (localhost) so we expect to configure via environment
 	agentConfig, err := NewAgentConfig(
 		"test",
