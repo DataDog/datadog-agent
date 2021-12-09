@@ -23,6 +23,11 @@ void cleanupFolders()
     for (const auto &folder : {"embedded2","embedded3"})
     {
         std::filesystem::path folderPath = installPath / folder;
+        if (!exists(folderPath))
+        {
+            continue;
+        }
+
         // Ensure no file is read-only
         // Bug: We have to do this because of a bug in Microsoft's STL remove_all function
         // See https://github.com/microsoft/STL/issues/1511
@@ -37,6 +42,7 @@ void cleanupFolders()
                        ec.message().c_str());
             }
         }
+
         remove_all(folderPath, ec);
         if (ec)
         {
