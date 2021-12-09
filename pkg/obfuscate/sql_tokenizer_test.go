@@ -7,7 +7,7 @@ package obfuscate
 
 import (
 	"testing"
-	
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,7 +16,7 @@ func TestSQLTokenizerPosition(t *testing.T) {
 	query := "SELECT username AS         person FROM users WHERE id=4"
 	tok := NewSQLTokenizer(query, false, nil)
 	tokenCount := 0
-	for {
+	for ; ; tokenCount++ {
 		startPos := tok.Position()
 		kind, buff := tok.Scan()
 		if kind == EndChar {
@@ -26,7 +26,6 @@ func TestSQLTokenizerPosition(t *testing.T) {
 			assert.Fail("experienced an unexpected lexer error")
 		}
 		assert.Equal(string(buff), query[startPos:tok.Position()])
-		tokenCount++
 		tok.SkipBlank()
 	}
 	assert.Equal(10, tokenCount)
