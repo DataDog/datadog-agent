@@ -18,10 +18,11 @@ type FieldValueType int
 
 // Field value types
 const (
-	ScalarValueType  FieldValueType = 1 << 0
-	PatternValueType FieldValueType = 1 << 1
-	RegexpValueType  FieldValueType = 1 << 2
-	BitmaskValueType FieldValueType = 1 << 3
+	ScalarValueType   FieldValueType = 1 << 0
+	PatternValueType  FieldValueType = 1 << 1
+	RegexpValueType   FieldValueType = 1 << 2
+	BitmaskValueType  FieldValueType = 1 << 3
+	VariableValueType FieldValueType = 1 << 4
 )
 
 // FieldValue describes a field value with its type

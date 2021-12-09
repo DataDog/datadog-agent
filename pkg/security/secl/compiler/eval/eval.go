@@ -30,16 +30,6 @@ const (
 	IteratorWeight       = 2000
 )
 
-var (
-	variableRegex = regexp.MustCompile(`\${[^}]*}`)
-)
-
-// VariableValue describes secl variable
-type VariableValue struct {
-	IntFnc    func(ctx *Context) int
-	StringFnc func(ctx *Context) string
-}
-
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
@@ -255,7 +245,7 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 	}
 
 	return &StringEvaluator{
-		valueType: VariableValueType,
+		ValueType: VariableValueType,
 		EvalFnc: func(ctx *Context) string {
 			var result string
 			for _, evaluator := range evaluators {
@@ -925,7 +915,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 			return &StringEvaluator{
 				Value:     str,
-				valueType: ScalarValueType,
+				ValueType: ScalarValueType,
 			}, obj.Pos, nil
 		case obj.Pattern != nil:
 			evaluator := &StringEvaluator{
