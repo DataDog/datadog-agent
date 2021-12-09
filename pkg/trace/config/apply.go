@@ -367,14 +367,12 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	if config.Datadog.GetBool("apm_config.telemetry.enabled") {
+		c.TelemetryConfig.Enabled = true
 		c.TelemetryConfig.Endpoints = []*Endpoint{{
 			Host:   config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
 			APIKey: c.Endpoints[0].APIKey,
 		}}
 		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
-		if len(c.TelemetryConfig.Endpoints) > 0 {
-			c.TelemetryConfig.Enabled = true
-		}
 	}
 	c.Obfuscation = new(ObfuscationConfig)
 	if config.Datadog.IsSet("apm_config.obfuscation") {

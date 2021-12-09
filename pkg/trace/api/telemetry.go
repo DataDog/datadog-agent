@@ -105,22 +105,6 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 	return rresp, rerr
 }
 
-func telemetryEndpoints(conf config.AgentConfig) (endpoints []*config.Endpoint) {
-	for _, endpoint := range conf.TelemetryConfig.Endpoints {
-		u, err := url.Parse(endpoint.Host)
-		if err != nil {
-			continue
-		}
-		if u.Host != "" {
-			endpoint.Host = u.Host
-		}
-
-		endpoints = append(endpoints, endpoint)
-	}
-
-	return endpoints
-}
-
 // telemetryProxyHandler parses returns a new HTTP handler which will proxy requests to the configured intakes.
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
