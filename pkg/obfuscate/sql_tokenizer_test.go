@@ -26,7 +26,7 @@ func TestSQLTokenizerPosition(t *testing.T) {
 			assert.Fail("experienced an unexpected lexer error")
 		}
 		assert.Equal(string(buff), query[startPos:tok.Position()])
-		tokenCount += 1
+		tokenCount++
 		tok.SkipBlank()
 	}
 	assert.Equal(10, tokenCount)
