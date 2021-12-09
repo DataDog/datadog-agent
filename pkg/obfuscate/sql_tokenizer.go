@@ -734,9 +734,9 @@ func (tkn *SQLTokenizer) bytes() []byte {
 	return ret
 }
 
-// Offset exports the tokenizer's current position in the query
-func (tkn *SQLTokenizer) Offset() int {
-	return tkn.off
+// Position exports the tokenizer's current position in the query
+func (tkn *SQLTokenizer) Position() int {
+	return tkn.pos
 }
 
 func isLeadingLetter(ch rune) bool {
