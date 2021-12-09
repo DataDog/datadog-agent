@@ -45,7 +45,7 @@ func TestLocalStore(t *testing.T) {
 	metas, err := store.GetMeta()
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]json.RawMessage{
-		"root.json": json.RawMessage(storeRoot2),
+		"root.json": storeRoot2,
 	}, metas)
 
 	storeTimestamp5 := json.RawMessage(`{"signatures":[],"signed":{"_type":"timestamp","version":5}}`)
