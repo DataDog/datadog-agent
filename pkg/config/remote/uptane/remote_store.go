@@ -19,8 +19,8 @@ const (
 )
 
 // remoteStore implements go-tuf's RemoteStore
-// Its goal is to serve TUF metadata updates comming to the backend in a way go-tuf understands
-// See https://pkg.go.dev/github.com/theupdateframework/go-tuf@v0.0.0-20211130162850-52193a283c30/client#RemoteStore
+// Its goal is to serve TUF metadata updates coming to the backend in a way go-tuf understands
+// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#RemoteStore
 type remoteStore struct {
 	targetStore *targetStore
 	metas       map[role]map[uint64][]byte
@@ -53,7 +53,7 @@ func (s *remoteStore) latestVersion(r role) uint64 {
 }
 
 // GetMeta implements go-tuf's RemoteStore.GetMeta
-// See https://pkg.go.dev/github.com/theupdateframework/go-tuf@v0.0.0-20211130162850-52193a283c30/client#RemoteStore
+// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#RemoteStore
 func (s *remoteStore) GetMeta(path string) (io.ReadCloser, int64, error) {
 	metaPath, err := parseMetaPath(path)
 	if err != nil {
@@ -78,10 +78,13 @@ func (s *remoteStore) GetMeta(path string) (io.ReadCloser, int64, error) {
 }
 
 // GetMeta implements go-tuf's RemoteStore.GetTarget
-// See https://pkg.go.dev/github.com/theupdateframework/go-tuf@v0.0.0-20211130162850-52193a283c30/client#RemoteStore
+// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#RemoteStore
 func (s *remoteStore) GetTarget(targetPath string) (stream io.ReadCloser, size int64, err error) {
-	target, err := s.targetStore.getTargetFile(targetPath)
+	target, found, err := s.targetStore.getTargetFile(targetPath)
 	if err != nil {
+		return nil, 0, err
+	}
+	if !found {
 		return nil, 0, client.ErrNotFound{File: targetPath}
 	}
 	return ioutil.NopCloser(bytes.NewReader(target)), int64(len(target)), nil

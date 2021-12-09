@@ -50,6 +50,7 @@ type Service struct {
 func NewService() (*Service, error) {
 	refreshInterval := config.Datadog.GetDuration("remote_configuration.refresh_interval")
 	if refreshInterval < minimalRefreshInterval {
+		log.Warnf("remote_configuration.refresh_interval is set to %v which is bellow the minimum of %v", refreshInterval, minimalRefreshInterval)
 		refreshInterval = minimalRefreshInterval
 	}
 
@@ -151,7 +152,7 @@ func (s *Service) forceRefresh() bool {
 	return !s.firstUpdate
 }
 
-// TODO(Arthur): finish refactoring subscribers
+// TODO(RCM-34): rework the subscribers API
 
 func getTargetProduct(path string) (pbgo.Product, error) {
 	splits := strings.SplitN(path, "/", 3)

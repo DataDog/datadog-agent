@@ -47,7 +47,7 @@ func (s *targetStore) storeTargetFiles(targetFiles []*pbgo.File) error {
 	})
 }
 
-func (s *targetStore) getTargetFile(path string) ([]byte, error) {
+func (s *targetStore) getTargetFile(path string) ([]byte, bool, error) {
 	var target []byte
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		targetBucket := tx.Bucket(s.targetBucket)
@@ -56,12 +56,12 @@ func (s *targetStore) getTargetFile(path string) ([]byte, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if len(target) == 0 {
-		return nil, fmt.Errorf("target not found: %s", path)
+		return nil, false, nil
 	}
-	return target, nil
+	return target, true, nil
 }
 
 func (s *targetStore) pruneTargetFiles(keptPaths []string) error {
