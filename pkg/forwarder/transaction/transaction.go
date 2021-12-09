@@ -392,7 +392,7 @@ func (t *HTTPTransaction) SerializeTo(serializer TransactionsSerializer) error {
 // 1000 bytes are enough to tell which tools a response comes.
 func readResponseBody(body io.ReadCloser) ([]byte, error) {
 	if body == nil {
-		return []byte("<nil>"), nil
+		return []byte{}, nil
 	}
 	limit := 1000
 	b := make([]byte, limit+1) // For checking if the body will be truncated or not.
@@ -405,7 +405,7 @@ func readResponseBody(body io.ReadCloser) ([]byte, error) {
 		log.Warn("truncated http response body to the first 1000 bytes to prevent from logging a huge message")
 	}
 	if n == 0 {
-		return []byte("<nil>"), nil
+		return []byte{}, nil
 	}
 	return b[:n], nil
 }

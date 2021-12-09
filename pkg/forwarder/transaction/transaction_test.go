@@ -164,13 +164,13 @@ func Test_readResponseBody(t *testing.T) {
 			handleFunc: func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte(""))
 			},
-			want:    []byte("<nil>"),
+			want:    []byte{},
 			wantErr: nil,
 		},
 		{
 			name:       "no body",
 			handleFunc: func(w http.ResponseWriter, r *http.Request) {},
-			want:       []byte("<nil>"),
+			want:       []byte{},
 			wantErr:    nil,
 		},
 	}
