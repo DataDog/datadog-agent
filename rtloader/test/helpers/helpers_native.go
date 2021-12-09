@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package helpers
 
 import (
@@ -25,7 +30,7 @@ func InitMemoryTracker() {
 	C.initTestMemoryTracker()
 }
 
-// ResetMemoryStats resets allocations and frees counters to zero
+// TrackedCString retruns an allocation-tracked pointer to a string
 func TrackedCString(str string) unsafe.Pointer {
 	cstr := C.CString(str)
 	Allocations.Add(1)
@@ -45,7 +50,7 @@ func AssertMemoryUsage(t *testing.T) {
 		"Number of allocations doesn't match number of frees")
 }
 
-// AssertMemoryAllocations makes sure the allocations match the
+// AssertMemoryExpectation makes sure the allocations match the
 // provided value
 func AssertMemoryExpectation(t *testing.T, counter expvar.Int, expected int64) {
 	assert.Equal(t, expected, counter.Value(),
