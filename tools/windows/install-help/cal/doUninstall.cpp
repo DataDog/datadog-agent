@@ -23,6 +23,10 @@ void cleanupFolders()
     for (const auto &folder : {"embedded2","embedded3"})
     {
         std::filesystem::path folderPath = installPath / folder;
+        // Ensure no file is read-only
+        // Bug: We have to do this because of a bug in Microsoft's STL remove_all function
+        // See https://github.com/microsoft/STL/issues/1511
+        // It has been fixed starting with VS 2022 17.0 Preview 3
         for (const auto &direntry : std::filesystem::recursive_directory_iterator(folderPath))
         {
             // Remove read-only if set
