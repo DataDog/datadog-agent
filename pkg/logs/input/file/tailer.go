@@ -87,10 +87,10 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 		switch source.Config.Encoding {
 		case config.UTF16BE:
 			lineParser = parser.NewEncodedText(parser.UTF16BE)
-			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL, 2)
 		case config.UTF16LE:
 			lineParser = parser.NewEncodedText(parser.UTF16LE)
-			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL, 2)
 		default:
 			lineParser = parser.Noop
 			matcher = &decoder.NewLineMatcher{}

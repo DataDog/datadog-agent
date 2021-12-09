@@ -109,6 +109,26 @@ func TestFetchStringError(t *testing.T) {
 	require.Error(t, err)
 }
 
+// FetchStringSlice casts to a []string
+func TestFetchStringSlice(t *testing.T) {
+	f := Fetcher{
+		Attempt: func(ctx context.Context) (interface{}, error) { return []string{"hello"}, nil },
+	}
+	v, err := f.FetchStringSlice(context.TODO())
+	require.Equal(t, []string{"hello"}, v)
+	require.NoError(t, err)
+}
+
+// FetchStringSlice casts to a []string
+func TestFetchStringSliceError(t *testing.T) {
+	f := Fetcher{
+		Attempt: func(ctx context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
+	}
+	v, err := f.FetchStringSlice(context.TODO())
+	require.Nil(t, v)
+	require.Error(t, err)
+}
+
 func TestReset(t *testing.T) {
 	succeed := func(ctx context.Context) (interface{}, error) { return "yay", nil }
 	fail := func(ctx context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") }
