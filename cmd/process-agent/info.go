@@ -269,12 +269,13 @@ type StatusInfo struct {
 	PodQueueBytes       int                    `json:"pod_queue_bytes"`
 	ContainerID         string                 `json:"container_id"`
 	ProxyURL            string                 `json:"proxy_url"`
+	LogFile             string                 `json:"log_file"`
 }
 
-// LogFile returns the location of the log file. This is used for the template.
-func (StatusInfo) LogFile() string {
-	return ddconfig.Datadog.GetString("process_config.log_file")
-}
+//// LogFile returns the location of the log file. This is used for the template.
+//func (StatusInfo) LogFile() string {
+//	return ddconfig.Datadog.GetString("process_config.log_file")
+//}
 
 func initInfo(_ *config.AgentConfig) error {
 	var err error
@@ -339,6 +340,7 @@ func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	var info StatusInfo
+	info.LogFile = ddconfig.Datadog.GetString("process_config.log_file")
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		program, banner := getProgramBanner(Version)
 		_ = infoErrorTmpl.Execute(w, struct {
