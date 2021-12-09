@@ -133,7 +133,7 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 	}
 
 	// extract and validate Hostnames from configured endpoints
-	endpoints := []*config.Endpoint{}
+	var endpoints []*config.Endpoint
 	for _, endpoint := range r.conf.TelemetryConfig.Endpoints {
 		u, err := url.Parse(endpoint.Host)
 		if err != nil {
