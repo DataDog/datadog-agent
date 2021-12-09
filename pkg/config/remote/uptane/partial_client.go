@@ -7,13 +7,16 @@ package uptane
 
 import "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 
+// PartialClient is a partial uptane client
 type PartialClient struct {
 }
 
+// NewPartialClient creates a new partial uptane client
 func NewPartialClient() *PartialClient {
 	return &PartialClient{}
 }
 
+// Verify is not implemented
 func (c *PartialClient) Verify(response *pbgo.ConfigResponse) error {
 	return nil
 }

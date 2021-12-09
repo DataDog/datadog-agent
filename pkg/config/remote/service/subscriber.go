@@ -33,7 +33,6 @@ type Subscriber struct {
 	product     pbgo.Product
 	refreshRate time.Duration
 	lastUpdate  time.Time
-	lastVersion uint64
 	callback    SubscriberCallback
 }
 

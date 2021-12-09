@@ -19,7 +19,11 @@ var (
 	metaSnapshot = "snapshot.json"
 )
 
-//
+// localStore implements go-tuf's LocalStore
+// Its goal is to persist TUF metadata. This implementation of the local store
+// also saves every root ever validated by go-tuf. This is needed to update the roots
+// of tracers and other partial clients.
+// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
 type localStore struct {
 	metasBucket []byte
 	rootsBucket []byte
@@ -76,7 +80,8 @@ func (s *localStore) writeRoot(tx *bbolt.Tx, root json.RawMessage) error {
 	return rootsBucket.Put(rootKey, root)
 }
 
-// GetMeta returns a map of all the metadata files
+// GetMeta implements go-tuf's LocalStore.GetTarget
+// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
 func (s *localStore) GetMeta() (map[string]json.RawMessage, error) {
 	meta := make(map[string]json.RawMessage)
 	err := s.db.View(func(tx *bbolt.Tx) error {
@@ -92,7 +97,8 @@ func (s *localStore) GetMeta() (map[string]json.RawMessage, error) {
 	return meta, err
 }
 
-// DeleteMeta deletes a tuf metadata file
+// DeleteMeta implements go-tuf's LocalStore.DeleteMeta
+// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
 func (s *localStore) DeleteMeta(name string) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		metaBucket := tx.Bucket(s.metasBucket)
@@ -100,7 +106,8 @@ func (s *localStore) DeleteMeta(name string) error {
 	})
 }
 
-// SetMeta stores a tuf metadata file
+// SetMeta implements go-tuf's LocalStore.SetMeta
+// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
 func (s *localStore) SetMeta(name string, meta json.RawMessage) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		if name == metaRoot {
@@ -114,6 +121,7 @@ func (s *localStore) SetMeta(name string, meta json.RawMessage) error {
 	})
 }
 
+// GetRoot returns a version of the root metadata
 func (s *localStore) GetRoot(version uint64) ([]byte, bool, error) {
 	var root []byte
 	err := s.db.View(func(tx *bbolt.Tx) error {
@@ -131,6 +139,7 @@ func (s *localStore) GetRoot(version uint64) ([]byte, bool, error) {
 	return root, true, nil
 }
 
+// GetMetaVersion returns the latest version of a particular meta
 func (s *localStore) GetMetaVersion(metaName string) (uint64, error) {
 	metas, err := s.GetMeta()
 	if err != nil {

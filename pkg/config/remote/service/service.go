@@ -180,6 +180,7 @@ func (s *Service) refreshSubscriber(subscriber *Subscriber) error {
 	return nil
 }
 
+// GetConfigs returns the current config files
 func (s *Service) GetConfigs(product pbgo.Product) (*pbgo.ConfigResponse, error) {
 	currentTargets, err := s.uptane.Targets()
 	if err != nil {
@@ -207,6 +208,7 @@ func (s *Service) GetConfigs(product pbgo.Product) (*pbgo.ConfigResponse, error)
 	}, nil
 }
 
+// RegisterSubscriber registers a subscriber
 func (s *Service) RegisterSubscriber(subscriber *Subscriber) {
 	s.Lock()
 	defer s.Unlock()
@@ -217,6 +219,7 @@ func (s *Service) RegisterSubscriber(subscriber *Subscriber) {
 	s.newProducts[subscriber.product] = struct{}{}
 }
 
+// UnregisterSubscriber unregisters a subscriber
 func (s *Service) UnregisterSubscriber(subscriber *Subscriber) {
 	s.Lock()
 	defer s.Unlock()

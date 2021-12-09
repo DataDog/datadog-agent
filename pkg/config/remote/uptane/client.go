@@ -18,12 +18,14 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// State represents the state of an uptane client
 type State struct {
 	ConfigRootVersion     uint64
 	ConfigSnapshotVersion uint64
 	DirectorRootVersion   uint64
 }
 
+// Client is an uptane client
 type Client struct {
 	sync.Mutex
 
@@ -40,6 +42,7 @@ type Client struct {
 	targetStore *targetStore
 }
 
+// NewClient creates a new uptane client
 func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error) {
 	localStoreConfig, err := newLocalStoreConfig(cacheDB, cacheKey)
 	if err != nil {
@@ -66,6 +69,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 	return c, nil
 }
 
+// Update updates the uptane client
 func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
 	defer c.Unlock()
@@ -80,6 +84,7 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	return c.verify()
 }
 
+// State returns the state of the uptane client
 func (c *Client) State() (State, error) {
 	c.Lock()
 	defer c.Unlock()
@@ -102,12 +107,14 @@ func (c *Client) State() (State, error) {
 	}, nil
 }
 
+// Targets returns the current targets of this uptane client
 func (c *Client) Targets() (data.TargetFiles, error) {
 	c.Lock()
 	defer c.Unlock()
 	return c.directorTUFClient.Targets()
 }
 
+// TargetsMeta returns the current raw targets.json meta of this uptane client
 func (c *Client) TargetsMeta() ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()
@@ -130,6 +137,7 @@ func (b *bufferDestination) Delete() error {
 	return nil
 }
 
+// TargetFile returns the content of a target if the repository is in a verified state
 func (c *Client) TargetFile(path string) ([]byte, error) {
 	err := c.verify()
 	if err != nil {
