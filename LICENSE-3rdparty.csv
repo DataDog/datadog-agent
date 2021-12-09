@@ -397,7 +397,6 @@ core,github.com/googleapis/gax-go/v2,BSD-3-Clause,Google LLC
 core,github.com/googleapis/gnostic/compiler,Apache-2.0,Google LLC
 core,github.com/googleapis/gnostic/extensions,Apache-2.0,Google LLC
 core,github.com/googleapis/gnostic/openapiv2,Apache-2.0,Google LLC
-core,github.com/google/googletest,BSD-3-Clause,Google LLC
 core,github.com/gorilla/mux,BSD-3-Clause,Google LLC (https://opensource.google.com/) | Kamil Kisielk <kamil@kamilkisiel.net> | Matt Silverlock <matt@eatsleeprepeat.net> | Rodrigo Moraes (https://github.com/moraes) | The Gorilla Authors
 core,github.com/gosnmp/gosnmp,BSD-2-Clause,The GoSNMP authors
 core,github.com/grpc-ecosystem/go-grpc-middleware,Apache-2.0,gRPC Ecosystem
@@ -487,8 +486,6 @@ core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/dynamicmapper,Apach
 core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/provider,Apache-2.0,The Kubernetes Authors
 core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/registry/custom_metrics,Apache-2.0,The Kubernetes Authors
 core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/registry/external_metrics,Apache-2.0,The Kubernetes Authors
-core,github.com/libarchive/libarchive,https://github.com/libarchive/libarchive/blob/master/COPYING,libarchive's Authors
-core,github.com/jbeder/yaml-cpp,MIT,Jesse Beder
 core,github.com/lxn/walk,BSD-3-Clause,The walk authors
 core,github.com/lxn/win,BSD-3-Clause,The win authors
 core,github.com/magiconair/properties,BSD-2-Clause,Frank Schroeder
