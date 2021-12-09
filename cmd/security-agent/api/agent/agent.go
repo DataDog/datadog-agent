@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	compagent "github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -28,13 +29,15 @@ import (
 
 // Agent handles REST API calls
 type Agent struct {
-	runtimeAgent *secagent.RuntimeSecurityAgent
+	runtimeAgent    *secagent.RuntimeSecurityAgent
+	complianceAgent *compagent.Agent
 }
 
 // NewAgent returns a new Agent
-func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent) *Agent {
+func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compagent.Agent) *Agent {
 	return &Agent{
-		runtimeAgent: runtimeAgent,
+		runtimeAgent:    runtimeAgent,
+		complianceAgent: complianceAgent,
 	}
 }
 
@@ -94,6 +97,10 @@ func (a *Agent) getStatus(w http.ResponseWriter, r *http.Request) {
 		s["runtimeSecurityStatus"] = a.runtimeAgent.GetStatus()
 	}
 
+	if a.complianceAgent != nil {
+		s["complianceStatus"] = a.complianceAgent.GetStatus()
+	}
+
 	jsonStats, err := json.Marshal(s)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
@@ -128,12 +135,16 @@ func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	logFile := config.Datadog.GetString("security_agent.log_file")
 
-	var runtimeAgentStatus map[string]interface{}
+	var runtimeAgentStatus, complianceStatus map[string]interface{}
 	if a.runtimeAgent != nil {
 		runtimeAgentStatus = a.runtimeAgent.GetStatus()
 	}
 
-	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus)
+	if a.complianceAgent != nil {
+		complianceStatus = a.complianceAgent.GetStatus()
+	}
+
+	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus, complianceStatus)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

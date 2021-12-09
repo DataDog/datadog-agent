@@ -12,13 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
-)
-
-const (
-	snmpCheckName = "snmp"
 )
 
 var timeNow = time.Now
@@ -54,7 +51,7 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
-			deviceCk.SetSender(report.NewMetricSender(sender, deviceCk.GetHostname()))
+			deviceCk.SetSender(report.NewMetricSender(sender, deviceCk.GetDeviceHostname()))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -64,7 +61,7 @@ func (c *Check) Run() error {
 		tags = append(tags, c.config.GetNetworkTags()...)
 		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, c.singleDeviceCk.GetHostname()))
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, c.singleDeviceCk.GetDeviceHostname()))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 
@@ -146,10 +143,10 @@ func (c *Check) Interval() time.Duration {
 
 func snmpFactory() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(snmpCheckName),
+		CheckBase: core.NewCheckBase(common.SnmpIntegrationName),
 	}
 }
 
 func init() {
-	core.RegisterCheck(snmpCheckName, snmpFactory)
+	core.RegisterCheck(common.SnmpIntegrationName, snmpFactory)
 }

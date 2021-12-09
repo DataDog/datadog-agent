@@ -50,6 +50,17 @@ api_key:
 #
 # skip_ssl_validation: false
 
+## @param sslkeylogfile - string - optional - default: ""
+## @env DD_SSLKEYLOGFILE - string - optional - default: ""
+## sslkeylogfile specifies a destination for TLS master secrets
+## in NSS key log format to allow external programs
+## such as Wireshark to decrypt TLS connections.
+## For more details, see https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format.
+## Use of sslkeylogfile compromises security and should only be
+## used for debugging.
+# sslkeylogfile: ""
+
+
 ## @param force_tls_12 - boolean - optional - default: false
 ## @env DD_FORCE_TLS_12 - boolean - optional - default: false
 ## Setting this option to "true" forces the Agent to only use TLS 1.2 when
@@ -674,6 +685,14 @@ api_key:
   #
   # namespace: default
 
+  ## @param use_device_id_as_hostname - boolean - optional - default: false
+  ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
+  ## for metrics and service checks (meaning that metrics and services checks will have
+  ## `host:device:<DEVICE_ID>` as tag).
+  ## This option is needed for custom tags.
+  #
+  # use_device_id_as_hostname: true
+
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
   ## Example:
@@ -801,6 +820,14 @@ api_key:
     ## Only available using corecheck SNMP integration with `loader: core` config.
     #
     # namespace: default
+
+    ## @param use_device_id_as_hostname - boolean - optional - default: false
+    ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
+    ## for metrics and service checks (meaning that metrics and services checks will have
+    ## `host:device:<DEVICE_ID>` as tag).
+    ## This option is needed for custom tags.
+    #
+    # use_device_id_as_hostname: true
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -1017,7 +1044,6 @@ api_key:
   # max_cpu_percent: 50
 
   ## @param obfuscation - object - optional
-  ## @env DD_APM_CONFIG_OBFUSCATION_* - optional
   ## Defines obfuscation rules for sensitive data. Disabled by default.
   ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#agent-trace-obfuscation
   #

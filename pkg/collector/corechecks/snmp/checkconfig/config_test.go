@@ -880,6 +880,49 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		MetricTags: []MetricTagConfig{
 			{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 		},
+		Metadata: MetadataConfig{
+			"device": {
+				Fields: map[string]MetadataField{
+					"description": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.1.99.3.0",
+							Name: "sysDescr",
+						},
+					},
+					"name": {
+						Symbols: []SymbolConfig{
+							{
+								OID:  "1.3.6.1.2.1.1.99.1.0",
+								Name: "symbol1",
+							},
+							{
+								OID:  "1.3.6.1.2.1.1.99.2.0",
+								Name: "symbol2",
+							},
+						},
+					},
+				},
+			},
+			"interface": {
+				Fields: map[string]MetadataField{
+					"oper_status": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.99",
+							Name: "someIfSymbol",
+						},
+					},
+				},
+				IDTags: MetricTagConfigList{
+					{
+						Tag: "interface",
+						Column: SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "ifName",
+						},
+					},
+				},
+			},
+		},
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
 	mockProfiles := profileDefinitionMap{
@@ -917,19 +960,15 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	assert.Equal(t, OidConfig{
 		ScalarOids: []string{
 			"1.2.3.4.5",
-			"1.3.6.1.2.1.1.1.0",
-			"1.3.6.1.2.1.1.2.0",
-			"1.3.6.1.2.1.1.5.0",
+			"1.3.6.1.2.1.1.99.1.0",
+			"1.3.6.1.2.1.1.99.2.0",
+			"1.3.6.1.2.1.1.99.3.0",
 		},
 		ColumnOids: []string{
 			"1.2.3.4.6",
 			"1.2.3.4.7",
-			"1.3.6.1.2.1.2.2.1.2",
-			"1.3.6.1.2.1.2.2.1.6",
-			"1.3.6.1.2.1.2.2.1.7",
-			"1.3.6.1.2.1.2.2.1.8",
+			"1.3.6.1.2.1.2.2.1.99",
 			"1.3.6.1.2.1.31.1.1.1.1",
-			"1.3.6.1.2.1.31.1.1.1.18",
 		},
 	}, c.OidConfig)
 
