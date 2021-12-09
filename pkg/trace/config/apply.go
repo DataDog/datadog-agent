@@ -367,20 +367,11 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	if config.Datadog.GetBool("apm_config.telemetry.enabled") {
-		endpoints := []*Endpoint{{
+		c.TelemetryConfig.Endpoints = []*Endpoint{{
 			Host:   config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
 			APIKey: c.Endpoints[0].APIKey,
 		}}
-		endpoints = appendEndpoints(endpoints, "apm_config.telemetry.additional_endpoints")
-		// check if endpoint URLs are valid, skip any invalid ones
-		c.TelemetryConfig.Endpoints = []*Endpoint{}
-		for _, endpoint := range endpoints {
-			if _, err := url.Parse(endpoint.Host); err != nil {
-				log.Errorf("Error parsing Telemetry endpoint: %s", endpoint.Host)
-				continue
-			}
-			c.TelemetryConfig.Endpoints = append(c.TelemetryConfig.Endpoints, endpoint)
-		}
+		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
 		if len(c.TelemetryConfig.Endpoints) > 0 {
 			c.TelemetryConfig.Enabled = true
 		}

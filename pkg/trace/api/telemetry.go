@@ -105,6 +105,22 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 	return rresp, rerr
 }
 
+func telemetryEndpoints(conf config.AgentConfig) (endpoints []*config.Endpoint) {
+	for _, endpoint := range conf.TelemetryConfig.Endpoints {
+		u, err := url.Parse(endpoint.Host)
+		if err != nil {
+			continue
+		}
+		if u.Host != "" {
+			endpoint.Host = u.Host
+		}
+
+		endpoints = append(endpoints, endpoint)
+	}
+
+	return endpoints
+}
+
 // telemetryProxyHandler parses returns a new HTTP handler which will proxy requests to the configured intakes.
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
@@ -115,11 +131,13 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			http.Error(w, msg, http.StatusMethodNotAllowed)
 		})
 	}
-	// extract only valid Hostnames from configured endpoints
+
+	// extract and validate Hostnames from configured endpoints
 	endpoints := []*config.Endpoint{}
 	for _, endpoint := range r.conf.TelemetryConfig.Endpoints {
 		u, err := url.Parse(endpoint.Host)
 		if err != nil {
+			log.Errorf("Error parsing Telemetry endpoint: %s", endpoint.Host)
 			continue
 		}
 		if u.Host != "" {
@@ -127,6 +145,12 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		}
 
 		endpoints = append(endpoints, endpoint)
+	}
+	if len(endpoints) == 0 {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			msg := fmt.Sprintf("Telemetry proxy forwarder doesn't have any valid endpoints")
+			http.Error(w, msg, http.StatusMethodNotAllowed)
+		})
 	}
 
 	transport := telemetryMultiTransport{
