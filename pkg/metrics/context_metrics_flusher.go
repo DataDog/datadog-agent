@@ -55,11 +55,11 @@ func (f *ContextMetricsFlusher) FlushAndClear(callback func([]*Serie)) map[ckey.
 	mergeContextMetrics(
 		contextMetricsCollection,
 		func(contextKey ckey.ContextKey, m Metric, contextMetricIndex int) {
-			flushToSeries(
+			series = flushToSeries(
 				contextKey,
 				m,
 				f.metrics[contextMetricIndex].bucketTimestamp,
-				&series,
+				series,
 				errorsByContextKey)
 			for k, err := range errorsByContextKey {
 				errors[k] = append(errors[k], err)
