@@ -50,3 +50,14 @@ func TestTracerTTLRefresh(t *testing.T) {
 	second := tc.tracerInfos["foo"].lastSeen
 	assert.Assert(t, first != second, "LastSeen should have been updated.")
 }
+
+func TestCleanupPersistence(t *testing.T) {
+	tc := NewTracerCache(1, time.Hour, time.Hour)
+	defer tc.Stop()
+	tracer := &pbgo.TracerInfo{RuntimeId: "foo", ServiceName: "", ServiceEnv: "", ServiceVersion: ""}
+	assert.Assert(t, tc.TrackTracer(tracer) == nil, "There should be no error")
+	assert.Assert(t, len(tc.Tracers()) == 1, "There should be 1 tracer")
+	count := tc.cleanup()
+	assert.Assert(t, count == 0, "Cleanup should have returned 0")
+	assert.Assert(t, len(tc.Tracers()) == 1, "There should be 1 tracer")
+}
