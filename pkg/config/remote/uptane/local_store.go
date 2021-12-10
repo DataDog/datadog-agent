@@ -25,7 +25,10 @@ var (
 // of tracers and other partial clients.
 // See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
 type localStore struct {
+	// metasBucket stores metadata saved by go-tuf
 	metasBucket []byte
+	// rootsBucket stores all the roots metadata ever saved by go-tuf
+	// This is outside of the TUF specification but needed to update partial clients
 	rootsBucket []byte
 	db          *bbolt.DB
 }
@@ -59,6 +62,8 @@ func (s *localStore) init(initialRoots meta.EmbeddedRoots) error {
 				return fmt.Errorf("failed to set embedded root in roots bucket: %v", err)
 			}
 		}
+		// This is the place where we pass embedded roots to go-tuf
+		// Improvable if the API of go-tuf changes
 		metasBucket := tx.Bucket(s.metasBucket)
 		if metasBucket.Get([]byte(metaRoot)) == nil {
 			err := metasBucket.Put([]byte(metaRoot), initialRoots.Last())
