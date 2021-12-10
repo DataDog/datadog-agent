@@ -139,6 +139,8 @@ func (b *bufferDestination) Delete() error {
 
 // TargetFile returns the content of a target if the repository is in a verified state
 func (c *Client) TargetFile(path string) ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
 	err := c.verify()
 	if err != nil {
 		return nil, err
