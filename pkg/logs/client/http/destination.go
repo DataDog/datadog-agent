@@ -105,7 +105,8 @@ func errorToTag(err error) string {
 // Send sends a payload over HTTP,
 // the error returned can be retryable and it is the responsibility of the callee to retry.
 func (d *Destination) Send(payload []byte) error {
-	if d.blockedUntil.After(time.Now()) {
+	if d.blockedUntil.After(time.Now()) && d.origin != config.ServerlessIntakeOrigin {
+		// backoff delay is disabled in serverless mode
 		log.Debugf("%s: sleeping until %v before retrying", d.url, d.blockedUntil)
 		d.waitForBackoff()
 	}
