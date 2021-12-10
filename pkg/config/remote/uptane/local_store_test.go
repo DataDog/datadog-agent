@@ -7,7 +7,7 @@ package uptane
 
 import (
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
@@ -16,11 +16,11 @@ import (
 )
 
 func getTestDB() *bbolt.DB {
-	dir, err := os.MkdirTemp("", "testdbdir")
+	dir, err := ioutil.TempDir("", "testdbdir")
 	if err != nil {
 		panic(err)
 	}
-	db, err := bbolt.Open(dir+"/remote-config.db", 0600, &bbolt.Options{})
+	db, err := bbolt.Open(dir+"/remote-config.db", 0666, &bbolt.Options{})
 	if err != nil {
 		panic(err)
 	}
