@@ -235,7 +235,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 	if tkn.lastChar == 0 {
 		tkn.advance()
 	}
-	tkn.skipBlank()
+	tkn.SkipBlank()
 
 	switch ch := tkn.lastChar; {
 	case isLeadingLetter(ch):
@@ -412,7 +412,9 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 	}
 }
 
-func (tkn *SQLTokenizer) skipBlank() {
+// SkipBlank moves the tokenizer forward until hitting a non-whitespace character
+// The whitespace definition used here is the same as unicode.IsSpace
+func (tkn *SQLTokenizer) SkipBlank() {
 	for unicode.IsSpace(tkn.lastChar) {
 		tkn.advance()
 	}
@@ -581,8 +583,8 @@ func (tkn *SQLTokenizer) scanBindVar() (TokenKind, []byte) {
 		token = ListArg
 		tkn.advance()
 	}
-	if !isLetter(tkn.lastChar) {
-		tkn.setErr(`bind variables should start with letters, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
+	if !isLetter(tkn.lastChar) && !isDigit(tkn.lastChar) {
+		tkn.setErr(`bind variables should start with letters or digits, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
 		return LexError, tkn.bytes()
 	}
 	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' {
@@ -760,6 +762,11 @@ func (tkn *SQLTokenizer) bytes() []byte {
 	tkn.buf = tkn.buf[tkn.off-lastLen:]
 	tkn.off = lastLen
 	return ret
+}
+
+// Position exports the tokenizer's current position in the query
+func (tkn *SQLTokenizer) Position() int {
+	return tkn.pos
 }
 
 func isLeadingLetter(ch rune) bool {

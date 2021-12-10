@@ -30,11 +30,6 @@ type cloudProviderDetector struct {
 	callback func(context.Context) bool
 }
 
-type cloudProviderNTPDetector struct {
-	name     string
-	callback func(context.Context) []string
-}
-
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
 func DetectCloudProvider(ctx context.Context) {
 	detectors := []cloudProviderDetector{
@@ -54,6 +49,11 @@ func DetectCloudProvider(ctx context.Context) {
 		}
 	}
 	log.Info("No cloud provider detected")
+}
+
+type cloudProviderNTPDetector struct {
+	name     string
+	callback func(context.Context) []string
 }
 
 // GetCloudProviderNTPHosts detects the cloud provider where the agent is running in order and returns its NTP host name.
@@ -77,50 +77,31 @@ func GetCloudProviderNTPHosts(ctx context.Context) []string {
 	return nil
 }
 
+type cloudProviderAliasesDetector struct {
+	name     string
+	callback func(context.Context) ([]string, error)
+}
+
 // GetHostAliases returns the hostname aliases from different provider
 func GetHostAliases(ctx context.Context) []string {
 	aliases := config.GetValidHostAliases()
 
-	alibabaAlias, err := alibaba.GetHostAlias(ctx)
-	if err != nil {
-		log.Debugf("no Alibaba Host Alias: %s", err)
-	} else if alibabaAlias != "" {
-		aliases = append(aliases, alibabaAlias)
+	detectors := []cloudProviderAliasesDetector{
+		{name: alibaba.CloudProviderName, callback: alibaba.GetHostAliases},
+		{name: azure.CloudProviderName, callback: azure.GetHostAliases},
+		{name: gce.CloudProviderName, callback: gce.GetHostAliases},
+		{name: cloudfoundry.CloudProviderName, callback: cloudfoundry.GetHostAliases},
+		{name: "kubelet", callback: kubelet.GetHostAliases},
+		{name: tencent.CloudProviderName, callback: tencent.GetHostAliases},
 	}
 
-	azureAlias, err := azure.GetHostAlias(ctx)
-	if err != nil {
-		log.Debugf("no Azure Host Alias: %s", err)
-	} else if azureAlias != "" {
-		aliases = append(aliases, azureAlias)
-	}
-
-	gceAliases, err := gce.GetHostAliases(ctx)
-	if err != nil {
-		log.Debugf("no GCE Host Alias: %s", err)
-	} else {
-		aliases = append(aliases, gceAliases...)
-	}
-
-	cfAliases, err := cloudfoundry.GetHostAliases(ctx)
-	if err != nil {
-		log.Debugf("no Cloud Foundry Host Alias: %s", err)
-	} else if cfAliases != nil {
-		aliases = append(aliases, cfAliases...)
-	}
-
-	k8sAlias, err := kubelet.GetHostAlias(ctx)
-	if err != nil {
-		log.Debugf("no Kubernetes Host Alias (through kubelet API): %s", err)
-	} else if k8sAlias != "" {
-		aliases = append(aliases, k8sAlias)
-	}
-
-	tencentAlias, err := tencent.GetHostAlias(ctx)
-	if err != nil {
-		log.Debugf("no Tencent Host Alias: %s", err)
-	} else if tencentAlias != "" {
-		aliases = append(aliases, tencentAlias)
+	for _, cloudAliasesDetector := range detectors {
+		cloudAliases, err := cloudAliasesDetector.callback(ctx)
+		if err != nil {
+			log.Debugf("no %s Host Alias: %s", cloudAliasesDetector.name, err)
+		} else if len(cloudAliases) > 0 {
+			aliases = append(aliases, cloudAliases...)
+		}
 	}
 
 	return util.SortUniqInPlace(aliases)

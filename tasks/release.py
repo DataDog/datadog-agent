@@ -1399,6 +1399,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     print(color_message("Creating empty commit for devel tags", "bold"))
     with ctx.cd(f"{base_directory}/datadog-agent"):
+        ctx.run("git checkout main")
         ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags'")
         if not ok:
             raise Exit(
@@ -1426,4 +1427,4 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         color_message("If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold")
     )
 
-    tag_version(ctx, devel_tag, tag_modules=False, push=False, force=redo)
+    tag_version(ctx, devel_tag, tag_modules=False, push=True, force=redo)

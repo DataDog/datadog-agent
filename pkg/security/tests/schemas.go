@@ -31,8 +31,13 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 	switch t := input.(type) {
 	case float64:
 		inode = uint64(t)
+	case *big.Int:
+		inode = t.Uint64()
 	case *big.Float:
 		inode, _ = t.Uint64()
+	case *big.Rat:
+		f, _ := t.Float64()
+		inode = uint64(f)
 	default:
 		return false
 	}

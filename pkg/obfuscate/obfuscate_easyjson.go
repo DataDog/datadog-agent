@@ -28,7 +28,7 @@ func easyjson4ef41860DecodeGithubComDataDogDatadogAgentPkgObfuscate(in *jlexer.L
 	}
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeFieldName(false)
+		key := in.UnsafeString()
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()
@@ -38,6 +38,8 @@ func easyjson4ef41860DecodeGithubComDataDogDatadogAgentPkgObfuscate(in *jlexer.L
 		switch key {
 		case "table_names":
 			out.TableNames = bool(in.Bool())
+		case "collect_commands":
+			out.CollectCommands = bool(in.Bool())
 		case "collect_comments":
 			out.CollectComments = bool(in.Bool())
 		case "replace_digits":
@@ -66,6 +68,11 @@ func easyjson4ef41860EncodeGithubComDataDogDatadogAgentPkgObfuscate(out *jwriter
 		const prefix string = ",\"table_names\":"
 		out.RawString(prefix[1:])
 		out.Bool(bool(in.TableNames))
+	}
+	{
+		const prefix string = ",\"collect_commands\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.CollectCommands))
 	}
 	{
 		const prefix string = ",\"collect_comments\":"

@@ -106,6 +106,7 @@ core,github.com/OneOfOne/xxhash,Apache-2.0,OneOfOne (https://github.com/OneOfOne
 core,github.com/PuerkitoBio/purell,BSD-3-Clause,Martin Angers
 core,github.com/PuerkitoBio/urlesc,BSD-3-Clause,The Go Authors
 core,github.com/StackExchange/wmi,MIT,Stack Exchange
+core,github.com/acobaugh/osrelease,BSD-3-Clause,Andrew Cobaugh
 core,github.com/alecthomas/jsonschema,MIT,Alec Thomas
 core,github.com/alecthomas/participle,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer,MIT,Alec Thomas
@@ -194,7 +195,6 @@ core,github.com/cilium/ebpf/internal/unix,MIT,Authors of Cilium | Cloudflare | N
 core,github.com/cilium/ebpf/perf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go Authors
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
-core,github.com/cobaugh/osrelease,BSD-3-Clause,Andrew Cobaugh
 core,github.com/containerd/cgroups/stats/v1,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/api/events,Apache-2.0,The containerd Authors
@@ -1064,6 +1064,7 @@ core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Datadog, 
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/log,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/version,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler,Apache-2.0,"Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pprofutils,Apache-2.0,"Datadog, Inc."
 core,gopkg.in/Knetic/govaluate.v3,MIT,"George Lester | abrander (panic-finding testing tool) | benpaxton (fix for missing type checks during literal elide process) | bgaifullin (lifting restriction on complex/struct types) | dpaolella (exposure of variables used in an expression) | iasci (ternary operator) | oxtoacart (parameter structures, deferred parameter retrieval) | prashantv (optimization of bools) | vjeantet (regex support) | wmiller848 (bitwise operators) | xfennec (fix for dates being parsed in the current Location)"
 core,gopkg.in/inf.v0,BSD-3-Clause,Péter Surányi | The Go Authors
 core,gopkg.in/natefinch/lumberjack.v2,MIT,Nate Finch
