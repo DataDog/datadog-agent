@@ -2504,12 +2504,6 @@ api_key:
 #
 # kubernetes_apiserver_client_timeout: 10
 
-## @param kubernetes_discovery_client_timeout - integer - optional - default: 60
-## @env DD_KUBERNETES_DISCOVERY_CLIENT_TIMEOUT - integer - optional - default: 60
-## Set the timeout for the Agent when connecting to the Kubernetes API server with the discovery client.
-#
-# kubernetes_discovery_client_timeout: 60
-
 ## @param collect_kubernetes_events - boolean - optional - default: false
 ## @env DD_COLLECT_KUBERNETES_EVENTS - boolean - optional - default: false
 ## Set `collect_kubernetes_events` to true to enable log collection.

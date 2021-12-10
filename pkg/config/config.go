@@ -549,8 +549,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
-	config.BindEnvAndSetDefault("kubernetes_discovery_client_timeout", 60) // discovery client timeout in seconds
-	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false)    // temporary opt-out of the new mapping logic
+	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
