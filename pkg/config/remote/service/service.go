@@ -103,6 +103,7 @@ func NewService() (*Service, error) {
 
 	return &Service{
 		ctx:             context.Background(),
+		firstUpdate:     true,
 		refreshInterval: refreshInterval,
 		remoteConfigKey: remoteConfigKey,
 		products:        make(map[pbgo.Product]struct{}),
@@ -153,7 +154,7 @@ func (s *Service) refresh() error {
 	if err != nil {
 		return err
 	}
-	s.firstUpdate = true
+	s.firstUpdate = false
 	for product := range s.newProducts {
 		s.products[product] = struct{}{}
 	}
@@ -168,7 +169,7 @@ func (s *Service) refresh() error {
 }
 
 func (s *Service) forceRefresh() bool {
-	return !s.firstUpdate
+	return s.firstUpdate
 }
 
 // TODO(RCM-34): rework the subscribers API
