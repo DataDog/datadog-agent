@@ -466,6 +466,11 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				"profile",
 				"SELECT age FROM profile",
 			},
+			{
+				"SELECT * from users where user_id =:0_USER",
+				"users",
+				"SELECT * from users where user_id = :0_USER",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
@@ -475,7 +480,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 						ReplaceDigits: true,
 					},
 				}).ObfuscateSQLString(tt.query)
-				assert.NoError(err)
+				require.NoError(t, err)
 				assert.Equal(tt.tables, oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 
@@ -483,7 +488,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 					TableNames:    true,
 					ReplaceDigits: true,
 				})
-				assert.NoError(err)
+				require.NoError(t, err)
 				assert.Equal(tt.tables, oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 			})
@@ -1280,8 +1285,8 @@ func TestSQLErrors(t *testing.T) {
 		},
 
 		{
-			"SELECT one, :2two FROM profile",
-			`at position 13: bind variables should start with letters, got "2" (50)`,
+			"SELECT one, :.two FROM profile",
+			`at position 13: bind variables should start with letters or digits, got "." (46)`,
 		},
 
 		{
