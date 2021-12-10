@@ -12,7 +12,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"reflect"
+	"sort"
 
 	"sync/atomic"
 	"testing"
@@ -510,26 +510,31 @@ func flushSomeSamples(agg *BufferedAggregator) map[string]*metrics.Serie {
 }
 
 func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map[string]*metrics.Serie) {
-	defaultSeries := []string{"n_o_i_n_d_e_x.datadog.agent.payload.dropped", "datadog.agent.running"}
+	// default series
+	expectedSeries["n_o_i_n_d_e_x.datadog.agent.payload.dropped"] = nil
+	expectedSeries["datadog.agent.running"] = nil
 	r := require.New(t)
-	r.Equal(len(defaultSeries)+len(expectedSeries), len(series))
 
 	for _, serie := range series {
 		expected, found := expectedSeries[serie.Name]
+		delete(expectedSeries, serie.Name)
 		if !found {
-			for _, s := range defaultSeries {
-				if s == serie.Name {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Fatalf("Cannot found serie: %s", serie.Name)
-			}
-			break
+			t.Fatalf("Cannot found serie: %s", serie.Name)
+		}
+		if expected == nil {
+			// default series
+			continue
 		}
 		// ignore context key
 		expected.ContextKey = serie.ContextKey
-		r.True(reflect.DeepEqual(expected, serie))
+
+		sort.Slice(serie.Points, func(i int, j int) bool {
+			return serie.Points[i].Ts < serie.Points[j].Ts
+		})
+		sort.Slice(expected.Points, func(i int, j int) bool {
+			return expected.Points[i].Ts < expected.Points[j].Ts
+		})
+		r.EqualValues(expected, serie)
 	}
+	r.Empty(expectedSeries)
 }
