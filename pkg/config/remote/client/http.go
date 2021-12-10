@@ -55,7 +55,7 @@ func NewHTTPClient(baseURL, apiKey, appKey, hostname string) *HTTPClient {
 }
 
 // Fetch remote configuration
-func (c *HTTPClient) Fetch(ctx context.Context, state uptane.State, products map[pbgo.Product]struct{}, newProducts map[pbgo.Product]struct{}) (*pbgo.LatestConfigsResponse, error) {
+func (c *HTTPClient) Fetch(ctx context.Context, state uptane.State, connectedTracers []*pbgo.TracerInfo, products map[pbgo.Product]struct{}, newProducts map[pbgo.Product]struct{}) (*pbgo.LatestConfigsResponse, error) {
 	productsList := make([]pbgo.Product, len(products))
 	i := 0
 	for k := range products {
@@ -77,6 +77,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, state uptane.State, products map
 		CurrentConfigSnapshotVersion: state.ConfigSnapshotVersion,
 		CurrentConfigRootVersion:     state.ConfigRootVersion,
 		CurrentDirectorRootVersion:   state.DirectorRootVersion,
+		ConnectedTracers:             connectedTracers,
 	}
 
 	body, err := request.MarshalMsg([]byte{})
@@ -98,6 +99,15 @@ func (c *HTTPClient) Fetch(ctx context.Context, state uptane.State, products map
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		body, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response: %w", err)
+		}
+		log.Debugf("Non-200 response. Response body: %s", string(body))
+		return nil, fmt.Errorf("non-200 response code: %d", resp.StatusCode)
+	}
+
 	body, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
@@ -106,6 +116,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, state uptane.State, products map
 	response := &pbgo.LatestConfigsResponse{}
 	err = msgp.Decode(bytes.NewBuffer(body), response)
 	if err != nil {
+		log.Debugf("Error decoding response, %w, response body: %s", err, string(body))
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 

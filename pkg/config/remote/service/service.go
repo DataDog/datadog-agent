@@ -24,6 +24,8 @@ import (
 
 const (
 	minimalRefreshInterval = time.Second * 5
+	defaultTracerCacheSize = 1000
+	defaultTracerCacheTTL  = 10 * time.Second
 )
 
 // Service defines the remote config management service responsible for fetching, storing
@@ -44,6 +46,7 @@ type Service struct {
 	newProducts map[pbgo.Product]struct{}
 
 	subscribers []*Subscriber
+	TracerInfos *TracerCache
 }
 
 // NewService instantiates a new remote configuration management service
@@ -83,6 +86,21 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 
+	tracerCacheSize := config.Datadog.GetInt("remote_configuration.tracer_cache.size")
+	if tracerCacheSize <= 0 {
+		tracerCacheSize = defaultTracerCacheSize
+	}
+
+	tracerCacheTTL := time.Second * config.Datadog.GetDuration("remote_configuration.tracer_cache.ttl_seconds")
+	if tracerCacheTTL <= 0 {
+		tracerCacheTTL = defaultTracerCacheTTL
+	}
+
+	if tracerCacheTTL <= 5*time.Second || tracerCacheTTL >= 60*time.Second {
+		log.Warnf("Configured tracer cache ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", 5, 10, tracerCacheTTL, defaultTracerCacheTTL)
+		tracerCacheTTL = defaultTracerCacheTTL
+	}
+
 	return &Service{
 		ctx:             context.Background(),
 		refreshInterval: refreshInterval,
@@ -92,6 +110,7 @@ func NewService() (*Service, error) {
 		db:              db,
 		client:          client,
 		uptane:          uptaneClient,
+		TracerInfos:     NewTracerCache(tracerCacheSize, tracerCacheTTL, time.Second),
 	}, nil
 }
 
@@ -126,7 +145,7 @@ func (s *Service) refresh() error {
 	if s.forceRefresh() {
 		previousState = uptane.State{}
 	}
-	response, err := s.client.Fetch(s.ctx, previousState, s.products, s.newProducts)
+	response, err := s.client.Fetch(s.ctx, previousState, s.TracerInfos.Tracers(), s.products, s.newProducts)
 	if err != nil {
 		return err
 	}
@@ -230,4 +249,15 @@ func (s *Service) UnregisterSubscriber(subscriber *Subscriber) {
 		}
 	}
 	s.subscribers = subscribers
+}
+
+func (s *Service) HasSubscriber(product pbgo.Product) bool {
+	s.Lock()
+	defer s.Unlock()
+	for _, s := range s.subscribers {
+		if s.product == product {
+			return true
+		}
+	}
+	return false
 }
