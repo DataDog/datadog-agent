@@ -378,6 +378,7 @@ func TestRecurentSeries(t *testing.T) {
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 	s.AssertExpectations(t)
+	recurrentSeries = nil
 }
 
 func TestTags(t *testing.T) {
