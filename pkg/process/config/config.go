@@ -264,7 +264,6 @@ func LoadConfigIfExists(path string) error {
 			log.Infof("no config exists at %s, ignoring...", path)
 		}
 	}
-	_, _ = config.Load()
 	return nil
 }
 
