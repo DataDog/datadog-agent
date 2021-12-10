@@ -251,6 +251,7 @@ func (s *Service) UnregisterSubscriber(subscriber *Subscriber) {
 	s.subscribers = subscribers
 }
 
+// HasSubscriber returns true if the product already registered a subscriber
 func (s *Service) HasSubscriber(product pbgo.Product) bool {
 	s.Lock()
 	defer s.Unlock()
