@@ -31,7 +31,7 @@ const hostnameStyleSetting = "azure_hostname_style"
 
 // IsRunningOn returns true if the agent is running on Azure
 func IsRunningOn(ctx context.Context) bool {
-	if _, err := GetHostAlias(ctx); err == nil {
+	if _, err := GetHostAliases(ctx); err == nil {
 		return true
 	}
 	return false
@@ -44,15 +44,15 @@ var vmIDFetcher = cachedfetch.Fetcher{
 			metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
 			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
-			return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
+			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 		}
-		return res, nil
+		return []string{res}, nil
 	},
 }
 
-// GetHostAlias returns the VM ID from the Azure Metadata api
-func GetHostAlias(ctx context.Context) (string, error) {
-	return vmIDFetcher.FetchString(ctx)
+// GetHostAliases returns the VM ID from the Azure Metadata api
+func GetHostAliases(ctx context.Context) ([]string, error) {
+	return vmIDFetcher.FetchStringSlice(ctx)
 }
 
 var resourceGroupNameFetcher = cachedfetch.Fetcher{

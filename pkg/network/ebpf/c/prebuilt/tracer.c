@@ -613,7 +613,19 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     struct socket* socket = (struct socket*)PT_REGS_RC(ctx);
     enum sock_type sock_type = 0;
     bpf_probe_read(&sock_type, sizeof(short), &socket->type);
-    if (sock_type != SOCK_STREAM) {
+
+    // (struct socket).ops is always directly after (struct socket).sk,
+    // which is a pointer.
+    u64 ops_offset = offset_socket_sk() + sizeof(void*);
+    struct proto_ops *proto_ops = NULL;
+    bpf_probe_read(&proto_ops, sizeof(proto_ops), (void*)(socket) + ops_offset);
+    if (!proto_ops) {
+        goto cleanup;
+    }
+
+    int family = 0;
+    bpf_probe_read(&family, sizeof(family), &proto_ops->family);
+    if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
         goto cleanup;
     }
 
@@ -666,8 +678,10 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
         goto cleanup;
     }
 
-    size_t sent = (size_t)PT_REGS_RC(ctx);
-    handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
+    ssize_t sent = (ssize_t)PT_REGS_RC(ctx);
+    if (sent > 0) {
+        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
+    }
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
     return 0;

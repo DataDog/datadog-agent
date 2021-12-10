@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,11 +34,12 @@ type RuntimeSecurityAgent struct {
 	connected     atomic.Value
 	eventReceived uint64
 	telemetry     *telemetry
+	endpoints     *config.Endpoints
 	cancel        context.CancelFunc
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter, endpoints *config.Endpoints) (*RuntimeSecurityAgent, error) {
 	socketPath := coreconfig.Datadog.GetString("runtime_security_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set")
@@ -60,6 +62,7 @@ func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter) (*Runtime
 		reporter:  reporter,
 		hostname:  hostname,
 		telemetry: tel,
+		endpoints: endpoints,
 	}, nil
 }
 
@@ -143,6 +146,7 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 	return map[string]interface{}{
 		"connected":     rsa.connected.Load(),
 		"eventReceived": atomic.LoadUint64(&rsa.eventReceived),
+		"endpoints":     rsa.endpoints.GetStatus(),
 	}
 }
 

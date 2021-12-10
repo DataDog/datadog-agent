@@ -421,8 +421,7 @@ func TestPerformanceProfile(t *testing.T) {
 	assert.True(t, cpu, "cpu.profile should've been included")
 }
 
-// Test that the scrubber.Writer returned from newScrubberWriter actually
-// scrubs third-party API keys.
+// Test that writeScrubbedFile actually scrubs third-party API keys.
 func TestRedactingOtherServicesApiKey(t *testing.T) {
 	dir := t.TempDir()
 	filename := path.Join(dir, "test.config")
@@ -442,15 +441,7 @@ instances:
   api_key: ********
   version: 4 # omit this line if you're running pdns_recursor version 3.x`
 
-	w, err := newScrubberWriter(filename, os.ModePerm)
-	require.NoError(t, err)
-
-	n, err := w.Write([]byte(clear))
-	require.NoError(t, err)
-	require.Equal(t, len(clear), n)
-	err = w.Flush()
-	require.NoError(t, err)
-	err = w.Close()
+	err := writeScrubbedFile(filename, []byte(clear))
 	require.NoError(t, err)
 
 	got, err := ioutil.ReadFile(filename)

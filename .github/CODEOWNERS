@@ -30,9 +30,10 @@
 
 /.circleci/                             @DataDog/agent-platform
 
-/.github/CODEOWNERS                     @DataDog/do-not-notify
-/.github/*_TEMPLATE.md                  @DataDog/agent-all
-/.github/dependabot.yaml                @DataDog/agent-platform
+/.github/CODEOWNERS                                 @DataDog/do-not-notify
+/.github/*_TEMPLATE.md                              @DataDog/agent-all
+/.github/dependabot.yaml                            @DataDog/agent-platform
+/.github/workflows/serverless-integration.yml       @DataDog/serverless
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
@@ -117,8 +118,6 @@
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
 # Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
 # that should be fine since rarely we make PRs that only change those files alone.
-/releasenotes/                          @DataDog/do-not-notify
-/releasenotes-installscript/                  @DataDog/do-not-notify
 /go.mod                                 @DataDog/do-not-notify
 /go.sum                                 @DataDog/do-not-notify
 
@@ -172,7 +171,6 @@
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/otlp/                              @DataDog/agent-platform
 /pkg/tagger/                            @DataDog/container-integrations
-/pkg/tagger/collectors/garden*.go       @DataDog/integrations-tools-and-libraries
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/integrations-tools-and-libraries
 /pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containerd/                   @DataDog/container-integrations
@@ -204,10 +202,13 @@
 /pkg/appsec/                            @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
 /pkg/workloadmeta/                      @DataDog/container-integrations
+/pkg/workloadmeta/collectors/cloudfoundry @DataDog/integrations-tools-and-libraries
 
 /pkg-config/                            @DataDog/agent-platform
 
-/releasenotes-dca/                      @DataDog/container-integrations
+/releasenotes/                          @DataDog/documentation
+/releasenotes-installscript/            @DataDog/documentation
+/releasenotes-dca/                      @DataDog/documentation @DataDog/container-integrations
 
 /rtloader/                              @DataDog/agent-core
 
