@@ -31,11 +31,11 @@ type Client struct {
 
 	orgIDTargetPrefix string
 
-	configLocalStore  *localStoreConfig
+	configLocalStore  *localStore
 	configRemoteStore *remoteStoreConfig
 	configTUFClient   *client.Client
 
-	directorLocalStore  *localStoreDirector
+	directorLocalStore  *localStore
 	directorRemoteStore *remoteStoreDirector
 	directorTUFClient   *client.Client
 

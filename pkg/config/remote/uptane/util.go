@@ -48,14 +48,12 @@ func parseMetaPath(rawMetaPath string) (metaPath, error) {
 	}, nil
 }
 
-type metaVersionData struct {
-	Signed *struct {
-		Version *uint64 `json:"version"`
-	} `json:"signed"`
-}
-
 func metaVersion(rawMeta json.RawMessage) (uint64, error) {
-	var metaVersion metaVersionData
+	var metaVersion struct {
+		Signed *struct {
+			Version *uint64 `json:"version"`
+		} `json:"signed"`
+	}
 	err := json.Unmarshal(rawMeta, &metaVersion)
 	if err != nil {
 		return 0, err

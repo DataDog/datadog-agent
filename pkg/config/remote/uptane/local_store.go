@@ -156,30 +156,10 @@ func (s *localStore) GetMetaVersion(metaName string) (uint64, error) {
 	return metaVersion, nil
 }
 
-type localStoreDirector struct {
-	*localStore
+func newLocalStoreDirector(db *bbolt.DB, cacheKey string) (*localStore, error) {
+	return newLocalStore(db, "director", cacheKey, meta.RootsDirector())
 }
 
-func newLocalStoreDirector(db *bbolt.DB, cacheKey string) (*localStoreDirector, error) {
-	localStore, err := newLocalStore(db, "director", cacheKey, meta.RootsDirector())
-	if err != nil {
-		return nil, err
-	}
-	return &localStoreDirector{
-		localStore: localStore,
-	}, nil
-}
-
-type localStoreConfig struct {
-	*localStore
-}
-
-func newLocalStoreConfig(db *bbolt.DB, cacheKey string) (*localStoreConfig, error) {
-	localStore, err := newLocalStore(db, "config", cacheKey, meta.RootsConfig())
-	if err != nil {
-		return nil, err
-	}
-	return &localStoreConfig{
-		localStore: localStore,
-	}, nil
+func newLocalStoreConfig(db *bbolt.DB, cacheKey string) (*localStore, error) {
+	return newLocalStore(db, "config", cacheKey, meta.RootsConfig())
 }
