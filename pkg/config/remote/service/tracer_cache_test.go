@@ -23,7 +23,9 @@ func TestExpiration(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(2 * ttl)
+	tc.mutex.Lock()
 	tc.cleanup()
+	tc.mutex.Unlock()
 	assert.Assert(t, len(tc.Tracers()) == 0, "Tracers should be empty eventually.")
 }
 
@@ -57,7 +59,9 @@ func TestCleanupPersistence(t *testing.T) {
 	tracer := &pbgo.TracerInfo{RuntimeId: "foo", ServiceName: "", ServiceEnv: "", ServiceVersion: ""}
 	assert.Assert(t, tc.TrackTracer(tracer) == nil, "There should be no error")
 	assert.Assert(t, len(tc.Tracers()) == 1, "There should be 1 tracer")
+	tc.mutex.Lock()
 	count := tc.cleanup()
+	tc.mutex.Unlock()
 	assert.Assert(t, count == 0, "Cleanup should have returned 0")
 	assert.Assert(t, len(tc.Tracers()) == 1, "There should be 1 tracer")
 }
