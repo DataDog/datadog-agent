@@ -501,7 +501,7 @@ func NewService(opts Opts) (*Service, error) {
 		opts.TracerCacheTTL = defaultTracerCacheTTL
 	}
 
-	if opts.TracerCacheTTL <= 5 * time.Second || opts.TracerCacheTTL >= 60 * time.Second {
+	if opts.TracerCacheTTL <= 5*time.Second || opts.TracerCacheTTL >= 60*time.Second {
 		log.Warnf("Configured tracer cache ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", 5, 10, opts.TracerCacheTTL, defaultTracerCacheTTL)
 		opts.TracerCacheTTL = defaultTracerCacheTTL
 	}
