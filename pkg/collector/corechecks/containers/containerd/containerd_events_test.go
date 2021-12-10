@@ -24,26 +24,39 @@ import (
 	"github.com/stretchr/testify/require"
 
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 type mockItf struct {
-	mockEvents            func() containerd.EventService
-	mockContainers        func() ([]containerd.Container, error)
-	mockContainer         func(id string) (containerd.Container, error)
-	mockContainerWithCtx  func(ctx context.Context, id string) (containerd.Container, error)
-	mockEnvVars           func(ctn containerd.Container) (map[string]string, error)
-	mockMetadata          func() (containerd.Version, error)
-	mockImage             func(ctn containerd.Container) (containerd.Image, error)
-	mockImageSize         func(ctn containerd.Container) (int64, error)
-	mockTaskMetrics       func(ctn containerd.Container) (*types.Metric, error)
-	mockTaskPids          func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
-	mockInfo              func(ctn containerd.Container) (containers.Container, error)
-	mockLabels            func(ctn containerd.Container) (map[string]string, error)
-	mockLabelsWithContext func(ctx context.Context, ctn containerd.Container) (map[string]string, error)
-	mockNamespace         func() string
-	mockSpec              func(ctn containerd.Container) (*oci.Spec, error)
-	mockSpecWithContext   func(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
-	mockStatus            func(ctn containerd.Container) (containerd.ProcessStatus, error)
+	mockClose               func() error
+	mockCheckConnectivity   func() *retry.Error
+	mockEvents              func() containerd.EventService
+	mockContainers          func() ([]containerd.Container, error)
+	mockContainer           func(id string) (containerd.Container, error)
+	mockContainerWithCtx    func(ctx context.Context, id string) (containerd.Container, error)
+	mockEnvVars             func(ctn containerd.Container) (map[string]string, error)
+	mockMetadata            func() (containerd.Version, error)
+	mockImage               func(ctn containerd.Container) (containerd.Image, error)
+	mockImageSize           func(ctn containerd.Container) (int64, error)
+	mockTaskMetrics         func(ctn containerd.Container) (*types.Metric, error)
+	mockTaskPids            func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
+	mockInfo                func(ctn containerd.Container) (containers.Container, error)
+	mockLabels              func(ctn containerd.Container) (map[string]string, error)
+	mockLabelsWithContext   func(ctx context.Context, ctn containerd.Container) (map[string]string, error)
+	mockCurrentNamespace    func() string
+	mockSetCurrentNamespace func(namespace string)
+	mockNamespaces          func(ctx context.Context) ([]string, error)
+	mockSpec                func(ctn containerd.Container) (*oci.Spec, error)
+	mockSpecWithContext     func(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
+	mockStatus              func(ctn containerd.Container) (containerd.ProcessStatus, error)
+}
+
+func (m *mockItf) Close() error {
+	return m.mockClose()
+}
+
+func (m *mockItf) CheckConnectivity() *retry.Error {
+	return m.mockCheckConnectivity()
 }
 
 func (m *mockItf) Image(ctn containerd.Container) (containerd.Image, error) {
@@ -78,8 +91,16 @@ func (m *mockItf) Metadata() (containerd.Version, error) {
 	return m.mockMetadata()
 }
 
-func (m *mockItf) Namespace() string {
-	return m.mockNamespace()
+func (m *mockItf) CurrentNamespace() string {
+	return m.mockCurrentNamespace()
+}
+
+func (m *mockItf) SetCurrentNamespace(namespace string) {
+	m.mockSetCurrentNamespace(namespace)
+}
+
+func (m *mockItf) Namespaces(ctx context.Context) ([]string, error) {
+	return m.mockNamespaces(ctx)
 }
 
 func (m *mockItf) Containers() ([]containerd.Container, error) {
@@ -139,7 +160,7 @@ func TestCheckEvents(t *testing.T) {
 		},
 	}
 	// Test the basic listener
-	sub := CreateEventSubscriber("subscriberTest1", "k9s.io", nil)
+	sub := CreateEventSubscriber("subscriberTest1", nil)
 	sub.CheckEvents(containerdutil.ContainerdItf(itf))
 
 	tp := containerdevents.TaskPaused{
@@ -196,7 +217,7 @@ func TestCheckEvents(t *testing.T) {
 	}
 
 	// Test the multiple events one unsupported
-	sub = CreateEventSubscriber("subscriberTest2", "k9s.io", nil)
+	sub = CreateEventSubscriber("subscriberTest2", nil)
 	sub.CheckEvents(containerdutil.ContainerdItf(itf))
 
 	tk := containerdevents.TaskOOM{

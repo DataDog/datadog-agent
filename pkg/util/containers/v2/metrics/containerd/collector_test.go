@@ -24,15 +24,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	workloadmetaTesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 type mockedContainerdClient struct {
 	containerdutil.ContainerdItf
-	mockContainer   func(id string) (containerd.Container, error)
-	mockInfo        func(ctn containerd.Container) (containers.Container, error)
-	mockSpec        func(ctn containerd.Container) (*oci.Spec, error)
-	mockTaskMetrics func(ctn containerd.Container) (*types.Metric, error)
-	mockTaskPids    func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
+	mockContainer           func(id string) (containerd.Container, error)
+	mockInfo                func(ctn containerd.Container) (containers.Container, error)
+	mockSpec                func(ctn containerd.Container) (*oci.Spec, error)
+	mockTaskMetrics         func(ctn containerd.Container) (*types.Metric, error)
+	mockTaskPids            func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
+	mockSetCurrentNamespace func(namespace string)
 }
 
 func (m *mockedContainerdClient) Container(id string) (containerd.Container, error) {
@@ -53,6 +56,10 @@ func (m *mockedContainerdClient) TaskMetrics(ctn containerd.Container) (*types.M
 
 func (m *mockedContainerdClient) TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
 	return m.mockTaskPids(ctn)
+}
+
+func (m *mockedContainerdClient) SetCurrentNamespace(namespace string) {
+	m.mockSetCurrentNamespace(namespace)
 }
 
 type mockedContainer struct {
@@ -251,10 +258,28 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			collector := containerdCollector{client: containerdClient(test.containerdMetrics)}
+			containerID := "1"
+
+			// The container needs to exist in the workloadmeta store and have a
+			// namespace.
+			workloadmetaStore := workloadmetaTesting.NewStore()
+			workloadmetaStore.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "test-namespace",
+				},
+			})
+
+			collector := containerdCollector{
+				client:            containerdClient(test.containerdMetrics),
+				workloadmetaStore: workloadmetaStore,
+			}
 
 			// ID and cache TTL not relevant for these tests
-			result, err := collector.GetContainerStats("1", 10*time.Second)
+			result, err := collector.GetContainerStats(containerID, 10*time.Second)
 			assert.NoError(t, err)
 
 			result.CPU.Limit = nil         // Don't check this field. It's complex to calculate. Needs separate tests.
@@ -368,10 +393,28 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			collector := containerdCollector{client: containerdClient(test.containerdMetrics)}
+			containerID := "1"
+
+			// The container needs to exist in the workloadmeta store and have a
+			// namespace.
+			workloadmetaStore := workloadmetaTesting.NewStore()
+			workloadmetaStore.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "test-namespace",
+				},
+			})
+
+			collector := containerdCollector{
+				client:            containerdClient(test.containerdMetrics),
+				workloadmetaStore: workloadmetaStore,
+			}
 
 			// ID and cache TTL not relevant for these tests
-			result, err := collector.GetContainerNetworkStats("1", 10*time.Second, test.interfaceMapping)
+			result, err := collector.GetContainerNetworkStats(containerID, 10*time.Second, test.interfaceMapping)
 
 			assert.NoError(t, err)
 			assert.Empty(t, cmp.Diff(test.expectedNetworkStats, result))
@@ -401,5 +444,6 @@ func containerdClient(metrics *types.Metric) *mockedContainerdClient {
 		mockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
+		mockSetCurrentNamespace: func(namespace string) {},
 	}
 }
