@@ -521,13 +521,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 
 	// Containerd
-	if IsKubernetes() {
-		// By default containerd cri uses `k8s.io` https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
-		config.BindEnvAndSetDefault("containerd_namespace", "k8s.io")
-	} else {
-		// Outside Kubernetes, watch all the namespaces by default
-		config.BindEnvAndSetDefault("containerd_namespace", "")
-	}
+	config.BindEnvAndSetDefault("containerd_namespace", "")
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
