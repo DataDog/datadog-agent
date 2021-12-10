@@ -381,6 +381,7 @@ func TestRecurentSeries(t *testing.T) {
 }
 
 func TestTags(t *testing.T) {
+	defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
 	tests := []struct {
 		name                    string
 		tlmContainerTagsEnabled bool
