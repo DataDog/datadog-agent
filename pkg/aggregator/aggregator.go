@@ -605,8 +605,6 @@ func (agg *BufferedAggregator) sendIterableSeries(
 	start time.Time,
 	series *metrics.IterableSeries,
 	done chan<- struct{}) {
-	agg.appendDefaultSeries(start, series)
-
 	go func() {
 		log.Debugf("Flushing series to the forwarder")
 
@@ -647,6 +645,7 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSe
 		done := make(chan struct{})
 		agg.sendIterableSeries(start, series, done)
 		sketches := agg.getSeriesAndSketches(start, series)
+		agg.appendDefaultSeries(start, series)
 		series.SenderStopped()
 		if waitForSerializer {
 			<-done
