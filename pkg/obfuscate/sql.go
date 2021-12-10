@@ -213,8 +213,11 @@ func (f *groupingFilter) Filter(token, lastToken TokenKind, buffer []byte) (toke
 		f.groupMulti++
 	}
 
+	// Potential commands that could indicate the start of a subquery.
+	isStartOfSubquery := token == Select || token == Delete || token == Update || token == ID
+
 	switch {
-	case f.groupMulti > 0 && lastToken == FilteredGroupableParenthesis && token == Select:
+	case f.groupMulti > 0 && lastToken == FilteredGroupableParenthesis && isStartOfSubquery:
 		// this is the start of a new group that seems to be a nested query;
 		// cancel grouping.
 		f.Reset()
