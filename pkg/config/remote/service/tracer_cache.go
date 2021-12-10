@@ -106,7 +106,7 @@ func (tc *TracerCache) Tracers() []*pbgo.TracerInfo {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
 	tc.cleanup()
-	tracers := make([]*pbgo.TracerInfo, len(tc.tracerInfos))
+	tracers := make([]*pbgo.TracerInfo, 0, len(tc.tracerInfos))
 	for _, tracer := range tc.tracerInfos {
 		tracers = append(tracers, tracer.tracerInfo)
 	}
