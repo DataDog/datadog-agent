@@ -215,6 +215,12 @@ func (c *Client) verifyUptane() error {
 		if configTargetMeta.Length != targetMeta.Length {
 			return fmt.Errorf("target '%s' has size %d in directory repository and %d in config repository", targetPath, configTargetMeta.Length, targetMeta.Length)
 		}
+		if len(targetMeta.Hashes) == 0 {
+			return fmt.Errorf("target '%s' no hashes in the director repository", targetPath)
+		}
+		if len(targetMeta.Hashes) != len(configTargetMeta.Hashes) {
+			return fmt.Errorf("target '%s' has %d hashes in directory repository and %d hashes in config repository", targetPath, len(targetMeta.Hashes), len(configTargetMeta.Hashes))
+		}
 		for kind, directorHash := range targetMeta.Hashes {
 			configHash, found := configTargetMeta.Hashes[kind]
 			if !found {
