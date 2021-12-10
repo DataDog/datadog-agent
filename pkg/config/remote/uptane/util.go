@@ -8,7 +8,7 @@ package uptane
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -64,11 +64,11 @@ func metaVersion(rawMeta json.RawMessage) (uint64, error) {
 	return *metaVersion.Signed.Version, nil
 }
 
-func trimHashTargetPath(path string) string {
-	basename := filepath.Base(path)
+func trimHashTargetPath(targetPath string) string {
+	basename := path.Base(targetPath)
 	split := strings.SplitN(basename, ".", 2)
 	if len(split) > 1 {
 		basename = split[1]
 	}
-	return filepath.Join(filepath.Dir(path), basename)
+	return path.Join(path.Dir(targetPath), basename)
 }

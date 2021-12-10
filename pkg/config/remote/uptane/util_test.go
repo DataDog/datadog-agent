@@ -84,3 +84,19 @@ func TestMetaVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestTrimHashTargetPath(t *testing.T) {
+	tests := []struct {
+		input  string
+		output string
+	}{
+		{input: "2/APM_SAMPLING/feeff5413f79f5072626f0aa66eb64532d85d74df9412a5b141f2b71407565a1.target2", output: "2/APM_SAMPLING/target2"},
+		{input: "2/APM_SAMPLING/target2", output: "2/APM_SAMPLING/target2"},
+	}
+	for _, test := range tests {
+		t.Run(test.input, func(tt *testing.T) {
+			output := trimHashTargetPath(test.input)
+			assert.Equal(tt, test.output, output)
+		})
+	}
+}
