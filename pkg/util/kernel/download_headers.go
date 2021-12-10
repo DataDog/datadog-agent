@@ -50,7 +50,7 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 		return fmt.Errorf("unable create output directory %s: %s", headerDownloadDir, err)
 	}
 
-	if target, err = getHeaderDownloadTarget(); err != nil {
+	if target, err = types.NewTarget(); err != nil {
 		return fmt.Errorf("failed to retrieve target information: %s", err)
 	}
 
@@ -64,6 +64,7 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 	if backend, err = h.getHeaderDownloadBackend(&target); err != nil {
 		return fmt.Errorf("unable to get kernel header download backend: %s", err)
 	}
+	defer backend.Close()
 
 	if err = backend.GetKernelHeaders(outputDir); err != nil {
 		return fmt.Errorf("failed to download kernel headers: %s", err)
@@ -95,21 +96,6 @@ func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target) (backe
 		err = fmt.Errorf("Unsupported distribution '%s'", target.Distro.Display)
 	}
 	return
-}
-
-func getHeaderDownloadTarget() (types.Target, error) {
-	target, err := types.NewTarget()
-	if err != nil {
-		return types.Target{}, err
-	}
-
-	if _, err := os.Stat("/run/WSL"); err == nil {
-		target.Distro.Display = "wsl"
-	} else if id := target.OSRelease["ID"]; target.Distro.Display == "" && id != "" {
-		target.Distro.Display = id
-	}
-
-	return target, nil
 }
 
 func createOutputDir(path string) (string, error) {
