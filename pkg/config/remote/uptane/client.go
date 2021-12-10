@@ -232,6 +232,14 @@ func (c *Client) verifyUptane() error {
 				return fmt.Errorf("directory hash '%s' is not equal to config repository '%s'", string(directorHash), string(configHash))
 			}
 		}
+		err = c.configTUFClient.Download(targetPath, &bufferDestination{})
+		if err != nil {
+			return err
+		}
+		err = c.directorTUFClient.Download(targetPath, &bufferDestination{})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

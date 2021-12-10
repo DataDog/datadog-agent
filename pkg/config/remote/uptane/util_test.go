@@ -90,7 +90,7 @@ func TestTrimHashTargetPath(t *testing.T) {
 		input  string
 		output string
 	}{
-		{input: "2/APM_SAMPLING/feeff5413f79f5072626f0aa66eb64532d85d74df9412a5b141f2b71407565a1.target2", output: "2/APM_SAMPLING/target2"},
+		{input: "2/APM_SAMPLING/479520024efb527de298760ad09b8d89561d81c31fcff476e9b034a110948b64.1", output: "2/APM_SAMPLING/1"},
 		{input: "2/APM_SAMPLING/target2", output: "2/APM_SAMPLING/target2"},
 	}
 	for _, test := range tests {

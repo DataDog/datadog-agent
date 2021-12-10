@@ -161,7 +161,7 @@ func TestClientVerifyUptane(t *testing.T) {
 func TestClientVerifyOrgID(t *testing.T) {
 	db := getTestDB()
 
-	_, target1 := generateTarget()
+	target1content, target1 := generateTarget()
 	_, target2 := generateTarget()
 	configTargets1 := data.TargetFiles{
 		"2/APM_SAMPLING/1": target1,
@@ -177,8 +177,8 @@ func TestClientVerifyOrgID(t *testing.T) {
 	directorTargets2 := data.TargetFiles{
 		"3/APM_SAMPLING/1": target1,
 	}
-	testRepositoryValid := newTestRepository(1, configTargets1, directorTargets1, nil)
-	testRepositoryInvalid := newTestRepository(1, configTargets2, directorTargets2, nil)
+	testRepositoryValid := newTestRepository(1, configTargets1, directorTargets1, []*pbgo.File{{Path: "2/APM_SAMPLING/1", Raw: target1content}})
+	testRepositoryInvalid := newTestRepository(1, configTargets2, directorTargets2, []*pbgo.File{{Path: "3/APM_SAMPLING/1", Raw: target1content}})
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
