@@ -170,8 +170,6 @@ profiles:
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow1"),
 			},
-			//"1.3.6.1.2.1.4.20.1.1",  # ipAdEntAddr
-			//"1.3.6.1.2.1.4.20.1.2",  # ipAdEntIfIndex
 			{
 				Name:  "1.3.6.1.2.1.4.20.1.1.127.0.0.1",
 				Type:  gosnmp.IPAddress,

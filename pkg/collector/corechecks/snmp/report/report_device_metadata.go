@@ -77,6 +77,7 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 					if symbol.IndexFromOidValue.OID != "" {
 						indexVals, err := getColumnValueFromSymbol(values, checkconfig.SymbolConfig{OID: symbol.IndexFromOidValue.OID})
 						if err != nil {
+							log.Debugf("error getting index values: %v", err)
 							continue
 						}
 						indexValues = indexVals
@@ -86,14 +87,14 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 						continue
 					}
 					for fullIndex, value := range metricValues {
-						for indexIndex, indexValue := range indexValues {
-							strVal, err := indexValue.ToString()
+						newIndexVal, ok := indexValues[fullIndex]
+						if ok {
+							strVal, err := newIndexVal.ToString()
 							if err != nil {
+								log.Debugf("error converting index value: %v", err)
 								continue
 							}
-							if indexIndex == fullIndex {
-								fullIndex = strVal
-							}
+							fullIndex = strVal
 						}
 						metadataStore.AddColumnValue(fieldFullName, fullIndex, value)
 					}

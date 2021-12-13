@@ -57,5 +57,5 @@ type InterfaceMetadata struct {
 	MacAddress  string   `json:"mac_address,omitempty"`
 	AdminStatus int32    `json:"admin_status,omitempty"` // IF-MIB ifAdminStatus type is INTEGER
 	OperStatus  int32    `json:"oper_status,omitempty"`  // IF-MIB ifOperStatus type is INTEGER
-	IPAddress   string   `json:"ip_address,omitempty"`   // IF-MIB ifOperStatus type is INTEGER
+	IPAddress   string   `json:"ip_address,omitempty"`
 }

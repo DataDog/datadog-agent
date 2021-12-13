@@ -854,7 +854,6 @@ func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
 }
 
 func Test_snmpConfig_refreshWithProfile(t *testing.T) {
-	//metrics := []MetricsConfig{}
 	profile1 := profileDefinition{
 		Device: DeviceMeta{
 			Vendor: "a-vendor",
@@ -867,7 +866,6 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 						OID:  "1.2.3.4.6",
 						Name: "abc",
 					},
-					// test IndexFromOidValue
 					{
 						OID:  "1.3.6.1.2.1.4.20.1.7001",
 						Name: "ipAdEntAddr",
@@ -883,7 +881,6 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 							OID: "1.2.3.4.7",
 						},
 					},
-					// test IndexFromOidValue
 					{
 						Tag: "ip_address1",
 						Column: SymbolConfig{
@@ -942,7 +939,6 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 							},
 						},
 						Symbols: []SymbolConfig{
-							// test IndexFromOidValue
 							{
 								OID:  "1.3.6.1.2.1.4.20.1.6001",
 								Name: "ipAdEntAddr",
