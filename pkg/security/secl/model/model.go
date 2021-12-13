@@ -263,17 +263,10 @@ type Process struct {
 	Pid uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
 	Tid uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
 
-<<<<<<< HEAD
-	PathnameStr         string `field:"file.path" msg:"path"`             // Path of the process executable
-	BasenameStr         string `field:"file.name" msg:"name"`             // Basename of the path of the process executable
-	Filesystem          string `field:"file.filesystem" msg:"filesystem"` // FileSystem of the process executable
+	PathnameStr         string `field:"file.path" msg:"path" op_override:"OverridePathnames"` // Path of the process executable
+	BasenameStr         string `field:"file.name" msg:"name"`                                 // Basename of the path of the process executable
+	Filesystem          string `field:"file.filesystem" msg:"filesystem"`                     // FileSystem of the process executable
 	PathResolutionError error  `field:"-" msg:"-"`
-=======
-	PathnameStr         string `field:"file.path" op_override:"OverridePathnames"` // Path of the process executable
-	BasenameStr         string `field:"file.name"`                                 // Basename of the path of the process executable
-	Filesystem          string `field:"file.filesystem"`                           // FileSystem of the process executable
-	PathResolutionError error  `field:"-"`
->>>>>>> baee6862cf (Introduce a cache)
 
 	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID
 	ContainerTags []string `field:"-" msg:"container_tags"`
@@ -365,15 +358,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-<<<<<<< HEAD
-	PathnameStr string `field:"path,ResolveFilePath" msg:"path"`                   // File's path
-	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`               // File's basename
-	Filesytem   string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"` // File's filesystem
-=======
-	PathnameStr string `field:"path,ResolveFilePath" op_override:"OverridePathnames"` // File's path
-	BasenameStr string `field:"name,ResolveFileBasename"`                             // File's basename
-	Filesytem   string `field:"filesystem,ResolveFileFilesystem"`                     // File's filesystem
->>>>>>> baee6862cf (Introduce a cache)
+	PathnameStr string `field:"path,ResolveFilePath" msg:"path" op_override:"OverridePathnames"` // File's path
+	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`                             // File's basename
+	Filesytem   string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"`               // File's filesystem
 
 	PathResolutionError error `field:"-" msg:"-"`
 }

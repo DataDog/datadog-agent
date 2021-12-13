@@ -122,6 +122,8 @@ type Config struct {
 	ActivityDumpCgroupOutputDirectory string
 	// RuntimeMonitor defines if the runtime monitor should be enabled
 	RuntimeMonitor bool
+	// SymlinkResolverEnabled defines whether the symlink resolver is enabled
+	SymlinkResolverEnabled bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -184,6 +186,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpCgroupWaitListSize:     aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
 		ActivityDumpCgroupOutputDirectory:  aconfig.Datadog.GetString("runtime_security_config.activity.cgroup_output_directory"),
 		RuntimeMonitor:                     aconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
+		SymlinkResolverEnabled:             aconfig.Datadog.GetBool("runtime_security_config.symlink_resolver_enabled"),
 	}
 
 	// if runtime is enabled then we force fim

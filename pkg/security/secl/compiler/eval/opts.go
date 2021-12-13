@@ -49,11 +49,6 @@ func (o *Opts) AddMacro(macro *Macro) *Opts {
 		o.Macros = make(map[string]*Macro)
 	}
 	o.Macros[macro.ID] = macro
-}
-
-// WithUserContext set user context
-func (o *Opts) WithUserContext(ctx interface{}) *Opts {
-	o.UserCtx = ctx
 	return o
 }
 

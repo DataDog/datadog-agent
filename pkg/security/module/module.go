@@ -265,6 +265,10 @@ func (m *Module) Reload() error {
 	atomic.StoreUint64(&m.reloading, 1)
 	defer atomic.StoreUint64(&m.reloading, 0)
 
+	if err := m.probe.OnRuleSetReload(); err != nil {
+		log.Errorf("error while reloading ruleset: %+v", err)
+	}
+
 	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
@@ -289,6 +293,7 @@ func (m *Module) Reload() error {
 			},
 		}).
 		WithLogger(&seclog.PatternLogger{})
+	WithUserContext(m.probe)
 
 	model := &model.Model{}
 	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)

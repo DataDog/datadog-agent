@@ -23,6 +23,11 @@ var (
 			if opts.UserCtx == nil {
 				return eval.StringEquals(a, b, opts, state)
 			}
+			probe := opts.UserCtx.(*Probe)
+
+			if !probe.config.SymlinkResolverEnabled {
+				return eval.StringEquals(a, b, opts, state)
+			}
 
 			var fieldEvaluator *eval.StringEvaluator
 			var key unsafe.Pointer
@@ -33,7 +38,7 @@ var (
 			} else if b.IsScalar() {
 				fieldEvaluator, key, value = a, unsafe.Pointer(a), b.Value
 			} else {
-				return nil, errors.New("non scalar overriden is not supported")
+				return nil, errors.New("non scalar overridden is not supported")
 			}
 
 			if fieldEvaluator.Field == "" {
@@ -41,7 +46,6 @@ var (
 			}
 
 			// pre-cache at compile time
-			probe := opts.UserCtx.(*Probe)
 			probe.resolvers.SymlinkResolver.InitStringValues(key, fieldEvaluator.Field, value)
 
 			evaluator := eval.StringValuesEvaluator{
@@ -56,19 +60,19 @@ var (
 			if opts.UserCtx == nil {
 				return eval.StringValuesContains(a, b, opts, state)
 			}
+			probe := opts.UserCtx.(*Probe)
 
-			if a.Field == "" {
+			if a.Field == "" || !probe.config.SymlinkResolverEnabled {
 				return eval.StringValuesContains(a, b, opts, state)
 			}
 
 			if !b.IsScalar() {
-				return nil, errors.New("non scalar overriden is not supported")
+				return nil, errors.New("non scalar overridden is not supported")
 			}
 
 			key, values := unsafe.Pointer(b), b.Values.GetScalarValues()
 
 			// pre-cache at compile time
-			probe := opts.UserCtx.(*Probe)
 			probe.resolvers.SymlinkResolver.InitStringValues(key, a.Field, values...)
 
 			evaluator := eval.StringValuesEvaluator{
@@ -84,19 +88,19 @@ var (
 			if opts.UserCtx == nil {
 				return eval.StringArrayContains(a, b, opts, state)
 			}
+			probe := opts.UserCtx.(*Probe)
 
-			if b.Field == "" {
+			if b.Field == "" || !probe.config.SymlinkResolverEnabled {
 				return eval.StringArrayContains(a, b, opts, state)
 			}
 
 			if !a.IsScalar() {
-				return nil, errors.New("non scalar overriden is not supported")
+				return nil, errors.New("non scalar overridden is not supported")
 			}
 
 			key, value := unsafe.Pointer(b), a.Value
 
 			// pre-cache at compile time
-			probe := opts.UserCtx.(*Probe)
 			probe.resolvers.SymlinkResolver.InitStringValues(key, b.Field, value)
 
 			evaluator := eval.StringValuesEvaluator{
@@ -111,19 +115,19 @@ var (
 			if opts.UserCtx == nil {
 				return eval.StringArrayMatches(a, b, opts, state)
 			}
+			probe := opts.UserCtx.(*Probe)
 
-			if a.Field == "" {
+			if a.Field == "" || !probe.config.SymlinkResolverEnabled {
 				return eval.StringArrayMatches(a, b, opts, state)
 			}
 
 			if !b.IsScalar() {
-				return nil, errors.New("non scalar overriden is not supported")
+				return nil, errors.New("non scalar overridden is not supported")
 			}
 
 			key, values := unsafe.Pointer(a), b.Values.GetScalarValues()
 
 			// pre-cache at compile time
-			probe := opts.UserCtx.(*Probe)
 			probe.resolvers.SymlinkResolver.InitStringValues(key, a.Field, values...)
 
 			evaluator := eval.StringValuesEvaluator{

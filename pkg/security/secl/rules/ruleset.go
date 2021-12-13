@@ -236,13 +236,15 @@ func (rs *RuleSet) AddRules(rules []*RuleDefinition) *multierror.Error {
 	var result *multierror.Error
 
 	for _, ruleDef := range rules {
-		if _, err := rs.AddRule(ruleDef); err != nil {
+		rule, err := rs.AddRule(ruleDef)
+		if err != nil {
 			result = multierror.Append(result, err)
+			continue
 		}
-	}
 
-	if err := rs.generatePartials(); err != nil {
-		result = multierror.Append(result, errors.Wrapf(err, "couldn't generate partials for rule"))
+		if err = rule.GenPartials(); err != nil {
+			result = multierror.Append(result, errors.Wrapf(err, "couldn't generate partials for rule"))
+		}
 	}
 
 	return result
@@ -566,21 +568,6 @@ NewFields:
 		}
 		rs.fields = append(rs.fields, newField)
 	}
-}
-
-// generatePartials generates the partials of the ruleset. A partial is a boolean evalution function that only depends
-// on one field. The goal of partial is to determine if a rule depends on a specific field, so that we can decide if
-// we should create an in-kernel filter for that field.
-func (rs *RuleSet) generatePartials() error {
-	// Compute the partials of each rule
-	for _, bucket := range rs.eventRuleBuckets {
-		for _, rule := range bucket.GetRules() {
-			if err := rule.GenPartials(); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // AddPolicyVersion adds the provided policy filename and version to the map of loaded policies

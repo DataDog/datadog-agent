@@ -98,8 +98,8 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType
 			return nil, errors.Wrap(err, "failed to select probes")
 		}
 
-		if err := rsa.probe.FlushDiscarders(); err != nil {
-			return nil, errors.Wrap(err, "failed to flush discarders")
+		if err := rsa.probe.OnRuleSetApplied(); err != nil {
+			return nil, err
 		}
 	}
 

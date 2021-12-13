@@ -66,7 +66,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
 		TagsResolver:      NewTagsResolver(config),
-		SymlinkResolver:   NewSymLinkResolver(probe.UptadeApprovers),
+		SymlinkResolver:   NewSymLinkResolver(probe.UpdateApprovers),
 	}
 
 	processResolver, err := NewProcessResolver(probe, resolvers, probe.statsdClient, NewProcessResolverOpts(probe.config.CookieCacheSize))

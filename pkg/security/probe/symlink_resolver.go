@@ -10,6 +10,8 @@ package probe
 
 import (
 	"context"
+	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -17,6 +19,7 @@ import (
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/twmb/murmur3"
 )
 
 // Targets defines the mapping between a path field and all its values
@@ -35,12 +38,12 @@ type SymlinkResolver struct {
 	cache    map[unsafe.Pointer]*eval.StringValues
 	index    map[string][]*Targets
 	added    map[string]bool
+	root     map[uint64]bool
 }
 
 // InitStringValues initialize the symlinks resolution, should be called only during the
 // rules compilations
 func (s *SymlinkResolver) InitStringValues(key unsafe.Pointer, field eval.Field, paths ...string) {
-	//var target eval.StringValues
 	target := Targets{
 		Field: field,
 	}
@@ -57,10 +60,40 @@ func (s *SymlinkResolver) InitStringValues(key unsafe.Pointer, field eval.Field,
 	s.cache[key] = &target.Values
 }
 
+func (s *SymlinkResolver) rootFingerPrint(root string) uint64 {
+	folders := []string{"/etc", "/usr/bin", "/usr/sbin", "/usr/local/bin", "/usr/local/sbin"}
+
+	hasher := murmur3.New64()
+	for _, folder := range folders {
+		target := filepath.Join(root, folder)
+		files, err := ioutil.ReadDir(target)
+		if err != nil {
+			continue
+		}
+
+		for _, file := range files {
+			data := fmt.Sprintf("%s:%d:%s", file.Name(), file.Size(), file.ModTime().String())
+			hasher.Write([]byte(data))
+		}
+	}
+
+	return hasher.Sum64()
+}
+
 // UpdateSymlinks updates the symlinks for the given path
 func (s *SymlinkResolver) UpdateSymlinks(root string) {
+	seclog.Tracef("update symlinks for `%s`", root)
+
+	fp := s.rootFingerPrint(root)
+	if _, exists := s.root[fp]; exists {
+		return
+	}
+	s.root[fp] = true
+
 	for path, targets := range s.index {
-		dest, err := filepath.EvalSymlinks(filepath.Join(root, path))
+		src := filepath.Join(root, path)
+
+		dest, err := filepath.EvalSymlinks(src)
 		if err != nil {
 			continue
 		}
@@ -122,12 +155,13 @@ func (s *SymlinkResolver) Start(ctx context.Context) {
 
 // Reset all the caches
 func (s *SymlinkResolver) Reset() {
-	s.RLock()
-	defer s.RUnlock()
+	s.Lock()
+	defer s.Unlock()
 
 	s.cache = make(map[unsafe.Pointer]*eval.StringValues)
 	s.index = make(map[string][]*Targets)
 	s.added = make(map[string]bool)
+	s.root = make(map[uint64]bool)
 }
 
 // NewSymLinkResolver returns a new
@@ -137,5 +171,6 @@ func NewSymLinkResolver(onNewSymlink func(field eval.Field, path string)) *Symli
 		requests:     make(chan string, 1000),
 	}
 	sr.Reset()
+
 	return sr
 }
