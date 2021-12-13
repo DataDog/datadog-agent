@@ -6,7 +6,7 @@
     "gtest",
     "yaml-cpp"
   ],
-  "builtin-baseline": "14543ba18235846803ab1d3534cf2f63c6024b20",
+  "builtin-baseline": "5568f110b509a9fd90711978a7cb76bae75bb092",
   "overrides": [
     { "name": "yaml-cpp", "version": "0.7.0" }
   ]
