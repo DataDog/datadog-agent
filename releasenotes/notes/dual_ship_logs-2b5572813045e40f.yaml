@@ -8,7 +8,7 @@
 ---
 upgrade:
   - |
-    `additional_endpoints` in the `logs_config` will now use the same compression
+    `additional_endpoints` in the `logs_config` now uses the same compression
     configuration as the main endpoint when sending to HTTP destinations. Agents 
     that relied on using different compression settings for `additional_endpoints`
     may need to be reconfigured. 
