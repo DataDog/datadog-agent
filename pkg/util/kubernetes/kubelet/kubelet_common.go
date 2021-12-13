@@ -75,6 +75,9 @@ func TrimRuntimeFromCID(cid string) string {
 // KubeContainerIDToTaggerEntityID builds an entity ID from a container ID coming from
 // the pod status (i.e. including the <runtime>:// prefix).
 func KubeContainerIDToTaggerEntityID(ctrID string) (string, error) {
+	if(ctrID == "") {
+		return "", fmt.Errorf("container ID is empty")
+	}
 	sep := strings.LastIndex(ctrID, containers.EntitySeparator)
 	if sep != -1 && len(ctrID) > sep+len(containers.EntitySeparator) {
 		return containers.ContainerEntityName + ctrID[sep:], nil

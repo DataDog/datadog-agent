@@ -69,6 +69,7 @@ func TestKubeContainerIDToTaggerEntityID(t *testing.T) {
 		"deadbeef":                "",
 		"/deadbeef":               "",
 		"runtime://foo/bar":       "container_id://foo/bar",
+		"": 					   "",
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
 			res, _ := KubeContainerIDToTaggerEntityID(in)
