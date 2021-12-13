@@ -867,6 +867,15 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 						OID:  "1.2.3.4.6",
 						Name: "abc",
 					},
+					// test IndexFromOidValue
+					{
+						OID:  "1.3.6.1.2.1.4.20.1.7001",
+						Name: "ipAdEntAddr",
+						IndexFromOidValue: OidSymbol{
+							OID:  "1.3.6.1.2.1.4.20.1.7002",
+							Name: "ipAdEntIfIndex",
+						},
+					},
 				},
 				MetricTags: MetricTagConfigList{
 					MetricTagConfig{
@@ -874,6 +883,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 							OID: "1.2.3.4.7",
 						},
 					},
+					// test IndexFromOidValue
 					{
 						Tag: "ip_address1",
 						Column: SymbolConfig{
@@ -931,6 +941,17 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 								Name: "ipAdEntIfIndex",
 							},
 						},
+						Symbols: []SymbolConfig{
+							// test IndexFromOidValue
+							{
+								OID:  "1.3.6.1.2.1.4.20.1.6001",
+								Name: "ipAdEntAddr",
+								IndexFromOidValue: OidSymbol{
+									OID:  "1.3.6.1.2.1.4.20.1.6002",
+									Name: "ipAdEntIfIndex",
+								},
+							},
+						},
 					},
 				},
 				IDTags: MetricTagConfigList{
@@ -981,6 +1002,8 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		ColumnOids: []string{
 			"1.2.3.4.6",
 			"1.2.3.4.7",
+			"1.3.6.1.2.1.4.20.1.7001",
+			"1.3.6.1.2.1.4.20.1.7002",
 			"1.3.6.1.2.1.4.20.1.8001",
 			"1.3.6.1.2.1.4.20.1.8002",
 		},
@@ -1008,6 +1031,10 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 			"1.3.6.1.2.1.31.1.1.1.1",
 			"1.3.6.1.2.1.4.20.1.1",
 			"1.3.6.1.2.1.4.20.1.2",
+			"1.3.6.1.2.1.4.20.1.6001",
+			"1.3.6.1.2.1.4.20.1.6002",
+			"1.3.6.1.2.1.4.20.1.7001",
+			"1.3.6.1.2.1.4.20.1.7002",
 			"1.3.6.1.2.1.4.20.1.8001",
 			"1.3.6.1.2.1.4.20.1.8002",
 			"1.3.6.1.2.1.4.20.1.9001",
@@ -1026,6 +1053,8 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		ColumnOids: []string{
 			"1.2.3.4.6",
 			"1.2.3.4.7",
+			"1.3.6.1.2.1.4.20.1.7001",
+			"1.3.6.1.2.1.4.20.1.7002",
 			"1.3.6.1.2.1.4.20.1.8001",
 			"1.3.6.1.2.1.4.20.1.8002",
 		},
