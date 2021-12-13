@@ -355,6 +355,18 @@ func InitConfig(config Config) {
 		} else {
 			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 		}
+
+		if pathExists("/host/etc") {
+			if val, isSet := os.LookupEnv("HOST_ETC"); !isSet {
+				// We want to detect the host distro informations instead of the one from the container.
+				// 'HOST_ETC' is used by some libraries like gopsutil and by the system-probe to
+				// download the right kernel headers.
+				os.Setenv("HOST_ETC", "/host/etc")
+				log.Debug("Setting environment variable HOST_ETC to '/host/etc'")
+			} else {
+				log.Debugf("'/host/etc' folder detected but HOST_ETC is already set to '%s', leaving it untouched", val)
+			}
+		}
 	} else {
 		config.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
