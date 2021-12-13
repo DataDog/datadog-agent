@@ -396,5 +396,5 @@ func truncateBodyForLog(body []byte) []byte {
 		return body
 	}
 	log.Warn("truncated http response body to the first 1000 bytes to prevent from logging a huge message")
-	return body[:limit]
+	return append(body[:limit], []byte("...")...)
 }

@@ -142,13 +142,13 @@ func Test_truncateBodyForLog(t *testing.T) {
 		},
 		{
 			name: "body is 1000 bytes",
-			body: []byte(strings.Repeat(".", 1000)),
-			want: []byte(strings.Repeat(".", 1000)),
+			body: []byte(strings.Repeat("a", 1000)),
+			want: append([]byte(strings.Repeat("a", 1000)), []byte("...")...),
 		},
 		{
 			name: "body is 1001 bytes",
-			body: []byte(strings.Repeat(".", 1001)),
-			want: []byte(strings.Repeat(".", 1000)),
+			body: []byte(strings.Repeat("a", 1001)),
+			want: append([]byte(strings.Repeat("a", 1000)), []byte("...")...),
 		},
 		{
 			name: "body is empty",
