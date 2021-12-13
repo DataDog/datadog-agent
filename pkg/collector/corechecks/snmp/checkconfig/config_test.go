@@ -854,29 +854,40 @@ func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
 }
 
 func Test_snmpConfig_refreshWithProfile(t *testing.T) {
-	metrics := []MetricsConfig{
-		{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-		{
-			Symbols: []SymbolConfig{
-				{
-					OID:  "1.2.3.4.6",
-					Name: "abc",
-				},
-			},
-			MetricTags: MetricTagConfigList{
-				MetricTagConfig{
-					Column: SymbolConfig{
-						OID: "1.2.3.4.7",
-					},
-				},
-			},
-		},
-	}
+	//metrics := []MetricsConfig{}
 	profile1 := profileDefinition{
 		Device: DeviceMeta{
 			Vendor: "a-vendor",
 		},
-		Metrics: metrics,
+		Metrics: []MetricsConfig{
+			{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+			{
+				Symbols: []SymbolConfig{
+					{
+						OID:  "1.2.3.4.6",
+						Name: "abc",
+					},
+				},
+				MetricTags: MetricTagConfigList{
+					MetricTagConfig{
+						Column: SymbolConfig{
+							OID: "1.2.3.4.7",
+						},
+					},
+					{
+						Tag: "ip_address1",
+						Column: SymbolConfig{
+							OID:  "1.3.6.1.2.1.4.20.1.8001",
+							Name: "ipAdEntAddr",
+							IndexFromOidValue: OidSymbol{
+								OID:  "1.3.6.1.2.1.4.20.1.8002",
+								Name: "ipAdEntIfIndex",
+							},
+						},
+					},
+				},
+			},
+		},
 		MetricTags: []MetricTagConfig{
 			{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 		},
@@ -911,6 +922,16 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 							Name: "someIfSymbol",
 						},
 					},
+					"ip_address": {
+						Symbol: SymbolConfig{
+							OID:  "1.3.6.1.2.1.4.20.1.1",
+							Name: "ipAdEntAddr",
+							IndexFromOidValue: OidSymbol{
+								OID:  "1.3.6.1.2.1.4.20.1.2",
+								Name: "ipAdEntIfIndex",
+							},
+						},
+					},
 				},
 				IDTags: MetricTagConfigList{
 					{
@@ -918,6 +939,17 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 						Column: SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
+						},
+					},
+					{
+						Tag: "ip_address2",
+						Column: SymbolConfig{
+							OID:  "1.3.6.1.2.1.4.20.1.9001",
+							Name: "ipAdEntAddr",
+							IndexFromOidValue: OidSymbol{
+								OID:  "1.3.6.1.2.1.4.20.1.9002",
+								Name: "ipAdEntIfIndex",
+							},
 						},
 					},
 				},
@@ -940,13 +972,18 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 
 	assert.Equal(t, "profile1", c.Profile)
 	assert.Equal(t, profile1, *c.ProfileDef)
-	assert.Equal(t, metrics, c.Metrics)
+	assert.Equal(t, profile1.Metrics, c.Metrics)
 	assert.Equal(t, []MetricTagConfig{
 		{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 	}, c.MetricTags)
 	assert.Equal(t, OidConfig{
 		ScalarOids: []string{"1.2.3.4.5"},
-		ColumnOids: []string{"1.2.3.4.6", "1.2.3.4.7"},
+		ColumnOids: []string{
+			"1.2.3.4.6",
+			"1.2.3.4.7",
+			"1.3.6.1.2.1.4.20.1.8001",
+			"1.3.6.1.2.1.4.20.1.8002",
+		},
 	}, c.OidConfig)
 	assert.Equal(t, []string{"snmp_profile:profile1", "device_vendor:a-vendor"}, c.ProfileTags)
 
@@ -969,6 +1006,12 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 			"1.2.3.4.7",
 			"1.3.6.1.2.1.2.2.1.99",
 			"1.3.6.1.2.1.31.1.1.1.1",
+			"1.3.6.1.2.1.4.20.1.1",
+			"1.3.6.1.2.1.4.20.1.2",
+			"1.3.6.1.2.1.4.20.1.8001",
+			"1.3.6.1.2.1.4.20.1.8002",
+			"1.3.6.1.2.1.4.20.1.9001",
+			"1.3.6.1.2.1.4.20.1.9002",
 		},
 	}, c.OidConfig)
 
@@ -983,6 +1026,8 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		ColumnOids: []string{
 			"1.2.3.4.6",
 			"1.2.3.4.7",
+			"1.3.6.1.2.1.4.20.1.8001",
+			"1.3.6.1.2.1.4.20.1.8002",
 		},
 	}, c.OidConfig)
 }

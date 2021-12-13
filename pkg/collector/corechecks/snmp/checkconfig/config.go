@@ -616,12 +616,11 @@ func (c *CheckConfig) parseColumnOids(metrics []MetricsConfig, metadataConfigs M
 	var oids []string
 	for _, metric := range metrics {
 		for _, symbol := range metric.Symbols {
-			oids = append(oids, symbol.OID)
+			oids = append(oids, getOidsFromSymbolConfig(symbol)...)
 		}
 		for _, metricTag := range metric.MetricTags {
-			oids = append(oids, metricTag.Column.OID)
-			// TODO: handle symbol
-
+			oids = append(oids, getOidsFromSymbolConfig(metricTag.Column)...)
+			// TODO: test me
 		}
 	}
 	if c.CollectDeviceMetadata {
@@ -630,22 +629,24 @@ func (c *CheckConfig) parseColumnOids(metrics []MetricsConfig, metadataConfigs M
 				continue
 			}
 			for _, field := range metadataConfig.Fields {
-
-				oids = append(oids, field.Symbol.OID)
-				if field.Symbol.IndexFromOidValue.OID != "" {
-					// TODO: test me
-					oids = append(oids, field.Symbol.IndexFromOidValue.OID)
-				}
-
+				oids = append(oids, getOidsFromSymbolConfig(field.Symbol)...)
 				for _, symbol := range field.Symbols {
-					oids = append(oids, symbol.OID)
-					// TODO: handle symbol
+					// TODO: test me
+					oids = append(oids, getOidsFromSymbolConfig(symbol)...)
 				}
 			}
 			for _, tagConfig := range metadataConfig.IDTags {
-				oids = append(oids, tagConfig.Column.OID)
+				oids = append(oids, getOidsFromSymbolConfig(tagConfig.Column)...)
 			}
 		}
+	}
+	return oids
+}
+
+func getOidsFromSymbolConfig(symbol SymbolConfig) []string {
+	oids := []string{symbol.OID}
+	if symbol.IndexFromOidValue.OID != "" {
+		oids = append(oids, symbol.IndexFromOidValue.OID)
 	}
 	return oids
 }
