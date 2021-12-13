@@ -28,11 +28,6 @@ type SymbolConfig struct {
 	MatchPatternCompiled *regexp.Regexp
 
 	IndexFromOidValue OidSymbol `yaml:"index_from_oid_value"`
-
-	//index_from_value: # index_transform has precedence over index_from_value
-	//# replace current index by the value of `ipAdEntIfIndex`
-	//OID: 1.3.6.1.2.1.4.20.1.2
-	//name: ipAdEntIfIndex
 }
 
 // MetricTagConfig holds metric tag info
