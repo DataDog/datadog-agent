@@ -30,7 +30,9 @@ metadata:
         symbol:
           OID: 1.3.6.1.2.1.4.20.1.1
           name: ipAdEntAddr
-          index_from_oid_value: 1.3.6.1.2.1.4.20.1.2  # ipAdEntIfIndex
+          index_from_oid_value:
+            OID: 1.3.6.1.2.1.4.20.1.2
+            name: ipAdEntIfIndex
       alias: # from another table
         symbol:
           OID: 1.3.6.1.2.1.31.1.1.1.18

@@ -632,9 +632,9 @@ func (c *CheckConfig) parseColumnOids(metrics []MetricsConfig, metadataConfigs M
 			for _, field := range metadataConfig.Fields {
 
 				oids = append(oids, field.Symbol.OID)
-				if field.Symbol.IndexFromOidValue != "" {
+				if field.Symbol.IndexFromOidValue.OID != "" {
 					// TODO: test me
-					oids = append(oids, field.Symbol.IndexFromOidValue)
+					oids = append(oids, field.Symbol.IndexFromOidValue.OID)
 				}
 
 				for _, symbol := range field.Symbols {

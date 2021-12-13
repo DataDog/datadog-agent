@@ -74,8 +74,8 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 			} else {
 				for _, symbol := range symbols {
 					var indexValues map[string]valuestore.ResultValue
-					if symbol.IndexFromOidValue != "" {
-						indexVals, err := getColumnValueFromSymbol(values, checkconfig.SymbolConfig{OID: symbol.IndexFromOidValue})
+					if symbol.IndexFromOidValue.OID != "" {
+						indexVals, err := getColumnValueFromSymbol(values, checkconfig.SymbolConfig{OID: symbol.IndexFromOidValue.OID})
 						if err != nil {
 							continue
 						}
@@ -193,7 +193,7 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []me
 			MacAddress:  store.GetColumnAsString("interface.mac_address", strIndex),
 			AdminStatus: int32(store.GetColumnAsFloat("interface.admin_status", strIndex)),
 			OperStatus:  int32(store.GetColumnAsFloat("interface.oper_status", strIndex)),
-			IpAddress:   store.GetColumnAsString("interface.ip_address", strIndex),
+			IPAddress:   store.GetColumnAsString("interface.ip_address", strIndex),
 			IDTags:      ifIDTags,
 		}
 		interfaces = append(interfaces, networkInterface)
