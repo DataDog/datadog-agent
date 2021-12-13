@@ -13,7 +13,7 @@ import (
 // ProxyProcessor is a InvocationProcessor implementation
 type ProxyProcessor struct{}
 
-// OnInvokeStart is the hook triggered when an invocation starts
+// OnInvokeStart is the hook triggered when an invocation has started
 func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetails) {
 	log.Debug("[proxy] onInvokeStart ------")
 	log.Debug("[proxy] Invocation has started at :", startDetails.StartTime)
