@@ -95,6 +95,8 @@ else
          :extract => :seven_zip
   end
   build do
+    license "Python-2.0"
+
     #
     # expand python zip into the embedded directory
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_2_embedded)}\""
