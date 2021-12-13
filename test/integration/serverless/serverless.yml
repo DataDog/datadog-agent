@@ -352,16 +352,3 @@ functions:
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar"'
       DD_LOGS_INJECTION: true
       DD_JMXFETCH_ENABLED: false
-
-  log-csharp:
-    runtime: dotnetcore3.1
-    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
-    package:
-      individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
