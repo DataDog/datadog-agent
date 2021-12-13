@@ -10,6 +10,7 @@ import sys
 from subprocess import check_output
 
 from invoke import task
+from invoke.exceptions import Exit
 
 # constants
 ORG_PATH = "github.com/DataDog"
@@ -18,6 +19,13 @@ REPO_PATH = f"{ORG_PATH}/datadog-agent"
 ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"stable", "beta", "none"}
 ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
 ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
+if sys.platform == "darwin":
+    RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.dylib"
+elif sys.platform == "win32":
+    RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.a"
+else:
+    RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.so"
+RTLOADER_HEADER_NAME = "datadog_agent_rtloader.h"
 
 
 def get_all_allowed_repo_branches():
@@ -52,18 +60,26 @@ def get_gopath(ctx):
     return gopath
 
 
-def get_multi_python_location(embedded_path=None, rtloader_root=None):
+def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     rtloader_lib = []
-    if rtloader_root is None:
-        for libdir in ["lib", "lib64"]:
-            libpath = os.path.join(embedded_path, libdir)
-            if os.path.exists(libpath):
-                rtloader_lib.append(libpath)
-    else:  # if rtloader_root is specified we're working in dev mode from the rtloader folder
-        rtloader_lib.append(f"{rtloader_root}/rtloader")
+    rtloader_headers = ""
+    rtloader_common_headers = ""
 
-    rtloader_headers = f"{rtloader_root or embedded_path}/include"
-    rtloader_common_headers = f"{rtloader_root or embedded_path}/common"
+    for base_path in [rtloader_root, embedded_path]:
+        if not base_path:
+            continue
+
+        for libdir in ["lib", "lib64", "build/rtloader"]:
+            if os.path.exists(os.path.join(base_path, libdir, RTLOADER_LIB_NAME)):
+                rtloader_lib.append(os.path.join(embedded_path, libdir))
+
+        header_path = os.path.join(base_path, "include")
+        if not rtloader_headers and os.path.exists(os.path.join(header_path, RTLOADER_HEADER_NAME)):
+            rtloader_headers = header_path
+
+        common_path = os.path.join(base_path, "common")
+        if not rtloader_common_headers and os.path.exists(common_path):
+            rtloader_common_headers = common_path
 
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
@@ -147,10 +163,20 @@ def get_build_flags(
         env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
 
     if embedded_path is None:
-        # fall back to local dev path
-        embedded_path = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent/dev"
+        base = os.path.dirname(os.path.abspath(__file__))
+        task_repo_root = os.path.abspath(os.path.join(base, ".."))
+        git_repo_root = get_root()
+        gopath_root = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent"
 
-    rtloader_lib, rtloader_headers, rtloader_common_headers = get_multi_python_location(embedded_path, rtloader_root)
+        for root_candidate in [task_repo_root, git_repo_root, gopath_root]:
+            test_embedded_path = os.path.join(root_candidate, "dev")
+            if os.path.exists(test_embedded_path):
+                embedded_path = test_embedded_path
+
+    if embedded_path is None:
+        raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
+
+    rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
 
     # setting python homes in the code
     if python_home_2:
@@ -166,13 +192,19 @@ def get_build_flags(
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
+        print(
+            f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
+        )
         env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # OSX
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
-    env['CGO_CFLAGS'] = (
-        os.environ.get('CGO_CFLAGS', '')
-        + f" -Werror -Wno-deprecated-declarations -I{rtloader_headers} -I{rtloader_common_headers}"
-    )
+
+    extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
+    if rtloader_headers:
+        extra_cgo_flags += f" -I{rtloader_headers}"
+    if rtloader_common_headers:
+        extra_cgo_flags += f" -I{rtloader_common_headers}"
+    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
 
     # adding nikos libs to the env
     if nikos_embedded_path:
