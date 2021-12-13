@@ -61,7 +61,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClien
 	}
 
 	vars := mux.Vars(r)
-	var labelBytes []byte
+	var dataBytes []byte
 	nodeName := vars["nodeName"]
 	nodeData, err := f(cl, nodeName)
 	if err != nil {
@@ -73,7 +73,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClien
 		)
 		return
 	}
-	labelBytes, err = json.Marshal(nodeData)
+	dataBytes, err = json.Marshal(nodeData)
 	if err != nil {
 		log.Errorf("Could not process the %s of the node %s from the informer's cache: %v", what, nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -83,9 +83,9 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClien
 		)
 		return
 	}
-	if len(labelBytes) > 0 {
+	if len(dataBytes) > 0 {
 		w.WriteHeader(http.StatusOK)
-		w.Write(labelBytes)
+		w.Write(dataBytes)
 		apiRequests.Inc(
 			"getNodeMetadata",
 			strconv.Itoa(http.StatusOK),
