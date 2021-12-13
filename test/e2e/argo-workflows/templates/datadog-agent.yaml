@@ -402,6 +402,31 @@ spec:
           pip install -q -r requirements.txt
           python tests/test_e2e_cws_kubernetes.py --namespace {{inputs.parameters.namespace}} --in-cluster
 
+    - name: test-cspm-e2e
+      inputs:
+        parameters:
+          - name: namespace
+          - name: site
+      activeDeadlineSeconds: 500
+      script:
+        image: python
+        envFrom:
+          - secretRef:
+              name: dd-keys
+        command: [bash]
+        volumeMounts:
+          - name: datadog-agent-volume
+            mountPath: /host/datadog-agent
+        source: |
+          set -euo pipefail
+
+          export DD_SITE={{inputs.parameters.site}}
+
+          cd /host/datadog-agent/test/e2e/cws-tests
+          python -m venv /tmp/.venv
+          source /tmp/.venv/bin/activate
+          pip install -q -r requirements.txt
+
     - name: describe-agent
       inputs:
         parameters:
