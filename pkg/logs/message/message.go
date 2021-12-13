@@ -15,8 +15,11 @@ import (
 
 // Payload represents an encoded collection of messages ready to be sent to the intake
 type Payload struct {
+	// The slice of sources messages encoded in the payload
 	Messages []*Message
-	Encoded  []byte
+	// The encoded bytes to be sent to the intake (sometimes compressed)
+	Encoded []byte
+	// The content encoding. A header for HTTP, empty for TCP
 	Encoding string
 }
 

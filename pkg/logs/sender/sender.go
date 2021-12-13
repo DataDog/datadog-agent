@@ -54,7 +54,7 @@ func (s *Sender) run() {
 	reliableDestinations := buildDestinationStates(s.destinations.Reliable, s.outputChan, s.bufferSize)
 
 	sink := additionalDestinationsSink(s.bufferSize)
-	additionalDestinations := buildDestinationStates(s.destinations.Additionals, sink, s.bufferSize)
+	unreliableDestinations := buildDestinationStates(s.destinations.Unreliable, sink, s.bufferSize)
 
 	for payload := range s.inputChan {
 
@@ -86,8 +86,8 @@ func (s *Sender) run() {
 			}
 		}
 
-		// Attempt to send to additional destination
-		for _, destState := range additionalDestinations {
+		// Attempt to send to unreliable destinations
+		for _, destState := range unreliableDestinations {
 			select {
 			case destState.input <- payload:
 			default:
@@ -100,10 +100,11 @@ func (s *Sender) run() {
 		close(destState.input)
 		<-destState.stopChan
 	}
-	for _, destState := range additionalDestinations {
+	for _, destState := range unreliableDestinations {
 		close(destState.input)
 		<-destState.stopChan
 	}
+	close(sink)
 	s.done <- struct{}{}
 }
 

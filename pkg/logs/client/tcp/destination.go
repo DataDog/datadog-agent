@@ -20,7 +20,6 @@ import (
 
 // Destination is responsible for shipping logs to a remote server over TCP.
 type Destination struct {
-	sync.Mutex
 	prefixer            *prefixer
 	delimiter           Delimiter
 	connManager         *ConnectionManager
@@ -28,6 +27,7 @@ type Destination struct {
 	conn                net.Conn
 	connCreationTime    time.Time
 	shouldRetry         bool
+	retryLock           sync.Mutex
 	isRetrying          bool
 }
 
@@ -40,6 +40,7 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		delimiter:           NewDelimiter(useProto),
 		connManager:         NewConnectionManager(endpoint),
 		destinationsContext: destinationsContext,
+		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
 		isRetrying:          false,
 	}
@@ -52,9 +53,9 @@ func (d *Destination) Start(input chan *message.Payload, output chan *message.Pa
 		for payload := range input {
 			d.sendAndRetry(payload, output)
 		}
-		d.Lock()
+		d.retryLock.Lock()
 		d.isRetrying = false
-		d.Unlock()
+		d.retryLock.Unlock()
 		stopChan <- struct{}{}
 	}()
 	return stopChan
@@ -62,8 +63,8 @@ func (d *Destination) Start(input chan *message.Payload, output chan *message.Pa
 
 // GetIsRetrying returns true if the destination is retrying
 func (d *Destination) GetIsRetrying() bool {
-	d.Lock()
-	defer d.Unlock()
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
 	return d.isRetrying
 }
 
@@ -97,9 +98,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			d.conn = nil
 
 			if d.shouldRetry {
-				d.Lock()
+				d.retryLock.Lock()
 				d.isRetrying = true
-				d.Unlock()
+				d.retryLock.Unlock()
 				d.incrementErrors(false)
 				// retry (will try to open a new connection)
 				continue
@@ -108,9 +109,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
-		d.Lock()
+		d.retryLock.Lock()
 		d.isRetrying = false
-		d.Unlock()
+		d.retryLock.Unlock()
 
 		metrics.LogsSent.Add(1)
 		metrics.TlmLogsSent.Inc()

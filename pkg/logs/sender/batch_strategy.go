@@ -58,7 +58,9 @@ func (s *batchStrategy) Stop() {
 	close(s.inputChan)
 }
 
-// Send accumulates messages to a buffer and sends them when the buffer is full or outdated.
+// Start reads the incoming messages and accumulates them to a buffer. The buffer is
+// encoded (optionally compressed) and written to a Payload which goes to the next
+// step in the pipeline.
 func (s *batchStrategy) Start() {
 
 	go func() {
@@ -77,7 +79,7 @@ func (s *batchStrategy) Start() {
 				}
 				s.processMessage(m, s.outputChan)
 			case <-flushTicker.C:
-				// the first message that was added to the buffer has been here for too long, send the payload now
+				// flush the payloads at a regular interval so pending messages don't wait here for too long.
 				s.flushBuffer(s.outputChan)
 			case <-s.syncFlushTrigger:
 				s.flushBuffer(s.outputChan)

@@ -56,6 +56,7 @@ type Auditor interface {
 	Registry
 	Start()
 	Stop()
+	// Channel returns the channel to which successful payloads should be sent.
 	Channel() chan *message.Payload
 }
 

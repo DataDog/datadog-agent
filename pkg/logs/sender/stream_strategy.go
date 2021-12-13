@@ -9,7 +9,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// streamStrategy contains all the logic to send one log at a time.
+// streamStrategy is a Strategy that creates one Payload for each Message, containing
+// that Message's Content. This is used for TCP destinations, which stream the output
+// without batching multiple messages together.
 type streamStrategy struct {
 	inputChan  chan *message.Message
 	outputChan chan *message.Payload

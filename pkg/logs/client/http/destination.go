@@ -35,8 +35,8 @@ var (
 	errServer = errors.New("server error")
 	tlmSend   = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
 
-	expVarIdleMsMapKey = "idleMs"
-	expVarInUseMapKey  = "inUseMs"
+	expVarIdleMsMapKey  = "idleMs"
+	expVarInUseMsMapKey = "inUseMs"
 )
 
 // emptyPayload is an empty payload used to check HTTP connectivity without sending logs.
@@ -44,7 +44,6 @@ var emptyPayload = message.Payload{}
 
 // Destination sends a payload over HTTP.
 type Destination struct {
-	sync.Mutex
 	url                 string
 	apiKey              string
 	contentType         string
@@ -59,6 +58,7 @@ type Destination struct {
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
 	lastError           error
+	retryLock           sync.Mutex
 	isRetrying          bool
 	shouldRetry         bool
 	expVars             *expvar.Map
@@ -79,7 +79,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 
 	expVars := &expvar.Map{}
 	expVars.AddFloat(expVarIdleMsMapKey, 0)
-	expVars.AddFloat(expVarInUseMapKey, 0)
+	expVars.AddFloat(expVarInUseMsMapKey, 0)
 	if telemetryName != "" {
 		metrics.DestinationExpVars.Set(telemetryName, expVars)
 	}
@@ -105,6 +105,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
 		lastError:           nil,
+		retryLock:           sync.Mutex{},
 		isRetrying:          false,
 		shouldRetry:         shouldRetry,
 		expVars:             expVars,
@@ -137,22 +138,22 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 
 		d.sendConcurrent(p, output)
 
-		d.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
+		d.expVars.AddFloat(expVarInUseMsMapKey, float64(time.Since(startInUse)/time.Millisecond))
 		startIdle = time.Now()
 	}
 	// Wait for any pending concurrent sends to finish or terminate
 	d.wg.Wait()
 
-	d.Lock()
+	d.retryLock.Lock()
 	d.isRetrying = false
-	d.Unlock()
+	d.retryLock.Unlock()
 	stopChan <- struct{}{}
 }
 
 // GetIsRetrying returns true if the destination is retrying
 func (d *Destination) GetIsRetrying() bool {
-	d.Lock()
-	defer d.Unlock()
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
 	return d.isRetrying
 }
 
@@ -160,9 +161,11 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 	d.wg.Add(1)
 	d.climit <- struct{}{}
 	go func() {
+		defer func() {
+			<-d.climit
+			d.wg.Done()
+		}()
 		d.sendAndRetry(payload, output)
-		<-d.climit
-		d.wg.Done()
 	}()
 }
 
@@ -170,13 +173,13 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload) {
 	for {
 
-		d.Lock()
+		d.retryLock.Lock()
 		d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
 		if d.blockedUntil.After(time.Now()) {
 			log.Debugf("%s: sleeping until %v before retrying", d.url, d.blockedUntil)
 			d.waitForBackoff()
 		}
-		d.Unlock()
+		d.retryLock.Unlock()
 
 		err := d.unconditionalSend(payload)
 
@@ -186,26 +189,26 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		}
 
 		if err == context.Canceled {
-			d.Lock()
+			d.retryLock.Lock()
 			d.isRetrying = false
-			d.Unlock()
+			d.retryLock.Unlock()
 			log.Warnf("Could not send payload: %v", err)
 			return
 		}
 
 		if d.shouldRetry {
-			d.Lock()
+			d.retryLock.Lock()
 			if _, ok := err.(*client.RetryableError); ok {
 				d.nbErrors = d.backoff.IncError(d.nbErrors)
 				d.lastError = err
 				d.isRetrying = true
-				d.Unlock()
+				d.retryLock.Unlock()
 				continue
 			}
 			d.nbErrors = d.backoff.DecError(d.nbErrors)
 			d.lastError = nil
 			d.isRetrying = false
-			d.Unlock()
+			d.retryLock.Unlock()
 		}
 
 		metrics.LogsSent.Add(int64(len(payload.Messages)))

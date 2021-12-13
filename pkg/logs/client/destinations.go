@@ -5,16 +5,16 @@
 
 package client
 
-// Destinations holds the main destination and additional ones to send logs to.
+// Destinations encapsulates a set of log destinations, distinguishing reliable vs unreliable destinations
 type Destinations struct {
-	Reliable    []Destination
-	Additionals []Destination
+	Reliable   []Destination
+	Unreliable []Destination
 }
 
 // NewDestinations returns a new destinations composite.
-func NewDestinations(reliable []Destination, additionals []Destination) *Destinations {
+func NewDestinations(reliable []Destination, unreliable []Destination) *Destinations {
 	return &Destinations{
-		Reliable:    reliable,
-		Additionals: additionals,
+		Reliable:   reliable,
+		Unreliable: unreliable,
 	}
 }
