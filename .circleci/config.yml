@@ -245,7 +245,7 @@ jobs:
     macos:
       xcode: 11.7.0
     environment:
-      BUILDIMAGES_VERSION: "249dd7120e29cf04436a116834f5a3e7f634b6a7" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      MACOSBUILD_VERSION: "d28fcab12565bc42cc63a07e564ffb8c39b46f81" # datadog-agent-macos-build commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
@@ -263,7 +263,7 @@ jobs:
       - run:
           name: Setup runner
           command: |
-            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
+            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-macos-build/$MACOSBUILD_VERSION/scripts/builder_setup.sh)"
       - run:
           name: Install python deps & clang-format
           command: |
