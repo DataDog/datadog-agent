@@ -251,6 +251,8 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
@@ -264,5 +266,7 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
