@@ -9,7 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
-type Symbol struct {
+type OidSymbol struct {
 	OID  string `yaml:"OID"`
 	Name string `yaml:"name"`
 }
@@ -26,7 +26,7 @@ type SymbolConfig struct {
 	MatchValue           string `yaml:"match_value"`
 	MatchPatternCompiled *regexp.Regexp
 
-	IndexFromOidValue Symbol `yaml:"index_from_oid_value"`
+	IndexFromOidValue OidSymbol `yaml:"index_from_oid_value"`
 
 	//index_from_value: # index_transform has precedence over index_from_value
 	//# replace current index by the value of `ipAdEntIfIndex`
