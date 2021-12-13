@@ -25,7 +25,7 @@ from .utils import (
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
-CLANG_EXE_CMD = "clang {flags} '{c_file}' -o '{out_file}'"
+CLANG_EXE_CMD = "clang {flags} '{c_file}' -o '{out_file}' {libs}"
 
 
 def get_go_env(ctx, go_version):
@@ -192,7 +192,7 @@ def build_syscall_x86_tester(ctx, build_dir, static=True):
     flags = '-m32'
     if static:
         flags += ' -static'
-    ctx.run(CLANG_EXE_CMD.format(flags=flags, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file))
+    ctx.run(CLANG_EXE_CMD.format(flags=flags, libs='', c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file))
     return syscall_tester_exe_file
 
 
@@ -204,7 +204,10 @@ def build_syscall_tester(ctx, build_dir, static=True):
     flags = ''
     if static:
         flags += ' -static'
-    ctx.run(CLANG_EXE_CMD.format(flags=flags, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file))
+    libs = '-lpthread'
+    ctx.run(
+        CLANG_EXE_CMD.format(flags=flags, libs=libs, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file)
+    )
     return syscall_tester_exe_file
 
 
