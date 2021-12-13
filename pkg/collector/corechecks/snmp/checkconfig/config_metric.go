@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
+// OidSymbol represent an oid and its oid name
 type OidSymbol struct {
 	OID  string `yaml:"OID"`
 	Name string `yaml:"name"`
