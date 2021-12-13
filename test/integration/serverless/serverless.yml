@@ -91,10 +91,6 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
@@ -120,9 +116,6 @@ functions:
     environment:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
 
   metric-csharp:
     runtime: dotnetcore3.1
@@ -136,9 +129,6 @@ functions:
     environment:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
 
   error-node:
     runtime: nodejs14.x
@@ -341,7 +331,7 @@ functions:
       individually: true
       artifact: src/java-tests/trace/target/trace-dev.jar
     layers:
-      - arn:aws:lambda:${self:provider.region}:601427279990:layer:dd-trace-java-test:${env:JAVA_TRACE_LAYER_VERSION}
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java-test:${env:JAVA_TRACE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
@@ -350,5 +340,4 @@ functions:
       DD_TRACE_ENABLED: true
       DD_APM_DD_URL: http://127.0.0.1:3333
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar"'
-      DD_LOGS_INJECTION: true
       DD_JMXFETCH_ENABLED: false
