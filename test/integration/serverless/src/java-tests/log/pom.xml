@@ -37,7 +37,7 @@
     <dependency>
       <groupId>com.datadoghq</groupId>
       <artifactId>datadog-lambda-java</artifactId>
-      <version>9.9.8</version>
+      <version>1.4.0</version>
     </dependency>
   </dependencies>
 
