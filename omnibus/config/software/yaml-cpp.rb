@@ -4,5 +4,5 @@
 # Copyright 2016-present Datadog, Inc.
 
 name 'yaml-cpp'
-default_version '0.7.0'
-license "MIT License"
+default_version '0.6.3'
+license "MIT"

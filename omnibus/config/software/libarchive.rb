@@ -4,5 +4,6 @@
 # Copyright 2016-present Datadog, Inc.
 
 name 'libarchive'
-default_version '3.5.2'
+default_version '3.4.3'
+license "libarchive"
 license_file "https://raw.githubusercontent.com/libarchive/libarchive/master/COPYING"
