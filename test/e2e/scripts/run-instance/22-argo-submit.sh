@@ -47,6 +47,28 @@ case "$ARGO_WORKFLOW" in
             --parameter datadog-cluster-agent-image-tag="${DATADOG_CLUSTER_AGENT_IMAGE#*:}" \
             --parameter datadog-agent-site="${DATADOG_AGENT_SITE#*:}" || :
         ;;
+    "cspm")
+        DATADOG_AGENT_SITE=${DATADOG_AGENT_SITE:-""}
+
+        oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
+
+        if [[ -z ${DATADOG_AGENT_API_KEY:+x} ]] || [[ -z ${DATADOG_AGENT_APP_KEY:+x} ]]; then
+            echo "DATADOG_AGENT_API_KEY and DATADOG_AGENT_APP_KEY environment variables need to be set" >&2
+            exit 2
+        fi
+
+        kubectl create secret generic dd-keys --from-literal=DD_API_KEY=${DATADOG_AGENT_API_KEY} --from-literal=DD_APP_KEY=${DATADOG_AGENT_APP_KEY}
+
+        eval "$oldstate"
+
+        ./argo template create ../../argo-workflows/templates/*.yaml
+        ./argo submit ../../argo-workflows/cspm-workflow.yaml --wait \
+            --parameter datadog-agent-image-repository="${DATADOG_AGENT_IMAGE%:*}" \
+            --parameter datadog-agent-image-tag="${DATADOG_AGENT_IMAGE#*:}" \
+            --parameter datadog-cluster-agent-image-repository="${DATADOG_CLUSTER_AGENT_IMAGE%:*}" \
+            --parameter datadog-cluster-agent-image-tag="${DATADOG_CLUSTER_AGENT_IMAGE#*:}" \
+            --parameter datadog-agent-site="${DATADOG_AGENT_SITE#*:}" || :
+        ;;
     "")
         kubectl create secret generic dd-keys --from-literal=DD_API_KEY=123er --from-literal=DD_APP_KEY=123er1
 

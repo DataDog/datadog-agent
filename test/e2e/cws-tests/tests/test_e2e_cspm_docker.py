@@ -9,9 +9,9 @@ from lib.stepper import Step
 from lib.docker import DockerHelper
 from lib.config import gen_datadog_agent_config
 from lib.log import wait_agent_log
-from lib.const import CSPM_START_LOG, CSPM_RUNNING_CHECK_LOG
+from lib.const import CSPM_START_LOG, CSPM_RUNNING_DOCKER_CHECK_LOG
 from lib.cspm.api import wait_for_compliance_event, wait_for_finding
-from lib.cspm.finding import extract_findings, is_expected_finding
+from lib.cspm.finding import extract_findings, is_expected_docker_finding
 
 
 class TestE2EDocker(unittest.TestCase):
@@ -42,7 +42,7 @@ class TestE2EDocker(unittest.TestCase):
 
         with Step(msg="check agent start", emoji=":man_running:"):
             image = os.getenv("DD_AGENT_IMAGE")
-            hostname = "host_{}".format(test_id)
+            hostname = f"host_{test_id}"
             self.datadog_agent_config = gen_datadog_agent_config(
                 hostname=hostname, log_level="DEBUG", tags=["tag1", "tag2"]
             )
@@ -62,7 +62,7 @@ class TestE2EDocker(unittest.TestCase):
             take = False
             finding_lines = []
             for line in output.decode().splitlines():
-                if CSPM_RUNNING_CHECK_LOG in line:
+                if CSPM_RUNNING_DOCKER_CHECK_LOG in line:
                     take = True
                 elif take and "INFO" in line:
                     take = False
@@ -71,10 +71,10 @@ class TestE2EDocker(unittest.TestCase):
             findings = extract_findings(finding_lines)
             self.finding = None
             for f in findings:
-                if is_expected_finding(f, self.container_id):
+                if is_expected_docker_finding(f, self.container_id):
                     self.finding = f
             if self.finding is None:
-                raise LookupError("{} | {}".format(agent_name, CSPM_RUNNING_CHECK_LOG))
+                raise LookupError(f"{agent_name} | {CSPM_RUNNING_DOCKER_CHECK_LOG}")
 
         with Step(msg="wait for intake (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)

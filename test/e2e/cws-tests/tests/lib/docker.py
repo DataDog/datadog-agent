@@ -28,15 +28,18 @@ class DockerHelper(LogGetter):
         ]
 
         if datadog_agent_config:
-            volumes.append("{}:/etc/datadog-agent/datadog.yaml".format(datadog_agent_config))
+            volumes.append(f"{datadog_agent_config}:/etc/datadog-agent/datadog.yaml")
+
+        site = os.environ["DD_SITE"]
+        api_key = os.environ["DD_API_KEY"]
 
         self.agent_container = self.client.containers.run(
             image,
             environment=[
                 "DD_COMPLIANCE_CONFIG_ENABLED=true",
                 "HOST_ROOT=/host/root",
-                "DD_SITE={}".format(os.environ["DD_SITE"]),
-                "DD_API_KEY={}".format(os.environ["DD_API_KEY"]),
+                f"DD_SITE={site}",
+                f"DD_API_KEY={api_key}",
             ],
             volumes=volumes,
             detach=True,
