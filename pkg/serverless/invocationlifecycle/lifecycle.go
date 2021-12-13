@@ -20,6 +20,12 @@ func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetai
 	log.Debug("[proxy] Invocation invokeHeaders are :", startDetails.InvokeHeaders)
 	log.Debug("[proxy] Invocation invokeEvent payload is :", startDetails.InvokeEventPayload)
 	log.Debug("[proxy] ---------------------------------------")
+
+	// If the Lambda Library is NOT present
+	// For the future: get trace context from headers
+	// Start a span
+	// Request ID?
+	// Add tags to the span?
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
@@ -28,4 +34,8 @@ func (pp *ProxyProcessor) OnInvokeEnd(endDetails *proxy.InvocationEndDetails) {
 	log.Debug("[proxy] Invocation has finished at :", endDetails.EndTime)
 	log.Debug("[proxy] Invocation isError is :", endDetails.IsError)
 	log.Debug("[proxy] ---------------------------------------")
+
+	// If the Lambda Library is NOT present
+	// End the span
+	// Send the span to the intake
 }
