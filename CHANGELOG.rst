@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.32.2:
+
+7.32.2 / 6.32.2
+======
+
+.. _Release Notes_7.32.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-12-11
+
+
+.. _Release Notes_7.32.2_Security Notes:
+
+Security Notes
+--------------
+
+- Set ``-Dlog4j2.formatMsgNoLookups=True`` when starting the JMXfetch process to mitigate vulnerability described in `CVE-2021-44228 <https://nvd.nist.gov/vuln/detail/CVE-2021-44228>`_
+
+
 .. _Release Notes_7.32.1:
 
 7.32.1 / 6.32.1

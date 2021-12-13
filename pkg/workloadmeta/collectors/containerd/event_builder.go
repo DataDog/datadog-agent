@@ -26,7 +26,7 @@ func buildCollectorEvent(ctx context.Context, containerdEvent *containerdevents.
 			return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
 		}
 
-		return createSetEvent(ctx, ID, containerdClient)
+		return createSetEvent(ctx, ID, containerdEvent.Namespace, containerdClient)
 	case containerDeletionTopic:
 		ID, hasID := containerdEvent.Field([]string{"event", "id"})
 		if !hasID {
@@ -41,13 +41,13 @@ func buildCollectorEvent(ctx context.Context, containerdEvent *containerdevents.
 			return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
 		}
 
-		return createSetEvent(ctx, ID, containerdClient)
+		return createSetEvent(ctx, ID, containerdEvent.Namespace, containerdClient)
 	default:
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("unknown action type %s, ignoring", containerdEvent.Topic)
 	}
 }
 
-func createSetEvent(ctx context.Context, containerID string, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
+func createSetEvent(ctx context.Context, containerID string, namespace string, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
 	container, err := containerdClient.ContainerWithContext(ctx, containerID)
 	if err != nil {
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch container %s: %s", containerID, err)
@@ -57,6 +57,10 @@ func createSetEvent(ctx context.Context, containerID string, containerdClient cu
 	if err != nil {
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch info for container %s: %s", containerID, err)
 	}
+
+	// The namespace cannot be obtained from a container instance. That's why we
+	// propagate it here using the one in the event.
+	entity.Namespace = namespace
 
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,

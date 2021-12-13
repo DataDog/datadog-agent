@@ -36,7 +36,7 @@ if ohai["platform"] != "windows"
   python_configure.push("--with-dbmliborder=")
 
   build do
-    ship_license "PSFL"
+    license "Python-2.0"
 
     env = case ohai["platform"]
           when "aix"
