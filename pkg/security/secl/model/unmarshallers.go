@@ -762,7 +762,7 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.NetworkDeviceContext)
 	if err != nil {
 		return 0, err
 	}
@@ -867,4 +867,14 @@ func (e *VethPairEvent) UnmarshalBinary(data []byte) (int, error) {
 	cursor += read
 
 	return cursor, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *NetworkDeviceContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+	e.NetNS = ByteOrder.Uint32(data[0:4])
+	e.IfIndex = ByteOrder.Uint32(data[4:8])
+	return 8, nil
 }

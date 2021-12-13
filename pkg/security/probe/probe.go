@@ -48,7 +48,6 @@ type EventHandler interface {
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
 	// Constants and configuration
-	tcPrograms     map[NetDeviceKey]*manager.Probe
 	manager        *manager.Manager
 	managerOptions manager.Options
 	config         *config.Config
@@ -76,6 +75,7 @@ type Probe struct {
 	approvers          map[eval.EventType]activeApprovers
 
 	constantOffsets map[string]uint64
+	tcPrograms      map[NetDeviceKey]*manager.Probe
 }
 
 // GetResolvers returns the resolvers of Probe

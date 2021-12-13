@@ -34,6 +34,7 @@ struct dns_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct network_device_context_t device;
 
     u16 id;
     u16 qdcount;
@@ -60,7 +61,7 @@ __attribute__((always_inline)) struct dns_event_t *get_dns_event() {
     return bpf_map_lookup_elem(&dns_event, &key);
 }
 
-__attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct packet_t *pkt) {
+__attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_buff *skb, struct packet_t *pkt) {
     struct dns_event_t *evt = get_dns_event();
     if (evt == NULL) {
         // should never happen
@@ -70,6 +71,8 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct packet
     evt->name[0] = 0;
     evt->process.pid = pkt->pid;
     evt->process.netns = pkt->netns;
+    evt->device.netns = pkt->netns;
+    evt->device.ifindex = skb->ifindex;
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
     if (entry == NULL) {
@@ -141,7 +144,7 @@ __attribute__((always_inline)) int handle_dns_req(struct __sk_buff *skb, struct 
     }
     pkt->offset += sizeof(header);
 
-    struct dns_event_t *evt = reset_dns_event(pkt);
+    struct dns_event_t *evt = reset_dns_event(skb, pkt);
     if (evt == NULL) {
         return TC_ACT_OK;
     }

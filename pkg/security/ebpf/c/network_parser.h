@@ -84,4 +84,9 @@ __attribute__((always_inline)) void tail_call_to_classifier(struct __sk_buff *sk
     bpf_tail_call(skb, &classifier_router, classifier_id);
 }
 
+struct network_device_context_t {
+    u32 netns;
+    u32 ifindex;
+};
+
 #endif

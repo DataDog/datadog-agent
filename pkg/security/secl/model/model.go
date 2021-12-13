@@ -743,9 +743,16 @@ type CgroupTracingEvent struct {
 	TimeoutRaw       uint64
 }
 
+// NetworkDeviceContext represents the network device context of a network event
+type NetworkDeviceContext struct {
+	NetNS   uint32 `field:"-"`
+	IfIndex uint32 `field:"-"`
+}
+
 // DNSEvent represents a DNS event
 type DNSEvent struct {
 	SyscallEvent
+	NetworkDeviceContext
 
 	ID                uint16 `field:"id"`                   // id field of the DNS request
 	QDCount           uint16 `field:"qdcount"`              // qdcount field of the DNS request
