@@ -331,7 +331,7 @@ functions:
       individually: true
       artifact: src/java-tests/trace/target/trace-dev.jar
     layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java-test:${env:JAVA_TRACE_LAYER_VERSION}
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
