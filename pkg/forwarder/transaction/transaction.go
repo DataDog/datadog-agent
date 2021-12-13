@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"errors"
 	"expvar"
 	"fmt"
 	"io"
@@ -316,7 +315,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := readResponseBody(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)
 		return 0, nil, err
@@ -337,7 +336,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
-		log.Errorf("Error code %q received while sending transaction to %q: %q, dropping it", resp.Status, logURL, body)
+		log.Errorf("Error code %q received while sending transaction to %q: %q, dropping it", resp.Status, logURL, truncateBodyForLog(body))
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
@@ -352,7 +351,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "gt_400")
-		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, body)
+		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, truncateBodyForLog(body))
 	}
 
 	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName)
@@ -365,15 +364,15 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	if transactionsSuccess.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
-		log.Tracef("Url: %q payload: %q", logURL, body)
+		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
 		return resp.StatusCode, body, nil
 	}
 	if transactionsSuccess.Value()%loggingFrequency == 0 {
 		log.Infof("Successfully posted payload to %q", logURL)
-		log.Tracef("Url: %q payload: %q", logURL, body)
+		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
 		return resp.StatusCode, body, nil
 	}
-	log.Tracef("Successfully posted payload to %q: %q", logURL, body)
+	log.Tracef("Successfully posted payload to %q: %q", logURL, truncateBodyForLog(body))
 	return resp.StatusCode, body, nil
 }
 
@@ -386,26 +385,16 @@ func (t *HTTPTransaction) SerializeTo(serializer TransactionsSerializer) error {
 	return nil
 }
 
-// readResponseBody read HTTP response body. If body is more than 1000 bytes
-// truncates it to prevent from logging a huge message.  When EOF occurs,
-// empty bytes will be returned.
-// 1000 bytes are enough to tell which tools a response comes.
-func readResponseBody(body io.ReadCloser) ([]byte, error) {
-	if body == nil {
-		return []byte{}, nil
+// truncateBodyForLog truncates body to prevent from logging a huge message
+// if body is more than 1000 bytes. 1000 bytes are enough to tell which tools a response comes.
+func truncateBodyForLog(body []byte) []byte {
+	if len(body) == 0 {
+		return []byte{}
 	}
 	limit := 1000
-	b := make([]byte, limit+1) // For checking if the body will be truncated or not.
-	n, err := io.ReadFull(body, b)
-	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
-		return nil, err
+	if len(body) < limit {
+		return body
 	}
-	if limit < n {
-		n = limit
-		log.Warn("truncated http response body to the first 1000 bytes to prevent from logging a huge message")
-	}
-	if n == 0 {
-		return []byte{}, nil
-	}
-	return b[:n], nil
+	log.Warn("truncated http response body to the first 1000 bytes to prevent from logging a huge message")
+	return body[:limit]
 }

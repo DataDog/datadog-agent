@@ -9,6 +9,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -128,61 +129,43 @@ func TestProcessCancel(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func Test_readResponseBody(t *testing.T) {
+func Test_truncateBodyForLog(t *testing.T) {
 	tests := []struct {
-		name       string
-		handleFunc http.HandlerFunc
-		want       []byte
-		wantErr    error
+		name string
+		body []byte
+		want []byte
 	}{
 		{
 			name: "body is datadog",
-			handleFunc: func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte("datadog"))
-			},
-			want:    []byte("datadog"),
-			wantErr: nil,
+			body: []byte("datadog"),
+			want: []byte("datadog"),
 		},
 		{
-			name: "body size is just 1000 bytes",
-			handleFunc: func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte(strings.Repeat(".", 1000)))
-			},
-			want:    []byte(strings.Repeat(".", 1000)),
-			wantErr: nil,
+			name: "body is 1000 bytes",
+			body: []byte(strings.Repeat(".", 1000)),
+			want: []byte(strings.Repeat(".", 1000)),
 		},
 		{
-			name: "truncated since body size is 1001 bytes",
-			handleFunc: func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte(strings.Repeat(".", 1001)))
-			},
-			want:    []byte(strings.Repeat(".", 1000)),
-			wantErr: nil,
+			name: "body is 1001 bytes",
+			body: []byte(strings.Repeat(".", 1001)),
+			want: []byte(strings.Repeat(".", 1000)),
 		},
 		{
 			name: "body is empty",
-			handleFunc: func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte(""))
-			},
-			want:    []byte{},
-			wantErr: nil,
+			body: []byte{},
+			want: []byte{},
 		},
 		{
-			name:       "no body",
-			handleFunc: func(w http.ResponseWriter, r *http.Request) {},
-			want:       []byte{},
-			wantErr:    nil,
+			name: "body is nil",
+			body: nil,
+			want: []byte{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			rec := httptest.NewRecorder()
-			tt.handleFunc(rec, req)
-			defer rec.Result().Body.Close()
-			got, err := readResponseBody(rec.Result().Body)
-			assert.Equal(t, tt.wantErr, err)
-			assert.Equal(t, tt.want, got)
+			if got := truncateBodyForLog(tt.body); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("truncateBodyForLog() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
