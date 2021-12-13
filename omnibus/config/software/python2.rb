@@ -56,6 +56,7 @@ if ohai["platform"] != "windows"
   end
 
   build do
+    # 2.0 is the license version here, not the python version
     license "Python-2.0"
 
     patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux?
@@ -95,6 +96,7 @@ else
          :extract => :seven_zip
   end
   build do
+    # 2.0 is the license version here, not the python version
     license "Python-2.0"
 
     #
