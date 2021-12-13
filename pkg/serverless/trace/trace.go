@@ -44,8 +44,12 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 		ddConfig.Datadog.Set("cmd_port", "-1")
 
 		// make sure we blocklist /hello and /flush calls
-		customerList := ddConfig.Datadog.GetStringSlice("apm_config.ignore_resources")
-		ddConfig.Datadog.Set("apm_config.ignore_resources", buildTraceBlocklist(customerList))
+		userProvidedBlocklist := []string{}
+		// check if ignore_resources is set before casting to string slice to avoid logging a warning
+		if ddConfig.Datadog.IsSet("apm_config.ignore_resources") {
+			userProvidedBlocklist = ddConfig.Datadog.GetStringSlice("apm_config.ignore_resources")
+		}
+		ddConfig.Datadog.Set("apm_config.ignore_resources", buildTraceBlocklist(userProvidedBlocklist))
 
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/tencent"
 )
 
@@ -39,6 +40,7 @@ func DetectCloudProvider(ctx context.Context) {
 		{name: azure.CloudProviderName, callback: azure.IsRunningOn},
 		{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
 		{name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
+		{name: oracle.CloudProviderName, callback: oracle.IsRunningOn},
 	}
 
 	for _, cloudDetector := range detectors {
@@ -65,6 +67,7 @@ func GetCloudProviderNTPHosts(ctx context.Context) []string {
 		{name: azure.CloudProviderName, callback: azure.GetNTPHosts},
 		{name: alibaba.CloudProviderName, callback: alibaba.GetNTPHosts},
 		{name: tencent.CloudProviderName, callback: tencent.GetNTPHosts},
+		{name: oracle.CloudProviderName, callback: oracle.GetNTPHosts},
 	}
 
 	for _, cloudNTPDetector := range detectors {
@@ -93,6 +96,7 @@ func GetHostAliases(ctx context.Context) []string {
 		{name: cloudfoundry.CloudProviderName, callback: cloudfoundry.GetHostAliases},
 		{name: "kubelet", callback: kubelet.GetHostAliases},
 		{name: tencent.CloudProviderName, callback: tencent.GetHostAliases},
+		{name: oracle.CloudProviderName, callback: oracle.GetHostAliases},
 	}
 
 	for _, cloudAliasesDetector := range detectors {

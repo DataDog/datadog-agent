@@ -1,12 +1,11 @@
 #!/bin/bash
 
-# Usage - run commands from repo root:
 # To check if new changes to the extension cause changes to any snapshots:
 #   BUILD_EXTENSION=true aws-vault exec sandbox-account-admin -- ./run.sh
 # To regenerate snapshots:
 #   UPDATE_SNAPSHOTS=true aws-vault exec sandbox-account-admin -- ./run.sh
 
-LOGS_WAIT_SECONDS=600
+LOGS_WAIT_MINUTES=10
 
 DEFAULT_NODE_LAYER_VERSION=66
 DEFAULT_PYTHON_LAYER_VERSION=49
@@ -126,11 +125,11 @@ for function_name in "${all_functions[@]}"; do
     fi
 done
 
-now=$(date +"%r")
-echo "Sleeping $LOGS_WAIT_SECONDS seconds to wait for logs to appear in CloudWatch..."
-echo "This should be done in 10 minutes from $now"
+END_OF_WAIT_TIME=$(date --date="+"$LOGS_WAIT_MINUTES" minutes" +"%r")
+echo "Sleeping for $LOGS_WAIT_MINUTES minutes to wait for logs to appear in CloudWatch..."
+echo "This will be done at $END_OF_WAIT_TIME"
 
-sleep $LOGS_WAIT_SECONDS
+sleep "$LOGS_WAIT_MINUTES"m
 
 for function_name in "${all_functions[@]}"; do
     echo "Fetching logs for ${function_name} on ${stage}"
@@ -175,15 +174,15 @@ for function_name in "${all_functions[@]}"; do
         # Normalize logs
         logs=$(
             echo "$raw_logs" |
+                grep -v "\[sketch\]" |
                 grep "\[log\]" |
                 perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
-                perl -p -e "s/(\"HTTP ).*/\1\"}}/g" |
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
-                perl -p -e "s/[ ]$//g" |
-                grep XXX
+                perl -p -e "s/[ ]$//g"
         )
     else
         # Normalize traces
