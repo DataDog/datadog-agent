@@ -19,9 +19,9 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     echo "No AWS credentials were found in the environment."
     echo "Note that only Datadog employees can run these integration tests."
     echo "Exiting without running tests..."
-    
+
     # If credentials are not available, the run is considered a success
-    # so as not to break CI for external users that don't have access to GitHub secrets 
+    # so as not to break CI for external users that don't have access to GitHub secrets
     exit 0
 fi
 
@@ -205,6 +205,7 @@ for function_name in "${all_functions[@]}"; do
         # Normalize traces
         logs=$(
             echo "$raw_logs" |
+                grep -v "\[log\]" |
                 grep "\[trace\]" |
                 perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
                 perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1XXX/g" |
