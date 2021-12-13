@@ -90,6 +90,7 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 func TestAgentConfigYamlEnc2(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
+	fmt.Println(text)
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
