@@ -90,7 +90,7 @@ const (
 
 // DatadogFallbackClient represents a datadog client able to query metrics to a second Datadog endpoint if the first one fails
 type datadogFallbackClient struct {
-	clients        []datadogIndividualClient
+	clients        []*datadogIndividualClient
 	lastUsedClient int
 }
 
@@ -100,14 +100,33 @@ func newDatadogFallbackClient(endpoints []config.Endpoint) (*datadogFallbackClie
 		return nil, log.Errorf("external_metrics_provider.endpoints must be non-empty")
 	}
 
-	ddFallbackClient := &datadogFallbackClient{}
+	defaultClient, err := newDatadogSingleClient()
+	if err != nil {
+		return nil, err
+	}
+
+	ddFallbackClient := &datadogFallbackClient{
+		clients: []*datadogIndividualClient{
+			{
+				client:             defaultClient,
+				lastQuerySucceeded: true,
+				retryInterval:      minRetryInterval,
+			},
+		},
+	}
 	for _, endpoint := range endpoints {
 		client := datadog.NewClient(endpoint.APIKey, endpoint.APPKey)
 		client.HttpClient.Transport = httputils.CreateHTTPTransport()
 		client.RetryTimeout = 3 * time.Second
 		client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
 		client.SetBaseUrl(endpoint.URL)
-		ddFallbackClient.clients = append(ddFallbackClient.clients, datadogIndividualClient{client: client})
+		ddFallbackClient.clients = append(
+			ddFallbackClient.clients,
+			&datadogIndividualClient{
+				client:             client,
+				lastQuerySucceeded: true,
+				retryInterval:      minRetryInterval,
+			})
 	}
 
 	return ddFallbackClient, nil
@@ -115,7 +134,7 @@ func newDatadogFallbackClient(endpoints []config.Endpoint) (*datadogFallbackClie
 
 func (ic *datadogIndividualClient) queryMetrics(from, to int64, query string) ([]datadog.Series, error) {
 	// TODO: check for err 500 (server side) instead of any kind of error because switching to DR doesn’t make sense if that’s the query which is bad.
-	if series, err := ic.client.QueryMetrics(from, to, query); err != nil {
+	if series, err := ic.client.QueryMetrics(from, to, query); err == nil {
 		ic.lastQuerySucceeded = true
 		ic.lastSuccess = time.Now()
 		ic.retryInterval /= 2
@@ -150,7 +169,7 @@ func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]d
 	for i, c := range cl.clients {
 
 		if c.hasFailedRecently() {
-			skippedClients = append(skippedClients, &c)
+			skippedClients = append(skippedClients, c)
 			continue
 		}
 
@@ -163,7 +182,7 @@ func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]d
 			cl.lastUsedClient = i
 			return series, nil
 		} else {
-			log.Infof("Failed to query metrics on %s: %v", c.client.GetBaseUrl(), err)
+			log.Infof("Failed to query metrics on %s: %#v", c.client.GetBaseUrl(), err)
 			errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
 		}
 	}
@@ -187,4 +206,29 @@ func (cl *datadogFallbackClient) GetRateLimitStats() map[string]datadog.RateLimi
 		}
 	}
 	return map[string]datadog.RateLimit{}
+}
+
+func GetStatus(datadogClient DatadogClient) map[string]interface{} {
+	status := make(map[string]interface{})
+
+	switch ddCl := datadogClient.(type) {
+	case *datadog.Client:
+		clientStatus := make(map[string]interface{})
+		clientStatus["url"] = ddCl.GetBaseUrl()
+		status["client"] = clientStatus
+	case *datadogFallbackClient:
+		status["lastUsedClient"] = ddCl.lastUsedClient
+		clientsStatus := make([]map[string]interface{}, len(ddCl.clients))
+		for i, individualClient := range ddCl.clients {
+			clientsStatus[i] = make(map[string]interface{})
+			clientsStatus[i]["url"] = individualClient.client.GetBaseUrl()
+			clientsStatus[i]["lastQuerySucceeded"] = individualClient.lastQuerySucceeded
+			clientsStatus[i]["lastFailure"] = individualClient.lastFailure
+			clientsStatus[i]["lastSuccess"] = individualClient.lastSuccess
+			clientsStatus[i]["retryInterval"] = individualClient.retryInterval
+		}
+		status["clients"] = clientsStatus
+	}
+
+	return status
 }
