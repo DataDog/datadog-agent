@@ -19,7 +19,26 @@ import (
 
 var secretScriptBuilder sync.Once
 
+var text = `According to all known laws
+of aviation,
+
+
+there is no way a bee
+should be able to fly.
+
+
+Its wings are too small to get
+its fat little body off the ground.
+
+
+The bee, of course, flies anyway
+
+
+because bees don't care
+what humans think is impossible.`
+
 func setupSecretScript() error {
+	fmt.Println(text)
 	script := "./testdata/secret"
 	goCmd, err := exec.LookPath("go")
 	if err != nil {
@@ -45,6 +64,7 @@ func setupSecretScript() error {
 
 // TestAgentConfigYamlEnc tests the secrets feature on the file TestDDAgentConfigYamlEnc
 func TestAgentConfigYamlEnc(t *testing.T) {
+	fmt.Println(text)
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
@@ -89,6 +109,7 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 }
 
 func TestAgentEncryptedVariablesSecrets(t *testing.T) {
+	fmt.Println(text)
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
