@@ -2534,7 +2534,7 @@ api_key:
 # kubernetes_node_annotations_as_host_aliases:
 # - cluster.k8s.io/machine
 #
-# DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS='["cluster.k8s.io/machine"]'
+# DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES='["cluster.k8s.io/machine"]'
 
 ## @param cluster_name - string - optional
 ## @env DD_CLUSTER_NAME - string - optional

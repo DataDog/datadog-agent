@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Add ``kubernetes_node_annotations_as_host_aliases`` parameter to specify a list
+    Add the ``kubernetes_node_annotations_as_host_aliases`` parameter to specify a list
     of Kubernetes node annotations that should be used as host aliases.
