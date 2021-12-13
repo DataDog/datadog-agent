@@ -83,6 +83,8 @@ const (
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
+	// NamespaceSwitchEventType is sent when a process changes one of its namespaces
+	NamespaceSwitchEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -178,6 +180,8 @@ func (t EventType) String() string {
 		return "net_device"
 	case VethPairEventType:
 		return "veth_pair"
+	case NamespaceSwitchEventType:
+		return "namespace_switch"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

@@ -11,7 +11,6 @@ package probe
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"strings"
 	"sync"
@@ -225,10 +224,6 @@ func (p *Probe) Start() error {
 	go p.reOrderer.Start(&p.wg)
 
 	if err := p.manager.Start(); err != nil {
-		return err
-	}
-
-	if err := p.snapshotNetworkDevices(); err != nil {
 		return err
 	}
 
@@ -597,11 +592,16 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		p.setupNewTCClassifier(event.VethPair.HostDevice)
+		p.setupNewTCClassifier(event.VethPair.PeerDevice)
+	case model.NamespaceSwitchEventType:
+		break
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
 	}
+
+	// save netns handle if applicable
+	p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.ProcessContext.NetNS, event.ProcessContext.Tid)
 
 	// resolve event context
 	if eventType != model.ExitEventType {
@@ -899,13 +899,29 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 }
 
 func (p *Probe) setupNewTCClassifier(device model.NetDevice) {
+	// select netns handle
+	netnsHandle := p.resolvers.NamespaceResolver.ResolveNetworkNamespaceHandle(device.NetNS)
+	if netnsHandle == nil {
+		// queue network device so that a TC classifier can be added later
+		p.resolvers.NamespaceResolver.QueueNetworkDevice(device)
+		return
+	}
+	defer netnsHandle.Close()
+
 	for _, tcProbe := range probes.GetTCProbes() {
 		newProbe := tcProbe.Copy()
 		newProbe.UID = probes.SecurityAgentUID + device.GetKey()
 		newProbe.Ifindex = int32(device.IfIndex)
-		newProbe.IfindexNetns = uint64(device.NetNS)
+		newProbe.IfindexNetns = uint64(netnsHandle.Fd())
 
-		if err := p.manager.CloneProgram(probes.SecurityAgentUID, newProbe, nil, nil); err != nil {
+		netnsEditor := []manager.ConstantEditor{
+			{
+				Name:  "netns",
+				Value: uint64(device.NetNS),
+			},
+		}
+
+		if err := p.manager.CloneProgram(probes.SecurityAgentUID, newProbe, netnsEditor, nil); err != nil {
 			seclog.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err)
 		} else {
 			p.tcPrograms[NetDeviceKey{IfIndex: device.IfIndex, NetNS: device.NetNS, NetworkDirection: tcProbe.NetworkDirection}] = newProbe
@@ -913,19 +929,27 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) {
 	}
 }
 
-// snapshotNetworkDevices sets up TC probes on existing network devices
-func (p *Probe) snapshotNetworkDevices() error {
-	netIfs, err := net.Interfaces()
-	if err != nil {
-		return errors.Wrap(err, "couldn't list network interfaces")
+func (p *Probe) removeTCClassifier(device model.NetDevice) {
+	key := NetDeviceKey{
+		IfIndex:          device.IfIndex,
+		NetNS:            device.NetNS,
+		NetworkDirection: manager.Ingress,
 	}
 
-	var netdev model.NetDevice
-	for _, netIf := range netIfs {
-		netdev.IfIndex = uint32(netIf.Index)
-		p.setupNewTCClassifier(netdev)
+	if prog, ok := p.tcPrograms[key]; ok {
+		if err := p.manager.DetachHook(prog.ProbeIdentificationPair); err != nil {
+			seclog.Errorf("couldn't stop %s: %v", prog.ProbeIdentificationPair, err)
+		}
+		delete(p.tcPrograms, key)
 	}
-	return nil
+
+	key.NetworkDirection = manager.Egress
+	if prog, ok := p.tcPrograms[key]; ok {
+		if err := p.manager.DetachHook(prog.ProbeIdentificationPair); err != nil {
+			seclog.Errorf("couldn't stop %s: %v", prog.ProbeIdentificationPair, err)
+		}
+		delete(p.tcPrograms, key)
+	}
 }
 
 // NewProbe instantiates a new runtime security agent probe

@@ -3,6 +3,7 @@
 
 struct flow_pid_key_t {
     u64 addr[2];
+    u32 netns;
     u16 port;
 };
 
@@ -65,13 +66,28 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
 
     // Register service PID
     if (key.port != 0) {
+        u64 id = bpf_get_current_pid_tgid();
+        u32 tid = (u32)id;
         struct flow_pid_value_t value = {
-            .pid = bpf_get_current_pid_tgid() >> 32,
+            .pid = id >> 32,
         };
+
+        // add netns information
+        u32 *netns = bpf_map_lookup_elem(&netns_cache, &tid);
+        if (netns != NULL) {
+            key.netns = *netns;
+        } else {
+            // use the socket
+            key.netns = get_netns_from_sock(sk);
+            if (key.netns != 0) {
+                bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
+            }
+        }
+
         bpf_map_update_elem(&flow_pid, &key, &value, BPF_ANY);
 
 #ifdef DEBUG
-        bpf_printk("# registered (flow) pid:%d\n", value.pid);
+        bpf_printk("# registered (flow) pid:%d netns:%u\n", value.pid, key.netns);
         bpf_printk("# p:%d a:%d a:%d\n", key.port, key.addr[0], key.addr[1]);
 #endif
     }
@@ -81,6 +97,7 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
 SEC("kprobe/security_socket_bind")
 int kprobe_security_socket_bind(struct pt_regs *ctx)
 {
+    struct socket *sk = (struct socket *)PT_REGS_PARM1(ctx);
     struct sockaddr *address = (struct sockaddr *)PT_REGS_PARM2(ctx);
     struct flow_pid_key_t key = {};
     u16 family = 0;
@@ -101,9 +118,24 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
 
     // Register service PID
     if (key.port != 0) {
+        u64 id = bpf_get_current_pid_tgid();
+        u32 tid = (u32) id;
         struct flow_pid_value_t value = {
-            .pid = bpf_get_current_pid_tgid() >> 32,
+            .pid = id >> 32,
         };
+
+        // add netns information
+        u32 *netns = bpf_map_lookup_elem(&netns_cache, &tid);
+        if (netns != NULL) {
+            key.netns = *netns;
+        } else {
+             // use the socket
+             key.netns = get_netns_from_socket(sk);
+             if (key.netns != 0) {
+                 bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
+             }
+         }
+
         bpf_map_update_elem(&flow_pid, &key, &value, BPF_ANY);
 
 #ifdef DEBUG

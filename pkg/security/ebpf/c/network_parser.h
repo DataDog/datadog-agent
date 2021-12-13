@@ -1,6 +1,12 @@
 #ifndef _NETWORK_PARSER_H_
 #define _NETWORK_PARSER_H_
 
+static __attribute__((always_inline)) u32 get_netns() {
+    u64 netns;
+    LOAD_CONSTANT("netns", netns);
+    return (u32) netns;
+}
+
 struct cursor {
 	void *pos;
 	void *end;
@@ -38,6 +44,7 @@ struct packet_t {
 
     u32 offset;
     u32 pid;
+    u32 netns;
     u8 l4_protocol;
 };
 
@@ -57,7 +64,9 @@ __attribute__((always_inline)) struct packet_t *get_packet() {
 
 __attribute__((always_inline)) struct packet_t *reset_packet() {
     u32 key = PACKET_KEY;
-    struct packet_t new_pkt = {};
+    struct packet_t new_pkt = {
+        .netns = get_netns(),
+    };
     bpf_map_update_elem(&packets, &key, &new_pkt, BPF_ANY);
     return get_packet();
 }

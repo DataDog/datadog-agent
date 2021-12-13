@@ -1,9 +1,6 @@
 #ifndef _NET_DEVICE_H_
 #define _NET_DEVICE_H_
 
-#define REGISTER_DEVICE 1
-#define UNREGISTER_DEVICE 2
-
 struct device_t {
     char name[16];
     u32 netns;
@@ -20,7 +17,6 @@ struct net_device_event_t {
     struct syscall_t syscall;
 
     struct device_t device;
-    u16 flag;
 };
 
 struct veth_pair_event_t {
@@ -102,13 +98,6 @@ struct bpf_map_def SEC("maps/netdevice_lookup_cache") netdevice_lookup_cache = {
     .pinning = 0,
     .namespace = "",
 };
-
-u32 __attribute__((always_inline)) get_netns_from_net(struct net *net) {
-    struct ns_common ns;
-    // TODO: add variable offset
-    bpf_probe_read(&ns, sizeof(ns), &net->ns);
-    return ns.inum;
-}
 
 SEC("kprobe/veth_newlink")
 int kprobe_veth_newlink(struct pt_regs *ctx) {
@@ -246,7 +235,6 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
     if (state == NULL) {
         // this is a simple device registration
         struct net_device_event_t evt = {
-            .flag = REGISTER_DEVICE,
             .device = device,
         };
 
@@ -336,31 +324,6 @@ int kprobe_dev_change_net_namespace(struct pt_regs *ctx) {
     fill_span_context(&evt.span);
 
     send_event(ctx, EVENT_VETH_PAIR, evt);
-    return 0;
-};
-
-SEC("kprobe/unregister_netdevice_queue")
-int kprobe_unregister_netdevice_queue(struct pt_regs *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
-    struct device_ifindex_t *ifindex = bpf_map_lookup_elem(&netdevice_lookup_cache, &id);
-    if (ifindex == NULL) {
-        return 0;
-    }
-
-    // send device unregistration event
-    struct net_device_event_t evt = {
-        .flag = UNREGISTER_DEVICE,
-        .device = {
-            .netns = ifindex->netns,
-            .ifindex = ifindex->ifindex,
-        },
-    };
-
-    struct proc_cache_t *entry = fill_process_context(&evt.process);
-    fill_container_context(entry, &evt.container);
-    fill_span_context(&evt.span);
-
-    send_event(ctx, EVENT_NET_DEVICE, evt);
     return 0;
 };
 

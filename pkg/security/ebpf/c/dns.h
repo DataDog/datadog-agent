@@ -69,6 +69,7 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct packet
 
     evt->name[0] = 0;
     evt->process.pid = pkt->pid;
+    evt->process.netns = pkt->netns;
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
     if (entry == NULL) {

@@ -8,6 +8,7 @@
 #include <linux/filter.h>
 #include <uapi/asm-generic/mman-common.h>
 #include <linux/pipe_fs_i.h>
+#include <linux/nsproxy.h>
 
 #include <net/sock.h>
 #include <uapi/linux/ip.h>
@@ -17,6 +18,7 @@
 
 #include "defs.h"
 #include "buffer_selector.h"
+#include "process.h"
 #include "filters.h"
 #include "activity_dump.h"
 #include "approvers.h"
@@ -24,7 +26,6 @@
 #include "dentry.h"
 #include "dentry_resolver.h"
 #include "exec.h"
-#include "process.h"
 #include "container.h"
 #include "commit_creds.h"
 #include "overlayfs.h"

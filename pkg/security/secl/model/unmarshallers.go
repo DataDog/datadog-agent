@@ -401,8 +401,9 @@ func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 
 	p.Pid = ByteOrder.Uint32(data[0:4])
 	p.Tid = ByteOrder.Uint32(data[4:8])
-
-	return 8, nil
+	p.NetNS = ByteOrder.Uint32(data[8:12])
+	// padding (4 bytes)
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -842,9 +843,7 @@ func (e *NetDeviceEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	cursor += read
-
-	e.Flag = ByteOrder.Uint16(data[cursor : cursor+2])
-	return cursor + 2, nil
+	return cursor, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

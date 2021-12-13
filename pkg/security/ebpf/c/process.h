@@ -110,6 +110,15 @@ struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
     return entry;
 }
 
+struct bpf_map_def SEC("maps/netns_cache") netns_cache = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 40960,
+    .pinning = 0,
+    .namespace = "",
+};
+
 static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
     // Pid & Tid
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -118,6 +127,11 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     // https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md#4-bpf_get_current_pid_tgid
     data->pid = tgid;
     data->tid = pid_tgid;
+
+    u32 *netns = bpf_map_lookup_elem(&netns_cache, &data->tid);
+    if (netns != NULL) {
+        data->netns = *netns;
+    }
 
     return get_proc_cache(tgid);
 }
@@ -211,6 +225,62 @@ void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
     bpf_probe_read(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
 
     register_nr(root_nr, namespace_nr);
+}
+
+__attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
+    struct ns_common ns;
+    // TODO: add variable offset
+    bpf_probe_read(&ns, sizeof(ns), &net->ns);
+    return ns.inum;
+}
+
+__attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {
+    struct sock_common *common = (void *)sk;
+    struct net *net = NULL;
+    // TODO: add variable offset
+    bpf_probe_read(&net, sizeof(net), &common->skc_net);
+    return get_netns_from_net(net);
+}
+
+__attribute__((always_inline)) u32 get_netns_from_socket(struct socket *socket) {
+    struct sock *sk = NULL;
+    // TODO: add variable offset
+    bpf_probe_read(&sk, sizeof(sk), &socket->sk);
+    return get_netns_from_sock(sk);
+}
+
+struct namespace_switch_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+};
+
+SEC("kprobe/switch_task_namespaces")
+int kprobe_switch_task_namespaces(struct pt_regs *ctx) {
+    struct nsproxy *new_ns = (struct nsproxy *)PT_REGS_PARM2(ctx);
+    if (new_ns == NULL) {
+        return 0;
+    }
+
+    struct net *net;
+    bpf_probe_read(&net, sizeof(net), &new_ns->net_ns);
+    if (net == NULL) {
+        return 0;
+    }
+
+    u32 netns = get_netns_from_net(net);
+    u32 tid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&netns_cache, &tid, &netns, BPF_ANY);
+
+    struct namespace_switch_event_t evt = {};
+    struct proc_cache_t *entry = fill_process_context(&evt.process);
+    fill_container_context(entry, &evt.container);
+    fill_span_context(&evt.span);
+
+    send_event(ctx, EVENT_NAMESPACE_SWITCH, evt);
+    return 0;
 }
 
 #endif

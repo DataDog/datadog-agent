@@ -264,8 +264,9 @@ type Process struct {
 	// proc_cache_t
 	FileFields FileFields `field:"file" msg:"file"`
 
-	Pid uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
-	Tid uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
+	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
+	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
+	NetNS uint32 `field:"-"`
 
 	PathnameStr         string `field:"file.path" msg:"path"`             // Path of the process executable
 	BasenameStr         string `field:"file.name" msg:"name"`             // Basename of the path of the process executable
@@ -773,7 +774,6 @@ type NetDeviceEvent struct {
 	SyscallEvent
 
 	Device NetDevice
-	Flag   uint16
 }
 
 // VethPairEvent represents a veth pair event

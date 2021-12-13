@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -33,6 +34,33 @@ func Getpid() int32 {
 	return int32(os.Getpid())
 }
 
+var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
+
+// GetProcessNetworkNamespace returns the network namespace of a pid after parsing /proc/[pid]/ns/net
+func GetProcessNetworkNamespace(pid uint32) (uint32, error) {
+	// open netns
+	f, err := os.Open(NetNSPath(pid))
+	if err != nil {
+		return 0, err
+	}
+
+	l, err := os.Readlink(f.Name())
+	if err != nil {
+		return 0, err
+	}
+
+	matches := networkNamespacePattern.FindSubmatch([]byte(l))
+	if len(matches) <= 1 {
+		return 0, fmt.Errorf("couldn't parse network namespace ID: %s", l)
+	}
+
+	netns, err := strconv.ParseUint(string(matches[1]), 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(netns), nil
+}
+
 // CgroupTaskPath returns the path to the cgroup file of a pid in /proc
 func CgroupTaskPath(tgid, pid uint32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/task/%d/cgroup", tgid, pid))
@@ -41,6 +69,11 @@ func CgroupTaskPath(tgid, pid uint32) string {
 // ProcExePath returns the path to the exe file of a pid in /proc
 func ProcExePath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/exe", pid))
+}
+
+// NetNSPath returns the path to the net ns file of a pid in /proc
+func NetNSPath(pid uint32) string {
+	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/ns/net", pid))
 }
 
 // StatusPath returns the path to the status file of a pid in /proc

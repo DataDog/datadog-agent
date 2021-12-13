@@ -17,6 +17,7 @@ int classifier_egress(struct __sk_buff *skb) {
         // should never happen
         return TC_ACT_OK;
     }
+    flow.netns = pkt->netns;
 
     if (!(parse_ethhdr(&c, &pkt->eth)))
         return TC_ACT_OK;

@@ -74,13 +74,6 @@ var netDeviceProbes = []*manager.Probe{
 			EBPFFuncName: "kprobe_dev_change_net_namespace",
 		},
 	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/unregister_netdevice_queue",
-			EBPFFuncName: "kprobe_unregister_netdevice_queue",
-		},
-	},
 }
 
 func getNetDeviceProbes() []*manager.Probe {
