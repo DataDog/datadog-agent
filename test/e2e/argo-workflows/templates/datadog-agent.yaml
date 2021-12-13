@@ -37,6 +37,8 @@ spec:
             env:
               - name: DD_HOSTNAME
                 value: k8s-e2e-tests-control-plane
+              - name: DD_OTLP_GRPC_PORT
+                value: "4317"
             leaderElection: true
             logs:
               enabled: true
@@ -89,6 +91,12 @@ spec:
               pullSecrets:
                 - name: docker-registry
             containers:
+              agent:
+                ports:
+                  - containerPort: 4317
+                    hostPort: 4317
+                    name: otlp-port
+                    protocol: TCP
               systemProbe:
                 logLevel: TRACE
                 env:
