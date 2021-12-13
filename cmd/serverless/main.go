@@ -28,7 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -292,6 +294,10 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	wg.Wait()
+
+	// start the proxy if needed
+	// as this feature is experimental, this should be the only entrypoint (easier to remove)
+	_ = proxy.Start("127.0.0.1:9000", "127.0.0.1:9001", &invocationlifecycle.ProxyProcessor{})
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on

@@ -17,6 +17,10 @@ func init() {
 
 // diagnose the Containerd socket connectivity
 func diagnose() error {
-	_, err := GetContainerdUtil()
-	return err
+	client, err := NewContainerdUtil()
+	if err != nil {
+		return err
+	}
+
+	return client.Close()
 }

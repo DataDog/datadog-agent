@@ -92,7 +92,7 @@ service AgentSecure {
         };
     };
 
-    rpc GetConfigUpdates(datadog.config.SubscribeConfigRequest) returns (stream datadog.config.ConfigResponse) {
+    rpc GetConfigUpdates(stream datadog.config.SubscribeConfigRequest) returns (stream datadog.config.ConfigResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/config/updates"
             body: "*"

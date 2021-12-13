@@ -33,9 +33,13 @@ func IsRunningOn(ctx context.Context) bool {
 	return false
 }
 
-// GetHostAlias returns the VM ID from the Tencent Metadata api
-func GetHostAlias(ctx context.Context) (string, error) {
-	return GetInstanceID(ctx)
+// GetHostAliases returns the VM ID from the Tencent Metadata api
+func GetHostAliases(ctx context.Context) ([]string, error) {
+	alias, err := GetInstanceID(ctx)
+	if err == nil {
+		return []string{alias}, nil
+	}
+	return nil, err
 }
 
 var instanceIDFetcher = cachedfetch.Fetcher{

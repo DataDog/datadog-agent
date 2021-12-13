@@ -11,14 +11,11 @@ provider:
     lambda: true
     apiGateway: true
   environment:
-    DD_INTEGRATION_TEST: true
     DD_DD_URL: http://127.0.0.1:3333
     DD_API_KEY: NO_NEED_TO_BE_VALID
     DD_LOGS_CONFIG_LOGS_DD_URL: 127.0.0.1:3333
     DD_LOGS_CONFIG_LOGS_NO_SSL: true
-    DD_LOG_LEVEL: INFO
-    DD_LOGS_ENABLED: false
-    DD_SERVERLESS_LOGS_ENABLED: false
+    DD_LOGS_INJECTION: true
     DD_MERGE_XRAY_TRACES: false
     DD_TRACE_ENABLED: false
     DD_ENV: integration-tests-env
@@ -95,10 +92,6 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
@@ -130,10 +123,6 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
@@ -144,8 +133,6 @@ functions:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_LOG_LEVEL: DEBUG
 
   timeout-python:
     runtime: python3.8
@@ -155,7 +142,6 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_LOG_LEVEL: DEBUG
       DD_LAMBDA_HANDLER: src/metricPython.timeout
 
   timeout-go:
@@ -175,10 +161,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_ENHANCED_METRICS: false
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
@@ -191,10 +173,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_ENHANCED_METRICS: false
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       DD_LAMBDA_HANDLER: src/logPython.log
@@ -207,10 +185,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_ENHANCED_METRICS: false
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
@@ -222,10 +196,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_ENHANCED_METRICS: false
-      DD_LOG_LEVEL: ERROR
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
@@ -238,7 +208,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_LAMBDA_HANDLER: src/trace.simpleTest
-      DD_LOG_LEVEL: DEBUG
       DD_TRACE_ENABLED: true
       DD_APM_DD_URL: http://127.0.0.1:3333
       DD_ENHANCED_METRICS: false
@@ -254,7 +223,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_LAMBDA_HANDLER: src/tracePython.simple_test
-      DD_LOG_LEVEL: DEBUG
       DD_TRACE_ENABLED: true
       DD_APM_DD_URL: http://127.0.0.1:3333
       DD_ENHANCED_METRICS: false
@@ -285,9 +253,6 @@ functions:
     environment:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
 
   log-csharp:
     runtime: dotnetcore3.1
@@ -301,6 +266,3 @@ functions:
     environment:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true

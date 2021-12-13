@@ -15,6 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 )
 
+var (
+	// CloudProviderName contains the inventory name for Kubernetes (through the API server)
+	CloudProviderName = "kubernetes"
+)
+
 // GetHostAliases returns the host aliases from the Kubernetes node annotations
 func GetHostAliases(ctx context.Context) ([]string, error) {
 	aliases := []string{}
