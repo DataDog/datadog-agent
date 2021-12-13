@@ -136,6 +136,14 @@ func validateEnrichSymbol(symbol *SymbolConfig) []string {
 			symbol.MatchPatternCompiled = pattern
 		}
 	}
+	if symbol.IndexFromOidValue.OID != "" || symbol.IndexFromOidValue.Name != "" {
+		if symbol.IndexFromOidValue.OID == "" {
+			errors = append(errors, fmt.Sprintf("Missing name OID for symbol %s", symbol.IndexFromOidValue.Name))
+		}
+		if symbol.IndexFromOidValue.Name == "" {
+			errors = append(errors, fmt.Sprintf("Missing symbol name for OID %s", symbol.IndexFromOidValue.OID))
+		}
+	}
 	return errors
 }
 func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {

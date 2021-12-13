@@ -347,6 +347,40 @@ func Test_validateEnrichMetrics(t *testing.T) {
 				"cannot compile `extract_value`",
 			},
 		},
+		{
+			name: "error IndexFromOidValue missing symbol name",
+			metrics: []MetricsConfig{
+				{
+					Symbol: SymbolConfig{
+						OID:  "1.2.3",
+						Name: "myMetric",
+						IndexFromOidValue: OidSymbol{
+							OID: "1.2.3.4",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"Missing symbol name for OID 1.2.3.4",
+			},
+		},
+		{
+			name: "error IndexFromOidValue missing OID",
+			metrics: []MetricsConfig{
+				{
+					Symbol: SymbolConfig{
+						OID:  "1.2.3",
+						Name: "myMetric",
+						IndexFromOidValue: OidSymbol{
+							Name: "mySymbol",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"Missing name OID for symbol mySymbol",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
