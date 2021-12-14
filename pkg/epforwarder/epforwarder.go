@@ -193,14 +193,19 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	inputChan := make(chan *message.Message, 100)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
-	var encoder sender.ContentEncoding
+	encoder := sender.IdentityContentType
 	if endpoints.Main.UseCompression {
 		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
-	} else {
-		encoder = sender.IdentityContentType
 	}
 
-	strategy := sender.NewBatchStrategy(inputChan, senderInput, sender.ArraySerializer, endpoints.BatchWait, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, encoder)
+	strategy := sender.NewBatchStrategy(inputChan,
+		senderInput,
+		sender.ArraySerializer,
+		endpoints.BatchWait,
+		pkgconfig.DefaultBatchMaxSize,
+		endpoints.BatchMaxContentSize,
+		desc.eventType,
+		encoder)
 
 	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",

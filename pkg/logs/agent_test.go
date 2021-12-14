@@ -154,8 +154,8 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	})
 	agent.Stop()
 
-	// The context gets canceled when the agent stops. at this point the additional sender is stuck
-	// trying to establish a connection. agent.Stop will cancel it and the error telemetry will be updated
+	// The context gets canceled when the agent stops. At this point the additional sender is stuck
+	// trying to establish a connection. `agent.Stop()` will cancel it and the error telemetry will be updated
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return int64(2) == metrics.DestinationErrors.Value()
 	})
@@ -188,7 +188,7 @@ func (suite *AgentTestSuite) TestAgentUnreliableAdditinalEndpointFailsTcp() {
 	})
 	agent.Stop()
 
-	// The context gets canceled when the agent stops. at this point the additional sender is stuck
+	// The context gets canceled when the agent stops. At this point the additional sender is stuck
 	// trying to establish a connection. agent.Stop will cancel it and the error telemetry will be updated
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return int64(2) == metrics.DestinationErrors.Value()

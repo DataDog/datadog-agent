@@ -132,7 +132,15 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
-func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int) *Endpoints {
+func NewEndpointsWithBatchSettings(main Endpoint,
+	additionalEndpoints []Endpoint,
+	useProto bool,
+	useHTTP bool,
+	batchWait time.Duration,
+	batchMaxConcurrentSend int,
+	batchMaxSize int,
+	batchMaxContentSize int) *Endpoints {
+
 	return &Endpoints{
 		Main:                   main,
 		Endpoints:              append([]Endpoint{main}, additionalEndpoints...),

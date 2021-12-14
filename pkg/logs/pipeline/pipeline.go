@@ -28,7 +28,14 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Payload, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
+func NewPipeline(outputChan chan *message.Payload,
+	processingRules []*config.ProcessingRule,
+	endpoints *config.Endpoints,
+	destinationsContext *client.DestinationsContext,
+	diagnosticMessageReceiver diagnostic.MessageReceiver,
+	serverless bool,
+	pipelineID int) *Pipeline {
+
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID)
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
@@ -106,11 +113,9 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 
 func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
-		var encoder sender.ContentEncoding
+		encoder := sender.IdentityContentType
 		if endpoints.Main.UseCompression {
 			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
-		} else {
-			encoder = sender.IdentityContentType
 		}
 		return sender.NewBatchStrategy(inputChan, outputChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
