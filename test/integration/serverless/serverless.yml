@@ -1,5 +1,5 @@
 # IAM permissions require service name to begin with 'integration-tests'
-# Adding a comment to start integration tests on push
+# Adding a comment to start integration tests
 service: integration-tests-extension
 
 resources:
