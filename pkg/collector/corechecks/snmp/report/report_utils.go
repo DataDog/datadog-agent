@@ -116,6 +116,9 @@ func getTagsUsingMetricConfig(tagConfigs checkconfig.MetricTagConfigList, fullIn
 }
 
 func newIndexUsingIndexFromOidValue(fullIndex string, indexFromOidValueOid string, values *valuestore.ResultValueStore) string {
+	if indexFromOidValueOid == "" {
+		return fullIndex
+	}
 	indexValues := getColumnValueFromSymbolOrEmpty(indexFromOidValueOid, values)
 	for index, indexVal := range indexValues {
 		strVal, err := indexVal.ToString()
