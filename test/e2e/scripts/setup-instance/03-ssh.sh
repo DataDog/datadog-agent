@@ -52,7 +52,7 @@ _ssh git -C /home/core/datadog-agent checkout "${COMMIT_ID}"
 
 if [[ -n ${DOCKER_REGISTRY_URL+x} ]] && [[ -n ${DOCKER_REGISTRY_LOGIN+x} ]] && [[ -n ${DOCKER_REGISTRY_PWD+x} ]]; then
     oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
-    _ssh_logged \"sudo docker login --username \\\"${DOCKER_REGISTRY_LOGIN}\\\" --password \\\"${DOCKER_REGISTRY_PWD}\\\" \\\"${DOCKER_REGISTRY_URL}\\\"\"
+    _ssh_logged \"sudo docker login --username \\\""${DOCKER_REGISTRY_LOGIN}"\\\" --password \\\""${DOCKER_REGISTRY_PWD}"\\\" \\\""${DOCKER_REGISTRY_URL}"\\\"\"
     eval "$oldstate"
 else
     _ssh_logged \"sudo mkdir -p /root/.docker \&\& sudo touch /root/.docker/config.json\"
