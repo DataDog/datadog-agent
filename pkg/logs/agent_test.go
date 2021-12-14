@@ -201,40 +201,6 @@ func (suite *AgentTestSuite) TestAgentUnreliableAdditinalEndpointFailsTcp() {
 	assert.Equal(suite.T(), "2", metrics.DestinationLogsDropped.Get("still_fake").String())
 }
 
-func (suite *AgentTestSuite) TestReliableAdditionalEndpointHttp() {
-	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
-	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
-	l := mock.NewMockLogsIntake(suite.T())
-	defer l.Close()
-
-	respondChan1 := make(chan int)
-	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1)
-	defer server1.Stop()
-	server1.Endpoint.IsReliable = true
-
-	respondChan2 := make(chan int)
-	server2 := http.NewTestServerWithOptions(200, 0, true, respondChan2)
-	defer server2.Stop()
-	server2.Endpoint.IsReliable = true
-
-	endpoints := config.NewEndpoints(server1.Endpoint, []config.Endpoint{server2.Endpoint}, false, true)
-
-	agent, sources, _ := createAgent(endpoints)
-
-	agent.Start()
-	sources.AddSource(suite.source)
-	<-respondChan1
-	<-respondChan2
-	<-respondChan1
-	<-respondChan2
-	agent.Stop()
-
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
-	assert.Equal(suite.T(), int64(4), metrics.LogsSent.Value())
-	assert.Equal(suite.T(), int64(0), metrics.DestinationErrors.Value())
-}
-
 func TestAgentTestSuite(t *testing.T) {
 	suite.Run(t, new(AgentTestSuite))
 }
