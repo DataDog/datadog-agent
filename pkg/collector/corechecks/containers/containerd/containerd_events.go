@@ -13,13 +13,13 @@ import (
 	"sync"
 	"time"
 
-	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	containerdevents "github.com/containerd/containerd/events"
-	"github.com/containerd/containerd/namespaces"
 	"github.com/gogo/protobuf/proto"
+
+	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //containerdEvent contains the timestamp to make sure we flush all events that happened between two checks
@@ -37,15 +37,13 @@ type subscriber struct {
 	Name                string
 	Filters             []string
 	Events              []containerdEvent
-	Namespace           string
 	CollectionTimestamp int64
 	isRunning           bool
 }
 
-func CreateEventSubscriber(name string, ns string, f []string) *subscriber { //nolint:revive
+func CreateEventSubscriber(name string, f []string) *subscriber { //nolint:revive
 	return &subscriber{
 		Name:                name,
-		Namespace:           ns,
 		CollectionTimestamp: time.Now().Unix(),
 		Filters:             f,
 	}
@@ -55,8 +53,7 @@ func (s *subscriber) CheckEvents(ctrItf ctrUtil.ContainerdItf) {
 	ctx := context.Background()
 	ev := ctrItf.GetEvents()
 	log.Info("Starting routine to collect Containerd events ...")
-	ctxNamespace := namespaces.WithNamespace(ctx, s.Namespace)
-	go s.run(ctxNamespace, ev) //nolint:errcheck
+	go s.run(ctx, ev) //nolint:errcheck
 }
 
 func processMessage(id string, message *containerdevents.Envelope) containerdEvent {

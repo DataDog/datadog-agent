@@ -30,6 +30,8 @@ const (
 	minimalRefreshInterval = time.Second * 5
 	defaultMaxBucketSize   = 10
 	defaultURL             = ""
+	defaultTracerCacheSize = 1000
+	defaultTracerCacheTTL  = 10 * time.Second
 )
 
 // Opts defines the remote config service options
@@ -42,6 +44,8 @@ type Opts struct {
 	RefreshInterval        time.Duration
 	MaxBucketSize          int
 	ReadOnly               bool
+	TracerCacheSize        int
+	TracerCacheTTL         time.Duration
 }
 
 // Service defines the remote config management service responsible for fetching, storing
@@ -60,6 +64,7 @@ type Service struct {
 	configRootVersion     uint64
 	directorRootVersion   uint64
 	orgID                 string
+	TracerInfos           *TracerCache
 }
 
 // Refresh configurations by:
@@ -76,6 +81,7 @@ func (s *Service) refresh() {
 		CurrentConfigSnapshotVersion: s.configSnapshotVersion,
 		CurrentConfigRootVersion:     s.configRootVersion,
 		CurrentDirectorRootVersion:   s.directorRootVersion,
+		ConnectedTracers:             s.TracerInfos.Tracers(),
 	}
 
 	// determine which configuration we need to refresh
@@ -386,6 +392,18 @@ func (s *Service) UnregisterSubscriber(unregister *Subscriber) {
 	s.Unlock()
 }
 
+// HasSubscriber returns true if the product already registered a subscriber
+func (s *Service) HasSubscriber(product pbgo.Product) bool {
+	s.Lock()
+	defer s.Unlock()
+	for _, s := range s.subscribers {
+		if s.product == product {
+			return true
+		}
+	}
+	return false
+}
+
 // Start the remote configuration management service
 func (s *Service) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -473,14 +491,30 @@ func NewService(opts Opts) (*Service, error) {
 		return nil, err
 	}
 
+	opts.TracerCacheSize = config.Datadog.GetInt("remote_configuration.tracer_cache.size")
+	if opts.TracerCacheSize <= 0 {
+		opts.TracerCacheSize = defaultTracerCacheSize
+	}
+
+	opts.TracerCacheTTL = time.Second * config.Datadog.GetDuration("remote_configuration.tracer_cache.ttl_seconds")
+	if opts.TracerCacheTTL <= 0 {
+		opts.TracerCacheTTL = defaultTracerCacheTTL
+	}
+
+	if opts.TracerCacheTTL <= 5*time.Second || opts.TracerCacheTTL >= 60*time.Second {
+		log.Warnf("Configured tracer cache ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", 5, 10, opts.TracerCacheTTL, defaultTracerCacheTTL)
+		opts.TracerCacheTTL = defaultTracerCacheTTL
+	}
+
 	return &Service{
-		ctx:      context.Background(),
-		client:   NewHTTPClient(opts.URL, opts.APIKey, appKey, opts.Hostname),
-		store:    store,
-		director: tuf.NewDirectorClient(store),
-		config:   tuf.NewConfigClient(store),
-		opts:     opts,
-		orgID:    org,
+		ctx:         context.Background(),
+		client:      NewHTTPClient(opts.URL, opts.APIKey, appKey, opts.Hostname),
+		store:       store,
+		director:    tuf.NewDirectorClient(store),
+		config:      tuf.NewConfigClient(store),
+		opts:        opts,
+		orgID:       org,
+		TracerInfos: NewTracerCache(opts.TracerCacheSize, opts.TracerCacheTTL, time.Second),
 	}, nil
 }
 

@@ -152,6 +152,7 @@
   </ItemDefinitionGroup>
   <PropertyGroup>
     <VcpkgEnableManifest>True</VcpkgEnableManifest>
+    <VcpkgAdditionalInstallOptions>--feature-flags=versions</VcpkgAdditionalInstallOptions>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <OutDir>$(SolutionDir)\x86\Debug\</OutDir>

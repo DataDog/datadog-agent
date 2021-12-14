@@ -306,3 +306,42 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 	<-stopChan
 	server.Stop()
 }
+
+func TestBackoffDelayEnabled(t *testing.T) {
+	respondChan := make(chan int)
+	server := NewTestServerWithOptions(500, 0, true, respondChan)
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
+
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("test log")}
+	<-respondChan
+	<-isRetrying
+
+	assert.Equal(t, 1, server.Destination.nbErrors)
+	server.Stop()
+}
+
+func TestBackoffDelayDisabled(t *testing.T) {
+	respondChan := make(chan int)
+	server := NewTestServerWithOptions(500, 0, false, respondChan)
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
+
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("test log")}
+	<-respondChan
+
+	assert.Equal(t, 0, server.Destination.nbErrors)
+	server.Stop()
+}
+
+func TestBackoffDelayDisabledServerless(t *testing.T) {
+	dest := NewDestination(config.Endpoint{
+		Origin: "lambda-extension",
+	}, "", nil, 0, true, "")
+
+	assert.False(t, dest.shouldRetry)
+}

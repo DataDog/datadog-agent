@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var legacyAttributes = map[Field]Field{
+var legacyFields = map[Field]Field{
 	"process.legacy_name": "process.name",
 }
 

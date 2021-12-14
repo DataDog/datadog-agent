@@ -13,7 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const kubeServiceIDPrefix = "kube_service_uid://"
+const kubeServiceIDPrefix = "kube_service://"
 
 // ServicesForPod returns the services mapped to a given pod and namespace.
 // If nothing is found, the boolean is false. This call is thread-safe.
@@ -35,5 +35,10 @@ func EntityForService(svc *v1.Service) string {
 	if svc == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s%s", kubeServiceIDPrefix, svc.ObjectMeta.UID)
+
+	return EntityForServiceWithNames(svc.ObjectMeta.Namespace, svc.ObjectMeta.Name)
+}
+
+func EntityForServiceWithNames(namespace, name string) string {
+	return fmt.Sprintf("%s%s/%s", kubeServiceIDPrefix, namespace, name)
 }

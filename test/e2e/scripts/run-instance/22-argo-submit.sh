@@ -35,7 +35,7 @@ case "$ARGO_WORKFLOW" in
             exit 2
         fi
 
-        kubectl create secret generic dd-keys --from-literal=DD_API_KEY=${DATADOG_AGENT_API_KEY} --from-literal=DD_APP_KEY=${DATADOG_AGENT_APP_KEY}
+        kubectl create secret generic dd-keys --from-literal=DD_API_KEY="${DATADOG_AGENT_API_KEY}" --from-literal=DD_APP_KEY="${DATADOG_AGENT_APP_KEY}"
 
         eval "$oldstate"
 
@@ -47,11 +47,21 @@ case "$ARGO_WORKFLOW" in
             --parameter datadog-cluster-agent-image-tag="${DATADOG_CLUSTER_AGENT_IMAGE#*:}" \
             --parameter datadog-agent-site="${DATADOG_AGENT_SITE#*:}" || :
         ;;
-    *)
+    "")
         kubectl create secret generic dd-keys --from-literal=DD_API_KEY=123er --from-literal=DD_APP_KEY=123er1
 
         ./argo template create ../../argo-workflows/templates/*.yaml
         ./argo submit ../../argo-workflows/workflow.yaml --wait \
+            --parameter datadog-agent-image-repository="${DATADOG_AGENT_IMAGE%:*}" \
+            --parameter datadog-agent-image-tag="${DATADOG_AGENT_IMAGE#*:}" \
+            --parameter datadog-cluster-agent-image-repository="${DATADOG_CLUSTER_AGENT_IMAGE%:*}" \
+            --parameter datadog-cluster-agent-image-tag="${DATADOG_CLUSTER_AGENT_IMAGE#*:}" || :
+        ;;
+    *)
+        kubectl create secret generic dd-keys --from-literal=DD_API_KEY=123er --from-literal=DD_APP_KEY=123er1
+
+        ./argo template create ../../argo-workflows/templates/*.yaml
+        ./argo submit ../../argo-workflows/"${ARGO_WORKFLOW}"-workflow.yaml --wait \
             --parameter datadog-agent-image-repository="${DATADOG_AGENT_IMAGE%:*}" \
             --parameter datadog-agent-image-tag="${DATADOG_AGENT_IMAGE#*:}" \
             --parameter datadog-cluster-agent-image-repository="${DATADOG_CLUSTER_AGENT_IMAGE%:*}" \

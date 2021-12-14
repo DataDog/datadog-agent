@@ -1,12 +1,11 @@
 #!/bin/bash
 
-# Usage - run commands from repo root:
 # To check if new changes to the extension cause changes to any snapshots:
 #   BUILD_EXTENSION=true aws-vault exec sandbox-account-admin -- ./run.sh
 # To regenerate snapshots:
 #   UPDATE_SNAPSHOTS=true aws-vault exec sandbox-account-admin -- ./run.sh
 
-LOGS_WAIT_SECONDS=600
+LOGS_WAIT_MINUTES=10
 
 DEFAULT_NODE_LAYER_VERSION=66
 DEFAULT_PYTHON_LAYER_VERSION=49
@@ -18,14 +17,17 @@ script_utc_start_time=$(date -u +"%Y%m%dT%H%M%S")
 if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     echo "No AWS credentials were found in the environment."
     echo "Note that only Datadog employees can run these integration tests."
-    exit 1
+    echo "Exiting without running tests..."
+    
+    # If credentials are not available, the run is considered a success
+    # so as not to break CI for external users that don't have access to GitHub secrets 
+    exit 0
 fi
 
 # Move into the root directory, so this script can be called from any directory
 SERVERLESS_INTEGRATION_TESTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "$SERVERLESS_INTEGRATION_TESTS_DIR/../../.."
 
-# TODO: Get this working in CI environment
 LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
 
 if [ "$BUILD_EXTENSION" == "true" ]; then
@@ -123,11 +125,11 @@ for function_name in "${all_functions[@]}"; do
     fi
 done
 
-now=$(date +"%r")
-echo "Sleeping $LOGS_WAIT_SECONDS seconds to wait for logs to appear in CloudWatch..."
-echo "This should be done in 10 minutes from $now"
+END_OF_WAIT_TIME=$(date --date="+"$LOGS_WAIT_MINUTES" minutes" +"%r")
+echo "Sleeping for $LOGS_WAIT_MINUTES minutes to wait for logs to appear in CloudWatch..."
+echo "This will be done at $END_OF_WAIT_TIME"
 
-sleep $LOGS_WAIT_SECONDS
+sleep "$LOGS_WAIT_MINUTES"m
 
 for function_name in "${all_functions[@]}"; do
     echo "Fetching logs for ${function_name} on ${stage}"
@@ -172,15 +174,15 @@ for function_name in "${all_functions[@]}"; do
         # Normalize logs
         logs=$(
             echo "$raw_logs" |
+                grep -v "\[sketch\]" |
                 grep "\[log\]" |
                 perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
-                perl -p -e "s/(\"HTTP ).*/\1\"}}/g" |
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
-                perl -p -e "s/[ ]$//g" |
-                grep XXX
+                perl -p -e "s/[ ]$//g"
         )
     else
         # Normalize traces

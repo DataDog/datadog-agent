@@ -15,7 +15,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -154,7 +154,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 
 func endpointschecksEnabled() bool {
 	for _, provider := range config.Datadog.GetStringSlice("extra_config_providers") {
-		if provider == providers.KubeEndpointsProviderName {
+		if provider == names.KubeEndpointsRegisterName {
 			return true
 		}
 	}

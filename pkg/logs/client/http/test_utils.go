@@ -73,10 +73,14 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 	destCtx := client.NewDestinationsContext()
 	destCtx.Start()
 	endpoint := config.Endpoint{
-		APIKey: "test",
-		Host:   strings.Replace(url[1], "/", "", -1),
-		Port:   port,
-		UseSSL: false,
+		APIKey:           "test",
+		Host:             strings.Replace(url[1], "/", "", -1),
+		Port:             port,
+		UseSSL:           false,
+		BackoffFactor:    1,
+		BackoffBase:      1,
+		BackoffMax:       10,
+		RecoveryInterval: 1,
 	}
 	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test")
 	return &TestServer{
