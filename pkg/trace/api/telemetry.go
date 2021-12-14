@@ -115,7 +115,6 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			http.Error(w, msg, http.StatusMethodNotAllowed)
 		})
 	}
-
 	// extract and validate Hostnames from configured endpoints
 	var endpoints []*config.Endpoint
 	for _, endpoint := range r.conf.TelemetryConfig.Endpoints {
