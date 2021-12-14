@@ -10,6 +10,7 @@ import (
 
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +30,7 @@ func installKubernetesMetadataEndpoints(r *mux.Router) {
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels
-func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClient, string) (map[string]string, error), what string) {
+func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClient, string) (map[string]string, error), what string, filterList []string) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/node/localhost
@@ -73,6 +74,18 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClien
 		)
 		return
 	}
+
+	// Filter data to avoid returning too big useless data
+	if filterList != nil {
+		newNodeData := make(map[string]string)
+		for _, key := range filterList {
+			if value, found := nodeData[key]; found {
+				newNodeData[key] = value
+			}
+		}
+		nodeData = newNodeData
+	}
+
 	dataBytes, err = json.Marshal(nodeData)
 	if err != nil {
 		log.Errorf("Could not process the %s of the node %s from the informer's cache: %v", what, nodeName, err.Error()) //nolint:errcheck
@@ -101,11 +114,11 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClien
 }
 
 func getNodeLabels(w http.ResponseWriter, r *http.Request) {
-	getNodeMetadata(w, r, as.GetNodeLabels, "labels")
+	getNodeMetadata(w, r, as.GetNodeLabels, "labels", nil)
 }
 
 func getNodeAnnotations(w http.ResponseWriter, r *http.Request) {
-	getNodeMetadata(w, r, as.GetNodeAnnotations, "annotations")
+	getNodeMetadata(w, r, as.GetNodeAnnotations, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations"))
 }
 
 // getNamespaceLabels is only used when the node agent hits the DCA for the list of labels
