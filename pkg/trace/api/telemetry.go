@@ -90,6 +90,7 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 	}
 	newreq := req.Clone(req.Context())
 	newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+	// despite the number of endpoints, we always return the response of the first
 	rresp, rerr := m.roundTrip(newreq, m.Endpoints[0])
 	for _, endpoint := range m.Endpoints[1:] {
 		newreq := req.Clone(req.Context())
