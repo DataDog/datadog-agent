@@ -15,6 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// asserting Server starts a TLS Server with provided callback function used to perform assertions
+// on the contents of the request the server received. If no error is returned server will send standardised
+// response OK.
 func assertingServer(t *testing.T, onReq func(req *http.Request, reqBody []byte) error) *httptest.Server {
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		body, err := ioutil.ReadAll(req.Body)
@@ -40,7 +43,7 @@ func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
 	return string(responseBody)
 }
 
-func loadConfig(t *testing.T) *traceconfig.AgentConfig {
+func loadCdonfig(t *testing.T) *traceconfig.AgentConfig {
 	cfg, err := traceconfig.Load("/does/not/exists.yaml")
 	assert.NoError(t, err)
 	return cfg
@@ -69,7 +72,9 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	})() // reset config after the test
 
 	req, rec := newRequestRecorder(t)
-	recv := NewHTTPReceiver(loadConfig(t), nil, nil, nil)
+	cfg, err := traceconfig.Load("/does/not/exists.yaml")
+	assert.NoError(err)
+	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
 	assert.Equal("OK", recordedResponse(t, rec))
@@ -113,7 +118,9 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	})()
 
 	req, rec := newRequestRecorder(t)
-	recv := NewHTTPReceiver(loadConfig(t), nil, nil, nil)
+	cfg, err := traceconfig.Load("/does/not/exists.yaml")
+	assert.NoError(err)
+	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
 	assert.Equal("OK", recordedResponse(t, rec))
@@ -134,7 +141,9 @@ func TestTelemetryConfig(t *testing.T) {
 		})()
 
 		req, rec := newRequestRecorder(t)
-		recv := NewHTTPReceiver(loadConfig(t), nil, nil, nil)
+		cfg, err := traceconfig.Load("/does/not/exists.yaml")
+		assert.NoError(t, err)
+		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
 
 		assert.Contains(t, recordedResponse(t, rec), "Telemetry proxy forwarder is Disabled")
@@ -147,7 +156,9 @@ func TestTelemetryConfig(t *testing.T) {
 		})()
 
 		req, rec := newRequestRecorder(t)
-		recv := NewHTTPReceiver(loadConfig(t), nil, nil, nil)
+		cfg, err := traceconfig.Load("/does/not/exists.yaml")
+		assert.NoError(t, err)
+		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
 
 		assert.Contains(t, recordedResponse(t, rec), "Telemetry proxy forwarder doesn't have any valid endpoints")
@@ -164,7 +175,9 @@ func TestTelemetryConfig(t *testing.T) {
 			"api_key":             "api_key",
 		})()
 		req, rec := newRequestRecorder(t)
-		recv := NewHTTPReceiver(loadConfig(t), nil, nil, nil)
+		cfg, err := traceconfig.Load("/does/not/exists.yaml")
+		assert.NoError(t, err)
+		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
 
 		assert.Equal(t, "OK", recordedResponse(t, rec))
