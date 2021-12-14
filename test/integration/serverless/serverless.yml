@@ -333,29 +333,12 @@ functions:
     handler: TraceHandler
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
-      DD_EXPERIMENTAL_ENABLE_PROXY: true
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-
-  log-csharp:
-    runtime: dotnetcore3.1
-    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
-    package:
-      individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/java-tests/trace/target/trace-dev.jar
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
-      DD_EXPERIMENTAL_ENABLE_PROXY: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       DD_TRACE_ENABLED: true
