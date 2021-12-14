@@ -147,6 +147,7 @@
 /pkg/autodiscovery/listeners/snmp*.go   @DataDog/infrastructure-integrations
 /pkg/autodiscovery/providers/           @DataDog/container-integrations
 /pkg/autodiscovery/providers/file*.go   @DataDog/agent-core
+/pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-core
 /pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
