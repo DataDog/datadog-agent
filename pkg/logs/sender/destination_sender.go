@@ -58,6 +58,7 @@ func (d *DestinationSender) startRetryReader() {
 func (d *DestinationSender) Stop() {
 	close(d.input)
 	<-d.stopChan
+	close(d.retryReader)
 }
 
 // Send sends a payload and blocks if the input is full. It will not block if the destination

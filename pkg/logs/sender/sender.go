@@ -54,40 +54,40 @@ func (s *Sender) run() {
 
 		sent := false
 		for !sent {
-			for _, destState := range reliableDestinations {
-				if destState.Send(payload) {
+			for _, destSender := range reliableDestinations {
+				if destSender.Send(payload) {
 					sent = true
 				}
 			}
 
 			if !sent {
-				// Throttle the poll loop while waiting for a status change from one
-				// of the destinations. This will only happen when all reliable destinations
+				// Throttle the poll loop while waiting for a send to succeed
+				// This will only happen when all reliable destinations
 				// are blocked so logs have no where to go.
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
 
-		for _, destState := range reliableDestinations {
-			// if an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
+		for _, destSender := range reliableDestinations {
+			// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
 			// loss on intermittent failures.
-			if !destState.lastSendSucceeded {
-				destState.NonBlockingSend(payload)
+			if !destSender.lastSendSucceeded {
+				destSender.NonBlockingSend(payload)
 			}
 		}
 
 		// Attempt to send to unreliable destinations
-		for _, destState := range unreliableDestinations {
-			destState.NonBlockingSend(payload)
+		for _, destSender := range unreliableDestinations {
+			destSender.NonBlockingSend(payload)
 		}
 	}
 
 	// Cleanup the destinations
-	for _, destState := range reliableDestinations {
-		destState.Stop()
+	for _, destSender := range reliableDestinations {
+		destSender.Stop()
 	}
-	for _, destState := range unreliableDestinations {
-		destState.Stop()
+	for _, destSender := range unreliableDestinations {
+		destSender.Stop()
 	}
 	close(sink)
 	s.done <- struct{}{}
