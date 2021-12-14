@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -72,7 +71,7 @@ type snmpJob struct {
 }
 
 // NewSNMPListener creates a SNMPListener
-func NewSNMPListener(config.Listeners) (ServiceListener, error) {
+func NewSNMPListener(Config) (ServiceListener, error) {
 	snmpConfig, err := snmp.NewListenerConfig()
 	if err != nil {
 		return nil, err

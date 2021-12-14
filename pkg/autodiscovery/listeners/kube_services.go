@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,7 +59,7 @@ func init() {
 	Register("kube_services", NewKubeServiceListener)
 }
 
-func NewKubeServiceListener(conf config.Listeners) (ServiceListener, error) {
+func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -71,13 +71,11 @@ func NewKubeServiceListener(conf config.Listeners) (ServiceListener, error) {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
-	_, kubeServicesFileEnabled := conf.EnabledProviders["kube_services_file"]
-
 	return &KubeServiceListener{
 		services:          make(map[k8stypes.UID]Service),
 		informer:          servicesInformer,
 		promInclAnnot:     getPrometheusIncludeAnnotations(),
-		targetAllServices: kubeServicesFileEnabled,
+		targetAllServices: conf.IsProviderEnabled(names.KubeServicesFileRegisterName),
 	}, nil
 }
 

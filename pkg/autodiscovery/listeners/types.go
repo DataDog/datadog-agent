@@ -10,7 +10,6 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,8 +48,13 @@ type ServiceListener interface {
 	Stop()
 }
 
+// Config represents autodiscovery listener config
+type Config interface {
+	IsProviderEnabled(string) bool
+}
+
 // ServiceListenerFactory builds a service listener
-type ServiceListenerFactory func(config.Listeners) (ServiceListener, error)
+type ServiceListenerFactory func(Config) (ServiceListener, error)
 
 // ServiceListenerFactories holds the registered factories
 var ServiceListenerFactories = make(map[string]ServiceListenerFactory)

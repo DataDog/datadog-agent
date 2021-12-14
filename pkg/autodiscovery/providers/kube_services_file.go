@@ -88,5 +88,5 @@ func toServiceADIdentifiers(advancedIDs []integration.AdvancedADIdentifier) []st
 }
 
 func init() {
-	RegisterProvider("kube_services_file", NewKubeServiceFileConfigProvider)
+	RegisterProvider(names.KubeServicesFileRegisterName, NewKubeServiceFileConfigProvider)
 }

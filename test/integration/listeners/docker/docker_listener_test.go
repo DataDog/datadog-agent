@@ -80,7 +80,7 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewContainerListener(config.Listeners{})
+	dl, err := listeners.NewContainerListener(&config.Listeners{})
 	if err != nil {
 		panic(err)
 	}

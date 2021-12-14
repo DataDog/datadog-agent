@@ -148,7 +148,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 		}
 
 		for i := range listeners {
-			listeners[i].EnabledProviders = providersSet
+			listeners[i].SetEnabledProviders(providersSet)
 		}
 
 		ad.AddListeners(listeners)

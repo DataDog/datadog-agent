@@ -141,6 +141,18 @@ type Listeners struct {
 	EnabledProviders map[string]struct{}
 }
 
+// SetEnabledProviders registers the enabled config providers in the listener config
+func (l *Listeners) SetEnabledProviders(ep map[string]struct{}) {
+	l.EnabledProviders = ep
+}
+
+// IsProviderEnabled returns whether a config provider is enabled
+func (l *Listeners) IsProviderEnabled(provider string) bool {
+	_, found := l.EnabledProviders[provider]
+
+	return found
+}
+
 // Proxy represents the configuration for proxies in the agent
 type Proxy struct {
 	HTTP    string   `mapstructure:"http"`

@@ -75,7 +75,7 @@ type AutoConfig struct {
 
 type listenerCandidate struct {
 	factory listeners.ServiceListenerFactory
-	config  config.Listeners
+	config  listeners.Config
 }
 
 func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
@@ -358,7 +358,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []config.Listeners) 
 			continue
 		}
 		log.Debugf("Listener %s was registered", c.Name)
-		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, config: c}
+		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, config: &c}
 	}
 }
 

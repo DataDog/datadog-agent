@@ -31,7 +31,7 @@ type ContainerListener struct {
 }
 
 // NewContainerListener returns a new ContainerListener.
-func NewContainerListener(config.Listeners) (ServiceListener, error) {
+func NewContainerListener(Config) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	f := workloadmeta.NewFilter(

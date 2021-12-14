@@ -41,7 +41,7 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener(config.Listeners) (ServiceListener, error) {
+func NewKubeletListener(Config) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
