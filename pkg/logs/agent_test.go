@@ -224,8 +224,8 @@ func (suite *AgentTestSuite) TestReliableAdditionalEndpointHttp() {
 	agent.Start()
 	sources.AddSource(suite.source)
 	<-respondChan1
-	<-respondChan1
 	<-respondChan2
+	<-respondChan1
 	<-respondChan2
 	agent.Stop()
 
