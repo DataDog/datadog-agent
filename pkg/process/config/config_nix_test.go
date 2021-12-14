@@ -25,6 +25,12 @@ import (
 
 var secretScriptBuilder sync.Once
 
+// secretsTestRestoreConfig is an alternate version of restoreGlobalConfig designed for secrets tests
+// It restores the config without deregistering the cgroup provider, allowing tests to pass.
+func secretsTestRestoreConfig() {
+	config.Datadog = originalConfig
+}
+
 func setupSecretScript() error {
 	script := "./testdata/secret"
 	goCmd, err := exec.LookPath("go")
@@ -54,7 +60,7 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	defer restoreGlobalConfig()
+	defer secretsTestRestoreConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
 	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
@@ -78,7 +84,7 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	defer restoreGlobalConfig()
+	defer secretsTestRestoreConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
 	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
@@ -100,7 +106,7 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	defer restoreGlobalConfig()
+	defer secretsTestRestoreConfig()
 
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
 	config.InitConfig(config.Datadog)
