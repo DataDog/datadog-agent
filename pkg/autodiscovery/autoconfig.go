@@ -60,7 +60,7 @@ func init() {
 type AutoConfig struct {
 	providers          []*configPoller
 	listeners          []listeners.ServiceListener
-	listenerCandidates map[string]listeners.ServiceListenerFactory
+	listenerCandidates map[string]*listenerCandidate
 	listenerRetryStop  chan struct{}
 	scheduler          *scheduler.MetaScheduler
 	listenerStop       chan struct{}
@@ -73,11 +73,20 @@ type AutoConfig struct {
 	ranOnce uint32
 }
 
+type listenerCandidate struct {
+	factory listeners.ServiceListenerFactory
+	config  listeners.Config
+}
+
+func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
+	return l.factory(l.config)
+}
+
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	ac := &AutoConfig{
 		providers:          make([]*configPoller, 0, 9),
-		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
+		listenerCandidates: make(map[string]*listenerCandidate),
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
 		healthListening:    health.RegisterLiveness("ad-servicelistening"),
@@ -349,7 +358,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []config.Listeners) 
 			continue
 		}
 		log.Debugf("Listener %s was registered", c.Name)
-		ac.listenerCandidates[c.Name] = factory
+		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, config: &c}
 	}
 }
 
@@ -357,8 +366,8 @@ func (ac *AutoConfig) initListenerCandidates() bool {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
-	for name, factory := range ac.listenerCandidates {
-		listener, err := factory()
+	for name, candidate := range ac.listenerCandidates {
+		listener, err := candidate.try()
 		switch {
 		case err == nil:
 			// Init successful, let's start listening

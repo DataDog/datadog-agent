@@ -292,7 +292,7 @@ func (p *PrometheusServicesConfigProvider) promAnnotationsDiffer(first, second m
 }
 
 func init() {
-	RegisterProvider("prometheus_services", NewPrometheusServicesConfigProvider)
+	RegisterProvider(names.PrometheusServicesRegisterName, NewPrometheusServicesConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the PrometheusServicesConfigProvider

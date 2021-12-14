@@ -201,7 +201,7 @@ func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data
 }
 
 func init() {
-	RegisterProvider("zookeeper", NewZookeeperConfigProvider)
+	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the ZookeeperConfigProvider

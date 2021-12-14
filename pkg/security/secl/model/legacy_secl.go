@@ -9,8 +9,8 @@ package model
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
-// SECLLegacyAttributes contains the list of the legacy attributes we need to support
-var SECLLegacyAttributes = map[eval.Field]eval.Field{
+// SECLLegacyFields contains the list of the legacy attributes we need to support
+var SECLLegacyFields = map[eval.Field]eval.Field{
 	// chmod
 	"chmod.filename": "chmod.file.path",
 	"chmod.basename": "chmod.file.name",

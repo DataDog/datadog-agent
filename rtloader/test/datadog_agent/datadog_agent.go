@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testdatadogagent
 
 import (
@@ -272,10 +277,10 @@ func obfuscateSQLExecPlan(rawQuery *C.char, normalize C.bool, errResult **C.char
 	case "raw-json-plan":
 		if bool(normalize) {
 			return (*C.char)(helpers.TrackedCString("obfuscated-and-normalized"))
-		} else {
-			// obfuscate only
-			return (*C.char)(helpers.TrackedCString("obfuscated"))
 		}
+
+		// obfuscate only
+		return (*C.char)(helpers.TrackedCString("obfuscated"))
 	// expected error results from obfuscator
 	case "":
 		*errResult = (*C.char)(helpers.TrackedCString("empty"))
