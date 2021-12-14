@@ -114,9 +114,10 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 
 	t.Run("additional-hosts", func(t *testing.T) {
 		defer cleanConfig()
-		additionalEndpoints := make(map[string]string)
-		additionalEndpoints["test_backend_2.example.com"] = "test_apikey_2"
-		additionalEndpoints["test_backend_3.example.com"] = "test_apikey_3"
+		additionalEndpoints := map[string]string{
+			"http://test_backend_2.example.com": "test_apikey_2",
+			"http://test_backend_3.example.com": "test_apikey_3",
+		}
 		config.Datadog.Set("apm_config.telemetry.additional_endpoints", additionalEndpoints)
 
 		cfg := New()
@@ -137,9 +138,10 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 
 	t.Run("additional-urls", func(t *testing.T) {
 		defer cleanConfig()
-		additionalEndpoints := make(map[string]string)
-		additionalEndpoints["http://test_backend_2.example.com"] = "test_apikey_2"
-		additionalEndpoints["http://test_backend_3.example.com"] = "test_apikey_3"
+		additionalEndpoints := map[string]string{
+			"http://test_backend_2.example.com": "test_apikey_2",
+			"http://test_backend_3.example.com": "test_apikey_3",
+		}
 		config.Datadog.Set("apm_config.telemetry.additional_endpoints", additionalEndpoints)
 
 		cfg := New()
