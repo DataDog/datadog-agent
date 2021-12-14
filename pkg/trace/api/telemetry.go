@@ -42,7 +42,7 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 	for _, endpoint := range r.conf.TelemetryConfig.Endpoints {
 		u, err := url.Parse(endpoint.Host)
 		if err != nil {
-			log.Errorf("Error parsing apm_config.telemetry endpoint: %s", endpoint.Host)
+			log.Errorf("Error parsing apm_config.telemetry endpoint %q: %v", endpoint.Host, err)
 			continue
 		}
 		if u.Host != "" {
