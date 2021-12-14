@@ -13,7 +13,7 @@ type DestinationSender struct {
 	input             chan *message.Payload
 	destination       client.Destination
 	retryReader       chan bool
-	stopChan          chan struct{}
+	stopChan          <-chan struct{}
 	retryLock         sync.Mutex
 	lastRetryState    bool
 	cancelSendChan    chan struct{}

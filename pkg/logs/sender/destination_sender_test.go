@@ -14,7 +14,7 @@ type mockDestination struct {
 	stopChan   chan struct{}
 }
 
-func (m *mockDestination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan chan struct{}) {
+func (m *mockDestination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
 	m.input = input
 	m.output = output
 	m.isRetrying = isRetrying

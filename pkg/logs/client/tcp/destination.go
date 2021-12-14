@@ -47,16 +47,16 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
-func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan chan struct{}) {
-	stopChan = make(chan struct{})
+func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
+	stop := make(chan struct{})
 	go func() {
 		for payload := range input {
 			d.sendAndRetry(payload, output, isRetrying)
 		}
 		d.updateRetryState(nil, isRetrying)
-		stopChan <- struct{}{}
+		stop <- struct{}{}
 	}()
-	return stopChan
+	return stop
 }
 
 func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
@@ -93,9 +93,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 				d.incrementErrors(false)
 				// retry (will try to open a new connection)
 				continue
-			} else {
-				d.incrementErrors(true)
 			}
+			d.incrementErrors(true)
 		}
 
 		d.updateRetryState(nil, isRetrying)

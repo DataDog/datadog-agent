@@ -21,6 +21,8 @@ type Payload struct {
 	Encoded []byte
 	// The content encoding. A header for HTTP, empty for TCP
 	Encoding string
+	// The size of the unencoded payload
+	UnencodedSize int
 }
 
 // Message represents a log line sent to datadog, with its metadata

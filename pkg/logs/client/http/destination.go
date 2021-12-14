@@ -44,34 +44,60 @@ var emptyPayload = message.Payload{}
 
 // Destination sends a payload over HTTP.
 type Destination struct {
+	// Config
 	url                 string
 	apiKey              string
 	contentType         string
 	host                string
 	client              *httputils.ResetClient
 	destinationsContext *client.DestinationsContext
-	climit              chan struct{} // semaphore for limiting concurrent background sends
-	wg                  sync.WaitGroup
-	backoff             backoff.Policy
-	nbErrors            int
-	blockedUntil        time.Time
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
-	lastRetryError      error
-	retryLock           sync.Mutex
-	shouldRetry         bool
-	expVars             *expvar.Map
+
+	// Concurrency
+	climit chan struct{} // semaphore for limiting concurrent background sends
+	wg     sync.WaitGroup
+
+	// Retry
+	backoff        backoff.Policy
+	nbErrors       int
+	blockedUntil   time.Time
+	retryLock      sync.Mutex
+	shouldRetry    bool
+	lastRetryError error
+
+	// Telemetry
+	expVars *expvar.Map
 }
 
 // NewDestination returns a new Destination.
 // If `maxConcurrentBackgroundSends` > 0, then at most that many background payloads will be sent concurrently, else
 // there is no concurrency and the background sending pipeline will block while sending each payload.
 // TODO: add support for SOCKS5
-func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, maxConcurrentBackgroundSends int, shouldRetry bool, telemetryName string) *Destination {
-	return newDestination(endpoint, contentType, destinationsContext, time.Second*10, maxConcurrentBackgroundSends, shouldRetry, telemetryName)
+func NewDestination(endpoint config.Endpoint,
+	contentType string,
+	destinationsContext *client.DestinationsContext,
+	maxConcurrentBackgroundSends int,
+	shouldRetry bool,
+	telemetryName string) *Destination {
+
+	return newDestination(endpoint,
+		contentType,
+		destinationsContext,
+		time.Second*10,
+		maxConcurrentBackgroundSends,
+		shouldRetry,
+		telemetryName)
 }
 
-func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int, shouldRetry bool, telemetryName string) *Destination {
+func newDestination(endpoint config.Endpoint,
+	contentType string,
+	destinationsContext *client.DestinationsContext,
+	timeout time.Duration,
+	maxConcurrentBackgroundSends int,
+	shouldRetry bool,
+	telemetryName string) *Destination {
+
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
 	}
@@ -121,10 +147,10 @@ func errorToTag(err error) string {
 }
 
 // Start starts reading the input channel
-func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan chan struct{}) {
-	stopChan = make(chan struct{})
-	go d.run(input, output, stopChan, isRetrying)
-	return stopChan
+func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
+	stop := make(chan struct{})
+	go d.run(input, output, stop, isRetrying)
+	return stop
 }
 
 func (d *Destination) run(input chan *message.Payload, output chan *message.Payload, stopChan chan struct{}, isRetrying chan bool) {
@@ -207,7 +233,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	if err != nil {
 		return err
 	}
-	metrics.BytesSent.Add(int64(len(payload.Encoded)))
+	metrics.BytesSent.Add(int64(payload.UnencodedSize))
 	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
 
 	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
