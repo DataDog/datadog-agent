@@ -56,24 +56,6 @@ func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.
 	return resp, err
 }
 
-// NewReverseProxy creates an http.ReverseProxy which will forward requests via transport
-func NewReverseProxy(transport http.RoundTripper, logger *stdlog.Logger) http.Handler {
-	director := func(req *http.Request) {
-		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
-		if _, ok := req.Header["User-Agent"]; !ok {
-			// explicitly disable User-Agent so it's not set to the default value
-			// that net/http gives it: Go-http-client/1.1
-			// See https://codereview.appspot.com/7532043
-			req.Header.Set("User-Agent", "")
-		}
-	}
-	return &httputil.ReverseProxy{
-		Director:  director,
-		ErrorLog:  logger,
-		Transport: transport,
-	}
-}
-
 // RoundTrip sends request first to MainTarget, then sends a copy of main request to every configurged
 // AdditionalTargets receiptient.
 //
@@ -149,5 +131,18 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 	limitedLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	logger := stdlog.New(limitedLogger, "telemetry.Proxy: ", 0)
 
-	return NewReverseProxy(&transport, logger)
+	director := func(req *http.Request) {
+		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
+		if _, ok := req.Header["User-Agent"]; !ok {
+			// explicitly disable User-Agent so it's not set to the default value
+			// that net/http gives it: Go-http-client/1.1
+			// See https://codereview.appspot.com/7532043
+			req.Header.Set("User-Agent", "")
+		}
+	}
+	return &httputil.ReverseProxy{
+		Director:  director,
+		ErrorLog:  logger,
+		Transport: &transport,
+	}
 }
