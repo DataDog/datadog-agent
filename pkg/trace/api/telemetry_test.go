@@ -144,8 +144,7 @@ func TestTelemetryConfig(t *testing.T) {
 		assert.NoError(t, err)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
-
-		assert.Contains(t, recordedResponse(t, rec), "Telemetry proxy forwarder is Disabled")
+		assert.Equal(t, 404, rec.Result().StatusCode)
 	})
 
 	t.Run("no-endpoints", func(t *testing.T) {

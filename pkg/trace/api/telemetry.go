@@ -31,7 +31,6 @@ import (
 type telemetryMultiTransport struct {
 	Transport http.RoundTripper
 	Endpoints []*config.Endpoint
-	Director  func(*http.Request)
 }
 
 func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.Endpoint) (*http.Response, error) {
@@ -46,8 +45,6 @@ func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.
 	req.URL.Host = endpoint.Host
 	req.URL.Scheme = "https"
 	req.Header.Set("DD-API-KEY", endpoint.APIKey)
-
-	m.Director(req)
 
 	resp, err := m.Transport.RoundTrip(req)
 	if err != nil {
@@ -92,12 +89,6 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
-	if !r.conf.TelemetryConfig.Enabled {
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			msg := fmt.Sprintf("Telemetry proxy forwarder is Disabled")
-			http.Error(w, msg, http.StatusMethodNotAllowed)
-		})
-	}
 	// extract and validate Hostnames from configured endpoints
 	var endpoints []*config.Endpoint
 	for _, endpoint := range r.conf.TelemetryConfig.Endpoints {
@@ -114,7 +105,8 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 	}
 	if len(endpoints) == 0 {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			msg := fmt.Sprintf("Telemetry proxy forwarder doesn't have any valid endpoints")
+			log.Errorf("Telemetry proxy couldn't forward a request - no valid endpoints found")
+			msg := fmt.Sprintf("Telemetry proxy disabled, check configured endpoints")
 			http.Error(w, msg, http.StatusMethodNotAllowed)
 		})
 	}
@@ -122,15 +114,9 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 	transport := telemetryMultiTransport{
 		Transport: r.conf.NewHTTPTransport(),
 		Endpoints: endpoints,
-		Director: func(req *http.Request) {
-			req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
-			req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
-		},
 	}
-
 	limitedLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	logger := stdlog.New(limitedLogger, "telemetry.Proxy: ", 0)
-
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
 		if _, ok := req.Header["User-Agent"]; !ok {
@@ -139,6 +125,8 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
 		}
+		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
+		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
 	}
 	return &httputil.ReverseProxy{
 		Director:  director,
