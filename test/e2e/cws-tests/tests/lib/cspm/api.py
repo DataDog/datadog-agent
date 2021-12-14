@@ -1,6 +1,7 @@
 import os
-from retry.api import retry_call
+
 import requests
+from retry.api import retry_call
 
 
 def aggregate_logs(query, track):

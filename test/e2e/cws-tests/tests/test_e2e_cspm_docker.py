@@ -1,17 +1,16 @@
 import os
+import time
 import unittest
 import uuid
 import warnings
-import time
 
-
-from lib.stepper import Step
-from lib.docker import DockerHelper
 from lib.config import gen_datadog_agent_config
-from lib.log import wait_agent_log
-from lib.const import CSPM_START_LOG, CSPM_RUNNING_DOCKER_CHECK_LOG
+from lib.const import CSPM_RUNNING_DOCKER_CHECK_LOG, CSPM_START_LOG
 from lib.cspm.api import wait_for_compliance_event, wait_for_finding
 from lib.cspm.finding import extract_findings, is_expected_docker_finding
+from lib.docker import DockerHelper
+from lib.log import wait_agent_log
+from lib.stepper import Step
 
 
 class TestE2EDocker(unittest.TestCase):

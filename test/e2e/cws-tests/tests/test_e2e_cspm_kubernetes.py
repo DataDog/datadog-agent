@@ -5,12 +5,12 @@ import unittest
 import warnings
 
 import emoji
-from lib.cws.kubernetes import KubernetesHelper
-from lib.stepper import Step
-from lib.log import wait_agent_log
-from lib.const import CSPM_START_LOG, CSPM_RUNNING_K8S_CHECK_LOG
+from lib.const import CSPM_RUNNING_K8S_CHECK_LOG, CSPM_START_LOG
 from lib.cspm.api import wait_for_compliance_event, wait_for_finding
 from lib.cspm.finding import extract_findings, is_expected_k8s_finding
+from lib.kubernetes import KubernetesHelper
+from lib.log import wait_agent_log
+from lib.stepper import Step
 
 
 class TestE2EKubernetes(unittest.TestCase):
