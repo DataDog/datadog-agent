@@ -59,8 +59,8 @@ type Daemon struct {
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
 
-	// lambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
-	lambdaLibraryDetected bool
+	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
+	LambdaLibraryDetected bool
 
 	// RuntimeWg is used to keep track of whether the runtime is currently handling an invocation.
 	// It should be reset when we start a new invocation, as we may start a new invocation before hearing that the last one finished.
@@ -130,7 +130,7 @@ type Hello struct {
 // ServeHTTP - see type Hello comment.
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
-	h.daemon.lambdaLibraryDetected = true
+	h.daemon.LambdaLibraryDetected = true
 }
 
 // Flush is a route called by the Datadog Lambda Library when the runtime is done handling an invocation.
