@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -208,9 +209,13 @@ func (c *collector) generateInitialEvents(ctx context.Context, namespace string)
 			},
 		}
 
+		// if ignoreEvent returns an error, keep the event regardless.
+		// it might've been because of network errors, so it's better
+		// to keep a container we should've ignored than ignoring a
+		// container we should've kept
 		ignore, err := c.ignoreEvent(ctx, &event)
 		if err != nil {
-			return nil, err
+			log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
 		}
 
 		if ignore {
