@@ -57,9 +57,8 @@ type Destination struct {
 	blockedUntil        time.Time
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
-	lastError           error
+	lastRetryError      error
 	retryLock           sync.Mutex
-	isRetrying          bool
 	shouldRetry         bool
 	expVars             *expvar.Map
 }
@@ -104,9 +103,8 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
-		lastError:           nil,
+		lastRetryError:      nil,
 		retryLock:           sync.Mutex{},
-		isRetrying:          false,
 		shouldRetry:         shouldRetry,
 		expVars:             expVars,
 	}
@@ -123,20 +121,20 @@ func errorToTag(err error) string {
 }
 
 // Start starts reading the input channel
-func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) (stopChan chan struct{}) {
+func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan chan struct{}) {
 	stopChan = make(chan struct{})
-	go d.run(input, output, stopChan)
+	go d.run(input, output, stopChan, isRetrying)
 	return stopChan
 }
 
-func (d *Destination) run(input chan *message.Payload, output chan *message.Payload, stopChan chan struct{}) {
+func (d *Destination) run(input chan *message.Payload, output chan *message.Payload, stopChan chan struct{}, isRetrying chan bool) {
 	var startIdle = time.Now()
 
 	for p := range input {
 		d.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
 		var startInUse = time.Now()
 
-		d.sendConcurrent(p, output)
+		d.sendConcurrent(p, output, isRetrying)
 
 		d.expVars.AddFloat(expVarInUseMsMapKey, float64(time.Since(startInUse)/time.Millisecond))
 		startIdle = time.Now()
@@ -144,20 +142,11 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 	// Wait for any pending concurrent sends to finish or terminate
 	d.wg.Wait()
 
-	d.retryLock.Lock()
-	d.isRetrying = false
-	d.retryLock.Unlock()
+	d.updateRetryState(nil, isRetrying)
 	stopChan <- struct{}{}
 }
 
-// GetIsRetrying returns true if the destination is retrying
-func (d *Destination) GetIsRetrying() bool {
-	d.retryLock.Lock()
-	defer d.retryLock.Unlock()
-	return d.isRetrying
-}
-
-func (d *Destination) sendConcurrent(payload *message.Payload, output chan *message.Payload) {
+func (d *Destination) sendConcurrent(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
 	d.wg.Add(1)
 	d.climit <- struct{}{}
 	go func() {
@@ -165,12 +154,12 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 			<-d.climit
 			d.wg.Done()
 		}()
-		d.sendAndRetry(payload, output)
+		d.sendAndRetry(payload, output, isRetrying)
 	}()
 }
 
 // Send sends a payload over HTTP,
-func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload) {
+func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
 	for {
 
 		d.retryLock.Lock()
@@ -189,26 +178,16 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		}
 
 		if err == context.Canceled {
-			d.retryLock.Lock()
-			d.isRetrying = false
-			d.retryLock.Unlock()
+			d.updateRetryState(nil, isRetrying)
 			log.Warnf("Could not send payload: %v", err)
 			return
 		}
 
 		if d.shouldRetry {
-			d.retryLock.Lock()
-			if _, ok := err.(*client.RetryableError); ok {
-				d.nbErrors = d.backoff.IncError(d.nbErrors)
-				d.lastError = err
-				d.isRetrying = true
-				d.retryLock.Unlock()
+			d.updateRetryState(err, isRetrying)
+			if d.lastRetryError != nil {
 				continue
 			}
-			d.nbErrors = d.backoff.DecError(d.nbErrors)
-			d.lastError = nil
-			d.isRetrying = false
-			d.retryLock.Unlock()
 		}
 
 		metrics.LogsSent.Add(int64(len(payload.Messages)))
@@ -284,6 +263,25 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		return errClient
 	} else {
 		return nil
+	}
+}
+
+func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
+
+	if _, ok := err.(*client.RetryableError); ok {
+		d.nbErrors = d.backoff.IncError(d.nbErrors)
+		if isRetrying != nil && d.lastRetryError == nil {
+			isRetrying <- true
+		}
+		d.lastRetryError = err
+	} else {
+		d.nbErrors = d.backoff.DecError(d.nbErrors)
+		if isRetrying != nil && d.lastRetryError != nil {
+			isRetrying <- false
+		}
+		d.lastRetryError = nil
 	}
 }
 

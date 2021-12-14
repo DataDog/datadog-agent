@@ -28,7 +28,7 @@ type Destination struct {
 	connCreationTime    time.Time
 	shouldRetry         bool
 	retryLock           sync.Mutex
-	isRetrying          bool
+	lastRetryError      error
 }
 
 // NewDestination returns a new destination.
@@ -42,33 +42,24 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		destinationsContext: destinationsContext,
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
-		isRetrying:          false,
+		lastRetryError:      nil,
 	}
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
-func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload) (stopChan chan struct{}) {
+func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan chan struct{}) {
 	stopChan = make(chan struct{})
 	go func() {
 		for payload := range input {
-			d.sendAndRetry(payload, output)
+			d.sendAndRetry(payload, output, isRetrying)
 		}
-		d.retryLock.Lock()
-		d.isRetrying = false
-		d.retryLock.Unlock()
+		d.updateRetryState(nil, isRetrying)
 		stopChan <- struct{}{}
 	}()
 	return stopChan
 }
 
-// GetIsRetrying returns true if the destination is retrying
-func (d *Destination) GetIsRetrying() bool {
-	d.retryLock.Lock()
-	defer d.retryLock.Unlock()
-	return d.isRetrying
-}
-
-func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload) {
+func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
 	for {
 		if d.conn == nil {
 			var err error
@@ -98,9 +89,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			d.conn = nil
 
 			if d.shouldRetry {
-				d.retryLock.Lock()
-				d.isRetrying = true
-				d.retryLock.Unlock()
+				d.updateRetryState(err, isRetrying)
 				d.incrementErrors(false)
 				// retry (will try to open a new connection)
 				continue
@@ -109,9 +98,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
-		d.retryLock.Lock()
-		d.isRetrying = false
-		d.retryLock.Unlock()
+		d.updateRetryState(nil, isRetrying)
 
 		metrics.LogsSent.Add(1)
 		metrics.TlmLogsSent.Inc()
@@ -138,4 +125,20 @@ func (d *Destination) incrementErrors(drop bool) {
 	}
 	metrics.DestinationErrors.Add(1)
 	metrics.TlmDestinationErrors.Inc()
+}
+
+func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
+
+	if err != nil {
+		if isRetrying != nil && d.lastRetryError == nil {
+			isRetrying <- true
+		}
+	} else {
+		if isRetrying != nil && d.lastRetryError != nil {
+			isRetrying <- false
+		}
+	}
+	d.lastRetryError = err
 }

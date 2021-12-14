@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-type destinationState struct {
-	input       chan *message.Payload
-	destination client.Destination
-	stopChan    chan struct{}
-}
-
 // Sender sends logs to different destinations.
 type Sender struct {
 	inputChan    chan *message.Payload
@@ -51,18 +45,17 @@ func (s *Sender) Stop() {
 }
 
 func (s *Sender) run() {
-	reliableDestinations := buildDestinationStates(s.destinations.Reliable, s.outputChan, s.bufferSize)
+	reliableDestinations := buildDestinationSenders(s.destinations.Reliable, s.outputChan, s.bufferSize)
 
 	sink := additionalDestinationsSink(s.bufferSize)
-	unreliableDestinations := buildDestinationStates(s.destinations.Unreliable, sink, s.bufferSize)
+	unreliableDestinations := buildDestinationSenders(s.destinations.Unreliable, sink, s.bufferSize)
 
 	for payload := range s.inputChan {
 
 		sent := false
 		for !sent {
 			for _, destState := range reliableDestinations {
-				if !destState.destination.GetIsRetrying() {
-					destState.input <- payload
+				if destState.Send(payload) {
 					sent = true
 				}
 			}
@@ -78,31 +71,23 @@ func (s *Sender) run() {
 		for _, destState := range reliableDestinations {
 			// if an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
 			// loss on intermittent failures.
-			if destState.destination.GetIsRetrying() {
-				select {
-				case destState.input <- payload:
-				default:
-				}
+			if !destState.lastSendSucceeded {
+				destState.NonBlockingSend(payload)
 			}
 		}
 
 		// Attempt to send to unreliable destinations
 		for _, destState := range unreliableDestinations {
-			select {
-			case destState.input <- payload:
-			default:
-			}
+			destState.NonBlockingSend(payload)
 		}
 	}
 
 	// Cleanup the destinations
 	for _, destState := range reliableDestinations {
-		close(destState.input)
-		<-destState.stopChan
+		destState.Stop()
 	}
 	for _, destState := range unreliableDestinations {
-		close(destState.input)
-		<-destState.stopChan
+		destState.Stop()
 	}
 	close(sink)
 	s.done <- struct{}{}
@@ -119,13 +104,10 @@ func additionalDestinationsSink(bufferSize int) chan *message.Payload {
 	return sink
 }
 
-func buildDestinationStates(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*destinationState {
-	states := []*destinationState{}
+func buildDestinationSenders(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*DestinationSender {
+	destinationSenders := []*DestinationSender{}
 	for _, destination := range destinations {
-		inputChan := make(chan *message.Payload, bufferSize)
-		stopChan := destination.Start(inputChan, output)
-		destState := &destinationState{input: inputChan, destination: destination, stopChan: stopChan}
-		states = append(states, destState)
+		destinationSenders = append(destinationSenders, NewDestinationSender(destination, output, bufferSize))
 	}
-	return states
+	return destinationSenders
 }

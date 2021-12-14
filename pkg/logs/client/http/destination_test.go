@@ -59,7 +59,7 @@ func TestDestinationSend200(t *testing.T) {
 	server := NewTestServer(200)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	server.Destination.Start(input, output)
+	server.Destination.Start(input, output, nil)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
@@ -72,7 +72,8 @@ func TestDestinationSend500Retries(t *testing.T) {
 	server := NewTestServerWithOptions(500, 0, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	server.Destination.Start(input, output)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 
@@ -80,7 +81,7 @@ func TestDestinationSend500Retries(t *testing.T) {
 	<-respondChan
 	// once it responds a second time, we know `isRetrying` has been set
 	<-respondChan
-	assert.True(t, server.Destination.GetIsRetrying())
+	assert.True(t, <-isRetrying)
 
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
@@ -100,7 +101,8 @@ func TestDestinationSend429Retries(t *testing.T) {
 	server := NewTestServerWithOptions(429, 0, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	server.Destination.Start(input, output)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 
@@ -108,7 +110,7 @@ func TestDestinationSend429Retries(t *testing.T) {
 	<-respondChan
 	// once it responds a second time, we know `isRetrying` has been set
 	<-respondChan
-	assert.True(t, server.Destination.GetIsRetrying())
+	assert.True(t, <-isRetrying)
 
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
@@ -128,7 +130,8 @@ func TestDestinationContextCancel(t *testing.T) {
 	server := NewTestServerWithOptions(429, 0, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	server.Destination.Start(input, output)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 
@@ -136,7 +139,7 @@ func TestDestinationContextCancel(t *testing.T) {
 	<-respondChan
 	// once it responds a second time, we know `isRetrying` has been set
 	<-respondChan
-	assert.True(t, server.Destination.GetIsRetrying())
+	assert.True(t, <-isRetrying)
 
 	server.Destination.destinationsContext.Stop()
 
@@ -151,18 +154,15 @@ func TestDestinationSend400(t *testing.T) {
 	server := NewTestServer(400)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	server.Destination.Start(input, output)
+	server.Destination.Start(input, output, nil)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
-
-	assert.False(t, server.Destination.GetIsRetrying())
 
 	// Should not retry 400 - no error reported back (because it's not retryable) so input should be unblocked
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
 
-	assert.False(t, server.Destination.GetIsRetrying())
 	server.Stop()
 }
 
@@ -211,8 +211,7 @@ func TestDestinationConcurrentSends(t *testing.T) {
 	server := NewTestServerWithOptions(500, 2, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
-
-	server.Destination.Start(input, output)
+	server.Destination.Start(input, output, nil)
 
 	payloads := []*message.Payload{
 		// the first two messages will be blocked in concurrent send goroutines
@@ -267,7 +266,7 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 
-	stopChan := server.Destination.Start(input, output)
+	stopChan := server.Destination.Start(input, output, nil)
 
 	payloads := []*message.Payload{
 		{Encoded: []byte("a")},
