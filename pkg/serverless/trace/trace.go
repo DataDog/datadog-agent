@@ -59,6 +59,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
+			s.ta.SpanProcessor = &serverlessSpanProcessor{}
 			s.cancel = cancel
 			go func() {
 				s.ta.Run()

@@ -305,33 +305,6 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
 	})
 
-	t.Run("serverlessServiceRewrite", func(t *testing.T) {
-		cfg := config.New()
-		cfg.GlobalTags = map[string]string{
-			"service": "myTestService",
-		}
-		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg)
-		defer cancel()
-
-		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
-		tp.Chunks[0].Spans[0].Service = "aws.lambda"
-		go agnt.Process(&api.Payload{
-			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-		})
-		timeout := time.After(2 * time.Second)
-		var span *pb.Span
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			span = ss.TracerPayload.Chunks[0].Spans[0]
-		case <-timeout:
-			t.Fatal("timed out")
-		}
-		assert.Equal(t, "myTestService", span.Service)
-	})
-
 	t.Run("chunking", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
