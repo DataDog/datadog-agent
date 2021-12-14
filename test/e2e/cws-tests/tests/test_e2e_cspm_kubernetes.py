@@ -26,7 +26,7 @@ class TestE2EKubernetes(unittest.TestCase):
         self.kubernetes_helper = KubernetesHelper(namespace=self.namespace, in_cluster=self.in_cluster)
         self.resource_id = "k8s-e2e-tests-control-plane_kubernetes_worker_node"
 
-    def test_privileged_container(self):
+    def test_protect_kernel_defaults(self):
         print("")
 
         agent_name = "security-agent"
@@ -41,6 +41,7 @@ class TestE2EKubernetes(unittest.TestCase):
             output = self.kubernetes_helper.exec_command(
                 agent_name, ["security-agent", "compliance", "check", "--report"]
             )
+            print(output)
             findings = parse_output_and_extract_findings(output, CSPM_RUNNING_K8S_CHECK_LOG)
             self.finding = None
             for f in findings:
