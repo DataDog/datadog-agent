@@ -61,7 +61,7 @@ case "$ARGO_WORKFLOW" in
         kubectl create secret generic dd-keys --from-literal=DD_API_KEY=123er --from-literal=DD_APP_KEY=123er1
 
         ./argo template create ../../argo-workflows/templates/*.yaml
-        ./argo submit ../../argo-workflows/"${ARGO_WORKFLOW}"-workflow.yaml --wait \
+        ./argo submit "../../argo-workflows/${ARGO_WORKFLOW}-workflow.yaml" --wait \
             --parameter datadog-agent-image-repository="${DATADOG_AGENT_IMAGE%:*}" \
             --parameter datadog-agent-image-tag="${DATADOG_AGENT_IMAGE#*:}" \
             --parameter datadog-cluster-agent-image-repository="${DATADOG_CLUSTER_AGENT_IMAGE%:*}" \
