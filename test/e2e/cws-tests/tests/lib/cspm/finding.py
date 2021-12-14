@@ -16,6 +16,19 @@ def extract_findings(lines):
     return json.loads("".join(res_lines))
 
 
+def parse_output_and_extract_findings(output, trigger):
+    take = False
+    finding_lines = []
+    for line in output.splitlines():
+        if trigger in line:
+            take = True
+        elif take and "INFO" in line:
+            take = False
+        elif take:
+            finding_lines.append(line)
+    return extract_findings(finding_lines)
+
+
 def is_expected_docker_finding(finding, container_id):
     if finding["agent_rule_id"] != "cis-docker-1.2.0-5.4":
         return False
@@ -37,6 +50,8 @@ def is_expected_k8s_finding(finding):
         return False
     if finding["resource_type"] != "kubernetes_worker_node":
         return False
-    if finding["data"]["file.path"] != "/var/lib/kubelet/config.yaml":
+    if "file.glob" not in finding["data"]:
+        return False
+    if finding["data"]["file.glob"] != "/var/lib/kubelet/config.yaml":
         return False
     return True

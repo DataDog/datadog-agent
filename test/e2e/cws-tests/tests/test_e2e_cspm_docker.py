@@ -7,7 +7,7 @@ import warnings
 from lib.config import gen_datadog_agent_config
 from lib.const import CSPM_RUNNING_DOCKER_CHECK_LOG, CSPM_START_LOG
 from lib.cspm.api import wait_for_compliance_event, wait_for_finding
-from lib.cspm.finding import extract_findings, is_expected_docker_finding
+from lib.cspm.finding import is_expected_docker_finding, parse_output_and_extract_findings
 from lib.docker import DockerHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step
@@ -58,16 +58,7 @@ class TestE2EDocker(unittest.TestCase):
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
             _, output = self.container.exec_run("security-agent compliance check --report")
-            take = False
-            finding_lines = []
-            for line in output.decode().splitlines():
-                if CSPM_RUNNING_DOCKER_CHECK_LOG in line:
-                    take = True
-                elif take and "INFO" in line:
-                    take = False
-                elif take:
-                    finding_lines.append(line)
-            findings = extract_findings(finding_lines)
+            findings = parse_output_and_extract_findings(output.decode(), CSPM_RUNNING_DOCKER_CHECK_LOG)
             self.finding = None
             for f in findings:
                 if is_expected_docker_finding(f, self.container_id):
