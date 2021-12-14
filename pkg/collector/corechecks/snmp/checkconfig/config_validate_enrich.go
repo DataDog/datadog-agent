@@ -40,10 +40,10 @@ func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
 	return errors
 }
 
-// validateEnrichMetrics will validate MetricsConfig and enrich it.
+// ValidateEnrichMetrics will validate MetricsConfig and enrich it.
 // Example of enrichment:
 // - storage of compiled regex pattern
-func validateEnrichMetrics(metrics []MetricsConfig) []string {
+func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 	var errors []string
 	for i := range metrics {
 		metricConfig := &metrics[i]

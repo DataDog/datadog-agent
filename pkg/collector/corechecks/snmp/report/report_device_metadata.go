@@ -73,20 +73,12 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 				}
 			} else {
 				for _, symbol := range symbols {
-					var indexValues map[string]valuestore.ResultValue
-					if symbol.IndexFromOidValue.OID != "" {
-						indexVals, err := getColumnValueFromSymbol(values, checkconfig.SymbolConfig{OID: symbol.IndexFromOidValue.OID})
-						if err != nil {
-							log.Debugf("error getting index values: %v", err)
-							continue
-						}
-						indexValues = indexVals
-					}
-					metricValues, err := getColumnValueFromSymbol(values, symbol)
+					indexValues := getColumnValueFromSymbolOrEmpty(symbol.IndexFromOidValue.OID, values)
+					fieldValues, err := getColumnValueFromSymbol(values, symbol)
 					if err != nil {
 						continue
 					}
-					for fullIndex, value := range metricValues {
+					for fullIndex, value := range fieldValues {
 						newIndexVal, ok := indexValues[fullIndex]
 						if ok {
 							strVal, err := newIndexVal.ToString()
@@ -109,7 +101,7 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 			}
 			for _, fullIndex := range indexes {
 				// TODO: Support extract value see II-635
-				idTags := metadataConfig.IDTags.GetTags(fullIndex, values)
+				idTags := getTagsUsingMetricConfig(metadataConfig.IDTags, fullIndex, values)
 				metadataStore.AddIDTags(resourceName, fullIndex, idTags)
 			}
 		}

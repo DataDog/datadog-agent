@@ -30,6 +30,17 @@ func mockProfilesDefinitions() profileDefinitionMap {
 			MetricTags: []MetricTagConfig{
 				{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 				{Tag: "interface_alias", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{
+					Column: SymbolConfig{
+						OID:  "1.3.6.1.2.1.4.20.1.1",
+						Name: "ipAdEntAddr",
+						IndexFromOidValue: OidSymbol{
+							OID:  "1.3.6.1.2.1.4.20.1.2",
+							Name: "ipAdEntIfIndex",
+						},
+					},
+					Tag: "ip_address",
+				},
 			},
 		},
 		{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},

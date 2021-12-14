@@ -175,7 +175,8 @@ bulk_max_repetitions: 20
 					Tags: map[string]string{
 						"prefix": "\\1",
 						"suffix": "\\2",
-					}},
+					},
+				},
 			},
 		},
 		{Symbol: SymbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},

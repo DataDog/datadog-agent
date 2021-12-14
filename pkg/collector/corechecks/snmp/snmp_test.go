@@ -368,7 +368,7 @@ ip_address: 1.2.3.4
 community_string: public
 profile: f5-big-ip
 collect_device_metadata: true
-oid_batch_size: 10
+oid_batch_size: 30
 tags:
   - "mytag:val1"
   - "mytag:val1" # add duplicate tag for testing deduplication
@@ -473,6 +473,16 @@ profiles:
 				Value: []byte("descRow1"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.4.20.1.1.1", // ipAdEntAddr
+				Type:  gosnmp.IPAddress,
+				Value: "10.10.10.1",
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.1", // ipAdEntIfIndex
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
 				Name:  "1.3.6.1.2.1.2.2.1.13.2",
 				Type:  gosnmp.Integer,
 				Value: 132,
@@ -506,6 +516,26 @@ profiles:
 				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.1.2", // ipAdEntAddr
+				Type:  gosnmp.IPAddress,
+				Value: "10.10.10.2",
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.2",
+				Type:  gosnmp.Integer,
+				Value: 2,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
 				Name:  "9", // exit table
@@ -569,6 +599,8 @@ profiles:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.1",
+		"1.3.6.1.2.1.4.20.1.2",
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = chk.Run()

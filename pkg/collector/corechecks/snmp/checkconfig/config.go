@@ -450,7 +450,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.Profiles = profiles
 
-	errors := validateEnrichMetrics(c.Metrics)
+	errors := ValidateEnrichMetrics(c.Metrics)
 	errors = append(errors, ValidateEnrichMetricTags(c.MetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))

@@ -208,7 +208,16 @@ profiles:
 					Type:  gosnmp.OctetString,
 					Value: []byte("descRow1"),
 				},
-
+				{
+					Name:  "1.3.6.1.2.1.4.20.1.1.10.10.10.1", // ipAdEntAddr
+					Type:  gosnmp.IPAddress,
+					Value: "10.10.10.1",
+				},
+				{
+					Name:  "1.3.6.1.2.1.4.20.1.2.10.10.10.1", // ipAdEntIfIndex
+					Type:  gosnmp.Integer,
+					Value: 1,
+				},
 				{
 					Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
 					Type:  gosnmp.OctetString,
@@ -218,6 +227,26 @@ profiles:
 					Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
 					Type:  gosnmp.OctetString,
 					Value: []byte("descRow2"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.4.20.1.1.10.10.10.2", // ipAdEntAddr
+					Type:  gosnmp.IPAddress,
+					Value: "10.10.10.2",
+				},
+				{
+					Name:  "1.3.6.1.2.1.4.20.1.2.10.10.10.2", // ipAdEntIfIndex
+					Type:  gosnmp.Integer,
+					Value: 2,
+				},
+				{
+					Name:  "9", // exit table
+					Type:  gosnmp.Integer,
+					Value: 999,
+				},
+				{
+					Name:  "9", // exit table
+					Type:  gosnmp.Integer,
+					Value: 999,
 				},
 				{
 					Name:  "9", // exit table
@@ -255,16 +284,27 @@ profiles:
 		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
 		"1.3.6.1.4.1.3375.2.1.3.3.3.0",
 	}).Return(&packets[2], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
+	sess.On("GetBulk", []string{
+		"1.3.6.1.2.1.2.2.1.13",
+		"1.3.6.1.2.1.2.2.1.14",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
+	sess.On("GetBulk", []string{
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.1",
+		"1.3.6.1.2.1.4.20.1.2",
+	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
 
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
 		"some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
-	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
-	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
+	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "ip_address:10.10.10.1")
+	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "ip_address:10.10.10.2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)

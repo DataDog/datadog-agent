@@ -59,3 +59,11 @@ metrics:
       name: ifAlias
     table: ifXTable
     tag: interface_alias
+  - column:
+      OID: 1.3.6.1.2.1.4.20.1.1
+      name: ipAdEntAddr
+      index_from_oid_value:
+        OID: 1.3.6.1.2.1.4.20.1.2
+        name: ipAdEntIfIndex
+    table: ipAddrTable
+    tag: ip_address

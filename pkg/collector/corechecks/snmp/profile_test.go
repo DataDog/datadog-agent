@@ -359,7 +359,7 @@ profiles:
   "interfaces": [
     {
       "device_id": "profile-metadata:1.2.3.4",
-      "id_tags": ["interface:nameRow1"],
+      "id_tags": ["interface:nameRow1", "ip_address:127.0.0.1"],
       "index": 1,
       "name": "nameRow1",
       "alias": "descRow1",
@@ -371,7 +371,7 @@ profiles:
     },
     {
       "device_id": "profile-metadata:1.2.3.4",
-	  "id_tags": ["interface:nameRow2"],
+	  "id_tags": ["interface:nameRow2", "ip_address:127.0.0.2"],
       "index": 2,
       "name": "nameRow2",
       "alias": "descRow2",

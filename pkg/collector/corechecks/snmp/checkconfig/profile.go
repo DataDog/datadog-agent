@@ -132,7 +132,7 @@ func readProfileDefinition(definitionFile string) (*profileDefinition, error) {
 	}
 	normalizeMetrics(profileDefinition.Metrics)
 	errors := validateEnrichMetadata(profileDefinition.Metadata)
-	errors = append(errors, validateEnrichMetrics(profileDefinition.Metrics)...)
+	errors = append(errors, ValidateEnrichMetrics(profileDefinition.Metrics)...)
 	errors = append(errors, ValidateEnrichMetricTags(profileDefinition.MetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
@@ -184,7 +184,7 @@ func mergeProfileDefinition(targetDefinition *profileDefinition, baseDefinition 
 		}
 		if resource, ok := targetDefinition.Metadata[baseResName]; ok {
 			for _, tagConfig := range baseResource.IDTags {
-				resource.IDTags = append(targetDefinition.Metadata[baseResName].IDTags, tagConfig)
+				resource.IDTags = append(resource.IDTags, tagConfig)
 			}
 
 			if resource.Fields == nil {
