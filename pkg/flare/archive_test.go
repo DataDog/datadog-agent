@@ -335,14 +335,15 @@ func TestZipRegistryJSON(t *testing.T) {
 }
 
 func TestZipTaggerList(t *testing.T) {
-	tagMap := make(map[string]response.TaggerListEntity)
-	tagMap["random_entity_name"] = response.TaggerListEntity{
-		Tags: map[string][]string{
-			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
-		},
-	}
 	resp := response.TaggerListResponse{
-		Entities: tagMap,
+		Entities: map[string]response.TaggerListEntity{
+			"random_entity_name": {
+				Tags: []string{
+					"docker_image:custom-agent:latest",
+					"image_name:custom-agent",
+				},
+			},
+		},
 	}
 
 	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -365,7 +366,6 @@ func TestZipTaggerList(t *testing.T) {
 	}
 
 	assert.Contains(t, string(content), "random_entity_name")
-	assert.Contains(t, string(content), "docker_source_name")
 	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
 	assert.Contains(t, string(content), "image_name:custom-agent")
 }

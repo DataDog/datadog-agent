@@ -12,7 +12,6 @@ import (
 // TagInfo holds the tag information for a given entity and source. It's meant
 // to be created from collectors and read by the store.
 type TagInfo struct {
-	Source               string    // source collector's name
 	Entity               string    // entity name ready for lookup
 	HighCardTags         []string  // high cardinality tags that can create a lot of different timeseries (typically one per container, user request, etc.)
 	OrchestratorCardTags []string  // orchestrator cardinality tags that have as many combination as pods/tasks
@@ -21,16 +20,6 @@ type TagInfo struct {
 	DeleteEntity         bool      // true if the entity is to be deleted from the store
 	ExpiryDate           time.Time // keep in cache until expiryDate
 }
-
-// CollectorPriority helps resolving dupe tags from collectors
-type CollectorPriority int
-
-// List of collector priorities
-const (
-	NodeRuntime CollectorPriority = iota
-	NodeOrchestrator
-	ClusterOrchestrator
-)
 
 // TagCardinality indicates the cardinality-level of a tag.
 // It can be low cardinality (in the host count order of magnitude)

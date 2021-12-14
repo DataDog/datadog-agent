@@ -15,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-const remoteSource = "remote"
-
 type tagStore struct {
 	mutex     sync.RWMutex
 	store     map[string]*types.Entity
@@ -97,7 +95,7 @@ func (s *tagStore) collectTelemetry() {
 	}
 
 	for prefix, storedEntities := range s.telemetry {
-		telemetry.StoredEntities.Set(storedEntities, remoteSource, prefix)
+		telemetry.StoredEntities.Set(storedEntities, prefix)
 		s.telemetry[prefix] = 0
 	}
 }

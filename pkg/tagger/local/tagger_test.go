@@ -23,19 +23,13 @@ func TestTagBuilder(t *testing.T) {
 	tagger.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Entity:       "entity_name",
-			Source:       "stream",
-			LowCardTags:  []string{"low1"},
+			LowCardTags:  []string{"low"},
 			HighCardTags: []string{"high"},
-		},
-		{
-			Entity:      "entity_name",
-			Source:      "pull",
-			LowCardTags: []string{"low2"},
 		},
 	})
 
 	tb := tagset.NewHashlessTagsAccumulator()
 	err := tagger.AccumulateTagsFor("entity_name", collectors.HighCardinality, tb)
 	assert.NoError(t, err)
-	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
+	assert.ElementsMatch(t, []string{"high", "low"}, tb.Get())
 }

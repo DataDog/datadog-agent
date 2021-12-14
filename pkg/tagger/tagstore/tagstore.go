@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -20,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/benbjohnson/clock"
 )
 
 const (
@@ -36,8 +36,8 @@ var ErrNotFound = errors.New("entity not found")
 type TagStore struct {
 	sync.RWMutex
 
-	store     map[string]*EntityTags
-	telemetry map[string]map[string]float64
+	store     map[string]sourceTags
+	telemetry map[string]float64
 	InfoIn    chan []*collectors.TagInfo
 
 	subscriber *subscriber.Subscriber
@@ -52,8 +52,8 @@ func NewTagStore() *TagStore {
 
 func newTagStoreWithClock(clock clock.Clock) *TagStore {
 	return &TagStore{
-		telemetry:  make(map[string]map[string]float64),
-		store:      make(map[string]*EntityTags),
+		telemetry:  make(map[string]float64),
+		store:      make(map[string]sourceTags),
 		InfoIn:     make(chan []*collectors.TagInfo),
 		subscriber: subscriber.NewSubscriber(),
 		clock:      clock,
@@ -97,15 +97,11 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 
 	for _, info := range tagInfos {
 		if info == nil {
-			log.Tracef("ProcessTagInfo err: skipping nil message")
+			log.Errorf("skipping nil message")
 			continue
 		}
 		if info.Entity == "" {
-			log.Tracef("ProcessTagInfo err: empty entity name, skipping message")
-			continue
-		}
-		if info.Source == "" {
-			log.Tracef("ProcessTagInfo err: empty source name, skipping message")
+			log.Errorf("empty entity name, skipping message")
 			continue
 		}
 
@@ -113,11 +109,8 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 
 		if info.DeleteEntity {
 			if exist {
-				st, ok := storedTags.sourceTags[info.Source]
-				if ok {
-					st.expiryDate = s.clock.Now().Add(deletedTTL)
-					storedTags.sourceTags[info.Source] = st
-				}
+				storedTags.expiryDate = s.clock.Now().Add(deletedTTL)
+				s.store[info.Entity] = storedTags
 			}
 
 			continue
@@ -126,14 +119,13 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 		eventType := types.EventTypeModified
 		if !exist {
 			eventType = types.EventTypeAdded
-			storedTags = newEntityTags(info.Entity)
-			s.store[info.Entity] = storedTags
 		}
 
 		// TODO: check if real change
 
 		telemetry.UpdatedEntities.Inc()
-		updateStoredTags(storedTags, info)
+		storedTags = newSourceTags(info)
+		s.store[info.Entity] = storedTags
 
 		events = append(events, types.EntityEvent{
 			EventType: eventType,
@@ -143,17 +135,6 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 
 	if len(events) > 0 {
 		s.notifySubscribers(events)
-	}
-}
-
-func updateStoredTags(storedTags *EntityTags, info *collectors.TagInfo) {
-	storedTags.cacheValid = false
-	storedTags.sourceTags[info.Source] = sourceTags{
-		lowCardTags:          info.LowCardTags,
-		orchestratorCardTags: info.OrchestratorCardTags,
-		highCardTags:         info.HighCardTags,
-		standardTags:         info.StandardTags,
-		expiryDate:           info.ExpiryDate,
 	}
 }
 
@@ -168,21 +149,12 @@ func (s *TagStore) collectTelemetry() {
 
 	for _, entityTags := range s.store {
 		prefix, _ := containers.SplitEntityName(entityTags.entityID)
-
-		for source := range entityTags.sourceTags {
-			if _, ok := s.telemetry[prefix]; !ok {
-				s.telemetry[prefix] = make(map[string]float64)
-			}
-
-			s.telemetry[prefix][source]++
-		}
+		s.telemetry[prefix]++
 	}
 
-	for prefix, sources := range s.telemetry {
-		for source, storedEntities := range sources {
-			telemetry.StoredEntities.Set(storedEntities, source, prefix)
-			s.telemetry[prefix][source] = 0
-		}
+	for prefix, storedEntities := range s.telemetry {
+		telemetry.StoredEntities.Set(storedEntities, prefix)
+		s.telemetry[prefix] = 0
 	}
 }
 
@@ -223,37 +195,11 @@ func (s *TagStore) Prune() {
 	events := []types.EntityEvent{}
 
 	for entity, storedTags := range s.store {
-		changed := false
-
-		// remove any sourceTags that have expired
-		for source, st := range storedTags.sourceTags {
-			if st.isExpired(now) {
-				delete(storedTags.sourceTags, source)
-				changed = true
-			}
-		}
-
-		// remove all sourceTags only if they're all empty
-		if storedTags.shouldRemove() {
-			storedTags.sourceTags = nil
-			changed = true
-		}
-
-		if !changed {
-			continue
-		}
-
-		if len(storedTags.sourceTags) == 0 {
+		if storedTags.isExpired(now) {
 			telemetry.PrunedEntities.Inc()
 			delete(s.store, entity)
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeDeleted,
-				Entity:    storedTags.toEntity(),
-			})
-		} else {
-			storedTags.cacheValid = false
-			events = append(events, types.EntityEvent{
-				EventType: types.EventTypeModified,
 				Entity:    storedTags.toEntity(),
 			})
 		}
@@ -270,11 +216,12 @@ func (s *TagStore) Prune() {
 func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) tagset.HashedTags {
 	s.RLock()
 	defer s.RUnlock()
-	storedTags, present := s.store[entity]
 
+	storedTags, present := s.store[entity]
 	if present == false {
 		return tagset.HashedTags{}
 	}
+
 	return storedTags.getHashedTags(cardinality)
 }
 
@@ -287,23 +234,22 @@ func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) 
 
 // LookupStandard returns the standard tags recorded for a given entity
 func (s *TagStore) LookupStandard(entityID string) ([]string, error) {
-
-	storedTags, err := s.GetEntityTags(entityID)
+	storedTags, err := s.getEntityTags(entityID)
 	if err != nil {
 		return nil, err
 	}
 
-	return storedTags.getStandard(), nil
+	return storedTags.standardTags, nil
 }
 
-// GetEntityTags returns the EntityTags for a given entity
-func (s *TagStore) GetEntityTags(entityID string) (*EntityTags, error) {
+// getEntityTags returns the EntityTags for a given entity
+func (s *TagStore) getEntityTags(entityID string) (sourceTags, error) {
 	s.RLock()
 	defer s.RUnlock()
 
 	storedTags, present := s.store[entityID]
 	if present == false {
-		return nil, ErrNotFound
+		return storedTags, ErrNotFound
 	}
 
 	return storedTags, nil
@@ -318,16 +264,9 @@ func (s *TagStore) List() response.TaggerListResponse {
 	s.RLock()
 	defer s.RUnlock()
 
-	for entityID, et := range s.store {
+	for entityID, storedTags := range s.store {
 		entity := response.TaggerListEntity{
-			Tags: make(map[string][]string),
-		}
-
-		for source, sourceTags := range et.sourceTags {
-			tags := append([]string(nil), sourceTags.lowCardTags...)
-			tags = append(tags, sourceTags.orchestratorCardTags...)
-			tags = append(tags, sourceTags.highCardTags...)
-			entity.Tags[source] = tags
+			Tags: storedTags.cachedAll.Get(),
 		}
 
 		r.Entities[entityID] = entity
@@ -338,7 +277,7 @@ func (s *TagStore) List() response.TaggerListResponse {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (s *TagStore) GetEntity(entityID string) (*types.Entity, error) {
-	tags, err := s.GetEntityTags(entityID)
+	tags, err := s.getEntityTags(entityID)
 	if err != nil {
 		return nil, err
 	}

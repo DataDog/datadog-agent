@@ -37,7 +37,6 @@ func NewFakeTagger() *FakeTagger {
 func (f *FakeTagger) SetTags(entity, source string, low, orch, high, std []string) {
 	f.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
-			Source:               source,
 			Entity:               entity,
 			LowCardTags:          low,
 			OrchestratorCardTags: orch,

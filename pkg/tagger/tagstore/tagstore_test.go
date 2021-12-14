@@ -34,39 +34,26 @@ func (s *StoreTestSuite) SetupTest() {
 func (s *StoreTestSuite) TestIngest() {
 	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
-			Source:               "source1",
 			Entity:               "test",
 			LowCardTags:          []string{"tag"},
 			OrchestratorCardTags: []string{"tag"},
 			HighCardTags:         []string{"tag"},
 		},
 		{
-			Source:      "source2",
 			Entity:      "test",
 			LowCardTags: []string{"tag"},
 		},
 	})
 
 	assert.Len(s.T(), s.store.store, 1)
-	assert.Len(s.T(), s.store.store["test"].sourceTags, 2)
 }
 
 func (s *StoreTestSuite) TestLookup() {
 	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
-			Source:       "source1",
-			Entity:       "test",
-			LowCardTags:  []string{"tag"},
-			HighCardTags: []string{"tag"},
-		},
-		{
-			Source:      "source2",
-			Entity:      "test",
-			LowCardTags: []string{"tag"},
-		},
-		{
-			Source:               "source3",
 			Entity:               "test",
+			LowCardTags:          []string{"tag"},
+			HighCardTags:         []string{"tag"},
 			OrchestratorCardTags: []string{"tag"},
 		},
 	})
@@ -75,24 +62,17 @@ func (s *StoreTestSuite) TestLookup() {
 	tagsOrch := s.store.Lookup("test", collectors.OrchestratorCardinality)
 	tagsLow := s.store.Lookup("test", collectors.LowCardinality)
 
-	assert.Len(s.T(), tagsHigh, 4)
-	assert.Len(s.T(), tagsLow, 2)
-	assert.Len(s.T(), tagsOrch, 3)
+	assert.Len(s.T(), tagsHigh, 3)
+	assert.Len(s.T(), tagsLow, 1)
+	assert.Len(s.T(), tagsOrch, 2)
 }
 
 func (s *StoreTestSuite) TestLookupStandard() {
 	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
-			Source:       "source1",
 			Entity:       "test",
-			LowCardTags:  []string{"tag", "env:dev"},
-			StandardTags: []string{"env:dev"},
-		},
-		{
-			Source:       "source2",
-			Entity:       "test",
-			LowCardTags:  []string{"tag", "service:foo"},
-			StandardTags: []string{"service:foo"},
+			LowCardTags:  []string{"tag", "service:foo", "env:dev"},
+			StandardTags: []string{"service:foo", "env:dev"},
 		},
 	})
 
@@ -115,19 +95,12 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		// Adds
 		{
-			Source:               "source1",
 			Entity:               "test1",
 			LowCardTags:          []string{"s1tag"},
 			OrchestratorCardTags: []string{"s1tag"},
 			HighCardTags:         []string{"s1tag"},
 		},
 		{
-			Source:       "source2",
-			Entity:       "test1",
-			HighCardTags: []string{"s2tag"},
-		},
-		{
-			Source:       "source1",
 			Entity:       "test2",
 			LowCardTags:  []string{"tag"},
 			HighCardTags: []string{"tag"},
@@ -135,7 +108,6 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 
 		// Deletion, to be batched
 		{
-			Source:       "source1",
 			Entity:       "test1",
 			DeleteEntity: true,
 		},
@@ -143,148 +115,36 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 
 	// Data should still be in the store
 	tagsHigh := s.store.Lookup("test1", collectors.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 4)
-	tagsOrch := s.store.Lookup("test1", collectors.OrchestratorCardinality)
-	assert.Len(s.T(), tagsOrch, 2)
-	tagsHigh = s.store.Lookup("test2", collectors.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 2)
-
-	s.clock.Add(10 * time.Minute)
-	s.store.Prune()
-
-	// test1 should only have tags from source2, source1 should be removed
-	tagsHigh = s.store.Lookup("test1", collectors.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 1)
-	tagsOrch = s.store.Lookup("test1", collectors.OrchestratorCardinality)
-	assert.Len(s.T(), tagsOrch, 0)
-
-	// test2 should still be present
-	tagsHigh = s.store.Lookup("test2", collectors.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 2)
-
-	s.store.ProcessTagInfo([]*collectors.TagInfo{
-		// re-add tags from removed source, then remove another one
-		{
-			Source:      "source1",
-			Entity:      "test1",
-			LowCardTags: []string{"s1tag"},
-		},
-		// Deletion, to be batched
-		{
-			Source:       "source2",
-			Entity:       "test1",
-			DeleteEntity: true,
-		},
-	})
-
-	s.clock.Add(10 * time.Minute)
-	s.store.Prune()
-
-	tagsHigh = s.store.Lookup("test1", collectors.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 1)
-	tagsHigh = s.store.Lookup("test2", collectors.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 2)
-}
-
-func (s *StoreTestSuite) TestPrune__emptyEntries() {
-	s.store.ProcessTagInfo([]*collectors.TagInfo{
-		{
-			Source:               "source1",
-			Entity:               "test1",
-			LowCardTags:          []string{"s1tag"},
-			OrchestratorCardTags: []string{"s1tag"},
-			HighCardTags:         []string{"s1tag"},
-		},
-		{
-			Source:       "source2",
-			Entity:       "test2",
-			HighCardTags: []string{"s2tag"},
-		},
-		{
-			Source:      "emptySource1",
-			Entity:      "emptyEntity1",
-			LowCardTags: []string{},
-		},
-		{
-			Source:       "emptySource2",
-			Entity:       "emptyEntity2",
-			StandardTags: []string{},
-		},
-		{
-			Source:      "emptySource3",
-			Entity:      "test3",
-			LowCardTags: []string{},
-		},
-		{
-			Source:      "source3",
-			Entity:      "test3",
-			LowCardTags: []string{"s3tag"},
-		},
-	})
-
-	assert.Len(s.T(), s.store.store, 5)
-	s.store.Prune()
-	assert.Len(s.T(), s.store.store, 3)
-
-	// Assert non-empty tags aren't deleted
-	tagsHigh := s.store.Lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 3)
 	tagsOrch := s.store.Lookup("test1", collectors.OrchestratorCardinality)
 	assert.Len(s.T(), tagsOrch, 2)
 	tagsHigh = s.store.Lookup("test2", collectors.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 1)
-	tagsLow := s.store.Lookup("test3", collectors.LowCardinality)
-	assert.Len(s.T(), tagsLow, 1)
+	assert.Len(s.T(), tagsHigh, 2)
 
-	// Assert empty entities are deleted
-	emptyTags1 := s.store.Lookup("emptyEntity1", collectors.HighCardinality)
-	assert.Len(s.T(), emptyTags1, 0)
-	emptyTags2 := s.store.Lookup("emptyEntity2", collectors.HighCardinality)
-	assert.Len(s.T(), emptyTags2, 0)
+	s.clock.Add(10 * time.Minute)
+	s.store.Prune()
+
+	// test1 should have been removed
+	tagsHigh = s.store.Lookup("test1", collectors.HighCardinality)
+	assert.Len(s.T(), tagsHigh, 0)
+
+	// test2 should still be present
+	tagsHigh = s.store.Lookup("test2", collectors.HighCardinality)
+	assert.Len(s.T(), tagsHigh, 2)
 }
 
 func TestStoreSuite(t *testing.T) {
 	suite.Run(t, &StoreTestSuite{})
 }
 
-func TestGetEntityTags(t *testing.T) {
-	etags := newEntityTags("deadbeef")
-
-	// Get empty tags and make sure cache is now set to valid
-	tags := etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
-
-	// Add tags but don't invalidate the cache, we should return empty arrays
-	etags.sourceTags["source"] = sourceTags{
-		lowCardTags:  []string{"low1", "low2"},
-		highCardTags: []string{"high1", "high2"},
-	}
-	tags = etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
-
-	// Invalidate the cache, we should now get the tags
-	etags.cacheValid = false
-	tags = etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 4)
-	assert.ElementsMatch(t, tags, []string{"low1", "low2", "high1", "high2"})
-	assert.True(t, etags.cacheValid)
-	tags = etags.get(collectors.LowCardinality)
-	assert.Len(t, tags, 2)
-	assert.ElementsMatch(t, tags, []string{"low1", "low2"})
-}
-
 func (s *StoreTestSuite) TestGetExpiredTags() {
 	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
-			Source:       "source",
 			Entity:       "entityA",
 			HighCardTags: []string{"expired"},
 			ExpiryDate:   s.clock.Now().Add(-10 * time.Second),
 		},
 		{
-			Source:       "source",
 			Entity:       "entityB",
 			HighCardTags: []string{"expiresSoon"},
 			ExpiryDate:   s.clock.Now().Add(10 * time.Second),
@@ -300,52 +160,6 @@ func (s *StoreTestSuite) TestGetExpiredTags() {
 	assert.NotContains(s.T(), tagsHigh, "expired")
 }
 
-func TestDuplicateSourceTags(t *testing.T) {
-	etags := newEntityTags("deadbeef")
-
-	// Get empty tags and make sure cache is now set to valid
-	tags := etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
-
-	// Mock collector priorities
-	collectors.CollectorPriorities = map[string]collectors.CollectorPriority{
-		"sourceNodeOrchestrator":    collectors.NodeOrchestrator,
-		"sourceNodeRuntime":         collectors.NodeRuntime,
-		"sourceClusterOrchestrator": collectors.ClusterOrchestrator,
-	}
-
-	// Add tags but don't invalidate the cache, we should return empty arrays
-	etags.sourceTags["sourceNodeOrchestrator"] = sourceTags{
-		lowCardTags:  []string{"bar", "tag1:sourceHigh", "tag2:sourceHigh"},
-		highCardTags: []string{"tag3:sourceHigh", "tag4:sourceHigh"},
-	}
-
-	etags.sourceTags["sourceNodeRuntime"] = sourceTags{
-		lowCardTags:  []string{"foo", "tag1:sourceLow", "tag2:sourceLow"},
-		highCardTags: []string{"tag3:sourceLow", "tag5:sourceLow"},
-	}
-
-	etags.sourceTags["sourceClusterOrchestrator"] = sourceTags{
-		lowCardTags:  []string{"tag3:sourceClusterHigh", "tag1:sourceClusterLow"},
-		highCardTags: []string{"tag4:sourceClusterLow"},
-	}
-
-	tags = etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
-
-	// Invalidate the cache, we should now get the tags
-	etags.cacheValid = false
-	tags = etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 7)
-	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh", "tag4:sourceClusterLow", "tag5:sourceLow"})
-	assert.True(t, etags.cacheValid)
-	tags = etags.get(collectors.LowCardinality)
-	assert.Len(t, tags, 5)
-	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh"})
-}
-
 type entityEventExpectation struct {
 	eventType    types.EventType
 	id           string
@@ -358,23 +172,18 @@ func TestSubscribe(t *testing.T) {
 	clock := clock.NewMock()
 	store := newTagStoreWithClock(clock)
 
-	collectors.CollectorPriorities["source2"] = collectors.ClusterOrchestrator
-	collectors.CollectorPriorities["source"] = collectors.NodeRuntime
-
 	var expectedEvents = []entityEventExpectation{
-		{types.EventTypeAdded, "test1", []string{"low"}, []string{}, []string{"high"}},
+		{types.EventTypeAdded, "test1", []string{"low"}, []string{}, []string{"high:1"}},
 		{types.EventTypeModified, "test1", []string{"low"}, []string{"orch"}, []string{"high:1", "high:2"}},
 		{types.EventTypeAdded, "test2", []string{"low"}, []string{}, []string{"high"}},
-		{types.EventTypeModified, "test1", []string{"low"}, []string{}, []string{"high"}},
 		{types.EventTypeDeleted, "test1", nil, nil, nil},
 	}
 
 	store.ProcessTagInfo([]*collectors.TagInfo{
 		{
-			Source:       "source",
 			Entity:       "test1",
 			LowCardTags:  []string{"low"},
-			HighCardTags: []string{"high"},
+			HighCardTags: []string{"high:1"},
 		},
 	})
 
@@ -386,31 +195,20 @@ func TestSubscribe(t *testing.T) {
 
 	store.ProcessTagInfo([]*collectors.TagInfo{
 		{
-			Source:               "source2",
 			Entity:               "test1",
 			LowCardTags:          []string{"low"},
 			OrchestratorCardTags: []string{"orch"},
 			HighCardTags:         []string{"high:1", "high:2"},
 		},
 		{
-			Source:       "source2",
-			Entity:       "test1",
-			DeleteEntity: true,
-		},
-		{
-			Source:       "source",
 			Entity:       "test2",
 			LowCardTags:  []string{"low"},
 			HighCardTags: []string{"high"},
 		},
 	})
 
-	clock.Add(10 * time.Minute)
-	store.Prune()
-
 	store.ProcessTagInfo([]*collectors.TagInfo{
 		{
-			Source:       "source",
 			Entity:       "test1",
 			DeleteEntity: true,
 		},
@@ -430,8 +228,8 @@ func TestSubscribe(t *testing.T) {
 
 	wg.Wait()
 
-	checkEvents(t, expectedEvents, highCardEvents, collectors.HighCardinality)
 	checkEvents(t, expectedEvents, lowCardEvents, collectors.LowCardinality)
+	checkEvents(t, expectedEvents, highCardEvents, collectors.HighCardinality)
 }
 
 func collectEvents(wg *sync.WaitGroup, events *[]types.EntityEvent, ch chan []types.EntityEvent) {
@@ -459,16 +257,16 @@ func checkEvents(t *testing.T, expectations []entityEventExpectation, events []t
 			return
 		}
 
-		assert.Equal(t, expectation.lowCardTags, event.Entity.LowCardinalityTags)
+		assert.Equal(t, expectation.lowCardTags, event.Entity.LowCardinalityTags, "event %d, low cardinality", i)
 		if cardinality == collectors.OrchestratorCardinality {
-			assert.Equal(t, expectation.orchCardTags, event.Entity.OrchestratorCardinalityTags)
-			assert.Empty(t, event.Entity.HighCardinalityTags)
+			assert.Equal(t, expectation.orchCardTags, event.Entity.OrchestratorCardinalityTags, "event %d, orch cardinality", i)
+			assert.Empty(t, event.Entity.HighCardinalityTags, "event %d, high cardinality", i)
 		} else if cardinality == collectors.HighCardinality {
-			assert.Equal(t, expectation.orchCardTags, event.Entity.OrchestratorCardinalityTags)
-			assert.Equal(t, expectation.highCardTags, event.Entity.HighCardinalityTags)
+			assert.Equal(t, expectation.orchCardTags, event.Entity.OrchestratorCardinalityTags, "event %d, orch cardinality", i)
+			assert.Equal(t, expectation.highCardTags, event.Entity.HighCardinalityTags, "event %d, high cardinality", i)
 		} else {
-			assert.Empty(t, event.Entity.OrchestratorCardinalityTags)
-			assert.Empty(t, event.Entity.HighCardinalityTags)
+			assert.Empty(t, event.Entity.OrchestratorCardinalityTags, "event %d, orch cardinality", i)
+			assert.Empty(t, event.Entity.HighCardinalityTags, "event %d, high cardinality", i)
 		}
 	}
 }

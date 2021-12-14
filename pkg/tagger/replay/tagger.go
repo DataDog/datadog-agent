@@ -129,7 +129,6 @@ func (t *Tagger) LoadState(state map[string]*pb.Entity) {
 		}
 
 		t.store.ProcessTagInfo([]*collectors.TagInfo{{
-			Source:               "replay",
 			Entity:               entityID,
 			HighCardTags:         entity.HighCardinalityTags,
 			OrchestratorCardTags: entity.OrchestratorCardinalityTags,

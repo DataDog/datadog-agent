@@ -22,7 +22,7 @@ const (
 var (
 	// StoredEntities tracks how many entities are stored in the tagger.
 	StoredEntities = telemetry.NewGaugeWithOpts("tagger", "stored_entities",
-		[]string{"source", "prefix"}, "Number of entities in the store.",
+		[]string{"prefix"}, "Number of entities in the store.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	// UpdatedEntities tracks the number of updates to tagger entities.
