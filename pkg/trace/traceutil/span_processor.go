@@ -9,6 +9,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
+// SpanProcessor is the interface to apply extra logic on span after they are received by the agent
 type SpanProcessor interface {
+	// Process applies extra logic to the given span
 	Process(tags map[string]string, span *pb.Span)
 }
