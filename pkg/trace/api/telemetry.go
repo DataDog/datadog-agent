@@ -51,12 +51,10 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 
 		endpoints = append(endpoints, endpoint)
 	}
+
 	if len(endpoints) == 0 {
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			log.Errorf("Telemetry proxy couldn't forward a request - no valid endpoints found")
-			msg := fmt.Sprintf("Telemetry proxy disabled, check configured endpoints")
-			http.Error(w, msg, http.StatusMethodNotAllowed)
-		})
+		log.Error("None of the configured apm_config.telemetry endpoints are valid. Telemetry proxy is off")
+		return http.NotFoundHandler()
 	}
 
 	transport := telemetryMultiTransport{
