@@ -41,7 +41,7 @@ done
 # CWS e2e output
 for workflow in $(./argo list -o name); do
     if [ "$ARGO_WORKFLOW" = "cws" ]; then
-        kubectl logs $(./argo get $workflow -o json | jq -r '.status.nodes[] | select(.displayName=="test-cws-e2e").id') -c main
+        kubectl logs $(./argo get "$workflow" -o json | jq -r '.status.nodes[] | select(.displayName=="test-cws-e2e").id') -c main
     fi
 done
 

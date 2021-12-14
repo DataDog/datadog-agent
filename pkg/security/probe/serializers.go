@@ -327,19 +327,7 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 }
 
 func scrubArgs(pr *model.Process, e *Event) ([]string, bool) {
-	argv, truncated := e.resolvers.ProcessResolver.GetProcessArgv(pr)
-
-	// scrub args, do not send args if no scrubber instance is passed
-	// can be the case for some custom event
-	if e.scrubber == nil {
-		argv = []string{}
-	} else {
-		if newArgv, changed := e.scrubber.ScrubCommand(argv); changed {
-			argv = newArgv
-		}
-	}
-
-	return argv, truncated
+	return e.resolvers.ProcessResolver.GetScrubbedProcessArgv(pr)
 }
 
 func scrubEnvs(pr *model.Process, e *Event) ([]string, bool) {
