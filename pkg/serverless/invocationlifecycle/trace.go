@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // executionSpanInfo is the information needed to create a span representing the Lambda function execution
@@ -25,6 +26,7 @@ var currentExecutionSpanInfo executionSpanInfo
 
 // beginExecutionSpan records information from the start of the invocation in the current execution span info
 func beginExecutionSpan(daemon *daemon.Daemon, startTime time.Time) {
+	log.Debug("Beginning function execution span")
 	currentExecutionSpanInfo.startTime = startTime
 	currentExecutionSpanInfo.traceID = random.Uint64()
 	currentExecutionSpanInfo.spanID = random.Uint64()
@@ -33,6 +35,7 @@ func beginExecutionSpan(daemon *daemon.Daemon, startTime time.Time) {
 // endExecutionSpan uses information from the end of the invocation plus the current execution span info to build
 // the function execution span and sends it to the intake.
 func endExecutionSpan(daemon *daemon.Daemon, endTime time.Time) {
+	log.Debug("Ending function execution span")
 	duration := endTime.UnixNano() - currentExecutionSpanInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -49,6 +52,8 @@ func endExecutionSpan(daemon *daemon.Daemon, endTime time.Time) {
 	tracerPayload := &pb.TracerPayload{
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
+
+	log.Debugf("tracerPayload: %s", tracerPayload)
 
 	daemon.TraceAgent.Get().Process(&api.Payload{
 		TracerPayload: tracerPayload,

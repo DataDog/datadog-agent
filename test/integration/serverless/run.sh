@@ -119,9 +119,11 @@ NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
 
 metric_function_names=("with-ddlambda-java" "enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "timeout-java" "error-python" "error-node" "error-java")
 log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda" "log-java")
-trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go" "simple-trace-java")
+trace_function_names=("trace-node" "trace-python" "trace-go" "trace-java" "trace-csharp")
 
-all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
+# all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
+all_functions=("trace-csharp")
+
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
     serverless invoke --stage "${stage}" -f "${function_name}"

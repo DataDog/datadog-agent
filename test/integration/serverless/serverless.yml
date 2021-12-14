@@ -266,9 +266,22 @@ functions:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
+
+  trace-csharp:
+    runtime: dotnetcore3.1
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_TRACE_ENABLED: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
+      DD_TAGS: tagA:valueA tagB:valueB
+      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
   log-java:
     runtime: java8.al2
@@ -282,11 +295,8 @@ functions:
     environment:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_LOGS_ENABLED: true
-      DD_SERVERLESS_LOGS_ENABLED: true
-      DD_LOGS_INJECTION: true
 
-  simple-trace-node:
+  trace-node:
     runtime: nodejs14.x
     handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
     layers:
@@ -301,7 +311,7 @@ functions:
       DD_TAGS: tagA:valueA,tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC,tagD:valueD
 
-  simple-trace-python:
+  trace-python:
     runtime: python3.8
     handler: datadog_lambda.handler.handler
     layers:
@@ -316,7 +326,7 @@ functions:
       DD_TAGS: tagA:valueA,tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC,tagD:valueD
 
-  simple-trace-go:
+  trace-go:
     runtime: provided.al2
     handler: src/bin/trace
     layers:
@@ -328,7 +338,7 @@ functions:
       DD_TRACE_ENABLED: true
       DD_APM_DD_URL: http://127.0.0.1:3333
 
-  simple-trace-java:
+  trace-java:
     runtime: java8.al2
     handler: TraceHandler
     package:

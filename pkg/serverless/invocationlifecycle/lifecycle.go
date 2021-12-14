@@ -25,6 +25,7 @@ func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetai
 	log.Debug("[proxy] ---------------------------------------")
 
 	if !pp.Daemon.LambdaLibraryDetected {
+		log.Debug("Lambda Library NOT detected, going to begin execution span")
 		beginExecutionSpan(pp.Daemon, startDetails.StartTime)
 	}
 }
@@ -37,6 +38,7 @@ func (pp *ProxyProcessor) OnInvokeEnd(endDetails *proxy.InvocationEndDetails) {
 	log.Debug("[proxy] ---------------------------------------")
 
 	if !pp.Daemon.LambdaLibraryDetected {
+		log.Debug("Lambda Library NOT detected, going to end execution span")
 		endExecutionSpan(pp.Daemon, endDetails.EndTime)
 	}
 }
