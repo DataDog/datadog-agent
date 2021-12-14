@@ -128,7 +128,7 @@ func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.
 
 	resp, err := m.Transport.RoundTrip(req)
 	if err != nil {
-		metrics.Count("datadog.trace_agent.telemetry_proxy.roundtrip.errors", 1, tags, 1)
+		metrics.Count("datadog.trace_agent.telemetry_proxy.error", 1, tags, 1)
 	}
 	return resp, err
 }
