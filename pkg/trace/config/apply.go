@@ -480,17 +480,17 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	if config.Datadog.GetBool("apm_config.internal_profiling.enabled") {
-		profilingSite := config.Datadog.GetString("internal_profiling.profile_dd_url")
-		if profilingSite == "" {
-			if s := config.Datadog.GetString("site"); s != "" {
-				profilingSite = s
-			} else {
-				profilingSite = config.DefaultSite
+		endpoint := config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if endpoint == "" {
+			s := config.Datadog.GetString("site")
+			if s == "" {
+				s = config.DefaultSite
 			}
+			endpoint = fmt.Sprintf(profiling.ProfileURLTemplate, s)
 		}
 
 		c.ProfilingSettings = &profiling.Settings{
-			Site: profilingSite,
+			Site: endpoint,
 
 			// remaining configuration parameters use the top-level `internal_profiling` config
 			Period:               config.Datadog.GetDuration("internal_profiling.period"),
