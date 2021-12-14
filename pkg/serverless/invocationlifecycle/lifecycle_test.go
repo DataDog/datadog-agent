@@ -10,29 +10,35 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 
-	metricsChan := make(chan []metrics.MetricSample)
-	tags := []string{"functionname:test-function"}
-	reportLogTime := time.Now()
+	d := daemon.StartDaemon("http://localhost:8124")
+	defer d.Stop()
 
-	endDetails := proxy.InvocationEndDetails{EndTime: reportLogTime, IsError: true}
-	testProcessor := ProxyProcessor{tags, metricsChan}
+	d.ExtraTags.Tags = []string{"functionname:test-function"}
 
+	metricChannel := make(chan []metrics.MetricSample)
+
+	endInvocationTime := time.Now()
+	endDetails := proxy.InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
+
+	testProcessor := ProxyProcessor{d.ExtraTags, metricChannel}
 	go testProcessor.OnInvokeEnd(&endDetails)
 
-	generatedMetrics := <-metricsChan
+	generatedMetrics := <-metricChannel
 
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       d.ExtraTags.Tags,
 		SampleRate: 1,
-		Timestamp:  generatedMetrics[0].Timestamp, //testing against itself due to floating point errors
+		Timestamp:  float64(endInvocationTime.UnixNano()),
 	}})
 }

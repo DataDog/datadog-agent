@@ -297,13 +297,17 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// start the proxy if needed
 	// as this feature is experimental, this should be the only entrypoint (easier to remove)
-	_ = proxy.Start(
-		"127.0.0.1:9000",
-		"127.0.0.1:9001",
-		&invocationlifecycle.ProxyProcessor{
-			Tags:           serverlessDaemon.ExtraTags.Tags,
-			MetricsChannel: serverlessDaemon.MetricAgent.GetMetricChannel(),
-		})
+	if serverlessDaemon.MetricAgent != nil {
+		_ = proxy.Start(
+			"127.0.0.1:9000",
+			"127.0.0.1:9001",
+			&invocationlifecycle.ProxyProcessor{
+				ExtraTags:     serverlessDaemon.ExtraTags,
+				MetricChannel: serverlessDaemon.MetricAgent.GetMetricChannel(),
+			})
+	} else {
+		log.Error("The metric agent has not been set. Unable to start the proxy")
+	}
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
