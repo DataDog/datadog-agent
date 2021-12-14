@@ -121,9 +121,9 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 // CollectFiles returns all the files matching the source path.
 func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
 	path := source.Config.Path
-	fileExists := p.exists(path)
+	_, err := os.Stat(path)
 	switch {
-	case fileExists:
+	case err == nil:
 		return []*File{
 			NewFile(path, source, false),
 		}, nil
@@ -131,7 +131,7 @@ func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
 		pattern := path
 		return p.searchFiles(pattern, source)
 	default:
-		return nil, fmt.Errorf("file %s does not exist", path)
+		return nil, fmt.Errorf("cannot read file %s: %s", path, err)
 	}
 }
 
@@ -184,14 +184,4 @@ func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*Fil
 		}
 	}
 	return files, nil
-}
-
-// exists returns true if the file at path filePath exists
-// Note: we can't rely on os.IsNotExist for windows, so we check error nullity.
-// As we're tailing with *, the error is related to the path being malformed.
-func (p *Provider) exists(filePath string) bool {
-	if _, err := os.Stat(filePath); err != nil {
-		return false
-	}
-	return true
 }

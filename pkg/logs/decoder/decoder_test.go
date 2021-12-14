@@ -124,7 +124,7 @@ func TestDecodeIncomingData(t *testing.T) {
 
 func TestDecodeIncomingDataWithCustomSequence(t *testing.T) {
 	p := NewMockLineParser()
-	d := New(nil, nil, p, contentLenLimit, &BytesSequenceMatcher{[]byte("SEPARATOR")}, nil)
+	d := New(nil, nil, p, contentLenLimit, NewBytesSequenceMatcher([]byte("SEPARATOR"), 1), nil)
 
 	var line *DecodedInput
 
@@ -167,7 +167,7 @@ func TestDecodeIncomingDataWithCustomSequence(t *testing.T) {
 
 func TestDecodeIncomingDataWithSingleByteCustomSequence(t *testing.T) {
 	p := NewMockLineParser()
-	d := New(nil, nil, p, contentLenLimit, &BytesSequenceMatcher{[]byte("&")}, nil)
+	d := New(nil, nil, p, contentLenLimit, NewBytesSequenceMatcher([]byte("&"), 1), nil)
 
 	var line *DecodedInput
 
@@ -471,7 +471,7 @@ func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
 func TestDecoderWithDecodingParser(t *testing.T) {
 	source := config.NewLogSource("config", &config.LogsConfig{})
 
-	d := NewDecoderWithEndLineMatcher(source, parser.NewEncodedText(parser.UTF16LE), NewBytesSequenceMatcher(Utf16leEOL), nil)
+	d := NewDecoderWithEndLineMatcher(source, parser.NewEncodedText(parser.UTF16LE), NewBytesSequenceMatcher(Utf16leEOL, 2), nil)
 	d.Start()
 
 	input := []byte{'h', 0x0, 'e', 0x0, 'l', 0x0, 'l', 0x0, 'o', 0x0, '\n', 0x0}

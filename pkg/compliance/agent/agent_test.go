@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	"github.com/stretchr/testify/assert"
@@ -160,6 +161,7 @@ func TestRun(t *testing.T) {
 		reporter,
 		scheduler,
 		e.dir,
+		&config.Endpoints{},
 		checks.WithHostname("the-host"),
 		checks.WithHostRootMount(e.dir),
 		checks.WithDockerClient(dockerClient),

@@ -112,6 +112,4 @@ tags:
 use_dogstatsd: true
 use_service_mapper: true
 use_v2_api:
-  events: false
   series: false
-  service_checks: false

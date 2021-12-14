@@ -267,10 +267,14 @@ type Process struct {
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
 
-	ArgsEntry     *ArgsEntry `field:"-"`
-	EnvsEntry     *EnvsEntry `field:"-"`
-	EnvsTruncated bool       `field:"-"`
-	ArgsTruncated bool       `field:"-"`
+	ArgsEntry *ArgsEntry `field:"-"`
+	EnvsEntry *EnvsEntry `field:"-"`
+
+	EnvsTruncated bool `field:"-"`
+	ArgsTruncated bool `field:"-"`
+
+	EnvsCache []string `field:"-"` // used as cache
+	ArgsCache []string `field:"-"` // used as cache
 }
 
 // SpanContext describes a span context

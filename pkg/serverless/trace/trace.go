@@ -43,6 +43,14 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 		// by setting cmd_port to -1, this will cause the GRPC client to fail instantly
 		ddConfig.Datadog.Set("cmd_port", "-1")
 
+		// make sure we blocklist /hello and /flush calls
+		userProvidedBlocklist := []string{}
+		// check if ignore_resources is set before casting to string slice to avoid logging a warning
+		if ddConfig.Datadog.IsSet("apm_config.ignore_resources") {
+			userProvidedBlocklist = ddConfig.Datadog.GetStringSlice("apm_config.ignore_resources")
+		}
+		ddConfig.Datadog.Set("apm_config.ignore_resources", buildTraceBlocklist(userProvidedBlocklist))
+
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
@@ -69,4 +77,10 @@ func (s *ServerlessTraceAgent) Stop() {
 	if s.cancel != nil {
 		s.cancel()
 	}
+}
+
+func buildTraceBlocklist(userProvidedList []string) []string {
+	list := append(userProvidedList, "GET /lambda/hello")
+	list = append(list, "POST /lambda/flush")
+	return list
 }

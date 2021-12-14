@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
@@ -189,16 +194,16 @@ func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[st
 	dbentry := &model.DNSDatabaseEntry{
 		NameOffsets: make([]int32, len(entry.Names)),
 	}
-	for _, name := range entry.Names {
+	for entryidx, name := range entry.Names {
 		// at this point, the NameOffsets slice is actually a slice of indices into
 		// the name slice.  It will be converted prior to encoding.
 		if idx, ok := namemap[name]; ok {
-			dbentry.NameOffsets = append(dbentry.NameOffsets, idx)
+			dbentry.NameOffsets[entryidx] = idx
 		} else {
 			dblen := int32(len(*namedb))
 			*namedb = append(*namedb, name)
 			namemap[name] = dblen
-			dbentry.NameOffsets = append(dbentry.NameOffsets, dblen)
+			dbentry.NameOffsets[entryidx] = dblen
 		}
 
 	}

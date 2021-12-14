@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-func TestProfileMetadata(t *testing.T) {
+func TestProfileMetadata_f5(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("test", "metadata_conf.d"))
@@ -64,7 +64,7 @@ profiles:
 			{
 				Name:  "1.3.6.1.2.1.1.1.0",
 				Type:  gosnmp.OctetString,
-				Value: []byte("my_desc"),
+				Value: []byte("BIG-IP Virtual Edition : Linux 3.10.0-862.14.4.el7.ve.x86_64 : BIG-IP software release 15.0.1, build 0.0.11"),
 			},
 			{
 				Name:  "1.3.6.1.2.1.1.2.0",
@@ -107,6 +107,10 @@ profiles:
 				Value: []byte("Final"),
 			},
 			{
+				Name: "1.3.6.1.4.1.3375.2.1.4.999999.0",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
 				Name:  "1.3.6.1.4.1.3375.2.1.6.1.0",
 				Type:  gosnmp.OctetString,
 				Value: []byte("Linux"),
@@ -119,7 +123,7 @@ profiles:
 			{
 				Name:  "1.3.6.1.4.1.3375.2.1.6.4.0",
 				Type:  gosnmp.OctetString,
-				Value: []byte("3.0.0"),
+				Value: []byte("3.10.0-862.14.4.el7.ve.x86_64"),
 			},
 		},
 	}
@@ -265,6 +269,7 @@ profiles:
 		"1.3.6.1.4.1.3375.2.1.4.1.0",
 		"1.3.6.1.4.1.3375.2.1.4.2.0",
 		"1.3.6.1.4.1.3375.2.1.4.4.0",
+		"1.3.6.1.4.1.3375.2.1.4.999999.0",
 		"1.3.6.1.4.1.3375.2.1.6.1.0",
 		"1.3.6.1.4.1.3375.2.1.6.2.0",
 		"1.3.6.1.4.1.3375.2.1.6.4.0",
@@ -305,7 +310,7 @@ profiles:
       "ip_address": "1.2.3.4",
       "status": 1,
       "name": "foo_sys_name",
-      "description": "my_desc",
+      "description": "BIG-IP Virtual Edition : Linux 3.10.0-862.14.4.el7.ve.x86_64 : BIG-IP software release 15.0.1, build 0.0.11",
       "sys_object_id": "1.2.3.4",
       "location": "paris",
       "profile": "f5-big-ip",
@@ -314,8 +319,8 @@ profiles:
       "version":"15.0.1",
       "product_name":"BIG-IP",
       "model":"Final",
-      "os_name":"Linux",
-      "os_version":"3.0.0",
+      "os_name":"LINUX (3.10.0-862.14.4.el7.ve.x86_64)",
+      "os_version":"3.10.0-862.14.4.el7.ve.x86_64",
       "os_hostname":"my-linux-f5-server"
     }
   ],

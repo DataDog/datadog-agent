@@ -136,6 +136,10 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, int
 		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
 	}
 
+	for _, status := range endpoints.GetStatus() {
+		log.Info(status)
+	}
+
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
@@ -280,7 +284,8 @@ func RunAgent(ctx context.Context) (err error) {
 		}
 	}
 
-	if err = startCompliance(hostname, stopper, statsdClient); err != nil {
+	complianceAgent, err := startCompliance(hostname, stopper, statsdClient)
+	if err != nil {
 		return err
 	}
 
@@ -294,7 +299,7 @@ func RunAgent(ctx context.Context) (err error) {
 		return err
 	}
 
-	srv, err = api.NewServer(runtimeAgent)
+	srv, err = api.NewServer(runtimeAgent, complianceAgent)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

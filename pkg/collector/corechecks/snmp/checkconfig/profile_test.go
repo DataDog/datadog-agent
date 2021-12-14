@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checkconfig
 
 import (
@@ -102,10 +107,10 @@ func mockProfilesDefinitions() profileDefinitionMap {
 					},
 					"description": {
 						Symbol: SymbolConfig{
-							OID:                 "1.3.6.1.2.1.31.1.1.1.1",
-							Name:                "ifName",
-							ExtractValue:        "(Row\\d)",
-							ExtractValuePattern: regexp.MustCompile("(Row\\d)"),
+							OID:                  "1.3.6.1.2.1.31.1.1.1.1",
+							Name:                 "ifName",
+							ExtractValue:         "(Row\\d)",
+							ExtractValueCompiled: regexp.MustCompile("(Row\\d)"),
 						},
 					},
 					"mac_address": {

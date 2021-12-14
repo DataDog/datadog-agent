@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package report
 
 import (
@@ -28,6 +33,17 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	log.SetupLogger(l, "debug")
 
 	var storeWithoutIfName = &valuestore.ResultValueStore{
+		ScalarValues: valuestore.ScalarResultValuesType{
+			"1.3.6.1.2.1.1.5.0": valuestore.ResultValue{
+				Value: "my-sys-name",
+			},
+			"1.3.6.1.2.1.1.1.0": valuestore.ResultValue{
+				Value: "my-sys-descr",
+			},
+			"1.3.6.1.2.1.1.6.0": valuestore.ResultValue{
+				Value: "my-sys-location",
+			},
+		},
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
@@ -43,6 +59,59 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
+		Metadata: checkconfig.MetadataConfig{
+			"device": {
+				Fields: map[string]checkconfig.MetadataField{
+					"name": {
+						// Should use value from Symbol `1.3.6.1.2.1.1.5.0`
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.3.6.1.2.1.1.5.0",
+							Name: "sysName",
+						},
+						Symbols: []checkconfig.SymbolConfig{
+							{
+								OID:  "1.2.99",
+								Name: "doesNotExist",
+							},
+						},
+					},
+					"description": {
+						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.9999",
+							Name: "doesNotExist",
+						},
+						Symbols: []checkconfig.SymbolConfig{
+							{
+								OID:  "1.3.6.1.2.1.1.1.0",
+								Name: "sysDescr",
+							},
+						},
+					},
+					"location": {
+						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.9999",
+							Name: "doesNotExist",
+						},
+						Symbols: []checkconfig.SymbolConfig{
+							{
+								OID:  "1.888",
+								Name: "doesNotExist2",
+							},
+							{
+								OID:  "1.3.6.1.2.1.1.6.0",
+								Name: "sysLocation",
+							},
+							{
+								OID:  "1.7777",
+								Name: "doesNotExist2",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	layout := "2006-01-02 15:04:05"
 	str := "2014-11-12 11:45:26"
@@ -68,6 +137,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             ],
             "ip_address": "1.2.3.4",
             "status":1,
+            "name": "my-sys-name",
+            "description": "my-sys-descr",
+            "location": "my-sys-location",
             "subnet": "127.0.0.0/29"
         }
     ],
@@ -244,6 +316,75 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
             ],
             "index": 2,
             "name": "22"
+        }
+    ],
+    "collect_timestamp":1415792726
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+}
+
+func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testing.T) {
+	var emptyMetadataStore = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{},
+	}
+
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{
+		sender: sender,
+	}
+
+	config := &checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		DeviceID:           "1234",
+		DeviceIDTags:       []string{"device_name:127.0.0.1"},
+		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
+		Metadata: checkconfig.MetadataConfig{
+			"device": {
+				Fields: map[string]checkconfig.MetadataField{
+					"name": {
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.999",
+							Name: "doesNotExist",
+						},
+						Value: "my-fallback-value",
+					},
+				},
+			},
+		},
+	}
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+
+	// language=json
+	event := []byte(`
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+    "devices": [
+        {
+            "id": "1234",
+            "id_tags": [
+                "device_name:127.0.0.1"
+            ],
+            "tags": [
+                "tag1",
+                "tag2"
+            ],
+            "ip_address": "1.2.3.4",
+            "status":1,
+            "name": "my-fallback-value",
+            "subnet": "127.0.0.0/29"
         }
     ],
     "collect_timestamp":1415792726

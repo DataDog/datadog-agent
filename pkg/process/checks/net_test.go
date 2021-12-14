@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
@@ -29,6 +34,37 @@ func makeConnections(n int) []*model.Connection {
 		conns = append(conns, c)
 	}
 	return conns
+}
+
+func TestDNSNameEncoding(t *testing.T) {
+	p := makeConnections(4)
+	p[0].Raddr.Ip = "1.1.2.1"
+	p[1].Raddr.Ip = "1.1.2.2"
+	p[2].Raddr.Ip = "1.1.2.3"
+	p[3].Raddr.Ip = "1.1.2.4"
+
+	dns := map[string]*model.DNSEntry{
+		"1.1.2.1": {Names: []string{"host1.domain.com"}},
+		"1.1.2.2": {Names: []string{"host2.domain.com", "host2.domain2.com"}},
+		"1.1.2.3": {Names: []string{"host3.domain.com", "host3.domain2.com", "host3.domain3.com"}},
+		"1.1.2.4": {Names: []string{"host4.domain.com"}},
+	}
+	cfg := config.NewDefaultAgentConfig(false)
+	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil)
+	assert.Equal(t, len(chunks), 1)
+
+	chunk := chunks[0]
+	conns := chunk.(*model.CollectorConnections)
+	for ip := range dns {
+		model.IterateDNSV2(conns.EncodedDnsLookups, ip,
+			func(i, total int, entry int32) bool {
+				_, e := conns.GetDNSNameByOffset(entry)
+				assert.Nil(t, e)
+				assert.Equal(t, total, len(dns[ip].Names))
+				return true
+			})
+	}
+
 }
 
 func TestNetworkConnectionBatching(t *testing.T) {
