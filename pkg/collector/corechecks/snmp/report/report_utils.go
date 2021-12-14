@@ -96,7 +96,11 @@ func getTagsUsingMetricConfig(tagConfigs checkconfig.MetricTagConfigList, fullIn
 			}
 
 			newIndex := fullIndex
-			newIndex = newIndexUsingIndexFromOidValue(newIndex, metricTag.Column.IndexFromOidValue.OID, values)
+			newIndex, err = newIndexUsingIndexFromOidValue(newIndex, metricTag.Column.IndexFromOidValue.OID, values)
+			if err != nil {
+				log.Debugf(err.Error())
+				continue
+			}
 			newIndex = newIndexUsingTransformIndex(newIndex, metricTag.IndexTransform)
 
 			tagValue, ok := columnValues[newIndex]
@@ -115,9 +119,9 @@ func getTagsUsingMetricConfig(tagConfigs checkconfig.MetricTagConfigList, fullIn
 	return rowTags
 }
 
-func newIndexUsingIndexFromOidValue(fullIndex string, indexFromOidValueOid string, values *valuestore.ResultValueStore) string {
+func newIndexUsingIndexFromOidValue(fullIndex string, indexFromOidValueOid string, values *valuestore.ResultValueStore) (string, error) {
 	if indexFromOidValueOid == "" {
-		return fullIndex
+		return fullIndex, nil
 	}
 	indexValues := getColumnValueFromSymbolOrEmpty(indexFromOidValueOid, values)
 	for index, indexVal := range indexValues {
@@ -127,11 +131,10 @@ func newIndexUsingIndexFromOidValue(fullIndex string, indexFromOidValueOid strin
 			continue
 		}
 		if strVal == fullIndex {
-			fullIndex = index
-			break
+			return index, nil
 		}
 	}
-	return fullIndex
+	return "", fmt.Errorf("failed to get new index using index_from_oid_value `%s`", indexFromOidValueOid)
 }
 
 func newIndexUsingTransformIndex(fullIndex string, indexTransforms []checkconfig.MetricIndexTransform) string {

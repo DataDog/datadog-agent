@@ -495,6 +495,45 @@ metric_tags:
 				},
 			},
 			expectedTags: []string{"interface_ip_address:10.10.10.2"},
+		}, {
+			name: "index_from_oid_value failed to get new index",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID: 1.3.6.1.2.1.2.2
+  name: ifTable
+symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.14
+    name: ifInErrors
+metric_tags:
+  - column:
+      OID: 1.3.6.1.2.1.4.20.1.1
+      name: ipAdEntAddr
+      index_from_oid_value:
+        OID: 1.3.6.1.2.1.4.20.1.2
+        name: ipAdEntIfIndex
+    table: ipAddrTable
+    tag: interface_ip_address
+`),
+			fullIndex: "99",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.4.20.1.1": {
+						"10.10.10.2": valuestore.ResultValue{
+							Value: "10.10.10.2",
+						},
+					},
+					"1.3.6.1.2.1.4.20.1.2": {
+						"10.10.10.2": valuestore.ResultValue{
+							Value: float64(2.0),
+						},
+					},
+				},
+			},
+			expectedTags: []string(nil),
+			expectedLogs: []logCount{
+				{"[DEBUG] getTagsUsingMetricConfig: failed to get new index using index_from_oid_value `1.3.6.1.2.1.4.20.1.2`", 1},
+			},
 		},
 		{
 			name: "missing index value",
