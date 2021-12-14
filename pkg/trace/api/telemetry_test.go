@@ -159,7 +159,7 @@ func TestTelemetryConfig(t *testing.T) {
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
 
-		assert.Contains(t, recordedResponse(t, rec), "Telemetry proxy forwarder doesn't have any valid endpoints")
+		assert.Equal(t, 404, rec.Result().StatusCode)
 	})
 
 	t.Run("fallback-endpoint", func(t *testing.T) {
