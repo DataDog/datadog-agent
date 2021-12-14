@@ -207,11 +207,13 @@ func (suite *AgentTestSuite) TestReliableAdditionalEndpointHttp() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
-	server1 := http.NewTestServer(200)
+	respondChan1 := make(chan int)
+	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1)
 	defer server1.Stop()
 	server1.Endpoint.IsReliable = true
 
-	server2 := http.NewTestServer(200)
+	respondChan2 := make(chan int)
+	server2 := http.NewTestServerWithOptions(200, 0, true, respondChan2)
 	defer server2.Stop()
 	server2.Endpoint.IsReliable = true
 
@@ -221,10 +223,10 @@ func (suite *AgentTestSuite) TestReliableAdditionalEndpointHttp() {
 
 	agent.Start()
 	sources.AddSource(suite.source)
-	// Give the agent at most one second to send the logs.
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
-		return int64(4) == metrics.LogsSent.Value()
-	})
+	<-respondChan1
+	<-respondChan1
+	<-respondChan2
+	<-respondChan2
 	agent.Stop()
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
