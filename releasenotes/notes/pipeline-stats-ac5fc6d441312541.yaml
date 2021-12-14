@@ -1,0 +1,3 @@
+features:
+  - |
+    APM: Add new endpoint to the trace-agent to forward pipeline stats to the Datadog backend.
