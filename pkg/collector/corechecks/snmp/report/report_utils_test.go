@@ -48,7 +48,7 @@ func Test_transformIndex(t *testing.T) {
 			"out of index end",
 			[]string{"10", "11", "12", "13"},
 			[]checkconfig.MetricIndexTransform{
-				{Start:2, End: 1000},
+				{Start: 2, End: 1000},
 			},
 			nil,
 		},
