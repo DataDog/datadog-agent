@@ -118,7 +118,7 @@ func getNodeLabels(w http.ResponseWriter, r *http.Request) {
 }
 
 func getNodeAnnotations(w http.ResponseWriter, r *http.Request) {
-	getNodeMetadata(w, r, as.GetNodeAnnotations, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations"))
+	getNodeMetadata(w, r, as.GetNodeAnnotations, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
 }
 
 // getNamespaceLabels is only used when the node agent hits the DCA for the list of labels
