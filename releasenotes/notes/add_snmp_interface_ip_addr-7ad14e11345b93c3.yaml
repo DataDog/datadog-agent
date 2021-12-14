@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [corechecks/snmp] Add interface address field
+    [corechecks/snmp] Add interface ``ip_address`` and ``index_from_oid_value`` feature
