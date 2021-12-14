@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -56,6 +57,7 @@ func endExecutionSpan(daemon *daemon.Daemon, endTime time.Time) {
 	log.Debugf("tracerPayload: %s", tracerPayload)
 
 	daemon.TraceAgent.Get().Process(&api.Payload{
+		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})
 }
