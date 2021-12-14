@@ -18,6 +18,7 @@ from invoke.exceptions import Exit, ParseError
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .docker import pull_base_images
+from .flavor import AgentFlavor
 from .go import deps, generate
 from .rtloader import clean as rtloader_clean
 from .rtloader import install as rtloader_install
@@ -88,7 +89,7 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
-    iot=False,
+    flavor=AgentFlavor.base.name,
     development=True,
     skip_assets=False,
     embedded_path=None,
@@ -110,7 +111,7 @@ def build(
         inv agent.build --build-exclude=systemd
     """
 
-    if not exclude_rtloader and not iot:
+    if not exclude_rtloader and not AgentFlavor.is_iot(flavor):
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
         rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path)
@@ -151,9 +152,9 @@ def build(
         command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
 
-    if iot:
+    if AgentFlavor.is_iot(flavor):
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="iot", arch=arch)
+        build_tags = get_default_build_tags(build="agent", arch=arch, flavor=AgentFlavor.iot)
     else:
         build_include = (
             get_default_build_tags(build="agent", arch=arch)
@@ -178,7 +179,7 @@ def build(
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
-        "flavor": "iot-agent" if iot else "agent",
+        "flavor": "iot-agent" if AgentFlavor.is_iot(flavor) else "agent",
     }
     ctx.run(cmd.format(**args), env=env)
 
@@ -187,7 +188,7 @@ def build(
 
     # Render the Agent configuration file template
     build_type = "agent-py3"
-    if iot:
+    if AgentFlavor.is_iot(flavor):
         build_type = "iot-agent"
     elif has_both_python(python_runtimes):
         build_type = "agent-py2py3"
@@ -199,11 +200,11 @@ def build(
         generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
 
     if not skip_assets:
-        refresh_assets(ctx, build_tags, development=development, iot=iot, windows_sysprobe=windows_sysprobe)
+        refresh_assets(ctx, build_tags, development=development, flavor=flavor, windows_sysprobe=windows_sysprobe)
 
 
 @task
-def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=False):
+def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base, windows_sysprobe=False):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -220,7 +221,7 @@ def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=
         copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
         copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
-    if not iot:
+    if not AgentFlavor.is_iot(flavor):
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
         # copy the dd-agent placeholder to the bin folder
         bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
@@ -231,7 +232,7 @@ def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    for check in AGENT_CORECHECKS if not iot else IOT_AGENT_CORECHECKS:
+    for check in AGENT_CORECHECKS if not AgentFlavor.is_iot(flavor) else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
     if "apm" in build_tags:
@@ -248,7 +249,9 @@ def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=
 
 
 @task
-def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, iot=False, skip_build=False):
+def run(
+    ctx, rebuild=False, race=False, build_include=None, build_exclude=None, flavor=AgentFlavor.base, skip_build=False
+):
     """
     Execute the agent binary.
 
@@ -256,7 +259,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, iot)
+        build(ctx, rebuild, race, build_include, build_exclude, flavor)
 
     ctx.run(os.path.join(BIN_PATH, bin_name("agent")))
 
@@ -451,7 +454,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
 )
 def omnibus_build(
     ctx,
-    iot=False,
+    flavor=AgentFlavor.base.name,
     agent_binaries=False,
     log_level="info",
     base_dir=None,
@@ -500,7 +503,7 @@ def omnibus_build(
     )
 
     target_project = "agent"
-    if iot:
+    if AgentFlavor.is_iot(flavor):
         target_project = "iot-agent"
     elif agent_binaries:
         target_project = "agent-binaries"
@@ -560,7 +563,7 @@ def omnibus_manifest(
     ctx,
     platform=None,
     arch=None,
-    iot=False,
+    flavor=AgentFlavor.base.name,
     agent_binaries=False,
     log_level="info",
     base_dir=None,
@@ -588,7 +591,7 @@ def omnibus_manifest(
     )
 
     target_project = "agent"
-    if iot:
+    if AgentFlavor.is_iot(flavor):
         target_project = "iot-agent"
     elif agent_binaries:
         target_project = "agent-binaries"

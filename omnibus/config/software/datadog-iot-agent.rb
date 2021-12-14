@@ -40,7 +40,7 @@ build do
   end
 
   if linux?
-    command "invoke agent.build --iot --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
+    command "invoke agent.build --flavor iot --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
 
@@ -91,7 +91,7 @@ build do
     mkdir conf_dir
     mkdir "#{install_dir}/bin/agent"
 
-    command "inv agent.build --iot --rebuild --no-development --arch #{platform} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
+    command "inv agent.build --flavor iot --rebuild --no-development --arch #{platform} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
 
       # move around bin and config files
     move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
