@@ -31,6 +31,7 @@ def trigger_macos_workflow(
     release_version="nightly-a7",
     major_version="7",
     python_runtimes="3",
+    test_only=False,
 ):
     """
     Trigger a workflow to build a MacOS Agent.
@@ -48,6 +49,9 @@ def trigger_macos_workflow(
 
     if python_runtimes is not None:
         inputs["python_runtimes"] = python_runtimes
+
+    if test_only is not None:
+        inputs["test_only"] = str(test_only).lower()
 
     print(
         "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(  # noqa: FS002
