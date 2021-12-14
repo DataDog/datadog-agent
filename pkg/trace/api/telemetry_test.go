@@ -99,18 +99,17 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		return nil
 	})
 
-	additionalEndpoints := make(map[string]string)
-	additionalEndpoints[additionalBackend.URL+"/"] = "test_apikey_2"
-	// proxy must ignore malformed urls
-	additionalEndpoints["111://malformed_url.example.com"] = "test_apikey_3"
-
 	defer mockConfigMap(map[string]interface{}{
-		"apm_config.telemetry.additional_endpoints": additionalEndpoints,
-		"apm_config.telemetry.dd_url":               mainBackend.URL,
-		"api_key":                                   "test_apikey_1",
-		"hostname":                                  "test_hostname",
-		"skip_ssl_validation":                       true,
-		"env":                                       "test_env",
+		"apm_config.telemetry.additional_endpoints": map[string]string{
+			additionalBackend.URL + "/": "test_apikey_2",
+			// proxy must ignore malformed urls
+			"111://malformed_url.example.com": "test_apikey_3",
+		},
+		"apm_config.telemetry.dd_url": mainBackend.URL,
+		"api_key":                     "test_apikey_1",
+		"hostname":                    "test_hostname",
+		"skip_ssl_validation":         true,
+		"env":                         "test_env",
 	})()
 
 	req, rec := newRequestRecorder(t)
@@ -156,13 +155,13 @@ func TestTelemetryConfig(t *testing.T) {
 
 	t.Run("fallback-endpoint", func(t *testing.T) {
 		srv := assertingServer(t, func(req *http.Request, body []byte) error { return nil })
-		additionalEndpoints := map[string]string{}
-		additionalEndpoints[srv.URL] = "api_key"
 		defer mockConfigMap(map[string]interface{}{
-			"apm_config.telemetry.dd_url":               "111://malformed.dd_url.com",
-			"apm_config.telemetry.additional_endpoints": additionalEndpoints,
-			"skip_ssl_validation":                       true,
-			"api_key":                                   "api_key",
+			"apm_config.telemetry.dd_url": "111://malformed.dd_url.com",
+			"apm_config.telemetry.additional_endpoints": map[string]string{
+				srv.URL: "api_key",
+			},
+			"skip_ssl_validation": true,
+			"api_key":             "api_key",
 		})()
 		req, rec := newRequestRecorder(t)
 		recv := NewHTTPReceiver(loadConfig(t), nil, nil, nil)
