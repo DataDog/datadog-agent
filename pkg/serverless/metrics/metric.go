@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -63,7 +64,7 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	// we want to avoid duplicate metric
 	customerList := config.Datadog.GetStringSlice("statsd_metric_blocklist")
 	// if the proxy is enabled we need to also block the errorMetric
-	if os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY") == "true" {
+	if strings.ToLower(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")) == "true" {
 		config.Datadog.Set("statsd_metric_blocklist", buildMetricBlocklistForProxy(customerList))
 	} else {
 		config.Datadog.Set("statsd_metric_blocklist", buildMetricBlocklist(customerList))
@@ -131,7 +132,6 @@ func buildMetricBlocklist(userProvidedList []string) []string {
 }
 
 // Need to account for duplicate metrics when using the proxy.
-// Can be removed when the proxy is removed
 func buildMetricBlocklistForProxy(userProvidedList []string) []string {
-	return append(userProvidedList, invocationsMetric, errorsMetric)
+	return append(buildMetricBlocklist(userProvidedList), errorsMetric)
 }
