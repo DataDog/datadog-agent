@@ -831,6 +831,11 @@ api_key:
     #
     # use_device_id_as_hostname: true
 
+    ## @param oid_batch_size - integer - optional - default: 5
+    ## The number of OIDs handled by each batch.
+    #
+    # oid_batch_size: 5
+
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.
