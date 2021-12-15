@@ -13,7 +13,7 @@ import (
 )
 
 // IterableSeries represents an iterable collection of Serie.
-// Serie can be appened to IterableSeries while IterableSeries is serialized
+// Serie can be appended to IterableSeries while IterableSeries is serialized
 type IterableSeries struct {
 	c                   chan *Serie
 	receiverStoppedChan chan struct{}
@@ -40,6 +40,8 @@ func (series *IterableSeries) Append(serie *Serie) {
 	atomic.AddUint64(&series.count, 1)
 	select {
 	case series.c <- serie:
+
+	// Make sure `Append` doesn't block. See `IterationStopped()`.
 	case <-series.receiverStoppedChan:
 	}
 }
@@ -54,9 +56,10 @@ func (series *IterableSeries) SenderStopped() {
 	close(series.c)
 }
 
-// IterationStopped must be called when the receiver stops calling MoveNext.
-// This function prevents the case when the receiver stops iterating
-// because of an error and so blocks the sender forever
+// IterationStopped must be called when the receiver stops calling `MoveNext`.
+// This function prevents the case when the receiver stops iterating before the
+// end of the iteration because of an error and so blocks the sender forever
+// as no goroutine read the channel.
 func (series *IterableSeries) IterationStopped() {
 	close(series.receiverStoppedChan)
 }
@@ -66,12 +69,12 @@ func (series *IterableSeries) WriteHeader(stream *jsoniter.Stream) error {
 	return writeHeader(stream)
 }
 
-// WriteFooter prints the payload footer for this type
+// WriteFooter writes the payload footer for this type
 func (series *IterableSeries) WriteFooter(stream *jsoniter.Stream) error {
 	return writeFooter(stream)
 }
 
-// WriteCurrentItem prints the json representation of an item
+// WriteCurrentItem writes the json representation of an item
 func (series *IterableSeries) WriteCurrentItem(stream *jsoniter.Stream) error {
 	if series.current == nil {
 		return errors.New("nil serie")
