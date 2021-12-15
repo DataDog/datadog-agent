@@ -79,9 +79,9 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 
 // Flush flushes every metrics in the ContextMetrics.
 // Returns the slice of Series and a map of errors by context key.
-func (m ContextMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey][]error) {
+func (m ContextMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
 	var series []*Serie
-	errors := make(map[ckey.ContextKey][]error)
+	errors := make(map[ckey.ContextKey]error)
 
 	for contextKey, metric := range m {
 		series = flushToSeries(
