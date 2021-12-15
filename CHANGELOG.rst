@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2021-12-15 
+Release on: 2021-12-15
 
 .. _Release Notes_7.32.3_Security Notes:
 
