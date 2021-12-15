@@ -16,11 +16,11 @@ def extract_findings(lines):
     return json.loads("".join(res_lines))
 
 
-def parse_output_and_extract_findings(output, trigger):
+def parse_output_and_extract_findings(output, triggers):
     take = False
     finding_lines = []
     for line in output.splitlines():
-        if trigger in line:
+        if any(trigger in line for trigger in triggers):
             take = True
         elif take and "INFO" in line:
             take = False

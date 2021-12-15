@@ -58,7 +58,7 @@ class TestE2EDocker(unittest.TestCase):
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
             _, output = self.container.exec_run("security-agent compliance check --report")
-            findings = parse_output_and_extract_findings(output.decode(), CSPM_RUNNING_DOCKER_CHECK_LOG)
+            findings = parse_output_and_extract_findings(output.decode(), [CSPM_RUNNING_DOCKER_CHECK_LOG])
             self.finding = None
             for f in findings:
                 if is_expected_docker_finding(f, self.container_id):

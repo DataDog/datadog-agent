@@ -21,7 +21,6 @@ class TestE2EKubernetes(unittest.TestCase):
 
     namespace = "default"
     in_cluster = False
-    master_node = False
 
     def setUp(self):
         warnings.simplefilter("ignore", category=ResourceWarning)
@@ -29,13 +28,7 @@ class TestE2EKubernetes(unittest.TestCase):
         warnings.simplefilter("ignore", category=DeprecationWarning)
 
         self.kubernetes_helper = KubernetesHelper(namespace=self.namespace, in_cluster=self.in_cluster)
-        self.resource_id = "k8s-e2e-tests-control-plane_kubernetes_worker_node"
-        if self.master_node:
-            self.finding_checker = is_expected_k8s_master_node_finding
-            self.cspm_running_check_log = CSPM_RUNNING_K8S_MASTER_CHECK_LOG
-        else:
-            self.finding_checker = is_expected_k8s_worker_node_finding
-            self.cspm_running_check_log = CSPM_RUNNING_K8S_WORKER_CHECK_LOG
+        self.resource_id = "k8s-e2e-tests-control-plane_kubernetes_*_node"
 
     def test_k8s(self):
         print("")
@@ -52,13 +45,18 @@ class TestE2EKubernetes(unittest.TestCase):
             output = self.kubernetes_helper.exec_command(
                 agent_name, ["security-agent", "compliance", "check", "--report"]
             )
-            findings = parse_output_and_extract_findings(output, self.cspm_running_check_log)
+            findings = parse_output_and_extract_findings(
+                output,
+                [CSPM_RUNNING_K8S_MASTER_CHECK_LOG, CSPM_RUNNING_K8S_WORKER_CHECK_LOG],
+            )
             self.finding = None
             for f in findings:
-                if self.finding_checker(f):
+                if is_expected_k8s_master_node_finding(f) or is_expected_k8s_worker_node_finding(f):
                     self.finding = f
             if self.finding is None:
-                raise LookupError(f"{agent_name} | {self.cspm_running_check_log}")
+                raise LookupError(
+                    f"{agent_name} | {CSPM_RUNNING_K8S_MASTER_CHECK_LOG} | {CSPM_RUNNING_K8S_WORKER_CHECK_LOG}"
+                )
 
         with Step(msg="wait for intake (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)
@@ -70,7 +68,7 @@ class TestE2EKubernetes(unittest.TestCase):
             time.sleep(1 * 60)
 
         with Step(msg="check app finding", emoji=":chart_increasing_with_yen:"):
-            wait_for_finding(f"@resource_type:kubernetes_worker_node @resource:{self.resource_id}")
+            wait_for_finding(f"@resource_type:kubernetes_*_node @resource:{self.resource_id}")
 
         print(emoji.emojize(":heart_on_fire:"), flush=True)
 
@@ -79,14 +77,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--namespace", default="default")
     parser.add_argument("--in-cluster", action="store_true")
-    parser.add_argument("--master-node", action="store_true")
     parser.add_argument("unittest_args", nargs="*")
     args = parser.parse_args()
 
     # setup some specific tests
     TestE2EKubernetes.namespace = args.namespace
     TestE2EKubernetes.in_cluster = args.in_cluster
-    TestE2EKubernetes.master_node = args.master_node
 
     unit_argv = [sys.argv[0]] + args.unittest_args
     unittest.main(argv=unit_argv)

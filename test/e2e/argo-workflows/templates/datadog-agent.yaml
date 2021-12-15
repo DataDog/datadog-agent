@@ -426,7 +426,7 @@ spec:
           python -m venv /tmp/.venv
           source /tmp/.venv/bin/activate
           pip install -q -r requirements.txt
-          python tests/test_e2e_cspm_kubernetes.py --namespace {{inputs.parameters.namespace}} --in-cluster --master-node
+          python tests/test_e2e_cspm_kubernetes.py --namespace {{inputs.parameters.namespace}} --in-cluster
 
     - name: describe-agent
       inputs:
