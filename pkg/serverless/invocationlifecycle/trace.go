@@ -40,6 +40,10 @@ func endExecutionSpan(daemon *daemon.Daemon, endTime time.Time) {
 	duration := endTime.UnixNano() - currentExecutionSpanInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
+		Service:  "???",
+		Name:     "aws.lambda",
+		Resource: "functionname",
+		Type:     "serverless",
 		TraceID:  currentExecutionSpanInfo.traceID,
 		SpanID:   currentExecutionSpanInfo.spanID,
 		Start:    currentExecutionSpanInfo.startTime.UnixNano(),
