@@ -157,6 +157,9 @@ func TestFormatHTTPStats(t *testing.T) {
 	aggregations := result[aggregationKey].EndpointAggregations
 	assert.ElementsMatch(t, out.EndpointAggregations, aggregations)
 
+	// http.NumStatusClasses is the number of http class bucket of http.RequestStats
+	// For this test we spread the bits (one per RequestStats) and httpStats1,2
+	// and we test if all the bits has been aggregated together
 	assert.Equal(t, uint64((1<<(http.NumStatusClasses))-1), tags[aggregationKey])
 }
 

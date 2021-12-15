@@ -27,6 +27,14 @@ import (
 	"go4.org/intern"
 )
 
+type connTag = uint64
+
+// ConnTag constant must be the same for all platform
+const (
+	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
+	tagOpenSSL connTag = 2 // netebpf.OpenSSL
+)
+
 var originalConfig = config.Datadog
 
 func restoreGlobalConfig() {
@@ -420,9 +428,9 @@ func TestSerialization(t *testing.T) {
 func TestFormatHTTPStatsByPath(t *testing.T) {
 	var httpReqStats http.RequestStats
 	httpReqStats.AddRequest(100, 12.5, 0)
-	httpReqStats.AddRequest(100, 12.5, 1)
-	httpReqStats.AddRequest(405, 3.5, 2)
-	httpReqStats.AddRequest(405, 3.5, 4)
+	httpReqStats.AddRequest(100, 12.5, tagGnuTLS)
+	httpReqStats.AddRequest(405, 3.5, tagOpenSSL)
+	httpReqStats.AddRequest(405, 3.5, 0)
 
 	// Verify the latency data is correct prior to serialization
 	latencies := httpReqStats[model.HTTPResponseStatus_Info].Latencies
@@ -460,7 +468,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	assert.Len(t, statsByResponseStatus, 5)
 
 	tags := formattedTags[key]
-	assert.Equal(t, uint64(0x07), tags)
+	assert.Equal(t, tagGnuTLS|tagOpenSSL, tags)
 
 	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
 	sketch := unmarshalSketch(t, serializedLatencies)

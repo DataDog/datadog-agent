@@ -55,9 +55,16 @@ const (
 
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
 
+type ConnTag = uint64
+
+const (
+	GnuTLS  ConnTag = C.LIBGNUTLS
+	OpenSSL ConnTag = C.LIBSSL
+)
+
 var (
-	StaticTags = map[uint64]string{
-		C.LIBGNUTLS: "tls.library:gnutls",
-		C.LIBSSL:    "tls.library:openssl",
+	StaticTags = map[ConnTag]string{
+		GnuTLS:  "tls.library:gnutls",
+		OpenSSL: "tls.library:openssl",
 	}
 )
