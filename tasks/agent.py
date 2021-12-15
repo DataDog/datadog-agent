@@ -158,7 +158,7 @@ def build(
         build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
     else:
         build_include = (
-            get_default_build_tags(build="agent", arch=arch)
+            get_default_build_tags(build="agent", arch=arch, flavor=flavor)
             if build_include is None
             else filter_incompatible_tags(build_include.split(","), arch=arch)
         )
@@ -363,6 +363,7 @@ def get_omnibus_env(
     system_probe_bin=None,
     nikos_path=None,
     go_mod_cache=None,
+    flavor=None,
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -403,6 +404,8 @@ def get_omnibus_env(
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     if nikos_path:
         env['NIKOS_PATH'] = nikos_path
+    if flavor:
+        env['AGENT_FLAVOR'] = flavor.name
 
     return env
 
@@ -509,6 +512,7 @@ def omnibus_build(
         system_probe_bin=system_probe_bin,
         nikos_path=nikos_path,
         go_mod_cache=go_mod_cache,
+        flavor=flavor,
     )
 
     target_project = "agent"
@@ -598,6 +602,7 @@ def omnibus_manifest(
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
+        flavor=flavor,
     )
 
     target_project = "agent"

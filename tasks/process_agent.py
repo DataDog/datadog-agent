@@ -8,6 +8,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from .flavor import AgentFlavor
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -30,6 +31,7 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
+    flavor=AgentFlavor.base.name,
     go_version=None,
     incremental_build=False,
     major_version='7',
@@ -40,6 +42,7 @@ def build(
     """
     Build the process agent
     """
+    flavor = AgentFlavor[flavor]
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # generate windows resources
@@ -85,7 +88,7 @@ def build(
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_include = (
-        get_default_build_tags(build="process-agent", arch=arch)
+        get_default_build_tags(build="process-agent", arch=arch, flavor=flavor)
         if build_include is None
         else filter_incompatible_tags(build_include.split(","), arch=arch)
     )
