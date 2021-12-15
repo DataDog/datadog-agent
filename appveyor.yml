@@ -50,5 +50,8 @@ test_script:
   - codecov -f profile.cov -F windows
 
 # uncomment to debug builds
-# on_finish:
+#on_finish:
+#  - set | perl -pe "s!^!set !g" > C:\Users\appveyor\Desktop\runme.bat
+#  - echo cd %APPVEYOR_BUILD_FOLDER% >> C:\Users\appveyor\Desktop\runme.bat
+#  - echo cmd >> C:\Users\appveyor\Desktop\runme.bat
 #  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
