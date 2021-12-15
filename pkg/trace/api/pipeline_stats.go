@@ -79,26 +79,14 @@ func newPipelineStatsProxy(transport http.RoundTripper, target *url.URL, key str
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
 		metrics.Count("datadog.trace_agent.pipelines_stats", 1, nil, 1)
-		// URL, Host and key are set in the transport for each outbound request
+		req.Host = target.Host
+		req.URL = target
+		req.Header.Set("DD-API-KEY", key)
 	}
 	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "pipeline_stats.Proxy: ", 0),
-		Transport: &pipelineStatsTransport{transport, target, key},
+		Transport: transport,
 	}
-}
-
-// pipelineStatsTransport sends HTTP requests to a target using an underlying http.RoundTripper.
-type pipelineStatsTransport struct {
-	rt     http.RoundTripper
-	target *url.URL
-	key    string
-}
-
-func (t *pipelineStatsTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
-	req.Host = t.target.Host
-	req.URL = t.target
-	req.Header.Set("DD-API-KEY", t.key)
-	return t.rt.RoundTrip(req)
 }
