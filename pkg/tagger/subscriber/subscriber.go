@@ -11,7 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const bufferSize = 100
 
 // Subscriber allows processes to subscribe to entity events generated from a
 // tagger.
@@ -31,11 +34,6 @@ func NewSubscriber() *Subscriber {
 // entity is added, modified or deleted. It can send an initial burst of events
 // only to the new subscriber, without notifying all of the others.
 func (s *Subscriber) Subscribe(cardinality collectors.TagCardinality, events []types.EntityEvent) chan []types.EntityEvent {
-	// this buffer size is an educated guess, as we know the rate of
-	// updates, but not how fast these can be streamed out yet. it most
-	// likely should be configurable.
-	bufferSize := 100
-
 	// this is a `ch []EntityEvent` instead of a `ch EntityEvent` to
 	// improve throughput, as bursts of events are as likely to occur as
 	// isolated events, especially at startup or with collectors that
@@ -58,6 +56,13 @@ func (s *Subscriber) Subscribe(cardinality collectors.TagCardinality, events []t
 func (s *Subscriber) Unsubscribe(ch chan []types.EntityEvent) {
 	s.Lock()
 	defer s.Unlock()
+
+	s.unsubscribe(ch)
+}
+
+// unsubscribe ends a subscription to entity events and closes its channel. It
+// is not thread-safe, and callers should take care of synchronization.
+func (s *Subscriber) unsubscribe(ch chan []types.EntityEvent) {
 	defer telemetry.Subscribers.Dec()
 
 	delete(s.subscribers, ch)
@@ -71,10 +76,16 @@ func (s *Subscriber) Notify(events []types.EntityEvent) {
 		return
 	}
 
-	s.RLock()
-	defer s.RUnlock()
+	s.Lock()
+	defer s.Unlock()
 
 	for ch, cardinality := range s.subscribers {
+		if len(ch) >= bufferSize {
+			log.Info("channel full, canceling subscription")
+			s.unsubscribe(ch)
+			continue
+		}
+
 		notify(ch, events, cardinality)
 	}
 }
