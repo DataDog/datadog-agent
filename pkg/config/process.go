@@ -33,7 +33,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.blacklist_patterns")
 	config.SetKnown("process_config.intervals.container")
 	config.SetKnown("process_config.intervals.container_realtime")
-	config.BindEnvAndSetDefault("process_config.dd_agent_bin", defaultDDAgentBin, prEnv("DD_AGENT_BIN")...)
+	config.BindEnvAndSetDefault("process_config.dd_agent_bin", defaultDDAgentBin, prEnv("AGENT_BIN")...)
 	config.SetKnown("process_config.custom_sensitive_words")
 	config.SetKnown("process_config.scrub_args")
 	config.SetKnown("process_config.strip_proc_arguments")
