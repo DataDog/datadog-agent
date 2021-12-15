@@ -46,8 +46,8 @@ func (series *IterableSeries) Append(serie *Serie) {
 	}
 }
 
-// GetSeriesAppenedCount returns the number of series appened with `IterableSeries.Append`.
-func (series *IterableSeries) GetSeriesAppenedCount() uint64 {
+// SeriesCount returns the number of series appended with `IterableSeries.Append`.
+func (series *IterableSeries) SeriesCount() uint64 {
 	return atomic.LoadUint64(&series.count)
 }
 

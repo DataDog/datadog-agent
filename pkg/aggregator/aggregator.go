@@ -269,8 +269,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	}
 
 	var flushMetricsAndSerializeInParallelChanSize int
-	if config.Datadog.GetBool("flush_metrics_and_serialize_in_parallel") {
-		flushMetricsAndSerializeInParallelChanSize = config.Datadog.GetInt("flush_metrics_and_serialize_in_parallel_chan_size")
+	if config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") {
+		flushMetricsAndSerializeInParallelChanSize = config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size")
 	}
 
 	aggregator := &BufferedAggregator{
@@ -610,7 +610,7 @@ func (agg *BufferedAggregator) sendIterableSeries(
 
 		err := agg.serializer.SendIterableSeries(series)
 		// if err == nil, SenderStopped was called and it is safe to read the number of series.
-		count := series.GetSeriesAppenedCount()
+		count := series.SeriesCount()
 		addFlushCount("Series", int64(count))
 		updateSerieTelemetry(start, int(count), err)
 		close(done)

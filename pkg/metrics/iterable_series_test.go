@@ -46,7 +46,7 @@ func TestIterableSeriesCallback(t *testing.T) {
 	iterableSeries.Append(&Serie{Name: "serie2"})
 
 	r := require.New(t)
-	r.Equal(uint64(2), iterableSeries.GetSeriesAppenedCount())
+	r.Equal(uint64(2), iterableSeries.SeriesCount())
 	r.Len(series, 2)
 	r.Equal("serie1", series[0].Name)
 	r.Equal("serie2", series[1].Name)

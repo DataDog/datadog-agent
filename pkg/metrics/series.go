@@ -527,12 +527,12 @@ func (series Series) WriteHeader(stream *jsoniter.Stream) error {
 	return writeHeader(stream)
 }
 
-// WriteFooter prints the payload footer for this type
+// WriteFooter writes the payload footer for this type
 func (series Series) WriteFooter(stream *jsoniter.Stream) error {
 	return writeFooter(stream)
 }
 
-// WriteItem prints the json representation of an item
+// WriteItem writes the json representation of an item
 func (series Series) WriteItem(stream *jsoniter.Stream, i int) error {
 	if i < 0 || i > len(series)-1 {
 		return errors.New("out of range")

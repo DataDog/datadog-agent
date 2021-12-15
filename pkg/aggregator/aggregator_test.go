@@ -381,7 +381,7 @@ func TestRecurentSeries(t *testing.T) {
 	s.AssertExpectations(t)
 }
 
-func TestTags(t *testing.T) {	
+func TestTags(t *testing.T) {
 	tests := []struct {
 		name                    string
 		tlmContainerTagsEnabled bool
@@ -438,25 +438,25 @@ func TestTags(t *testing.T) {
 
 func TestAggregatorFlush(t *testing.T) {
 	resetAggregator()
-	defer config.Datadog.Set("flush_metrics_and_serialize_in_parallel", nil)
+	defer config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", nil)
 
 	tests := []struct {
 		name    string
 		enabled bool
 	}{
 		{
-			name:    "flush_metrics_and_serialize_in_parallel false",
+			name:    "aggregator_flush_metrics_and_serialize_in_parallel false",
 			enabled: false,
 		},
 		{
-			name:    "flush_metrics_and_serialize_in_parallel true",
+			name:    "aggregator_flush_metrics_and_serialize_in_parallel true",
 			enabled: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.Set("flush_metrics_and_serialize_in_parallel", tt.enabled)
+			config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", tt.enabled)
 			s := &MockSerializerIterableSerie{}
 			s.On("SendServiceChecks", mock.Anything).Return(nil)
 			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
