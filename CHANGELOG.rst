@@ -2,6 +2,20 @@
 Release Notes
 =============
 
+.. _Release Notes_7.32.3:
+
+7.32.3
+======
+
+.. _Release Notes_7.32.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-12-15
+
+- Please refer to the `7.32.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7323>`_ for the list of changes on the Core Checks
+
 .. _Release Notes_7.32.2:
 
 7.32.2 / 6.32.2
