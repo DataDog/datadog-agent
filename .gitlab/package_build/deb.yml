@@ -206,11 +206,11 @@ dogstatsd_deb-x64:
       - $OMNIBUS_PACKAGE_DIR
 
 agent_heroku_deb-x64-a6:
-  extends: .agent_deb_x64-a6
+  extends: agent_deb_x64-a6
   variables:
     FLAVOR: heroku
 
 agent_heroku_deb-x64-a7:
-  extends: .agent_deb_x64-a7
+  extends: agent_deb_x64-a7
   variables:
     FLAVOR: heroku
