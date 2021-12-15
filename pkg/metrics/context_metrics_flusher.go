@@ -70,4 +70,5 @@ func (f *ContextMetricsFlusher) FlushAndClear(callback func([]*Serie)) map[ckey.
 			series = series[:0]
 		})
 	return errors
+
 }

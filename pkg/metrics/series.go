@@ -427,46 +427,27 @@ func (e Serie) String() string {
 	return string(s)
 }
 
-//// The following methods implement the StreamJSONMarshaler interface
-//// for support of the enable_stream_payload_serialization option.
-
-// WriteHeader writes the payload header for this type
-func (series Series) WriteHeader(stream *jsoniter.Stream) error {
+func writeHeader(stream *jsoniter.Stream) error {
 	stream.WriteObjectStart()
 	stream.WriteObjectField("series")
 	stream.WriteArrayStart()
 	return stream.Flush()
 }
 
-// WriteFooter prints the payload footer for this type
-func (series Series) WriteFooter(stream *jsoniter.Stream) error {
+func writeFooter(stream *jsoniter.Stream) error {
 	stream.WriteArrayEnd()
 	stream.WriteObjectEnd()
 	return stream.Flush()
 }
 
-// WriteItem prints the json representation of an item
-func (series Series) WriteItem(stream *jsoniter.Stream, i int) error {
-	if i < 0 || i > len(series)-1 {
-		return errors.New("out of range")
-	}
-	serie := series[i]
+func writeItem(stream *jsoniter.Stream, serie *Serie) error {
 	populateDeviceField(serie)
 	encodeSerie(serie, stream)
 	return stream.Flush()
 }
 
-// Len returns the number of items to marshal
-func (series Series) Len() int {
-	return len(series)
-}
-
-// DescribeItem returns a text description for logs
-func (series Series) DescribeItem(i int) string {
-	if i < 0 || i > len(series)-1 {
-		return "out of range"
-	}
-	return fmt.Sprintf("name %q, %d points", series[i].Name, len(series[i].Points))
+func describeItem(serie *Serie) string {
+	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
 }
 
 func encodeSerie(serie *Serie, stream *jsoniter.Stream) {
@@ -536,4 +517,38 @@ func encodePoints(points []Point, stream *jsoniter.Stream) {
 		stream.WriteArrayEnd()
 	}
 	stream.WriteArrayEnd()
+}
+
+//// The following methods implement the StreamJSONMarshaler interface
+//// for support of the enable_stream_payload_serialization option.
+
+// WriteHeader writes the payload header for this type
+func (series Series) WriteHeader(stream *jsoniter.Stream) error {
+	return writeHeader(stream)
+}
+
+// WriteFooter writes the payload footer for this type
+func (series Series) WriteFooter(stream *jsoniter.Stream) error {
+	return writeFooter(stream)
+}
+
+// WriteItem writes the json representation of an item
+func (series Series) WriteItem(stream *jsoniter.Stream, i int) error {
+	if i < 0 || i > len(series)-1 {
+		return errors.New("out of range")
+	}
+	return writeItem(stream, series[i])
+}
+
+// Len returns the number of items to marshal
+func (series Series) Len() int {
+	return len(series)
+}
+
+// DescribeItem returns a text description for logs
+func (series Series) DescribeItem(i int) string {
+	if i < 0 || i > len(series)-1 {
+		return "out of range"
+	}
+	return describeItem(series[i])
 }
