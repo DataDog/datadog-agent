@@ -52,7 +52,6 @@ class TestE2EKubernetes(unittest.TestCase):
             output = self.kubernetes_helper.exec_command(
                 agent_name, ["security-agent", "compliance", "check", "--report"]
             )
-            print(output)
             findings = parse_output_and_extract_findings(output, self.cspm_running_check_log)
             self.finding = None
             for f in findings:
