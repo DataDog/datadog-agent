@@ -6,6 +6,7 @@
 package invocationlifecycle
 
 import (
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
@@ -13,6 +14,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+	serviceEnvVar      = "DD_SERVICE"
+)
+
+var (
+	functionName = os.Getenv(functionNameEnvVar)
+	service      = os.Getenv(serviceEnvVar)
 )
 
 // executionSpanInfo is the information needed to create a span representing the Lambda function execution
@@ -27,7 +38,6 @@ var currentExecutionSpanInfo executionSpanInfo
 
 // beginExecutionSpan records information from the start of the invocation in the current execution span info
 func beginExecutionSpan(daemon *daemon.Daemon, startTime time.Time) {
-	log.Debug("Beginning function execution span")
 	currentExecutionSpanInfo.startTime = startTime
 	currentExecutionSpanInfo.traceID = random.Uint64()
 	currentExecutionSpanInfo.spanID = random.Uint64()
@@ -36,13 +46,12 @@ func beginExecutionSpan(daemon *daemon.Daemon, startTime time.Time) {
 // endExecutionSpan uses information from the end of the invocation plus the current execution span info to build
 // the function execution span and sends it to the intake.
 func endExecutionSpan(daemon *daemon.Daemon, endTime time.Time) {
-	log.Debug("Ending function execution span")
 	duration := endTime.UnixNano() - currentExecutionSpanInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
-		Service:  "???",
+		Service:  service,
 		Name:     "aws.lambda",
-		Resource: "functionname",
+		Resource: functionName,
 		Type:     "serverless",
 		TraceID:  currentExecutionSpanInfo.traceID,
 		SpanID:   currentExecutionSpanInfo.spanID,
