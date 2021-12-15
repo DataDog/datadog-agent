@@ -17,7 +17,7 @@ private:
     struct archive* _extractor;
 
 public:
-    DecompressionContext(const std::filesystem::path &archivePath)
+    explicit DecompressionContext(const std::filesystem::path &archivePath)
     {
         _archive = archive_read_new();
         archive_read_support_compression_lzma(_archive);
