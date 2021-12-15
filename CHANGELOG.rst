@@ -16,7 +16,7 @@ Release on: 2021-12-15
 
 .. _Release Notes_7.32.3_Security Notes:
 
-- Upgrade the log4j dependency to 2.12.2 in JMXFetch to fully address [CVE-2021-44228](https://nvd.nist.gov/vuln/detail/CVE-2021-44228) and [CVE-2021-45046](https://nvd.nist.gov/vuln/detail/CVE-2021-45046)
+- Upgrade the log4j dependency to 2.12.2 in JMXFetch to fully address `CVE-2021-44228 <https://nvd.nist.gov/vuln/detail/CVE-2021-44228>`_ and `CVE-2021-45046 <https://nvd.nist.gov/vuln/detail/CVE-2021-45046>`_
 
 .. _Release Notes_7.32.2:
 
