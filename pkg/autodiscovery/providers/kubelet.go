@@ -218,7 +218,7 @@ func (k *KubeletConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 }
 
 func init() {
-	RegisterProvider("kubelet", NewKubeletConfigProvider)
+	RegisterProvider(names.KubeletRegisterName, NewKubeletConfigProvider)
 }
 
 // GetConfigErrors returns a map of configuration errors for each namespace/pod

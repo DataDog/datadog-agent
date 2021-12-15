@@ -62,7 +62,7 @@ func init() {
 	Register("kube_endpoints", NewKubeEndpointsListener)
 }
 
-func NewKubeEndpointsListener() (ServiceListener, error) {
+func NewKubeEndpointsListener(Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {

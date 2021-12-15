@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -33,13 +32,10 @@ const (
 	containerdDefaultSocketPath = "/var/run/containerd/containerd.sock"
 )
 
-var (
-	globalContainerdUtil *ContainerdUtil
-	once                 sync.Once
-)
-
 // ContainerdItf is the interface implementing a subset of methods that leverage the Containerd api.
 type ContainerdItf interface {
+	Close() error
+	CheckConnectivity() *retry.Error
 	Container(id string) (containerd.Container, error)
 	ContainerWithContext(ctx context.Context, id string) (containerd.Container, error)
 	Containers() ([]containerd.Container, error)
@@ -53,7 +49,9 @@ type ContainerdItf interface {
 	Spec(ctn containerd.Container) (*oci.Spec, error)
 	SpecWithContext(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
 	Metadata() (containerd.Version, error)
-	Namespace() string
+	CurrentNamespace() string
+	SetCurrentNamespace(namespace string)
+	Namespaces(ctx context.Context) ([]string, error)
 	TaskMetrics(ctn containerd.Container) (*types.Metric, error)
 	TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error)
 	Status(ctn containerd.Container) (containerd.ProcessStatus, error)
@@ -69,38 +67,53 @@ type ContainerdUtil struct {
 	namespace         string
 }
 
-// GetContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
+// NewContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
 // Errors are handled in the retrier.
-func GetContainerdUtil() (ContainerdItf, error) {
-	once.Do(func() {
-		globalContainerdUtil = &ContainerdUtil{
-			queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
-			connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
-			socketPath:        config.Datadog.GetString("cri_socket_path"),
-			namespace:         config.Datadog.GetString("containerd_namespace"),
-		}
-		if globalContainerdUtil.socketPath == "" {
-			log.Info("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")
-			globalContainerdUtil.socketPath = containerdDefaultSocketPath
-		}
-		// Initialize the client in the connect method
-		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
-			Name:              "containerdutil",
-			AttemptMethod:     globalContainerdUtil.connect,
-			Strategy:          retry.Backoff,
-			InitialRetryDelay: 1 * time.Second,
-			MaxRetryDelay:     5 * time.Minute,
-		})
+func NewContainerdUtil() (ContainerdItf, error) {
+	// A singleton does not work because different parts of the code
+	// (workloadmeta, checks, etc.) might need to fetch info from different
+	// namespaces at the same time.
+	containerdUtil := &ContainerdUtil{
+		queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
+		connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
+		socketPath:        config.Datadog.GetString("cri_socket_path"),
+		namespace:         config.Datadog.GetString("containerd_namespace"),
+	}
+	if containerdUtil.socketPath == "" {
+		log.Info("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")
+		containerdUtil.socketPath = containerdDefaultSocketPath
+	}
+	// Initialize the client in the connect method
+	containerdUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+		Name:              "containerdutil",
+		AttemptMethod:     containerdUtil.connect,
+		Strategy:          retry.Backoff,
+		InitialRetryDelay: 1 * time.Second,
+		MaxRetryDelay:     5 * time.Minute,
 	})
-	if err := globalContainerdUtil.initRetry.TriggerRetry(); err != nil {
+
+	if err := containerdUtil.CheckConnectivity(); err != nil {
 		log.Errorf("Containerd init error: %s", err.Error())
 		return nil, err
 	}
-	return globalContainerdUtil, nil
+
+	return containerdUtil, nil
 }
 
-func (c *ContainerdUtil) Namespace() string {
+func (c *ContainerdUtil) CheckConnectivity() *retry.Error {
+	return c.initRetry.TriggerRetry()
+}
+
+func (c *ContainerdUtil) CurrentNamespace() string {
 	return c.namespace
+}
+
+func (c *ContainerdUtil) SetCurrentNamespace(namespace string) {
+	c.namespace = namespace
+}
+
+func (c *ContainerdUtil) Namespaces(ctx context.Context) ([]string, error) {
+	return c.cl.NamespaceService().List(ctx)
 }
 
 // Metadata is used to collect the version and revision of the Containerd API

@@ -48,3 +48,4 @@ serverless_cold_start_performance-deb_x64      @DataDog/serverless
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations
+k8s-e2e-otlp-*                    @DataDog/agent-platform
