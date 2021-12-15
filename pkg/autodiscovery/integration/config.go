@@ -139,12 +139,29 @@ func (c *Config) IsTemplate() bool {
 
 // IsCheckConfig returns true if the config is a node-agent check configuration,
 func (c *Config) IsCheckConfig() bool {
-	return c.ClusterCheck == false && len(c.Instances) > 0
+	return !c.ClusterCheck && len(c.Instances) > 0
 }
 
 // IsLogConfig returns true if config contains a logs config.
 func (c *Config) IsLogConfig() bool {
 	return c.LogsConfig != nil
+}
+
+// Type returns a string representing the config type.
+func (c *Config) Type() string {
+	if c.IsLogConfig() {
+		return "logs"
+	}
+
+	if c.IsCheckConfig() {
+		return "check"
+	}
+
+	if c.ClusterCheck {
+		return "clustercheck"
+	}
+
+	return "unknown"
 }
 
 // HasFilter returns true if metrics or logs collection must be disabled for this config.
