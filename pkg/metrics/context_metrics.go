@@ -79,16 +79,16 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 
 // Flush flushes every metrics in the ContextMetrics.
 // Returns the slice of Series and a map of errors by context key.
-func (m ContextMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey][]error) {
+func (m ContextMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
 	var series []*Serie
-	errors := make(map[ckey.ContextKey][]error)
+	errors := make(map[ckey.ContextKey]error)
 
 	for contextKey, metric := range m {
-		flushToSeries(
+		series = flushToSeries(
 			contextKey,
 			metric,
 			timestamp,
-			&series,
+			series,
 			errors)
 	}
 
@@ -99,21 +99,58 @@ func flushToSeries(
 	contextKey ckey.ContextKey,
 	metric Metric,
 	bucketTimestamp float64,
-	series *[]*Serie,
-	errors map[ckey.ContextKey][]error) {
+	series []*Serie,
+	errors map[ckey.ContextKey]error) []*Serie {
 	metricSeries, err := metric.flush(bucketTimestamp)
 
 	if err == nil {
 		for _, serie := range metricSeries {
 			serie.ContextKey = contextKey
-			*series = append(*series, serie)
+			series = append(series, serie)
 		}
 	} else {
 		switch err.(type) {
 		case NoSerieError:
 			// this error happens in nominal conditions and shouldn't be returned
 		default:
-			errors[contextKey] = append(errors[contextKey], err)
+			errors[contextKey] = err
+		}
+	}
+	return series
+}
+
+// aggregateContextMetricsByContextKey orders all Metric instances by context key,
+// representing the result as calls to the given callbacks.  The `callback` parameter
+// is called with each Metric in term, while `contextKeyChanged` is called after the
+// last Metric with each context key is processed. The last argument of the callback is the index
+// of the contextMetrics in contextMetricsCollection.
+//  For example:
+//     callback(key1, metric1, 0)
+//     callback(key1, metric2, 1)
+//     callback(key1, metric3, 2)
+//     contextKeyChanged()
+//     callback(key2, metric4, 0)
+//     contextKeyChanged()
+//     callback(key3, metric5, 0)
+//     callback(key3, metric6, 1)
+//     contextKeyChanged()
+func aggregateContextMetricsByContextKey(
+	contextMetricsCollection []ContextMetrics,
+	callback func(ckey.ContextKey, Metric, int),
+	contextKeyChanged func()) {
+	for i := 0; i < len(contextMetricsCollection); i++ {
+		for contextKey, metrics := range contextMetricsCollection[i] {
+			callback(contextKey, metrics, i)
+
+			// Find `contextKey` in the remaining contextMetrics
+			for j := i + 1; j < len(contextMetricsCollection); j++ {
+				contextMetrics := contextMetricsCollection[j]
+				if m, found := contextMetrics[contextKey]; found {
+					callback(contextKey, m, j)
+					delete(contextMetrics, contextKey)
+				}
+			}
+			contextKeyChanged()
 		}
 	}
 }
