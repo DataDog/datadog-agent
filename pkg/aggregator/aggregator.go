@@ -759,6 +759,12 @@ func (agg *BufferedAggregator) run() {
 		case <-agg.TickerChan:
 			start := time.Now()
 			agg.Flush(start, false)
+
+			// Do this here, rather than in the Flush():
+			// - make sure Shrink doesn't happen concurrently with sample processing.
+			// - we don't need to Shrink() on stop
+			agg.tagsStore.Shrink()
+
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
 			aggregatorEventPlatformErrorLogged = false

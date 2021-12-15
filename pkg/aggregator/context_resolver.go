@@ -17,8 +17,13 @@ import (
 // Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
 	Name string
-	Tags []string
 	Host string
+	tags *tags.Entry
+}
+
+// Tags returns tags for the context.
+func (c *Context) Tags() []string {
+	return c.tags.Tags()
 }
 
 // contextResolver allows tracking and expiring contexts
@@ -32,8 +37,8 @@ type contextResolver struct {
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
-func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
+func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) (ckey.ContextKey, ckey.TagsKey) {
+	return cr.keyGenerator.GenerateWithTags(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
 }
 
 func newContextResolver(cache *tags.Store) *contextResolver {
@@ -47,8 +52,8 @@ func newContextResolver(cache *tags.Store) *contextResolver {
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	metricSampleContext.GetTags(cr.tagsBuffer)               // tags here are not sorted and can contain duplicates
-	contextKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
+	metricSampleContext.GetTags(cr.tagsBuffer)                        // tags here are not sorted and can contain duplicates
+	contextKey, tagsKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		// making a copy of tags for the context since tagsBuffer
@@ -56,7 +61,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		// per context instead of one per sample.
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSampleContext.GetName(),
-			Tags: cr.tagsBuffer.Copy(),
+			tags: cr.tagsCache.Insert(tagsKey, cr.tagsBuffer),
 			Host: metricSampleContext.GetHost(),
 		}
 	}
@@ -76,7 +81,12 @@ func (cr *contextResolver) length() int {
 
 func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 	for _, expiredContextKey := range expiredContextKeys {
+		context := cr.contextsByKey[expiredContextKey]
 		delete(cr.contextsByKey, expiredContextKey)
+
+		if context != nil {
+			context.tags.Release()
+		}
 	}
 }
 

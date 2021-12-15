@@ -51,7 +51,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 	ctx, _ := cs.contextResolver.get(ck)
 	ss := metrics.SketchSeries{
 		Name: ctx.Name,
-		Tags: ctx.Tags,
+		Tags: ctx.Tags(),
 		Host: ctx.Host,
 		// Interval: TODO: investigate
 		Points:     points,
@@ -127,7 +127,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 			continue
 		}
-		log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
+		log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags(), err)
 	}
 	for _, serie := range series {
 		// Resolve context and populate new []Serie
@@ -137,7 +137,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 			continue
 		}
 		serie.Name = context.Name + serie.NameSuffix
-		serie.Tags = context.Tags
+		serie.Tags = context.Tags()
 		serie.Host = context.Host
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 

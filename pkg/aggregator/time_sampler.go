@@ -85,7 +85,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	ctx, _ := s.contextResolver.get(ck)
 	ss := metrics.SketchSeries{
 		Name:       ctx.Name,
-		Tags:       ctx.Tags,
+		Tags:       ctx.Tags(),
 		Host:       ctx.Host,
 		Interval:   s.interval,
 		Points:     points,
@@ -147,7 +147,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 				continue
 			}
 			serie.Name = context.Name + serie.NameSuffix
-			serie.Tags = context.Tags
+			serie.Tags = context.Tags()
 			serie.Host = context.Host
 			serie.Interval = s.interval
 
@@ -201,7 +201,7 @@ func (s *TimeSampler) flushContextMetrics(timestamp int64, contextMetrics metric
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 			continue
 		}
-		log.Infof("No value returned for dogstatsd metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
+		log.Infof("No value returned for dogstatsd metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags(), err)
 	}
 	return series
 }
