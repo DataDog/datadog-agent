@@ -124,7 +124,6 @@ static __always_inline ssl_sock_t * ssl_sock_from_ssl_ctx(void *ssl_ctx, u64 pid
 static __always_inline void init_ssl_sock(void *ssl_ctx, u32 socket_fd) {
     ssl_sock_t ssl_sock = { 0 };
     ssl_sock.fd = socket_fd;
-    ssl_sock.http20 = 0;
     bpf_map_update_elem(&ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
 }
 
