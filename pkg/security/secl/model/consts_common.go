@@ -13,8 +13,6 @@ import (
 	"strings"
 	"syscall"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -354,10 +352,6 @@ var (
 		"BPF_SK_LOOKUP":                BpfSkLookup,
 		"BPF_XDP":                      BpfXdp,
 		"BPF_SK_SKB_VERDICT":           BpfSkSkbVerdict,
-	}
-
-	unlinkFlagsConstants = map[string]int{
-		"AT_REMOVEDIR": unix.AT_REMOVEDIR,
 	}
 
 	// SECLConstants are constants available in runtime security agent rules

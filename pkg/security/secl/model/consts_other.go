@@ -13,4 +13,5 @@ var (
 	chmodModeConstants = map[string]int{}
 	// KernelCapabilityConstants list of kernel capabilities
 	KernelCapabilityConstants = map[string]uint64{}
+	unlinkFlagsConstants      = map[string]int{}
 )

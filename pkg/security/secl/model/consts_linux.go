@@ -247,4 +247,8 @@ var (
 		"CAP_SYS_TTY_CONFIG":     1 << unix.CAP_SYS_TTY_CONFIG,
 		"CAP_WAKE_ALARM":         1 << unix.CAP_WAKE_ALARM,
 	}
+
+	unlinkFlagsConstants = map[string]int{
+		"AT_REMOVEDIR": unix.AT_REMOVEDIR,
+	}
 )
