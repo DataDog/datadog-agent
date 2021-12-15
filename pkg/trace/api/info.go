@@ -20,7 +20,7 @@ import (
 func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc) {
 	var all []string
 	for _, e := range endpoints {
-		if e.IsEnabled != nil && !e.IsEnabled() {
+		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
 		}
 		if !e.Hidden {
