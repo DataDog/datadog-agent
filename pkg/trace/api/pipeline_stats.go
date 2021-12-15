@@ -8,7 +8,7 @@ package api
 import (
 	"errors"
 	"fmt"
-	"log"
+	stdlog "log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -43,6 +44,7 @@ func pipelineStatsEndpoint(cfg *config.AgentConfig) (url *url.URL, apiKey string
 func (r *HTTPReceiver) pipelineStatsProxyHandler() http.Handler {
 	target, key, err := pipelineStatsEndpoint(r.conf)
 	if err != nil {
+		log.Errorf("Failed to start pipeline stats proxy handler: %v", err)
 		return pipelineStatsErrorHandler(err)
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
@@ -82,7 +84,7 @@ func newPipelineStatsProxy(transport http.RoundTripper, target *url.URL, key str
 	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  director,
-		ErrorLog:  log.New(logger, "pipeline_stats.Proxy: ", 0),
+		ErrorLog:  stdlog.New(logger, "pipeline_stats.Proxy: ", 0),
 		Transport: &pipelineStatsTransport{transport, target, key},
 	}
 }
