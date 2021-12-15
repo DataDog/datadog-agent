@@ -133,6 +133,8 @@ type SQLConfig struct {
 // SQLMetadata holds metadata collected throughout the obfuscation of an SQL statement. It is only
 // collected when enabled via SQLConfig.
 type SQLMetadata struct {
+	// Size holds the byte size of the metadata collected.
+	Size int64
 	// TablesCSV is a comma-separated list of tables that the query addresses.
 	TablesCSV string `json:"tables_csv"`
 	// Commands holds commands executed in an SQL statement.

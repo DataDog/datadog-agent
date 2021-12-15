@@ -24,6 +24,8 @@ type metadataFinderFilter struct {
 	collectComments   bool
 	replaceDigits     bool
 
+	// size holds the byte size of the metadata collected by the filter.
+	size int64
 	// tablesSeen keeps track of unique table names encountered by the filter.
 	tablesSeen map[string]struct{}
 	// tablesCSV specifies a comma-separated list of tables.
@@ -37,12 +39,16 @@ type metadataFinderFilter struct {
 func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
 	if f.collectComments && token == Comment {
 		// A comment with line-breaks will be brought to a single line.
-		f.comments = append(f.comments, strings.TrimSpace(strings.Replace(string(buffer), "\n", " ", -1)))
+		comment := strings.TrimSpace(strings.Replace(string(buffer), "\n", " ", -1))
+		f.size += int64(len(comment))
+		f.comments = append(f.comments, comment)
 	}
 	if f.collectCommands {
 		switch token {
 		case Select, Update, Insert, Delete, Join, Alter, Drop, Create, Grant, Revoke, Commit, Begin, Truncate:
-			f.commands = append(f.commands, strings.ToUpper(token.String()))
+			command := strings.ToUpper(token.String())
+			f.size += int64(len(command))
+			f.commands = append(f.commands, command)
 		}
 	}
 	if f.collectTableNames {
@@ -87,9 +93,15 @@ func (f *metadataFinderFilter) storeTableName(name string) {
 	f.tablesCSV.WriteString(name)
 }
 
+// Size returns the byte size of the metadata collected by the filter.
+func (f *metadataFinderFilter) Size() int64 {
+	return f.size + int64(len(f.tablesCSV.String()))
+}
+
 // Results returns metadata collected by the filter for an SQL statement.
 func (f *metadataFinderFilter) Results() SQLMetadata {
 	return SQLMetadata{
+		Size:      f.Size(),
 		TablesCSV: f.tablesCSV.String(),
 		Commands:  f.commands,
 		Comments:  f.comments,
@@ -101,7 +113,10 @@ func (f *metadataFinderFilter) Reset() {
 	for k := range f.tablesSeen {
 		delete(f.tablesSeen, k)
 	}
+	f.size = 0
 	f.tablesCSV.Reset()
+	f.commands = nil
+	f.comments = nil
 }
 
 // discardFilter is a token filter which discards certain elements from a query, such as
@@ -322,7 +337,7 @@ type ObfuscatedQuery struct {
 // Cost returns the number of bytes needed to store all the fields
 // of this ObfuscatedQuery.
 func (oq *ObfuscatedQuery) Cost() int64 {
-	return int64(len(oq.Query) + len(oq.Metadata.TablesCSV))
+	return int64(len(oq.Query)) + oq.Metadata.Size
 }
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
