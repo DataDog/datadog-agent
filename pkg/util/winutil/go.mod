@@ -5,7 +5,7 @@ go 1.16
 replace github.com/DataDog/datadog-agent/pkg/util/log => ../log
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.32.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.32.3-rc.2
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f
 )
