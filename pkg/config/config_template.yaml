@@ -782,7 +782,7 @@ api_key:
 
     ## @param privProtocol - string - optional
     ## The privacy protocol to use when connecting to your SNMP devices.
-    ## Available options are: DES, AES, AES192, AES192C, AES256, AES256C
+    ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
     ## Defaults to DES when `privacy_key` is specified.
     ## SNMPv3 only.
     #
