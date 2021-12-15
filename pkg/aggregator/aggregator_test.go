@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -442,29 +443,13 @@ func TestAggregatorFlush(t *testing.T) {
 	tests := []struct {
 		name    string
 		enabled bool
-		on      func(*serializer.MockSerializer, *[]*metrics.Serie)
 	}{
 		{
-			name: "flush_metrics_and_serialize_in_parallel false",
-			on: func(s *serializer.MockSerializer, series *[]*metrics.Serie) {
-				s.On("SendSeries", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-					*series = append(*series, args.Get(0).(metrics.Series)...)
-				})
-			},
+			name:    "flush_metrics_and_serialize_in_parallel false",
 			enabled: false,
 		},
 		{
-			name: "flush_metrics_and_serialize_in_parallel true",
-			on: func(s *serializer.MockSerializer, series *[]*metrics.Serie) {
-				s.On("SendIterableSeries", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-					var iterableSeries = args.Get(0).(*metrics.IterableSeries)
-					defer iterableSeries.IterationStopped()
-
-					for iterableSeries.MoveNext() {
-						*series = append(*series, iterableSeries.Current())
-					}
-				})
-			},
+			name:    "flush_metrics_and_serialize_in_parallel true",
 			enabled: true,
 		},
 	}
@@ -472,16 +457,39 @@ func TestAggregatorFlush(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config.Datadog.Set("flush_metrics_and_serialize_in_parallel", tt.enabled)
-			var series []*metrics.Serie
-			s := &serializer.MockSerializer{}
-			tt.on(s, &series)
+			s := &MockSerializerIterableSerie{}
 			s.On("SendServiceChecks", mock.Anything).Return(nil)
 			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 			expectedSeries := flushSomeSamples(agg)
-			assertSeriesEqual(t, series, expectedSeries)
+			assertSeriesEqual(t, s.series, expectedSeries)
 			s.AssertExpectations(t)
 		})
 	}
+}
+
+// The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.
+// It calls internaly `Printf` on each field of the real type of `IterableStreamJSONMarshaler` which is `IterableSeries`.
+// It can lead to a race condition, if another goruntine call `IterableSeries.Append` which modifies `series.count`.
+// MockSerializerIterableSerie overrides `SendIterableSeries` to avoid this issue.
+// It also overrides `SendSeries` for simplificy.
+type MockSerializerIterableSerie struct {
+	series []*metrics.Serie
+	serializer.MockSerializer
+}
+
+func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error {
+	iterableSerie := series.(*metrics.IterableSeries)
+	defer iterableSerie.IterationStopped()
+
+	for iterableSerie.MoveNext() {
+		s.series = append(s.series, iterableSerie.Current())
+	}
+	return nil
+}
+
+func (s *MockSerializerIterableSerie) SendSeries(series marshaler.StreamJSONMarshaler) error {
+	s.series = append(s.series, series.(metrics.Series)...)
+	return nil
 }
 
 func flushSomeSamples(agg *BufferedAggregator) map[string]*metrics.Serie {
