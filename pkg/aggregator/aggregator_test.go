@@ -379,11 +379,9 @@ func TestRecurentSeries(t *testing.T) {
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 	s.AssertExpectations(t)
-	recurrentSeries = nil
 }
 
-func TestTags(t *testing.T) {
-	defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
+func TestTags(t *testing.T) {	
 	tests := []struct {
 		name                    string
 		tlmContainerTagsEnabled bool
@@ -429,6 +427,7 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
 			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 			agg := NewBufferedAggregator(nil, nil, "hostname", time.Second)
 			agg.agentTags = tt.agentTags
@@ -438,6 +437,7 @@ func TestTags(t *testing.T) {
 }
 
 func TestAggregatorFlush(t *testing.T) {
+	resetAggregator()
 	defer config.Datadog.Set("flush_metrics_and_serialize_in_parallel", nil)
 
 	tests := []struct {
