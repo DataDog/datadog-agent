@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build jmx
 // +build jmx
 
 package jmxfetch
@@ -36,7 +35,6 @@ const (
 	defaultJvmInitialMemoryAllocation = " -Xms50m"
 	jvmCgroupMemoryAwareness          = " -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap"
 	jvmContainerSupport               = " -XX:+UseContainerSupport"
-	defaultLog4jMsgNoLookups          = " -Dlog4j2.formatMsgNoLookups=True"
 	defaultJavaBinPath                = "java"
 	defaultLogLevel                   = "info"
 )
@@ -208,9 +206,6 @@ func (j *JMXFetch) Start(manage bool) error {
 
 	// Specify a maximum memory allocation pool for the JVM
 	javaOptions := j.JavaOptions
-
-	// We always want to disable log4j format Lookups
-	javaOptions += defaultLog4jMsgNoLookups
 
 	useContainerSupport := config.Datadog.GetBool("jmx_use_container_support")
 	useCgroupMemoryLimit := config.Datadog.GetBool("jmx_use_cgroup_memory_limit")
