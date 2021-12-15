@@ -20,8 +20,6 @@ Release on: 2021-12-15
 
 .. _Release Notes_7.32.2:
 
-.. _Release Notes_7.32.2:
-
 7.32.2 / 6.32.2
 ======
 
