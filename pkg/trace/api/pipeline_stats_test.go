@@ -60,12 +60,12 @@ func TestPipelineStatsProxy(t *testing.T) {
 	}
 }
 
-func TestPipelineStatsEndpoints(t *testing.T) {
+func TestPipelineStatsEndpoint(t *testing.T) {
 	var cfg config.AgentConfig
 	cfg.Endpoints = []*config.Endpoint{{Host: "https://trace.agent.datadoghq.com", APIKey: "test_api_key"}}
 	url, key, err := pipelineStatsEndpoint(&cfg)
 	assert.NoError(t, err)
-	assert.Equal(t, url.Host, "https://trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
+	assert.Equal(t, url.String(), "https://trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
 	assert.Equal(t, key, "test_api_key")
 }
 
