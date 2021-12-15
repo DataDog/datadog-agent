@@ -768,7 +768,7 @@ api_key:
 
     ## @param authProtocol - string - optional
     ## The authentication protocol to use when connecting to your SNMP devices.
-    ## Available options are: MD5, SHA.
+    ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
     ## Defaults to MD5 when `authentication_key` is specified.
     ## SNMPv3 only.
     #
@@ -782,7 +782,7 @@ api_key:
 
     ## @param privProtocol - string - optional
     ## The privacy protocol to use when connecting to your SNMP devices.
-    ## Available options are: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
+    ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
     ## Defaults to DES when `privacy_key` is specified.
     ## SNMPv3 only.
     #
@@ -830,6 +830,11 @@ api_key:
     ## This option is needed for custom tags.
     #
     # use_device_id_as_hostname: true
+
+    ## @param oid_batch_size - integer - optional - default: 5
+    ## The number of OIDs handled by each batch.
+    #
+    # oid_batch_size: 5
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional

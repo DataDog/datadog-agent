@@ -8,6 +8,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 )
 
@@ -25,7 +26,7 @@ type endpoint struct {
 
 	// IsEnabled specifies a function which reports whether this endpoint should be enabled
 	// based on the given config conf.
-	IsEnabled func() bool
+	IsEnabled func(conf *config.AgentConfig) bool
 }
 
 // endpoints specifies the list of endpoints registered for the trace-agent API.
@@ -89,6 +90,13 @@ var endpoints = []endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
 	},
 	{
+		Pattern: "/telemetry/proxy/",
+		Handler: func(r *HTTPReceiver) http.Handler {
+			return http.StripPrefix("/telemetry/proxy", r.telemetryProxyHandler())
+		},
+		IsEnabled: func(cfg *config.AgentConfig) bool { return cfg.TelemetryConfig.Enabled },
+	},
+	{
 		Pattern: "/v0.6/stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
 	},
@@ -103,6 +111,6 @@ var endpoints = []endpoint{
 	{
 		Pattern:   "/v0.6/config",
 		Handler:   func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleConfig) },
-		IsEnabled: func() bool { return features.Has("config_endpoint") },
+		IsEnabled: func(_ *config.AgentConfig) bool { return features.Has("config_endpoint") },
 	},
 }

@@ -6,14 +6,20 @@
 package invocationlifecycle
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProxyProcessor is a InvocationProcessor implementation
 type ProxyProcessor struct {
-	Daemon *daemon.Daemon
+	Daemon        *daemon.Daemon
+	ExtraTags     *serverlessLog.Tags
+	MetricChannel chan []metrics.MetricSample
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
@@ -40,5 +46,11 @@ func (pp *ProxyProcessor) OnInvokeEnd(endDetails *proxy.InvocationEndDetails) {
 	if !pp.Daemon.LambdaLibraryDetected {
 		log.Debug("Lambda Library NOT detected, going to end execution span")
 		endExecutionSpan(pp.Daemon, endDetails.EndTime)
+	}
+
+	if endDetails.IsError {
+		serverlessMetrics.SendErrorsEnhancedMetric(
+			pp.ExtraTags.Tags, endDetails.EndTime, pp.MetricChannel,
+		)
 	}
 }

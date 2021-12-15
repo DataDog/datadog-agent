@@ -17,12 +17,14 @@ build do
     python2 = "#{install_dir}/embedded/bin/python2"
   end
 
+  # pin 2 dependencies of pylint:
+  # - configparser: later versions (up to v3.7.1) are broken
+  # - lazy-object-proxy 1.7.0 broken on python 2 https://github.com/ionelmc/python-lazy-object-proxy/issues/61
   if windows?
-    # this pins a dependency of pylint, later versions (up to v3.7.1) are broken.
-    command "#{python2} -m pip install configparser==3.5.0"
+    command "#{python2} -m pip install configparser==3.5.0 lazy-object-proxy==1.6.0"
     command "#{python2} -m pip install pylint==#{version}"
   else
-    command "#{pip2} install configparser==3.5.0"
+    command "#{pip2} install configparser==3.5.0 lazy-object-proxy==1.6.0"
     command "#{pip2} install pylint==#{version}"
   end
 end
