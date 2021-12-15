@@ -18,6 +18,7 @@ def trigger_macos_build(
     github_action_ref = env["MACOS_BUILD_VERSION"]
 
     run_id = trigger_macos_workflow(
+        workflow="macos.yaml",
         github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
         release_version=release_version,
@@ -43,10 +44,10 @@ def trigger_macos_test(
     github_action_ref = "72536387d7e0f6cd1970e4d0f846c2c3a3968567"
 
     run_id = trigger_macos_workflow(
+        workflow="test.yaml",
         github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
         python_runtimes=python_runtimes,
-        test_only=True,
     )
 
     follow_workflow_run(run_id)

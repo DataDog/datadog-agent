@@ -26,12 +26,12 @@ def create_or_refresh_macos_build_github_workflows(github_workflows=None):
 
 
 def trigger_macos_workflow(
+    workflow="macos.yaml",
     github_action_ref="master",
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     major_version="7",
     python_runtimes="3",
-    test_only=False,
 ):
     """
     Trigger a workflow to build a MacOS Agent.
@@ -50,9 +50,6 @@ def trigger_macos_workflow(
     if python_runtimes is not None:
         inputs["python_runtimes"] = python_runtimes
 
-    if test_only is not None:
-        inputs["test_only"] = str(test_only).lower()
-
     print(
         "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(  # noqa: FS002
             github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
@@ -64,7 +61,7 @@ def trigger_macos_workflow(
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
-    create_or_refresh_macos_build_github_workflows().trigger_workflow("macos.yaml", github_action_ref, inputs)
+    create_or_refresh_macos_build_github_workflows().trigger_workflow(workflow, github_action_ref, inputs)
 
     # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
     # that started after we triggered the workflow.
