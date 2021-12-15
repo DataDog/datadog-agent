@@ -17,14 +17,14 @@ import (
 // between `NewConfigChangeChecker()`` and `HasChanged()`. It is
 // designed to be used in `TestMain` function as follow:
 //
-// func TestMain(m *testing.M) {
-// 	checker := testutil.NewConfigChangeChecker()
-// 	exit := m.Run()
-// 	if checker.HasChanged() {
-// 		os.Exit(1)
+// 	func TestMain(m *testing.M) {
+// 		checker := testutil.NewConfigChangeChecker()
+// 		exit := m.Run()
+// 		if checker.HasChanged() {
+// 			os.Exit(1)
+// 		}
+// 		os.Exit(exit)
 // 	}
-// 	os.Exit(exit)
-// }
 type ConfigChangeChecker struct {
 	configSettings map[string]interface{}
 }
