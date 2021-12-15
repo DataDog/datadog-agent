@@ -363,8 +363,7 @@ def get_ebpf_targets():
     files.extend(glob.glob("pkg/security/ebpf/c/*.[c,h]"))
     return files
 
-
-def get_linux_header_dirs():
+def header_base_dirs():
     os_info = os.uname()
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
@@ -393,6 +392,11 @@ def get_linux_header_dirs():
         build_dir = f"/lib/modules/{uname_r}/build"
         if os.path.isdir(build_dir):
             linux_headers = [build_dir]
+
+    return linux_headers
+
+def get_linux_header_dirs():
+    linux_headers = header_base_dirs()
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     arch = (
@@ -427,7 +431,7 @@ def get_linux_header_dirs():
     return dirs
 
 
-def get_ebpf_build_flags():
+def get_ebpf_build_flags(target=['-emit-llvm']):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
 
@@ -441,10 +445,14 @@ def get_ebpf_build_flags():
         '-Wno-compare-distinct-pointer-types',
         '-Wunused',
         '-Wall',
-        '-Werror',
+        '-Werror'
+        ]
+
+    flags.extend(target)
+
+    flags.extend([
         f"-include {os.path.join(c_dir, 'asm_goto_workaround.h')}",
         '-O2',
-        '-emit-llvm',
         # Some linux distributions enable stack protector by default which is not available on eBPF
         '-fno-stack-protector',
         '-fno-color-diagnostics',
@@ -452,7 +460,7 @@ def get_ebpf_build_flags():
         '-fno-asynchronous-unwind-tables',
         '-fno-jump-tables',
         f"-I{c_dir}",
-    ]
+    ])
 
     header_dirs = get_linux_header_dirs()
     for d in header_dirs:
@@ -461,16 +469,16 @@ def get_ebpf_build_flags():
     return flags
 
 
-def build_network_ebpf_compile_file(ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags):
+def build_network_ebpf_compile_file(ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags, extension=".bc"):
     src_file = os.path.join(network_prebuilt_dir, f"{p}.c")
     if not debug:
-        bc_file = os.path.join(build_dir, f"{p}.bc")
+        bc_file = os.path.join(build_dir, f"{p}{extension}")
         return ctx.run(
             CLANG_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file),
             asynchronous=parallel_build,
         )
     else:
-        debug_bc_file = os.path.join(build_dir, f"{p}-debug.bc")
+        debug_bc_file = os.path.join(build_dir, f"{p}-debug{extension}")
         return ctx.run(
             CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file),
             asynchronous=parallel_build,
@@ -493,13 +501,40 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
             asynchronous=parallel_build,
         )
 
+def build_http_ebpf_files(ctx, build_dir):
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
+
+    network_flags = get_ebpf_build_flags(target=["-target", "bpf"])
+    network_flags.append(f"-I{network_c_dir}")
+
+    # Temporary: figuring out how to get builds passing both on X86 and ARM64
+    if os.getenv("ARCH") == "arm64":
+        network_flags.append("-D__aarch64__")
+        network_flags.append("-isystem /usr/include/aarch64-linux-gnu")
+        for base_dir in header_base_dirs():
+            ptrace_path = os.path.join(base_dir, 'arch/arm64/include/asm/ptrace.h')
+            if os.path.exists(ptrace_path):
+                network_flags.append(f"-include {ptrace_path}")
+                break
+    else:
+        network_flags.append("-D__x86_64__")
+
+    build_network_ebpf_compile_file(
+        ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
+    )
+    build_network_ebpf_compile_file(
+        ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags, extension=".o"
+    )
+
 
 def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    compiled_programs = ["dns", "http", "offset-guess", "tracer"]
+    compiled_programs = ["dns", "offset-guess", "tracer"]
 
     network_flags = get_ebpf_build_flags()
     network_flags.append(f"-I{network_c_dir}")
@@ -614,6 +649,7 @@ def build_object_files(ctx, parallel_build):
 
     bindata_files = []
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
+    build_http_ebpf_files(ctx, build_dir=build_dir)
     bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build))
 
     generate_runtime_files(ctx)
