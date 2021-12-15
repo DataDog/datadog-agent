@@ -41,7 +41,7 @@ def is_expected_docker_finding(finding, container_id):
     return finding["data"]["container.id"] == container_id
 
 
-def is_expected_k8s_finding(finding):
+def is_expected_k8s_worker_node_finding(finding):
     if finding["agent_rule_id"] != "cis-kubernetes-1.5.1-4.2.6":
         return False
     if finding["agent_framework_id"] != "cis-kubernetes":
@@ -53,5 +53,21 @@ def is_expected_k8s_finding(finding):
     if "file.glob" not in finding["data"]:
         return False
     if finding["data"]["file.glob"] != "/var/lib/kubelet/config.yaml":
+        return False
+    return True
+
+
+def is_expected_k8s_master_node_finding(finding):
+    if finding["agent_rule_id"] != "cis-kubernetes-1.5.1-3.2.1":
+        return False
+    if finding["agent_framework_id"] != "cis-kubernetes":
+        return False
+    if finding["result"] != "failed":
+        return False
+    if finding["resource_type"] != "kubernetes_master_node":
+        return False
+    if "process.exe" not in finding["data"]:
+        return False
+    if finding["data"]["process.exe"] != "/usr/local/bin/kube-apiserver":
         return False
     return True
