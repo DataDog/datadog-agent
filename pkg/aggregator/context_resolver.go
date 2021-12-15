@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -23,6 +24,7 @@ type Context struct {
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
+	tagsCache     *tags.Store
 	keyGenerator  *ckey.KeyGenerator
 	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
@@ -34,9 +36,10 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
 }
 
-func newContextResolver() *contextResolver {
+func newContextResolver(cache *tags.Store) *contextResolver {
 	return &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
+		tagsCache:     cache,
 		keyGenerator:  ckey.NewKeyGenerator(),
 		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
 	}
@@ -83,9 +86,9 @@ type timestampContextResolver struct {
 	lastSeenByKey map[ckey.ContextKey]float64
 }
 
-func newTimestampContextResolver() *timestampContextResolver {
+func newTimestampContextResolver(cache *tags.Store) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver:      newContextResolver(),
+		resolver:      newContextResolver(cache),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
 	}
 }
@@ -147,9 +150,9 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireCountInterval int) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(),
+		resolver:            newContextResolver(cache),
 		expireCountByKey:    make(map[ckey.ContextKey]int64),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),

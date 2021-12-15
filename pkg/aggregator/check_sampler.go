@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,11 +28,11 @@ type CheckSampler struct {
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration) *CheckSampler {
+func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration, cache *tags.Store) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
 		sketches:        make(metrics.SketchSeriesList, 0),
-		contextResolver: newCountBasedContextResolver(expirationCount),
+		contextResolver: newCountBasedContextResolver(expirationCount, cache),
 		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),
