@@ -41,7 +41,6 @@ def trigger_macos_test(
 
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
-    github_action_ref = "72536387d7e0f6cd1970e4d0f846c2c3a3968567"
 
     run_id = trigger_macos_workflow(
         workflow="test.yaml",
