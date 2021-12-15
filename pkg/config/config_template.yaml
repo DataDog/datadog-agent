@@ -962,13 +962,13 @@ api_key:
 # apm_config:
 
   ## @param enabled - boolean - optional - default: true
-  ## @env DD_APM_CONFIG_ENABLED - boolean - optional - default: true
+  ## @env DD_APM_ENABLED - boolean - optional - default: true
   ## Set to true to enable the APM Agent.
   #
   # enabled: true
 
   ## @param env - string - optional - default: none
-  ## @env DD_APM_CONFIG_ENV - string - optional - default: none
+  ## @env DD_APM_ENV - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
   ## If not set the value will be inherited, in order, from the top level
   ## "env" config option if set and then from the 'env:' tag if present in the
@@ -977,34 +977,34 @@ api_key:
   # env: none
 
   ## @param receiver_port - integer - optional - default: 8126
-  ## @env DD_APM_CONFIG_RECEIVER_PORT - integer - optional - default: 8126
+  ## @env DD_APM_RECEIVER_PORT - integer - optional - default: 8126
   ## The port that the trace receiver should listen on.
   #
   # receiver_port: 8126
 
   ## @param receiver_socket - string - optional
-  ## @env DD_APM_CONFIG_RECEIVER_SOCKET - string - optional
+  ## @env DD_APM_RECEIVER_SOCKET - string - optional
   ## Accept traces through Unix Domain Sockets.
   ## It is off by default. When set, it must point to a valid socket file.
   #
   # receiver_socket: <UNIX_SOCKET_PATH>
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
-  ## @env DD_APM_CONFIG_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
+  ## @env DD_APM_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
   ## i.e if Traces are being sent to this Agent from another host/container
   #
   # apm_non_local_traffic: false
 
   ## @param apm_dd_url - string - optional
-  ## @env DD_APM_CONFIG_APM_DD_URL - string - optional
+  ## @env DD_APM_APM_DD_URL - string - optional
   ## Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #
   # apm_dd_url: <ENDPOINT>:<PORT>
 
   ## @param extra_sample_rate - float - optional - default: 1.0
-  ## @env DD_APM_CONFIG_EXTRA_SAMPLE_RATE - float - optional - default: 1.0
+  ## @env DD_APM_EXTRA_SAMPLE_RATE - float - optional - default: 1.0
   ## Extra global sample rate to apply on all the traces
   ## This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces.
   ## From 1 (no extra rate) to 0 (don't sample at all)
@@ -1012,7 +1012,7 @@ api_key:
   # extra_sample_rate: 1.0
 
   ## @param max_traces_per_second - integer - optional - default: 10
-  ## @env DD_APM_CONFIG_MAX_TRACES_PER_SECOND - integer - optional - default: 10
+  ## @env DD_APM_MAX_TRACES_PER_SECOND - integer - optional - default: 10
   ## The target traces per second to sample. Sampling rates to apply are adjusted given
   ## the received traffic and communicated to tracers. This configures head base sampling.
   ## Set to 0 to disable sampling.
@@ -1028,13 +1028,13 @@ api_key:
   # errors_per_second: 10
 
   ## @param max_events_per_second - integer - optional - default: 200
-  ## @env DD_APM_CONFIG_MAX_EVENTS_PER_SECOND - integer - optional - default: 200
+  ## @env DD_APM_MAX_EVENTS_PER_SECOND - integer - optional - default: 200
   ## Maximum number of APM events per second to sample.
   #
   # max_events_per_second: 200
 
   ## @param max_memory - integer - optional - default: 500000000
-  ## @env DD_APM_CONFIG_MAX_MEMORY - integer - optional - default: 500000000
+  ## @env DD_APM_MAX_MEMORY - integer - optional - default: 500000000
   ## This value is what the Agent aims to use in terms of memory. If surpassed, the API
   ## rate limits incoming requests to aim and stay below this value.
   ## Note: The Agent process is killed if it uses more than 150% of `max_memory`.
@@ -1043,7 +1043,7 @@ api_key:
   # max_memory: 500000000
 
   ## @param max_cpu_percent - integer - optional - default: 50
-  ## @env DD_APM_CONFIG_MAX_CPU_PERCENT - integer - optional - default: 50
+  ## @env DD_APM_MAX_CPU_PERCENT - integer - optional - default: 50
   ## The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
   ## incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
   ## Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
@@ -1068,7 +1068,7 @@ api_key:
   #     reject: [<LIST_OF_KEY_VALUE_TAGS>]
 
   ## @param replace_tags - list of objects - optional
-  ## @env DD_APM_CONFIG_REPLACE_TAGS  - list of objects - optional
+  ## @env DD_APM_REPLACE_TAGS  - list of objects - optional
   ## Defines a set of rules to replace or remove certain resources, tags containing
   ## potentially sensitive information.
   ## Each rules has to contain:
@@ -1085,20 +1085,20 @@ api_key:
   #     repl: "<PATTERN_TO_INLINE>"
 
   ## @param ignore_resources - list of strings - optional
-  ## @env DD_APM_CONFIG_IGNORE_RESOURCES - space separated list of strings - optional
+  ## @env DD_APM_IGNORE_RESOURCES - space separated list of strings - optional
   ## An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
   ## all entries must be surrounded by double quotes and separated by commas.
   #
   # ignore_resources: ["(GET|POST) /healthcheck"]
 
   ## @param log_file - string - optional
-  ## @env DD_APM_CONFIG_LOG_FILE - string - optional
+  ## @env DD_APM_LOG_FILE - string - optional
   ## The full path to the file where APM-agent logs are written.
   #
   # log_file: <APM_LOG_FILE_PATH>
 
   ## @param log_throttling - boolean - default: true
-  ## @env DD_APM_CONFIG_LOG_THROTTLING - boolean - default: true
+  ## @env DD_APM_LOG_THROTTLING - boolean - default: true
   ## Limits the total number of warnings and errors to 10 for every 10 second interval.
   #
   # log_throttling: true
