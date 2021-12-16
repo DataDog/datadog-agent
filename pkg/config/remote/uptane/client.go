@@ -223,13 +223,13 @@ func (c *Client) verifyUptane() error {
 		if len(targetMeta.Hashes) != len(configTargetMeta.Hashes) {
 			return fmt.Errorf("target '%s' has %d hashes in directory repository and %d hashes in config repository", targetPath, len(targetMeta.Hashes), len(configTargetMeta.Hashes))
 		}
-		for kind, directorHash := range targetMeta.Hashes {
+		for hashAlgo, directorHash := range targetMeta.Hashes {
 			configHash, found := configTargetMeta.Hashes[kind]
 			if !found {
-				return fmt.Errorf("hash '%s' found in directory repository and not in config repository", directorHash)
+				return fmt.Errorf("hash '%s' found in directory repository but not in the config repository", directorHash)
 			}
 			if !bytes.Equal([]byte(directorHash), []byte(configHash)) {
-				return fmt.Errorf("directory hash '%s' is not equal to config repository '%s'", string(directorHash), string(configHash))
+				return fmt.Errorf("directory hash '%s' does not match config repository '%s'", string(directorHash), string(configHash))
 			}
 		}
 		err = c.configTUFClient.Download(targetPath, &bufferDestination{})
