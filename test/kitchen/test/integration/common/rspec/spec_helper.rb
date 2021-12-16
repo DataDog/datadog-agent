@@ -30,7 +30,7 @@ def get_service_name(flavor)
   # Return the service name of the given flavor depending on the OS
   if os == :windows
     case flavor
-    when "datadog-agent", "datadog-iot-agent"
+    when "datadog-agent", "datadog-heroku-agent", "datadog-iot-agent"
       "datadogagent"
     when "datadog-dogstatsd"
       # Placeholder, not used yet
@@ -38,7 +38,7 @@ def get_service_name(flavor)
     end
   else
     case flavor
-    when "datadog-agent", "datadog-iot-agent"
+    when "datadog-agent", "datadog-heroku-agent", "datadog-iot-agent"
       "datadog-agent"
     when "datadog-dogstatsd"
       "datadog-dogstatsd"
