@@ -86,6 +86,11 @@
     AGENT_FLAVOR: "datadog-iot-agent"
     KITCHEN_PLATFORM_SUFFIX: "iot"
 
+.kitchen_datadog_heroku_agent_flavor:
+  variables:
+    AGENT_FLAVOR: "datadog-heroku-agent"
+    KITCHEN_PLATFORM_SUFFIX: "heroku"
+
 .kitchen_datadog_dogstatsd_flavor:
   variables:
     AGENT_FLAVOR: "datadog-dogstatsd"
@@ -152,6 +157,12 @@
   extends:
     - .kitchen_test_install_script
     - .kitchen_datadog_iot_agent_flavor
+    - .kitchen_azure_location_west_central_us
+
+.kitchen_test_install_script_heroku_agent:
+  extends:
+    - .kitchen_test_install_script
+    - .kitchen_datadog_heroku_agent_flavor
     - .kitchen_azure_location_west_central_us
 
 .kitchen_test_install_script_dogstatsd:
