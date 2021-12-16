@@ -486,11 +486,11 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			if s == "" {
 				s = config.DefaultSite
 			}
-			endpoint = fmt.Sprintf(profiling.ProfileURLTemplate, s)
+			endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
 		}
 
 		c.ProfilingSettings = &profiling.Settings{
-			Site: endpoint,
+			ProfilingURL: endpoint,
 
 			// remaining configuration parameters use the top-level `internal_profiling` config
 			Period:               config.Datadog.GetDuration("internal_profiling.period"),
