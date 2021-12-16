@@ -259,8 +259,19 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	}
 }
 
+func (p *Probe) sendTCProgramsStats() {
+	p.tcProgramsLock.Lock()
+	defer p.tcProgramsLock.Unlock()
+
+	if val := float64(len(p.tcPrograms)); val > 0 {
+		_ = p.statsdClient.Gauge(metrics.MetricTCProgram, val, []string{}, 1.0)
+	}
+}
+
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
+	p.sendTCProgramsStats()
+
 	return p.monitor.SendStats()
 }
 

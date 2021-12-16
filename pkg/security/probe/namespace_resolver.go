@@ -8,11 +8,13 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -20,22 +22,25 @@ import (
 // NamespaceResolver is used to store namespace handles
 type NamespaceResolver struct {
 	sync.RWMutex
-	probe                    *Probe
-	resolvers                *Resolvers
-	networkNamespaceHandles  map[uint32]*os.File
-	queuedNetworkDevicesLock sync.RWMutex
-	queuedNetworkDevices     map[uint32][]model.NetDevice
-	lonelyNamespacesTimeout  map[uint32]time.Time
+	probe                              *Probe
+	resolvers                          *Resolvers
+	client                             *statsd.Client
+	networkNamespaceHandles            map[uint32]*os.File
+	queuedNetworkDevicesLock           sync.RWMutex
+	queuedNetworkDevices               map[uint32][]model.NetDevice
+	lonelyNetworkNamespacesTimeoutLock sync.RWMutex
+	lonelyNetworkNamespacesTimeout     map[uint32]time.Time
 }
 
 // NewNamespaceResolver returns a new instance of NamespaceResolver
 func NewNamespaceResolver(probe *Probe) *NamespaceResolver {
 	return &NamespaceResolver{
-		probe:                   probe,
-		resolvers:               probe.resolvers,
-		networkNamespaceHandles: make(map[uint32]*os.File),
-		queuedNetworkDevices:    make(map[uint32][]model.NetDevice),
-		lonelyNamespacesTimeout: make(map[uint32]time.Time),
+		probe:                          probe,
+		resolvers:                      probe.resolvers,
+		client:                         probe.statsdClient,
+		networkNamespaceHandles:        make(map[uint32]*os.File),
+		queuedNetworkDevices:           make(map[uint32][]model.NetDevice),
+		lonelyNetworkNamespacesTimeout: make(map[uint32]time.Time),
 	}
 }
 
@@ -218,7 +223,7 @@ func (nr *NamespaceResolver) Start(ctx context.Context) error {
 }
 
 func (nr *NamespaceResolver) flushNamespaces(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -267,6 +272,9 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift() {
 	nr.Lock()
 	defer nr.Unlock()
 
+	nr.lonelyNetworkNamespacesTimeoutLock.Lock()
+	defer nr.lonelyNetworkNamespacesTimeoutLock.Unlock()
+
 	nr.probe.tcProgramsLock.RLock()
 	defer nr.probe.tcProgramsLock.RUnlock()
 
@@ -288,14 +296,14 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift() {
 		}
 
 		// insert lonely namespace
-		_, ok := nr.lonelyNamespacesTimeout[netns]
+		_, ok := nr.lonelyNetworkNamespacesTimeout[netns]
 		if !ok {
-			nr.lonelyNamespacesTimeout[netns] = lonelyNamespaceTimeout
+			nr.lonelyNetworkNamespacesTimeout[netns] = lonelyNamespaceTimeout
 		}
 	}
 
 	// snapshot lonely namespaces and delete them if they are all alone on earth
-	for lonelyNamespace, timeout := range nr.lonelyNamespacesTimeout {
+	for lonelyNamespace, timeout := range nr.lonelyNetworkNamespacesTimeout {
 		if now.Before(timeout) {
 			// your doomsday hasn't come yet, lucky you
 			continue
@@ -306,6 +314,31 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift() {
 		if deviceCount == 0 {
 			nr.flushNetworkNamespace(lonelyNamespace)
 		}
-		delete(nr.lonelyNamespacesTimeout, lonelyNamespace)
+		delete(nr.lonelyNetworkNamespacesTimeout, lonelyNamespace)
 	}
+}
+
+// SendStats sends metrics about the current state of the namespace resolver
+func (nr *NamespaceResolver) SendStats() error {
+	nr.RLock()
+	defer nr.RUnlock()
+	val := float64(len(nr.networkNamespaceHandles))
+	if val > 0 {
+		_ = nr.client.Gauge(metrics.MetricNamespaceResolverNetNSHandle, val, []string{}, 1.0)
+	}
+
+	nr.queuedNetworkDevicesLock.RLock()
+	defer nr.queuedNetworkDevicesLock.RUnlock()
+	val = float64(len(nr.queuedNetworkDevices))
+	if val > 0 {
+		_ = nr.client.Gauge(metrics.MetricNamespaceResolverQueuedNetworkDevice, val, []string{}, 1.0)
+	}
+
+	nr.lonelyNetworkNamespacesTimeoutLock.RLock()
+	defer nr.lonelyNetworkNamespacesTimeoutLock.RUnlock()
+	val = float64(len(nr.lonelyNetworkNamespacesTimeout))
+	if val > 0 {
+		_ = nr.client.Gauge(metrics.MetricNamespaceResolverLonelyNetworkNamespace, val, []string{}, 1.0)
+	}
+	return nil
 }
