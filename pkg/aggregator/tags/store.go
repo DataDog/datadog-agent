@@ -48,7 +48,7 @@ func NewStore(enabled bool, name string) *Store {
 	return &Store{
 		tagsByKey: map[ckey.TagsKey]*Entry{},
 		enabled:   enabled,
-		telemetry: *newStoreTelemetry(name),
+		telemetry: newStoreTelemetry(name),
 	}
 }
 
@@ -150,8 +150,8 @@ type storeTelemetry struct {
 	name string
 }
 
-func newStoreTelemetry(name string) *storeTelemetry {
-	return &storeTelemetry{
+func newStoreTelemetry(name string) storeTelemetry {
+	return storeTelemetry{
 		hits: tlmHits.WithValues(name),
 		miss: tlmMiss.WithValues(name),
 		name: name,
