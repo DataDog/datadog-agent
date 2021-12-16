@@ -281,9 +281,10 @@ if linux?
   extra_package_file '/var/log/datadog/'
 end
 
-# default package_scripts_path is based on project name, but we change the name
-# based on flavor, so let's hardcode it to "agent"
+# default package_scripts_path and resource_path are based on project name,
+# but we change the name based on flavor, so let's hardcode it to "agent"
 package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent"
+resources_path "#{Omnibus::Config.project_root}/resources/agent"
 
 exclude '\.git*'
 exclude 'bundler\/git'
