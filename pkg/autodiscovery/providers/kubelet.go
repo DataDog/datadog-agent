@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -204,6 +205,7 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 	}
 
 	k.configErrors = adErrors
+	telemetry.Errors.Set(float64(len(adErrors)), names.Kubernetes)
 
 	return configs, nil
 }
@@ -218,7 +220,7 @@ func (k *KubeletConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 }
 
 func init() {
-	RegisterProvider("kubelet", NewKubeletConfigProvider)
+	RegisterProvider(names.KubeletRegisterName, NewKubeletConfigProvider)
 }
 
 // GetConfigErrors returns a map of configuration errors for each namespace/pod

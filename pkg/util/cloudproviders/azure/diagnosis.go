@@ -17,6 +17,6 @@ func init() {
 
 // diagnose the azure metadata API availability
 func diagnose() error {
-	_, err := GetHostAlias(context.TODO())
+	_, err := GetHostAliases(context.TODO())
 	return err
 }

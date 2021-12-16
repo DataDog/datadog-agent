@@ -8,6 +8,7 @@ package http
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -35,7 +36,7 @@ var (
 	NoProxyMapMutex = sync.Mutex{}
 
 	keyLogWriterInit sync.Once
-	keyLogWriter     *os.File
+	keyLogWriter     io.Writer
 )
 
 func logSafeURLString(url *url.URL) string {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,6 +32,7 @@ import (
 const (
 	kubeEndpointsAnnotationFormat = "ad.datadoghq.com/endpoints.instances"
 	leaderAnnotation              = "control-plane.alpha.kubernetes.io/leader"
+	kubeEndpointsName             = "kube_endpoints"
 )
 
 // KubeEndpointsListener listens to kubernetes endpoints creation
@@ -59,10 +61,10 @@ type KubeEndpointService struct {
 var _ Service = &KubeEndpointService{}
 
 func init() {
-	Register("kube_endpoints", NewKubeEndpointsListener)
+	Register(kubeEndpointsName, NewKubeEndpointsListener)
 }
 
-func NewKubeEndpointsListener() (ServiceListener, error) {
+func NewKubeEndpointsListener(Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -284,9 +286,12 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExisting
 	l.endpoints[kep.UID] = eps
 	l.m.Unlock()
 
+	telemetry.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeService)
+
 	for _, ep := range eps {
 		log.Debugf("Creating a new AD service: %s", ep.entity)
 		l.newService <- ep
+		telemetry.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
 	}
 }
 
@@ -335,9 +340,13 @@ func (l *KubeEndpointsListener) removeService(kep *v1.Endpoints) {
 		l.m.Lock()
 		delete(l.endpoints, kep.UID)
 		l.m.Unlock()
+
+		telemetry.WatchedResources.Dec(kubeEndpointsName, telemetry.ResourceKubeService)
+
 		for _, ep := range eps {
 			log.Debugf("Deleting AD service: %s", ep.entity)
 			l.delService <- ep
+			telemetry.WatchedResources.Dec(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
 		}
 	} else {
 		log.Debugf("Entity %s not found, not removing", kep.UID)

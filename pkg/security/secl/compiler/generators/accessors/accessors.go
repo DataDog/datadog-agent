@@ -6,11 +6,10 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
-	"go/build"
-	"go/parser"
 	"go/types"
 	"io/ioutil"
 	"log"
@@ -25,7 +24,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
-	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc"
@@ -36,32 +35,24 @@ const (
 )
 
 var (
-	filename  string
-	pkgname   string
-	output    string
-	strict    bool
-	verbose   bool
-	mock      bool
-	genDoc    bool
-	program   *loader.Program
-	packages  map[string]*types.Package
-	buildTags string
-	vendor    string
+	filename          string
+	pkgname           string
+	output            string
+	verbose           bool
+	mock              bool
+	genDoc            bool
+	packagesLookupMap map[string]*types.Package
+	buildTags         string
 )
 
 var module *common.Module
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
-	if typePackage, found := packages[pkg]; found {
+	if typePackage, found := packagesLookupMap[pkg]; found {
 		return typePackage.Scope().Lookup(symbol), nil
 	}
 
-	pkg = path.Join(vendor, pkg)
-	if typePackage, found := packages[pkg]; found {
-		return typePackage.Scope().Lookup(symbol), nil
-	}
-
-	return nil, fmt.Errorf("Failed to retrieve package info for %s", pkg)
+	return nil, fmt.Errorf("failed to retrieve package info for %s", pkg)
 }
 
 func origTypeToBasicType(kind string) string {
@@ -288,9 +279,6 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 							delete(dejavu, fieldName)
 						}
 
-						if strict {
-							log.Panicf("Don't know what to do with %s: %s", fieldName, spew.Sdump(field.Type))
-						}
 						if verbose {
 							log.Printf("Don't know what to do with %s: %s", fieldName, spew.Sdump(field.Type))
 						}
@@ -322,38 +310,29 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 }
 
 func parseFile(filename string, pkgName string) (*common.Module, error) {
-	buildContext := build.Default
-	buildContext.BuildTags = append(buildContext.BuildTags, strings.Split(buildTags, ",")...)
-
-	conf := loader.Config{
-		ParserMode:  parser.ParseComments,
-		AllowErrors: true,
-		TypeChecker: types.Config{
-			Error: func(err error) {
-				if verbose {
-					log.Print(err)
-				}
-			},
-		},
-		Build: &buildContext,
+	cfg := packages.Config{
+		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
+		BuildFlags: []string{"-mod=mod", fmt.Sprintf("-tags=%s", buildTags)},
 	}
 
-	astFile, err := conf.ParseFile(filename, nil)
+	pkgs, err := packages.Load(&cfg, filename)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse %s: %s", filename, err)
+		return nil, err
 	}
 
-	conf.Import(pkgName)
-
-	program, err = conf.Load()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to load %s (%s): %s", filename, pkgName, err)
+	if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
+		return nil, errors.New("failed to get syntax from parse file")
 	}
 
-	packages = make(map[string]*types.Package, len(program.AllPackages))
-	for typePackage := range program.AllPackages {
-		packages[typePackage.Path()] = typePackage
+	pkg := pkgs[0]
+	astFile := pkg.Syntax[0]
+
+	packagesLookupMap = make(map[string]*types.Package)
+	for _, typePackage := range pkg.Imports {
+		p := typePackage.Types
+		packagesLookupMap[p.Path()] = p
 	}
+	packagesLookupMap[pkgName] = pkg.Types
 
 	var buildTags []string
 	for _, comment := range astFile.Comments {
@@ -786,6 +765,5 @@ func init() {
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")
 	flag.StringVar(&output, "output", "", "Go generated file")
-	flag.StringVar(&vendor, "vendor", "", "vendor prefix")
 	flag.Parse()
 }

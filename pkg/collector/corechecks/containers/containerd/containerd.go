@@ -8,6 +8,7 @@
 package containerd
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -46,6 +47,7 @@ type ContainerdCheck struct {
 	instance *ContainerdConfig
 	sub      *subscriber
 	filters  *ddContainers.Filter
+	client   cutil.ContainerdItf
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
@@ -82,13 +84,18 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source 
 	if err = c.instance.Parse(config); err != nil {
 		return err
 	}
-	c.sub.Filters = c.instance.ContainerdFilters
+	c.sub.Filters = c.subscribeFilters()
 	// GetSharedMetricFilter should not return a nil instance of *Filter if there is an error during its setup.
 	fil, err := ddContainers.GetSharedMetricFilter()
 	if err != nil {
 		return err
 	}
 	c.filters = fil
+
+	c.client, err = cutil.NewContainerdUtil()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -102,30 +109,40 @@ func (c *ContainerdCheck) Run() error {
 	defer sender.Commit()
 
 	// As we do not rely on a singleton, we ensure connectivity every check run.
-	cu, errHealth := cutil.GetContainerdUtil()
-	if errHealth != nil {
+	if errHealth := c.client.CheckConnectivity(); errHealth != nil {
 		sender.ServiceCheck("containerd.health", metrics.ServiceCheckCritical, "", nil, fmt.Sprintf("Connectivity error %v", errHealth))
 		log.Infof("Error ensuring connectivity with Containerd daemon %v", errHealth)
 		return errHealth
 	}
 	sender.ServiceCheck("containerd.health", metrics.ServiceCheckOK, "", nil, "")
-	ns := cu.Namespace()
 
 	if c.instance.CollectEvents {
 		if c.sub == nil {
-			c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.ContainerdFilters)
+			c.sub = CreateEventSubscriber("ContainerdCheck", c.subscribeFilters())
 		}
 
 		if !c.sub.IsRunning() {
-			// Keep track of the health of the Containerd socket
-			c.sub.CheckEvents(cu)
+			// Keep track of the health of the Containerd socket.
+			//
+			// Check events does not rely on the "namespace" attribute of the
+			// client, so we can share it.
+			c.sub.CheckEvents(c.client)
 		}
 		events := c.sub.Flush(time.Now().Unix())
 		// Process events
 		computeEvents(events, sender, c.filters)
 	}
 
-	computeMetrics(sender, cu, c.filters)
+	namespaces, err := cutil.NamespacesToWatch(context.TODO(), c.client)
+	if err != nil {
+		return err
+	}
+
+	for _, namespace := range namespaces {
+		c.client.SetCurrentNamespace(namespace)
+		computeMetrics(sender, c.client, c.filters)
+	}
+
 	return nil
 }
 
@@ -448,4 +465,23 @@ func computeStorageWindows(sender aggregator.Sender, storageStats *wstats.Window
 
 	sender.Rate("containerd.storage.read", float64(storageStats.ReadSizeBytes), "", tags)
 	sender.Rate("containerd.storage.write", float64(storageStats.WriteSizeBytes), "", tags)
+}
+
+// subscribeFilters returns the filters that we need to send to the containerd
+// events subscriber. This returns the user-provided filters present in the
+// config modified, if needed, to filter by namespace as well.
+func (c *ContainerdCheck) subscribeFilters() []string {
+	namespace := config.Datadog.GetString("containerd_namespace")
+
+	if namespace == "" {
+		// We don't need to filter by namespace
+		return c.instance.ContainerdFilters
+	}
+
+	var filters []string
+	for _, filter := range c.instance.ContainerdFilters {
+		filters = append(filters, fmt.Sprintf(`%s,namespace==%q`, filter, namespace))
+	}
+
+	return filters
 }

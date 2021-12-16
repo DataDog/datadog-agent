@@ -20,7 +20,8 @@ func TestProviderExpectedTags(t *testing.T) {
 	clock := clock.NewMock()
 
 	oldStartTime := coreConfig.StartTime
-	coreConfig.StartTime = clock.Now()
+	then := clock.Now()
+	coreConfig.StartTime = then
 	defer func() {
 		coreConfig.StartTime = oldStartTime
 	}()
@@ -41,17 +42,24 @@ func TestProviderExpectedTags(t *testing.T) {
 	var tt []string
 
 	// this will block for two (mock) seconds, so do it in a goroutine
-	gotTags := make(chan struct{})
+	tagsChan := make(chan []string)
 	go func() {
-		tt = pp.GetTags()
-		close(gotTags)
+		tagsChan <- pp.GetTags()
 	}()
 
-	clock.Add(time.Second)
-	require.Empty(t, tt) // still waiting..
+wait:
+	for {
+		select {
+		case tt = <-tagsChan:
+			break wait
+		default:
+			clock.Add(90 * time.Millisecond)
+		}
+	}
 
-	clock.Add(2 * time.Second)
-	<-gotTags // got the tags now!
+	// Ensure we waited at least 2 seconds
+	require.True(t, clock.Now().After(then.Add(2*time.Second)))
+
 	sort.Strings(tags)
 	sort.Strings(tt)
 	require.Equal(t, tags, tt)

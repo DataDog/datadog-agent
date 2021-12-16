@@ -79,7 +79,7 @@ func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelet.Pod) []in
 }
 
 func init() {
-	RegisterProvider("prometheus_pods", NewPrometheusPodsConfigProvider)
+	RegisterProvider(names.PrometheusPodsRegisterName, NewPrometheusPodsConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the PrometheusPodsConfigProvider

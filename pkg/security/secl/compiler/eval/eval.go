@@ -63,14 +63,6 @@ type VariableValue struct {
 	StringFnc func(ctx *Context) string
 }
 
-// Opts are the options to be passed to the evaluator
-type Opts struct {
-	LegacyAttributes map[Field]Field
-	Constants        map[string]interface{}
-	Macros           map[MacroID]*Macro
-	Variables        map[string]VariableValue
-}
-
 // Evaluator is the interface of an evaluator
 type Evaluator interface {
 	Eval(ctx *Context) interface{}
@@ -322,12 +314,12 @@ func identToEvaluator(obj *ident, opts *Opts, state *state) (interface{}, lexer.
 		return nil, obj.Pos, err
 	}
 
-	// transform extracted field to support legacy SECL attributes
-	if opts.LegacyAttributes != nil {
-		if newField, ok := opts.LegacyAttributes[field]; ok {
+	// transform extracted field to support legacy SECL fields
+	if opts.LegacyFields != nil {
+		if newField, ok := opts.LegacyFields[field]; ok {
 			field = newField
 		}
-		if newField, ok := opts.LegacyAttributes[field]; ok {
+		if newField, ok := opts.LegacyFields[field]; ok {
 			itField = newField
 		}
 	}

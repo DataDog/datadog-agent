@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package config
 
 import (
@@ -18,11 +23,12 @@ type Subscriber struct {
 	configs        pbgo.ConfigResponse
 	once           sync.Once
 	stopSubscriber context.CancelFunc
+	tracerInfoChan chan *pbgo.TracerInfo
 }
 
 // NewSubscriber returns a new configuration store
 func NewSubscriber() *Subscriber {
-	return &Subscriber{}
+	return &Subscriber{tracerInfoChan: make(chan *pbgo.TracerInfo, 100)}
 }
 
 // Get returns the latest available configurations
@@ -31,6 +37,21 @@ func (s *Subscriber) Get(req *pbgo.GetConfigsRequest) (*pbgo.ConfigResponse, err
 		return nil, errors.New("not allowed")
 	}
 	s.once.Do(s.subscribe)
+loop:
+	for {
+		select {
+		case s.tracerInfoChan <- req.TracerInfo:
+			break loop
+		default:
+			select {
+			case <-s.tracerInfoChan:
+				log.Warnf("Cannot add more tracers. Dropping oldest tracer info.")
+			default:
+				log.Errorf("Cannot add more tracers and cannot empty chan. Dropping current tracer info.")
+				break loop
+			}
+		}
+	}
 	// No new configurations available in store
 	if req.CurrentConfigProductVersion >= s.getCurrentVersion() {
 		return nil, nil
@@ -72,7 +93,7 @@ func (s *Subscriber) getCurrentVersion() uint64 {
 }
 
 func (s *Subscriber) subscribe() {
-	close, err := service.NewGRPCSubscriber(pbgo.Product_LIVE_DEBUGGING, s.loadNewConfig)
+	close, err := service.NewTracerGRPCSubscriber(pbgo.Product_LIVE_DEBUGGING, s.loadNewConfig, s.tracerInfoChan)
 	if err != nil {
 		log.Errorf("Error when subscribing to remote config management %v", err)
 		return

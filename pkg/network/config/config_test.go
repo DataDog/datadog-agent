@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package config
 
 import (
@@ -76,7 +81,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
-func TestDisableGatewayLookup(t *testing.T) {
+func TestEnableGatewayLookup(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
@@ -86,27 +91,27 @@ func TestDisableGatewayLookup(t *testing.T) {
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableGatewayLookup)
+		assert.False(t, cfg.EnableGatewayLookup)
 
 		newConfig()
-		_, err = sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableGwLookup.yaml")
+		_, err = sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableGwLookup.yaml")
 		require.NoError(t, err)
 		cfg = New()
 
-		assert.False(t, cfg.EnableGatewayLookup)
+		assert.True(t, cfg.EnableGatewayLookup)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "false")
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "true")
 		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.False(t, cfg.EnableGatewayLookup)
+		assert.True(t, cfg.EnableGatewayLookup)
 	})
 }
 

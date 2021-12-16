@@ -21,11 +21,13 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func TestBuildCollectorEvent(t *testing.T) {
 	containerID := "10"
+	namespace := "test_namespace"
 
 	container := mockedContainer{
 		mockID: func() string {
@@ -36,6 +38,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 	client := containerdClient(&container)
 
 	workloadMetaContainer, err := buildWorkloadMetaContainer(&container, &client)
+	workloadMetaContainer.Namespace = namespace
 	assert.NoError(t, err)
 
 	containerCreationEvent, err := proto.Marshal(&events.ContainerCreate{
@@ -97,7 +100,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "container create event",
 			event: containerdevents.Envelope{
-				Topic: containerCreationTopic,
+				Namespace: namespace,
+				Topic:     containerCreationTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.ContainerCreate", Value: containerCreationEvent,
 				},
@@ -111,7 +115,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "container update event",
 			event: containerdevents.Envelope{
-				Topic: containerUpdateTopic,
+				Namespace: namespace,
+				Topic:     containerUpdateTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.ContainerUpdate", Value: containerUpdateEvent,
 				},
@@ -125,7 +130,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "container delete event",
 			event: containerdevents.Envelope{
-				Topic: containerDeletionTopic,
+				Namespace: namespace,
+				Topic:     containerDeletionTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.ContainerDelete", Value: containerDeleteEvent,
 				},
@@ -142,7 +148,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "unknown event",
 			event: containerdevents.Envelope{
-				Topic: "Unknown Topic", // This causes the error
+				Namespace: namespace,
+				Topic:     "Unknown Topic", // This causes the error
 				Event: &types.Any{
 					// Uses delete, but could be any other event in this test
 					TypeUrl: "containerd.events.ContainerDelete", Value: containerDeleteEvent,
@@ -153,7 +160,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "event without ID",
 			event: containerdevents.Envelope{
-				Topic: containerCreationTopic,
+				Namespace: namespace,
+				Topic:     containerCreationTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.ContainerCreate", Value: eventWithoutID,
 				},
@@ -163,7 +171,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task start event",
 			event: containerdevents.Envelope{
-				Topic: TaskStartTopic,
+				Namespace: namespace,
+				Topic:     TaskStartTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskStart", Value: taskStartEvent,
 				},
@@ -177,7 +186,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task OOM event",
 			event: containerdevents.Envelope{
-				Topic: TaskOOMTopic,
+				Namespace: namespace,
+				Topic:     TaskOOMTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskOOM", Value: taskOOMEvent,
 				},
@@ -191,7 +201,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task exit event",
 			event: containerdevents.Envelope{
-				Topic: TaskExitTopic,
+				Namespace: namespace,
+				Topic:     TaskExitTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskExit", Value: taskExitEvent,
 				},
@@ -205,7 +216,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task delete event",
 			event: containerdevents.Envelope{
-				Topic: TaskDeleteTopic,
+				Namespace: namespace,
+				Topic:     TaskDeleteTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskDelete", Value: taskDeleteEvent,
 				},
@@ -219,7 +231,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task paused event",
 			event: containerdevents.Envelope{
-				Topic: TaskStartTopic,
+				Namespace: namespace,
+				Topic:     TaskStartTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskPaused", Value: taskPausedEvent,
 				},
@@ -233,7 +246,8 @@ func TestBuildCollectorEvent(t *testing.T) {
 		{
 			name: "task resumed event",
 			event: containerdevents.Envelope{
-				Topic: TaskStartTopic,
+				Namespace: namespace,
+				Topic:     TaskStartTopic,
 				Event: &types.Any{
 					TypeUrl: "containerd.events.TaskResumed", Value: taskResumedEvent,
 				},
@@ -260,37 +274,37 @@ func TestBuildCollectorEvent(t *testing.T) {
 }
 
 // containerdClient returns a mockedContainerdClient set up for the tests in this file.
-func containerdClient(container containerd.Container) mockedContainerdClient {
+func containerdClient(container containerd.Container) fake.MockedContainerdClient {
 	labels := map[string]string{"some_label": "some_val"}
 	imgName := "datadog/agent:7"
 	envVars := map[string]string{"test_env": "test_val"}
 	hostName := "test_hostname"
 	createdAt, _ := time.Parse("2006-01-02", "2021-10-11")
 
-	return mockedContainerdClient{
-		mockContainerWithContext: func(ctx context.Context, id string) (containerd.Container, error) {
+	return fake.MockedContainerdClient{
+		MockContainerWithCtx: func(ctx context.Context, id string) (containerd.Container, error) {
 			return container, nil
 		},
-		mockLabels: func(ctn containerd.Container) (map[string]string, error) {
+		MockLabels: func(ctn containerd.Container) (map[string]string, error) {
 			return labels, nil
 		},
-		mockImage: func(ctn containerd.Container) (containerd.Image, error) {
+		MockImage: func(ctn containerd.Container) (containerd.Image, error) {
 			return &mockedImage{
 				mockName: func() string {
 					return imgName
 				},
 			}, nil
 		},
-		mockEnvVars: func(ctn containerd.Container) (map[string]string, error) {
+		MockEnvVars: func(ctn containerd.Container) (map[string]string, error) {
 			return envVars, nil
 		},
-		mockInfo: func(ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(ctn containerd.Container) (containers.Container, error) {
 			return containers.Container{CreatedAt: createdAt}, nil
 		},
-		mockSpec: func(ctn containerd.Container) (*oci.Spec, error) {
+		MockSpec: func(ctn containerd.Container) (*oci.Spec, error) {
 			return &oci.Spec{Hostname: hostName}, nil
 		},
-		mockStatus: func(ctn containerd.Container) (containerd.ProcessStatus, error) {
+		MockStatus: func(ctn containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
 		},
 	}

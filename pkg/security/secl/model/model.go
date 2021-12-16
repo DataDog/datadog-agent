@@ -5,9 +5,9 @@
 
 // +build linux
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -vendor github.com/DataDog/datadog-agent/vendor/ -mock -tags linux -output accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -vendor github.com/DataDog/datadog-agent/vendor/ -tags linux -output ../../probe/accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -vendor github.com/DataDog/datadog-agent/vendor/ -tags linux -doc -output ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -mock -tags linux -output accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -doc -output ../../../../docs/cloud-workload-security/secl.json
 
 package model
 
@@ -267,10 +267,14 @@ type Process struct {
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
 
-	ArgsEntry     *ArgsEntry `field:"-"`
-	EnvsEntry     *EnvsEntry `field:"-"`
-	EnvsTruncated bool       `field:"-"`
-	ArgsTruncated bool       `field:"-"`
+	ArgsEntry *ArgsEntry `field:"-"`
+	EnvsEntry *EnvsEntry `field:"-"`
+
+	EnvsTruncated bool `field:"-"`
+	ArgsTruncated bool `field:"-"`
+
+	EnvsCache []string `field:"-"` // used as cache
+	ArgsCache []string `field:"-"` // used as cache
 }
 
 // SpanContext describes a span context
