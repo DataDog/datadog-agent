@@ -69,10 +69,10 @@ func (c *Check) Run() error {
 		sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
 		sender.Gauge("system.swap.pct_free", (100-s.UsedPercent)/100, "", nil)
 		// following fields are in kilobytes
-		sender.Rate("system.swap.page_in", float64(s.PgIn)*kbSize/mbSize, "", nil)
-		sender.Rate("system.swap.page_out", float64(s.PgOut)*kbSize/mbSize, "", nil)
 		sender.Rate("system.swap.swap_in", float64(s.Sin)*kbSize/mbSize, "", nil)
 		sender.Rate("system.swap.swap_out", float64(s.Sout)*kbSize/mbSize, "", nil)
+		sender.Rate("system.io.block_in", float64(s.PgIn)*kbSize/mbSize, "", nil)
+		sender.Rate("system.io.block_out", float64(s.PgOut)*kbSize/mbSize, "", nil)
 	} else {
 		log.Errorf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}
