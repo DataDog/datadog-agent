@@ -163,6 +163,7 @@ type entryStats struct {
 	minSize  int
 	maxSize  int
 	sumSize  int
+	count    int
 }
 
 func (s *entryStats) visit(e *Entry) {
@@ -176,11 +177,12 @@ func (s *entryStats) visit(e *Entry) {
 	}
 
 	n := len(e.tags)
-	if n < s.minSize {
+	if n < s.minSize || s.count == 0 {
 		s.minSize = n
 	}
 	if n > s.maxSize {
 		s.maxSize = n
 	}
 	s.sumSize += n
+	s.count++
 }
