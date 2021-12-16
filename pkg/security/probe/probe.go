@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -75,7 +76,9 @@ type Probe struct {
 	approvers          map[eval.EventType]activeApprovers
 
 	constantOffsets map[string]uint64
-	tcPrograms      map[NetDeviceKey]*manager.Probe
+
+	tcProgramsLock sync.RWMutex
+	tcPrograms     map[NetDeviceKey]*manager.Probe
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -586,13 +589,13 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode net_device event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		p.setupNewTCClassifier(event.NetDevice.Device)
+		_ = p.setupNewTCClassifier(event.NetDevice.Device)
 	case model.VethPairEventType:
 		if _, err = event.VethPair.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		p.setupNewTCClassifier(event.VethPair.PeerDevice)
+		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
 	case model.NamespaceSwitchEventType:
 		break
 	default:
@@ -898,16 +901,34 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts)
 }
 
-func (p *Probe) setupNewTCClassifier(device model.NetDevice) {
+// QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
+// resolved.
+type QueuedNetworkDeviceError struct {
+	msg string
+}
+
+func (err QueuedNetworkDeviceError) Error() string {
+	return err.msg
+}
+
+func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	// select netns handle
 	netnsHandle := p.resolvers.NamespaceResolver.ResolveNetworkNamespaceHandle(device.NetNS)
 	if netnsHandle == nil {
 		// queue network device so that a TC classifier can be added later
 		p.resolvers.NamespaceResolver.QueueNetworkDevice(device)
-		return
+		return QueuedNetworkDeviceError{msg: fmt.Sprintf("%s device was queued until %d is resolved", device.Name, device.NetNS)}
 	}
 	defer netnsHandle.Close()
 
+	return p.setupNewTCClassifierWithNetNSHandle(device, netnsHandle)
+}
+
+func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netnsHandle *os.File) error {
+	p.tcProgramsLock.Lock()
+	defer p.tcProgramsLock.Unlock()
+
+	var combinedErr multierror.Error
 	for _, tcProbe := range probes.GetTCProbes() {
 		newProbe := tcProbe.Copy()
 		newProbe.UID = probes.SecurityAgentUID + device.GetKey()
@@ -922,33 +943,45 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) {
 		}
 
 		if err := p.manager.CloneProgram(probes.SecurityAgentUID, newProbe, netnsEditor, nil); err != nil {
-			seclog.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err)
+			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err))
 		} else {
 			p.tcPrograms[NetDeviceKey{IfIndex: device.IfIndex, NetNS: device.NetNS, NetworkDirection: tcProbe.NetworkDirection}] = newProbe
 		}
 	}
+	return combinedErr.ErrorOrNil()
 }
 
-func (p *Probe) removeTCClassifier(device model.NetDevice) {
-	key := NetDeviceKey{
-		IfIndex:          device.IfIndex,
-		NetNS:            device.NetNS,
-		NetworkDirection: manager.Ingress,
+func (p *Probe) flushInactiveTCPrograms() {
+	p.tcProgramsLock.Lock()
+	defer p.tcProgramsLock.Unlock()
+	var isProbeActive, isNSActive bool
+
+	netnsCache := make(map[uint32]bool)
+	for tcKey, tcProbe := range p.tcPrograms {
+		isProbeActive = tcProbe.IsTCCLSActive()
+		// a network namespace is active if it contains an active interface that is not the local interface
+		netnsCache[tcKey.NetNS] = netnsCache[tcKey.NetNS] || isProbeActive && tcProbe.Ifindex != 1
+
+		if !isProbeActive {
+			_ = p.manager.DetachHook(tcProbe.ProbeIdentificationPair)
+			delete(p.tcPrograms, tcKey)
+		}
 	}
 
-	if prog, ok := p.tcPrograms[key]; ok {
-		if err := p.manager.DetachHook(prog.ProbeIdentificationPair); err != nil {
-			seclog.Errorf("couldn't stop %s: %v", prog.ProbeIdentificationPair, err)
+	// remove handle for inactive namespaces
+	var netns uint32
+	for netns, isNSActive = range netnsCache {
+		if !isNSActive {
+			if !p.resolvers.NamespaceResolver.flushNetworkNamespace(netns) {
+				// this namespace is inactive, and we don't have any handle in cache, delete all interfaces in it
+				for tcKey, tcProbe := range p.tcPrograms {
+					if tcKey.NetNS == netns {
+						_ = p.manager.DetachHook(tcProbe.ProbeIdentificationPair)
+						delete(p.tcPrograms, tcKey)
+					}
+				}
+			}
 		}
-		delete(p.tcPrograms, key)
-	}
-
-	key.NetworkDirection = manager.Egress
-	if prog, ok := p.tcPrograms[key]; ok {
-		if err := p.manager.DetachHook(prog.ProbeIdentificationPair); err != nil {
-			seclog.Errorf("couldn't stop %s: %v", prog.ProbeIdentificationPair, err)
-		}
-		delete(p.tcPrograms, key)
 	}
 }
 

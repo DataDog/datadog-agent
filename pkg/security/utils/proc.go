@@ -43,6 +43,7 @@ func GetProcessNetworkNamespace(pid uint32) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer f.Close()
 
 	l, err := os.Readlink(f.Name())
 	if err != nil {
