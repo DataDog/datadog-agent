@@ -56,9 +56,6 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	contextKey, tagsKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
-		// making a copy of tags for the context since tagsBuffer
-		// will be reused later. This allow us to allocate one slice
-		// per context instead of one per sample.
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSampleContext.GetName(),
 			tags: cr.tagsCache.Insert(tagsKey, cr.tagsBuffer),
