@@ -30,12 +30,16 @@ const (
 // CollectorPriorities holds collector priorities
 var CollectorPriorities = make(map[string]CollectorPriority)
 
+type processor interface {
+	ProcessTagInfo([]*TagInfo)
+}
+
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
-	store    workloadmeta.Store
-	children map[string]map[string]struct{}
-	out      chan<- []*TagInfo
+	store        workloadmeta.Store
+	children     map[string]map[string]struct{}
+	tagProcessor processor
 
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
@@ -101,10 +105,9 @@ func (c *WorkloadMetaCollector) Stream(ctx context.Context) {
 }
 
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
-// TODO(juliogreff): get a ref to the store instead of a chan
-func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Store, out chan<- []*TagInfo) *WorkloadMetaCollector {
+func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Store, p processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
-		out:                    out,
+		tagProcessor:           p,
 		store:                  store,
 		children:               make(map[string]map[string]struct{}),
 		collectEC2ResourceTags: config.Datadog.GetBool("ecs_collect_resource_tags_ec2"),

@@ -55,7 +55,7 @@ func (t *Tagger) Init(ctx context.Context) error {
 	t.collector = collectors.NewWorkloadMetaCollector(
 		t.ctx,
 		t.workloadStore,
-		t.tagStore.InfoIn,
+		t.tagStore,
 	)
 
 	go t.tagStore.Run(t.ctx)
