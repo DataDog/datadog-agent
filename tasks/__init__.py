@@ -33,6 +33,7 @@ from . import (
 )
 from .build_tags import audit_tag_impact
 from .go import (
+    check_forbidden_packages,
     check_mod_tidy,
     cyclo,
     deps,
@@ -76,6 +77,7 @@ ns.add_task(test)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
+ns.add_task(check_forbidden_packages)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(generate_protobuf)

@@ -53,6 +53,11 @@ MISSPELL_IGNORED_TARGETS = [
 # Packages that need go:generate
 GO_GENERATE_TARGETS = ["./pkg/status", "./cmd/agent/gui"]
 
+# Packages we are not allowed to use, with reasons
+FORBIDDEN_PACKAGES = [
+    ("plugin", "causes hangs on darwin (https://github.com/golang/go/issues/38824)"),
+]
+
 
 @task
 def fmt(ctx, targets, fail_on_fmt=False):
@@ -326,6 +331,23 @@ def deps_vendored(ctx, verbose=False):
 
     dep_done = datetime.datetime.now()
     print(f"go mod vendor, elapsed: {dep_done - start}")
+
+
+@task
+def check_forbidden_packages(ctx):
+    """
+    Check for forbidden Go packages.
+
+    Example invocations:
+        inv check-forbidden-packages
+    """
+    for forbidden, reason in FORBIDDEN_PACKAGES:
+        res = ctx.run(f"go mod why {forbidden}", hide="stdout")
+        if "main module does not need package" not in res.stdout:
+            raise Exit(
+                message=f"Package `{forbidden}` is forbidden: {reason}\nBut is required as follows:\n" + res.stdout
+            )
+    print("no forbidden packages found")
 
 
 @task
