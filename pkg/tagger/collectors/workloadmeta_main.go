@@ -20,11 +20,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+type processor interface {
+	ProcessTagInfo([]*TagInfo)
+}
+
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
 	store workloadmeta.Store
-	out   chan<- []*TagInfo
+	p     processor
 
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
@@ -90,10 +94,9 @@ func (c *WorkloadMetaCollector) Stream(ctx context.Context) {
 }
 
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
-// TODO(juliogreff): get a ref to the store instead of a chan
-func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Store, out chan<- []*TagInfo) *WorkloadMetaCollector {
+func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Store, p processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
-		out:                    out,
+		p:                      p,
 		store:                  store,
 		staticTags:             fargateStaticTags(ctx),
 		collectEC2ResourceTags: config.Datadog.GetBool("ecs_collect_resource_tags_ec2"),

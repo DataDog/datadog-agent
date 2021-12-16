@@ -45,7 +45,7 @@ func NewTagger(store workloadmeta.Store) *Tagger {
 
 	t := &Tagger{
 		store:     tagStore,
-		collector: collectors.NewWorkloadMetaCollector(ctx, store, tagStore.InfoIn),
+		collector: collectors.NewWorkloadMetaCollector(ctx, store, tagStore),
 		ctx:       ctx,
 		cancel:    cancel,
 	}

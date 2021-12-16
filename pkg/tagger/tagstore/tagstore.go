@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -38,7 +37,6 @@ type TagStore struct {
 
 	store     map[string]sourceTags
 	telemetry map[string]float64
-	InfoIn    chan []*collectors.TagInfo
 
 	subscriber *subscriber.Subscriber
 
@@ -54,37 +52,8 @@ func newTagStoreWithClock(clock clock.Clock) *TagStore {
 	return &TagStore{
 		telemetry:  make(map[string]float64),
 		store:      make(map[string]sourceTags),
-		InfoIn:     make(chan []*collectors.TagInfo),
 		subscriber: subscriber.NewSubscriber(),
 		clock:      clock,
-	}
-}
-
-// Run performs background maintenance for TagStore.
-func (s *TagStore) Run(ctx context.Context) {
-	pruneTicker := time.NewTicker(1 * time.Minute)
-	telemetryTicker := time.NewTicker(1 * time.Minute)
-	health := health.RegisterLiveness("tagger-store")
-
-	for {
-		select {
-		case msg := <-s.InfoIn:
-			s.ProcessTagInfo(msg)
-
-		case <-telemetryTicker.C:
-			s.collectTelemetry()
-
-		case <-pruneTicker.C:
-			s.Prune()
-
-		case <-health.C:
-
-		case <-ctx.Done():
-			pruneTicker.Stop()
-			telemetryTicker.Stop()
-
-			return
-		}
 	}
 }
 
@@ -96,15 +65,6 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 	defer s.Unlock()
 
 	for _, info := range tagInfos {
-		if info == nil {
-			log.Errorf("skipping nil message")
-			continue
-		}
-		if info.Entity == "" {
-			log.Errorf("empty entity name, skipping message")
-			continue
-		}
-
 		storedTags, exist := s.store[info.Entity]
 
 		if info.DeleteEntity {
@@ -119,6 +79,9 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 		eventType := types.EventTypeModified
 		if !exist {
 			eventType = types.EventTypeAdded
+
+			prefix, _ := containers.SplitEntityName(info.Entity)
+			telemetry.StoredEntities.Inc(prefix)
 		}
 
 		// TODO: check if real change
@@ -138,23 +101,25 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 	}
 }
 
-func (s *TagStore) collectTelemetry() {
-	// our telemetry package does not seem to have a way to reset a Gauge,
-	// so we need to keep track of all the labels we use, and re-set them
-	// to zero after we're done to ensure a new run of collectTelemetry
-	// will not forget to clear them if they disappear.
+// Run performs background maintenance for TagStore.
+func (s *TagStore) Run(ctx context.Context) {
+	pruneTicker := time.NewTicker(1 * time.Minute)
+	// telemetryTicker := time.NewTicker(1 * time.Minute)
+	health := health.RegisterLiveness("tagger-store")
 
-	s.Lock()
-	defer s.Unlock()
+	for {
+		select {
+		case <-pruneTicker.C:
+			s.Prune()
 
-	for _, entityTags := range s.store {
-		prefix, _ := containers.SplitEntityName(entityTags.entityID)
-		s.telemetry[prefix]++
-	}
+		case <-health.C:
 
-	for prefix, storedEntities := range s.telemetry {
-		telemetry.StoredEntities.Set(storedEntities, prefix)
-		s.telemetry[prefix] = 0
+		case <-ctx.Done():
+			pruneTicker.Stop()
+			// telemetryTicker.Stop()
+
+			return
+		}
 	}
 }
 
@@ -185,8 +150,8 @@ func (s *TagStore) notifySubscribers(events []types.EntityEvent) {
 	s.subscriber.Notify(events)
 }
 
-// Prune deletes tags for entities that are deleted or with empty entries.
-// This is to be called regularly from the user class.
+// Prune deletes tags for entities that have been marked as deleted. This is to
+// be called regularly from the user class.
 func (s *TagStore) Prune() {
 	s.Lock()
 	defer s.Unlock()
@@ -196,6 +161,9 @@ func (s *TagStore) Prune() {
 
 	for entity, storedTags := range s.store {
 		if storedTags.isExpired(now) {
+			prefix, _ := containers.SplitEntityName(entity)
+			telemetry.StoredEntities.Dec(prefix)
+
 			telemetry.PrunedEntities.Inc()
 			delete(s.store, entity)
 			events = append(events, types.EntityEvent{

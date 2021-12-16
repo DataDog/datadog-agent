@@ -135,12 +135,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 	}
 
-	// NOTE: haha, this is still async and race conditions will still
-	// happen :D since the workloadmeta will be the only collector in the
-	// tagger in the end, this can be turned into a sync call to
-	// processTagInfo
 	if len(tagInfos) > 0 {
-		c.out <- tagInfos
+		c.p.ProcessTagInfo(tagInfos)
 	}
 
 	close(evBundle.Ch)
