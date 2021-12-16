@@ -88,20 +88,17 @@ func (f *metadataFinderFilter) storeTableName(name string) {
 	}
 	f.tablesSeen[name] = struct{}{}
 	if f.tablesCSV.Len() > 0 {
+		f.size += 1
 		f.tablesCSV.WriteByte(',')
 	}
+	f.size += int64(len(name))
 	f.tablesCSV.WriteString(name)
-}
-
-// Size returns the byte size of the metadata collected by the filter.
-func (f *metadataFinderFilter) Size() int64 {
-	return f.size + int64(len(f.tablesCSV.String()))
 }
 
 // Results returns metadata collected by the filter for an SQL statement.
 func (f *metadataFinderFilter) Results() SQLMetadata {
 	return SQLMetadata{
-		Size:      f.Size(),
+		Size:      f.size,
 		TablesCSV: f.tablesCSV.String(),
 		Commands:  f.commands,
 		Comments:  f.comments,
@@ -115,8 +112,8 @@ func (f *metadataFinderFilter) Reset() {
 	}
 	f.size = 0
 	f.tablesCSV.Reset()
-	f.commands = nil
-	f.comments = nil
+	f.commands = f.commands[:0]
+	f.comments = f.comments[:0]
 }
 
 // discardFilter is a token filter which discards certain elements from a query, such as
