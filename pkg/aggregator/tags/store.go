@@ -20,7 +20,10 @@ type Entry struct {
 	refs uint64
 }
 
-// Tags returns the strings stored in the Entry.
+// Tags returns the strings stored in the Entry. The slice may be
+// shared with other users and should not be modified. Users can keep
+// the slice after the entry was removed from the store; it is not
+// recycled or otherwise modified by the store.
 func (e *Entry) Tags() []string {
 	return e.tags
 }
@@ -31,8 +34,8 @@ func (e *Entry) Release() {
 	e.refs--
 }
 
-// Store is a reference counted container of the tags slices, to be
-// shared between contexts.
+// Store is a reference counted container of tags slices, to be shared
+// between contexts.
 type Store struct {
 	tagsByKey map[ckey.TagsKey]*Entry
 	cap       int
@@ -51,7 +54,9 @@ func NewStore(enabled bool, name string) *Store {
 
 // Insert returns an Entry that corresponds to the key. If the key is
 // not in the cache, a new entry is stored in the Store with the tags
-// retrieved from the tagsBuffer.
+// retrieved from the tagsBuffer. Insert increments reference count
+// for the returned entry; callers should call Entry.Release() when
+// the returned pointer is no longer in use.
 func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *Entry {
 	if !tc.enabled {
 		return &Entry{
