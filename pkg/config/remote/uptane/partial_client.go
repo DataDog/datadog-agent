@@ -5,10 +5,9 @@
 
 package uptane
 
-import 
-(
+import (
 	"fmt"
-	
+
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
