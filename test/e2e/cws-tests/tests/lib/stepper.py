@@ -11,5 +11,8 @@ class Step:
         print(f"{_emoji} {self.msg}... ", end="", flush=True)
         return self
 
-    def __exit__(self, _exc_type, _exc_val, _exc_tb):
-        print(emoji.emojize(":check_mark:"), flush=True)
+    def __exit__(self, exc_type, _exc_val, _exc_tb):
+        if exc_type is None:
+            print(emoji.emojize(":check_mark:"), flush=True)
+        else:
+            print(emoji.emojize(":cross_mark:"), flush=True)

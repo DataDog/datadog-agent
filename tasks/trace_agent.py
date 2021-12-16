@@ -4,6 +4,7 @@ import sys
 from invoke import task
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from .flavor import AgentFlavor
 from .go import deps
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
@@ -17,6 +18,7 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
+    flavor=AgentFlavor.base.name,
     major_version='7',
     python_runtimes='3',
     arch="x64",
@@ -26,6 +28,7 @@ def build(
     Build the trace agent.
     """
 
+    flavor = AgentFlavor[flavor]
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # generate windows resources
@@ -47,7 +50,8 @@ def build(
 
     build_include = (
         get_default_build_tags(
-            build="trace-agent"
+            build="trace-agent",
+            flavor=flavor,
         )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
         if build_include is None
         else filter_incompatible_tags(build_include.split(","), arch=arch)

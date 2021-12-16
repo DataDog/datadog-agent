@@ -56,6 +56,9 @@ type Agent struct {
 	obfuscator     *obfuscate.Obfuscator
 	cardObfuscator *ccObfuscator
 
+	// ModifySpan will be called on all spans, if non-nil.
+	ModifySpan func(*pb.Span)
+
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
 
@@ -250,9 +253,8 @@ func (a *Agent) Process(p *api.Payload) {
 					traceutil.SetMeta(span, k, v)
 				}
 			}
-			if span.Service == "aws.lambda" && a.conf.GlobalTags["service"] != "" {
-				// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
-				span.Service = a.conf.GlobalTags["service"]
+			if a.ModifySpan != nil {
+				a.ModifySpan(span)
 			}
 			a.obfuscateSpan(span)
 			Truncate(span)

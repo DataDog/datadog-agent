@@ -33,6 +33,7 @@ func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		defer cleanConfig()()
 		config.Datadog.Set("apm_config.dd_agent_bin", "/not/exist")
+		config.Datadog.Set("cmd_port", "-1")
 		assert := assert.New(t)
 		fallbackHostnameFunc = func() (string, error) {
 			return "", errors.New("could not get hostname")
@@ -255,7 +256,6 @@ func TestFullYamlConfig(t *testing.T) {
 		// this test to fail.
 		noProxy = false
 	}
-
 	assert.ElementsMatch([]*Endpoint{
 		{Host: "https://datadog.unittests", APIKey: "api_key_test"},
 		{Host: "https://my1.endpoint.com", APIKey: "apikey1"},

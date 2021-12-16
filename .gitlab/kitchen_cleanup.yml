@@ -12,7 +12,7 @@ kitchen_cleanup_s3-a6:
   extends: .kitchen_cleanup_s3_common
   rules:
     !reference [.on_kitchen_tests_a6]
-  dependencies: ["agent_deb-x64-a6"]
+  dependencies: ["agent_deb-x64-a6", "agent_heroku_deb-x64-a6"]
   variables:
     AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -21,7 +21,7 @@ kitchen_cleanup_s3-a7:
   extends: .kitchen_cleanup_s3_common
   rules:
     !reference [.on_default_kitchen_tests_a7]
-  dependencies: ["agent_deb-x64-a7"]
+  dependencies: ["agent_deb-x64-a7", "agent_heroku_deb-x64-a7"]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

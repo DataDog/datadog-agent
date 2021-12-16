@@ -12,6 +12,7 @@ source :url => "https://github.com/pypa/setuptools/archive/v#{version}.tar.gz",
        :extract => :seven_zip
 
 build do
+  # 2.0 is the license version here, not the python version
   license "Python-2.0"
 
   if ohai["platform"] == "windows"

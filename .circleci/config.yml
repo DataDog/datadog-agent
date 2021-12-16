@@ -227,7 +227,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: build iot agent
-          command: inv -e agent.build --iot
+          command: inv -e agent.build --flavor iot
       - run:
           name: test iot agent
           command: ./bin/agent/agent -c ./bin/agent/dist check cpu

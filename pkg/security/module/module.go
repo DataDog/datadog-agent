@@ -257,24 +257,22 @@ func (m *Module) Reload() error {
 	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	newRuleSetOpts := func() *rules.Opts {
-		return rules.NewOptsWithParams(
-			model.SECLConstants,
-			sprobe.SECLVariables,
-			sprobe.SupportedDiscarders,
-			m.getEventTypeEnabled(),
-			sprobe.AllCustomRuleIDs(),
-			model.SECLLegacyAttributes,
-			&seclog.PatternLogger{})
-	}
-
-	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
-
-	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
+	var opts rules.Opts
+	opts.
+		WithConstants(model.SECLConstants).
+		WithVariables(sprobe.SECLVariables).
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(m.getEventTypeEnabled()).
+		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithLegacyFields(model.SECLLegacyFields).
+		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
 	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
+
+	ruleSet := m.probe.NewRuleSet(&opts)
+	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
 
 	if loadErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies: %+v", loadErr)
