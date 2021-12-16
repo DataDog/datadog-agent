@@ -21,7 +21,6 @@ provider:
     DD_ENV: integration-tests-env
     DD_VERSION: integration-tests-version
     DD_SERVICE: integration-tests-service
-
   lambdaHashingVersion: 20201221
   timeout: 15
   deploymentBucket:
@@ -29,6 +28,14 @@ provider:
   iam:
     # IAM permissions require that all functions are deployed with this role
     role: "arn:aws:iam::601427279990:role/serverless-integration-test-lambda-role"
+
+package:
+  patterns:
+    - "src"
+    - "!src/bin"
+    - "!src/csharp-tests"
+    - "!src/go-tests"
+    - "!src/java-tests"
 
 layers:
   recorderExtension:
@@ -39,7 +46,7 @@ layers:
       artifact: ../../../../datadog-lambda-extension/.layers/datadog_extension-amd64.zip
 
 functions:
-  enhanced-metric-node:
+  metric-node:
     runtime: nodejs14.x
     handler: src/metric.enhancedMetricTest
     layers:
@@ -50,7 +57,7 @@ functions:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
-  enhanced-metric-python:
+  metric-python:
     runtime: python3.8
     handler: datadog_lambda.handler.handler
     layers:
@@ -60,27 +67,6 @@ functions:
     environment:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_LAMBDA_HANDLER: src/metricPython.metric
-
-  no-enhanced-metric-node:
-    runtime: nodejs14.x
-    handler: src/metric.noEnhancedMetricTest
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_ENHANCED_METRICS: false
-
-  no-enhanced-metric-python:
-    runtime: python3.8
-    handler: datadog_lambda.handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_ENHANCED_METRICS: false
       DD_LAMBDA_HANDLER: src/metricPython.metric
 
   with-ddlambda-go:
@@ -261,22 +247,6 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
-      DD_EXPERIMENTAL_ENABLE_PROXY: true
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-
-  trace-csharp:
-    runtime: dotnetcore3.1
-    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
-    package:
-      individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TRACE_ENABLED: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       DD_TAGS: tagA:valueA tagB:valueB

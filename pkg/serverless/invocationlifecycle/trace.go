@@ -9,11 +9,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -21,41 +19,37 @@ const (
 	serviceEnvVar      = "DD_SERVICE"
 )
 
-var (
-	functionName = os.Getenv(functionNameEnvVar)
-	service      = os.Getenv(serviceEnvVar)
-)
-
-// executionSpanInfo is the information needed to create a span representing the Lambda function execution
-type executionSpanInfo struct {
+// executionStartInfo is saved information from when an execution span was started
+type executionStartInfo struct {
 	startTime time.Time
 	traceID   uint64
 	spanID    uint64
 }
 
-// currentExecutionSpanInfo represents information about the execution span for the current invocation
-var currentExecutionSpanInfo executionSpanInfo
+// currentExecutionInfo represents information from the start of the current execution span
+var currentExecutionInfo executionStartInfo
 
-// beginExecutionSpan records information from the start of the invocation in the current execution span info
-func beginExecutionSpan(daemon *daemon.Daemon, startTime time.Time) {
-	currentExecutionSpanInfo.startTime = startTime
-	currentExecutionSpanInfo.traceID = random.Uint64()
-	currentExecutionSpanInfo.spanID = random.Uint64()
+// startExecutionSpan records information from the start of the invocation.
+// It should be called at the start of the invocation.
+func startExecutionSpan(startTime time.Time) {
+	currentExecutionInfo.startTime = startTime
+	currentExecutionInfo.traceID = random.Uint64()
+	currentExecutionInfo.spanID = random.Uint64()
 }
 
-// endExecutionSpan uses information from the end of the invocation plus the current execution span info to build
-// the function execution span and sends it to the intake.
-func endExecutionSpan(daemon *daemon.Daemon, endTime time.Time) {
-	duration := endTime.UnixNano() - currentExecutionSpanInfo.startTime.UnixNano()
+// endExecutionSpan builds the function execution span and sends it to the intake.
+// It should be called at the end of the invocation.
+func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time) {
+	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
-		Service:  service,
+		Service:  os.Getenv(serviceEnvVar),
 		Name:     "aws.lambda",
-		Resource: functionName,
+		Resource: os.Getenv(functionNameEnvVar),
 		Type:     "serverless",
-		TraceID:  currentExecutionSpanInfo.traceID,
-		SpanID:   currentExecutionSpanInfo.spanID,
-		Start:    currentExecutionSpanInfo.startTime.UnixNano(),
+		TraceID:  currentExecutionInfo.traceID,
+		SpanID:   currentExecutionInfo.spanID,
+		Start:    currentExecutionInfo.startTime.UnixNano(),
 		Duration: duration,
 	}
 
@@ -67,9 +61,7 @@ func endExecutionSpan(daemon *daemon.Daemon, endTime time.Time) {
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
 
-	log.Debugf("tracerPayload: %s", tracerPayload)
-
-	daemon.TraceAgent.Get().Process(&api.Payload{
+	processTrace(&api.Payload{
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})

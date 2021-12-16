@@ -76,8 +76,8 @@ cd csharp-tests
 dotnet restore
 set +e #set this so we don't exit if the tools are already installed
 dotnet tool install -g Amazon.Lambda.Tools --framework netcoreapp3.1
-dotnet lambda package --configuration Release --framework netcoreapp3.1 --output-package bin/Release/netcoreapp3.1/handler.zip
 set -e
+dotnet lambda package --configuration Release --framework netcoreapp3.1 --output-package bin/Release/netcoreapp3.1/handler.zip
 cd ../../
 
 echo
@@ -116,13 +116,11 @@ NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
     serverless deploy --stage "${stage}"
 
 # invoke functions
-
-metric_function_names=("with-ddlambda-java" "enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "timeout-java" "error-python" "error-node" "error-java")
+metric_function_names=("with-ddlambda-java" "metric-node" "metric-python" "metric-csharp" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "timeout-java" "error-python" "error-node" "error-java")
 log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda" "log-java")
-trace_function_names=("trace-node" "trace-python" "trace-go" "trace-java" "trace-csharp")
+trace_function_names=("trace-node" "trace-python" "trace-go" "trace-java")
 
-# all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
-all_functions=("trace-csharp")
+all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
 
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
@@ -204,7 +202,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/[ ]$//g"
         )
     else
-        # Normalize traces
+        Normalize traces
         logs=$(
             echo "$raw_logs" |
                 grep -v "\[log\]" |
