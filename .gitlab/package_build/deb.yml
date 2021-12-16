@@ -39,8 +39,8 @@
     - tar -xf /tmp/nikos.tar.gz -C /tmp/nikos
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --nikos-path=/tmp/nikos ${FLAVOR:+--flavor $FLAVOR}
     - ls -la $OMNIBUS_PACKAGE_DIR
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -208,9 +208,13 @@ dogstatsd_deb-x64:
 agent_heroku_deb-x64-a6:
   extends: agent_deb-x64-a6
   variables:
+    DESTINATION_DEB: 'datadog-heroku-agent_6_amd64.deb'
+    DESTINATION_DBG_DEB: 'datadog-heroku-agent-dbg_6_amd64.deb'
     FLAVOR: heroku
 
 agent_heroku_deb-x64-a7:
   extends: agent_deb-x64-a7
   variables:
+    DESTINATION_DEB: 'datadog-heroku-agent_7_amd64.deb'
+    DESTINATION_DBG_DEB: 'datadog-heroku-agent-dbg_7_amd64.deb'
     FLAVOR: heroku
