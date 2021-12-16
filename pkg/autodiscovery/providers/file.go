@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 )
 
 // FileConfigProvider collect configuration files from disk
@@ -33,6 +34,7 @@ func (c *FileConfigProvider) Collect(ctx context.Context) ([]integration.Config,
 	}
 
 	c.Errors = errors
+	telemetry.Errors.Set(float64(len(errors)), names.File)
 
 	return configs, nil
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -274,11 +275,19 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 
 // schedule takes a slice of configs and schedule them
 func (ac *AutoConfig) schedule(configs []integration.Config) {
+	for _, conf := range configs {
+		telemetry.ScheduledConfigs.Inc(conf.Provider, conf.Type())
+	}
+
 	ac.scheduler.Schedule(configs)
 }
 
 // unschedule takes a slice of configs and unschedule them
 func (ac *AutoConfig) unschedule(configs []integration.Config) {
+	for _, conf := range configs {
+		telemetry.ScheduledConfigs.Dec(conf.Provider, conf.Type())
+	}
+
 	ac.scheduler.Unschedule(configs)
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,6 +31,7 @@ import (
 
 const (
 	kubeServiceAnnotationFormat = "ad.datadoghq.com/service.instances"
+	kubeServicesName            = "kube_services"
 )
 
 // KubeServiceListener listens to kubernetes service creation
@@ -56,7 +58,7 @@ type KubeServiceService struct {
 var _ Service = &KubeServiceService{}
 
 func init() {
-	Register("kube_services", NewKubeServiceListener)
+	Register(kubeServicesName, NewKubeServiceListener)
 }
 
 func NewKubeServiceListener(conf Config) (ServiceListener, error) {
@@ -204,6 +206,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	l.m.Unlock()
 
 	l.newService <- svc
+	telemetry.WatchedResources.Inc(kubeServicesName, telemetry.ResourceKubeService)
 }
 
 func processService(ksvc *v1.Service, firstRun bool) *KubeServiceService {
@@ -258,6 +261,7 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 		l.m.Unlock()
 
 		l.delService <- svc
+		telemetry.WatchedResources.Dec(kubeServicesName, telemetry.ResourceKubeService)
 	} else {
 		log.Debugf("Entity %s not found, not removing", ksvc.UID)
 	}
