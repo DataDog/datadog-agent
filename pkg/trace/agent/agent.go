@@ -54,6 +54,9 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
+	// ModifySpan will be called on all spans, if non-nil.
+	ModifySpan func(*pb.Span)
+
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
 
@@ -241,7 +244,9 @@ func (a *Agent) Process(p *api.Payload) {
 					traceutil.SetMeta(span, k, v)
 				}
 			}
-			a.rewriteServerlessService(span)
+			if a.ModifySpan != nil {
+				a.ModifySpan(span)
+			}
 			a.obfuscator.Obfuscate(span)
 			Truncate(span)
 			if p.ClientComputedTopLevel {
