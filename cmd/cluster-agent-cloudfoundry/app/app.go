@@ -239,6 +239,7 @@ func initializeCCCache(ctx context.Context) error {
 		config.Datadog.GetBool("cloud_foundry_cc.skip_ssl_validation"),
 		pollInterval,
 		config.Datadog.GetInt("cloud_foundry_cc.apps_batch_size"),
+		config.Datadog.GetBool("cluster_agent.serve_nozzle_data"),
 		nil,
 	)
 	if err != nil {
