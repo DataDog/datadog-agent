@@ -167,8 +167,8 @@ func run(cmd *cobra.Command, args []string) error {
 
 	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
-	opts.NoEventPlatformForwarder = true
-	opts.NoOrchestratorForwarder = true
+	opts.UseEventPlatformForwarder = false
+	opts.UseOrchestratorForwarder = false
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 

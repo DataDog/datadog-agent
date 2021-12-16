@@ -83,10 +83,10 @@ type AgentDemultiplexer struct {
 
 // DemultiplexerOptions are the options used to initialize a Demultiplexer.
 type DemultiplexerOptions struct {
-	ForwarderOptions              *forwarder.Options
+	SharedForwarderOptions        *forwarder.Options
 	UseNoopEventPlatformForwarder bool
-	NoEventPlatformForwarder      bool
-	NoOrchestratorForwarder       bool
+	UseEventPlatformForwarder     bool
+	UseOrchestratorForwarder      bool
 	FlushInterval                 time.Duration
 
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
@@ -110,8 +110,10 @@ func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOption
 	}
 
 	return DemultiplexerOptions{
-		ForwarderOptions: options,
-		FlushInterval:    DefaultFlushInterval,
+		SharedForwarderOptions:    options,
+		FlushInterval:             DefaultFlushInterval,
+		UseEventPlatformForwarder: true,
+		UseOrchestratorForwarder:  true,
 	}
 }
 
@@ -128,19 +130,19 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 	log.Debugf("Starting forwarders")
 	// orchestrator forwarder
 	var orchestratorForwarder *forwarder.DefaultForwarder
-	if !options.NoOrchestratorForwarder {
+	if options.UseOrchestratorForwarder {
 		orchestratorForwarder = buildOrchestratorForwarder()
 	}
 
 	// event platform forwarder
 	var eventPlatformForwarder epforwarder.EventPlatformForwarder
-	if !options.NoEventPlatformForwarder && options.UseNoopEventPlatformForwarder {
+	if options.UseNoopEventPlatformForwarder {
 		eventPlatformForwarder = epforwarder.NewNoopEventPlatformForwarder()
-	} else if !options.NoEventPlatformForwarder {
+	} else if options.UseEventPlatformForwarder {
 		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
 	}
 
-	sharedForwarder := forwarder.NewDefaultForwarder(options.ForwarderOptions)
+	sharedForwarder := forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
 
 	// prepare the serializer
 	// ----------------------

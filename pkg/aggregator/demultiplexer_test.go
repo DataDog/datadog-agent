@@ -69,7 +69,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// options no event platform forwarder
 
 	opts = demuxTestOptions()
-	opts.NoEventPlatformForwarder = true
+	opts.UseEventPlatformForwarder = false
 	demux = InitAndStartAgentDemultiplexer(opts, "")
 	require.NotNil(demux)
 	require.Nil(demux.forwarders.eventPlatform)
@@ -108,7 +108,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// options no orchestrator forwarder
 
 	opts = demuxTestOptions()
-	opts.NoOrchestratorForwarder = true
+	opts.UseOrchestratorForwarder = false
 	demux = InitAndStartAgentDemultiplexer(opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)

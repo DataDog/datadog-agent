@@ -137,7 +137,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			opts := aggregator.DefaultDemultiplexerOptions(nil)
 			opts.FlushInterval = 0
 			opts.UseNoopEventPlatformForwarder = true
-			opts.NoOrchestratorForwarder = true
+			opts.UseOrchestratorForwarder = false
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 			common.LoadComponents(config.Datadog.GetString("confd_path"))
