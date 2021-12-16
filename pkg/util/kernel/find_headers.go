@@ -13,11 +13,13 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -85,6 +87,23 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumR
 	}
 	log.Debugf("unable to find downloaded kernel headers: %s", err)
 
+	if strings.Contains(err.Error(), "linux/types.h missing") {
+		// If this happens, it means we've previously downloaded kernel headers containing broken
+		// symlinks. We'll delete these to prevent them from affecting the next download
+		log.Infof("deleting previously downloaded kernel headers")
+		files, err := ioutil.ReadDir(headerDownloadDir)
+		if err != nil {
+			log.Warnf("error deleting kernel headers: %v", err)
+		}
+		for _, fi := range files {
+			path := filepath.Join(headerDownloadDir, fi.Name())
+			err = os.RemoveAll(path)
+			if err != nil {
+				log.Warnf("error deleting %s: %s", path, err)
+			}
+		}
+	}
+
 	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
 	if err = d.downloadHeaders(headerDownloadDir); err == nil {
 		log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
@@ -97,8 +116,14 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumR
 }
 
 // validateHeaderDirs verifies that the kernel headers in at least 1 directory matches the kernel version of the running host
+// and contains the linux/types.h file
 func validateHeaderDirs(hv Version, dirs []string) error {
+	versionMatches, linuxTypesHFound := false, false
 	for _, d := range dirs {
+		if containsLinuxTypesHFile(d) {
+			linuxTypesHFound = true
+		}
+
 		dirv, err := getHeaderVersion(d)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -110,12 +135,32 @@ func validateHeaderDirs(hv Version, dirs []string) error {
 		if dirv != hv {
 			return fmt.Errorf("header version %s does not match host version %s", dirv, hv)
 		}
+
 		// as long as one directory passes, validate the entire set
-		log.Debugf("found valid kernel headers at %s", d)
-		return nil
+		versionMatches = true
 	}
 
-	return fmt.Errorf("no valid kernel headers found")
+	if !versionMatches {
+		return fmt.Errorf("no valid kernel headers found")
+	}
+
+	if !linuxTypesHFound {
+		return fmt.Errorf("correctly versioned kernel headers found, but linux/types.h missing")
+	}
+
+	log.Debugf("valid kernel headers found in %v", dirs)
+	return nil
+}
+
+func containsLinuxTypesHFile(dir string) bool {
+	path := filepath.Join(dir, "include/linux/types.h")
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return false
+	}
+
+	defer f.Close()
+	return true
 }
 
 func getHeaderVersion(path string) (Version, error) {
