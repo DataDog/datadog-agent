@@ -202,7 +202,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/[ ]$//g"
         )
     else
-        Normalize traces
+        # Normalize traces
         logs=$(
             echo "$raw_logs" |
                 grep -v "\[log\]" |
