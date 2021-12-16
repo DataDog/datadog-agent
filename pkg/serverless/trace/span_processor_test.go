@@ -27,7 +27,10 @@ func TestServerlessServiceRewrite(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := agent.NewAgent(ctx, cfg)
-	agnt.SpanProcessor = &serverlessSpanProcessor{}
+	spanProcessor := &spanProcessor{
+		tags: cfg.GlobalTags,
+	}
+	agnt.ProcessSpan = spanProcessor.Process
 	defer cancel()
 
 	tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))

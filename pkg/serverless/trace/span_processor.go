@@ -9,12 +9,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
-type serverlessSpanProcessor struct{}
+type spanProcessor struct {
+	tags map[string]string
+}
 
 // Process applies extra logic to the given span
-func (s *serverlessSpanProcessor) Process(tags map[string]string, span *pb.Span) {
-	if span.Service == "aws.lambda" && tags["service"] != "" {
+func (s *spanProcessor) Process(span *pb.Span) {
+	if span.Service == "aws.lambda" && s.tags["service"] != "" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
-		span.Service = tags["service"]
+		span.Service = s.tags["service"]
 	}
 }

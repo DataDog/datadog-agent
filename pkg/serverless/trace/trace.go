@@ -16,8 +16,9 @@ import (
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
 type ServerlessTraceAgent struct {
-	ta     *agent.Agent
-	cancel context.CancelFunc
+	ta            *agent.Agent
+	spanProcessor *spanProcessor
+	cancel        context.CancelFunc
 }
 
 // Load abstracts the file configuration loading
@@ -59,7 +60,8 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
-			s.ta.SpanProcessor = &serverlessSpanProcessor{}
+			s.spanProcessor = &spanProcessor{}
+			s.ta.ProcessSpan = s.spanProcessor.Process
 			s.cancel = cancel
 			go func() {
 				s.ta.Run()
@@ -71,6 +73,12 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 // Get returns the trace agent instance
 func (s *ServerlessTraceAgent) Get() *agent.Agent {
 	return s.ta
+}
+
+// SetTags sets the tags to the trace agent config and span processor
+func (s *ServerlessTraceAgent) SetTags(tagMap map[string]string) {
+	s.ta.SetGlobalTagsUnsafe(tagMap)
+	s.spanProcessor.tags = tagMap
 }
 
 // Stop stops the trace agent

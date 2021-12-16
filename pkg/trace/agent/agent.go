@@ -56,8 +56,8 @@ type Agent struct {
 	obfuscator     *obfuscate.Obfuscator
 	cardObfuscator *ccObfuscator
 
-	// SpanProcessor is used to apply extra logic on span once they have been received
-	SpanProcessor traceutil.SpanProcessor
+	// ProcessSpan will be called on all spans, if non-nil.
+	ProcessSpan func(*pb.Span)
 
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
@@ -253,8 +253,8 @@ func (a *Agent) Process(p *api.Payload) {
 					traceutil.SetMeta(span, k, v)
 				}
 			}
-			if nil != a.SpanProcessor {
-				a.SpanProcessor.Process(a.conf.GlobalTags, span)
+			if a.ProcessSpan != nil {
+				a.ProcessSpan(span)
 			}
 			a.obfuscateSpan(span)
 			Truncate(span)
