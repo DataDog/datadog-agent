@@ -90,7 +90,7 @@ type Config struct {
 	LogPatterns []string
 	// SelfTestEnabled defines if the self tester should be enabled (useful for tests for example)
 	SelfTestEnabled bool
-	// EnableRemoteConfig defines if configuration should be fetched from the backend
+	// EnableRemoteConfig defines if the agent configuration should be fetched from the backend
 	EnableRemoteConfig bool
 	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
 	EnableRuntimeCompiledConstants bool
@@ -122,6 +122,8 @@ type Config struct {
 	ActivityDumpCgroupOutputDirectory string
 	// RuntimeMonitor defines if the runtime monitor should be enabled
 	RuntimeMonitor bool
+	// NetworkEnabled defines if the network probes should be activated
+	NetworkEnabled bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -184,6 +186,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpCgroupWaitListSize:     aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
 		ActivityDumpCgroupOutputDirectory:  aconfig.Datadog.GetString("runtime_security_config.activity.cgroup_output_directory"),
 		RuntimeMonitor:                     aconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
+		NetworkEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.network.enabled"),
 	}
 
 	// if runtime is enabled then we force fim

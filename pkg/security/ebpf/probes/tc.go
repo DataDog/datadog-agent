@@ -17,7 +17,6 @@ var tcProbes = []*manager.Probe{
 			EBPFSection:  "classifier/ingress",
 			EBPFFuncName: "classifier_ingress",
 		},
-		CopyProgram:      true,
 		NetworkDirection: manager.Ingress,
 	},
 	{
@@ -26,7 +25,6 @@ var tcProbes = []*manager.Probe{
 			EBPFSection:  "classifier/egress",
 			EBPFFuncName: "classifier_egress",
 		},
-		CopyProgram:      true,
 		NetworkDirection: manager.Egress,
 	},
 }
@@ -38,7 +36,6 @@ func GetTCProbes() []*manager.Probe {
 
 func getTCTailCallRoutes() []manager.TailCallRoute {
 	return []manager.TailCallRoute{
-
 		{
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestParserKey,

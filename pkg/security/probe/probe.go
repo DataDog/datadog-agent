@@ -716,6 +716,19 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	return nil
 }
 
+func (p *Probe) selectTCProbes() []manager.ProbesSelector {
+	p.tcProgramsLock.RLock()
+	defer p.tcProgramsLock.RUnlock()
+
+	var activatedProbes []manager.ProbesSelector
+	for _, tcProbe := range p.tcPrograms {
+		activatedProbes = append(activatedProbes, &manager.ProbeSelector{
+			ProbeIdentificationPair: tcProbe.ProbeIdentificationPair,
+		})
+	}
+	return activatedProbes
+}
+
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
 func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
@@ -726,6 +739,12 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
+
+	if p.config.NetworkEnabled {
+		activatedProbes = append(activatedProbes, probes.NetworkTrackingSelectors...)
+	}
+
+	activatedProbes = append(activatedProbes, p.selectTCProbes()...)
 
 	// Add syscall monitor probes
 	if p.config.SyscallMonitor {
@@ -942,6 +961,7 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 	var combinedErr multierror.Error
 	for _, tcProbe := range probes.GetTCProbes() {
 		newProbe := tcProbe.Copy()
+		newProbe.CopyProgram = true
 		newProbe.UID = probes.SecurityAgentUID + device.GetKey()
 		newProbe.Ifindex = int32(device.IfIndex)
 		newProbe.IfindexNetns = uint64(netnsHandle.Fd())

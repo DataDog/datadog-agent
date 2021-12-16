@@ -51,6 +51,10 @@ func (nr *NamespaceResolver) openProcNetworkNamespace(pid uint32) (*os.File, err
 // SaveNetworkNamespaceHandle inserts the provided process network namespace in the list of tracked network. Returns
 // true if a new handle was created.
 func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(netns uint32, tid uint32) bool {
+	if !nr.probe.config.NetworkEnabled {
+		return false
+	}
+
 	nr.Lock()
 	defer nr.Unlock()
 
@@ -87,6 +91,10 @@ func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(netns uint32, tid uint32
 // close this file descriptor when it is done using it. Do not forget to close this file descriptor, otherwise we might
 // exhaust the host IPs by keeping all network namespaces alive.
 func (nr *NamespaceResolver) ResolveNetworkNamespaceHandle(netns uint32) *os.File {
+	if !nr.probe.config.NetworkEnabled {
+		return nil
+	}
+
 	nr.Lock()
 	defer nr.Unlock()
 
@@ -185,6 +193,10 @@ msgLoop:
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the namespace cache.
 func (nr *NamespaceResolver) SyncCache(proc *process.Process) bool {
+	if !nr.probe.config.NetworkEnabled {
+		return false
+	}
+
 	pid := uint32(proc.Pid)
 	netns, err := utils.GetProcessNetworkNamespace(pid)
 	if err != nil {
@@ -206,6 +218,10 @@ func (nr *NamespaceResolver) SyncCache(proc *process.Process) bool {
 // of the device is resolved, a new TC classifier will automatically be added to the device. The queue is cleaned up
 // periodically if a namespace do not own any process.
 func (nr *NamespaceResolver) QueueNetworkDevice(device model.NetDevice) {
+	if !nr.probe.config.NetworkEnabled {
+		return
+	}
+
 	if device.NetNS == 0 {
 		return
 	}
@@ -218,6 +234,10 @@ func (nr *NamespaceResolver) QueueNetworkDevice(device model.NetDevice) {
 
 // Start starts the namespace flush goroutine
 func (nr *NamespaceResolver) Start(ctx context.Context) error {
+	if !nr.probe.config.NetworkEnabled {
+		return nil
+	}
+
 	go nr.flushNamespaces(ctx)
 	return nil
 }

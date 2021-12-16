@@ -194,10 +194,18 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
+	if m.config.NetworkEnabled {
+		if eventTypes, exists := categories[model.NetworkCategory]; exists {
+			for _, eventType := range eventTypes {
+				enabled[eventType] = true
+			}
+		}
+	}
+
 	if m.config.RuntimeEnabled {
 		// everything but FIM
 		for _, category := range model.GetAllCategories() {
-			if category == model.FIMCategory {
+			if category == model.FIMCategory || category == model.NetworkCategory {
 				continue
 			}
 
