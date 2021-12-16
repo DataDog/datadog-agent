@@ -976,6 +976,14 @@ func TestHandleDelete(t *testing.T) {
 	assertTagInfoListEqual(t, expected, actual)
 }
 
+type fakeProcessor struct {
+	ch chan []*TagInfo
+}
+
+func (p *fakeProcessor) ProcessTagInfo(tagInfos []*TagInfo) {
+	p.ch <- tagInfos
+}
+
 func TestHandlePodWithDeletedContainer(t *testing.T) {
 	// This test checks that we get events to delete a container that no longer
 	// exists even if it belonged to a pod that still exists.
@@ -1007,7 +1015,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 				containerToBeDeletedTaggerEntityID: struct{}{},
 			},
 		},
-		out: collectorCh,
+		tagProcessor: &fakeProcessor{collectorCh},
 	}
 
 	eventBundle := workloadmeta.EventBundle{

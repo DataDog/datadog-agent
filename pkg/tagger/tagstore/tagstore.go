@@ -38,7 +38,6 @@ type TagStore struct {
 
 	store     map[string]*EntityTags
 	telemetry map[string]map[string]float64
-	InfoIn    chan []*collectors.TagInfo
 
 	subscriber *subscriber.Subscriber
 
@@ -54,7 +53,6 @@ func newTagStoreWithClock(clock clock.Clock) *TagStore {
 	return &TagStore{
 		telemetry:  make(map[string]map[string]float64),
 		store:      make(map[string]*EntityTags),
-		InfoIn:     make(chan []*collectors.TagInfo),
 		subscriber: subscriber.NewSubscriber(),
 		clock:      clock,
 	}
@@ -68,9 +66,6 @@ func (s *TagStore) Run(ctx context.Context) {
 
 	for {
 		select {
-		case msg := <-s.InfoIn:
-			s.ProcessTagInfo(msg)
-
 		case <-telemetryTicker.C:
 			s.collectTelemetry()
 
@@ -213,8 +208,8 @@ func (s *TagStore) notifySubscribers(events []types.EntityEvent) {
 	s.subscriber.Notify(events)
 }
 
-// Prune deletes tags for entities that are deleted or with empty entries.
-// This is to be called regularly from the user class.
+// Prune deletes tags for entities that have been marked as deleted. This is to
+// be called regularly from the user class.
 func (s *TagStore) Prune() {
 	s.Lock()
 	defer s.Unlock()
