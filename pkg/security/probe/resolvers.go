@@ -204,6 +204,7 @@ func (r *Resolvers) Snapshot() error {
 	}
 
 	r.ProcessResolver.SetState(snapshotted)
+	r.NamespaceResolver.SetState(snapshotted)
 
 	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
 	if err != nil {

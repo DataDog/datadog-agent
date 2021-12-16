@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -22,6 +23,7 @@ import (
 // NamespaceResolver is used to store namespace handles
 type NamespaceResolver struct {
 	sync.RWMutex
+	state                              int64
 	probe                              *Probe
 	resolvers                          *Resolvers
 	client                             *statsd.Client
@@ -42,6 +44,16 @@ func NewNamespaceResolver(probe *Probe) *NamespaceResolver {
 		queuedNetworkDevices:           make(map[uint32][]model.NetDevice),
 		lonelyNetworkNamespacesTimeout: make(map[uint32]time.Time),
 	}
+}
+
+// SetState sets state of the namespace resolver
+func (nr *NamespaceResolver) SetState(state int64) {
+	atomic.StoreInt64(&nr.state, state)
+}
+
+// GetState returns the state of the namespace resolver
+func (nr *NamespaceResolver) GetState() int64 {
+	return atomic.LoadInt64(&nr.state)
 }
 
 func (nr *NamespaceResolver) openProcNetworkNamespace(pid uint32) (*os.File, error) {
@@ -73,18 +85,38 @@ func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(netns uint32, tid uint32
 		// we'll get this namespace another time, ignore
 		return false
 	}
-
 	nr.networkNamespaceHandles[netns] = f
+
+	// create new namespace handle, so that the map entry stays untouched
+	handle := nr.getNamespaceHandleDup(f)
+	defer handle.Close()
 
 	// dequeue devices
 	nr.queuedNetworkDevicesLock.Lock()
 	defer nr.queuedNetworkDevicesLock.Unlock()
 
 	for _, queuedDevice := range nr.queuedNetworkDevices[netns] {
-		_ = nr.probe.setupNewTCClassifierWithNetNSHandle(queuedDevice, f)
+		_ = nr.probe.setupNewTCClassifierWithNetNSHandle(queuedDevice, handle)
 	}
 	delete(nr.queuedNetworkDevices, netns)
+
+	// if the snapshot process is still going on, we need to snapshot the namespace now, otherwise we'll miss it
+	if nr.GetState() == snapshotting {
+		if handle != nil {
+			nr.snapshotNetworkDevicesWithHandle(netns, handle)
+		}
+	}
 	return true
+}
+
+// getNamespaceHandleDup duplicates the provided handle and returns it
+func (nr *NamespaceResolver) getNamespaceHandleDup(handle *os.File) *os.File {
+	// duplicate the file descriptor to avoid race conditions with the resync
+	dup, err := unix.Dup(int(handle.Fd()))
+	if err != nil {
+		return nil
+	}
+	return os.NewFile(uintptr(dup), handle.Name())
 }
 
 // ResolveNetworkNamespaceHandle returns a file descriptor to the network namespace. WARNING: it is up to the caller to
@@ -107,29 +139,12 @@ func (nr *NamespaceResolver) ResolveNetworkNamespaceHandle(netns uint32) *os.Fil
 		return nil
 	}
 
-	// duplicate the file descriptor to avoid race conditions with the resync
-	dup, err := unix.Dup(int(handle.Fd()))
-	if err != nil {
-		return nil
-	}
-	return os.NewFile(uintptr(dup), handle.Name())
+	return nr.getNamespaceHandleDup(handle)
 }
 
-// snapshotNetworkDevices snapshot the network devices of the provided network namespace. This function returns the
+// snapshotNetworkDevicesWithHandle snapshots the network devices of the provided network namespace. This function returns the
 // number of network devices to which egress and ingress TC classifiers were successfully attached.
-func (nr *NamespaceResolver) snapshotNetworkDevices(netns uint32) int {
-	if netns == 0 {
-		return 0
-	}
-
-	// fetch namespace handle
-	netnsHandle := nr.ResolveNetworkNamespaceHandle(netns)
-	if netnsHandle == nil {
-		seclog.Errorf("network namespace handle not found for %d", netns)
-		return 0
-	}
-	defer netnsHandle.Close()
-
+func (nr *NamespaceResolver) snapshotNetworkDevicesWithHandle(netns uint32, netnsHandle *os.File) int {
 	conn, err := netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{NetNS: int(netnsHandle.Fd())})
 	if err != nil {
 		seclog.Errorf("couldn't open netlink socket: %s", err)
@@ -183,12 +198,29 @@ msgLoop:
 				device.Name = string(attr.Data[:len(attr.Data)-1])
 			}
 
-			if err = nr.probe.setupNewTCClassifier(device); err == nil {
+			if err = nr.probe.setupNewTCClassifierWithNetNSHandle(device, netnsHandle); err == nil {
 				attachedDeviceCount++
 			}
 		}
 	}
 	return attachedDeviceCount
+}
+
+// snapshotNetworkDevices resolves the netns handle of the provided netns and then calls snapshotNetworkDevicesWithHandle.
+func (nr *NamespaceResolver) snapshotNetworkDevices(netns uint32) int {
+	if netns == 0 {
+		return 0
+	}
+
+	// fetch namespace handle
+	netnsHandle := nr.ResolveNetworkNamespaceHandle(netns)
+	if netnsHandle == nil {
+		seclog.Errorf("network namespace handle not found for %d", netns)
+		return 0
+	}
+	defer netnsHandle.Close()
+
+	return nr.snapshotNetworkDevicesWithHandle(netns, netnsHandle)
 }
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the namespace cache.

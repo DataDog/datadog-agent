@@ -960,6 +960,13 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 
 	var combinedErr multierror.Error
 	for _, tcProbe := range probes.GetTCProbes() {
+		// make sure we're not overriding an existing network probe
+		deviceKey := NetDeviceKey{IfIndex: device.IfIndex, NetNS: device.NetNS, NetworkDirection: tcProbe.NetworkDirection}
+		_, ok := p.tcPrograms[deviceKey]
+		if ok {
+			continue
+		}
+
 		newProbe := tcProbe.Copy()
 		newProbe.CopyProgram = true
 		newProbe.UID = probes.SecurityAgentUID + device.GetKey()
@@ -976,7 +983,7 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 		if err := p.manager.CloneProgram(probes.SecurityAgentUID, newProbe, netnsEditor, nil); err != nil {
 			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err))
 		} else {
-			p.tcPrograms[NetDeviceKey{IfIndex: device.IfIndex, NetNS: device.NetNS, NetworkDirection: tcProbe.NetworkDirection}] = newProbe
+			p.tcPrograms[deviceKey] = newProbe
 		}
 	}
 	return combinedErr.ErrorOrNil()
