@@ -46,10 +46,10 @@ func (a *IterableStreamJSONMarshalerAdapter) DescribeCurrentItem() string {
 
 // MoveNext moves to the next value. Returns false when reaching the end of the iteration.
 func (a *IterableStreamJSONMarshalerAdapter) MoveNext() bool {
+	a.index++
 	if a.index >= a.marshaler.Len() {
 		return false
 	}
-	a.index++
 	return true
 }
 
