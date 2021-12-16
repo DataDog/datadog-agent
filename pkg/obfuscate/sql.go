@@ -88,7 +88,7 @@ func (f *metadataFinderFilter) storeTableName(name string) {
 	}
 	f.tablesSeen[name] = struct{}{}
 	if f.tablesCSV.Len() > 0 {
-		f.size += 1
+		f.size++
 		f.tablesCSV.WriteByte(',')
 	}
 	f.size += int64(len(name))
