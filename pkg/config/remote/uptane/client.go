@@ -162,7 +162,7 @@ func (c *Client) updateRepos(response *pbgo.LatestConfigsResponse) error {
 	c.configRemoteStore.update(response)
 	_, err = c.directorTUFClient.Update()
 	if err != nil {
-		return errors.Wrap(err, "could not update director repository")
+		return errors.Wrap(err, "failed updating director repository")
 	}
 	_, err = c.configTUFClient.Update()
 	if err != nil {
