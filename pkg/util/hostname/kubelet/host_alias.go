@@ -14,13 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
 
-// GetHostAlias uses the "kubelet" hostname provider to fetch the kubernetes alias
-func GetHostAlias(ctx context.Context) (string, error) {
+// GetHostAliases uses the "kubelet" hostname provider to fetch the kubernetes alias
+func GetHostAliases(ctx context.Context) ([]string, error) {
 	name, err := HostnameProvider(ctx, nil)
 	if err == nil && validate.ValidHostname(name) == nil {
-		return name, nil
+		return []string{name}, nil
 	}
-	return "", fmt.Errorf("couldn't extract a host alias from the kubelet: %s", err)
+	return nil, fmt.Errorf("couldn't extract a host alias from the kubelet: %s", err)
 }
 
 // GetMetaClusterNameText returns the clusterName text for the agent status output. Returns "" if the feature kubernetes is not activated

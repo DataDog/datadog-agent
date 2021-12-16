@@ -10,6 +10,7 @@
 #include "netns.h"
 #include "sockfd.h"
 #include "conn-tuple.h"
+#include "tags.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
@@ -578,7 +579,16 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     struct socket* socket = (struct socket*)PT_REGS_RC(ctx);
     enum sock_type sock_type = 0;
     bpf_probe_read(&sock_type, sizeof(short), &socket->type);
-    if (sock_type != SOCK_STREAM) {
+
+    struct proto_ops *proto_ops = NULL;
+    bpf_probe_read(&proto_ops, sizeof(proto_ops), &socket->ops);
+    if (!proto_ops) {
+        goto cleanup;
+    }
+
+    int family = 0;
+    bpf_probe_read(&family, sizeof(family), &proto_ops->family);
+    if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
         goto cleanup;
     }
 
@@ -631,11 +641,13 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
         goto cleanup;
     }
 
-    size_t sent = (size_t)PT_REGS_RC(ctx);
-    __u32 packets_in = 0;
-    __u32 packets_out = 0;
-    get_tcp_segment_counts(*sock, &packets_in, &packets_out);
-    handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
+    ssize_t sent = (ssize_t)PT_REGS_RC(ctx);
+    if (sent > 0) {
+        __u32 packets_in = 0;
+        __u32 packets_out = 0;
+        get_tcp_segment_counts(*sock, &packets_in, &packets_out);
+        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
+    }
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
     return 0;

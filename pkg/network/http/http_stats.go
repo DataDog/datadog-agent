@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package http
 
 import (
@@ -102,6 +107,9 @@ type RequestStats [NumStatusClasses]struct {
 	// a single value. This is quite common in the context of HTTP requests without
 	// keep-alives where a short-lived TCP connection is used for a single request.
 	FirstLatencySample float64
+
+	// Tags bitfields from tags-types.h
+	Tags uint64
 }
 
 // CombineWith merges the data in 2 RequestStats objects
@@ -110,6 +118,8 @@ func (r *RequestStats) CombineWith(newStats RequestStats) {
 	for i := 0; i < len(r); i++ {
 		statusClass := 100 * (i + 1)
 
+		r[i].Tags |= newStats[i].Tags
+
 		if newStats[i].Count == 0 {
 			// Nothing to do in this case
 			continue
@@ -117,7 +127,7 @@ func (r *RequestStats) CombineWith(newStats RequestStats) {
 
 		if newStats[i].Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
-			r.AddRequest(statusClass, newStats[i].FirstLatencySample)
+			r.AddRequest(statusClass, newStats[i].FirstLatencySample, newStats[i].Tags)
 			continue
 		}
 
@@ -148,11 +158,13 @@ func (r *RequestStats) CombineWith(newStats RequestStats) {
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(statusClass int, latency float64) {
+func (r *RequestStats) AddRequest(statusClass int, latency float64, tags uint64) {
 	i := statusClass/100 - 1
 	if i < 0 || i >= len(r) {
 		return
 	}
+
+	r[i].Tags |= tags
 
 	r[i].Count++
 	if r[i].Count == 1 {

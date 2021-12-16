@@ -201,6 +201,9 @@ def kitchen_prepare(ctx, windows=is_windows):
     for i, pkg in enumerate(target_packages):
         relative_path = os.path.relpath(pkg)
         target_path = os.path.join(KITCHEN_ARTIFACT_DIR, relative_path)
+        target_bin = "testsuite"
+        if windows:
+            target_bin = "testsuite.exe"
 
         test(
             ctx,
@@ -208,7 +211,7 @@ def kitchen_prepare(ctx, windows=is_windows):
             skip_object_files=(i != 0),
             skip_linters=True,
             bundle_ebpf=False,
-            output_path=os.path.join(target_path, "testsuite"),
+            output_path=os.path.join(target_path, target_bin),
         )
 
         # copy ancillary data, if applicable
@@ -633,15 +636,18 @@ def generate_runtime_files(ctx):
         ctx.run(f"go generate -mod=mod -tags {BPF_TAG} {f}")
 
 
-def replace_cgo_tag_absolute_path(file_path, absolute_path, relative_path):
+def replace_cgo_tag_absolute_path(file_path):
     # read
     f = open(file_path)
     lines = []
     for line in f:
         if line.startswith("// cgo -godefs"):
-            lines.append(line.replace(absolute_path, relative_path))
-        else:
-            lines.append(line)
+            path = line.split()[-1]
+            if path.startswith("/"):
+                _, filename = os.path.split(path)
+                lines.append(line.replace(path, filename))
+                continue
+        lines.append(line)
     f.close()
 
     # write
@@ -667,7 +673,6 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
 
     for f in def_files:
         fdir, file = os.path.split(f)
-        absolute_input_file = os.path.abspath(f)
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
             output_file = f"{base}_{platform}.go"
@@ -675,7 +680,7 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
             ctx.run(f"gofmt -w -s {output_file}")
             if replace_absolutes:
                 # replace absolute path with relative ones in generated file
-                replace_cgo_tag_absolute_path(os.path.join(fdir, output_file), absolute_input_file, file)
+                replace_cgo_tag_absolute_path(os.path.join(fdir, output_file))
 
 
 def is_root():

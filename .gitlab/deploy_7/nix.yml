@@ -15,6 +15,7 @@ deploy_staging_deb-7:
   dependencies:
     - agent_deb-x64-a7
     - agent_deb-arm64-a7
+    - agent_heroku_deb-x64-a7
     - iot_agent_deb-x64
     - iot_agent_deb-arm64
     - iot_agent_deb-armhf

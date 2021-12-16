@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package encoding
 
 import (
@@ -97,6 +102,9 @@ func TestFormatHTTPStats(t *testing.T) {
 	for i := range httpStats1 {
 		httpStats1[i].Count = 1
 		httpStats1[i].FirstLatencySample = 10
+		if i < len(httpStats1)/2 {
+			httpStats1[i].Tags = (1 << i)
+		}
 	}
 
 	httpKey2 := httpKey1
@@ -105,6 +113,9 @@ func TestFormatHTTPStats(t *testing.T) {
 	for i := range httpStats2 {
 		httpStats2[i].Count = 1
 		httpStats2[i].FirstLatencySample = 20
+		if i >= len(httpStats1)/2 {
+			httpStats2[i].Tags = (1 << i)
+		}
 	}
 
 	in := map[http.Key]http.RequestStats{
@@ -138,13 +149,18 @@ func TestFormatHTTPStats(t *testing.T) {
 		},
 	}
 
-	result := FormatHTTPStats(in)
+	result, tags := FormatHTTPStats(in)
 
 	aggregationKey := httpKey1
 	aggregationKey.Path = ""
 	aggregationKey.Method = http.MethodUnknown
 	aggregations := result[aggregationKey].EndpointAggregations
 	assert.ElementsMatch(t, out.EndpointAggregations, aggregations)
+
+	// http.NumStatusClasses is the number of http class bucket of http.RequestStats
+	// For this test we spread the bits (one per RequestStats) and httpStats1,2
+	// and we test if all the bits has been aggregated together
+	assert.Equal(t, uint64((1<<(http.NumStatusClasses))-1), tags[aggregationKey])
 }
 
 func BenchmarkConnectionReset(b *testing.B) {

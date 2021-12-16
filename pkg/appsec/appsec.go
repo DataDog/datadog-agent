@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package appsec
 
 import (
@@ -119,6 +124,9 @@ func (r *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err err
 				kind = fmt.Sprintf("%T", err)
 			}
 			tags = append(tags, fmt.Sprintf("error:%s", kind))
+			if res != nil {
+				tags = append(tags, fmt.Sprintf("status:%d", res.StatusCode))
+			}
 			metrics.Count(appSecRequestErrorMetricsID, 1, tags, 1)
 		}
 	}()

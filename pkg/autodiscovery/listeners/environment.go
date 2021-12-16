@@ -33,7 +33,7 @@ func init() {
 }
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener() (ServiceListener, error) {
+func NewEnvironmentListener(Config) (ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 

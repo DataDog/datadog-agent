@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 func benchmarkAddBucket(bucketValue int64, b *testing.B) {
@@ -21,10 +20,12 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
-	aggregatorInstance.serializer = serializer.NewSerializer(forwarder.NewDefaultForwarder(
-		forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))),
-		nil,
-	)
+	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	options := DefaultDemultiplexerOptions(forwarderOpts)
+	options.DontStartForwarders = true
+	demux := InitAndStartAgentDemultiplexer(options, "hostname")
+	defer demux.Stop(true)
+
 	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))
 
 	bucket := &metrics.HistogramBucket{

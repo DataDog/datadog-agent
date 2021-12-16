@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checkconfig
 
 import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -91,8 +96,9 @@ type MetadataResourceConfig struct {
 
 // MetadataField holds configs for a metadata field
 type MetadataField struct {
-	Symbol SymbolConfig `yaml:"symbol"`
-	Value  string       `yaml:"value"`
+	Symbol  SymbolConfig   `yaml:"symbol"`
+	Symbols []SymbolConfig `yaml:"symbols"`
+	Value   string         `yaml:"value"`
 }
 
 // newMetadataResourceConfig returns a new metadata resource config

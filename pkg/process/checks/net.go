@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
@@ -98,7 +103,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.AgentConfiguration), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -187,7 +192,7 @@ func getConnectionsByPID(conns *model.Connections) map[int32][]*model.Connection
 
 func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[string]int32, namedb *[]string, ip string, entry *model.DNSEntry) {
 	dbentry := &model.DNSDatabaseEntry{
-		NameOffsets: make([]int32, len(entry.Names)),
+		NameOffsets: make([]int32, 0, len(entry.Names)),
 	}
 	for _, name := range entry.Names {
 		// at this point, the NameOffsets slice is actually a slice of indices into
@@ -277,6 +282,7 @@ func batchConnections(
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	domains []string,
 	routes []*model.Route,
+	tags []string,
 	agentCfg *model.AgentConfiguration,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
@@ -303,6 +309,8 @@ func batchConnections(
 		namemap := make(map[string]int32)
 		namedb := make([]string, 0)
 
+		tagsEncoder := model.NewV2TagEncoder()
+
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
 				if _, present := batchDNS[c.Raddr.Ip]; !present {
@@ -320,6 +328,18 @@ func batchConnections(
 			// in the namedb.  Each unique string should only occur once.
 			remapDNSStatsByDomain(c, namemap, &namedb, domains)
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
+
+			// tags remap
+			if len(c.Tags) > 0 {
+				var tagsStr []string
+				for _, t := range c.Tags {
+					tagsStr = append(tagsStr, tags[t])
+				}
+				c.Tags = nil
+				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
+			} else {
+				c.TagsIdx = -1
+			}
 
 		}
 
@@ -370,17 +390,18 @@ func batchConnections(
 			}
 		}
 		cc := &model.CollectorConnections{
-			AgentConfiguration:    agentCfg,
-			HostName:              cfg.HostName,
-			NetworkId:             networkID,
-			Connections:           batchConns,
-			GroupId:               groupID,
-			GroupSize:             groupSize,
-			ContainerForPid:       ctrIDForPID,
-			EncodedDomainDatabase: encodedNameDb,
-			EncodedDnsLookups:     mappedDNSLookups,
-			ContainerHostType:     cfg.ContainerHostType,
-			Routes:                batchRoutes,
+			AgentConfiguration:     agentCfg,
+			HostName:               cfg.HostName,
+			NetworkId:              networkID,
+			Connections:            batchConns,
+			GroupId:                groupID,
+			GroupSize:              groupSize,
+			ContainerForPid:        ctrIDForPID,
+			EncodedDomainDatabase:  encodedNameDb,
+			EncodedDnsLookups:      mappedDNSLookups,
+			ContainerHostType:      cfg.ContainerHostType,
+			Routes:                 batchRoutes,
+			EncodedConnectionsTags: tagsEncoder.Buffer(),
 		}
 
 		// Add OS telemetry

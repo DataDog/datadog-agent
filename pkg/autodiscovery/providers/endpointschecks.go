@@ -105,7 +105,7 @@ func (c *EndpointsChecksConfigProvider) initClient() error {
 }
 
 func init() {
-	RegisterProvider("endpointschecks", NewEndpointsChecksConfigProvider)
+	RegisterProvider(names.EndpointsChecksRegisterName, NewEndpointsChecksConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the EndpointsChecksConfigProvider

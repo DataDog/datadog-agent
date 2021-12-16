@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -55,7 +56,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct {
 }
 
-func (m *MetricDogStatsDMocked) NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*dogstatsd.Server, error) {
+func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer, extraTags []string) (*dogstatsd.Server, error) {
 	return nil, fmt.Errorf("error")
 }
 
@@ -68,6 +69,22 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 	time.Sleep(1 * time.Second)
 }
 
+func TestStartWithProxy(t *testing.T) {
+	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
+	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
+
+	metricAgent := &ServerlessMetricAgent{}
+	defer metricAgent.Stop()
+	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
+
+	expected := []string{
+		invocationsMetric,
+		errorsMetric,
+	}
+
+	setValues := config.Datadog.GetStringSlice("statsd_metric_blocklist")
+	assert.Equal(t, expected, setValues)
+}
 func TestRaceFlushVersusAddSample(t *testing.T) {
 
 	config.DetectFeatures()
@@ -119,5 +136,20 @@ func TestBuildMetricBlocklist(t *testing.T) {
 		invocationsMetric,
 	}
 	result := buildMetricBlocklist(userProvidedBlocklist)
+	assert.Equal(t, expected, result)
+}
+
+func TestBuildMetricBlocklistForProxy(t *testing.T) {
+	userProvidedBlocklist := []string{
+		"user.defined.a",
+		"user.defined.b",
+	}
+	expected := []string{
+		"user.defined.a",
+		"user.defined.b",
+		invocationsMetric,
+		errorsMetric,
+	}
+	result := buildMetricBlocklistForProxy(userProvidedBlocklist)
 	assert.Equal(t, expected, result)
 }

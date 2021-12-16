@@ -471,7 +471,7 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 
 	logMessages := []logMessage{
 		{
-			logType: logTypeFunction,
+			stringRecord: "hi, log 2",
 		},
 	}
 	go processLogMessages(logCollection, logMessages)

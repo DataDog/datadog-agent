@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package metadata
 
 import (
@@ -88,6 +93,12 @@ func (s Store) GetScalarAsString(field string) string {
 		return ""
 	}
 	return strVal
+}
+
+// ScalarFieldHasValue test if scalar field has value
+func (s Store) ScalarFieldHasValue(field string) bool {
+	_, ok := s.scalarValues[field]
+	return ok
 }
 
 // GetColumnIndexes get column indexes for a field

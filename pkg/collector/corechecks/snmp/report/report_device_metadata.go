@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package report
 
 import (
@@ -48,25 +53,38 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 	for resourceName, metadataConfig := range metadataConfigs {
 		for fieldName, field := range metadataConfig.Fields {
 			fieldFullName := resourceName + "." + fieldName
+
+			var symbols []checkconfig.SymbolConfig
+			if field.Symbol.OID != "" {
+				symbols = append(symbols, field.Symbol)
+			}
+			symbols = append(symbols, field.Symbols...)
+
 			if checkconfig.IsMetadataResourceWithScalarOids(resourceName) {
-				if field.Value != "" {
-					metadataStore.AddScalarValue(fieldFullName, valuestore.ResultValue{Value: field.Value})
-				}
-				if field.Symbol.OID != "" {
-					value, err := getScalarValueFromSymbol(values, field.Symbol)
+				for _, symbol := range symbols {
+					if metadataStore.ScalarFieldHasValue(fieldFullName) {
+						break
+					}
+					value, err := getScalarValueFromSymbol(values, symbol)
 					if err != nil {
 						log.Debugf("error getting scalar value: %v", err)
 						continue
 					}
 					metadataStore.AddScalarValue(fieldFullName, value)
+
+				}
+				if field.Value != "" && !metadataStore.ScalarFieldHasValue(fieldFullName) {
+					metadataStore.AddScalarValue(fieldFullName, valuestore.ResultValue{Value: field.Value})
 				}
 			} else {
-				metricValues, err := getColumnValueFromSymbol(values, field.Symbol)
-				if err != nil {
-					continue
-				}
-				for fullIndex, value := range metricValues {
-					metadataStore.AddColumnValue(fieldFullName, fullIndex, value)
+				for _, symbol := range symbols {
+					metricValues, err := getColumnValueFromSymbol(values, symbol)
+					if err != nil {
+						continue
+					}
+					for fullIndex, value := range metricValues {
+						metadataStore.AddColumnValue(fieldFullName, fullIndex, value)
+					}
 				}
 			}
 		}

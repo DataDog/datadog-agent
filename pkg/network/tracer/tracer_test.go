@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf || (windows && npm)
 // +build linux_bpf windows,npm
 
 package tracer
@@ -427,7 +433,6 @@ func TestTCPCollectionDisabled(t *testing.T) {
 
 func TestUDPSendAndReceive(t *testing.T) {
 	// incoming.MonotonicSentBytes is 0, when it should be 512
-	skipIfWindows(t)
 
 	// Enable BPF-based system probe
 	cfg := testConfig()
@@ -1409,8 +1414,6 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 
 	// start tracer so it dumps port bindings
 	cfg := testConfig()
-	// delay from gateway lookup timeout can cause test failure
-	cfg.EnableGatewayLookup = false
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()

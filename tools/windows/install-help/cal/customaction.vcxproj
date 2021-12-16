@@ -184,6 +184,7 @@
     <ClCompile Include="userrights.cpp" />
     <ClCompile Include="winacl.cpp" />
     <ClCompile Include="caninstall.cpp" />
+    <ClCompile Include="decompress.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CustomAction.def" />
@@ -203,6 +204,7 @@
     <ClInclude Include="targetver.h" />
     <ClInclude Include="customaction.h" />
     <ClInclude Include="winacl.h" />
+    <ClInclude Include="decompress.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="customaction.rc">
@@ -214,9 +216,9 @@
     <ResourceCompile Include="stringtable.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
   <PropertyGroup>
     <VcpkgEnableManifest>True</VcpkgEnableManifest>
+    <VcpkgAdditionalInstallOptions>--feature-flags=versions</VcpkgAdditionalInstallOptions>
   </PropertyGroup>
 </Project>

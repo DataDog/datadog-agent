@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package serializerexporter
 
 import (
@@ -58,9 +63,5 @@ func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 	if err := s.SendSketch(c.sketches); err != nil {
 		return err
 	}
-	if err := s.SendSeries(c.series); err != nil {
-		return err
-	}
-
-	return nil
+	return s.SendSeries(c.series)
 }

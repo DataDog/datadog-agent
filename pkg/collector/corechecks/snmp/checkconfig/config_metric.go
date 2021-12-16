@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checkconfig
 
 import (
@@ -11,11 +16,15 @@ import (
 
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
-	OID          string `yaml:"OID"`
-	Name         string `yaml:"name"`
-	ExtractValue string `yaml:"extract_value"`
+	OID  string `yaml:"OID"`
+	Name string `yaml:"name"`
 
-	ExtractValuePattern *regexp.Regexp
+	ExtractValue         string `yaml:"extract_value"`
+	ExtractValueCompiled *regexp.Regexp
+
+	MatchPattern         string `yaml:"match_pattern"`
+	MatchValue           string `yaml:"match_value"`
+	MatchPatternCompiled *regexp.Regexp
 }
 
 // MetricTagConfig holds metric tag info
@@ -167,7 +176,7 @@ func (mtc *MetricTagConfig) GetTags(value string) []string {
 		if mtc.pattern.MatchString(value) {
 			for key, val := range mtc.Tags {
 				normalizedTemplate := normalizeRegexReplaceValue(val)
-				replacedVal := regexReplaceValue(value, mtc.pattern, normalizedTemplate)
+				replacedVal := RegexReplaceValue(value, mtc.pattern, normalizedTemplate)
 				if replacedVal == "" {
 					log.Debugf("pattern `%v` failed to match `%v` with template `%v`", value, normalizedTemplate)
 					continue
@@ -179,7 +188,8 @@ func (mtc *MetricTagConfig) GetTags(value string) []string {
 	return tags
 }
 
-func regexReplaceValue(value string, pattern *regexp.Regexp, normalizedTemplate string) string {
+// RegexReplaceValue replaces a value using a regex and template
+func RegexReplaceValue(value string, pattern *regexp.Regexp, normalizedTemplate string) string {
 	result := []byte{}
 	for _, submatches := range pattern.FindAllStringSubmatchIndex(value, 1) {
 		result = pattern.ExpandString(result, normalizedTemplate, value, submatches)
