@@ -224,7 +224,7 @@ func (c *Client) verifyUptane() error {
 			return fmt.Errorf("target '%s' has %d hashes in directory repository and %d hashes in config repository", targetPath, len(targetMeta.Hashes), len(configTargetMeta.Hashes))
 		}
 		for hashAlgo, directorHash := range targetMeta.Hashes {
-			configHash, found := configTargetMeta.Hashes[kind]
+			configHash, found := configTargetMeta.Hashes[hashAlgo]
 			if !found {
 				return fmt.Errorf("hash '%s' found in directory repository but not in the config repository", directorHash)
 			}
@@ -232,6 +232,7 @@ func (c *Client) verifyUptane() error {
 				return fmt.Errorf("directory hash '%s' does not match config repository '%s'", string(directorHash), string(configHash))
 			}
 		}
+		// Check that the file is valid in the context of the TUF repostiory (path in targets, hash matching)
 		err = c.configTUFClient.Download(targetPath, &bufferDestination{})
 		if err != nil {
 			return err
