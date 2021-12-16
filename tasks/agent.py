@@ -363,7 +363,7 @@ def get_omnibus_env(
     system_probe_bin=None,
     nikos_path=None,
     go_mod_cache=None,
-    flavor=None,
+    flavor=AgentFlavor.base,
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -404,8 +404,7 @@ def get_omnibus_env(
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     if nikos_path:
         env['NIKOS_PATH'] = nikos_path
-    if flavor:
-        env['AGENT_FLAVOR'] = flavor.name
+    env['AGENT_FLAVOR'] = flavor.name
 
     return env
 
