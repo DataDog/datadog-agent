@@ -65,6 +65,11 @@ AGENT_TAGS = {
     "zlib",
 }
 
+# AGENT_HEROKU_TAGS lists the tags for Heroku agent build
+AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
+    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "podman", "systemd"}
+)
+
 # ANDROID_TAGS lists the tags needed when building the android agent
 ANDROID_TAGS = {"android", "zlib"}
 
@@ -83,6 +88,11 @@ IOT_AGENT_TAGS = {"jetson", "systemd", "zlib"}
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orchestrator"})
 
+# PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
+PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
+    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "podman", "systemd"}
+)
+
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
 SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman"}
 
@@ -91,6 +101,17 @@ SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "netcgo", "podman", "secrets"}
+
+# TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
+TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
+    {
+        "containerd",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "podman",
+    }
+)
 
 # TEST_TAGS lists the tags that have to be added to run tests
 TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
@@ -122,6 +143,11 @@ build_tags = {
         # Test setups
         "test": TEST_TAGS,
         "test-with-process-tags": TEST_TAGS.union(PROCESS_AGENT_TAGS),
+    },
+    AgentFlavor.heroku: {
+        "agent": AGENT_HEROKU_TAGS,
+        "process-agent": PROCESS_AGENT_HEROKU_TAGS,
+        "trace-agent": TRACE_AGENT_HEROKU_TAGS,
     },
     AgentFlavor.iot: {
         "agent": IOT_AGENT_TAGS,
