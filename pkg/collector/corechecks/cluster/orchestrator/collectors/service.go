@@ -11,6 +11,7 @@ package collectors
 import (
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -24,6 +25,7 @@ type K8sServiceCollector struct {
 	informer corev1Informers.ServiceInformer
 	lister   corev1Listers.ServiceLister
 	meta     *CollectorMetadata
+	proc     *processors.Processor
 }
 
 func newK8sServiceCollector() *K8sServiceCollector {
@@ -33,6 +35,7 @@ func newK8sServiceCollector() *K8sServiceCollector {
 			Name:     "services",
 			NodeType: orchestrator.K8sService,
 		},
+		proc: processors.NewProcessor(new(processors.K8sServiceHandlers)),
 	}
 }
 
@@ -53,17 +56,35 @@ func (sc *K8sServiceCollector) Metadata() *CollectorMetadata {
 }
 
 // Run triggers the collection process.
-func (sc *K8sServiceCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunResult, error) {
+func (sc *K8sServiceCollector) Run(rcfg *CollectorRunConfig) (res *CollectorRunResult, err error) {
 	list, err := sc.lister.List(labels.Everything())
 	if err != nil {
-		return nil, NewListingError(err)
+		return nil, newListingError(err)
 	}
 
-	groupID := atomic.AddInt32(rcfg.MsgGroupRef, 1)
-	messages, processed := processServiceList(list, groupID, rcfg.Config, rcfg.ClusterID)
-	if err != nil {
-		return nil, NewProcessingError(err)
+	ctx := &processors.ProcessorContext{
+		Cfg:        rcfg.Config,
+		ClusterID:  rcfg.ClusterID,
+		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
+		NodeType:   sc.meta.NodeType,
 	}
 
-	return &CollectorRunResult{Messages: messages, ResourcesListed: len(list), ResourcesProcessed: processed}, nil
+	messages, processed := sc.proc.Process(ctx, list)
+
+	// This would happen when recovering from a processor panic. In the nominal
+	// case we would a positive integer set at the very end of processing.  If
+	// this is not the case then it means code execution stopped sooner. Panic
+	// recovery will log more information about the error so we can figure the
+	// root cause.
+	if processed == -1 {
+		return nil, processingPanicErr
+	}
+
+	result := &CollectorRunResult{
+		Messages:           messages,
+		ResourcesListed:    len(list),
+		ResourcesProcessed: processed,
+	}
+
+	return result, nil
 }

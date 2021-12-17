@@ -6,7 +6,7 @@
 //go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
-package collectors
+package transformers
 
 import (
 	"strings"
@@ -17,9 +17,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// extractService returns the protobuf Service message corresponding to
+// ExtractService returns the protobuf Service message corresponding to
 // a Kubernetes service object.
-func extractService(s *corev1.Service) *model.Service {
+func ExtractService(s *corev1.Service) *model.Service {
 	message := &model.Service{
 		Metadata: orchutil.ExtractMetadata(&s.ObjectMeta),
 		Spec: &model.ServiceSpec{

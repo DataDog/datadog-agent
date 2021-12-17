@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
-package collectors
+package transformers
 
 import (
 	"testing"
@@ -292,6 +293,6 @@ func TestExtractService(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		assert.Equal(t, &test.expected, extractService(&test.input))
+		assert.Equal(t, &test.expected, ExtractService(&test.input))
 	}
 }

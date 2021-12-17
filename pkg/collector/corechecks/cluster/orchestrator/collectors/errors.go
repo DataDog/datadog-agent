@@ -8,15 +8,17 @@
 
 package collectors
 
-import "github.com/pkg/errors"
+import (
+	"fmt"
 
-// NewListingError creates an error that wraps the cause of a listing failure.
-func NewListingError(cause error) error {
+	"github.com/pkg/errors"
+)
+
+var (
+	processingPanicErr = fmt.Errorf("unable to process resources: a panic occurred!")
+)
+
+// newListingError creates an error that wraps the cause of a listing failure.
+func newListingError(cause error) error {
 	return errors.WithMessage(cause, "unable to list resources")
-}
-
-// NewProcessingError creates an error that wraps the cause of a processing
-// failure.
-func NewProcessingError(cause error) error {
-	return errors.WithMessage(cause, "unable to process resources")
 }
