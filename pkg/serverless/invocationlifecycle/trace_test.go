@@ -47,7 +47,7 @@ func TestEndExecutionSpan(t *testing.T) {
 	assert.Equal(t, "serverless", executionSpan.Type)
 	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
-	assert.Equal(t, int64(startTime.UnixNano()), executionSpan.Start)
-	assert.Equal(t, int64(duration.Nanoseconds()), executionSpan.Duration)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 
 }
