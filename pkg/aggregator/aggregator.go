@@ -482,8 +482,8 @@ func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series met
 	defer agg.mu.Unlock()
 	sketches := agg.statsdSampler.flush(float64(before.UnixNano())/float64(time.Second), series)
 	for _, checkSampler := range agg.checkSamplers {
-		series, sk := checkSampler.flush()
-		for _, s := range series {
+		checkSeries, sk := checkSampler.flush()
+		for _, s := range checkSeries {
 			series.Append(s)
 		}
 		sketches = append(sketches, sk...)
