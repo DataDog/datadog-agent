@@ -15,10 +15,13 @@ var (
 	filePathRegexpGroups = 5
 )
 
+// Type is the global type the file belongs to
 type Type uint
 
 const (
+	// TypeUnknown is an unknown type
 	TypeUnknown Type = iota
+	// TypeDatadog is the datadog type
 	TypeDatadog
 )
 

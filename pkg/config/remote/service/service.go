@@ -183,6 +183,7 @@ func (s *Service) refreshProducts(activeClients []*pbgo.Client) {
 	}
 }
 
+// ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()

@@ -141,6 +141,7 @@ func (c *PartialClient) validateAndUpdateTargets(rawTargets []byte) error {
 	return nil
 }
 
+// State returns the state of the partial client
 func (c *PartialClient) State() PartialState {
 	c.Lock()
 	defer c.Unlock()
@@ -196,6 +197,7 @@ func (c *PartialClient) updateRootVersion() error {
 	return nil
 }
 
+// Targets returns the current targets of this uptane partial client
 func (c *PartialClient) Targets() (data.TargetFiles, error) {
 	c.Lock()
 	defer c.Unlock()
@@ -205,6 +207,7 @@ func (c *PartialClient) Targets() (data.TargetFiles, error) {
 	return c.targetMetas, nil
 }
 
+// TargetFile returns the content of a target
 func (c *PartialClient) TargetFile(path string) ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()

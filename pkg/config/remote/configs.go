@@ -6,6 +6,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Config is a config
 type Config struct {
 	ID      string
 	Version uint64

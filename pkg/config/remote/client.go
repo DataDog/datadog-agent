@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// Client is a remote-configuration client to obtain configurations from the local API
 type Client struct {
 	sync.Mutex
 	ctx             context.Context
@@ -34,12 +35,14 @@ type Client struct {
 	apmSamplingUpdates chan APMSamplingUpdate
 }
 
+// Facts are facts used to identify the client
 type Facts struct {
 	ID      string
 	Name    string
 	Version string
 }
 
+// NewClient creates a new client
 func NewClient(ctx context.Context, facts Facts, products []pbgo.Product) (*Client, error) {
 	client, err := newClient(ctx, facts, products)
 	if err != nil {
@@ -86,6 +89,7 @@ func newClient(ctx context.Context, facts Facts, products []pbgo.Product, dialOp
 	}, nil
 }
 
+// Close closes the client
 func (c *Client) Close() {
 	c.close()
 }
@@ -191,6 +195,7 @@ func (c *Client) publishUpdates(update update) {
 	}
 }
 
+// APMSamplingUpdates returns a chan to consume apm sampling updates
 func (c *Client) APMSamplingUpdates() <-chan APMSamplingUpdate {
 	return c.apmSamplingUpdates
 }

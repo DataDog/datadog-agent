@@ -6,11 +6,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
+// APMSamplingConfig is an apm sampling config
 type APMSamplingConfig struct {
 	Config
 	pb.APMSampling
 }
 
+// APMSamplingUpdate is an apm sampling config update
 type APMSamplingUpdate struct {
 	Config *APMSamplingConfig
 }
