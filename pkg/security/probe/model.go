@@ -36,7 +36,13 @@ type Model struct {
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
-	return &Event{Event: model.Event{}}
+	return &Event{Event: model.Event{
+		ProcessContext: model.ProcessContext{
+			Process: model.Process{
+				Context: make(map[string]interface{}),
+			},
+		},
+	}}
 }
 
 // Event describes a probe event

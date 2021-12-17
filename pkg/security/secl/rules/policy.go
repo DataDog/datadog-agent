@@ -10,11 +10,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"github.com/spf13/cast"
 	"gopkg.in/yaml.v3"
 )
 
@@ -180,6 +183,74 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 	// Add the macros to the ruleset and generate macros evaluators
 	if mErr := ruleSet.AddMacros(allMacros); mErr.ErrorOrNil() != nil {
 		result = multierror.Append(result, err)
+	}
+
+	for _, rule := range allRules {
+		for _, action := range rule.Actions {
+			if err := action.Check(); err != nil {
+				result = multierror.Append(result, err)
+			}
+
+			if action.Set != nil {
+				varName := action.Set.Name
+				if action.Set.Scope != "" {
+					varName = string(action.Set.Scope) + "." + varName
+				}
+
+				if _, err := ruleSet.model.NewEvent().GetFieldValue(varName); err == nil {
+					result = multierror.Append(result, fmt.Errorf("variable '%s' conflicts with field", varName))
+					continue
+				}
+
+				if _, found := ruleSet.opts.Constants[varName]; found {
+					result = multierror.Append(result, fmt.Errorf("variable '%s' conflicts with constant", varName))
+					continue
+				}
+
+				switch value := action.Set.Value.(type) {
+				case []interface{}:
+					if len(value) == 0 {
+						result = multierror.Append(result, fmt.Errorf("unable to infer item type for '%s'", action.Set.Name))
+						continue
+					}
+
+					switch arrayType := value[0].(type) {
+					case int:
+						action.Set.Value = cast.ToIntSlice(value)
+					case string:
+						action.Set.Value = cast.ToStringSlice(value)
+					default:
+						result = multierror.Append(result, fmt.Errorf("unsupported array item type '%s' for array '%s'", reflect.TypeOf(arrayType), action.Set.Name))
+						continue
+					}
+				}
+
+				var variable eval.VariableValue
+				var scope StateScope
+
+				if action.Set.Scope != "" {
+					if scope = ruleSet.opts.StateScopes[action.Set.Scope]; scope == nil {
+						result = multierror.Append(result, fmt.Errorf("invalid scope '%s'", action.Set.Scope))
+						continue
+					}
+				} else {
+					scope = ruleSet
+				}
+
+				variable, err = scope.GetVariable(action.Set.Name, action.Set.Value)
+				if err != nil {
+					result = multierror.Append(result, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(action.Set.Value), action.Set.Name, err))
+					continue
+				}
+
+				if existingVariable, found := ruleSet.opts.Variables[varName]; found && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
+					result = multierror.Append(result, fmt.Errorf("variable '%s' conflicts with variable (%s != %s)", varName, reflect.TypeOf(variable), reflect.TypeOf(existingVariable)))
+					continue
+				}
+
+				ruleSet.opts.Variables[varName] = variable
+			}
+		}
 	}
 
 	// Add rules to the ruleset and generate rules evaluators

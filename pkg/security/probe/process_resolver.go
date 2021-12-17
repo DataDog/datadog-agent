@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -972,6 +974,53 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 // SetState sets the process resolver state
 func (p *ProcessResolver) SetState(state int64) {
 	atomic.StoreInt64(&p.state, state)
+}
+
+// GetVariable returns a new mutable variable with the type of the specified value
+func (p *ProcessResolver) GetVariable(name string, value interface{}) (eval.VariableValue, error) {
+	switch value.(type) {
+	case int:
+		intVar := eval.NewIntVariable(func(ctx *eval.Context) int {
+			process := &(*Event)(ctx.Object).ProcessContext.Process
+			if _, found := process.Context[name]; !found {
+				return 0
+			}
+			return process.Context[name].(int)
+		}, func(ctx *eval.Context, value interface{}) error {
+			process := &(*Event)(ctx.Object).ProcessContext.Process
+			process.Context[name] = value
+			return nil
+		})
+		return intVar, nil
+	case bool:
+		boolVar := eval.NewBoolVariable(func(ctx *eval.Context) bool {
+			process := &(*Event)(ctx.Object).ProcessContext.Process
+			if _, found := process.Context[name]; !found {
+				return false
+			}
+			return process.Context[name].(bool)
+		}, func(ctx *eval.Context, value interface{}) error {
+			process := &(*Event)(ctx.Object).ProcessContext.Process
+			process.Context[name] = value
+			return nil
+		})
+		return boolVar, nil
+	case string:
+		strVar := eval.NewStringVariable(func(ctx *eval.Context) string {
+			process := &(*Event)(ctx.Object).ProcessContext.Process
+			if _, found := process.Context[name]; !found {
+				return ""
+			}
+			return process.Context[name].(string)
+		}, func(ctx *eval.Context, value interface{}) error {
+			process := &(*Event)(ctx.Object).ProcessContext.Process
+			process.Context[name] = value
+			return nil
+		})
+		return strVar, nil
+	default:
+		return nil, fmt.Errorf("unsupported variable type %s for '%s'", reflect.TypeOf(value), name)
+	}
 }
 
 // NewProcessResolver returns a new process resolver

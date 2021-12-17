@@ -63,13 +63,14 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID          RuleID            `yaml:"id"`
-	Version     string            `yaml:"version"`
-	Expression  string            `yaml:"expression"`
-	Description string            `yaml:"description"`
-	Tags        map[string]string `yaml:"tags"`
-	Disabled    bool              `yaml:"disabled"`
-	Combine     CombinePolicy     `yaml:"combine"`
+	ID          RuleID             `yaml:"id"`
+	Version     string             `yaml:"version"`
+	Expression  string             `yaml:"expression"`
+	Description string             `yaml:"description"`
+	Tags        map[string]string  `yaml:"tags"`
+	Disabled    bool               `yaml:"disabled"`
+	Combine     CombinePolicy      `yaml:"combine"`
+	Actions     []ActionDefinition `yaml:"actions"`
 	Policy      *Policy
 }
 
@@ -96,6 +97,37 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	}
 	rd.Disabled = rd2.Disabled
 	return nil
+}
+
+// ActionDefinition describes a rule action section
+type ActionDefinition struct {
+	Set *SetDefinition `yaml:"set"`
+}
+
+func (a *ActionDefinition) Check() error {
+	if a.Set == nil {
+		return errors.New("missing 'set' section in action")
+	}
+
+	if a.Set.Name == "" {
+		return errors.New("action name is empty")
+	}
+
+	if a.Set.Value == nil {
+		return errors.New("empty value not allowed")
+	}
+
+	return nil
+}
+
+// Scope describes the scope variables
+type Scope string
+
+// SetDefinition describes the 'set' section of a rule action
+type SetDefinition struct {
+	Name  string      `yaml:"name"`
+	Value interface{} `yaml:"value"`
+	Scope Scope       `yaml:"scope"`
 }
 
 // Rule describes a rule of a ruleset
@@ -401,6 +433,37 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 	return true, nil
 }
 
+func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
+	for _, action := range rule.Definition.Actions {
+		switch {
+		case action.Set != nil:
+			name := string(action.Set.Scope)
+			if name != "" {
+				name += "."
+			}
+			name += action.Set.Name
+
+			variable, found := rs.opts.Variables[name]
+			if !found {
+				return fmt.Errorf("unknown variable: %s", name)
+			}
+
+			if mutable, ok := variable.(eval.MutableVariable); ok {
+				if err := mutable.Set(ctx, action.Set.Value); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// GetVariable returns a new mutable variable with the type of the specified value
+func (rs *RuleSet) GetVariable(name string, value interface{}) (eval.VariableValue, error) {
+	return eval.GetVariable(name, value)
+}
+
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	ctx := rs.pool.Get(event.GetPointer())
@@ -421,6 +484,10 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
+
+			if err := rs.runRuleActions(ctx, rule); err != nil {
+				rs.logger.Errorf("Error while executing rule actions: %s", err)
+			}
 		}
 	}
 

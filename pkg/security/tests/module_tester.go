@@ -105,6 +105,15 @@ rules:
   - id: {{$Rule.ID}}
     expression: >-
       {{$Rule.Expression}}
+    actions:
+{{- range $Action := .Actions}}
+{{- if $Action.Set}}
+      - set:
+          name: {{$Action.Set.Name}}
+          value: {{$Action.Set.Value}}
+          scope: {{$Action.Set.Scope}}
+{{- end}}
+{{- end}}
 {{end}}
 `
 

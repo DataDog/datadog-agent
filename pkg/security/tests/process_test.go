@@ -596,6 +596,80 @@ func TestProcessPIDVariable(t *testing.T) {
 	}
 }
 
+func TestProcessMutableVariable(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule_set_mutable_vars",
+		Expression: `open.file.path =~ "{{.Root}}/test-open"`,
+		Actions: []rules.ActionDefinition{{
+			Set: &rules.SetDefinition{
+				Name:  "var1",
+				Value: true,
+				Scope: "process",
+			},
+		}, {
+			Set: &rules.SetDefinition{
+				Name:  "var2",
+				Value: "off",
+				Scope: "process",
+			},
+		}},
+	}, {
+		ID:         "test_rule_modify_mutable_var_str",
+		Expression: `open.file.path =~ "{{.Root}}/test-open2"`,
+		Actions: []rules.ActionDefinition{{
+			Set: &rules.SetDefinition{
+				Name:  "var2",
+				Value: "on",
+				Scope: "process",
+			},
+		}},
+	}, {
+		ID:         "test_rule_test_mutable_vars",
+		Expression: `open.file.path =~ "{{.Root}}/test-open3" && ${process.var1} == true && ${process.var2} == "on"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var filename1, filename2, filename3 string
+
+	test.WaitSignal(t, func() error {
+		filename1, _, err = test.Create("test-open")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_set_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename1)
+
+	test.WaitSignal(t, func() error {
+		filename2, _, err = test.Create("test-open2")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_modify_mutable_var_str", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename2)
+
+	test.WaitSignal(t, func() error {
+		filename3, _, err = test.Create("test-open3")
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_test_mutable_vars", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename3)
+}
+
 func TestProcessExec(t *testing.T) {
 	executable := which("touch")
 

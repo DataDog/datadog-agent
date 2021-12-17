@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
@@ -167,9 +166,15 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 
 		// could be an iterator
 		return identToEvaluator(&ident{Pos: array.Pos, Ident: array.Ident}, opts, state)
+	} else if array.Variable != nil {
+		varName, ok := isVariableName(*array.Variable)
+		if !ok {
+			return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid variable name '%s'", *array.Variable))
+		}
+		return evaluatorFromVariable(varName, array.Pos, opts)
 	}
 
-	return nil, array.Pos, NewError(array.Pos, "unknow array element type")
+	return nil, array.Pos, NewError(array.Pos, "unknown array element type")
 }
 
 func isVariableName(str string) (string, bool) {
@@ -179,15 +184,21 @@ func isVariableName(str string) (string, bool) {
 	return "", false
 }
 
+func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+	value, exists := opts.Variables[varname]
+	if !exists {
+		return nil, pos, NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
+	}
+
+	return value.GetEvaluator(), pos, nil
+}
+
 func intEvaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
 	value, exists := opts.Variables[varname]
 	if !exists {
 		return nil, pos, NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
 	}
 
-	if value.IntFnc == nil {
-		return nil, pos, NewError(pos, fmt.Sprintf("variable type not supported '%s'", varname))
-	}
 	return &IntEvaluator{
 		EvalFnc: func(ctx *Context) int {
 			return value.IntFnc(ctx)
@@ -204,21 +215,12 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 			if !exists {
 				return NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
 			}
-			if value.IntFnc != nil {
-				evaluators = append(evaluators, &StringEvaluator{
-					EvalFnc: func(ctx *Context) string {
-						return strconv.FormatInt(int64(value.IntFnc(ctx)), 10)
-					},
-				})
-			} else if value.StringFnc != nil {
-				evaluators = append(evaluators, &StringEvaluator{
-					EvalFnc: func(ctx *Context) string {
-						return value.StringFnc(ctx)
-					},
-				})
-			} else {
-				return NewError(pos, fmt.Sprintf("variable type not supported '%s'", varname))
-			}
+
+			evaluators = append(evaluators, &StringEvaluator{
+				EvalFnc: func(ctx *Context) string {
+					return value.StringFnc(ctx)
+				},
+			})
 		} else {
 			evaluators = append(evaluators, &StringEvaluator{Value: sub})
 		}
@@ -913,13 +915,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			return &IntEvaluator{
 				Value: *obj.Number,
 			}, obj.Pos, nil
-		case obj.NumberVariable != nil:
-			varname, ok := isVariableName(*obj.NumberVariable)
+		case obj.Variable != nil:
+			varname, ok := isVariableName(*obj.Variable)
 			if !ok {
 				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("internal variable error '%s'", varname))
 			}
 
-			return intEvaluatorFromVariable(varname, obj.Pos, opts)
+			return evaluatorFromVariable(varname, obj.Pos, opts)
 		case obj.Duration != nil:
 			return &IntEvaluator{
 				Value:      *obj.Duration,
