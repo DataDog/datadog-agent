@@ -7,19 +7,12 @@ package tagset
 
 import "github.com/twmb/murmur3"
 
-// Builder is used to build tagsets tag-by-tag, before "freezing" into a Tags instance. Builders are not threadsafe.
+// Builder is used to build tagsets tag-by-tag, before producing Tags instance
+// when it is closed. Builders are not threadsafe.
 //
-// A Builder goes through three stages in its lifecycle:
+// It is invalid to use a Builder after Close, as it may be re-used by other goroutines.
 //
-//     1. adding tags (begins on call to factory.NewBuilder).
-//     2. frozen (begins on call to bldr.Freeze).
-//     3. closed (begins on call to bldr.Close).
-//
-// The Add* methods may only be called in the "adding tags" stage. No methods
-// may be called in the "closed" stage.
-//
-// In general, the easiest way to ensure these stages are followed (and allow reviewers
-// to verify this) is to use a builder in a single method, as shown in the example.  Avoid
+// In general, Builders are intended to be used in a single method.  Avoid
 // storing builders in structs.
 type Builder struct {
 	factory Factory
@@ -27,7 +20,6 @@ type Builder struct {
 	hashes  []uint64
 	hash    uint64
 	seen    map[uint64]struct{}
-	frozen  *Tags
 }
 
 // newBuilder creates a new builder. This must be reset()
@@ -36,7 +28,6 @@ func newBuilder(factory Factory) *Builder {
 	return &Builder{
 		factory: factory,
 		tags:    nil,
-		frozen:  nil,
 	}
 }
 
@@ -56,8 +47,8 @@ func (bldr *Builder) reset(capacity int) {
 		bldr.hashes = bldr.hashes[:0]
 	}
 
+	bldr.hash = 0
 	bldr.seen = map[uint64]struct{}{}
-	bldr.frozen = nil
 }
 
 // Add adds the given tag to the builder
@@ -90,26 +81,18 @@ func (bldr *Builder) Contains(tag string) bool {
 	return has
 }
 
-// Freeze "freezes" the builder and returns the resulting tagset. The Add methods
-// cannot be called after freezing.
-func (bldr *Builder) Freeze() *Tags {
-	if bldr.frozen == nil {
-		bldr.frozen = bldr.factory.getCachedTags(byTagsetHashCache, bldr.hash, func() *Tags {
+// Close builds the resulting *Tags, and frees resources associated with the Builder.
+func (bldr *Builder) Close() *Tags {
+	frozen := bldr.factory.getCachedTags(byTagsetHashCache, bldr.hash, func() *Tags {
 
-			tags, hashes, hash := bldr.tags, bldr.hashes, bldr.hash
-			// the Tags instance will own the storage in these slices, so reset them
-			bldr.tags = []string{}
-			bldr.hashes = []uint64{}
+		tags, hashes, hash := bldr.tags, bldr.hashes, bldr.hash
+		// the Tags instance will own the storage in these slices, so reset them
+		bldr.tags = []string{}
+		bldr.hashes = []uint64{}
 
-			return &Tags{tags, hashes, hash}
-		})
-		bldr.seen = nil // free unnecessary memory
-	}
-	return bldr.frozen
-}
-
-// Close closes the builder, freeing its resources.
-func (bldr *Builder) Close() {
+		return &Tags{tags, hashes, hash}
+	})
 	bldr.seen = nil // free unnecessary memory
 	bldr.factory.builderClosed(bldr)
+	return frozen
 }

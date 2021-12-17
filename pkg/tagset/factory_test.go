@@ -55,8 +55,7 @@ func testFactory(t *testing.T, factoryFactory func() Factory) {
 		b := f.NewBuilder(2)
 		b.Add("t1")
 		b.Add("t2")
-		tags := b.Freeze()
-		b.Close()
+		tags := b.Close()
 		tags.validate(t)
 
 		require.Equal(t, []string{"t1", "t2"}, tags.Sorted())
@@ -147,8 +146,7 @@ func testFactoryCaching(t *testing.T, factoryFactory func() Factory) {
 			b := f.NewBuilder(2)
 			b.Add("t1")
 			b.Add("t2")
-			tags2 := b.Freeze()
-			b.Close()
+			tags2 := b.Close()
 			tags2.validate(t)
 
 			// check for pointer equality

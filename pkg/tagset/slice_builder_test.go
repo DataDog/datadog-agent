@@ -42,7 +42,7 @@ func TestSliceBuilder_Fuzz(t *testing.T) {
 		// freeze the builders into tags
 		expectedTags := make([]*Tags, levels)
 		for l := 0; l < levels; l++ {
-			expectedTags[l] = builders[l].Freeze()
+			expectedTags[l] = builders[l].Close()
 		}
 
 		// verify that each slice is correct (including empty slices)

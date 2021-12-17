@@ -32,7 +32,7 @@ func TestCachingFactory_Union_Fuzz(t *testing.T) {
 			aBuilder.Add(t)
 			bothBuilder.Add(t)
 		}
-		a := aBuilder.Freeze()
+		a := aBuilder.Close()
 
 		n = r.Intn(15)
 		bBuilder := f.NewBuilder(n)
@@ -41,12 +41,12 @@ func TestCachingFactory_Union_Fuzz(t *testing.T) {
 			bBuilder.Add(t)
 			bothBuilder.Add(t)
 		}
-		b := bBuilder.Freeze()
+		b := bBuilder.Close()
 
 		union := f.Union(a, b)
 		union.validate(t)
 
-		both := bothBuilder.Freeze()
+		both := bothBuilder.Close()
 		both.validate(t)
 
 		require.Equal(t, both.Hash(), union.Hash())

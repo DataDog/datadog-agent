@@ -32,8 +32,7 @@ func TestNewBuilder(t *testing.T) {
 	b := NewBuilder(10)
 	b.Add("a")
 	b.Add("b")
-	tags := b.Freeze()
-	b.Close()
+	tags := b.Close()
 	tags.validate(t)
 }
 

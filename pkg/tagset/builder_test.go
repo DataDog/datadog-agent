@@ -14,46 +14,40 @@ func testBuilder() *Builder {
 	return bldr
 }
 
-func TestBuilder_Add_Freeze_Close(t *testing.T) {
+func TestBuilder_Add_Close(t *testing.T) {
 	bldr := testBuilder()
 
 	bldr.Add("abc")
 	bldr.Add("def")
 	bldr.Add("abc")
 
-	tags := bldr.Freeze()
+	tags := bldr.Close()
 	tags.validate(t)
-	tags2 := bldr.Freeze()
-	tags2.validate(t)
-	bldr.Close()
 
-	require.Equal(t, tags, tags2)
 	require.Equal(t, tags.Sorted(), []string{"abc", "def"})
 }
 
-func TestBuilder_AddKV_Freeze_Close(t *testing.T) {
+func TestBuilder_AddKV_Close(t *testing.T) {
 	bldr := testBuilder()
 
 	bldr.AddKV("host", "foo")
 	bldr.AddKV("host", "bar")
 	bldr.AddKV("host", "foo")
 
-	tags := bldr.Freeze()
+	tags := bldr.Close()
 	tags.validate(t)
-	bldr.Close()
 
 	require.Equal(t, tags.Sorted(), []string{"host:bar", "host:foo"})
 }
 
-func TestBuilder_AddTags_Freeze_Close(t *testing.T) {
+func TestBuilder_AddTags_Close(t *testing.T) {
 	bldr := testBuilder()
 
 	bldr.Add("host:foo")
 	bldr.AddTags(NewTags([]string{"abc", "def"}))
 
-	tags := bldr.Freeze()
+	tags := bldr.Close()
 	tags.validate(t)
-	bldr.Close()
 
 	require.Equal(t, tags.Sorted(), []string{"abc", "def", "host:foo"})
 }
@@ -72,13 +66,12 @@ func TestBuilder_Contains(t *testing.T) {
 func ExampleBuilder() {
 	shards := []int{1, 4, 19}
 
-	bldr := DefaultFactory.NewBuilder(5) // stage 1: adding tags
+	bldr := DefaultFactory.NewBuilder(5)
 	for _, shard := range shards {
 		bldr.AddKV("shard", strconv.Itoa(shard))
 	}
 
-	tags := bldr.Freeze() // stage 2: frozen
-	bldr.Close()          // stage 3: closed
+	tags := bldr.Close()
 
 	fmt.Printf("%s", tags.Sorted())
 	// Output: [shard:1 shard:19 shard:4]
