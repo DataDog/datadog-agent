@@ -6,7 +6,6 @@
 package tagset
 
 import (
-	"encoding/json"
 	"sort"
 	"strings"
 
@@ -53,20 +52,6 @@ func (tags *Tags) String() string {
 // Len returns the number of tags in the tagset
 func (tags *Tags) Len() int {
 	return len(tags.tags)
-}
-
-// MarshalJSON implements json.Marshaler to marshal the tag set as a JSON
-// array.
-func (tags *Tags) MarshalJSON() ([]byte, error) {
-	return json.Marshal(tags.tags)
-}
-
-// MarshalYAML implements yaml.Marshaler to marshal the tag set as a YAML
-// array.
-func (tags *Tags) MarshalYAML() (interface{}, error) {
-	// note that the yaml library does not modify the slice, so this
-	// does not violate immutability
-	return tags.tags, nil
 }
 
 // Hash returns the hash of this tagset

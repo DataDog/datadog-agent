@@ -81,8 +81,5 @@ const (
 	byTagsetHashCache cacheID = iota
 	// byUnionCache indexes Union(a,b) by uint64(a.Hash() + b.Hash())
 	byUnionHashCache cacheID = iota
-	// byJSONCache indexes by the murmur3 hash of input JSON data, in
-	// UnmarshalBuilder.UnmarshalJSON.
-	byJSONCache cacheID = iota
 	numCacheIDs
 )
