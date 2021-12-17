@@ -35,7 +35,6 @@ import (
 
 const (
 	taggerStreamSendTimeout = 1 * time.Minute
-	retrySleepDuration      = 3 * time.Second
 )
 
 type server struct {
