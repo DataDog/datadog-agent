@@ -197,6 +197,7 @@ type ConnectionStats struct {
 	IPTranslation    *IPTranslation
 	IntraHost        bool
 	Via              *Via
+	Tags             uint64
 
 	IsAssured bool
 }
