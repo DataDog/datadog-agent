@@ -272,11 +272,6 @@ type StatusInfo struct {
 	LogFile             string                 `json:"log_file"`
 }
 
-//// LogFile returns the location of the log file. This is used for the template.
-//func (StatusInfo) LogFile() string {
-//	return ddconfig.Datadog.GetString("process_config.log_file")
-//}
-
 func initInfo(_ *config.AgentConfig) error {
 	var err error
 
