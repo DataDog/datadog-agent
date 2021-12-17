@@ -105,34 +105,39 @@ var (
 )
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
-	var tagInfos []*TagInfo
+	tagInfos := make([]*TagInfo, 0, len(evBundle.Events))
 
 	for _, ev := range evBundle.Events {
 		entity := ev.Entity
 		entityID := entity.GetID()
 
+		var tagInfo *TagInfo
+
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
 			switch entityID.Kind {
 			case workloadmeta.KindContainer:
-				tagInfos = append(tagInfos, c.handleContainer(ev)...)
+				tagInfo = c.handleContainer(ev)
 			case workloadmeta.KindKubernetesPod:
-				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
+				tagInfo = c.handleKubePod(ev)
 			case workloadmeta.KindECSTask:
-				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
+				tagInfo = c.handleECSTask(ev)
 			case workloadmeta.KindGardenContainer:
-				tagInfos = append(tagInfos, c.handleGardenContainer(ev)...)
+				tagInfo = c.handleGardenContainer(ev)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
 
 		case workloadmeta.EventTypeUnset:
-			tagInfos = append(tagInfos, c.handleDelete(ev)...)
+			tagInfo = c.handleDelete(ev)
 
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
 		}
 
+		if tagInfo != nil {
+			tagInfos = append(tagInfos, tagInfo)
+		}
 	}
 
 	if len(tagInfos) > 0 {
@@ -142,11 +147,12 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	close(evBundle.Ch)
 }
 
-func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInfo {
+func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) *TagInfo {
 	container := ev.Entity.(*workloadmeta.Container)
-	image := container.Image
 
 	tags := utils.NewTagList()
+
+	image := container.Image
 	tags.AddHigh("container_name", container.Name)
 	tags.AddHigh("container_id", container.ID)
 
@@ -234,18 +240,16 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	}
 
 	low, orch, high, standard := tags.Compute()
-	return []*TagInfo{
-		{
-			Entity:               buildTaggerEntityID(container.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-		},
+	return &TagInfo{
+		Entity:               buildTaggerEntityID(container.EntityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
 	}
 }
 
-func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo {
+func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) *TagInfo {
 	pod := ev.Entity.(*workloadmeta.KubernetesPod)
 
 	tags := utils.NewTagList()
@@ -257,22 +261,16 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 	}
 
 	low, orch, high, standard := tags.Compute()
-	tagInfos := []*TagInfo{
-		{
-			Entity:               buildTaggerEntityID(pod.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-		},
+	return &TagInfo{
+		Entity:               buildTaggerEntityID(pod.EntityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
 	}
-
-	return tagInfos
 }
 
-func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo {
-	var tagInfos []*TagInfo
-
+func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) *TagInfo {
 	task := ev.Entity.(*workloadmeta.ECSTask)
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
@@ -281,26 +279,24 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 		tags.AddOrchestrator("task_arn", task.ID)
 
 		low, orch, high, standard := tags.Compute()
-		tagInfos = append(tagInfos, &TagInfo{
+		return &TagInfo{
 			Entity:               OrchestratorScopeEntityID,
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
-		})
+		}
 	}
 
-	return tagInfos
+	return nil
 }
 
-func (c *WorkloadMetaCollector) handleGardenContainer(ev workloadmeta.Event) []*TagInfo {
+func (c *WorkloadMetaCollector) handleGardenContainer(ev workloadmeta.Event) *TagInfo {
 	container := ev.Entity.(*workloadmeta.GardenContainer)
 
-	return []*TagInfo{
-		{
-			Entity:       buildTaggerEntityID(container.EntityID),
-			HighCardTags: container.Tags,
-		},
+	return &TagInfo{
+		Entity:       buildTaggerEntityID(container.EntityID),
+		HighCardTags: container.Tags,
 	}
 }
 
@@ -504,14 +500,12 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	return nil
 }
 
-func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*TagInfo {
+func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) *TagInfo {
 	entityID := ev.Entity.GetID()
 
-	return []*TagInfo{
-		{
-			Entity:       buildTaggerEntityID(entityID),
-			DeleteEntity: true,
-		},
+	return &TagInfo{
+		Entity:       buildTaggerEntityID(entityID),
+		DeleteEntity: true,
 	}
 }
 
