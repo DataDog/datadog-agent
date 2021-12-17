@@ -19,7 +19,7 @@ func ProductListToString(products []Product) []string {
 	return stringProducts
 }
 
-// ProductListToString converts a product list to string list
+// StringListToProduct converts a string list to product list
 func StringListToProduct(stringProducts []string) []Product {
 	products := make([]Product, len(stringProducts))
 	for i, product := range stringProducts {
