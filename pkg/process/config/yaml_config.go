@@ -254,12 +254,12 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			if s == "" {
 				s = config.DefaultSite
 			}
-			site = fmt.Sprintf(profiling.ProfileURLTemplate, s)
+			site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
 		}
 
 		v, _ := version.Agent()
 		a.ProfilingSettings = &profiling.Settings{
-			Site:                 site,
+			ProfilingURL:         site,
 			Env:                  config.Datadog.GetString("env"),
 			Service:              "process-agent",
 			Period:               config.Datadog.GetDuration("internal_profiling.period"),
