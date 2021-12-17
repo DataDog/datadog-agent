@@ -13,8 +13,8 @@ const (
 // ProductListToString converts a product list to string list
 func ProductListToString(products []Product) []string {
 	stringProducts := make([]string, len(products))
-	for _, product := range products {
-		stringProducts = append(stringProducts, string(product))
+	for i, product := range products {
+		stringProducts[i] = string(product)
 	}
 	return stringProducts
 }
@@ -22,8 +22,8 @@ func ProductListToString(products []Product) []string {
 // ProductListToString converts a product list to string list
 func StringListToProduct(stringProducts []string) []Product {
 	products := make([]Product, len(stringProducts))
-	for _, product := range stringProducts {
-		products = append(products, Product(product))
+	for i, product := range stringProducts {
+		products[i] = Product(product)
 	}
 	return products
 }

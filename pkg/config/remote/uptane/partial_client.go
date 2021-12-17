@@ -227,14 +227,8 @@ func (c *PartialClient) targetFile(path string) ([]byte, error) {
 	if targetFile == nil {
 		return nil, fmt.Errorf("target file %s not found", path)
 	}
-	var targetMeta *data.TargetFileMeta
-	for targetPath := range c.targetMetas {
-		if targetPath == path {
-			t := c.targetMetas[targetPath]
-			targetMeta = &t
-		}
-	}
-	if targetMeta == nil {
+	targetMeta, hasMeta := c.targetMetas[path]
+	if !hasMeta {
 		return nil, fmt.Errorf("target file meta %s not found", path)
 	}
 	if len(targetMeta.HashAlgorithms()) == 0 {
