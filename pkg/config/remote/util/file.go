@@ -54,7 +54,7 @@ func ParseFilePathMeta(path string) (PathMeta, error) {
 	rawProduct := matchedGroups[3]
 	product, productExists := pbgo.Product_value[rawProduct]
 	if !productExists {
-		return PathMeta{}, fmt.Errorf("product %s is unknwon", rawProduct)
+		return PathMeta{}, fmt.Errorf("product %s is unknown", rawProduct)
 	}
 	return PathMeta{
 		Type:     configType,
