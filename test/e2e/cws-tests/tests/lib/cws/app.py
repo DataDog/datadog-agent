@@ -1,7 +1,7 @@
 import os
 import tempfile
 
-import urllib3
+import requests
 from datadog_api_client.v2 import ApiClient, ApiException, Configuration
 from datadog_api_client.v2.api import logs_api, security_monitoring_api
 from datadog_api_client.v2.models import (
@@ -135,31 +135,20 @@ class App:
         app_key = os.environ["DD_APP_KEY"]
 
         url = f"https://api.{site}/api/v2/security/cloud_workload/policy/download"
-
-        pool_manager = urllib3.PoolManager()
-        request = pool_manager.request(
-            "GET",
+        with requests.get(
             url,
-            preload_content=False,
             headers={
                 "Content-Type": "application/json",
                 "DD-API-KEY": api_key,
                 "DD-APPLICATION-KEY": app_key,
             },
-        )
+            stream=True,
+        ) as response:
+            with tempfile.NamedTemporaryFile(prefix="e2e-test-", mode="wb", delete=False) as fp:
+                for chunk in response.iter_content(chunk_size=4096):
+                    fp.write(chunk)
 
-        fp = tempfile.NamedTemporaryFile(prefix="e2e-test-", mode="wb", delete=False)
-        while True:
-            data = request.read(4096)
-            if not data:
-                break
-            fp.write(data)
-
-        fp.close()
-
-        pool_manager.clear()
-
-        return fp.name
+                return fp.name
 
     def wait_app_log(self, query, tries=30, delay=10):
         return retry_call(get_app_log, fargs=[self.api_client, query], tries=tries, delay=delay)
