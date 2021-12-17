@@ -139,8 +139,8 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	assert.Equal(t, "serverless", executionSpan.Type)
 	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
-	assert.Equal(t, int64(startInvocationTime.UnixNano()), executionSpan.Start)
-	assert.Equal(t, int64(duration.Nanoseconds()), executionSpan.Duration)
+	assert.Equal(t, startInvocationTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }
 
 func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
