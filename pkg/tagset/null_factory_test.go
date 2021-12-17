@@ -9,7 +9,6 @@
 package tagset
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/twmb/murmur3"
@@ -71,12 +70,6 @@ func (f *nullFactory) NewBuilder(capacity int) *Builder {
 // NewBuilder implements Factory.NewBuilder
 func (f *nullFactory) NewSliceBuilder(levels, capacity int) *SliceBuilder {
 	return f.baseFactory.newSliceBuilder(f, levels, capacity)
-}
-
-// ParseDSD implements Factory.ParseDSD
-func (f *nullFactory) ParseDSD(data []byte) (*Tags, error) {
-	tags := strings.Split(string(data), ",")
-	return f.NewTags(tags), nil
 }
 
 // Union implements Factory.Union

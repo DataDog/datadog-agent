@@ -6,8 +6,6 @@
 package tagset
 
 import (
-	"strings"
-
 	"github.com/twmb/murmur3"
 )
 
@@ -128,14 +126,6 @@ func (f *cachingFactory) NewBuilder(capacity int) *Builder {
 // NewSliceBuilder implements Factory.NewSliceBuilder
 func (f *cachingFactory) NewSliceBuilder(levels, capacity int) *SliceBuilder {
 	return f.baseFactory.newSliceBuilder(f, levels, capacity)
-}
-
-// ParseDSD implements Factory.ParseDSD
-func (f *cachingFactory) ParseDSD(data []byte) (*Tags, error) {
-	return f.getCachedTags(byDSDHashCache, murmur3.Sum64(data), func() *Tags {
-		tags := strings.Split(string(data), ",")
-		return f.NewTags(tags)
-	}), nil
 }
 
 // Union implements Factory.Union

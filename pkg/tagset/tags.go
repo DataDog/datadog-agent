@@ -55,11 +55,6 @@ func (tags *Tags) Len() int {
 	return len(tags.tags)
 }
 
-// MarshalDSD returns a byte array containing comma-separated tags.
-func (tags *Tags) MarshalDSD() []byte {
-	return []byte(strings.Join(tags.tags, ","))
-}
-
 // MarshalJSON implements json.Marshaler to marshal the tag set as a JSON
 // array.
 func (tags *Tags) MarshalJSON() ([]byte, error) {

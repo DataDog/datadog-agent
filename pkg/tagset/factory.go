@@ -49,12 +49,6 @@ type Factory interface {
 	// NewSliceBuilder returns a fresh Builder
 	NewSliceBuilder(levels, capacity int) *SliceBuilder
 
-	// Parsing
-
-	// ParseDSD parses a comma-separated set of tags, as used in the DogStatsD
-	// format.
-	ParseDSD(data []byte) (*Tags, error)
-
 	// Combination
 
 	// Union combines two *Tags instances that are not known to be
@@ -85,8 +79,6 @@ type cacheID = uint
 const (
 	// byTasgsetHashCache indexes a cache by the Tags instances' hash
 	byTagsetHashCache cacheID = iota
-	// byDSDHashCache indexes a cache by the murmur3 hash of the DSD data
-	byDSDHashCache cacheID = iota
 	// byUnionCache indexes Union(a,b) by uint64(a.Hash() + b.Hash())
 	byUnionHashCache cacheID = iota
 	// byJSONCache indexes by the murmur3 hash of input JSON data, in

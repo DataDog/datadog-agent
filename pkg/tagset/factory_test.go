@@ -61,15 +61,6 @@ func testFactory(t *testing.T, factoryFactory func() Factory) {
 		require.Equal(t, []string{"t1", "t2"}, tags.Sorted())
 	})
 
-	t.Run("ParseDSD", func(t *testing.T) {
-		f := factoryFactory()
-		tags, err := f.ParseDSD([]byte("tag1,tag2,tag1,tag4"))
-		require.NoError(t, err)
-		tags.validate(t)
-
-		require.Equal(t, []string{"tag1", "tag2", "tag4"}, tags.Sorted())
-	})
-
 	t.Run("Union_Overlapping", func(t *testing.T) {
 		f := factoryFactory()
 		tags1 := f.NewTags([]string{"tag1", "tag2"})
@@ -140,38 +131,6 @@ func testFactoryCaching(t *testing.T, factoryFactory func() Factory) {
 			tags2.validate(t)
 
 			// check for pointer equality
-			require.True(t, tags1 == tags2)
-		})
-
-		t.Run("ParseDSD", func(t *testing.T) {
-			f := factoryFactory()
-
-			tags1, err := f.ParseDSD([]byte("tag1,tag2,tag4"))
-			require.NoError(t, err)
-			tags1.validate(t)
-
-			tags2, err := f.ParseDSD([]byte("tag1,tag2,tag4"))
-			require.NoError(t, err)
-			tags2.validate(t)
-
-			// check for pointer equality (ideally because the input
-			// data hash matched, but we can't actually tell)
-			require.True(t, tags1 == tags2)
-		})
-
-		t.Run("ParseDSD_DifferentInput", func(t *testing.T) {
-			f := factoryFactory()
-
-			tags1, err := f.ParseDSD([]byte("tag1,tag2,tag4"))
-			require.NoError(t, err)
-			tags1.validate(t)
-
-			tags2, err := f.ParseDSD([]byte("tag4,tag1,tag2"))
-			require.NoError(t, err)
-			tags2.validate(t)
-
-			// check for pointer equality (these are still equal
-			// because the NewTags operation de-duplicates them)
 			require.True(t, tags1 == tags2)
 		})
 

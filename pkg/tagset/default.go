@@ -40,11 +40,6 @@ func NewSliceBuilder(levels, capacity int) *SliceBuilder {
 	return DefaultFactory.NewSliceBuilder(levels, capacity)
 }
 
-// ParseDSD calls DefaultFactory.ParseDSD
-func ParseDSD(data []byte) (*Tags, error) {
-	return DefaultFactory.ParseDSD(data)
-}
-
 // Union calls DefaultFactory.Union
 func Union(a, b *Tags) *Tags {
 	return DefaultFactory.Union(a, b)

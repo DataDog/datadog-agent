@@ -65,15 +65,6 @@ func TestTags_Tags_String(t *testing.T) {
 	require.Equal(t, tagset.String(), "foo, bar")
 }
 
-func TestTags_Tags_MarshalDSD(t *testing.T) {
-	tagset := newTags([]string{"foo", "bar"})
-	require.Equal(t, tagset.MarshalDSD(), []byte("foo,bar"))
-}
-
-func TestTags_Tags_MarshalDSD_empty(t *testing.T) {
-	require.Equal(t, EmptyTags.MarshalDSD(), []byte{})
-}
-
 func TestTags_Tags_MarshalJSON(t *testing.T) {
 	tagset := newTags([]string{"foo", "bar"})
 	j, err := tagset.MarshalJSON()

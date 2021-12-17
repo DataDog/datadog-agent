@@ -64,14 +64,6 @@ func (f *threadsafeFactory) NewBuilder(capacity int) *Builder {
 	return tags
 }
 
-// ParseDSD implements Factory.ParseDSD
-func (f *threadsafeFactory) ParseDSD(data []byte) (*Tags, error) {
-	f.Lock()
-	tags, err := f.Factory.ParseDSD(data)
-	f.Unlock()
-	return tags, err
-}
-
 // Union implements Factory.Union
 func (f *threadsafeFactory) Union(a, b *Tags) *Tags {
 	f.Lock()
