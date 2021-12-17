@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    On Windows, fixes a problem in NPM where if the first packet on a UDP flow
-    was inbound, it would not be counted correctly.
+    Fixes an NPM issue on Windows where if the first packet on a UDP flow
+    is inbound, it is not counted correctly.
