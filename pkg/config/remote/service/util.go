@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -52,14 +53,14 @@ func parseRemoteConfigKey(rawKey string) (remoteConfigKey, error) {
 	}, nil
 }
 
-func buildLatestConfigsRequest(hostname string, state uptane.State, activeClients []*pbgo.Client, products map[pbgo.Product]struct{}, newProducts map[pbgo.Product]struct{}) *pbgo.LatestConfigsRequest {
-	productsList := make([]pbgo.Product, len(products))
+func buildLatestConfigsRequest(hostname string, state uptane.State, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}) *pbgo.LatestConfigsRequest {
+	productsList := make([]data.Product, len(products))
 	i := 0
 	for k := range products {
 		productsList[i] = k
 		i++
 	}
-	newProductsList := make([]pbgo.Product, len(newProducts))
+	newProductsList := make([]data.Product, len(newProducts))
 	i = 0
 	for k := range newProducts {
 		newProductsList[i] = k
@@ -69,8 +70,8 @@ func buildLatestConfigsRequest(hostname string, state uptane.State, activeClient
 	return &pbgo.LatestConfigsRequest{
 		Hostname:                     hostname,
 		AgentVersion:                 version.AgentVersion,
-		Products:                     productsList,
-		NewProducts:                  newProductsList,
+		Products:                     data.ProductListToString(productsList),
+		NewProducts:                  data.ProductListToString(newProductsList),
 		CurrentConfigSnapshotVersion: state.ConfigSnapshotVersion,
 		CurrentConfigRootVersion:     state.ConfigRootVersion,
 		CurrentDirectorRootVersion:   state.DirectorRootVersion,

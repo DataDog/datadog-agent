@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/util"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +23,7 @@ type Client struct {
 	ctx             context.Context
 	close           func()
 	facts           Facts
-	enabledProducts map[pbgo.Product]struct{}
+	enabledProducts map[data.Product]struct{}
 	pollInterval    time.Duration
 
 	grpc          pbgo.AgentSecureClient
@@ -43,7 +43,7 @@ type Facts struct {
 }
 
 // NewClient creates a new client
-func NewClient(ctx context.Context, facts Facts, products []pbgo.Product) (*Client, error) {
+func NewClient(ctx context.Context, facts Facts, products []data.Product) (*Client, error) {
 	client, err := newClient(ctx, facts, products)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func NewClient(ctx context.Context, facts Facts, products []pbgo.Product) (*Clie
 	return client, nil
 }
 
-func newClient(ctx context.Context, facts Facts, products []pbgo.Product, dialOpts ...grpc.DialOption) (*Client, error) {
+func newClient(ctx context.Context, facts Facts, products []data.Product, dialOpts ...grpc.DialOption) (*Client, error) {
 	token, err := security.FetchAuthToken()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not acquire agent auth token")
@@ -72,7 +72,7 @@ func newClient(ctx context.Context, facts Facts, products []pbgo.Product, dialOp
 		close()
 		return nil, err
 	}
-	enabledProducts := make(map[pbgo.Product]struct{})
+	enabledProducts := make(map[data.Product]struct{})
 	for _, product := range products {
 		enabledProducts[product] = struct{}{}
 	}
@@ -108,8 +108,8 @@ func (c *Client) pollLoop() {
 	}
 }
 
-func (c *Client) products() []pbgo.Product {
-	var products []pbgo.Product
+func (c *Client) products() []data.Product {
+	var products []data.Product
 	for product := range c.enabledProducts {
 		products = append(products, product)
 	}
@@ -136,7 +136,7 @@ func (c *Client) poll() error {
 				HasError:       c.lastPollErr != nil,
 				Error:          lastPollErr,
 			},
-			Products: c.products(),
+			Products: data.ProductListToString(c.products()),
 		},
 	})
 	if err != nil {
@@ -162,7 +162,7 @@ func (c *Client) buildConfigFiles() (configFiles, error) {
 	}
 	var configFiles configFiles
 	for targetPath, target := range targets {
-		targetPathMeta, err := util.ParseFilePathMeta(targetPath)
+		targetPathMeta, err := data.ParseFilePathMeta(targetPath)
 		if err != nil {
 			return nil, err
 		}

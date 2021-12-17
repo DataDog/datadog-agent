@@ -3,8 +3,7 @@ package remote
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/util"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,10 +27,10 @@ func TestConfigsAPMSamplingUpdates(t *testing.T) {
 	samplingFile1Content, err := samplingFile1.MarshalMsg(nil)
 	assert.NoError(t, err)
 
-	update1 := configs.update([]pbgo.Product{pbgo.Product_APM_SAMPLING}, configFiles{
+	update1 := configs.update([]data.Product{data.ProductAPMSampling}, configFiles{
 		{
-			pathMeta: util.PathMeta{
-				Product:  pbgo.Product_APM_SAMPLING,
+			pathMeta: data.PathMeta{
+				Product:  data.ProductAPMSampling,
 				ConfigID: "config_id1",
 				Name:     "target_tps1",
 			},
@@ -64,10 +63,10 @@ func TestConfigsAPMSamplingUpdates(t *testing.T) {
 	}
 	samplingFile2Content, err := samplingFile2.MarshalMsg(nil)
 	assert.NoError(t, err)
-	update2 := configs.update([]pbgo.Product{pbgo.Product_APM_SAMPLING}, configFiles{
+	update2 := configs.update([]data.Product{data.ProductAPMSampling}, configFiles{
 		{
-			pathMeta: util.PathMeta{
-				Product:  pbgo.Product_APM_SAMPLING,
+			pathMeta: data.PathMeta{
+				Product:  data.ProductAPMSampling,
 				ConfigID: "config_id2",
 				Name:     "target_tps2",
 			},

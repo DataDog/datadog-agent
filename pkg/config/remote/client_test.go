@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -79,7 +80,7 @@ func TestClientEmptyResponse(t *testing.T) {
 	config.Datadog.Set("remote_configuration.director_root", embeddedRoot)
 
 	testFacts := Facts{ID: "test-agent", Name: "test-agent-name", Version: "v6.1.1"}
-	client, err := newClient(context.Background(), testFacts, []pbgo.Product{pbgo.Product_APM_SAMPLING})
+	client, err := newClient(context.Background(), testFacts, []rdata.Product{rdata.ProductAPMSampling})
 	assert.NoError(t, err)
 
 	testServer.On("ClientGetConfigs", mock.Anything, &pbgo.ClientGetConfigsRequest{Client: &pbgo.Client{
@@ -91,7 +92,7 @@ func TestClientEmptyResponse(t *testing.T) {
 		Id:       testFacts.ID,
 		Name:     testFacts.Name,
 		Version:  testFacts.Version,
-		Products: []pbgo.Product{pbgo.Product_APM_SAMPLING},
+		Products: []string{string(rdata.ProductAPMSampling)},
 	}}).Return(&pbgo.ClientGetConfigsResponse{
 		Roots:       []*pbgo.TopMeta{},
 		Targets:     &pbgo.TopMeta{},
@@ -118,7 +119,7 @@ func TestClientValidResponse(t *testing.T) {
 	config.Datadog.Set("remote_configuration.director_root", embeddedRoot)
 
 	testFacts := Facts{ID: "test-agent", Name: "test-agent-name", Version: "v6.1.1"}
-	client, err := newClient(context.Background(), testFacts, []pbgo.Product{pbgo.Product_APM_SAMPLING})
+	client, err := newClient(context.Background(), testFacts, []rdata.Product{rdata.ProductAPMSampling})
 	assert.NoError(t, err)
 
 	testServer.On("ClientGetConfigs", mock.Anything, &pbgo.ClientGetConfigsRequest{Client: &pbgo.Client{
@@ -130,7 +131,7 @@ func TestClientValidResponse(t *testing.T) {
 		Id:       testFacts.ID,
 		Name:     testFacts.Name,
 		Version:  testFacts.Version,
-		Products: []pbgo.Product{pbgo.Product_APM_SAMPLING},
+		Products: []string{string(rdata.ProductAPMSampling)},
 	}}).Return(&pbgo.ClientGetConfigsResponse{
 		Roots: []*pbgo.TopMeta{},
 		Targets: &pbgo.TopMeta{

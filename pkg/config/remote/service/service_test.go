@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -91,8 +92,8 @@ func TestService(t *testing.T) {
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
-		Products:                     []pbgo.Product{},
-		NewProducts:                  []pbgo.Product{},
+		Products:                     []string{},
+		NewProducts:                  []string{},
 	}).Return(lastConfigResponse, nil)
 	uptaneClient.On("State").Return(uptane.State{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
@@ -113,8 +114,8 @@ func TestService(t *testing.T) {
 		State: &pbgo.ClientState{
 			RootVersion: 2,
 		},
-		Products: []pbgo.Product{
-			pbgo.Product_APM_SAMPLING,
+		Products: []string{
+			string(rdata.ProductAPMSampling),
 		},
 	}
 	fileAPM1 := []byte(`testapm1`)
@@ -133,9 +134,9 @@ func TestService(t *testing.T) {
 		CurrentConfigRootVersion:     1,
 		CurrentConfigSnapshotVersion: 2,
 		CurrentDirectorRootVersion:   4,
-		Products:                     []pbgo.Product{},
-		NewProducts: []pbgo.Product{
-			pbgo.Product_APM_SAMPLING,
+		Products:                     []string{},
+		NewProducts: []string{
+			string(rdata.ProductAPMSampling),
 		},
 		ActiveClients: []*pbgo.Client{client},
 	}).Return(lastConfigResponse, nil)

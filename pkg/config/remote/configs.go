@@ -1,7 +1,7 @@
 package remote
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config/remote/util"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,7 +25,7 @@ func (c configFiles) version() uint64 {
 }
 
 type configFile struct {
-	pathMeta util.PathMeta
+	pathMeta data.PathMeta
 	version  uint64
 	raw      []byte
 }
@@ -44,8 +44,8 @@ type update struct {
 	apmSamplingUpdate *APMSamplingUpdate
 }
 
-func (c *configs) update(products []pbgo.Product, files configFiles) update {
-	productConfigIDFiles := make(map[pbgo.Product]map[string]configFiles)
+func (c *configs) update(products []data.Product, files configFiles) update {
+	productConfigIDFiles := make(map[data.Product]map[string]configFiles)
 	for _, file := range files {
 		if _, exist := productConfigIDFiles[file.pathMeta.Product]; !exist {
 			productConfigIDFiles[file.pathMeta.Product] = make(map[string]configFiles)
@@ -55,7 +55,7 @@ func (c *configs) update(products []pbgo.Product, files configFiles) update {
 	var update update
 	for _, product := range products {
 		switch product {
-		case pbgo.Product_APM_SAMPLING:
+		case data.ProductAPMSampling:
 			apmSamplingUpdate, err := c.apmSampling.update(productConfigIDFiles[product])
 			if err != nil {
 				log.Errorf("could not refresh apm sampling configurations: %v", err)

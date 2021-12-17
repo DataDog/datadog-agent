@@ -37,16 +37,6 @@ message File {
   bytes raw = 2;
 }
 
-enum Product {
-  NO_PRODUCT = 0;
-  LIVE_DEBUGGING = 1;
-  APPSEC = 2;
-  RUNTIME_SECURITY = 3;
-  APM_SAMPLING = 4;
-  TESTING1 = 5;
-  TESTING2 = 6;
-}
-
 // Backend queries
 
 message LatestConfigsRequest {
@@ -56,8 +46,8 @@ message LatestConfigsRequest {
   uint64 current_config_snapshot_version = 3;
   uint64 current_config_root_version = 9;
   uint64 current_director_root_version = 8;
-  repeated Product products = 4;
-  repeated Product new_products = 5;
+  repeated string products = 4;
+  repeated string new_products = 5;
   repeated Client active_clients = 6;
 }
 
@@ -71,7 +61,7 @@ message LatestConfigsResponse {
 
 message Client {
   ClientState state = 1;
-  repeated Product products = 2;
+  repeated string products = 2;
   string id = 3;
   string name = 4;
   string version = 5;

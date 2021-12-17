@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -49,7 +49,7 @@ func newRemoteRates() *RemoteRates {
 	if !features.Has("remote_rates") {
 		return nil
 	}
-	client, err := remote.NewClient(context.Background(), remote.Facts{ID: "trace-agent", Name: "trace-agent", Version: version.AgentVersion}, []pbgo.Product{pbgo.Product_APM_SAMPLING})
+	client, err := remote.NewClient(context.Background(), remote.Facts{ID: "trace-agent", Name: "trace-agent", Version: version.AgentVersion}, []data.Product{data.ProductAPMSampling})
 	if err != nil {
 		log.Errorf("Error when subscribing to remote config management %v", err)
 		return nil

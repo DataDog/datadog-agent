@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/util"
+	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/pkg/errors"
 	"github.com/theupdateframework/go-tuf/client"
@@ -221,7 +221,7 @@ func (c *Client) verifyOrgID() error {
 		return err
 	}
 	for targetPath := range directorTargets {
-		configFileMeta, err := util.ParseFilePathMeta(targetPath)
+		configFileMeta, err := rdata.ParseFilePathMeta(targetPath)
 		if err != nil {
 			return err
 		}

@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
+	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
-	rutil "github.com/DataDog/datadog-agent/pkg/config/remote/util"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,8 +46,8 @@ type Service struct {
 	uptane   uptaneClient
 	api      api.API
 
-	products    map[pbgo.Product]struct{}
-	newProducts map[pbgo.Product]struct{}
+	products    map[rdata.Product]struct{}
+	newProducts map[rdata.Product]struct{}
 	clients     *clients
 }
 
@@ -109,8 +109,8 @@ func NewService() (*Service, error) {
 		firstUpdate:     true,
 		refreshInterval: refreshInterval,
 		remoteConfigKey: remoteConfigKey,
-		products:        make(map[pbgo.Product]struct{}),
-		newProducts:     make(map[pbgo.Product]struct{}),
+		products:        make(map[rdata.Product]struct{}),
+		newProducts:     make(map[rdata.Product]struct{}),
 		hostname:        hostname,
 		clock:           clock,
 		db:              db,
@@ -165,7 +165,7 @@ func (s *Service) refresh() error {
 	for product := range s.newProducts {
 		s.products[product] = struct{}{}
 	}
-	s.newProducts = make(map[pbgo.Product]struct{})
+	s.newProducts = make(map[rdata.Product]struct{})
 	return nil
 }
 
@@ -176,8 +176,8 @@ func (s *Service) forceRefresh() bool {
 func (s *Service) refreshProducts(activeClients []*pbgo.Client) {
 	for _, client := range activeClients {
 		for _, product := range client.Products {
-			if _, hasProduct := s.products[product]; !hasProduct {
-				s.newProducts[product] = struct{}{}
+			if _, hasProduct := s.products[rdata.Product(product)]; !hasProduct {
+				s.newProducts[rdata.Product(product)] = struct{}{}
 			}
 		}
 	}
@@ -200,7 +200,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
-	targetFiles, err := s.getTargetFiles(request.Client.Products)
+	targetFiles, err := s.getTargetFiles(rdata.StringListToProduct(request.Client.Products))
 	if err != nil {
 		return nil, err
 	}
@@ -229,8 +229,8 @@ func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) 
 	return roots, nil
 }
 
-func (s *Service) getTargetFiles(products []pbgo.Product) ([]*pbgo.File, error) {
-	productSet := make(map[pbgo.Product]struct{})
+func (s *Service) getTargetFiles(products []rdata.Product) ([]*pbgo.File, error) {
+	productSet := make(map[rdata.Product]struct{})
 	for _, product := range products {
 		productSet[product] = struct{}{}
 	}
@@ -240,7 +240,7 @@ func (s *Service) getTargetFiles(products []pbgo.Product) ([]*pbgo.File, error) 
 	}
 	var configFiles []*pbgo.File
 	for targetPath := range targets {
-		configFileMeta, err := rutil.ParseFilePathMeta(targetPath)
+		configFileMeta, err := rdata.ParseFilePathMeta(targetPath)
 		if err != nil {
 			return nil, err
 		}

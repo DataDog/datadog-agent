@@ -1,11 +1,10 @@
-package util
+package data
 
 import (
 	"fmt"
 	"regexp"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/pkg/errors"
 )
 
@@ -29,7 +28,7 @@ const (
 type PathMeta struct {
 	Type     Type
 	OrgID    int64
-	Product  pbgo.Product
+	Product  Product
 	ConfigID string
 	Name     string
 }
@@ -52,14 +51,13 @@ func ParseFilePathMeta(path string) (PathMeta, error) {
 		return PathMeta{}, errors.Wrapf(err, "could not parse orgID '%s' in config file path", rawOrgID)
 	}
 	rawProduct := matchedGroups[3]
-	product, productExists := pbgo.Product_value[rawProduct]
-	if !productExists {
-		return PathMeta{}, fmt.Errorf("product %s is unknown", rawProduct)
+	if len(rawProduct) == 0 {
+		return PathMeta{}, fmt.Errorf("product is empty")
 	}
 	return PathMeta{
 		Type:     configType,
 		OrgID:    orgID,
-		Product:  pbgo.Product(product),
+		Product:  Product(rawProduct),
 		ConfigID: matchedGroups[4],
 		Name:     matchedGroups[5],
 	}, nil
