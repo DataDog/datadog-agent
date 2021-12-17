@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// allProcessSettings is a slice that contains details for testing regarding process agent config settings
+// When adding to this list please try to conform to the same ordering that is in `process.go`
+
 var allProcessSettings = []struct {
 	key          string
 	defaultValue interface{}
@@ -40,7 +43,6 @@ var allProcessSettings = []struct {
 }
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
-// When adding to this list please try to conform to the same ordering that is in `process.go`
 func TestProcessConfig(t *testing.T) {
 	cfg := setupConf()
 
