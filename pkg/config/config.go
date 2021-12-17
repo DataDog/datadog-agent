@@ -223,7 +223,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("log_file_max_rolls", 1)
 	config.BindEnvAndSetDefault("log_level", "info", "LOG_LEVEL")
 	config.BindEnvAndSetDefault("log_to_syslog", false)
-	config.BindEnvAndSetDefault("log_to_console", true, "DD_LOG_TO_CONSOLE", "DD_LOGS_STDOUT", "LOG_TO_CONSOLE")
+	config.BindEnvAndSetDefault("log_to_console", true)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
 	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
 	config.BindEnvAndSetDefault("logging_frequency", int64(500))
