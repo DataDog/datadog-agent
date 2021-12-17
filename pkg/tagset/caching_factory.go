@@ -105,10 +105,7 @@ func (f *cachingFactory) NewTagsFromMap(src map[string]struct{}) *Tags {
 	for tag := range src {
 		tags = append(tags, tag)
 	}
-	hashes, hash := calcHashes(tags)
-	return f.getCachedTags(byTagsetHashCache, hash, func() *Tags {
-		return &Tags{tags, hashes, hash}
-	})
+	return f.NewUniqueTags(tags...)
 }
 
 // NewTag implements Factory.NewTag

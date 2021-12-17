@@ -74,9 +74,7 @@ func (bldr *Builder) Add(tag string) {
 
 // AddTags adds the contents of another Tags instance to this builder.
 func (bldr *Builder) AddTags(tags *Tags) {
-	tags.ForEach(func(t string) {
-		bldr.Add(t)
-	})
+	tags.ForEach(bldr.Add)
 }
 
 // AddKV adds the tag "k:v" to the builder
