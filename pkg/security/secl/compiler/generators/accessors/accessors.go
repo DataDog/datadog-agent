@@ -464,6 +464,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "{{$Name}}":
 		return &{{$EvaluatorType}}{
 			{{- if $Field.Iterator}}
+				{{- $ArrayPrefix := ""}}
+				{{- if $Field.IsArray}}
+					{{$ArrayPrefix = "[]"}}
+				{{end}}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
 					{{- if not $Mock }}
 					if ptr := ctx.Cache[field]; ptr != nil {
@@ -479,7 +483,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value := iterator.Front(ctx)
 					for value != nil {
-						var result {{$Field.ReturnType}}
+						var result {{$ArrayPrefix}}{{$Field.ReturnType}}
 
 						{{if $Field.Iterator.IsOrigTypePtr}}
 							element := (*{{$Field.Iterator.OrigType}})(value)
@@ -502,7 +506,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 							result = {{$Return}}
 						{{end}}
 
+						{{if eq $ArrayPrefix ""}}
 						results = append(results, result)
+						{{else}}
+						results = append(results, result...)
+						{{end}}
 
 						value = iterator.Next()
 					}
@@ -545,10 +553,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			{{end -}}
 			Field: field,
 			{{- if $Field.Iterator}}
+				{{- if gt $Field.Weight 0}}
+				Weight: {{$Field.Weight}} * eval.IteratorWeight,
+				{{else}}
 				Weight: eval.IteratorWeight,
+				{{end}}
 			{{else if $Field.Handler}}
 				{{- if gt $Field.Weight 0}}
-					Weight: {{$Field.Weight}},
+					Weight: {{$Field.Weight}} * eval.HandlerWeight,
 				{{else}}
 					Weight: eval.HandlerWeight,
 				{{end -}}
@@ -576,6 +588,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{range $Name, $Field := .Fields}}
 		case "{{$Name}}":
 		{{if $Field.Iterator}}
+			{{- $ArrayPrefix := ""}}
+			{{- if $Field.IsArray}}
+				{{$ArrayPrefix = "[]"}}
+			{{end}}
+
 			var values []{{$Field.ReturnType}}
 
 			ctx := eval.NewContext(unsafe.Pointer(e))
@@ -605,7 +622,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 					result := {{$Return}}
 				{{end}}
 
+				{{if eq $ArrayPrefix ""}}
 				values = append(values, result)
+				{{else}}
+				values = append(values, result...)
+				{{end}}
 
 				ptr = iterator.Next()
 			}
