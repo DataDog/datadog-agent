@@ -200,7 +200,7 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	}
 	s.remoteRates = newTestRemoteRates()
 	generatedConfigVersion := uint64(120)
-	s.remoteRates.loadNewConfig(configGenerator(generatedConfigVersion, testCasesRates))
+	s.remoteRates.onUpdate(configGenerator(generatedConfigVersion, testCasesRates))
 
 	for _, tc := range testCases {
 		t.Logf("testing targetTPS=%0.1f generatedTPS=%0.1f localRate=%v clientDrop=%v", tc.targetTPS, tc.generatedTPS, tc.localRate, tc.clientDrop)

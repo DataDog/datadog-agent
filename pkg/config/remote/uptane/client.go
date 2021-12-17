@@ -8,9 +8,9 @@ package uptane
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/config/remote/util"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/pkg/errors"
 	"github.com/theupdateframework/go-tuf/client"
@@ -20,16 +20,17 @@ import (
 
 // State represents the state of an uptane client
 type State struct {
-	ConfigRootVersion     uint64
-	ConfigSnapshotVersion uint64
-	DirectorRootVersion   uint64
+	ConfigRootVersion      uint64
+	ConfigSnapshotVersion  uint64
+	DirectorRootVersion    uint64
+	DirectorTargetsVersion uint64
 }
 
 // Client is an uptane client
 type Client struct {
 	sync.Mutex
 
-	orgIDTargetPrefix string
+	orgID int64
 
 	configLocalStore  *localStore
 	configRemoteStore *remoteStoreConfig
@@ -57,7 +58,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 		return nil, err
 	}
 	c := &Client{
-		orgIDTargetPrefix:   fmt.Sprintf("%d/", orgID),
+		orgID:               orgID,
 		configLocalStore:    localStoreConfig,
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
 		directorLocalStore:  localStoreDirector,
@@ -100,41 +101,45 @@ func (c *Client) State() (State, error) {
 	if err != nil {
 		return State{}, err
 	}
+	directorTargetsVersion, err := c.directorLocalStore.GetMetaVersion(metaTargets)
+	if err != nil {
+		return State{}, err
+	}
 	return State{
-		ConfigRootVersion:     configRootVersion,
-		ConfigSnapshotVersion: configSnapshotVersion,
-		DirectorRootVersion:   directorRootVersion,
+		ConfigRootVersion:      configRootVersion,
+		ConfigSnapshotVersion:  configSnapshotVersion,
+		DirectorRootVersion:    directorRootVersion,
+		DirectorTargetsVersion: directorTargetsVersion,
 	}, nil
+}
+
+// DirectorRoot returns a director root
+func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	err := c.verify()
+	if err != nil {
+		return nil, err
+	}
+	root, found, err := c.directorLocalStore.GetRoot(version)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("director root version %d was not found in local store", version)
+	}
+	return root, nil
 }
 
 // Targets returns the current targets of this uptane client
 func (c *Client) Targets() (data.TargetFiles, error) {
 	c.Lock()
 	defer c.Unlock()
-	return c.directorTUFClient.Targets()
-}
-
-// TargetsMeta returns the current raw targets.json meta of this uptane client
-func (c *Client) TargetsMeta() ([]byte, error) {
-	c.Lock()
-	defer c.Unlock()
-	metas, err := c.directorLocalStore.GetMeta()
+	err := c.verify()
 	if err != nil {
 		return nil, err
 	}
-	targets, found := metas[metaTargets]
-	if !found {
-		return nil, fmt.Errorf("empty targets meta in director local store")
-	}
-	return targets, nil
-}
-
-type bufferDestination struct {
-	bytes.Buffer
-}
-
-func (b *bufferDestination) Delete() error {
-	return nil
+	return c.directorTUFClient.Targets()
 }
 
 // TargetFile returns the content of a target if the repository is in a verified state
@@ -151,6 +156,25 @@ func (c *Client) TargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// TargetsMeta returns the current raw targets.json meta of this uptane client
+func (c *Client) TargetsMeta() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	err := c.verify()
+	if err != nil {
+		return nil, err
+	}
+	metas, err := c.directorLocalStore.GetMeta()
+	if err != nil {
+		return nil, err
+	}
+	targets, found := metas[metaTargets]
+	if !found {
+		return nil, fmt.Errorf("empty targets meta in director local store")
+	}
+	return targets, nil
 }
 
 func (c *Client) updateRepos(response *pbgo.LatestConfigsResponse) error {
@@ -197,7 +221,11 @@ func (c *Client) verifyOrgID() error {
 		return err
 	}
 	for targetPath := range directorTargets {
-		if !strings.HasPrefix(targetPath, c.orgIDTargetPrefix) {
+		configFileMeta, err := util.ParseFilePathMeta(targetPath)
+		if err != nil {
+			return err
+		}
+		if configFileMeta.OrgID != c.orgID {
 			return fmt.Errorf("director target '%s' does not have the correct orgID", targetPath)
 		}
 	}

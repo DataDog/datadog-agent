@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.etcd.io/bbolt"
 )
 
@@ -47,4 +50,30 @@ func parseRemoteConfigKey(rawKey string) (remoteConfigKey, error) {
 		appKey:     split[2],
 		datacenter: split[0],
 	}, nil
+}
+
+func buildLatestConfigsRequest(hostname string, state uptane.State, activeClients []*pbgo.Client, products map[pbgo.Product]struct{}, newProducts map[pbgo.Product]struct{}) *pbgo.LatestConfigsRequest {
+	productsList := make([]pbgo.Product, len(products))
+	i := 0
+	for k := range products {
+		productsList[i] = k
+		i++
+	}
+	newProductsList := make([]pbgo.Product, len(newProducts))
+	i = 0
+	for k := range newProducts {
+		newProductsList[i] = k
+		i++
+	}
+
+	return &pbgo.LatestConfigsRequest{
+		Hostname:                     hostname,
+		AgentVersion:                 version.AgentVersion,
+		Products:                     productsList,
+		NewProducts:                  newProductsList,
+		CurrentConfigSnapshotVersion: state.ConfigSnapshotVersion,
+		CurrentConfigRootVersion:     state.ConfigRootVersion,
+		CurrentDirectorRootVersion:   state.DirectorRootVersion,
+		ActiveClients:                activeClients,
+	}
 }

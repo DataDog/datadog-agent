@@ -9,13 +9,16 @@ import (
 	"context"
 	"fmt"
 	"path"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+	"github.com/theupdateframework/go-tuf/data"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
+	rutil "github.com/DataDog/datadog-agent/pkg/config/remote/util"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,8 +27,7 @@ import (
 
 const (
 	minimalRefreshInterval = time.Second * 5
-	defaultTracerCacheSize = 1000
-	defaultTracerCacheTTL  = 10 * time.Second
+	defaultClientsTTL      = 10 * time.Second
 )
 
 // Service defines the remote config management service responsible for fetching, storing
@@ -37,16 +39,26 @@ type Service struct {
 	refreshInterval time.Duration
 	remoteConfigKey remoteConfigKey
 
-	ctx    context.Context
-	db     *bbolt.DB
-	uptane *uptane.Client
-	client *client.HTTPClient
+	ctx      context.Context
+	clock    clock.Clock
+	hostname string
+	db       *bbolt.DB
+	uptane   uptaneClient
+	api      api.API
 
 	products    map[pbgo.Product]struct{}
 	newProducts map[pbgo.Product]struct{}
+	clients     *clients
+}
 
-	subscribers []*Subscriber
-	TracerInfos *TracerCache
+// uptaneClient is used to mock the uptane component for testing
+type uptaneClient interface {
+	Update(response *pbgo.LatestConfigsResponse) error
+	State() (uptane.State, error)
+	DirectorRoot(version uint64) ([]byte, error)
+	Targets() (data.TargetFiles, error)
+	TargetFile(path string) ([]byte, error)
+	TargetsMeta() ([]byte, error)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -73,7 +85,7 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 	backendURL := config.Datadog.GetString("remote_configuration.endpoint")
-	client := client.NewHTTPClient(backendURL, apiKey, remoteConfigKey.appKey, hostname)
+	http := api.NewHTTPClient(backendURL, apiKey, remoteConfigKey.appKey)
 
 	dbPath := path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 	db, err := openCacheDB(dbPath)
@@ -86,21 +98,12 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 
-	tracerCacheSize := config.Datadog.GetInt("remote_configuration.tracer_cache.size")
-	if tracerCacheSize <= 0 {
-		tracerCacheSize = defaultTracerCacheSize
+	clientsTTL := time.Second * config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
+	if clientsTTL <= 5*time.Second || clientsTTL >= 60*time.Second {
+		log.Warnf("Configured clients ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", 5, 10, clientsTTL, defaultClientsTTL)
+		clientsTTL = defaultClientsTTL
 	}
-
-	tracerCacheTTL := time.Second * config.Datadog.GetDuration("remote_configuration.tracer_cache.ttl_seconds")
-	if tracerCacheTTL <= 0 {
-		tracerCacheTTL = defaultTracerCacheTTL
-	}
-
-	if tracerCacheTTL <= 5*time.Second || tracerCacheTTL >= 60*time.Second {
-		log.Warnf("Configured tracer cache ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", 5, 10, tracerCacheTTL, defaultTracerCacheTTL)
-		tracerCacheTTL = defaultTracerCacheTTL
-	}
-
+	clock := clock.New()
 	return &Service{
 		ctx:             context.Background(),
 		firstUpdate:     true,
@@ -108,10 +111,12 @@ func NewService() (*Service, error) {
 		remoteConfigKey: remoteConfigKey,
 		products:        make(map[pbgo.Product]struct{}),
 		newProducts:     make(map[pbgo.Product]struct{}),
+		hostname:        hostname,
+		clock:           clock,
 		db:              db,
-		client:          client,
+		api:             http,
 		uptane:          uptaneClient,
-		TracerInfos:     NewTracerCache(tracerCacheSize, tracerCacheTTL, time.Second),
+		clients:         newClients(clock, clientsTTL),
 	}, nil
 }
 
@@ -123,7 +128,7 @@ func (s *Service) Start(ctx context.Context) error {
 
 		for {
 			select {
-			case <-time.After(s.refreshInterval):
+			case <-s.clock.After(s.refreshInterval):
 				err := s.refresh()
 				if err != nil {
 					log.Errorf("could not refresh remote-config: %v", err)
@@ -139,14 +144,16 @@ func (s *Service) Start(ctx context.Context) error {
 func (s *Service) refresh() error {
 	s.Lock()
 	defer s.Unlock()
+	activeClients := s.clients.activeClients()
+	s.refreshProducts(activeClients)
 	previousState, err := s.uptane.State()
 	if err != nil {
-		return err
+		log.Warnf("could not get previous state: %v", err)
 	}
-	if s.forceRefresh() {
+	if s.forceRefresh() || err != nil {
 		previousState = uptane.State{}
 	}
-	response, err := s.client.Fetch(s.ctx, previousState, s.TracerInfos.Tracers(), s.products, s.newProducts)
+	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts))
 	if err != nil {
 		return err
 	}
@@ -159,12 +166,6 @@ func (s *Service) refresh() error {
 		s.products[product] = struct{}{}
 	}
 	s.newProducts = make(map[pbgo.Product]struct{})
-	for _, subscriber := range s.subscribers {
-		err := s.refreshSubscriber(subscriber)
-		if err != nil {
-			log.Errorf("could not notify a remote-config subscriber: %v", err)
-		}
-	}
 	return nil
 }
 
@@ -172,94 +173,86 @@ func (s *Service) forceRefresh() bool {
 	return s.firstUpdate
 }
 
-// TODO(RCM-34): rework the subscribers API
-
-func getTargetProduct(path string) (pbgo.Product, error) {
-	splits := strings.SplitN(path, "/", 3)
-	if len(splits) < 3 {
-		return pbgo.Product(0), fmt.Errorf("failed to determine product for target file %s", path)
+func (s *Service) refreshProducts(activeClients []*pbgo.Client) {
+	for _, client := range activeClients {
+		for _, product := range client.Products {
+			if _, hasProduct := s.products[product]; !hasProduct {
+				s.newProducts[product] = struct{}{}
+			}
+		}
 	}
-	product, found := pbgo.Product_value[splits[1]]
-	if !found {
-		return pbgo.Product(0), fmt.Errorf("failed to determine product for target file %s", path)
-	}
-	return pbgo.Product(product), nil
 }
 
-func (s *Service) refreshSubscriber(subscriber *Subscriber) error {
-	configResponse, err := s.GetConfigs(subscriber.product)
-	if err != nil {
-		return err
-	}
-	if err := subscriber.callback(configResponse); err != nil {
-		return err
-	}
-
-	subscriber.lastUpdate = time.Now()
-
-	return nil
-}
-
-// GetConfigs returns the current config files
-func (s *Service) GetConfigs(product pbgo.Product) (*pbgo.ConfigResponse, error) {
-	currentTargets, err := s.uptane.Targets()
+func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+	s.Lock()
+	defer s.Unlock()
+	s.clients.seen(request.Client)
+	state, err := s.uptane.State()
 	if err != nil {
 		return nil, err
 	}
-	var targetFiles []*pbgo.File
-	for targetPath := range currentTargets {
-		p, err := getTargetProduct(targetPath)
-		if err != nil {
-			return nil, err
-		}
-		if product == p {
-			targetContent, err := s.uptane.TargetFile(targetPath)
-			if err != nil {
-				return nil, err
-			}
-			targetFiles = append(targetFiles, &pbgo.File{
-				Path: targetPath,
-				Raw:  targetContent,
-			})
-		}
+	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion)
+	if err != nil {
+		return nil, err
 	}
-	return &pbgo.ConfigResponse{
+	targetsRaw, err := s.uptane.TargetsMeta()
+	if err != nil {
+		return nil, err
+	}
+	targetFiles, err := s.getTargetFiles(request.Client.Products)
+	if err != nil {
+		return nil, err
+	}
+	return &pbgo.ClientGetConfigsResponse{
+		Roots: roots,
+		Targets: &pbgo.TopMeta{
+			Version: state.DirectorTargetsVersion,
+			Raw:     targetsRaw,
+		},
 		TargetFiles: targetFiles,
 	}, nil
 }
 
-// RegisterSubscriber registers a subscriber
-func (s *Service) RegisterSubscriber(subscriber *Subscriber) {
-	s.Lock()
-	defer s.Unlock()
-	s.subscribers = append(s.subscribers, subscriber)
-	if _, ok := s.products[subscriber.product]; ok {
-		return
+func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([]*pbgo.TopMeta, error) {
+	var roots []*pbgo.TopMeta
+	for i := currentVersion + 1; i <= newVersion; i++ {
+		root, err := s.uptane.DirectorRoot(i)
+		if err != nil {
+			return nil, err
+		}
+		roots = append(roots, &pbgo.TopMeta{
+			Raw:     root,
+			Version: i,
+		})
 	}
-	s.newProducts[subscriber.product] = struct{}{}
+	return roots, nil
 }
 
-// UnregisterSubscriber unregisters a subscriber
-func (s *Service) UnregisterSubscriber(subscriber *Subscriber) {
-	s.Lock()
-	defer s.Unlock()
-	var subscribers []*Subscriber
-	for _, sub := range s.subscribers {
-		if sub != subscriber {
-			subscribers = append(subscribers, sub)
+func (s *Service) getTargetFiles(products []pbgo.Product) ([]*pbgo.File, error) {
+	productSet := make(map[pbgo.Product]struct{})
+	for _, product := range products {
+		productSet[product] = struct{}{}
+	}
+	targets, err := s.uptane.Targets()
+	if err != nil {
+		return nil, err
+	}
+	var configFiles []*pbgo.File
+	for targetPath := range targets {
+		configFileMeta, err := rutil.ParseFilePathMeta(targetPath)
+		if err != nil {
+			return nil, err
+		}
+		if _, inClientProducts := productSet[configFileMeta.Product]; inClientProducts {
+			fileContents, err := s.uptane.TargetFile(targetPath)
+			if err != nil {
+				return nil, err
+			}
+			configFiles = append(configFiles, &pbgo.File{
+				Path: targetPath,
+				Raw:  fileContents,
+			})
 		}
 	}
-	s.subscribers = subscribers
-}
-
-// HasSubscriber returns true if the product already registered a subscriber
-func (s *Service) HasSubscriber(product pbgo.Product) bool {
-	s.Lock()
-	defer s.Unlock()
-	for _, s := range s.subscribers {
-		if s.product == product {
-			return true
-		}
-	}
-	return false
+	return configFiles, nil
 }
