@@ -168,64 +168,6 @@ func TestInfoHandler(t *testing.T) {
 	}
 }`,
 		},
-		{
-			name:                 "debug",
-			enableConfigEndpoint: true,
-			expected: `{
-	"version": "0.99.0",
-	"git_commit": "fab047e10",
-	"build_date": "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792",
-	"endpoints": [
-		"/v0.3/traces",
-		"/v0.3/services",
-		"/v0.4/traces",
-		"/v0.4/services",
-		"/v0.5/traces",
-		"/v0.6/traces",
-		"/profiling/v1/input",
-		"/telemetry/proxy/",
-		"/v0.6/stats",
-		"/appsec/proxy/",
-		"/debugger/v1/input",
-		"/v0.6/config"
-	],
-	"feature_flags": [
-		"config_endpoint"
-	],
-	"client_drop_p0s": true,
-	"config": {
-		"default_env": "prod",
-		"target_tps": 11,
-		"max_eps": 12,
-		"receiver_port": 8111,
-		"receiver_socket": "/sock/path",
-		"connection_limit": 12,
-		"receiver_timeout": 100,
-		"max_request_bytes": 123,
-		"statsd_port": 123,
-		"max_memory": 1000000,
-		"max_cpu": 12345,
-		"analyzed_spans_by_service": {
-			"X": {
-				"Y": 2.4
-			}
-		},
-		"obfuscation": {
-			"elastic_search": true,
-			"mongo": true,
-			"sql_exec_plan": true,
-			"sql_exec_plan_normalize": true,
-			"http": {
-				"remove_query_string": true,
-				"remove_path_digits": true
-			},
-			"remove_stack_traces": false,
-			"redis": true,
-			"memcached": false
-		}
-	}
-}`,
-		},
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
