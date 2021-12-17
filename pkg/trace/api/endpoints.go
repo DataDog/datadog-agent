@@ -101,6 +101,10 @@ var endpoints = []endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
 	},
 	{
+		Pattern: "/v0.1/pipeline_stats",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.pipelineStatsProxyHandler() },
+	},
+	{
 		Pattern: "/appsec/proxy/",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.StripPrefix("/appsec/proxy", r.appsecHandler) },
 	},
