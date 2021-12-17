@@ -80,14 +80,6 @@ func (f *threadsafeFactory) Union(a, b *Tags) *Tags {
 	return tags
 }
 
-// UnsafeDisjointUnion implements Factory.DisjoingUnion
-func (f *threadsafeFactory) UnsafeDisjointUnion(a, b *Tags) *Tags {
-	f.Lock()
-	tags := f.Factory.UnsafeDisjointUnion(a, b)
-	f.Unlock()
-	return tags
-}
-
 // getCachedTags implements Factory.getCachedTags
 func (f *threadsafeFactory) getCachedTags(cacheID cacheID, key uint64, miss func() *Tags) *Tags {
 	f.Lock()

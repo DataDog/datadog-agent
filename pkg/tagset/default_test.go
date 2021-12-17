@@ -43,11 +43,3 @@ func TestUnion(t *testing.T) {
 	)
 	tags.validate(t)
 }
-
-func TestDisjointUnion(t *testing.T) {
-	tags := UnsafeDisjointUnion(
-		NewTags([]string{"a", "b", "c"}),
-		NewTags([]string{"d", "e"}),
-	)
-	tags.validate(t)
-}

@@ -95,21 +95,6 @@ func (f *nullFactory) Union(a, b *Tags) *Tags {
 	return f.NewTagsFromMap(tags)
 }
 
-// UnsafeDisjointUnion implements Factory.DisjoingUnion
-func (f *nullFactory) UnsafeDisjointUnion(a, b *Tags) *Tags {
-	tags := make([]string, len(a.tags)+len(b.tags))
-	copy(tags[:len(a.tags)], a.tags)
-	copy(tags[len(a.tags):], b.tags)
-
-	hashes := make([]uint64, len(a.hashes)+len(b.hashes))
-	copy(hashes[:len(a.hashes)], a.hashes)
-	copy(hashes[len(a.hashes):], b.hashes)
-
-	hash := a.hash ^ b.hash
-
-	return &Tags{tags, hashes, hash}
-}
-
 // getCachedTags implements Factory.getCachedTags
 func (f *nullFactory) getCachedTags(cacheID cacheID, key uint64, miss func() *Tags) *Tags {
 	return miss()

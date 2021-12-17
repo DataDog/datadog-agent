@@ -153,22 +153,6 @@ func (f *cachingFactory) Union(a, b *Tags) *Tags {
 	})
 }
 
-// UnsafeDisjointUnion implements Factory.UnsafeDisjointUnion
-func (f *cachingFactory) UnsafeDisjointUnion(a, b *Tags) *Tags {
-	hash := a.hash ^ b.hash
-	return f.getCachedTags(byTagsetHashCache, hash, func() *Tags {
-
-		tags := make([]string, len(a.tags)+len(b.tags))
-		copy(tags[:len(a.tags)], a.tags)
-		copy(tags[len(a.tags):], b.tags)
-
-		hashes := make([]uint64, len(a.hashes)+len(b.hashes))
-		copy(hashes[:len(a.hashes)], a.hashes)
-		copy(hashes[len(a.hashes):], b.hashes)
-		return &Tags{tags, hashes, hash}
-	})
-}
-
 // getCachedTags implements Factory.getCachedTags
 func (f *cachingFactory) getCachedTags(cacheID cacheID, key uint64, miss func() *Tags) *Tags {
 	return f.caches[cacheID].getCachedTags(key, miss)

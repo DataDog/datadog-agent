@@ -61,15 +61,6 @@ type Factory interface {
 	// disjoint. That is, there may exist tags that are in both tagsets.
 	Union(a, b *Tags) *Tags
 
-	// UnsafeDisjointUnion combines two disjoint *Tags instances.  The caller MUST
-	// ensure that the tagsets do not overlap. That is, there is no tag that
-	// is in both sets.  Failure to do so will result in undefined behavior.
-	//
-	// This function is only useful in rare circumstances, and its use should
-	// be accompanied by a comment explaining why the usage is safe.  In
-	// general, prefer to use Union.
-	UnsafeDisjointUnion(a, b *Tags) *Tags
-
 	// getCachedTags returns a Tags instance with the given cache key
 	// in the given cache. If the cache element does not exist, then the
 	// miss function is called to generate it.

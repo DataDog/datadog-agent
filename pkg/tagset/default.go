@@ -49,8 +49,3 @@ func ParseDSD(data []byte) (*Tags, error) {
 func Union(a, b *Tags) *Tags {
 	return DefaultFactory.Union(a, b)
 }
-
-// UnsafeDisjointUnion calls DefaultFactory.UnsafeDisjointUnion
-func UnsafeDisjointUnion(a, b *Tags) *Tags {
-	return DefaultFactory.UnsafeDisjointUnion(a, b)
-}

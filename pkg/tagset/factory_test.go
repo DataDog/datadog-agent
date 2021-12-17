@@ -89,16 +89,6 @@ func testFactory(t *testing.T, factoryFactory func() Factory) {
 
 		require.Equal(t, []string{"tag1", "tag2", "tag5", "tag6"}, tags.Sorted())
 	})
-
-	t.Run("UnsafeDisjointUnion", func(t *testing.T) {
-		f := factoryFactory()
-		tags1 := f.NewTags([]string{"tag1", "tag2"})
-		tags2 := f.NewTags([]string{"tag5", "tag6"})
-		tags := f.UnsafeDisjointUnion(tags1, tags2)
-		tags.validate(t)
-
-		require.Equal(t, []string{"tag1", "tag2", "tag5", "tag6"}, tags.Sorted())
-	})
 }
 
 func testFactoryCaching(t *testing.T, factoryFactory func() Factory) {
@@ -214,19 +204,6 @@ func testFactoryCaching(t *testing.T, factoryFactory func() Factory) {
 
 			require.Equal(t, []string{"tag1", "tag2", "tag3", "tag4"}, tags1234.Sorted())
 			require.Equal(t, []string{"tag1", "tag2", "tag3", "tag4", "xx"}, tags1234x.Sorted())
-		})
-
-		t.Run("UnsafeDisjointUnion", func(t *testing.T) {
-			f := factoryFactory()
-			tags12 := f.NewTags([]string{"tag1", "tag2"})
-			tags34 := f.NewTags([]string{"tag3", "tag4"})
-			allTagsA := f.UnsafeDisjointUnion(tags12, tags34)
-			allTagsA.validate(t)
-			allTagsB := f.UnsafeDisjointUnion(tags34, tags12)
-			allTagsB.validate(t)
-
-			// check for pointer equality
-			require.True(t, allTagsA == allTagsB)
 		})
 	})
 }
