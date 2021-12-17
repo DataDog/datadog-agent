@@ -232,7 +232,7 @@ func (c *Client) verifyUptane() error {
 				return fmt.Errorf("directory hash '%s' does not match config repository '%s'", string(directorHash), string(configHash))
 			}
 		}
-		// Check that the file is valid in the context of the TUF repostiory (path in targets, hash matching)
+		// Check that the file is valid in the context of the TUF repository (path in targets, hash matching)
 		err = c.configTUFClient.Download(targetPath, &bufferDestination{})
 		if err != nil {
 			return err
