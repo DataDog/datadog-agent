@@ -35,7 +35,6 @@ type Service struct {
 	firstUpdate bool
 
 	refreshInterval time.Duration
-	remoteConfigKey remoteConfigKey
 
 	ctx    context.Context
 	db     *bbolt.DB
@@ -73,15 +72,15 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 	backendURL := config.Datadog.GetString("remote_configuration.endpoint")
-	client := client.NewHTTPClient(backendURL, apiKey, remoteConfigKey.appKey, hostname)
+	client := client.NewHTTPClient(backendURL, apiKey, remoteConfigKey.AppKey, hostname)
 
 	dbPath := path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 	db, err := openCacheDB(dbPath)
 	if err != nil {
 		return nil, err
 	}
-	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.datacenter, remoteConfigKey.orgID)
-	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.orgID)
+	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgId)
+	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgId)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +104,6 @@ func NewService() (*Service, error) {
 		ctx:             context.Background(),
 		firstUpdate:     true,
 		refreshInterval: refreshInterval,
-		remoteConfigKey: remoteConfigKey,
 		products:        make(map[pbgo.Product]struct{}),
 		newProducts:     make(map[pbgo.Product]struct{}),
 		db:              db,

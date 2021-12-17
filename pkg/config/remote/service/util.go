@@ -6,11 +6,12 @@
 package service
 
 import (
+	"encoding/base32"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/gogo/protobuf/proto"
 	"go.etcd.io/bbolt"
 )
 
@@ -27,24 +28,19 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 	return db, nil
 }
 
-type remoteConfigKey struct {
-	orgID      int64
-	appKey     string
-	datacenter string
-}
-
-func parseRemoteConfigKey(rawKey string) (remoteConfigKey, error) {
-	split := strings.SplitN(rawKey, "/", 3)
-	if len(split) < 3 {
-		return remoteConfigKey{}, fmt.Errorf("invalid remote configuration key format, should be datacenter/org_id/app_key")
-	}
-	orgID, err := strconv.ParseInt(split[1], 10, 64)
+func parseRemoteConfigKey(serializedKey string) (*pbgo.RemoteConfigKey, error) {
+	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
+	rawKey, err := encoding.DecodeString(serializedKey)
 	if err != nil {
-		return remoteConfigKey{}, err
+		return nil, err
 	}
-	return remoteConfigKey{
-		orgID:      orgID,
-		appKey:     split[2],
-		datacenter: split[0],
-	}, nil
+	var key pbgo.RemoteConfigKey
+	err = proto.Unmarshal(rawKey, &key)
+	if err != nil {
+		return nil, err
+	}
+	if key.AppKey == "" || key.Datacenter == "" || key.OrgId == 0 {
+		return nil, fmt.Errorf("invalid remote config key")
+	}
+	return &key, nil
 }
