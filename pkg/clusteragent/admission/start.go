@@ -62,7 +62,7 @@ func StartControllers(ctx ControllerContext) error {
 		return err
 	}
 
-	v1Enabled, err := useAdmissionV1(ctx.DiscoveryClient)
+	v1Enabled, err := useAdmissionV1(ctx)
 	if err != nil {
 		return err
 	}

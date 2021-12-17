@@ -5,6 +5,8 @@ import sys
 
 from invoke import task
 
+from .flavor import AgentFlavor
+
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
@@ -63,6 +65,11 @@ AGENT_TAGS = {
     "zlib",
 }
 
+# AGENT_HEROKU_TAGS lists the tags for Heroku agent build
+AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
+    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "podman", "systemd"}
+)
+
 # ANDROID_TAGS lists the tags needed when building the android agent
 ANDROID_TAGS = {"android", "zlib"}
 
@@ -81,6 +88,11 @@ IOT_AGENT_TAGS = {"jetson", "systemd", "zlib"}
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orchestrator"})
 
+# PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
+PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
+    {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "podman", "systemd"}
+)
+
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
 SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman"}
 
@@ -89,6 +101,17 @@ SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "netcgo", "podman", "secrets"}
+
+# TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
+TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
+    {
+        "containerd",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "podman",
+    }
+)
 
 # TEST_TAGS lists the tags that have to be added to run tests
 TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
@@ -104,33 +127,42 @@ WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}
 # List of tags to always remove when building on Windows 32-bits
 WINDOWS_32BIT_EXCLUDE_TAGS = {"docker", "kubeapiserver", "kubelet", "orchestrator"}
 
-# Build type: build tags map
+# Build type: maps flavor to build tags map
 build_tags = {
-    # Build setups
-    "agent": AGENT_TAGS,
-    "android": ANDROID_TAGS,
-    "cluster-agent": CLUSTER_AGENT_TAGS,
-    "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
-    "dogstatsd": DOGSTATSD_TAGS,
-    "iot": IOT_AGENT_TAGS,
-    "process-agent": PROCESS_AGENT_TAGS,
-    "security-agent": SECURITY_AGENT_TAGS,
-    "system-probe": SYSTEM_PROBE_TAGS,
-    "trace-agent": TRACE_AGENT_TAGS,
-    # Test setups
-    "test": TEST_TAGS,
-    "test-with-process-tags": TEST_TAGS.union(PROCESS_AGENT_TAGS),
+    AgentFlavor.base: {
+        # Build setups
+        "agent": AGENT_TAGS,
+        "android": ANDROID_TAGS,
+        "cluster-agent": CLUSTER_AGENT_TAGS,
+        "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
+        "dogstatsd": DOGSTATSD_TAGS,
+        "process-agent": PROCESS_AGENT_TAGS,
+        "security-agent": SECURITY_AGENT_TAGS,
+        "system-probe": SYSTEM_PROBE_TAGS,
+        "trace-agent": TRACE_AGENT_TAGS,
+        # Test setups
+        "test": TEST_TAGS,
+        "test-with-process-tags": TEST_TAGS.union(PROCESS_AGENT_TAGS),
+    },
+    AgentFlavor.heroku: {
+        "agent": AGENT_HEROKU_TAGS,
+        "process-agent": PROCESS_AGENT_HEROKU_TAGS,
+        "trace-agent": TRACE_AGENT_HEROKU_TAGS,
+    },
+    AgentFlavor.iot: {
+        "agent": IOT_AGENT_TAGS,
+    },
 }
 
 
-def get_default_build_tags(build="agent", arch="x64"):
+def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
     """
     Build the default list of tags based on the build type and current platform.
 
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    include = build_tags.get(build)
+    include = build_tags.get(flavor).get(build)
     if include is None:
         print("Warning: unrecognized build type, no build tags included.")
         include = set()
@@ -193,7 +225,7 @@ def audit_tag_impact(ctx, build_exclude=None, csv=False):
     max_size = _compute_build_size(ctx, build_exclude=','.join(build_exclude))
     print(f"size with all tags is {max_size / 1000} kB")
 
-    iot_agent_size = _compute_build_size(ctx, iot=True)
+    iot_agent_size = _compute_build_size(ctx, flavor=AgentFlavor.iot)
     print(f"iot agent size is {iot_agent_size / 1000} kB\n")
 
     report = {"unaccounted": max_size - iot_agent_size, "iot_agent": iot_agent_size}
@@ -212,12 +244,12 @@ def audit_tag_impact(ctx, build_exclude=None, csv=False):
             print(f"{k};{v}")
 
 
-def _compute_build_size(ctx, build_exclude=None, iot=False):
+def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
     import os
 
     from .agent import build as agent_build
 
-    agent_build(ctx, build_exclude=build_exclude, skip_assets=True, iot=iot)
+    agent_build(ctx, build_exclude=build_exclude, skip_assets=True, flavor=flavor)
 
     statinfo = os.stat('bin/agent/agent')
     return statinfo.st_size

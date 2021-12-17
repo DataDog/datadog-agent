@@ -172,10 +172,10 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Instances: []integration.Data{
 						integration.Data(`{"prometheus_url":"http://%%host%%:1234/mewtrix","namespace":"","metrics":["*"]}`),
 					},
-					ADIdentifiers: []string{"kube_service_uid://test"},
+					ADIdentifiers: []string{"kube_service://ns/svc"},
 					Provider:      "prometheus-services",
 					ClusterCheck:  true,
-					Source:        "prometheus_services:kube_service_uid://test",
+					Source:        "prometheus_services:kube_service://ns/svc",
 				},
 			},
 		},
@@ -234,10 +234,10 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Instances: []integration.Data{
 						integration.Data(`{"prometheus_url":"http://%%host%%:1234/mewtrix","namespace":"","metrics":["*"]}`),
 					},
-					ADIdentifiers: []string{"kube_service_uid://test"},
+					ADIdentifiers: []string{"kube_service://ns/svc"},
 					Provider:      "prometheus-services",
 					ClusterCheck:  true,
-					Source:        "prometheus_services:kube_service_uid://test",
+					Source:        "prometheus_services:kube_service://ns/svc",
 				},
 				{
 					Name:       "openmetrics",

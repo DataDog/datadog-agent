@@ -3,6 +3,7 @@ module datadog-lambda-extension/recorder-extension
 go 1.16
 
 replace (
+	github.com/DataDog/datadog-agent/pkg/obfuscate => github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-20211201172000-1fd9a353e8e4
 	github.com/iovisor/gobpf => github.com/DataDog/gobpf v0.0.0-20210322155958-9866ef4cd22c
 	k8s.io/api => k8s.io/api v0.20.5
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.5
@@ -33,6 +34,6 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload v4.73.0+incompatible
-	github.com/DataDog/datadog-agent v0.0.0-20210616155722-298368b28184
+	github.com/DataDog/agent-payload v4.89.0+incompatible
+	github.com/DataDog/datadog-agent v0.0.0-20211213161047-f82981e22ca1
 )

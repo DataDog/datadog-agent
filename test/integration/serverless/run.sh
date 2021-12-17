@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Usage - run commands from repo root:
 # To check if new changes to the extension cause changes to any snapshots:
 #   BUILD_EXTENSION=true aws-vault exec sandbox-account-admin -- ./run.sh
 # To regenerate snapshots:
 #   UPDATE_SNAPSHOTS=true aws-vault exec sandbox-account-admin -- ./run.sh
 
-LOGS_WAIT_SECONDS=600
+LOGS_WAIT_MINUTES=10
 
 DEFAULT_NODE_LAYER_VERSION=66
 DEFAULT_PYTHON_LAYER_VERSION=49
+DEFAULT_JAVA_TRACE_LAYER_VERSION=4
 
 set -e
 
@@ -19,14 +19,14 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     echo "No AWS credentials were found in the environment."
     echo "Note that only Datadog employees can run these integration tests."
     echo "Exiting without running tests..."
-    
+
     # If credentials are not available, the run is considered a success
-    # so as not to break CI for external users that don't have access to GitHub secrets 
+    # so as not to break CI for external users that don't have access to GitHub secrets
     exit 0
 fi
 
 # Move into the root directory, so this script can be called from any directory
-SERVERLESS_INTEGRATION_TESTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 cd "$SERVERLESS_INTEGRATION_TESTS_DIR/../../.."
 
 LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
@@ -45,6 +45,7 @@ fi
 cd "./test/integration/serverless"
 
 # build and zip recorder extension
+echo
 echo "Building recorder extension"
 cd recorder-extension
 GOOS=linux GOARCH=amd64 go build -o extensions/recorder-extension main.go
@@ -52,6 +53,7 @@ zip -rq ext.zip extensions/* -x ".*" -x "__MACOSX" -x "extensions/.*"
 cd ..
 
 # build Go Lambda functions
+echo
 echo "Building Go Lambda functions"
 go_test_dirs=("with-ddlambda" "without-ddlambda" "log-with-ddlambda" "log-without-ddlambda" "timeout" "trace")
 cd src
@@ -59,7 +61,16 @@ for go_dir in "${go_test_dirs[@]}"; do
     env GOOS=linux go build -ldflags="-s -w" -o bin/"$go_dir" go-tests/"$go_dir"/main.go
 done
 
+#build Java functions
+echo
+echo "Building Java Lambda Functions"
+java_test_dirs=("with-ddlambda" "trace" "log" "timeout" "error")
+for java_dir in "${java_test_dirs[@]}"; do
+    mvn package -f java-tests/"${java_dir}"/pom.xml
+done
+
 #build .NET functions
+echo
 echo "Building .NET Lambda functions"
 cd csharp-tests
 dotnet restore
@@ -69,6 +80,7 @@ dotnet lambda package --configuration Release --framework netcoreapp3.1 --output
 set -e
 cd ../../
 
+echo
 if [ -z "$NODE_LAYER_VERSION" ]; then
     echo "NODE_LAYER_VERSION not found, using the default"
     export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION
@@ -79,9 +91,14 @@ if [ -z "$PYTHON_LAYER_VERSION" ]; then
     export PYTHON_LAYER_VERSION=$DEFAULT_PYTHON_LAYER_VERSION
 fi
 
+if [ -z "$JAVA_TRACE_LAYER_VERSION" ]; then
+    echo "JAVA_TRACE_LAYER_VERSION not found, using the default"
+    export JAVA_TRACE_LAYER_VERSION=$DEFAULT_JAVA_TRACE_LAYER_VERSION
+fi
+
 echo "NODE_LAYER_VERSION set to: $NODE_LAYER_VERSION"
 echo "PYTHON_LAYER_VERSION set to: $PYTHON_LAYER_VERSION"
-
+echo "JAVA_TRACE_LAYER_VERSION set to: $JAVA_TRACE_LAYER_VERSION"
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
 
@@ -100,12 +117,11 @@ NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
 
 # invoke functions
 
-metric_function_names=("enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "error-python" "error-node")
-log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda")
-trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go")
+metric_function_names=("with-ddlambda-java" "enhanced-metric-node" "enhanced-metric-python" "metric-csharp" "no-enhanced-metric-node" "no-enhanced-metric-python" "with-ddlambda-go" "without-ddlambda-go" "timeout-python" "timeout-node" "timeout-go" "timeout-java" "error-python" "error-node" "error-java")
+log_function_names=("log-node" "log-python" "log-csharp" "log-go-with-ddlambda" "log-go-without-ddlambda" "log-java")
+trace_function_names=("simple-trace-node" "simple-trace-python" "simple-trace-go" "simple-trace-java")
 
 all_functions=("${metric_function_names[@]}" "${log_function_names[@]}" "${trace_function_names[@]}")
-
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
     serverless invoke --stage "${stage}" -f "${function_name}"
@@ -126,11 +142,11 @@ for function_name in "${all_functions[@]}"; do
     fi
 done
 
-now=$(date +"%r")
-echo "Sleeping $LOGS_WAIT_SECONDS seconds to wait for logs to appear in CloudWatch..."
-echo "This should be done in 10 minutes from $now"
+END_OF_WAIT_TIME=$(date --date="+"$LOGS_WAIT_MINUTES" minutes" +"%r")
+echo "Sleeping for $LOGS_WAIT_MINUTES minutes to wait for logs to appear in CloudWatch..."
+echo "This will be done at $END_OF_WAIT_TIME"
 
-sleep $LOGS_WAIT_SECONDS
+sleep "$LOGS_WAIT_MINUTES"m
 
 for function_name in "${all_functions[@]}"; do
     echo "Fetching logs for ${function_name} on ${stage}"
@@ -175,20 +191,21 @@ for function_name in "${all_functions[@]}"; do
         # Normalize logs
         logs=$(
             echo "$raw_logs" |
+                grep -v "\[sketch\]" |
                 grep "\[log\]" |
                 perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
-                perl -p -e "s/(\"HTTP ).*/\1\"}}/g" |
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
-                perl -p -e "s/[ ]$//g" |
-                grep XXX
+                perl -p -e "s/[ ]$//g"
         )
     else
         # Normalize traces
         logs=$(
             echo "$raw_logs" |
+                grep -v "\[log\]" |
                 grep "\[trace\]" |
                 perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
                 perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1XXX/g" |
@@ -208,11 +225,11 @@ for function_name in "${all_functions[@]}"; do
     if [ ! -f "$function_snapshot_path" ]; then
         # If no snapshot file exists yet, we create one
         echo "Writing logs to $function_snapshot_path because no snapshot exists yet"
-        echo "$logs" > "$function_snapshot_path"
+        echo "$logs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         # If $UPDATE_SNAPSHOTS is set to true write the new logs over the current snapshot
         echo "Overwriting log snapshot for $function_snapshot_path"
-        echo "$logs" > "$function_snapshot_path"
+        echo "$logs" >"$function_snapshot_path"
     else
         # Compare new logs to snapshots
         diff_output=$(echo "$logs" | diff - "$function_snapshot_path")

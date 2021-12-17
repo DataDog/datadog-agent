@@ -23,6 +23,11 @@ var allowedEnvvarNames = []string{
 	"DOCKER_HOST",
 	"DOCKER_TLS_VERIFY",
 
+	// HOST vars used in containerized agent
+	"HOST_ETC",
+	"HOST_PROC",
+	"HOST_ROOT",
+
 	// Proxy settings
 	"HTTP_PROXY",
 	"HTTPS_PROXY",

@@ -369,7 +369,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 // setTraceTags returns a boolean which indicate whether or not the operation succeed for testing purpose.
 func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
 	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
-		d.TraceAgent.Get().SetGlobalTagsUnsafe(tags.BuildTracerTags(tagMap))
+		d.TraceAgent.SetTags(tags.BuildTracerTags(tagMap))
 		return true
 	}
 	return false

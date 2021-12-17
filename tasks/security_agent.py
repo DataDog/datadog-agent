@@ -306,6 +306,7 @@ def stress_tests(
     output='pkg/security/tests/stresssuite',
     bundle_ebpf=True,
     testflags='',
+    skip_linters=False,
 ):
     build_stress_tests(
         ctx,
@@ -314,6 +315,7 @@ def stress_tests(
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
+        skip_linters=skip_linters,
     )
 
     run_functional_tests(
