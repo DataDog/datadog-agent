@@ -6,6 +6,7 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -55,6 +56,43 @@ type Endpoint struct {
 	Origin    IntakeOrigin
 }
 
+// GetStatus returns the endpoint status
+func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
+	compression := "uncompressed"
+	if e.UseCompression {
+		compression = "compressed"
+	}
+
+	host := e.Host
+	port := e.Port
+
+	var protocol string
+	if useHTTP {
+		if e.UseSSL {
+			protocol = "HTTPS"
+			if port == 0 {
+				port = 443 // use default port
+			}
+		} else {
+			protocol = "HTTP"
+			// this case technically can't happens. In order to
+			// disable SSL, user have to use a custom URL and
+			// specify the port manually.
+			if port == 0 {
+				port = 80 // use default port
+			}
+		}
+	} else {
+		if e.UseSSL {
+			protocol = "SSL encrypted TCP"
+		} else {
+			protocol = "TCP"
+		}
+	}
+
+	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
+}
+
 // Endpoints holds the main endpoint and additional ones to dualship logs.
 type Endpoints struct {
 	Main                   Endpoint
@@ -65,6 +103,16 @@ type Endpoints struct {
 	BatchMaxConcurrentSend int
 	BatchMaxSize           int
 	BatchMaxContentSize    int
+}
+
+// GetStatus returns the endpoints status, one line per endpoint
+func (e *Endpoints) GetStatus() []string {
+	result := make([]string, 0)
+	result = append(result, e.Main.GetStatus("", e.UseHTTP))
+	for _, additional := range e.Additionals {
+		result = append(result, additional.GetStatus("Additional: ", e.UseHTTP))
+	}
+	return result
 }
 
 // NewEndpoints returns a new endpoints composite with default batching settings

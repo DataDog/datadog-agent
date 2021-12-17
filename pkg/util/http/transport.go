@@ -8,9 +8,11 @@ package http
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +34,9 @@ var (
 
 	// NoProxyMapMutex Lock for all no proxy maps
 	NoProxyMapMutex = sync.Mutex{}
+
+	keyLogWriterInit sync.Once
+	keyLogWriter     io.Writer
 )
 
 func logSafeURLString(url *url.URL) string {
@@ -52,7 +57,22 @@ func warnOnce(warnMap map[string]bool, key string, format string, params ...inte
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
 func CreateHTTPTransport() *http.Transport {
+	// It’s OK to reuse the same file for all the http.Transport objects we create
+	// because all the writes to that file are protected by a global mutex.
+	// See https://github.com/golang/go/blob/go1.17.3/src/crypto/tls/common.go#L1316-L1318
+	keyLogWriterInit.Do(func() {
+		sslKeyLogFile := config.Datadog.GetString("sslkeylogfile")
+		if sslKeyLogFile != "" {
+			var err error
+			keyLogWriter, err = os.OpenFile(sslKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+			if err != nil {
+				log.Warnf("Failed to open %s for writing NSS keys: %v", sslKeyLogFile, err)
+			}
+		}
+	})
+
 	tlsConfig := &tls.Config{
+		KeyLogWriter:       keyLogWriter,
 		InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
 	}
 

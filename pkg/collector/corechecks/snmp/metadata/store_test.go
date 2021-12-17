@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package metadata
 
 import (
@@ -19,6 +24,17 @@ func TestStore_Scalar(t *testing.T) {
 
 	store.AddScalarValue("device.invalid_value_type", valuestore.ResultValue{Value: byte(1)})
 	assert.Equal(t, "", store.GetScalarAsString("device.invalid_value_type"))
+}
+
+func TestStore_ScalarFieldHasValue(t *testing.T) {
+	store := NewMetadataStore()
+	store.AddScalarValue("device.name", valuestore.ResultValue{Value: "someName"})
+	store.AddScalarValue("device.description", valuestore.ResultValue{Value: "someDescription"})
+
+	assert.Equal(t, true, store.ScalarFieldHasValue("device.name"))
+	assert.Equal(t, true, store.ScalarFieldHasValue("device.description"))
+	assert.Equal(t, false, store.ScalarFieldHasValue("device.invalid_value_type"))
+	assert.Equal(t, false, store.ScalarFieldHasValue("invalid.invalid_value_type"))
 }
 
 func TestStore_Column(t *testing.T) {

@@ -5,6 +5,11 @@ Runtime Security
   Not enabled
 {{- else}}
   {{- with .RuntimeSecurityStatus}}
+  {{ if .endpoints }}
+  {{- range $endpoint := .endpoints }}
+  {{ $endpoint }}
+  {{- end }}
+  {{- end }}
   Connected: {{.connected}}
   Events received: {{.eventReceived}}
   {{- end }}

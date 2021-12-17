@@ -11,8 +11,8 @@ relative_path "krb5-#{version}/src"
 reconf_env = { "PATH" => "#{install_dir}/embedded/bin:#{ENV["PATH"]}" }
 
 build do
-
-  ship_license "https://raw.githubusercontent.com/krb5/krb5/master/NOTICE"
+  license "BSD-style"
+  license_file "https://raw.githubusercontent.com/krb5/krb5/master/NOTICE"
 
   cmd = ["./configure",
          "--without-keyutils", # this would require additional deps/system deps, disable it

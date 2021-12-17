@@ -17,6 +17,7 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, generate, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
+from .libs.copyright import CopyrightLinter
 from .libs.junit_upload import junit_upload_from_tgz, produce_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
@@ -479,7 +480,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def e2e_tests(ctx, target="gitlab", agent_image="", dca_image=""):
+def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=""):
     """
     Run e2e tests in several environments.
     """
@@ -497,6 +498,9 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image=""):
             print("define DATADOG_CLUSTER_AGENT_IMAGE envvar or image flag")
             raise Exit(1)
         os.environ["DATADOG_CLUSTER_AGENT_IMAGE"] = dca_image
+    if not os.getenv("ARGO_WORKFLOW"):
+        if argo_workflow:
+            os.environ["ARGO_WORKFLOW"] = argo_workflow
 
     ctx.run(f"./test/e2e/scripts/setup-instance/00-entrypoint-{target}.sh")
 
@@ -543,6 +547,17 @@ def lint_python(ctx):
     ctx.run("black --check --diff .")
     ctx.run("isort --check-only --diff .")
     ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
+
+
+@task
+def lint_copyrights(_, fix=False, dry_run=False, debug=False):
+    """
+    Checks that all Go files contain the appropriate copyright header. If '--fix'
+    is provided as an option, it will try to fix problems as it finds them. If
+    '--dry_run' is provided when fixing, no changes to the files will be applied.
+    """
+
+    CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run)
 
 
 @task

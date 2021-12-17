@@ -56,6 +56,9 @@ type Agent struct {
 	obfuscator     *obfuscate.Obfuscator
 	cardObfuscator *ccObfuscator
 
+	// ModifySpan will be called on all spans, if non-nil.
+	ModifySpan func(*pb.Span)
+
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
 
@@ -249,6 +252,9 @@ func (a *Agent) Process(p *api.Payload) {
 				} else {
 					traceutil.SetMeta(span, k, v)
 				}
+			}
+			if a.ModifySpan != nil {
+				a.ModifySpan(span)
 			}
 			a.obfuscateSpan(span)
 			Truncate(span)

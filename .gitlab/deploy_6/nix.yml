@@ -13,7 +13,7 @@ deploy_staging_deb-6:
   resource_group: deb_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  dependencies: ["agent_deb-x64-a6", "agent_deb-arm64-a6"]
+  dependencies: ["agent_deb-x64-a6", "agent_deb-arm64-a6", "agent_heroku_deb-x64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
