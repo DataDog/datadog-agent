@@ -10,7 +10,7 @@ import (
 
 func TestTagsCacheCaching(t *testing.T) {
 	f := newNullFactory()
-	tc := newTagsCache(100, 1)
+	tc, _ := newTagsCache(100, 1)
 	missCalls := 0
 
 	miss := func() *Tags {
@@ -37,7 +37,7 @@ func TestTagsCacheCaching(t *testing.T) {
 
 func TestTagsCacheCachingErr(t *testing.T) {
 	f := newNullFactory()
-	tc := newTagsCache(100, 1)
+	tc, _ := newTagsCache(100, 1)
 	missCalls := 0
 	missErrs := 0
 
@@ -96,7 +96,7 @@ func TestTagsCacheBasicRotation(t *testing.T) {
 	checkCached := func(insertsPerRotation, cacheCount, numTagsets int, shouldBe bool) func(*testing.T) {
 		return func(t *testing.T) {
 			t.Run("getCachedTags", func(t *testing.T) {
-				tc := newTagsCache(insertsPerRotation, cacheCount)
+				tc, _ := newTagsCache(insertsPerRotation, cacheCount)
 
 				v := tc.getCachedTags(0, func() *Tags { return f.NewTags([]string{"expected"}) })
 				require.Equal(t, "expected", v.String())
@@ -114,7 +114,7 @@ func TestTagsCacheBasicRotation(t *testing.T) {
 			})
 
 			t.Run("getCachedTagsErr", func(t *testing.T) {
-				tc := newTagsCache(insertsPerRotation, cacheCount)
+				tc, _ := newTagsCache(insertsPerRotation, cacheCount)
 
 				v, err := tc.getCachedTagsErr(0, func() (*Tags, error) { return f.NewTags([]string{"expected"}), nil })
 				require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestTagsCacheBasicRotation(t *testing.T) {
 
 func TestTagsCacheRecaching(t *testing.T) {
 	f := newNullFactory()
-	tc := newTagsCache(10, 3)
+	tc, _ := newTagsCache(10, 3)
 
 	v := tc.getCachedTags(0x9999, func() *Tags { return f.NewTags([]string{"expected"}) })
 	require.Equal(t, "expected", v.String())
@@ -168,7 +168,7 @@ func TestTagsCacheMinimal(t *testing.T) {
 
 	// use the smallest allowed cache, in case this causes any infinite
 	// rotation loops or other bugs. Note that this configuration caches nothing!
-	tc := newTagsCache(1, 1)
+	tc, _ := newTagsCache(1, 1)
 
 	v := tc.getCachedTags(0x9999, func() *Tags { return f.NewTags([]string{"expected"}) })
 	require.Equal(t, "expected", v.String())

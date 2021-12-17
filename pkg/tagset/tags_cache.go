@@ -1,5 +1,7 @@
 package tagset
 
+import "errors"
+
 // tagsCache caches Tags instances using purpose-specific cache keys.
 //
 // Note that tagsCache instances are not threadsafe
@@ -16,7 +18,13 @@ type tagsCache struct {
 	maps []map[uint64]*Tags
 }
 
-func newTagsCache(insertsPerRotation, cacheCount int) tagsCache {
+func newTagsCache(insertsPerRotation, cacheCount int) (tagsCache, error) {
+	if cacheCount < 0 {
+		return tagsCache{}, errors.New("cacheCount must be greater than zero")
+	}
+	if insertsPerRotation < 0 {
+		return tagsCache{}, errors.New("insertsPerRotation must be greater than zero")
+	}
 	maps := make([]map[uint64]*Tags, cacheCount)
 	for i := range maps {
 		maps[i] = make(map[uint64]*Tags)
@@ -25,7 +33,7 @@ func newTagsCache(insertsPerRotation, cacheCount int) tagsCache {
 		insertsPerRotation: insertsPerRotation,
 		untilRotate:        insertsPerRotation,
 		maps:               maps,
-	}
+	}, nil
 }
 
 // getCachedTags gets an element from the cache, calling miss() to generate the

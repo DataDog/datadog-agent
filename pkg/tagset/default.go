@@ -10,7 +10,8 @@ var DefaultFactory Factory
 var EmptyTags *Tags
 
 func init() {
-	DefaultFactory = NewThreadsafeFactory(NewCachingFactory(1000, 5))
+	cf, _ := NewCachingFactory(1000, 5)
+	DefaultFactory = NewThreadsafeFactory(cf)
 	EmptyTags = NewTags([]string{})
 }
 

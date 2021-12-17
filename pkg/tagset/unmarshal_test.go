@@ -56,7 +56,7 @@ func ExampleUnmarshalBuilder_UnmarshalJSON_slice() {
 }
 
 func TestUnmarshalBuilder_JSON_factory(t *testing.T) {
-	f := NewCachingFactory(10, 5)
+	f, _ := NewCachingFactory(10, 5)
 	u := UnmarshalBuilder{Factory: f}
 
 	require.NoError(t, json.Unmarshal([]byte(`["abc", "def"]`), &u))
@@ -147,7 +147,7 @@ tagset3:
 }
 
 func TestUnmarshalBuilder_JSON_round_trip(t *testing.T) {
-	f := NewCachingFactory(10, 5)
+	f, _ := NewCachingFactory(10, 5)
 
 	t1 := f.NewTags([]string{"abc", "def"})
 	j, err := json.Marshal(t1)
@@ -162,7 +162,7 @@ func TestUnmarshalBuilder_JSON_round_trip(t *testing.T) {
 }
 
 func TestUnmarshalBuilder_YAML_round_trip(t *testing.T) {
-	f := NewCachingFactory(10, 5)
+	f, _ := NewCachingFactory(10, 5)
 
 	t1 := f.NewTags([]string{"abc", "def"})
 	j, err := yaml.Marshal(t1)
@@ -177,7 +177,7 @@ func TestUnmarshalBuilder_YAML_round_trip(t *testing.T) {
 }
 
 func TestUnmarshalBuilder_YAML_empty(t *testing.T) {
-	f := NewCachingFactory(10, 5)
+	f, _ := NewCachingFactory(10, 5)
 
 	u := UnmarshalBuilder{Factory: f}
 	require.NoError(t, yaml.Unmarshal([]byte("[]"), &u))
@@ -186,7 +186,7 @@ func TestUnmarshalBuilder_YAML_empty(t *testing.T) {
 }
 
 func TestUnmarshalBuilder_YAML_null(t *testing.T) {
-	f := NewCachingFactory(10, 5)
+	f, _ := NewCachingFactory(10, 5)
 
 	u := UnmarshalBuilder{Factory: f}
 	require.NoError(t, yaml.Unmarshal([]byte("null"), &u))

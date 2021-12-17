@@ -41,7 +41,7 @@ var _ Factory = (*cachingFactory)(nil)
 //
 // Caching factories are not threadsafe. Wrap with a ThreadsafeFactory if
 // thread safety is required.
-func NewCachingFactory(cacheSize, cacheWidth int) Factory {
+func NewCachingFactory(cacheSize, cacheWidth int) (Factory, error) {
 	if cacheSize < 1 {
 		panic("cacheSize must be at least 1")
 	}
@@ -55,11 +55,15 @@ func NewCachingFactory(cacheSize, cacheWidth int) Factory {
 
 	var caches [numCacheIDs]tagsCache
 	for i := range caches {
-		caches[i] = newTagsCache(insertsPerRotation, cacheCount)
+		var err error
+		caches[i], err = newTagsCache(insertsPerRotation, cacheCount)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &cachingFactory{
 		caches: caches,
-	}
+	}, nil
 }
 
 // NewTags implements Factory.NewTags

@@ -14,12 +14,18 @@ import (
 )
 
 func TestCachingFactory(t *testing.T) {
-	testFactory(t, func() Factory { return NewCachingFactory(10, 5) })
-	testFactoryCaching(t, func() Factory { return NewCachingFactory(10, 5) })
+	testFactory(t, func() Factory {
+		f, _ := NewCachingFactory(10, 5)
+		return f
+	})
+	testFactoryCaching(t, func() Factory {
+		f, _ := NewCachingFactory(10, 5)
+		return f
+	})
 }
 
 func TestCachingFactory_Union_Fuzz(t *testing.T) {
-	f := NewCachingFactory(100, 1)
+	f, _ := NewCachingFactory(100, 1)
 	fuzz(t, func(seed int64) {
 		r := rand.New(rand.NewSource(seed))
 

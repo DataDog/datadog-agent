@@ -10,6 +10,12 @@ import (
 )
 
 func TestThreadsafeFactory(t *testing.T) {
-	testFactory(t, func() Factory { return NewThreadsafeFactory(NewCachingFactory(10, 5)) })
-	testFactoryCaching(t, func() Factory { return NewThreadsafeFactory(NewCachingFactory(10, 5)) })
+	testFactory(t, func() Factory {
+		cf, _ := NewCachingFactory(10, 5)
+		return NewThreadsafeFactory(cf)
+	})
+	testFactoryCaching(t, func() Factory {
+		cf, _ := NewCachingFactory(10, 5)
+		return NewThreadsafeFactory(cf)
+	})
 }
