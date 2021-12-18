@@ -296,13 +296,14 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	wg.Wait()
 
 	// start the proxy if needed
-	// as this feature is experimental, this should be the only entrypoint (easier to remove)
 	_ = proxy.Start(
 		"127.0.0.1:9000",
 		"127.0.0.1:9001",
 		&invocationlifecycle.ProxyProcessor{
-			ExtraTags:     serverlessDaemon.ExtraTags,
-			MetricChannel: serverlessDaemon.MetricAgent.GetMetricChannel(),
+			ExtraTags:           serverlessDaemon.ExtraTags,
+			MetricChannel:       serverlessDaemon.MetricAgent.GetMetricChannel(),
+			ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
+			DetectLambdaLibrary: func() bool { return serverlessDaemon.LambdaLibraryDetected },
 		})
 
 	// run the invocation loop in a routine
