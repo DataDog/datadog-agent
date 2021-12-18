@@ -16,7 +16,6 @@ import (
 
 const (
 	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
-	serviceEnvVar      = "DD_SERVICE"
 )
 
 // executionStartInfo is saved information from when an execution span was started
@@ -43,7 +42,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time) {
 	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
-		Service:  os.Getenv(serviceEnvVar),
+		Service:  "aws.lambda", // will be replaced by the span processor
 		Name:     "aws.lambda",
 		Resource: os.Getenv(functionNameEnvVar),
 		Type:     "serverless",

@@ -99,9 +99,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 
 func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	defer os.Unsetenv(functionNameEnvVar)
-	defer os.Unsetenv(serviceEnvVar)
 	os.Setenv(functionNameEnvVar, "TestFunction")
-	os.Setenv(serviceEnvVar, "test-service")
 
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
@@ -134,7 +132,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
-	assert.Equal(t, "test-service", executionSpan.Service)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
 	assert.Equal(t, "TestFunction", executionSpan.Resource)
 	assert.Equal(t, "serverless", executionSpan.Type)
 	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)

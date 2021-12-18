@@ -32,9 +32,7 @@ provider:
 package:
   patterns:
     - "src"
-    - "!src/bin"
     - "!src/csharp-tests"
-    - "!src/go-tests"
     - "!src/java-tests"
 
 layers:
