@@ -6,7 +6,7 @@ import (
 )
 
 type versionCustom struct {
-	Version uint64 `json:"version"`
+	Version *uint64 `json:"v"`
 }
 
 func targetVersion(custom *json.RawMessage) (uint64, error) {
@@ -18,5 +18,8 @@ func targetVersion(custom *json.RawMessage) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return version.Version, nil
+	if version.Version == nil {
+		return 0, fmt.Errorf("custom.v is not defined, could not get target version")
+	}
+	return *version.Version, nil
 }

@@ -210,11 +210,11 @@ func hashSha256(data []byte) []byte {
 func generateRandomTarget(version int) ([]byte, data.TargetFileMeta) {
 	file := make([]byte, 128)
 	rand.Read(file)
-	return file, generateTarget(file, version)
+	return file, generateTarget(file, uint64(version))
 }
 
-func generateTarget(file []byte, version int) data.TargetFileMeta {
-	custom, _ := json.Marshal(&versionCustom{Version: uint64(version)})
+func generateTarget(file []byte, version uint64) data.TargetFileMeta {
+	custom, _ := json.Marshal(&versionCustom{Version: &version})
 	customJSON := json.RawMessage(custom)
 	return data.TargetFileMeta{
 		FileMeta: data.FileMeta{
