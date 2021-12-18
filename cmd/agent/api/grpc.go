@@ -192,7 +192,7 @@ func (s *serverSecure) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntity
 	}, nil
 }
 
-func (s *serverSecure) GetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
+func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
 	if s.configService == nil {
 		log.Debug("Remote configuration service not initialized")
 		return nil, errors.New("remote configuration service not initialized")
