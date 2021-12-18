@@ -192,6 +192,9 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
+	if state.DirectorTargetsVersion == request.Client.State.TargetsVersion {
+		return &pbgo.ClientGetConfigsResponse{}, nil
+	}
 	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion)
 	if err != nil {
 		return nil, err
