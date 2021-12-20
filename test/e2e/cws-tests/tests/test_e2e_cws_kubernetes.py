@@ -8,11 +8,11 @@ import uuid
 import warnings
 
 import emoji
-from lib.app import App
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
+from lib.cws.app import App
+from lib.cws.policy import PolicyLoader
 from lib.kubernetes import KubernetesHelper
 from lib.log import wait_agent_log
-from lib.policy import PolicyLoader
 from lib.stepper import Step
 
 

@@ -37,7 +37,7 @@ class KubernetesHelper(LogGetter):
         if not command:
             command = []
 
-        stream(
+        return stream(
             self.api_client.connect_post_namespaced_pod_exec,
             name=self.pod_name,
             namespace=self.namespace,

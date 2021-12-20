@@ -327,8 +327,7 @@ func StartAgent() error {
 
 	// start remote configuration management
 	if config.Datadog.GetBool("remote_configuration.enabled") {
-		opts := remoteconfig.Opts{}
-		configService, err = remoteconfig.NewService(opts)
+		configService, err = remoteconfig.NewService()
 		if err != nil {
 			log.Errorf("Failed to initialize config management service: %s", err)
 		} else if err := configService.Start(context.Background()); err != nil {

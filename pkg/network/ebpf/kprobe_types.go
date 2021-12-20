@@ -1,10 +1,17 @@
-//+build ignore
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build ignore
+// +build ignore
 
 package ebpf
 
 /*
 #include "./c/tracer.h"
 #include "./c/tcp_states.h"
+#include "./c/tags-types.h"
 #include "./c/prebuilt/offset-guess.h"
 */
 import "C"
@@ -47,3 +54,17 @@ const (
 )
 
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
+
+type ConnTag = uint64
+
+const (
+	GnuTLS  ConnTag = C.LIBGNUTLS
+	OpenSSL ConnTag = C.LIBSSL
+)
+
+var (
+	StaticTags = map[ConnTag]string{
+		GnuTLS:  "tls.library:gnutls",
+		OpenSSL: "tls.library:openssl",
+	}
+)

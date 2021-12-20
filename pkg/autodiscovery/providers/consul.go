@@ -290,7 +290,7 @@ func isTemplateField(key string) bool {
 }
 
 func init() {
-	RegisterProvider("consul", NewConsulConfigProvider)
+	RegisterProvider(names.ConsulRegisterName, NewConsulConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the ConsulConfigProvider

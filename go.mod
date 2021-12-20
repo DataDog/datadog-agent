@@ -59,7 +59,7 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/BurntSushi/toml v0.4.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.4
+	github.com/DataDog/agent-payload/v5 v5.0.6
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.33.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/quantile v0.33.0-rc.4
@@ -70,7 +70,7 @@ require (
 	github.com/DataDog/datadog-go v4.8.2+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20211116165855-af5870810f0b
-	github.com/DataDog/ebpf-manager v0.0.0-20211116173716-a65628f678af
+	github.com/DataDog/ebpf-manager v1.0.2
 	github.com/DataDog/gohai v0.0.0-20211126091652-d183ed971098
 	github.com/DataDog/gopsutil v0.0.0-20211112180027-9aa392ae181a
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
@@ -108,7 +108,7 @@ require (
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
 	github.com/cri-o/ocicni v0.2.0
-	github.com/cyphar/filepath-securejoin v0.2.2
+	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200916142827-bd33bbf0497b+incompatible
 	github.com/docker/go-connections v0.4.0
@@ -161,7 +161,7 @@ require (
 	github.com/mdlayher/netlink v1.4.1
 	github.com/mholt/archiver/v3 v3.5.0
 	github.com/miekg/dns v1.1.43
-	github.com/mitchellh/mapstructure v1.4.2
+	github.com/mitchellh/mapstructure v1.4.3
 	github.com/moby/sys/mountinfo v0.4.1
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
@@ -190,7 +190,6 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
-	github.com/tent/canonical-json-go v0.0.0-20130607151641-96e4ba3a7613
 	github.com/theupdateframework/go-tuf v0.0.0-20210921152604-1c7bbcecec00
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.6

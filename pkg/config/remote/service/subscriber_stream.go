@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/service/tuf"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -18,13 +18,13 @@ type subscriberStream struct {
 	stream                        pbgo.AgentSecure_GetConfigUpdatesClient
 	agentClient                   pbgo.AgentSecureClient
 	currentConfigSnapshotVersions map[pbgo.Product]uint64
-	tufClient                     *tuf.DirectorPartialClient
+	tufClient                     *uptane.PartialClient
 }
 
 func newSubscriberStream(streamCtx context.Context, conn *grpc.ClientConn) (*subscriberStream, error) {
 	c := &subscriberStream{
 		agentClient:                   pbgo.NewAgentSecureClient(conn),
-		tufClient:                     tuf.NewDirectorPartialClient(),
+		tufClient:                     uptane.NewPartialClient(),
 		currentConfigSnapshotVersions: make(map[pbgo.Product]uint64),
 	}
 	c.startStream(streamCtx)

@@ -247,14 +247,14 @@ func startHTTPServer(port string) {
 		if err != nil {
 			return
 		}
-
-		pl := new(pb.TracePayload)
+		pl := new(pb.AgentPayload)
 		if err := pl.Unmarshal(decompressedBody); err != nil {
 			fmt.Printf("Error while unmarshalling traces %s \n", err)
 			return
 		}
-		for _, trace := range pl.Traces {
-			jsonTrace, err := json.Marshal(trace)
+
+		for _, trace := range pl.TracerPayloads {
+			jsonTrace, err := json.Marshal(trace.Chunks)
 			if err != nil {
 				return
 			}
