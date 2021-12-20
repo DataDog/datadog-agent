@@ -27,7 +27,7 @@ type PrometheusPodsConfigProvider struct {
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewPrometheusPodsConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewPrometheusPodsConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	checks, err := getPrometheusConfigs()
 	if err != nil {
 		return nil, err

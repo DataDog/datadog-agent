@@ -39,17 +39,21 @@ type ZookeeperConfigProvider struct {
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
-func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
-	urls := strings.Split(cfg.TemplateURL, ",")
+func NewZookeeperConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+	if providerConfig == nil {
+		providerConfig = &config.ConfigurationProviders{}
+	}
+
+	urls := strings.Split(providerConfig.TemplateURL, ",")
 
 	c, _, err := zk.Connect(urls, sessionTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", cfg.TemplateURL, strings.Join(urls, ", "), err)
+		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", providerConfig.TemplateURL, strings.Join(urls, ", "), err)
 	}
 	cache := NewCPCache()
 	return &ZookeeperConfigProvider{
 		client:      c,
-		templateDir: cfg.TemplateDir,
+		templateDir: providerConfig.TemplateDir,
 		cache:       cache,
 	}, nil
 }

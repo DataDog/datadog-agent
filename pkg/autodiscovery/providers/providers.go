@@ -21,7 +21,7 @@ func RegisterProvider(name string, factory ConfigProviderFactory) {
 }
 
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
-type ConfigProviderFactory func(cfg config.ConfigurationProviders) (ConfigProvider, error)
+type ConfigProviderFactory func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)
 
 // ProviderCache contains the number of AD Templates and the latest Index
 type ProviderCache struct {

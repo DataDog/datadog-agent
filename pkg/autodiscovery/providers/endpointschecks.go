@@ -30,7 +30,7 @@ type EndpointsChecksConfigProvider struct {
 // NewEndpointsChecksConfigProvider returns a new ConfigProvider collecting
 // endpoints check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewEndpointsChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
+func NewEndpointsChecksConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	c := &EndpointsChecksConfigProvider{}
 	var err error
 	c.nodeName, err = getNodename(context.TODO())
