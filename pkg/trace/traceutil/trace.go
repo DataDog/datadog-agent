@@ -10,10 +10,40 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	envKey     = "env"
+	versionKey = "version"
+)
+
 // GetEnv returns the first "env" tag found in trace t.
-func GetEnv(t pb.Trace) string {
-	for _, s := range t {
-		if v, ok := s.Meta["env"]; ok {
+func GetEnv(root *pb.Span, t *pb.TraceChunk) string {
+	if v, ok := root.Meta[envKey]; ok {
+		// exit this on first success
+		return v
+	}
+	for _, s := range t.Spans {
+		if s.SpanID == root.SpanID {
+			continue
+		}
+		if v, ok := s.Meta[envKey]; ok {
+			// exit this on first success
+			return v
+		}
+	}
+	return ""
+}
+
+// GetAppVersion returns the first "version" tag found in trace t.
+func GetAppVersion(root *pb.Span, t *pb.TraceChunk) string {
+	if v, ok := root.Meta[versionKey]; ok {
+		// exit this on first success
+		return v
+	}
+	for _, s := range t.Spans {
+		if s.SpanID == root.SpanID {
+			continue
+		}
+		if v, ok := s.Meta[versionKey]; ok {
 			// exit this on first success
 			return v
 		}

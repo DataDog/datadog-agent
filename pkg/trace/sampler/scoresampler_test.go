@@ -46,7 +46,7 @@ func TestExtraSampleRate(t *testing.T) {
 
 	s := getTestErrorsSampler(10)
 	trace, root := getTestTrace()
-	signature := testComputeSignature(trace)
+	signature := testComputeSignature(trace, "")
 
 	// Feed the s with a signature so that it has a < 1 sample rate
 	for i := 0; i < int(1e6); i++ {

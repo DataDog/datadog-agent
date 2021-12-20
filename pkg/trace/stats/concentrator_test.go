@@ -61,6 +61,15 @@ func testSpan(spanID uint64, parentID uint64, duration, offset int64, service, r
 	}
 }
 
+func toProcessedTrace(spans []*pb.Span, env, tracerHostname string) *traceutil.ProcessedTrace {
+	return &traceutil.ProcessedTrace{
+		TracerEnv:      env,
+		Root:           traceutil.GetRoot(spans),
+		TraceChunk:     spansToTraceChunk(spans),
+		TracerHostname: tracerHostname,
+	}
+}
+
 // spansToTraceChunk converts the given spans to a pb.TraceChunk
 func spansToTraceChunk(spans []*pb.Span) *pb.TraceChunk {
 	return &pb.TraceChunk{
@@ -95,10 +104,7 @@ func TestTracerHostname(t *testing.T) {
 		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
 	}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := &EnvTrace{
-		Env:   "none",
-		Trace: NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "tracer-hostname"),
-	}
+	testTrace := toProcessedTrace(spans, "none", "tracer-hostname")
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, "")
 
@@ -123,12 +129,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(spans)
-	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")
-
-	testTrace := &EnvTrace{
-		Env:   "none",
-		Trace: wt,
-	}
+	testTrace := toProcessedTrace(spans, "none", "")
 
 	t.Run("cold", func(t *testing.T) {
 		// Running cold, all spans in the past should end up in the current time bucket.
@@ -248,13 +249,9 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(spans)
-	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")
+	testTrace := toProcessedTrace(spans, "none", "")
 
 	t.Run("ok", func(t *testing.T) {
-		testTrace := &EnvTrace{
-			Env:   "none",
-			Trace: wt,
-		}
 		c.addNow(testTrace, "")
 
 		var duration uint64
@@ -424,12 +421,8 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []pb.ClientGroupedStats{}
 
 	traceutil.ComputeTopLevel(spans)
-	wt := NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")
+	testTrace := toProcessedTrace(spans, "none", "")
 
-	testTrace := &EnvTrace{
-		Env:   "none",
-		Trace: wt,
-	}
 	c.addNow(testTrace, "")
 
 	// flush every testBucketInterval
@@ -479,7 +472,7 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 		spans = append(spans, testSpan(uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0))
 	}
 	traceutil.ComputeTopLevel(spans)
-	c.addNow(&EnvTrace{Env: "none", Trace: NewWeightedTrace(spansToTraceChunk(spans), traceutil.GetRoot(spans), "")}, "")
+	c.addNow(toProcessedTrace(spans, "none", ""), "")
 	stats := c.flushNow(now.UnixNano() + c.bsize*int64(c.bufferLen))
 	expectedFlushedTs := alignedNow
 	assert.Len(stats.Stats, 1)

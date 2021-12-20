@@ -646,7 +646,7 @@ func TestSampling(t *testing.T) {
 			if tt.hasErrors {
 				root.Error = 1
 			}
-			pt := ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+			pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
 			if tt.hasPriority {
 				if tt.prioritySampled {
 					pt.TraceChunk.Priority = 1
@@ -1189,7 +1189,7 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	defer cancel()
 
 	span := testutil.RandomSpan()
-	numEvents, keep := agnt.sample(info.NewReceiverStats().GetTagStats(info.Tags{}), ProcessedTrace{
+	numEvents, keep := agnt.sample(info.NewReceiverStats().GetTagStats(info.Tags{}), traceutil.ProcessedTrace{
 		TraceChunk: testutil.TraceChunkWithSpan(span),
 		Root:       span,
 	})
