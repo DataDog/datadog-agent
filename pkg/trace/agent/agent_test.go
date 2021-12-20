@@ -27,9 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cihub/seelog"
@@ -349,6 +351,169 @@ func TestProcess(t *testing.T) {
 		// without missing a trace
 		assert.Equal(t, gotCount, 3)
 	})
+}
+
+func spansToChunk(spans ...*pb.Span) *pb.TraceChunk {
+	return &pb.TraceChunk{Spans: spans}
+}
+
+func TestConcentratorInput(t *testing.T) {
+	rootSpan := &pb.Span{SpanID: 3, TraceID: 5, Service: "a"}
+	rootSpanWithTracerTags := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Meta: map[string]string{"_dd.hostname": "host", "env": "env", "version": "version"}}
+	tts := []struct {
+		name        string
+		in          *api.Payload
+		expected    stats.Input
+		withFargate bool
+		features    string
+	}{
+		{
+			name: "tracer payload tags in payload",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Hostname:   "banana",
+					AppVersion: "camembert",
+					Env:        "apple",
+					Chunks:     []*pb.TraceChunk{spansToChunk(rootSpan)},
+				},
+			},
+			expected: stats.Input{
+				Traces: []traceutil.ProcessedTrace{
+					{
+						Root:           rootSpan,
+						TracerHostname: "banana",
+						AppVersion:     "camembert",
+						TracerEnv:      "apple",
+						TraceChunk:     spansToChunk(rootSpan),
+					},
+				},
+			},
+		},
+		{
+			name: "tracer payload tags in span",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks: []*pb.TraceChunk{spansToChunk(rootSpanWithTracerTags)},
+				},
+			},
+			expected: stats.Input{
+				Traces: []traceutil.ProcessedTrace{
+					{
+						Root:           rootSpanWithTracerTags,
+						TracerHostname: "host",
+						AppVersion:     "version",
+						TracerEnv:      "env",
+						TraceChunk:     spansToChunk(rootSpanWithTracerTags),
+					},
+				},
+			},
+		},
+		{
+			name: "no tracer tags",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks: []*pb.TraceChunk{spansToChunk(rootSpan)},
+				},
+			},
+			expected: stats.Input{
+				Traces: []traceutil.ProcessedTrace{
+					{
+						Root:       rootSpan,
+						TraceChunk: spansToChunk(rootSpan),
+					},
+				},
+			},
+		},
+		{
+			name: "containerID with fargate orchestrator",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
+					ContainerID: "aaah",
+				},
+			},
+			withFargate: true,
+			expected: stats.Input{
+				Traces: []traceutil.ProcessedTrace{
+					{
+						Root:       rootSpan,
+						TraceChunk: spansToChunk(rootSpan),
+					},
+				},
+				ContainerID: "aaah",
+			},
+		},
+		{
+			name: "containerID no orchestrator",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
+					ContainerID: "no-orch",
+				},
+			},
+			expected: stats.Input{
+				Traces: []traceutil.ProcessedTrace{
+					{
+						Root:       rootSpan,
+						TraceChunk: spansToChunk(rootSpan),
+					},
+				},
+			},
+		},
+		{
+			name: "containerID feature disabled",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
+					ContainerID: "feature_disabled",
+				},
+			},
+			withFargate: true,
+			features:    "disable_cid_stats",
+			expected: stats.Input{
+				Traces: []traceutil.ProcessedTrace{
+					{
+						Root:       rootSpan,
+						TraceChunk: spansToChunk(rootSpan),
+					},
+				},
+			},
+		},
+		{
+			name: "client computed stats",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
+					ContainerID: "feature_disabled",
+				},
+				ClientComputedStats: true,
+			},
+			withFargate: true,
+			features:    "disable_cid_stats",
+			expected:    stats.Input{},
+		},
+	}
+
+	for _, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			defer testutil.WithFeatures(tc.features)()
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			if tc.withFargate {
+				cfg.FargateOrchestrator = fargate.ECS
+			}
+			agent := NewAgent(context.TODO(), cfg)
+			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
+			agent.Process(tc.in)
+
+			if len(tc.expected.Traces) == 0 {
+				assert.Len(t, agent.Concentrator.In, 0)
+				return
+			}
+			assert.Len(t, agent.Concentrator.In, 1)
+			assert.Equal(t, tc.expected, <-agent.Concentrator.In)
+		})
+	}
 }
 
 func TestClientComputedTopLevel(t *testing.T) {
