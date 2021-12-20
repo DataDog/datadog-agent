@@ -6,7 +6,7 @@ dependency "pip2"
 
 build do
   # pylint is only called in a subprocess by the Agent, so the Agent doesn't have to be GPL as well
-  ship_license "GPLv2"
+  ship_license "https://dd-agent-omnibus.s3.amazonaws.com/licenses/GPL-2.0"
 
   # aliases for the pips
   if windows?
