@@ -19,7 +19,6 @@ import (
 
 func TestConfigurations(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
-	coreconfig.Datadog.Set("hostname", "my-hostname")
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
