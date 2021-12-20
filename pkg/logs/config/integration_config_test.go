@@ -64,7 +64,7 @@ func TestAutoMultilineEnabled(t *testing.T) {
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled())
 
 	mockConfig.Set("logs_config.auto_multi_line_detection", true)
-	assert.True(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled())
+	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled())
 
 	mockConfig.Set("logs_config.auto_multi_line_detection", true)
 	assert.True(t, decode(`{}`).AutoMultiLineEnabled())

@@ -66,7 +66,7 @@ type LogsConfig struct {
 	Tags            []string
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 
-	AutoMultiLine               bool    `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
+	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
 }
@@ -155,7 +155,10 @@ func (c *LogsConfig) validateTailingMode() error {
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
 func (c *LogsConfig) AutoMultiLineEnabled() bool {
-	return config.Datadog.GetBool("logs_config.auto_multi_line_detection") || c.AutoMultiLine
+	if c.AutoMultiLine != nil {
+		return *c.AutoMultiLine
+	}
+	return config.Datadog.GetBool("logs_config.auto_multi_line_detection")
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character
