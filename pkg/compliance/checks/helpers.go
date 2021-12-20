@@ -46,9 +46,9 @@ func parseYAMLContent(data []byte) (interface{}, error) {
 		if err := yamlv2.Unmarshal(data, &content); err != nil {
 			return nil, err
 		}
-		content = jsonquery.NormalizeYAMLForGoJQ(content)
 	}
 
+	content = jsonquery.NormalizeYAMLForGoJQ(content)
 	return content, nil
 }
 
