@@ -34,10 +34,10 @@ const (
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
 
-	// defaultYumReposDirSuffix is the default path `/etc` to the yum repository directory
+	// defaultYumReposDirSuffix is the default path under `/etc` to the yum repository directory
 	defaultYumReposDirSuffix = "/yum.repos.d"
 
-	// defaultZypperReposDirSuffix is the default path `/etc` to the zypper repository directory
+	// defaultZypperReposDirSuffix is the default path under `/etc` to the zypper repository directory
 	defaultZypperReposDirSuffix = "/zypp/repos.d"
 
 	defaultOffsetThreshold = 400
