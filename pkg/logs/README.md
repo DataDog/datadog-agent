@@ -5,7 +5,7 @@ logs-agent collects logs and submits them to datadog's infrastructure.
 ## Structure
 
 `logs` reads the config files, and instantiates what's needed.
-Each log line comes from a source (e.g. file, network, docker), and then enters one of the available _pipeline - tailer|listener|container -> decoder -> processor -> strategy -> sender -> destination -> auditor_
+Each log line comes from a source (such as file, network, docker), and then enters one of the available _pipeline - tailer|listener|container -> decoder -> processor -> strategy -> sender -> destination -> auditor_
 
 `Tailer` tails a file and submits data to the processors
 
@@ -15,15 +15,15 @@ Each log line comes from a source (e.g. file, network, docker), and then enters 
 
 `Decoder` converts bytes arrays into messages
 
-`Processor` updates the messages, filtering, redacting or adding metadata, and submits to the strategy
+`Processor` updates the messages, filtering, redacting, or adding metadata, and submits to the strategy.
 
-`Strategy` converts a stream of messages into a stream of encoded payloads, batching if needed
+`Strategy` converts a stream of messages into a stream of encoded payloads, batching if needed.
 
-`Sender` submits the payloads to the destination(s)
+`Sender` submits the payloads to the destination(s).
 
-`Destination` sends the actual encoded content to the intake, retries if needed, sends successful payloads to the auditor.
+`Destination` sends the actual encoded content to the intake, retries if needed, and sends successful payloads to the auditor.
 
-`Auditor` notes that messages were properly submitted, stores offsets for agent restarts
+`Auditor` notes that messages were properly submitted, and stores offsets for Agent restarts.
 
 ## Tests
 
