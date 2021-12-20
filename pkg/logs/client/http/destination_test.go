@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/stretchr/testify/assert"
@@ -171,4 +172,25 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 	err := server.destination.unconditionalSend([]byte("payload"))
 	assert.Nil(t, err)
 	assert.Empty(t, server.request.Header.Values("dd-protocol"))
+}
+
+func TestBackoffDelayEnabled(t *testing.T) {
+	server := NewHTTPServerTest(200)
+	server.destination.blockedUntil = time.Now().Add(1 * time.Second)
+	startTime := time.Now()
+	err := server.destination.Send([]byte("test log"))
+	assert.Nil(t, err)
+	assert.True(t, time.Now().After(startTime.Add(1*time.Second)))
+	server.stop()
+}
+
+func TestBackoffDelayDisabledServerless(t *testing.T) {
+	server := NewHTTPServerTest(200)
+	server.destination.origin = "lambda-extension"
+	server.destination.blockedUntil = time.Now().Add(1 * time.Second)
+	startTime := time.Now()
+	err := server.destination.Send([]byte("test log"))
+	assert.Nil(t, err)
+	assert.True(t, time.Now().Before(startTime.Add(1*time.Second)))
+	server.stop()
 }

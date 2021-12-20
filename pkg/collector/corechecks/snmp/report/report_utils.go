@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package report
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -11,15 +17,7 @@ func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 	if err != nil {
 		return valuestore.ResultValue{}, err
 	}
-	if symbol.ExtractValuePattern != nil {
-		extractedValue, err := value.ExtractStringValue(symbol.ExtractValuePattern)
-		if err != nil {
-			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, symbol.ExtractValuePattern, err)
-			return valuestore.ResultValue{}, err
-		}
-		value = extractedValue
-	}
-	return value, nil
+	return processValueUsingSymbolConfig(value, symbol)
 }
 
 func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol checkconfig.SymbolConfig) (map[string]valuestore.ResultValue, error) {
@@ -29,15 +27,40 @@ func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol checkc
 		return nil, err
 	}
 	for index, value := range columnValues {
-		if symbol.ExtractValuePattern != nil {
-			extractedValue, err := value.ExtractStringValue(symbol.ExtractValuePattern)
-			if err != nil {
-				log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, symbol.ExtractValuePattern, err)
-				continue
-			}
-			value = extractedValue
+		newValue, err := processValueUsingSymbolConfig(value, symbol)
+		if err != nil {
+			continue
 		}
-		newValues[index] = value
+		newValues[index] = newValue
 	}
 	return newValues, nil
+}
+
+func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol checkconfig.SymbolConfig) (valuestore.ResultValue, error) {
+	if symbol.ExtractValueCompiled != nil {
+		extractedValue, err := value.ExtractStringValue(symbol.ExtractValueCompiled)
+		if err != nil {
+			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, symbol.ExtractValueCompiled, err)
+			return valuestore.ResultValue{}, err
+		}
+		value = extractedValue
+	}
+	if symbol.MatchPatternCompiled != nil {
+		strValue, err := value.ToString()
+		if err != nil {
+			log.Debugf("error converting value to string (value=%v):", value, err)
+			return valuestore.ResultValue{}, err
+		}
+
+		if symbol.MatchPatternCompiled.MatchString(strValue) {
+			replacedVal := checkconfig.RegexReplaceValue(strValue, symbol.MatchPatternCompiled, symbol.MatchValue)
+			if replacedVal == "" {
+				return valuestore.ResultValue{}, fmt.Errorf("the pattern `%v` matched value `%v`, but template `%s` is not compatible", symbol.MatchPattern, strValue, symbol.MatchValue)
+			}
+			value = valuestore.ResultValue{Value: replacedVal}
+		} else {
+			return valuestore.ResultValue{}, fmt.Errorf("match pattern `%v` does not match string `%s`", symbol.MatchPattern, strValue)
+		}
+	}
+	return value, nil
 }

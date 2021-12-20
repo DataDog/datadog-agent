@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -30,9 +31,10 @@ func TestGetAlias(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostAlias(ctx)
+	aliases, err := GetHostAliases(ctx)
 	assert.Nil(t, err)
-	assert.Equal(t, expected, val)
+	require.Len(t, aliases, 1)
+	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/vmId")
 	assert.Equal(t, lastRequest.URL.RawQuery, "api-version=2017-04-02&format=text")
 }

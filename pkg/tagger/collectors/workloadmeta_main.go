@@ -25,6 +25,7 @@ const (
 	podSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
 	taskSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
 	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	gardenSource    = workloadmetaCollectorName + "-" + string(workloadmeta.KindGardenContainer)
 )
 
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta

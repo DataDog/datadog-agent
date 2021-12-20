@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testtagger
 
 import (
@@ -90,11 +95,12 @@ except Exception as e:
 	return strings.TrimSpace(string(output)), err
 }
 
+//revive:disable
 //export Tags
 func Tags(id *C.char, cardinality C.int) **C.char {
-	goId := C.GoString(id)
+	goID := C.GoString(id)
 
-	if goId != "base" {
+	if goID != "base" {
 		return nil
 	}
 
@@ -124,3 +130,5 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	}
 	return (**C.char)(cTags)
 }
+
+//revive:enable

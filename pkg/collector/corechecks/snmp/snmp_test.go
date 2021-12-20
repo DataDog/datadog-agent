@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -32,6 +34,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
+func demuxOpts() aggregator.DemultiplexerOptions {
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.FlushInterval = 1 * time.Hour
+	opts.DontStartForwarders = true
+	return opts
+}
+
 func TestBasicSample(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -39,7 +48,8 @@ func TestBasicSample(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{}
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -352,7 +362,9 @@ metrics:
 
 func TestProfile(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -696,6 +708,7 @@ func TestCheckID(t *testing.T) {
 	check1 := snmpFactory()
 	check2 := snmpFactory()
 	check3 := snmpFactory()
+	checkSubnet := snmpFactory()
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -712,6 +725,12 @@ ip_address: 3.3.3.3
 community_string: abc
 namespace: ns3
 `)
+	// language=yaml
+	rawInstanceConfigSubnet := []byte(`
+network_address: 10.10.10.0/24
+community_string: abc
+namespace: nsSubnet
+`)
 
 	err := check1.Configure(rawInstanceConfig1, []byte(``), "test")
 	assert.Nil(t, err)
@@ -719,10 +738,13 @@ namespace: ns3
 	assert.Nil(t, err)
 	err = check3.Configure(rawInstanceConfig3, []byte(``), "test")
 	assert.Nil(t, err)
+	err = checkSubnet.Configure(rawInstanceConfigSubnet, []byte(``), "test")
+	assert.Nil(t, err)
 
 	assert.Equal(t, check.ID("snmp:default:1.1.1.1:a3ec59dfb03e4457"), check1.ID())
 	assert.Equal(t, check.ID("snmp:default:2.2.2.2:3979cd473e4beb3f"), check2.ID())
 	assert.Equal(t, check.ID("snmp:ns3:3.3.3.3:819516f4c3986cc6"), check3.ID())
+	assert.Equal(t, check.ID("snmp:nsSubnet:10.10.10.0/24:be3c32b7c5c1c696"), checkSubnet.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }
 
@@ -915,7 +937,8 @@ community_string: public
 			sender := new(mocksender.MockSender)
 
 			if !tt.disableAggregator {
-				aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+				aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+
 			}
 
 			mocksender.SetSender(sender, chk.ID())
@@ -1005,7 +1028,8 @@ metrics:
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -1248,14 +1272,15 @@ tags:
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
+	chk := snmpFactory()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.5
@@ -1341,7 +1366,7 @@ func TestDiscovery(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{}
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1628,7 +1653,7 @@ func TestDiscovery_CheckError(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{}
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1700,13 +1725,16 @@ metric_tags:
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
+	config.Datadog.Set("hostname", "test-hostname")
+	config.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	chk := Check{}
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1843,6 +1871,22 @@ use_device_id_as_hostname: true
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, hostname, snmpGlobalTagsWithLoader)
+
+	// Test SetExternalTags
+	host := "device:default:1.2.3.4"
+	sourceType := "snmp"
+	externalTags := []string{"agent_tag1:val1", "agent_tag2:val2"}
+	eTags := externalhost.ExternalTags{sourceType: externalTags}
+
+	p := *externalhost.GetPayload()
+	var hostTags []interface{}
+	for _, curHostTags := range p {
+		if curHostTags[0].(string) == host {
+			hostTags = curHostTags
+		}
+	}
+	assert.Contains(t, hostTags, host)
+	assert.Contains(t, hostTags, eTags)
 }
 
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
@@ -1853,7 +1897,8 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{}
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`

@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux || darwin
 // +build linux darwin
 
 package net
@@ -6,9 +12,8 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/user"
-	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,20 +56,13 @@ func NewListener(socketAddr string) (*UDSListener, error) {
 		return nil, fmt.Errorf("can't set the socket at write only: %s", err)
 	}
 
-	usr, err := user.Lookup("dd-agent")
-	if err == nil {
-		usrID, err := strconv.Atoi(usr.Uid)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't parse UID (%s): %s", usr.Uid, err)
-		}
-		grpID, err := strconv.Atoi(usr.Gid)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't parse GID (%s): %s", usr.Gid, err)
-		}
+	perms, err := filesystem.NewPermission()
+	if err != nil {
+		return nil, err
+	}
 
-		if err = os.Chown(socketAddr, usrID, grpID); err != nil {
-			return nil, fmt.Errorf("couldn't set user and group owner for the system-probe socket: %s", err)
-		}
+	if err := perms.RestrictAccessToUser(socketAddr); err != nil {
+		return nil, err
 	}
 
 	listener := &UDSListener{

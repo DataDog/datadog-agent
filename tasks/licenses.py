@@ -132,10 +132,10 @@ def wwhrd_licenses(ctx):
             overrides[pkg] = lic
 
     def is_excluded(pkg):
-        if package in exceptions:
+        if pkg in exceptions:
             return True
         for exception in exceptions_wildcard:
-            if package.startswith(exception):
+            if pkg.startswith(exception):
                 return True
         return False
 

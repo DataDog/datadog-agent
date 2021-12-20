@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package tracer
@@ -23,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/cihub/seelog"
 	ct "github.com/florianl/go-conntrack"
 	"golang.org/x/sys/unix"
 )
@@ -227,17 +234,23 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	defer tuplePool.Put(src)
 
 	toConntrackTupleFromStats(src, &stats)
-	log.Tracef("looking up in conntrack (stats): %s", stats)
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("looking up in conntrack (stats): %s", stats)
+	}
 
 	// Try the lookup in the root namespace first
 	src.Netns = e.rootNS
-	log.Tracef("looking up in conntrack (tuple): %s", src)
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("looking up in conntrack (tuple): %s", src)
+	}
 	dst := e.get(src)
 
 	if dst == nil && stats.NetNS != e.rootNS {
 		// Perform another lookup, this time using the connection namespace
 		src.Netns = stats.NetNS
-		log.Tracef("looking up in conntrack (tuple): %s", src)
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("looking up in conntrack (tuple): %s", src)
+		}
 		dst = e.get(src)
 	}
 

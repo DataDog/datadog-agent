@@ -84,6 +84,7 @@ func (d *ContainerConfigProvider) listen() {
 			workloadmeta.SourceDocker,
 			workloadmeta.SourceContainerd,
 			workloadmeta.SourceECSFargate,
+			workloadmeta.SourcePodman,
 		},
 	))
 

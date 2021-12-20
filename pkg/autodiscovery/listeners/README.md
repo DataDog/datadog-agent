@@ -9,6 +9,7 @@ This package is providing the `ServiceListener` concept to the agent. A `Service
 Services can be:
 - Docker containers
 - Containerd containers
+- Podman containers
 - Kubelet containers
 - Kubelet pods
 - ECS containers
@@ -59,6 +60,7 @@ TODO
 |---|---|---|---|---|---|---|---|
 | Docker | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Containerd | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ |
+| Podman | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | ECS | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | Kubelet | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | KubeService | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |

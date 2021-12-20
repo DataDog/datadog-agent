@@ -2,7 +2,7 @@
 set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -x
+set +x
 
 test "$1" || {
     echo "Must provide a ssh IP or DNS as \$1"
@@ -16,7 +16,7 @@ test "${COMMIT_ID}" || {
     COMMIT_ID=$(git rev-parse --verify HEAD)
 }
 
-SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master}")
+SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master} ARGO_WORKFLOW=${ARGO_WORKFLOW:-''} DATADOG_AGENT_SITE=${DATADOG_AGENT_SITE:-''} DATADOG_AGENT_API_KEY=${DATADOG_AGENT_API_KEY:-''} DATADOG_AGENT_APP_KEY=${DATADOG_AGENT_APP_KEY:-''}")
 
 function _ssh() {
     ssh "${SSH_OPTS[@]}" -lcore "${MACHINE}" "$@"
@@ -52,7 +52,7 @@ _ssh git -C /home/core/datadog-agent checkout "${COMMIT_ID}"
 
 if [[ -n ${DOCKER_REGISTRY_URL+x} ]] && [[ -n ${DOCKER_REGISTRY_LOGIN+x} ]] && [[ -n ${DOCKER_REGISTRY_PWD+x} ]]; then
     oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
-    _ssh_logged \"sudo docker login --username \\\"${DOCKER_REGISTRY_LOGIN}\\\" --password \\\"${DOCKER_REGISTRY_PWD}\\\" \\\"${DOCKER_REGISTRY_URL}\\\"\"
+    _ssh_logged \"sudo docker login --username \\\""${DOCKER_REGISTRY_LOGIN}"\\\" --password \\\""${DOCKER_REGISTRY_PWD}"\\\" \\\""${DOCKER_REGISTRY_URL}"\\\"\"
     eval "$oldstate"
 else
     _ssh_logged \"sudo mkdir -p /root/.docker \&\& sudo touch /root/.docker/config.json\"

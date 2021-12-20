@@ -99,6 +99,7 @@ type MetricSerializer interface {
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
+	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
 }
 
@@ -254,24 +255,20 @@ func (s *Serializer) SendEvents(e EventsStreamJSONMarshaler) error {
 		return nil
 	}
 
-	useV1API := !config.Datadog.GetBool("use_v2_api.events")
 	var eventPayloads forwarder.Payloads
 	var extraHeaders http.Header
 	var err error
 
-	if useV1API && s.enableEventsJSONStream {
-		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(e, useV1API)
+	if s.enableEventsJSONStream {
+		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(e, true)
 	} else {
-		eventPayloads, extraHeaders, err = s.serializePayload(e, true, useV1API)
+		eventPayloads, extraHeaders, err = s.serializePayload(e, true, true)
 	}
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
 	}
 
-	if useV1API {
-		return s.Forwarder.SubmitV1Intake(eventPayloads, extraHeaders)
-	}
-	return s.Forwarder.SubmitEvents(eventPayloads, extraHeaders)
+	return s.Forwarder.SubmitV1Intake(eventPayloads, extraHeaders)
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
@@ -281,13 +278,11 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 		return nil
 	}
 
-	useV1API := true
-
 	var serviceCheckPayloads forwarder.Payloads
 	var extraHeaders http.Header
 	var err error
 
-	if useV1API && s.enableServiceChecksJSONStream {
+	if s.enableServiceChecksJSONStream {
 		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc, stream.DropItemOnErrItemTooBig)
 	} else {
 		serviceCheckPayloads, extraHeaders, err = s.serializePayloadJSON(sc, true)
@@ -296,10 +291,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 		return fmt.Errorf("dropping service check payload: %s", err)
 	}
 
-	if useV1API {
-		return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, extraHeaders)
-	}
-	return s.Forwarder.SubmitServiceChecks(serviceCheckPayloads, extraHeaders)
+	return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, extraHeaders)
 }
 
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder

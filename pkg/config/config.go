@@ -81,6 +81,12 @@ const (
 
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
+
+	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
+	DefaultInventoriesMinInterval = 5 * 60
+
+	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
+	DefaultInventoriesMaxInterval = 10 * 60
 )
 
 // Datadog is the global configuration object
@@ -131,7 +137,20 @@ type ConfigurationProviders struct {
 
 // Listeners helps unmarshalling `listeners` config param
 type Listeners struct {
-	Name string `mapstructure:"name"`
+	Name             string `mapstructure:"name"`
+	EnabledProviders map[string]struct{}
+}
+
+// SetEnabledProviders registers the enabled config providers in the listener config
+func (l *Listeners) SetEnabledProviders(ep map[string]struct{}) {
+	l.EnabledProviders = ep
+}
+
+// IsProviderEnabled returns whether a config provider is enabled
+func (l *Listeners) IsProviderEnabled(provider string) bool {
+	_, found := l.EnabledProviders[provider]
+
+	return found
 }
 
 // Proxy represents the configuration for proxies in the agent
@@ -184,9 +203,10 @@ func InitConfig(config Config) {
 	config.BindEnv("site")
 	config.BindEnv("dd_url")
 	config.BindEnvAndSetDefault("app_key", "")
-	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba"})
+	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle"})
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
+	config.BindEnvAndSetDefault("sslkeylogfile", "")
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("hostname_file", "")
 	config.BindEnvAndSetDefault("tags", []string{})
@@ -238,6 +258,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
+	config.BindEnvAndSetDefault("remote_configuration.tracer_cache.size", 1000)
+	config.BindEnvAndSetDefault("remote_configuration.tracer_cache.ttl_seconds", 30*time.Second)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -346,6 +368,18 @@ func InitConfig(config Config) {
 		} else {
 			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 		}
+
+		if pathExists("/host/etc") {
+			if val, isSet := os.LookupEnv("HOST_ETC"); !isSet {
+				// We want to detect the host distro informations instead of the one from the container.
+				// 'HOST_ETC' is used by some libraries like gopsutil and by the system-probe to
+				// download the right kernel headers.
+				os.Setenv("HOST_ETC", "/host/etc")
+				log.Debug("Setting environment variable HOST_ETC to '/host/etc'")
+			} else {
+				log.Debugf("'/host/etc' folder detected but HOST_ETC is already set to '%s', leaving it untouched", val)
+			}
+		}
 	} else {
 		config.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -381,9 +415,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
 
-	config.BindEnvAndSetDefault("use_v2_api.events", false)
 	config.BindEnvAndSetDefault("use_v2_api.series", false)
-	config.BindEnvAndSetDefault("use_v2_api.service_checks", false)
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.BindEnvAndSetDefault("enable_payloads.events", true)
 	config.BindEnvAndSetDefault("enable_payloads.series", true)
@@ -520,8 +552,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 
 	// Containerd
-	// We only support containerd in Kubernetes. By default containerd cri uses `k8s.io` https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
-	config.BindEnvAndSetDefault("containerd_namespace", "k8s.io")
+	config.BindEnvAndSetDefault("containerd_namespace", "")
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
@@ -919,8 +950,8 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
-	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
+	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
+	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -1588,4 +1619,22 @@ func GetVectorURL(datatype DataType) (string, error) {
 		return vectorURL, nil
 	}
 	return "", nil
+}
+
+// GetInventoriesMinInterval gets the inventories_min_interval value, applying the default if it is zero.
+func GetInventoriesMinInterval() time.Duration {
+	minInterval := time.Duration(Datadog.GetInt("inventories_min_interval")) * time.Second
+	if minInterval == 0 {
+		minInterval = DefaultInventoriesMinInterval
+	}
+	return minInterval
+}
+
+// GetInventoriesMaxInterval gets the inventories_max_interval value, applying the default if it is zero.
+func GetInventoriesMaxInterval() time.Duration {
+	maxInterval := time.Duration(Datadog.GetInt("inventories_max_interval")) * time.Second
+	if maxInterval == 0 {
+		maxInterval = DefaultInventoriesMaxInterval
+	}
+	return maxInterval
 }

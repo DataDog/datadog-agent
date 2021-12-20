@@ -14,6 +14,7 @@ message ClientLatestConfigsRequest {
   uint64 current_director_root_version = 8;
   repeated Product products = 4;
   repeated Product new_products = 5;
+  repeated TracerInfo connected_tracers = 6;
 }
 
 message LatestConfigsResponse {
@@ -74,14 +75,24 @@ message ConfigResponse {
 message SubscribeConfigRequest {
 	uint64 current_config_snapshot_version = 1;
   Product product = 2;
+  TracerInfo tracer_info = 3;
 }
 
 message GetConfigsRequest {
   Product product = 1;
   uint64 current_config_product_version = 2;
   uint64 current_director_root_version = 3;
+  TracerInfo tracer_info = 4;
 }
 
 message GetConfigsResponse {
   repeated ConfigResponse configResponses = 1;
+}
+
+message TracerInfo {
+  string runtime_id = 1;
+  string service_name = 2;
+  string service_env = 3;
+  string service_version = 4;
+  Product product = 5;
 }

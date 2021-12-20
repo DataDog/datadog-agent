@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package snmp
 
 import (
@@ -12,13 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
-)
-
-const (
-	snmpCheckName = "snmp"
 )
 
 var timeNow = time.Now
@@ -54,7 +56,7 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
-			deviceCk.SetSender(report.NewMetricSender(sender, deviceCk.GetHostname()))
+			deviceCk.SetSender(report.NewMetricSender(sender, deviceCk.GetDeviceHostname()))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -64,7 +66,7 @@ func (c *Check) Run() error {
 		tags = append(tags, c.config.GetNetworkTags()...)
 		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, c.singleDeviceCk.GetHostname()))
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, c.singleDeviceCk.GetDeviceHostname()))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 
@@ -105,12 +107,18 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
 	if c.config.Name == "" {
+		var checkName string
 		// Set 'name' field of the instance if not already defined in rawInstance config.
 		// The name/device_id will be used by Check.BuildID for building the check id.
 		// Example of check id: `snmp:<DEVICE_ID>:a3ec59dfb03e4457`
-		setNameErr := rawInstance.SetNameForInstance(c.config.DeviceID)
+		if c.config.IsDiscovery() {
+			checkName = fmt.Sprintf("%s:%s", c.config.Namespace, c.config.Network)
+		} else {
+			checkName = c.config.DeviceID
+		}
+		setNameErr := rawInstance.SetNameForInstance(checkName)
 		if setNameErr != nil {
-			log.Debugf("error setting device_id as name: %s", setNameErr)
+			log.Warnf("error setting check name (checkName=%s): %s", checkName, setNameErr)
 		}
 	}
 
@@ -146,10 +154,10 @@ func (c *Check) Interval() time.Duration {
 
 func snmpFactory() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(snmpCheckName),
+		CheckBase: core.NewCheckBase(common.SnmpIntegrationName),
 	}
 }
 
 func init() {
-	core.RegisterCheck(snmpCheckName, snmpFactory)
+	core.RegisterCheck(common.SnmpIntegrationName, snmpFactory)
 }
