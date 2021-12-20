@@ -358,8 +358,10 @@ func spansToChunk(spans ...*pb.Span) *pb.TraceChunk {
 }
 
 func TestConcentratorInput(t *testing.T) {
-	rootSpan := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Metrics: map[string]float64{"_sampling_priority_v1": -1}}
+	rootSpan := &pb.Span{SpanID: 3, TraceID: 5, Service: "a"}
 	rootSpanWithTracerTags := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Meta: map[string]string{"_dd.hostname": "host", "env": "env", "version": "version"}}
+	rootSpanEvent := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Metrics: map[string]float64{"_dd1.sr.rcusr": 0.99}}
+	span := &pb.Span{SpanID: 3, TraceID: 5, ParentID: 27, Service: "a"}
 	tts := []struct {
 		name        string
 		in          *api.Payload
@@ -494,7 +496,7 @@ func TestConcentratorInput(t *testing.T) {
 			name: "many chunks",
 			in: &api.Payload{
 				TracerPayload: &pb.TracerPayload{
-					Chunks: []*pb.TraceChunk{spansToChunk(rootSpanWithTracerTags), spansToChunk(rootSpan)},
+					Chunks: []*pb.TraceChunk{spansToChunk(rootSpanWithTracerTags), spansToChunk(rootSpan), spansToChunk(rootSpanEvent, span)},
 				},
 			},
 			expected: stats.Input{
@@ -509,6 +511,13 @@ func TestConcentratorInput(t *testing.T) {
 					{
 						Root:           rootSpan,
 						TraceChunk:     spansToChunk(rootSpan),
+						TracerHostname: "host",
+						AppVersion:     "version",
+						TracerEnv:      "env",
+					},
+					{
+						Root:           rootSpanEvent,
+						TraceChunk:     spansToChunk(rootSpanEvent, span),
 						TracerHostname: "host",
 						AppVersion:     "version",
 						TracerEnv:      "env",
