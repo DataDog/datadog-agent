@@ -36,6 +36,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
@@ -357,17 +358,23 @@ func spansToChunk(spans ...*pb.Span) *pb.TraceChunk {
 	return &pb.TraceChunk{Spans: spans}
 }
 
+func dropped(c *pb.TraceChunk) *pb.TraceChunk {
+	c.DroppedTrace = true
+	return c
+}
+
 func TestConcentratorInput(t *testing.T) {
 	rootSpan := &pb.Span{SpanID: 3, TraceID: 5, Service: "a"}
 	rootSpanWithTracerTags := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Meta: map[string]string{"_dd.hostname": "host", "env": "env", "version": "version"}}
-	rootSpanEvent := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Metrics: map[string]float64{"_dd1.sr.rcusr": 0.99}}
+	rootSpanEvent := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Metrics: map[string]float64{"_dd1.sr.eausr": 1.00}}
 	span := &pb.Span{SpanID: 3, TraceID: 5, ParentID: 27, Service: "a"}
 	tts := []struct {
-		name        string
-		in          *api.Payload
-		expected    stats.Input
-		withFargate bool
-		features    string
+		name            string
+		in              *api.Payload
+		expected        stats.Input
+		expectedSampled *pb.TracerPayload
+		withFargate     bool
+		features        string
 	}{
 		{
 			name: "tracer payload tags in payload",
@@ -496,14 +503,18 @@ func TestConcentratorInput(t *testing.T) {
 			name: "many chunks",
 			in: &api.Payload{
 				TracerPayload: &pb.TracerPayload{
-					Chunks: []*pb.TraceChunk{spansToChunk(rootSpanWithTracerTags), spansToChunk(rootSpan), spansToChunk(rootSpanEvent, span)},
+					Chunks: []*pb.TraceChunk{
+						spansToChunk(rootSpanWithTracerTags, span),
+						spansToChunk(rootSpan),
+						spansToChunk(rootSpanEvent, span),
+					},
 				},
 			},
 			expected: stats.Input{
 				Traces: []traceutil.ProcessedTrace{
 					{
 						Root:           rootSpanWithTracerTags,
-						TraceChunk:     spansToChunk(rootSpanWithTracerTags),
+						TraceChunk:     spansToChunk(rootSpanWithTracerTags, span),
 						TracerHostname: "host",
 						AppVersion:     "version",
 						TracerEnv:      "env",
@@ -524,6 +535,12 @@ func TestConcentratorInput(t *testing.T) {
 					},
 				},
 			},
+			expectedSampled: &pb.TracerPayload{
+				Chunks:     []*pb.TraceChunk{spansToChunk(rootSpanWithTracerTags, span), dropped(spansToChunk(rootSpanEvent))},
+				Env:        "env",
+				Hostname:   "host",
+				AppVersion: "version",
+			},
 		},
 	}
 
@@ -543,8 +560,14 @@ func TestConcentratorInput(t *testing.T) {
 				assert.Len(t, agent.Concentrator.In, 0)
 				return
 			}
-			assert.Len(t, agent.Concentrator.In, 1)
+			require.Len(t, agent.Concentrator.In, 1)
 			assert.Equal(t, tc.expected, <-agent.Concentrator.In)
+
+			if tc.expectedSampled != nil && len(tc.expectedSampled.Chunks) > 0 {
+				require.Len(t, agent.TraceWriter.In, 1)
+				ss := <-agent.TraceWriter.In
+				assert.Equal(t, tc.expectedSampled, ss.TracerPayload)
+			}
 		})
 	}
 }
