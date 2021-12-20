@@ -8,7 +8,7 @@
   tags: ["runner:main"]
   script:
     - python3 -m pip install -r requirements.txt
-    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "master" --variables "RELEASE_VERSION"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "7.32.x" --variables "RELEASE_VERSION"
 
 # The trigger jobs are always run (even on failing pipelines)
 # because there's no way to retry a trigger job once it gets skipped
