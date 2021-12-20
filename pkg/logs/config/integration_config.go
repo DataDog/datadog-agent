@@ -8,6 +8,8 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // Logs source types
@@ -147,6 +149,13 @@ func (c *LogsConfig) validateTailingMode() error {
 		return fmt.Errorf("tailing from the beginning is not supported for wildcard path %v", c.Path)
 	}
 	return nil
+}
+
+// AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
+// considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
+// particular log source.
+func (c *LogsConfig) AutoMultiLineEnabled() bool {
+	return config.Datadog.GetBool("logs_config.auto_multi_line_detection") || c.AutoMultiLine
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character
