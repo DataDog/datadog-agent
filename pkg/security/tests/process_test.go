@@ -61,7 +61,7 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
-	proc, err := process.NewProcess(int32(os.Getpid()))
+	proc, err := process.NewProcess(utils.Getpid())
 	if err != nil {
 		t.Fatalf("unable to find proc entry: %s", err)
 	}
