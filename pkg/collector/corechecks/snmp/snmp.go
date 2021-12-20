@@ -118,7 +118,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 		}
 		setNameErr := rawInstance.SetNameForInstance(checkName)
 		if setNameErr != nil {
-			log.Debugf("error setting subnet as name: %s", setNameErr)
+			log.Debugf("error setting check name (checkName=%s): %s", checkName, setNameErr)
 		}
 	}
 
