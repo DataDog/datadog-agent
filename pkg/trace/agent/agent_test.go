@@ -358,7 +358,7 @@ func spansToChunk(spans ...*pb.Span) *pb.TraceChunk {
 }
 
 func TestConcentratorInput(t *testing.T) {
-	rootSpan := &pb.Span{SpanID: 3, TraceID: 5, Service: "a"}
+	rootSpan := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Metrics: map[string]float64{"_sampling_priority_v1": -1}}
 	rootSpanWithTracerTags := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Meta: map[string]string{"_dd.hostname": "host", "env": "env", "version": "version"}}
 	tts := []struct {
 		name        string
@@ -488,9 +488,33 @@ func TestConcentratorInput(t *testing.T) {
 				},
 				ClientComputedStats: true,
 			},
-			withFargate: true,
-			features:    "disable_cid_stats",
-			expected:    stats.Input{},
+			expected: stats.Input{},
+		},
+		{
+			name: "many chunks",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks: []*pb.TraceChunk{spansToChunk(rootSpanWithTracerTags), spansToChunk(rootSpan)},
+				},
+			},
+			expected: stats.Input{
+				Traces: []traceutil.ProcessedTrace{
+					{
+						Root:           rootSpanWithTracerTags,
+						TraceChunk:     spansToChunk(rootSpanWithTracerTags),
+						TracerHostname: "host",
+						AppVersion:     "version",
+						TracerEnv:      "env",
+					},
+					{
+						Root:           rootSpan,
+						TraceChunk:     spansToChunk(rootSpan),
+						TracerHostname: "host",
+						AppVersion:     "version",
+						TracerEnv:      "env",
+					},
+				},
+			},
 		},
 	}
 
@@ -1354,7 +1378,7 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	defer cancel()
 
 	span := testutil.RandomSpan()
-	numEvents, keep := agnt.sample(info.NewReceiverStats().GetTagStats(info.Tags{}), traceutil.ProcessedTrace{
+	numEvents, keep, _ := agnt.sample(info.NewReceiverStats().GetTagStats(info.Tags{}), traceutil.ProcessedTrace{
 		TraceChunk: testutil.TraceChunkWithSpan(span),
 		Root:       span,
 	})

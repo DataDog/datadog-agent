@@ -122,15 +122,15 @@ type Input struct {
 }
 
 // NewStatsInput allocates a stats input for an incoming trace payload
-func NewStatsInput(p *pb.TracerPayload, clientComputedStats bool, conf *config.AgentConfig) Input {
+func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, conf *config.AgentConfig) Input {
 	if clientComputedStats {
 		return Input{}
 	}
-	in := Input{Traces: make([]traceutil.ProcessedTrace, 0, len(p.Chunks))}
+	in := Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks)}
 	if !features.Has("disable_cid_stats") && conf.FargateOrchestrator != fargate.Unknown {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance
 		// and it's not prohibited by the disable_cid_stats feature flag.
-		in.ContainerID = p.ContainerID
+		in.ContainerID = containerID
 	}
 	return in
 }

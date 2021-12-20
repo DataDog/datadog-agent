@@ -200,7 +200,7 @@ func (a *Agent) Process(p *api.Payload) {
 	ts := p.Source
 	ss := new(writer.SampledChunks)
 	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
-	statsInput := stats.NewStatsInput(p.TracerPayload, p.ClientComputedStats, a.conf)
+	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
 
 	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
 	for i := 0; i < len(p.Chunks()); {
@@ -283,10 +283,10 @@ func (a *Agent) Process(p *api.Payload) {
 		if p.TracerPayload.Env == "" {
 			p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
 		}
-
 		if p.TracerPayload.AppVersion == "" {
 			p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
 		}
+
 		pt := traceutil.ProcessedTrace{
 			TraceChunk:       chunk,
 			Root:             root,
@@ -299,7 +299,7 @@ func (a *Agent) Process(p *api.Payload) {
 			statsInput.Traces = append(statsInput.Traces, pt)
 		}
 
-		numEvents, keep := a.sample(ts, pt)
+		numEvents, keep, pt := a.sample(ts, pt)
 		if !keep && numEvents == 0 {
 			// the trace was dropped and no analyzed span were kept
 			p.RemoveChunk(i)
@@ -386,7 +386,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 }
 
 // sample reports the number of events found in pt and whether the chunk should be kept as a trace.
-func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvents int64, keep bool) {
+func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvents int64, keep bool, filteredTrace traceutil.ProcessedTrace) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
 	if hasPriority {
@@ -396,17 +396,28 @@ func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvent
 	}
 
 	if priority < 0 {
-		return 0, false
+		return 0, false, pt
 	}
 
 	sampled := a.runSamplers(pt, hasPriority)
-	pt.TraceChunk.DroppedTrace = !sampled
-	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, pt.TraceChunk)
+
+	filteredTrace = pt
+	if !sampled {
+		// Copying the trace chunk as spans will be filtered by EventsExtractor
+		// and the previous TraceChunk is used for stats computation.
+		filteredTrace.TraceChunk = &pb.TraceChunk{
+			DroppedTrace: true,
+			Priority:     pt.TraceChunk.Priority,
+			Origin:       pt.TraceChunk.Origin,
+			Tags:         pt.TraceChunk.Tags,
+		}
+	}
+	numEvents, numExtracted := a.EventProcessor.Process(filteredTrace.Root, filteredTrace.TraceChunk)
 
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
 	atomic.AddInt64(&ts.EventsSampled, numEvents)
 
-	return numEvents, sampled
+	return numEvents, sampled, filteredTrace
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
