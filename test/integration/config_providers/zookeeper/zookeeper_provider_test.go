@@ -134,7 +134,7 @@ func (suite *ZkTestSuite) populate() error {
 
 func (suite *ZkTestSuite) TestCollect() {
 	ctx := context.Background()
-	zk, err := providers.NewZookeeperConfigProvider(suite.providerConfig)
+	zk, err := providers.NewZookeeperConfigProvider(&suite.providerConfig)
 	require.Nil(suite.T(), err)
 
 	templates, err := zk.Collect(ctx)
