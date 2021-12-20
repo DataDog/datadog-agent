@@ -29,12 +29,12 @@ func (a *IterableStreamJSONMarshalerAdapter) WriteHeader(j *jsoniter.Stream) err
 	return a.marshaler.WriteHeader(j)
 }
 
-// WriteFooter prints the payload footer for this type
+// WriteFooter writes the payload footer for this type
 func (a *IterableStreamJSONMarshalerAdapter) WriteFooter(j *jsoniter.Stream) error {
 	return a.marshaler.WriteFooter(j)
 }
 
-// WriteCurrentItem write the json representation into the stream
+// WriteCurrentItem writes the json representation into the stream
 func (a *IterableStreamJSONMarshalerAdapter) WriteCurrentItem(j *jsoniter.Stream) error {
 	return a.marshaler.WriteItem(j, a.index)
 }
@@ -46,10 +46,10 @@ func (a *IterableStreamJSONMarshalerAdapter) DescribeCurrentItem() string {
 
 // MoveNext moves to the next value. Returns false when reaching the end of the iteration.
 func (a *IterableStreamJSONMarshalerAdapter) MoveNext() bool {
+	a.index++
 	if a.index >= a.marshaler.Len() {
 		return false
 	}
-	a.index++
 	return true
 }
 

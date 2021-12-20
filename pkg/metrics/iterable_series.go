@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"errors"
+	"sync/atomic"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -18,6 +19,7 @@ type IterableSeries struct {
 	receiverStoppedChan chan struct{}
 	callback            func(*Serie)
 	current             *Serie
+	count               uint64
 }
 
 // NewIterableSeries creates a new instance of *IterableSeries
@@ -35,12 +37,18 @@ func NewIterableSeries(callback func(*Serie), chanSize int) *IterableSeries {
 // Append appends a serie
 func (series *IterableSeries) Append(serie *Serie) {
 	series.callback(serie)
+	atomic.AddUint64(&series.count, 1)
 	select {
 	case series.c <- serie:
 
 	// Make sure `Append` doesn't block. See `IterationStopped()`.
 	case <-series.receiverStoppedChan:
 	}
+}
+
+// SeriesCount returns the number of series appended with `IterableSeries.Append`.
+func (series *IterableSeries) SeriesCount() uint64 {
+	return atomic.LoadUint64(&series.count)
 }
 
 // SenderStopped must be called when sender stop calling Append.
@@ -88,4 +96,9 @@ func (series *IterableSeries) MoveNext() bool {
 	var ok bool
 	series.current, ok = <-series.c
 	return ok
+}
+
+// Current returns the current serie.
+func (series *IterableSeries) Current() *Serie {
+	return series.current
 }

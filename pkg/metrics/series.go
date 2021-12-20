@@ -552,3 +552,14 @@ func (series Series) DescribeItem(i int) string {
 	}
 	return describeItem(series[i])
 }
+
+// SerieSink is a sink for series.
+// It provides a way to append a serie into `Series` or `IterableSerie`
+type SerieSink interface {
+	Append(*Serie)
+}
+
+// Append appends a serie into series. Implement `SerieSink` interface.
+func (series *Series) Append(serie *Serie) {
+	*series = append(*series, serie)
+}
