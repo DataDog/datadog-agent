@@ -71,8 +71,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.33.0-rc.4
 	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
-	github.com/DataDog/ebpf v0.0.0-20211116165855-af5870810f0b
-	github.com/DataDog/ebpf-manager v0.0.0-20220103145404-d938938b1a8e
+	github.com/DataDog/ebpf-manager v0.0.0-20211203142333-a0c5ade33f8e
 	github.com/DataDog/gohai v0.0.0-20211126091652-d183ed971098
 	github.com/DataDog/gopsutil v0.0.0-20211112180027-9aa392ae181a
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
