@@ -202,6 +202,7 @@ func (a *Agent) Process(p *api.Payload) {
 	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
 	statsInput := stats.NewStatsInput(p.TracerPayload, p.ClientComputedStats, a.conf)
 
+	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
 	for i := 0; i < len(p.Chunks()); {
 		chunk := p.Chunk(i)
 		if len(chunk.Spans) == 0 {
