@@ -85,13 +85,14 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	switch rd2.Combine {
 	case OverridePolicy:
 		rd.Expression = rd2.Expression
-		rd.Disabled = rd2.Disabled
 	case MergePolicy:
 		rd.Expression += " " + rd2.Expression
-		rd.Disabled = rd2.Disabled
 	default:
-		return &ErrRuleLoad{Definition: rd2, Err: ErrInternalIDConflict}
+		if !rd2.Disabled {
+			return &ErrRuleLoad{Definition: rd2, Err: ErrInternalIDConflict}
+		}
 	}
+	rd.Disabled = rd2.Disabled
 	return nil
 }
 
