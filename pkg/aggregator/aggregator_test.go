@@ -437,6 +437,7 @@ func TestRecurrentSeries(t *testing.T) {
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 	s.AssertExpectations(t)
+	recurrentSeries = nil
 }
 
 func TestTags(t *testing.T) {
@@ -498,7 +499,6 @@ func TestTags(t *testing.T) {
 }
 
 func TestAggregatorFlush(t *testing.T) {
-	resetAggregator()
 	defer config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", nil)
 
 	tests := []struct {
