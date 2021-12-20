@@ -214,8 +214,7 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
 
     // populate ifindex if need be
     if (entry->ifindex.ifindex == 0) {
-        // TODO: add variable offset
-        bpf_probe_read(&entry->ifindex.ifindex, sizeof(entry->ifindex.ifindex), (void*)entry->device + offsetof(struct net_device, ifindex));
+        entry->ifindex.ifindex = get_ifindex_from_net_device(entry->device);
     }
 
     // prepare device key and device entry of newly registered device

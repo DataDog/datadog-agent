@@ -227,25 +227,40 @@ void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
     register_nr(root_nr, namespace_nr);
 }
 
+__attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device *device) {
+    u64 net_device_ifindex_offset;
+    LOAD_CONSTANT("net_device_ifindex_offset", net_device_ifindex_offset);
+
+    u32 ifindex;
+    bpf_probe_read(&ifindex, sizeof(ifindex), (void*)device + net_device_ifindex_offset);
+    return ifindex;
+}
+
 __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
+    u64 net_ns_offset;
+    LOAD_CONSTANT("net_ns_offset", net_ns_offset);
+
     struct ns_common ns;
-    // TODO: add variable offset
-    bpf_probe_read(&ns, sizeof(ns), &net->ns);
+    bpf_probe_read(&ns, sizeof(ns), (void*)net + net_ns_offset);
     return ns.inum;
 }
 
 __attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {
+    u64 sock_common_skc_net_offset;
+    LOAD_CONSTANT("sock_common_skc_net_offset", sock_common_skc_net_offset);
+
     struct sock_common *common = (void *)sk;
     struct net *net = NULL;
-    // TODO: add variable offset
-    bpf_probe_read(&net, sizeof(net), &common->skc_net);
+    bpf_probe_read(&net, sizeof(net), (void *)common + sock_common_skc_net_offset);
     return get_netns_from_net(net);
 }
 
 __attribute__((always_inline)) u32 get_netns_from_socket(struct socket *socket) {
+    u64 socket_sock_offset;
+    LOAD_CONSTANT("socket_sock_offset", socket_sock_offset);
+
     struct sock *sk = NULL;
-    // TODO: add variable offset
-    bpf_probe_read(&sk, sizeof(sk), &socket->sk);
+    bpf_probe_read(&sk, sizeof(sk), (void *)socket + socket_sock_offset);
     return get_netns_from_sock(sk);
 }
 

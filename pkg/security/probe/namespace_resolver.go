@@ -14,6 +14,7 @@ import (
 	"github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -393,4 +394,40 @@ func (nr *NamespaceResolver) SendStats() error {
 		_ = nr.client.Gauge(metrics.MetricNamespaceResolverLonelyNetworkNamespace, val, []string{}, 1.0)
 	}
 	return nil
+}
+
+func getNetDeviceIfindexOffset(p *Probe) uint64 {
+	offset := uint64(260)
+
+	switch {
+	case p.kernelVersion.Code >= kernel.Kernel4_16 && p.kernelVersion.Code < kernel.Kernel5_8:
+		offset = uint64(264)
+	case p.kernelVersion.Code >= kernel.Kernel5_8 && p.kernelVersion.Code < kernel.Kernel5_12:
+		offset = uint64(256)
+	case p.kernelVersion.Code >= kernel.Kernel5_12 && p.kernelVersion.Code < kernel.Kernel5_16:
+		offset = uint64(208)
+	case p.kernelVersion.Code >= kernel.Kernel5_16:
+		offset = uint64(212)
+	}
+
+	return offset
+}
+
+func getNetNSOffset(p *Probe) uint64 {
+	return uint64(120)
+}
+
+func getSockCommonSKCNetOffset(p *Probe) uint64 {
+	return uint64(48)
+}
+
+func getSocketSockOffset(p *Probe) uint64 {
+	offset := uint64(32)
+
+	switch {
+	case p.kernelVersion.Code >= kernel.Kernel5_3:
+		offset = uint64(24)
+	}
+
+	return offset
 }

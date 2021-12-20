@@ -1131,6 +1131,22 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Name:  "dump_timeout",
 			Value: getCgroupDumpTimeout(p),
 		},
+		manager.ConstantEditor{
+			Name:  "net_device_ifindex_offset",
+			Value: getNetDeviceIfindexOffset(p),
+		},
+		manager.ConstantEditor{
+			Name:  "net_ns_offset",
+			Value: getNetNSOffset(p),
+		},
+		manager.ConstantEditor{
+			Name:  "sock_common_skc_net_offset",
+			Value: getSockCommonSKCNetOffset(p),
+		},
+		manager.ConstantEditor{
+			Name:  "socket_sock_offset",
+			Value: getSocketSockOffset(p),
+		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
