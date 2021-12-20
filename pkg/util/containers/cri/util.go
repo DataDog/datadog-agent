@@ -28,6 +28,7 @@ var (
 
 type CRIClient interface {
 	ListContainerStats() (map[string]*pb.ContainerStats, error)
+	GetContainerStats(containerID string) (*pb.ContainerStats, error)
 	GetContainerStatus(containerID string) (*pb.ContainerStatus, error)
 	GetRuntime() string
 	GetRuntimeVersion() string
@@ -106,20 +107,22 @@ func GetUtil() (*CRIUtil, error) {
 
 // ListContainerStats sends a ListContainerStatsRequest to the server, and parses the returned response
 func (c *CRIUtil) ListContainerStats() (map[string]*pb.ContainerStats, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
-	defer cancel()
-	filter := &pb.ContainerStatsFilter{}
-	request := &pb.ListContainerStatsRequest{Filter: filter}
-	r, err := c.client.ListContainerStats(ctx, request)
+	return c.listContainerStatsWithFilter(&pb.ContainerStatsFilter{})
+}
+
+// GetContainerStats returns the stats for the container with the given ID
+func (c *CRIUtil) GetContainerStats(containerID string) (*pb.ContainerStats, error) {
+	stats, err := c.listContainerStatsWithFilter(&pb.ContainerStatsFilter{Id: containerID})
 	if err != nil {
 		return nil, err
 	}
 
-	stats := make(map[string]*pb.ContainerStats)
-	for _, s := range r.GetStats() {
-		stats[s.Attributes.Id] = s
+	containerStats, found := stats[containerID]
+	if !found {
+		return nil, fmt.Errorf("could not get stats for container with ID %s ", containerID)
 	}
-	return stats, nil
+
+	return containerStats, nil
 }
 
 // GetContainerStatus requests a container status by its ID
@@ -141,4 +144,21 @@ func (c *CRIUtil) GetRuntime() string {
 
 func (c *CRIUtil) GetRuntimeVersion() string {
 	return c.runtimeVersion
+}
+
+func (c *CRIUtil) listContainerStatsWithFilter(filter *pb.ContainerStatsFilter) (map[string]*pb.ContainerStats, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+
+	request := &pb.ListContainerStatsRequest{Filter: filter}
+	r, err := c.client.ListContainerStats(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]*pb.ContainerStats)
+	for _, s := range r.GetStats() {
+		stats[s.Attributes.Id] = s
+	}
+	return stats, nil
 }

@@ -63,7 +63,7 @@ func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
 func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
-func (l *MockListener) fakeFactory() (listeners.ServiceListener, error) {
+func (l *MockListener) fakeFactory(listeners.Config) (listeners.ServiceListener, error) {
 	return l, nil
 }
 
@@ -79,7 +79,7 @@ type factoryMock struct {
 	returnError error
 }
 
-func (o *factoryMock) make() (listeners.ServiceListener, error) {
+func (o *factoryMock) make(listeners.Config) (listeners.ServiceListener, error) {
 	o.Lock()
 	defer o.Unlock()
 	if o.callChan != nil {

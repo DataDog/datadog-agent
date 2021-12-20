@@ -140,7 +140,7 @@ func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integratio
 }
 
 func init() {
-	RegisterProvider("clusterchecks", NewClusterChecksConfigProvider)
+	RegisterProvider(names.ClusterChecksRegisterName, NewClusterChecksConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the ClusterChecksConfigProvider

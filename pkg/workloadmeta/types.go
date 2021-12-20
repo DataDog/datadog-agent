@@ -68,6 +68,7 @@ const (
 	ContainerRuntimeDocker     ContainerRuntime = "docker"
 	ContainerRuntimeContainerd ContainerRuntime = "containerd"
 	ContainerRuntimePodman     ContainerRuntime = "podman"
+	ContainerRuntimeCRIO       ContainerRuntime = "cri-o"
 )
 
 // ECSLaunchType is the launch type of an ECS task.

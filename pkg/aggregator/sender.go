@@ -17,10 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var senderInstance *checkSender
-var senderInit sync.Once
-var senderPool *checkSenderPool
-
 // Sender allows sending metrics from checks/a check
 type Sender interface {
 	Commit()
@@ -99,14 +95,9 @@ type senderContainerLifecycleEvent struct {
 }
 
 type checkSenderPool struct {
+	agg     *BufferedAggregator
 	senders map[check.ID]Sender
 	m       sync.Mutex
-}
-
-func init() {
-	senderPool = &checkSenderPool{
-		senders: make(map[check.ID]Sender),
-	}
 }
 
 func newCheckSender(
@@ -139,64 +130,47 @@ func newCheckSender(
 // If no error is returned here, DestroySender must be called with the same ID
 // once the sender is not used anymore
 func GetSender(id check.ID) (Sender, error) {
-	if aggregatorInstance == nil {
-		return nil, errors.New("Aggregator was not initialized")
+	if demultiplexerInstance == nil {
+		return nil, errors.New("Demultiplexer was not initialized")
 	}
-	sender, err := senderPool.getSender(id)
-	if err != nil {
-		sender, err = senderPool.mkSender(id)
-	}
-	return sender, err
+	return demultiplexerInstance.GetSender(id)
 }
 
 // DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
 // Should be called when no sender with this ID is used anymore
 // The metrics of this (these) sender(s) that haven't been flushed yet will be lost
 func DestroySender(id check.ID) {
-	senderPool.removeSender(id)
+	if demultiplexerInstance == nil {
+		return
+	}
+	demultiplexerInstance.DestroySender(id)
 }
 
 // SetSender returns the passed sender with the passed ID.
 // This is largely for testing purposes
 func SetSender(sender Sender, id check.ID) error {
-	if aggregatorInstance == nil {
-		return errors.New("Aggregator was not initialized")
+	if demultiplexerInstance == nil {
+		return errors.New("Demultiplexer was not initialized")
 	}
-	return senderPool.setSender(sender, id)
+	return demultiplexerInstance.SetSender(sender, id)
 }
 
 // GetDefaultSender returns the default sender
 func GetDefaultSender() (Sender, error) {
-	if aggregatorInstance == nil {
-		return nil, errors.New("Aggregator was not initialized")
+	if demultiplexerInstance == nil {
+		return nil, errors.New("Demultiplexer was not initialized")
 	}
-
-	senderInit.Do(func() {
-		var defaultCheckID check.ID                       // the default value is the zero value
-		aggregatorInstance.registerSender(defaultCheckID) //nolint:errcheck
-		senderInstance = newCheckSender(
-			defaultCheckID,
-			aggregatorInstance.hostname,
-			aggregatorInstance.checkMetricIn,
-			aggregatorInstance.serviceCheckIn,
-			aggregatorInstance.eventIn,
-			aggregatorInstance.checkHistogramBucketIn,
-			aggregatorInstance.orchestratorMetadataIn,
-			aggregatorInstance.eventPlatformIn,
-			aggregatorInstance.contlcycleIn,
-		)
-	})
-
-	return senderInstance, nil
+	return demultiplexerInstance.GetDefaultSender()
 }
 
 // changeAllSendersDefaultHostname is to be called by the aggregator
 // when its hostname changes. All existing senders will have their
 // default hostname updated.
 func changeAllSendersDefaultHostname(hostname string) {
-	if senderPool != nil {
-		senderPool.changeAllSendersDefaultHostname(hostname)
+	if demultiplexerInstance == nil {
+		return
 	}
+	demultiplexerInstance.ChangeAllSendersDefaultHostname(hostname)
 }
 
 // DisableDefaultHostname allows check to override the default hostname that will be injected
@@ -460,17 +434,17 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
-	err := aggregatorInstance.registerSender(id)
+	err := sp.agg.registerSender(id)
 	sender := newCheckSender(
 		id,
-		aggregatorInstance.hostname,
-		aggregatorInstance.checkMetricIn,
-		aggregatorInstance.serviceCheckIn,
-		aggregatorInstance.eventIn,
-		aggregatorInstance.checkHistogramBucketIn,
-		aggregatorInstance.orchestratorMetadataIn,
-		aggregatorInstance.eventPlatformIn,
-		aggregatorInstance.contlcycleIn,
+		sp.agg.hostname,
+		sp.agg.checkMetricIn,
+		sp.agg.serviceCheckIn,
+		sp.agg.eventIn,
+		sp.agg.checkHistogramBucketIn,
+		sp.agg.orchestratorMetadataIn,
+		sp.agg.eventPlatformIn,
+		sp.agg.contlcycleIn,
 	)
 	sp.senders[id] = sender
 	return sender, err
@@ -481,9 +455,9 @@ func (sp *checkSenderPool) setSender(sender Sender, id check.ID) error {
 	defer sp.m.Unlock()
 
 	if _, ok := sp.senders[id]; ok {
-		aggregatorInstance.deregisterSender(id)
+		sp.agg.deregisterSender(id)
 	}
-	err := aggregatorInstance.registerSender(id)
+	err := sp.agg.registerSender(id)
 	sp.senders[id] = sender
 
 	return err
@@ -494,5 +468,5 @@ func (sp *checkSenderPool) removeSender(id check.ID) {
 	defer sp.m.Unlock()
 
 	delete(sp.senders, id)
-	aggregatorInstance.deregisterSender(id)
+	sp.agg.deregisterSender(id)
 }

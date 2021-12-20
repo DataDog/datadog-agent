@@ -8,8 +8,8 @@ package service
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"google.golang.org/grpc"
@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/service/tuf"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,7 +32,6 @@ type Subscriber struct {
 	product     pbgo.Product
 	refreshRate time.Duration
 	lastUpdate  time.Time
-	lastVersion uint64
 	callback    SubscriberCallback
 }
 
@@ -46,13 +44,35 @@ func NewSubscriber(product pbgo.Product, refreshRate time.Duration, callback Sub
 	}
 }
 
+// NewChanSubscriber returns a new subscriber that will put the ConfigResponse objects onto a provided channel.
+func NewChanSubscriber(product pbgo.Product, refreshRate time.Duration, channel chan *pbgo.ConfigResponse) *Subscriber {
+	return NewSubscriber(product, refreshRate, func(config *pbgo.ConfigResponse) error {
+		select {
+		case channel <- config:
+			return nil
+		default:
+			return errors.New("failed to put config onto channel")
+		}
+	})
+}
+
 // NewGRPCSubscriber returns a new gRPC stream based subscriber.
 func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) (context.CancelFunc, error) {
+	currentConfigSnapshotVersion := uint64(0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	token, err := security.FetchAuthToken()
+	if err != nil {
+		cancel()
+		err = fmt.Errorf("unable to fetch authentication token: %w", err)
+		log.Infof("unable to establish stream, will possibly retry: %s", err)
+		return nil, err
+	}
+
 	creds := credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
-
-	ctx, cancel := context.WithCancel(context.Background())
 	conn, err := grpc.DialContext(
 		ctx,
 		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
@@ -63,7 +83,39 @@ func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) (conte
 		return nil, err
 	}
 
-	agentClient := pbgo.NewAgentSecureClient(conn)
+	streamCtx := metadata.NewOutgoingContext(ctx, metadata.MD{
+		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+	})
+
+	subscriberStream, err := newSubscriberStream(streamCtx, conn)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to create core agent stream: %w", err)
+	}
+
+	go func() {
+		log.Debug("Waiting for configuration from remote config management")
+		for {
+			request := pbgo.SubscribeConfigRequest{
+				CurrentConfigSnapshotVersion: currentConfigSnapshotVersion,
+				Product:                      product,
+			}
+			if err := subscriberStream.stream.Send(&request); err != nil {
+				log.Errorf("Error sending message to core agent: %s", err)
+				time.Sleep(errorRetryInterval)
+				continue
+			}
+			subscriberStream.readConfigs(streamCtx, product, callback)
+		}
+	}()
+
+	return cancel, nil
+}
+
+// NewTracerGRPCSubscriber returns a new gRPC stream based subscriber. The subscriber sends tracer infos to core agent
+// and listens for configuration updates from core agent asynchronously.
+func NewTracerGRPCSubscriber(product pbgo.Product, callback SubscriberCallback, tracerInfos chan *pbgo.TracerInfo) (context.CancelFunc, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 
 	token, err := security.FetchAuthToken()
 	if err != nil {
@@ -73,56 +125,31 @@ func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) (conte
 		return nil, err
 	}
 
-	currentConfigSnapshotVersion := uint64(0)
-	client := tuf.NewDirectorPartialClient()
+	streamCtx := metadata.NewOutgoingContext(ctx, metadata.MD{
+		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+	})
 
-	go func() {
-		log.Debug("Waiting for configuration from remote config management")
+	creds := credentials.NewTLS(&tls.Config{
+		InsecureSkipVerify: true,
+	})
+	conn, err := grpc.DialContext(
+		ctx,
+		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
+		grpc.WithTransportCredentials(creds),
+	)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 
-		streamCtx, streamCancel := context.WithCancel(
-			metadata.NewOutgoingContext(ctx, metadata.MD{
-				"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-			}),
-		)
-		defer streamCancel()
+	subscriberStream, err := newSubscriberStream(streamCtx, conn)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to create core agent stream: %w", err)
+	}
 
-		log.Debug("Processing response from remote config management")
-
-		for {
-			request := pbgo.SubscribeConfigRequest{
-				CurrentConfigSnapshotVersion: currentConfigSnapshotVersion,
-				Product:                      product,
-			}
-			stream, err := agentClient.GetConfigUpdates(streamCtx, &request)
-			if err != nil {
-				log.Errorf("Failed to request configuration, retrying in %s...", errorRetryInterval)
-				time.Sleep(errorRetryInterval)
-				continue
-			}
-
-			for {
-				// Get new event from stream
-				configResponse, err := stream.Recv()
-				if err == io.EOF {
-					continue
-				} else if err != nil {
-					log.Warnf("Stopped listening for configuration from remote config management: %s", err)
-					time.Sleep(errorRetryInterval)
-					break
-				}
-
-				if err := client.Verify(configResponse); err != nil {
-					log.Errorf("Partial verify failed: %s", err)
-					continue
-				}
-
-				log.Infof("Got config for product %s", product)
-				if err := callback(configResponse); err == nil {
-					currentConfigSnapshotVersion = configResponse.ConfigSnapshotVersion
-				}
-			}
-		}
-	}()
+	go subscriberStream.sendTracerInfos(streamCtx, tracerInfos, product)
+	go subscriberStream.readConfigs(streamCtx, product, callback)
 
 	return cancel, nil
 }

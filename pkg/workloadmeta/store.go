@@ -194,12 +194,6 @@ func (s *store) Subscribe(name string, filter *Filter) chan EventBundle {
 		filter: filter,
 	}
 
-	s.subscribersMut.Lock()
-	s.subscribers = append(s.subscribers, sub)
-	s.subscribersMut.Unlock()
-
-	telemetry.Subscribers.Inc()
-
 	var events []Event
 
 	s.storeMut.RLock()
@@ -238,6 +232,15 @@ func (s *store) Subscribe(name string, filter *Filter) chan EventBundle {
 	// notifyChannel should not wait when doing the first subscription, as
 	// the subscriber is not ready to receive events yet
 	notifyChannel(sub.name, sub.ch, events, false)
+
+	// From the moment we add the subscriber to the list, the store can try to
+	// send it events, that's why it's important that we do this after the line
+	// above. Otherwise, it can cause a deadlock.
+	s.subscribersMut.Lock()
+	s.subscribers = append(s.subscribers, sub)
+	s.subscribersMut.Unlock()
+
+	telemetry.Subscribers.Inc()
 
 	return sub.ch
 }

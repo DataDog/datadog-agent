@@ -11,7 +11,6 @@ suites:
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: false
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
@@ -67,7 +66,6 @@ suites:
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
@@ -104,7 +102,6 @@ suites:
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         windows_agent_url: <%= windows_agent_url %>
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
@@ -133,7 +130,6 @@ suites:
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         windows_agent_url: <%= windows_agent_url %>
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
@@ -162,7 +158,6 @@ suites:
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
@@ -190,7 +185,6 @@ suites:
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
@@ -219,7 +213,6 @@ suites:
         <%= key %>: <%= value %>
         <% end %>
       dd-agent-install:
-        agent6: true
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>

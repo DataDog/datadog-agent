@@ -11,9 +11,12 @@ require './lib/ostools.rb'
 name "datadog-agent-finalize"
 description "steps required to finalize the build"
 default_version "1.0.0"
+
 skip_transitive_dependency_licensing true
 
 build do
+    license :project_license
+
     # TODO too many things done here, should be split
     block do
         # Conf files
@@ -52,6 +55,15 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.conf*"
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
+
+            # On Windows, zip up the python directory. x=5 means normal compression, s=on makes a solid archive
+            command "7z a -mx=5 -ms=on #{install_dir}/embedded3.7z #{windows_safe_path(python_3_embedded)}"
+            delete windows_safe_path(python_3_embedded)
+            if with_python_runtime? "2"
+                command "7z a -mx=5 -ms=on #{install_dir}/embedded2.7z #{windows_safe_path(python_2_embedded)}"
+                delete windows_safe_path(python_2_embedded)
+            end
+
         end
 
         if linux? || osx?
@@ -207,7 +219,7 @@ build do
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
-            
+
             # remove docker configuration
             delete "#{install_dir}/etc/conf.d/docker.d"
 

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 // Package cachedfetch provides a read-through cache for fetched values.
 package cachedfetch
 
@@ -78,6 +83,15 @@ func (f *Fetcher) FetchString(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return v.(string), nil
+}
+
+// FetchStringSlice is a convenience wrapper around Fetch that returns a string
+func (f *Fetcher) FetchStringSlice(ctx context.Context) ([]string, error) {
+	v, err := f.Fetch(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return v.([]string), nil
 }
 
 // Reset resets the cached value (used for testing)

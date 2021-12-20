@@ -100,6 +100,7 @@ type MetricSerializer interface {
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
+	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
 	SendContainerLifecycleEvent(msgs []ContainerLifeCycleMessage, hostName string) error
 }

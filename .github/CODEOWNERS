@@ -30,9 +30,10 @@
 
 /.circleci/                             @DataDog/agent-platform
 
-/.github/CODEOWNERS                     @DataDog/do-not-notify
-/.github/*_TEMPLATE.md                  @DataDog/agent-all
-/.github/dependabot.yaml                @DataDog/agent-platform
+/.github/CODEOWNERS                                 @DataDog/do-not-notify
+/.github/*_TEMPLATE.md                              @DataDog/agent-all
+/.github/dependabot.yaml                            @DataDog/agent-platform
+/.github/workflows/serverless-integration.yml       @DataDog/serverless
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
@@ -117,8 +118,6 @@
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
 # Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
 # that should be fine since rarely we make PRs that only change those files alone.
-/releasenotes/                          @DataDog/do-not-notify
-/releasenotes-installscript/                  @DataDog/do-not-notify
 /go.mod                                 @DataDog/do-not-notify
 /go.sum                                 @DataDog/do-not-notify
 
@@ -148,6 +147,7 @@
 /pkg/autodiscovery/listeners/snmp*.go   @DataDog/infrastructure-integrations
 /pkg/autodiscovery/providers/           @DataDog/container-integrations
 /pkg/autodiscovery/providers/file*.go   @DataDog/agent-core
+/pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-core
 /pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
@@ -188,6 +188,7 @@
 /pkg/logs/                              @DataDog/agent-core
 /pkg/logs/input/traps/                  @DataDog/infrastructure-integrations @DataDog/agent-core
 /pkg/process/                           @DataDog/processes
+/pkg/process/checks/net*                @DataDog/agent-network
 /pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/process/net/                       @DataDog/processes @DataDog/agent-network
 /pkg/orchestrator/                      @DataDog/container-app
@@ -207,7 +208,9 @@
 
 /pkg-config/                            @DataDog/agent-platform
 
-/releasenotes-dca/                      @DataDog/container-integrations
+/releasenotes/                          @DataDog/documentation
+/releasenotes-installscript/            @DataDog/documentation
+/releasenotes-dca/                      @DataDog/documentation @DataDog/container-integrations @Datadog/container-app
 
 /rtloader/                              @DataDog/agent-core
 
@@ -224,6 +227,8 @@
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/e2e/                              @DataDog/container-integrations @DataDog/agent-security
 /test/e2e/cws-tests/                    @DataDog/agent-security
+/test/e2e/argo-workflows/otlp-workflow.yaml @DataDog/agent-platform
+/test/e2e/containers/otlp_sender/        @DataDog/agent-platform
 /test/integration/                      @DataDog/container-integrations
 /test/integration/serverless            @DataDog/serverless
 /test/integration/serverless_perf       @DataDog/serverless

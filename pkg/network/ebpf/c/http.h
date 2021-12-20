@@ -125,9 +125,6 @@ static __always_inline int http_begin_response(http_transaction_t *http, const c
     __u8 space_found = 0;
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
-	    // buffer might contain a null terminator in the middle
-        if (buffer[i] == 0) break;
-
         if (!space_found && buffer[i] == ' ') {
             space_found = 1;
         } else if (space_found && status_code < 100) {
@@ -170,7 +167,7 @@ static __always_inline void http_parse_data(char *p, http_packet_t *packet_type,
     }
 }
 
-static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 src_port) {
+static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 src_port, u64 tags) {
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_parse_data(buffer, &packet_type, &method);
@@ -203,6 +200,8 @@ static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 
             return 0;
         }
     }
+
+    http->tags |= tags;
 
     // If we have a (L7/application-layer) payload we want to update the response_last_seen
     // This is to prevent things such as a keep-alive adding up to the transaction latency

@@ -23,6 +23,12 @@ func (m *MockCRIClient) ListContainerStats() (map[string]*pb.ContainerStats, err
 	return args.Get(0).(map[string]*pb.ContainerStats), args.Error(1)
 }
 
+// GetContainerStats returns the stats for the container with the given ID
+func (m *MockCRIClient) GetContainerStats(containerID string) (*pb.ContainerStats, error) {
+	args := m.Called(containerID)
+	return args.Get(0).(*pb.ContainerStats), args.Error(1)
+}
+
 // GetContainerStatus sends a ContainerStatusRequest to the server, and parses the returned response
 func (m *MockCRIClient) GetContainerStatus(containerID string) (*pb.ContainerStatus, error) {
 	args := m.Called(containerID)

@@ -29,7 +29,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, containerdEvent *co
 			return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
 		}
 
-		return createSetEvent(ctx, ID, c.containerdClient)
+		return createSetEvent(ctx, ID, containerdEvent.Namespace, c.containerdClient)
 	case containerDeletionTopic:
 		ID, hasID := containerdEvent.Field([]string{"event", "id"})
 		if !hasID {
@@ -47,7 +47,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, containerdEvent *co
 		}
 
 		c.cacheExitInfo(exited.ContainerID, &exited.ExitStatus, exited.ExitedAt)
-		return createSetEventFromTask(ctx, containerdEvent, c.containerdClient)
+		return createSetEventFromTask(ctx, containerdEvent.Namespace, containerdEvent, c.containerdClient)
 	case TaskDeleteTopic:
 		deleted := &events.TaskDelete{}
 		if err := proto.Unmarshal(containerdEvent.Event.Value, deleted); err != nil {
@@ -55,25 +55,25 @@ func (c *collector) buildCollectorEvent(ctx context.Context, containerdEvent *co
 		}
 
 		c.cacheExitInfo(deleted.ContainerID, &deleted.ExitStatus, deleted.ExitedAt)
-		return createSetEventFromTask(ctx, containerdEvent, c.containerdClient)
+		return createSetEventFromTask(ctx, containerdEvent.Namespace, containerdEvent, c.containerdClient)
 	case TaskStartTopic, TaskOOMTopic, TaskPausedTopic, TaskResumedTopic:
-		return createSetEventFromTask(ctx, containerdEvent, c.containerdClient)
+		return createSetEventFromTask(ctx, containerdEvent.Namespace, containerdEvent, c.containerdClient)
 	default:
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("unknown action type %s, ignoring", containerdEvent.Topic)
 	}
 }
 
-func createSetEventFromTask(ctx context.Context, containerdEvent *containerdevents.Envelope, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
+func createSetEventFromTask(ctx context.Context, namespace string, containerdEvent *containerdevents.Envelope, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
 	// Notice that the ID field in this case is stored in "ContainerID".
 	ID, hasID := containerdEvent.Field([]string{"event", "container_id"})
 	if !hasID {
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("missing ID in containerd event")
 	}
 
-	return createSetEvent(ctx, ID, containerdClient)
+	return createSetEvent(ctx, ID, namespace, containerdClient)
 }
 
-func createSetEvent(ctx context.Context, containerID string, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
+func createSetEvent(ctx context.Context, containerID string, namespace string, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
 	container, err := containerdClient.ContainerWithContext(ctx, containerID)
 	if err != nil {
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch container %s: %s", containerID, err)
@@ -83,6 +83,10 @@ func createSetEvent(ctx context.Context, containerID string, containerdClient cu
 	if err != nil {
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch info for container %s: %s", containerID, err)
 	}
+
+	// The namespace cannot be obtained from a container instance. That's why we
+	// propagate it here using the one in the event.
+	entity.Namespace = namespace
 
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,
