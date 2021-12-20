@@ -6,6 +6,7 @@
 package checkconfig
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
 	"net"
@@ -19,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -191,7 +192,7 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
 func (c *CheckConfig) UpdateDeviceIDAndTags() {
-	c.DeviceIDTags = util.SortUniqInPlace(c.getDeviceIDTags())
+	c.DeviceIDTags = coreutil.SortUniqInPlace(c.getDeviceIDTags())
 	c.DeviceID = c.Namespace + ":" + c.IPAddress
 }
 
@@ -205,6 +206,13 @@ func (c *CheckConfig) GetStaticTags() []string {
 	tags = append(tags, deviceNamespaceTagKey+":"+c.Namespace)
 	if c.IPAddress != "" {
 		tags = append(tags, deviceIPTagKey+":"+c.IPAddress)
+	}
+
+	hostname, err := coreutil.GetHostname(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting the hostname: %v", err)
+	} else {
+		tags = append(tags, "agent_host:"+hostname)
 	}
 	return tags
 }

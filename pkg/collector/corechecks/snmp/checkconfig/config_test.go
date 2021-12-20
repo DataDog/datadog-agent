@@ -19,6 +19,7 @@ import (
 
 func TestConfigurations(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
+	coreconfig.Datadog.Set("hostname", "my-hostname")
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
@@ -130,7 +131,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "aes", config.PrivProtocol)
 	assert.Equal(t, "my-privKey", config.PrivKey)
 	assert.Equal(t, "my-contextName", config.ContextName)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "agent_host:my-hostname"}, config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: MetricTagConfigList{

@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,6 +36,7 @@ import (
 
 func TestBasicSample(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
+	coreconfig.Datadog.Set("hostname", "my-hostname")
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -258,7 +259,7 @@ tags:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4"}
+	snmpTags := []string{"snmp_device:1.2.3.4", "agent_host:my-hostname"}
 	snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
 	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
 	row1Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
@@ -1702,8 +1703,8 @@ metric_tags:
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
-	config.Datadog.Set("hostname", "test-hostname")
-	config.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+	coreconfig.Datadog.Set("hostname", "test-hostname")
+	coreconfig.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
