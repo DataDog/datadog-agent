@@ -7,6 +7,8 @@ package config
 
 import (
 	"encoding/json"
+	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -29,14 +31,14 @@ const (
 	// defaultKernelHeadersDownloadDir is the default path for downloading kernel headers for runtime compilation
 	defaultKernelHeadersDownloadDir = "/var/tmp/datadog-agent/system-probe/kernel-headers"
 
-	// defaultAptConfigDir is the default path to the apt config directory
-	defaultAptConfigDir = "/etc/apt"
+	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
+	defaultAptConfigDirSuffix = "/apt"
 
-	// defaultYumReposDir is the default path to the yum repository directory
-	defaultYumReposDir = "/etc/yum.repos.d"
+	// defaultYumReposDirSuffix is the default path `/etc` to the yum repository directory
+	defaultYumReposDirSuffix = "/yum.repos.d"
 
-	// defaultZypperReposDir is the default path to the zypper repository directory
-	defaultZypperReposDir = "/etc/zypp/repos.d"
+	// defaultZypperReposDirSuffix is the default path `/etc` to the zypper repository directory
+	defaultZypperReposDirSuffix = "/zypp/repos.d"
 
 	defaultOffsetThreshold = 400
 )
@@ -90,9 +92,9 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "runtime_compiler_output_dir"), defaultRuntimeCompilerOutputDir, "DD_RUNTIME_COMPILER_OUTPUT_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_dirs"), []string{}, "DD_KERNEL_HEADER_DIRS")
 	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_download_dir"), defaultKernelHeadersDownloadDir, "DD_KERNEL_HEADER_DOWNLOAD_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "apt_config_dir"), defaultAptConfigDir, "DD_APT_CONFIG_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "yum_repos_dir"), defaultYumReposDir, "DD_YUM_REPOS_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "zypper_repos_dir"), defaultZypperReposDir, "DD_ZYPPER_REPOS_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "apt_config_dir"), suffixHostEtc(defaultAptConfigDirSuffix), "DD_APT_CONFIG_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "yum_repos_dir"), suffixHostEtc(defaultYumReposDirSuffix), "DD_YUM_REPOS_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "zypper_repos_dir"), suffixHostEtc(defaultZypperReposDirSuffix), "DD_ZYPPER_REPOS_DIR")
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -161,4 +163,12 @@ func InitSystemProbeConfig(cfg Config) {
 
 func join(pieces ...string) string {
 	return strings.Join(pieces, ".")
+}
+
+func suffixHostEtc(suffix string) string {
+	if value, _ := os.LookupEnv("HOST_ETC"); value != "" {
+		return path.Join(value, suffix)
+	} else {
+		return path.Join("/etc", suffix)
+	}
 }
