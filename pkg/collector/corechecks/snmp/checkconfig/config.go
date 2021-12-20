@@ -208,11 +208,13 @@ func (c *CheckConfig) GetStaticTags() []string {
 		tags = append(tags, deviceIPTagKey+":"+c.IPAddress)
 	}
 
-	hostname, err := coreutil.GetHostname(context.TODO())
-	if err != nil {
-		log.Warnf("Error getting the hostname: %v", err)
-	} else {
-		tags = append(tags, "agent_host:"+hostname)
+	if c.UseDeviceIDAsHostname {
+		hostname, err := coreutil.GetHostname(context.TODO())
+		if err != nil {
+			log.Warnf("Error getting the hostname: %v", err)
+		} else {
+			tags = append(tags, "agent_host:"+hostname)
+		}
 	}
 	return tags
 }

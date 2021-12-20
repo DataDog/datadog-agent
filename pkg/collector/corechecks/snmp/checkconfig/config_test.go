@@ -131,7 +131,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "aes", config.PrivProtocol)
 	assert.Equal(t, "my-privKey", config.PrivKey)
 	assert.Equal(t, "my-contextName", config.ContextName)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "agent_host:my-hostname"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: MetricTagConfigList{
@@ -1669,6 +1669,62 @@ func TestCheckConfig_getResolvedSubnetName(t *testing.T) {
 				InstanceTags: tt.instanceTags,
 			}
 			assert.Equal(t, tt.expectedSubnetName, c.getResolvedSubnetName())
+		})
+	}
+}
+
+func TestCheckConfig_GetStaticTags(t *testing.T) {
+	coreconfig.Datadog.Set("hostname", "my-hostname")
+	tests := []struct {
+		name         string
+		config       CheckConfig
+		expectedTags []string
+	}{
+		{
+			name: "IPAddress",
+			config: CheckConfig{
+				Namespace: "default",
+				IPAddress: "1.2.3.4",
+			},
+			expectedTags: []string{
+				"device_namespace:default",
+				"snmp_device:1.2.3.4",
+			},
+		},
+		{
+			name: "extraTags",
+			config: CheckConfig{
+				Namespace: "default",
+				IPAddress: "1.2.3.4",
+				ExtraTags: []string{
+					"extra_tag1:val1",
+					"extra_tag2:val2",
+				},
+			},
+			expectedTags: []string{
+				"extra_tag1:val1",
+				"extra_tag2:val2",
+				"device_namespace:default",
+				"snmp_device:1.2.3.4",
+			},
+		},
+		{
+			name: "Agent Hostname",
+			config: CheckConfig{
+				Namespace:             "default",
+				IPAddress:             "1.2.3.4",
+				UseDeviceIDAsHostname: true,
+			},
+			expectedTags: []string{
+				"device_namespace:default",
+				"snmp_device:1.2.3.4",
+				"agent_host:my-hostname",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.ElementsMatch(t, tt.expectedTags, tt.config.GetStaticTags())
 		})
 	}
 }

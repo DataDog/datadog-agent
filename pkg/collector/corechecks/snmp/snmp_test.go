@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"strconv"
 	"strings"
 	"testing"
@@ -36,7 +37,6 @@ import (
 
 func TestBasicSample(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
-	coreconfig.Datadog.Set("hostname", "my-hostname")
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -259,7 +259,7 @@ tags:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4", "agent_host:my-hostname"}
+	snmpTags := []string{"snmp_device:1.2.3.4"}
 	snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
 	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
 	row1Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
@@ -1703,6 +1703,7 @@ metric_tags:
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
+	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 	coreconfig.Datadog.Set("hostname", "test-hostname")
 	coreconfig.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 
@@ -1868,6 +1869,8 @@ use_device_id_as_hostname: true
 }
 
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
+	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
+	coreconfig.Datadog.Set("hostname", "my-hostname")
 	timeNow = common.MockTimeNow
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -2023,7 +2026,7 @@ metrics:
 
 	for _, deviceData := range deviceMap {
 		hostname := "device:" + deviceData.deviceID
-		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
+		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30", "agent_host:my-hostname"}
 		snmpGlobalTags := common.CopyStrings(snmpTags)
 		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
 		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
