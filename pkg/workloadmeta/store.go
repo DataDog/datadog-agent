@@ -225,9 +225,8 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 			}
 
 			events = append(events, Event{
-				Sources: sources,
-				Type:    EventTypeSet,
-				Entity:  entity.merge(sources),
+				Type:   EventTypeSet,
+				Entity: entity.merge(sources),
 			})
 		}
 	}
@@ -459,7 +458,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		for _, ev := range evs {
 			entityID := ev.Entity.GetID()
-			evSources, ok := filter.SelectSources([]Source{ev.Source})
+			_, ok := filter.SelectSources([]Source{ev.Source})
 
 			if !filter.MatchKind(entityID.Kind) || !ok {
 				// event should be filtered out because it
@@ -474,18 +473,16 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				// setting an entity (EventTypeSet) or entity
 				// had one source removed, but others remain
 				filteredEvents = append(filteredEvents, Event{
-					Type:    EventTypeSet,
-					Sources: filteredSources,
-					Entity:  entityOfSource.merge(filteredSources),
+					Type:   EventTypeSet,
+					Entity: entityOfSource.merge(filteredSources),
 				})
 
 			} else {
 				// entity has been removed entirely, unsetting
 				// is straight forward too
 				filteredEvents = append(filteredEvents, Event{
-					Type:    EventTypeUnset,
-					Sources: evSources,
-					Entity:  ev.Entity,
+					Type:   EventTypeUnset,
+					Entity: ev.Entity,
 				})
 			}
 		}
