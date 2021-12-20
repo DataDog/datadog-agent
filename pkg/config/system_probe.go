@@ -168,7 +168,6 @@ func join(pieces ...string) string {
 func suffixHostEtc(suffix string) string {
 	if value, _ := os.LookupEnv("HOST_ETC"); value != "" {
 		return path.Join(value, suffix)
-	} else {
-		return path.Join("/etc", suffix)
 	}
+	return path.Join("/etc", suffix)
 }
