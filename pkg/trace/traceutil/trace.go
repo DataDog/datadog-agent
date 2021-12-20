@@ -16,9 +16,9 @@ const (
 )
 
 // GetEnv returns the first "env" tag found in trace t.
+// Search starts by root
 func GetEnv(root *pb.Span, t *pb.TraceChunk) string {
 	if v, ok := root.Meta[envKey]; ok {
-		// exit this on first success
 		return v
 	}
 	for _, s := range t.Spans {
@@ -26,7 +26,6 @@ func GetEnv(root *pb.Span, t *pb.TraceChunk) string {
 			continue
 		}
 		if v, ok := s.Meta[envKey]; ok {
-			// exit this on first success
 			return v
 		}
 	}
@@ -34,9 +33,9 @@ func GetEnv(root *pb.Span, t *pb.TraceChunk) string {
 }
 
 // GetAppVersion returns the first "version" tag found in trace t.
+// Search starts by root
 func GetAppVersion(root *pb.Span, t *pb.TraceChunk) string {
 	if v, ok := root.Meta[versionKey]; ok {
-		// exit this on first success
 		return v
 	}
 	for _, s := range t.Spans {
@@ -44,7 +43,6 @@ func GetAppVersion(root *pb.Span, t *pb.TraceChunk) string {
 			continue
 		}
 		if v, ok := s.Meta[versionKey]; ok {
-			// exit this on first success
 			return v
 		}
 	}
