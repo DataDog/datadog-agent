@@ -299,11 +299,14 @@ func (a *Agent) Process(p *api.Payload) {
 			statsInput.Traces = append(statsInput.Traces, pt)
 		}
 
-		numEvents, keep, pt := a.sample(ts, pt)
-		if !keep && numEvents == 0 {
-			// the trace was dropped and no analyzed span were kept
-			p.RemoveChunk(i)
-			continue
+		numEvents, keep, filteredChunk := a.sample(ts, pt)
+		if !keep {
+			if numEvents == 0 {
+				// the trace was dropped and no analyzed span were kept
+				p.RemoveChunk(i)
+				continue
+			}
+			p.ReplaceChunk(i, filteredChunk)
 		}
 
 		if !chunk.DroppedTrace {
@@ -386,7 +389,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 }
 
 // sample reports the number of events found in pt and whether the chunk should be kept as a trace.
-func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvents int64, keep bool, filteredTrace traceutil.ProcessedTrace) {
+func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvents int64, keep bool, filteredChunk *pb.TraceChunk) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
 	if hasPriority {
@@ -396,28 +399,29 @@ func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvent
 	}
 
 	if priority < 0 {
-		return 0, false, pt
+		return 0, false, pt.TraceChunk
 	}
 
 	sampled := a.runSamplers(pt, hasPriority)
 
-	filteredTrace = pt
+	filteredChunk = pt.TraceChunk
 	if !sampled {
 		// Copying the trace chunk as spans will be filtered by EventsExtractor
 		// and the previous TraceChunk is used for stats computation.
-		filteredTrace.TraceChunk = &pb.TraceChunk{
+		filteredChunk = &pb.TraceChunk{
 			DroppedTrace: true,
 			Priority:     pt.TraceChunk.Priority,
 			Origin:       pt.TraceChunk.Origin,
+			Spans:        pt.TraceChunk.Spans,
 			Tags:         pt.TraceChunk.Tags,
 		}
 	}
-	numEvents, numExtracted := a.EventProcessor.Process(filteredTrace.Root, filteredTrace.TraceChunk)
+	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
 
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
 	atomic.AddInt64(&ts.EventsSampled, numEvents)
 
-	return numEvents, sampled, filteredTrace
+	return numEvents, sampled, filteredChunk
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
