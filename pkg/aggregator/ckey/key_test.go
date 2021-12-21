@@ -23,19 +23,17 @@ func TestGenerateReproductible(t *testing.T) {
 	hostname := "hostname"
 	tags := tagset.NewTags([]string{"bar", "foo", "key:value", "key:value2"})
 
-	generator := NewKeyGenerator()
-
-	firstKey := generator.Generate(name, hostname, tags)
+	firstKey := Generate(name, hostname, tags)
 	assert.Equal(t, ContextKey(0x932f9848b0fb0802), firstKey)
 
 	for n := 0; n < 10; n++ {
 		t.Run(fmt.Sprintf("iteration %d:", n), func(t *testing.T) {
-			key := generator.Generate(name, hostname, tags)
+			key := Generate(name, hostname, tags)
 			assert.Equal(t, firstKey, key)
 		})
 	}
 
-	otherKey := generator.Generate("othername", hostname, tags)
+	otherKey := Generate("othername", hostname, tags)
 	assert.NotEqual(t, firstKey, otherKey)
 	assert.Equal(t, ContextKey(0xb059e8f73b4b7ae0), otherKey)
 }
@@ -65,10 +63,9 @@ func BenchmarkKeyGeneration(b *testing.B) {
 	for i := 1; i < 4096; i *= 2 {
 		tags := genTags(i, 1)
 		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
-			generator := NewKeyGenerator()
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
-				generator.Generate(name, host, tags)
+				Generate(name, host, tags)
 			}
 		})
 

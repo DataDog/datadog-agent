@@ -22,7 +22,6 @@ func TestCollisions(t *testing.T) {
 	data, err := ioutil.ReadFile("./random_sorted_uniq_contexts.csv")
 	assert.NoError(err)
 
-	generator := ckey.NewKeyGenerator()
 	host := "host"
 
 	var cache = make(map[ckey.ContextKey]string)
@@ -36,7 +35,7 @@ func TestCollisions(t *testing.T) {
 		metricName := parts[0]
 		tagList := parts[1]
 		tags := tagset.NewTags(strings.Split(tagList, " "))
-		ck := generator.Generate(metricName, host, tags)
+		ck := ckey.Generate(metricName, host, tags)
 		if v, exists := cache[ck]; exists {
 			assert.Fail("A collision happened:", v, "and", line)
 		} else {

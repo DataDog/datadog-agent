@@ -28,23 +28,9 @@ import (
 // nor did benchmarks with xxhash (slightly slower).
 type ContextKey uint64
 
-// NewKeyGenerator creates a new key generator
-func NewKeyGenerator() *KeyGenerator {
-	return &KeyGenerator{
-		// TODO: no need for a struct here
-	}
-}
-
-// KeyGenerator generates hash for the given name, hostname and tags.
-// The tags don't have to be sorted and duplicated tags will be ignored while
-// generating the hash.
-// Not safe for concurrent usage.
-type KeyGenerator struct {
-}
-
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
-func (g *KeyGenerator) Generate(name, hostname string, tags *tagset.Tags) ContextKey {
+func Generate(name, hostname string, tags *tagset.Tags) ContextKey {
 	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ tags.Hash()
 	return ContextKey(hash)
 }

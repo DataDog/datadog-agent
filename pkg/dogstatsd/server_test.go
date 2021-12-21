@@ -601,19 +601,17 @@ func TestDebugStats(t *testing.T) {
 
 	s.EnableMetricsStats()
 
-	keygen := ckey.NewKeyGenerator()
-
 	// data
 	sample1 := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
 	sample2 := metrics.MetricSample{Name: "some.metric2", Tags: []string{"a"}}
 	sample3 := metrics.MetricSample{Name: "some.metric3", Tags: make([]string, 0)}
 	sample4 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"b", "c"}}
 	sample5 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"c", "b"}}
-	hash1 := keygen.Generate(sample1.Name, "", tagset.NewTags(sample1.Tags))
-	hash2 := keygen.Generate(sample2.Name, "", tagset.NewTags(sample2.Tags))
-	hash3 := keygen.Generate(sample3.Name, "", tagset.NewTags(sample3.Tags))
-	hash4 := keygen.Generate(sample4.Name, "", tagset.NewTags(sample4.Tags))
-	hash5 := keygen.Generate(sample5.Name, "", tagset.NewTags(sample5.Tags))
+	hash1 := ckey.Generate(sample1.Name, "", tagset.NewTags(sample1.Tags))
+	hash2 := ckey.Generate(sample2.Name, "", tagset.NewTags(sample2.Tags))
+	hash3 := ckey.Generate(sample3.Name, "", tagset.NewTags(sample3.Tags))
+	hash4 := ckey.Generate(sample4.Name, "", tagset.NewTags(sample4.Tags))
+	hash5 := ckey.Generate(sample5.Name, "", tagset.NewTags(sample5.Tags))
 
 	// test ingestion and ingestion time
 	s.storeMetricStats(sample1)

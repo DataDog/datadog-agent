@@ -179,8 +179,6 @@ type dsdServerDebug struct {
 	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
 	// counting number of metrics processed last X seconds
 	metricsCounts metricsCountBuckets
-	// keyGen is used to generate hashes of the metrics received by dogstatsd
-	keyGen *ckey.KeyGenerator
 }
 
 // metricsCountBuckets is counting the amount of metrics received for the last 5 seconds.
@@ -333,7 +331,6 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 				metricChan: make(chan struct{}),
 				closeChan:  make(chan struct{}),
 			},
-			keyGen: ckey.NewKeyGenerator(),
 		},
 		TCapture:           capture,
 		UdsListenerRunning: udsListenerRunning,
@@ -708,7 +705,7 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	tags := tagset.NewTags(sample.Tags)
 
 	// key
-	key := s.Debug.keyGen.Generate(sample.Name, "", tags)
+	key := ckey.Generate(sample.Name, "", tags)
 
 	// store
 	ms := s.Debug.Stats[key]

@@ -23,13 +23,11 @@ type Context struct {
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
-	keyGenerator  *ckey.KeyGenerator
 }
 
 func newContextResolver() *contextResolver {
 	return &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
-		keyGenerator:  ckey.NewKeyGenerator(),
 	}
 }
 
@@ -38,7 +36,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	tb := tagset.NewBuilder(10)
 	metricSampleContext.GetTags(tb) // tags here are not sorted and can contain duplicates
 	tags := tb.Close()
-	contextKey := cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), tags)
+	contextKey := ckey.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), tags)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		// making a copy of tags for the context since tagsBuffer

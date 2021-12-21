@@ -22,8 +22,7 @@ import (
 )
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
-	l := ckey.NewKeyGenerator()
-	return l.Generate(serie.Name, serie.Host, tagset.NewTags(serie.Tags))
+	return ckey.Generate(serie.Name, serie.Host, tagset.NewTags(serie.Tags))
 }
 
 // TimeSampler
@@ -294,10 +293,9 @@ func TestSketch(t *testing.T) {
 
 	t.Run("single bucket", func(t *testing.T) {
 		var (
-			now    float64
-			ctx    = Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
-			exp    = &quantile.Sketch{}
-			keyGen = ckey.NewKeyGenerator()
+			now float64
+			ctx = Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
+			exp = &quantile.Sketch{}
 		)
 
 		for i := 0; i < bucketSize; i++ {
@@ -320,7 +318,7 @@ func TestSketch(t *testing.T) {
 					Ts:     0,
 				},
 			},
-			ContextKey: keyGen.Generate(ctx.Name, ctx.Host, tagset.NewTags(ctx.Tags)),
+			ContextKey: ckey.Generate(ctx.Name, ctx.Host, tagset.NewTags(ctx.Tags)),
 		}, flushed[0])
 
 		_, flushed = sampler.flush(now)
