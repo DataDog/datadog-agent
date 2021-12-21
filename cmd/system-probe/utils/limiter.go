@@ -1,0 +1,22 @@
+package utils
+
+import (
+	"net/http"
+	"sync/atomic"
+)
+
+// WithConcurrencyLimit enforces a maximum number of concurrent requests over
+// over a certain HTTP handler function
+func WithConcurrencyLimit(limit int, original func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+	var inFlight int64
+	return func(w http.ResponseWriter, req *http.Request) {
+		current := atomic.AddInt64(&inFlight, 1)
+		defer atomic.AddInt64(&inFlight, -1)
+
+		if current > int64(limit) {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		original(w, req)
+	}
+}
