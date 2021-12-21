@@ -306,6 +306,9 @@ func (a *Agent) Process(p *api.Payload) {
 				p.RemoveChunk(i)
 				continue
 			}
+			// The sampler step filtered a subset of spans in the chunk. The new filtered chunk
+			// is added to the TracerPayload to be sent to TraceWriter.
+			// The complete chunk is still sent to the stats concentrator.
 			p.ReplaceChunk(i, filteredChunk)
 		}
 
@@ -399,22 +402,16 @@ func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvent
 	}
 
 	if priority < 0 {
-		return 0, false, pt.TraceChunk
+		return 0, false, nil
 	}
 
 	sampled := a.runSamplers(pt, hasPriority)
 
 	filteredChunk = pt.TraceChunk
 	if !sampled {
-		// Copying the trace chunk as spans will be filtered by EventsExtractor
-		// and the previous TraceChunk is used for stats computation.
-		filteredChunk = &pb.TraceChunk{
-			DroppedTrace: true,
-			Priority:     pt.TraceChunk.Priority,
-			Origin:       pt.TraceChunk.Origin,
-			Spans:        pt.TraceChunk.Spans,
-			Tags:         pt.TraceChunk.Tags,
-		}
+		filteredChunk = new(pb.TraceChunk)
+		*filteredChunk = *pt.TraceChunk
+		filteredChunk.DroppedTrace = true
 	}
 	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
 
