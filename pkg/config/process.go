@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+const (
+	DefaultGRPCConnectionTimeoutSecs = 60
+)
+
 func setupProcesses(config Config) {
 	// Note that `BindEnvAndSetDefault` automatically creates environment variables with the `DD_PROCESS_CONFIG` prefix.
 	// This means that we must manually add the same environment variable, but with the `DD_PROCESS_AGENT` prefix if we want to support that too.
@@ -44,7 +48,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.expvar_port")
 	config.BindEnvAndSetDefault("process_config.log_file", defaultProcessAgentLogFile, "DD_PROCESS_AGENT_LOG_FILE")
 	config.SetKnown("process_config.internal_profiling.enabled")
-	config.SetDefault("process_config.grpc_connection_timeout_secs", 60) // Note that this is an integer, not a duration
+	config.SetDefault("process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs) // Note that this is an integer, not a duration
 
 	config.BindEnvAndSetDefault("process_config.remote_tagger", true, "DD_PROCESS_AGENT_REMOTE_TAGGER")
 

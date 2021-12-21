@@ -26,7 +26,7 @@ var allProcessSettings = []struct {
 	},
 	{
 		key:          "process_config.grpc_connection_timeout_secs",
-		defaultValue: 60,
+		defaultValue: DefaultGRPCConnectionTimeoutSecs,
 	},
 	{
 		key:          "process_config.remote_tagger",
@@ -55,8 +55,13 @@ func TestProcessConfig(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_CONFIG` prefix, there is a `DD_PROCESS_AGENT` prefix as well.
 func TestPrefixes(t *testing.T) {
-	envVars := setupConf().GetEnvVars()
-	for _, envVar := range envVars {
+	envVarSlice := setupConf().GetEnvVars()
+	envVars := make(map[string]struct{}, len(envVarSlice))
+	for _, envVar := range envVarSlice {
+		envVars[envVar] = struct{}{}
+	}
+
+	for envVar := range envVars {
 		if !strings.HasPrefix(envVar, "DD_PROCESS_CONFIG") {
 			continue
 		}
@@ -65,15 +70,8 @@ func TestPrefixes(t *testing.T) {
 		t.Run(fmt.Sprintf("%s and %s", envVar, processAgentEnvVar), func(t *testing.T) {
 			// Check to see if envVars contains processAgentEnvVar. We can't use assert.Contains,
 			// because when it fails the library prints all of envVars which is too noisy
-			containsCorrespondingEnvVar := false
-			for _, envVar := range envVars {
-				if envVar == processAgentEnvVar {
-					containsCorrespondingEnvVar = true
-					break
-				}
-			}
-
-			assert.Truef(t, containsCorrespondingEnvVar, "%s is defined but not %s", envVar, processAgentEnvVar)
+			_, ok := envVars[processAgentEnvVar]
+			assert.Truef(t, ok, "%s is defined but not %s", envVar, processAgentEnvVar)
 		})
 	}
 }
