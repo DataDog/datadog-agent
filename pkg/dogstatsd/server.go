@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -144,7 +144,6 @@ type Server struct {
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
-	debugTagsAccumulator      *oldtagset.HashingTagsAccumulator
 	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
 	eolTerminationUDP         bool
@@ -711,21 +710,17 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
-	if s.debugTagsAccumulator == nil {
-		s.debugTagsAccumulator = oldtagset.NewHashingTagsAccumulator()
-	}
+	tags := tagset.NewTags(sample.Tags)
 
 	// key
-	defer s.debugTagsAccumulator.Reset()
-	s.debugTagsAccumulator.Append(sample.Tags...)
-	key := s.Debug.keyGen.Generate(sample.Name, "", s.debugTagsAccumulator)
+	key := s.Debug.keyGen.Generate(sample.Name, "", tags)
 
 	// store
 	ms := s.Debug.Stats[key]
 	ms.Count++
 	ms.LastSeen = now
 	ms.Name = sample.Name
-	ms.Tags = strings.Join(s.debugTagsAccumulator.Get(), " ") // we don't want/need to share the underlying array
+	ms.Tags = tags.String()
 	s.Debug.Stats[key] = ms
 
 	s.Debug.metricsCounts.metricChan <- struct{}{}

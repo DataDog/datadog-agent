@@ -6,7 +6,7 @@
 package ckey
 
 import (
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/twmb/murmur3"
 )
 
@@ -33,9 +33,7 @@ type TagsKey uint64
 
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
-	return &KeyGenerator{
-		hg: oldtagset.NewHashGenerator(),
-	}
+	return &KeyGenerator{}
 }
 
 // KeyGenerator generates hash for the given name, hostname and tags.
@@ -43,22 +41,19 @@ func NewKeyGenerator() *KeyGenerator {
 // generating the hash.
 // Not safe for concurrent usage.
 type KeyGenerator struct {
-	hg *oldtagset.HashGenerator
 }
 
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
-func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *oldtagset.HashingTagsAccumulator) ContextKey {
-	key, _ := g.GenerateWithTags(name, hostname, tagsBuf)
-	return key
+func (g *KeyGenerator) Generate(name, hostname string, tags *tagset.Tags) ContextKey {
+	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ tags.Hash()
+	return ContextKey(hash)
 }
 
 // GenerateWithTags returns the ContextKey and TagsKey hashes for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
-func (g *KeyGenerator) GenerateWithTags(name, hostname string, tagsBuf *oldtagset.HashingTagsAccumulator) (ContextKey, TagsKey) {
-	tags := g.hg.Hash(tagsBuf)
-	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ tags
-	return ContextKey(hash), TagsKey(tags)
+func (g *KeyGenerator) GenerateWithTags(name, hostname string, tags *tagset.Tags) (ContextKey, TagsKey) {
+	return g.Generate(name, hostname, tags), TagsKey(tags.Hash())
 }
 
 // Equals returns whether the two context keys are equal or not.

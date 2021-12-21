@@ -19,12 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	l := ckey.NewKeyGenerator()
-	return l.Generate(serie.Name, serie.Host, oldtagset.NewHashingTagsAccumulatorWithTags(serie.Tags))
+	return l.Generate(serie.Name, serie.Host, tagset.NewTags(serie.Tags))
 }
 
 // TimeSampler
@@ -332,7 +332,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 					Ts:     0,
 				},
 			},
-			ContextKey: keyGen.Generate(name, host, oldtagset.NewHashingTagsAccumulatorWithTags(tags)),
+			ContextKey: keyGen.Generate(name, host, tagset.NewTags(tags)),
 		}, flushed[0])
 
 		_, flushed = flushSerie(sampler, now)

@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -73,7 +73,7 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb oldtagset.TagAccumulator) error {
+func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb *tagset.Builder) error {
 	tags := t.store.LookupHashed(entityID, cardinality)
 
 	if tags.Len() == 0 {
@@ -82,7 +82,7 @@ func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCa
 	}
 
 	telemetry.QueriesByCardinality(cardinality).Success.Inc()
-	tb.AppendHashed(tags)
+	tb.AddTags(tags)
 
 	return nil
 }

@@ -8,48 +8,50 @@ package tags
 import (
 	"testing"
 
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
-
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStore(t *testing.T) {
 	c := NewStore(true, "test")
 
-	t1 := oldtagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
-	t2 := oldtagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
+	t1 := tagset.NewTags([]string{"1"})
+	h1 := ckey.TagsKey(t1.Hash())
+	t2 := tagset.NewTags([]string{"2"})
+	h2 := ckey.TagsKey(t2.Hash())
 
-	t1a := c.Insert(1, t1)
+	t1a := c.Insert(ckey.TagsKey(t1.Hash()), t1)
 
 	require.EqualValues(t, 1, len(c.tagsByKey))
 	require.EqualValues(t, 1, c.cap)
-	require.EqualValues(t, 1, c.tagsByKey[1].refs)
+	require.EqualValues(t, 1, c.tagsByKey[h1].refs)
 
-	t1b := c.Insert(1, t1)
+	t1b := c.Insert(ckey.TagsKey(t1.Hash()), t1)
 	require.EqualValues(t, 1, len(c.tagsByKey))
 	require.EqualValues(t, 1, c.cap)
-	require.EqualValues(t, 2, c.tagsByKey[1].refs)
+	require.EqualValues(t, 2, c.tagsByKey[h1].refs)
 	require.Same(t, t1a, t1b)
 
-	t2a := c.Insert(2, t2)
+	t2a := c.Insert(ckey.TagsKey(t2.Hash()), t2)
 	require.EqualValues(t, 2, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
-	require.EqualValues(t, 2, c.tagsByKey[1].refs)
-	require.EqualValues(t, 1, c.tagsByKey[2].refs)
+	require.EqualValues(t, 2, c.tagsByKey[h1].refs)
+	require.EqualValues(t, 1, c.tagsByKey[h2].refs)
 	require.NotSame(t, t1a, t2a)
 
-	t2b := c.Insert(2, t2)
+	t2b := c.Insert(ckey.TagsKey(t2.Hash()), t2)
 	require.EqualValues(t, 2, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
-	require.EqualValues(t, 2, c.tagsByKey[1].refs)
-	require.EqualValues(t, 2, c.tagsByKey[2].refs)
+	require.EqualValues(t, 2, c.tagsByKey[h1].refs)
+	require.EqualValues(t, 2, c.tagsByKey[h2].refs)
 	require.Same(t, t2a, t2b)
 
 	t1a.Release()
 	require.EqualValues(t, 2, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
-	require.EqualValues(t, 1, c.tagsByKey[1].refs)
-	require.EqualValues(t, 2, c.tagsByKey[2].refs)
+	require.EqualValues(t, 1, c.tagsByKey[h1].refs)
+	require.EqualValues(t, 2, c.tagsByKey[h2].refs)
 
 	c.Shrink()
 	require.EqualValues(t, 2, len(c.tagsByKey))
@@ -58,24 +60,24 @@ func TestStore(t *testing.T) {
 	t2a.Release()
 	require.EqualValues(t, 2, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
-	require.EqualValues(t, 1, c.tagsByKey[1].refs)
-	require.EqualValues(t, 1, c.tagsByKey[2].refs)
+	require.EqualValues(t, 1, c.tagsByKey[h1].refs)
+	require.EqualValues(t, 1, c.tagsByKey[h2].refs)
 
 	t1b.Release()
 	require.EqualValues(t, 2, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
-	require.EqualValues(t, 0, c.tagsByKey[1].refs)
-	require.EqualValues(t, 1, c.tagsByKey[2].refs)
+	require.EqualValues(t, 0, c.tagsByKey[h1].refs)
+	require.EqualValues(t, 1, c.tagsByKey[h2].refs)
 
 	c.Shrink()
 	require.EqualValues(t, 1, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
-	require.EqualValues(t, 1, c.tagsByKey[2].refs)
+	require.EqualValues(t, 1, c.tagsByKey[h2].refs)
 
 	t2b.Release()
 	require.EqualValues(t, 1, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
-	require.EqualValues(t, 0, c.tagsByKey[2].refs)
+	require.EqualValues(t, 0, c.tagsByKey[h2].refs)
 
 	c.Shrink()
 	require.EqualValues(t, 0, len(c.tagsByKey))
@@ -85,20 +87,20 @@ func TestStore(t *testing.T) {
 func TestStoreDisabled(t *testing.T) {
 	c := NewStore(false, "test")
 
-	t1 := oldtagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
-	t2 := oldtagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
+	t1 := tagset.NewTags([]string{"1"})
+	t2 := tagset.NewTags([]string{"2"})
 
-	t1a := c.Insert(1, t1)
+	t1a := c.Insert(ckey.TagsKey(t1.Hash()), t1)
 	require.EqualValues(t, 0, len(c.tagsByKey))
 	require.EqualValues(t, 0, c.cap)
 
-	t1b := c.Insert(1, t1)
+	t1b := c.Insert(ckey.TagsKey(t1.Hash()), t1)
 	require.EqualValues(t, 0, len(c.tagsByKey))
 	require.EqualValues(t, 0, c.cap)
 	require.NotSame(t, t1a, t1b)
 	require.Equal(t, t1a, t1b)
 
-	t2a := c.Insert(2, t2)
+	t2a := c.Insert(ckey.TagsKey(t2.Hash()), t2)
 	require.EqualValues(t, 0, len(c.tagsByKey))
 	require.EqualValues(t, 0, c.cap)
 	require.NotSame(t, t1a, t2a)

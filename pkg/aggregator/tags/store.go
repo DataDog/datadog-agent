@@ -10,13 +10,13 @@ import (
 	"math/bits"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // Entry is used to keep track of tag slices shared by the contexts.
 type Entry struct {
-	tags []string
+	tags *tagset.Tags
 	refs uint64
 }
 
@@ -25,7 +25,7 @@ type Entry struct {
 // the slice after the entry was removed from the store; it is not
 // recycled or otherwise modified by the store.
 func (e *Entry) Tags() []string {
-	return e.tags
+	return e.tags.UnsafeReadOnlySlice()
 }
 
 // Release decrements internal reference counter, potentially marking
@@ -52,15 +52,14 @@ func NewStore(enabled bool, name string) *Store {
 	}
 }
 
-// Insert returns an Entry that corresponds to the key. If the key is
-// not in the cache, a new entry is stored in the Store with the tags
-// retrieved from the tagsBuffer. Insert increments reference count
-// for the returned entry; callers should call Entry.Release() when
-// the returned pointer is no longer in use.
-func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *oldtagset.HashingTagsAccumulator) *Entry {
+// Insert returns an Entry that corresponds to the key. If the key is not in
+// the cache, a new entry is stored in the Store with the tags Insert
+// increments reference count for the returned entry; callers should call
+// Entry.Release() when the returned pointer is no longer in use.
+func (tc *Store) Insert(key ckey.TagsKey, tags *tagset.Tags) *Entry {
 	if !tc.enabled {
 		return &Entry{
-			tags: tagsBuffer.Copy(),
+			tags: tags,
 			refs: 1,
 		}
 	}
@@ -71,7 +70,7 @@ func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *oldtagset.HashingTagsAccum
 		tc.telemetry.hits.Inc()
 	} else {
 		entry = &Entry{
-			tags: tagsBuffer.Copy(),
+			tags: tags,
 			refs: 1,
 		}
 		tc.tagsByKey[key] = entry
@@ -176,7 +175,7 @@ func (s *entryStats) visit(e *Entry) {
 		s.refsFreq[7]++
 	}
 
-	n := len(e.tags)
+	n := e.tags.Len()
 	if n < s.minSize || s.count == 0 {
 		s.minSize = n
 	}

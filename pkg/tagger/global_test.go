@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -66,7 +66,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 	SetDefaultTagger(fakeTagger)
 	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 
-	tb := oldtagset.NewHashingTagsAccumulator()
+	tb := tagset.NewBuilder(10)
 	EnrichTags(tb, "foo", "", "orchestrator")
-	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
+	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Close().Sorted())
 }
