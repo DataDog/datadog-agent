@@ -36,6 +36,12 @@ func (o *Opts) WithLegacyFields(fields map[eval.Field]eval.Field) *Opts {
 	return o
 }
 
+// AddMacro add a macro
+func (o *Opts) AddMacro(macro *eval.Macro) *Opts {
+	o.Opts.AddMacro(macro)
+	return o
+}
+
 // WithSupportedDiscarders set supported discarders
 func (o *Opts) WithSupportedDiscarders(discarders map[eval.Field]bool) *Opts {
 	o.SupportedDiscarders = discarders

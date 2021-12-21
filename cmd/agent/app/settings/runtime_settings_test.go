@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,9 +20,10 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	assert := assert.New(t)
 	var err error
 
-	serializer := serializer.NewSerializer(common.Forwarder, nil)
-	agg := aggregator.InitAggregator(serializer, nil, "")
-	common.DSD, err = dogstatsd.NewServer(agg, nil)
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+	common.DSD, err = dogstatsd.NewServer(demux, nil)
 	require.Nil(t, err)
 
 	s := DsdStatsRuntimeSetting("dogstatsd_stats")
