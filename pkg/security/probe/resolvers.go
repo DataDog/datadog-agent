@@ -52,10 +52,15 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
+	mountResolver, err := NewMountResolver(probe)
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
 		probe:             probe,
 		DentryResolver:    dentryResolver,
-		MountResolver:     NewMountResolver(probe),
+		MountResolver:     mountResolver,
 		TimeResolver:      timeResolver,
 		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
