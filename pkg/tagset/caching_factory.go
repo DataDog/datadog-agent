@@ -79,9 +79,9 @@ func (f *cachingFactory) NewTags(tags []string) *Tags {
 	}
 
 	return f.getCachedTags(byTagsetHashCache, hash, func() *Tags {
-		// write hashes and rewrite tags based on the map
+		// write hashes and tags based on the map
 		hashes := make([]uint64, len(tagsMap))
-		tags = tags[:len(tagsMap)]
+		tags = make([]string, len(tagsMap))
 		i := 0
 		for h, t := range tagsMap {
 			tags[i] = t
