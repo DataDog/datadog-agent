@@ -188,18 +188,18 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 	return events
 }
 
-func (c *collector) parseTaskContainers(task v1.Task) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
-	taskContainers := make([]workloadmeta.OrchestratorContainer, 0, len(task.Containers))
+func (c *collector) parseTaskContainers(task v1.Task) (map[string]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
+	taskContainers := make(map[string]workloadmeta.OrchestratorContainer)
 	events := make([]workloadmeta.CollectorEvent, 0, len(task.Containers))
 
 	now := time.Now()
 
 	for _, container := range task.Containers {
 		containerID := container.DockerID
-		taskContainers = append(taskContainers, workloadmeta.OrchestratorContainer{
+		taskContainers[containerID] = workloadmeta.OrchestratorContainer{
 			ID:   containerID,
 			Name: container.Name,
-		})
+		}
 		entityID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   containerID,

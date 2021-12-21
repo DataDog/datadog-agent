@@ -414,7 +414,7 @@ type KubernetesPod struct {
 	EntityMeta
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
-	Containers                 []OrchestratorContainer
+	Containers                 map[string]OrchestratorContainer
 	Ready                      bool
 	Phase                      string
 	IP                         string
@@ -516,7 +516,7 @@ type ECSTask struct {
 	Family                string
 	Version               string
 	LaunchType            ECSLaunchType
-	Containers            []OrchestratorContainer
+	Containers            map[string]OrchestratorContainer
 }
 
 // GetID implements Entity#GetID.

@@ -29,8 +29,8 @@ func TestParseKubeletPodlist(t *testing.T) {
 		{
 			desc: "No annotations",
 			pod: &workloadmeta.KubernetesPod{
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
+				Containers: map[string]workloadmeta.OrchestratorContainer{
+					"testID": {
 						Name: "testName",
 						ID:   "testID",
 					},
@@ -52,8 +52,8 @@ func TestParseKubeletPodlist(t *testing.T) {
 						"service-discovery.datadoghq.com/apache.instances":    "[{}]",
 					},
 				},
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
+				Containers: map[string]workloadmeta.OrchestratorContainer{
+					"3b8efe0c50e8": {
 						Name: "apache",
 						ID:   "3b8efe0c50e8",
 					},
@@ -83,12 +83,12 @@ func TestParseKubeletPodlist(t *testing.T) {
 						"ad.datadoghq.com/nginx.instances":     "[{\"name\": \"Other service\", \"url\": \"http://%%host_external%%\", \"timeout\": 1}]",
 					},
 				},
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
+				Containers: map[string]workloadmeta.OrchestratorContainer{
+					"3b8efe0c50e8": {
 						Name: "apache",
 						ID:   "3b8efe0c50e8",
 					},
-					{
+					"4ac8352d70bf1": {
 						Name: "nginx",
 						ID:   "4ac8352d70bf1",
 					},
@@ -122,8 +122,8 @@ func TestParseKubeletPodlist(t *testing.T) {
 						"service-discovery.datadoghq.com/apache.instances":    "[{\"apache_status_url\": \"http://%%host%%/server-status?auto\"},{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
 					},
 				},
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
+				Containers: map[string]workloadmeta.OrchestratorContainer{
+					"3b8efe0c50e8": {
 						Name: "apache",
 						ID:   "3b8efe0c50e8",
 					},
@@ -158,8 +158,8 @@ func TestParseKubeletPodlist(t *testing.T) {
 						"ad.datadoghq.com/nginx-custom.instances":    "[{\"name\": \"Other service\", \"url\": \"http://%%host_external%%\", \"timeout\": 1}]",
 					},
 				},
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
+				Containers: map[string]workloadmeta.OrchestratorContainer{
+					"4ac8352d70bf1": {
 						Name: "nginx",
 						ID:   "4ac8352d70bf1",
 					},
@@ -188,12 +188,12 @@ func TestParseKubeletPodlist(t *testing.T) {
 						"ad.datadoghq.com/nonmatching.instances":    "[{\"name\": \"Other service\", \"url\": \"http://%%host_external%%\", \"timeout\": 1}]",
 					},
 				},
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
+				Containers: map[string]workloadmeta.OrchestratorContainer{
+					"4ac8352d70bf1": {
 						Name: "nginx",
 						ID:   "4ac8352d70bf1",
 					},
-					{
+					"3b8efe0c50e8": {
 						Name: "apache",
 						ID:   "3b8efe0c50e8",
 					},

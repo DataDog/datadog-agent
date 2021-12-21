@@ -147,8 +147,8 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 func (c *collector) parsePodContainers(
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
-) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
-	podContainers := make([]workloadmeta.OrchestratorContainer, 0, len(containerStatuses))
+) (map[string]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
+	podContainers := make(map[string]workloadmeta.OrchestratorContainer)
 	events := make([]workloadmeta.CollectorEvent, 0, len(containerStatuses))
 
 	for _, container := range containerStatuses {
@@ -208,7 +208,7 @@ func (c *collector) parsePodContainers(
 			containerState.FinishedAt = st.FinishedAt
 		}
 
-		podContainers = append(podContainers, podContainer)
+		podContainers[podContainer.ID] = podContainer
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeSet,

@@ -302,8 +302,8 @@ func TestHandleContainer(t *testing.T) {
 				"tags.datadoghq.com/agent.version": version,
 			},
 		},
-		Containers: []workloadmeta.OrchestratorContainer{
-			{
+		Containers: map[string]workloadmeta.OrchestratorContainer{
+			containerID: {
 				ID:    containerID,
 				Name:  podContainerName,
 				Image: podImage,
@@ -330,8 +330,8 @@ func TestHandleContainer(t *testing.T) {
 		Family:      "datadog-agent",
 		Version:     "1",
 		LaunchType:  workloadmeta.ECSLaunchTypeEC2,
-		Containers: []workloadmeta.OrchestratorContainer{
-			{
+		Containers: map[string]workloadmeta.OrchestratorContainer{
+			containerID: {
 				ID:   containerID,
 				Name: taskContainerName,
 			},

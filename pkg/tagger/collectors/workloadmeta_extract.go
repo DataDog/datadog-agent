@@ -408,16 +408,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromTaskContainer(task *workloadmeta.ECSTask, container *workloadmeta.Container, tags *utils.TagList) error {
-	var taskContainer *workloadmeta.OrchestratorContainer
-
-	for _, c := range task.Containers {
-		if c.ID == container.ID {
-			taskContainer = &c
-			break
-		}
-	}
-
-	if taskContainer == nil {
+	taskContainer, ok := task.Containers[container.ID]
+	if !ok {
 		return fmt.Errorf("task does not have expected reference to container")
 	}
 
@@ -455,16 +447,8 @@ func (c *WorkloadMetaCollector) extractTagsFromTaskContainer(task *workloadmeta.
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.KubernetesPod, container *workloadmeta.Container, tags *utils.TagList) error {
-	var podContainer *workloadmeta.OrchestratorContainer
-
-	for _, c := range pod.Containers {
-		if c.ID == container.ID {
-			podContainer = &c
-			break
-		}
-	}
-
-	if podContainer == nil {
+	podContainer, ok := pod.Containers[container.ID]
+	if !ok {
 		return fmt.Errorf("pod does not have expected reference to container")
 	}
 
