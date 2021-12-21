@@ -925,11 +925,12 @@ func TestCheck_Run(t *testing.T) {
 			chk := Check{}
 
 			// language=yaml
-			rawInstanceConfig := []byte(`
+			rawInstanceConfig := []byte(fmt.Sprintf(`
 collect_device_metadata: false
 ip_address: 1.2.3.4
 community_string: public
-`)
+namespace: '%s'
+`, tt.name))
 
 			err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 			assert.Nil(t, err)
