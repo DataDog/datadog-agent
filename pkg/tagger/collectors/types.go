@@ -55,11 +55,14 @@ const (
 // high cardinality (typically tags that change value for each web request, each container, etc.)
 type TagCardinality int
 
-// List of possible container cardinality
+// List of possible container cardinalities, in order from lowest to highest
 const (
 	LowCardinality TagCardinality = iota
 	OrchestratorCardinality
 	HighCardinality
+
+	// NumCardinalities is the count of cardinalities
+	NumCardinalities
 )
 
 // Streamer feeds back TagInfo when detecting changes

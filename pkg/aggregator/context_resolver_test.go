@@ -79,13 +79,16 @@ func TestTrackContext(t *testing.T) {
 
 	// When we look up the 2 keys, they return the correct contexts
 	context1 := contextResolver.contextsByKey[contextKey1]
-	assert.Equal(t, expectedContext1, *context1)
+	assert.Equal(t, expectedContext1.Name, context1.Name)
+	assert.ElementsMatch(t, expectedContext1.Tags, context1.Tags)
 
 	context2 := contextResolver.contextsByKey[contextKey2]
-	assert.Equal(t, expectedContext2, *context2)
+	assert.Equal(t, expectedContext2.Name, context2.Name)
+	assert.ElementsMatch(t, expectedContext2.Tags, context2.Tags)
 
 	context3 := contextResolver.contextsByKey[contextKey3]
-	assert.Equal(t, expectedContext3, *context3)
+	assert.Equal(t, expectedContext3.Name, context3.Name)
+	assert.ElementsMatch(t, expectedContext3.Tags, context3.Tags)
 
 	unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
 	_, ok := contextResolver.contextsByKey[unknownContextKey]

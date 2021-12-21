@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -232,10 +232,10 @@ func (t *Tagger) Stop() error {
 }
 
 // getTags returns a read only list of tags for a given entity.
-func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (oldtagset.HashedTags, error) {
+func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (*tagset.Tags, error) {
 	if entity == "" {
 		telemetry.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
-		return oldtagset.HashedTags{}, fmt.Errorf("empty entity ID")
+		return tagset.EmptyTags, fmt.Errorf("empty entity ID")
 	}
 
 	cachedTags := t.store.LookupHashed(entity, cardinality)
@@ -245,10 +245,13 @@ func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (
 }
 
 // AccumulateTagsFor appends tags for a given entity from the tagger to the TagAccumulator
-func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb oldtagset.TagAccumulator) error {
+func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb *tagset.Builder) error {
 	tags, err := t.getTags(entity, cardinality)
-	tb.AppendHashed(tags)
-	return err
+	if err != nil {
+		return err
+	}
+	tb.AddTags(tags)
+	return nil
 }
 
 // Tag returns a copy of the tags for a given entity
@@ -257,7 +260,12 @@ func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]st
 	if err != nil {
 		return nil, err
 	}
-	return tags.Copy(), nil
+	slice := tags.UnsafeReadOnlySlice() // TODO : tagger still responds with []string
+	// avoid aliasing issues by making a copy of this read-only slice, in case the caller
+	// wants to modify it, or is unaware that things like append(..) modify slices in-place
+	rv := make([]string, 0, len(slice))
+	copy(rv, slice)
+	return rv, nil
 }
 
 // Standard returns standard tags for a given entity

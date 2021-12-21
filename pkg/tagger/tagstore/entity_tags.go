@@ -11,26 +11,31 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // EntityTags holds the tag information for a given entity. It is not
 // thread-safe, so should not be shared outside of the store. Usage inside the
 // store is safe since it relies on a global lock.
 type EntityTags struct {
-	entityID           string
-	sourceTags         map[string]sourceTags
-	cacheValid         bool
-	cachedAll          oldtagset.HashedTags // Low + orchestrator + high
-	cachedOrchestrator oldtagset.HashedTags // Low + orchestrator (subslice of cachedAll)
-	cachedLow          oldtagset.HashedTags // Sub-slice of cachedAll
+	entityID              string
+	sourceTags            map[string]sourceTags
+	cacheValid            bool
+	cachedAll             *tagset.Tags // Low + orchestrator + high
+	cachedHigh            *tagset.Tags // High only
+	cachedOrchestrator    *tagset.Tags // Orchestrator only
+	cachedLowOrchestrator *tagset.Tags // Low + Orchestrator
+	cachedLow             *tagset.Tags // Low only
 }
 
 func newEntityTags(entityID string) *EntityTags {
 	return &EntityTags{
-		entityID:   entityID,
-		sourceTags: make(map[string]sourceTags),
-		cacheValid: true,
+		entityID:              entityID,
+		sourceTags:            make(map[string]sourceTags),
+		cacheValid:            true,
+		cachedAll:             tagset.EmptyTags,
+		cachedLowOrchestrator: tagset.EmptyTags,
+		cachedLow:             tagset.EmptyTags,
 	}
 }
 
@@ -43,16 +48,16 @@ func (e *EntityTags) getStandard() []string {
 }
 
 func (e *EntityTags) get(cardinality collectors.TagCardinality) []string {
-	return e.getHashedTags(cardinality).Get()
+	return e.getHashedTags(cardinality).UnsafeReadOnlySlice()
 }
 
-func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) oldtagset.HashedTags {
+func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) *tagset.Tags {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
 		return e.cachedAll
 	} else if cardinality == collectors.OrchestratorCardinality {
-		return e.cachedOrchestrator
+		return e.cachedLowOrchestrator
 	}
 	return e.cachedLow
 }
@@ -60,18 +65,12 @@ func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) oldtag
 func (e *EntityTags) toEntity() types.Entity {
 	e.computeCache()
 
-	cachedAll := e.cachedAll.Get()
-	cachedOrchestrator := e.cachedOrchestrator.Get()
-	cachedLow := e.cachedLow.Get()
-
 	return types.Entity{
-		ID:           e.entityID,
-		StandardTags: e.getStandard(),
-		// cachedAll contains low, orchestrator and high cardinality tags, in this order.
-		// cachedOrchestrator and cachedLow are subslices of cachedAll, starting at index 0.
-		HighCardinalityTags:         cachedAll[len(cachedOrchestrator):],
-		OrchestratorCardinalityTags: cachedOrchestrator[len(cachedLow):],
-		LowCardinalityTags:          cachedLow,
+		ID:                          e.entityID,
+		StandardTags:                e.getStandard(),
+		HighCardinalityTags:         e.cachedHigh.UnsafeReadOnlySlice(),         // TODO: Entity doesn't use *Tags
+		OrchestratorCardinalityTags: e.cachedOrchestrator.UnsafeReadOnlySlice(), // TODO: Entity doesn't use *Tags
+		LowCardinalityTags:          e.cachedLow.UnsafeReadOnlySlice(),          // TODO: Entity doesn't use *Tags
 	}
 }
 
@@ -123,19 +122,24 @@ func (e *EntityTags) computeCache() {
 		insertWithPriority(source, tags.highCardTags, collectors.HighCardinality)
 	}
 
-	tags := append(tagList[collectors.LowCardinality], tagList[collectors.OrchestratorCardinality]...)
-	tags = append(tags, tagList[collectors.HighCardinality]...)
+	numTags := len(tagList[collectors.LowCardinality])
+	numTags += len(tagList[collectors.OrchestratorCardinality])
+	numTags += len(tagList[collectors.HighCardinality])
+	bldr := tagset.NewSliceBuilder(int(collectors.NumCardinalities), numTags)
+	for card, tags := range tagList {
+		for _, tag := range tags {
+			bldr.Add(int(card), tag)
+		}
+	}
 
-	cached := oldtagset.NewHashedTagsFromSlice(tags)
-
-	lowCardTags := len(tagList[collectors.LowCardinality])
-	orchCardTags := len(tagList[collectors.OrchestratorCardinality])
-
-	// Write cache
+	// Write cache, including the various slices we might need
 	e.cacheValid = true
-	e.cachedAll = cached
-	e.cachedLow = cached.Slice(0, lowCardTags)
-	e.cachedOrchestrator = cached.Slice(0, lowCardTags+orchCardTags)
+	e.cachedAll = bldr.FreezeSlice(0, int(collectors.NumCardinalities))
+	e.cachedHigh = bldr.FreezeSlice(int(collectors.HighCardinality), int(collectors.HighCardinality)+1)
+	e.cachedOrchestrator = bldr.FreezeSlice(int(collectors.OrchestratorCardinality), int(collectors.OrchestratorCardinality)+1)
+	e.cachedLow = bldr.FreezeSlice(int(collectors.LowCardinality), int(collectors.LowCardinality)+1)
+	e.cachedLowOrchestrator = bldr.FreezeSlice(int(collectors.LowCardinality), int(collectors.OrchestratorCardinality)+1)
+	bldr.Close()
 }
 
 func (e *EntityTags) shouldRemove() bool {

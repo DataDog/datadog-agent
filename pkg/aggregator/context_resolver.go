@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Context holds the elements that form a context, and can be serialized into a context key
@@ -24,28 +24,21 @@ type Context struct {
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
 	keyGenerator  *ckey.KeyGenerator
-	// buffer slice allocated once per contextResolver to combine and sort
-	// tags, origin detection tags and k8s tags.
-	tagsBuffer *oldtagset.HashingTagsAccumulator
-}
-
-// generateContextKey generates the contextKey associated with the context of the metricSample
-func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
 }
 
 func newContextResolver() *contextResolver {
 	return &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		keyGenerator:  ckey.NewKeyGenerator(),
-		tagsBuffer:    oldtagset.NewHashingTagsAccumulator(),
 	}
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	metricSampleContext.GetTags(cr.tagsBuffer)               // tags here are not sorted and can contain duplicates
-	contextKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
+	tb := tagset.NewBuilder(10)
+	metricSampleContext.GetTags(tb) // tags here are not sorted and can contain duplicates
+	tags := tb.Close()
+	contextKey := cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), tags)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		// making a copy of tags for the context since tagsBuffer
@@ -53,12 +46,11 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		// per context instead of one per sample.
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSampleContext.GetName(),
-			Tags: cr.tagsBuffer.Copy(),
+			Tags: tags.UnsafeReadOnlySlice(),
 			Host: metricSampleContext.GetHost(),
 		}
 	}
 
-	cr.tagsBuffer.Reset()
 	return contextKey
 }
 

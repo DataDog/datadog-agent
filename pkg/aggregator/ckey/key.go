@@ -6,7 +6,7 @@
 package ckey
 
 import (
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/twmb/murmur3"
 )
 
@@ -31,7 +31,7 @@ type ContextKey uint64
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
 	return &KeyGenerator{
-		hg: oldtagset.NewHashGenerator(),
+		// TODO: no need for a struct here
 	}
 }
 
@@ -40,13 +40,12 @@ func NewKeyGenerator() *KeyGenerator {
 // generating the hash.
 // Not safe for concurrent usage.
 type KeyGenerator struct {
-	hg *oldtagset.HashGenerator
 }
 
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
-func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *oldtagset.HashingTagsAccumulator) ContextKey {
-	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ g.hg.Hash(tagsBuf)
+func (g *KeyGenerator) Generate(name, hostname string, tags *tagset.Tags) ContextKey {
+	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ tags.Hash()
 	return ContextKey(hash)
 }
 
