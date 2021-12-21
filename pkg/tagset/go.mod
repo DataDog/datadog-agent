@@ -5,5 +5,4 @@ go 1.16
 require (
 	github.com/stretchr/testify v1.7.0
 	github.com/twmb/murmur3 v1.1.6
-	gopkg.in/yaml.v2 v2.4.0
 )
