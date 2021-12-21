@@ -550,12 +550,14 @@ def lint_python(ctx):
 
 
 @task
-def lint_copyrights(_):
+def lint_copyrights(_, fix=False, dry_run=False, debug=False):
     """
-    Checks that all Go files contain the appropriate copyright header.
+    Checks that all Go files contain the appropriate copyright header. If '--fix'
+    is provided as an option, it will try to fix problems as it finds them. If
+    '--dry_run' is provided when fixing, no changes to the files will be applied.
     """
 
-    CopyrightLinter().assert_compliance()
+    CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run)
 
 
 @task

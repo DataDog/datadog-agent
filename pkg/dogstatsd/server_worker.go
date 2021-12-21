@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dogstatsd
 
 import (
@@ -28,7 +33,7 @@ type worker struct {
 func newWorker(s *Server) *worker {
 	return &worker{
 		server:  s,
-		batcher: newBatcher(s.aggregator),
+		batcher: newBatcher(s.demultiplexer),
 		parser:  newParser(s.sharedFloat64List),
 		samples: make([]metrics.MetricSample, 0, defaultSampleSize),
 	}

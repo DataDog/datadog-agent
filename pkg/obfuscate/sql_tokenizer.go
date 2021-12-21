@@ -553,8 +553,8 @@ func (tkn *SQLTokenizer) scanBindVar() (TokenKind, []byte) {
 		token = ListArg
 		tkn.advance()
 	}
-	if !isLetter(tkn.lastChar) {
-		tkn.setErr(`bind variables should start with letters, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
+	if !isLetter(tkn.lastChar) && !isDigit(tkn.lastChar) {
+		tkn.setErr(`bind variables should start with letters or digits, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
 		return LexError, tkn.bytes()
 	}
 	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' {
@@ -734,9 +734,9 @@ func (tkn *SQLTokenizer) bytes() []byte {
 	return ret
 }
 
-// Offset exports the tokenizer's current position in the query
-func (tkn *SQLTokenizer) Offset() int {
-	return tkn.off
+// Position exports the tokenizer's current position in the query
+func (tkn *SQLTokenizer) Position() int {
+	return tkn.pos
 }
 
 func isLeadingLetter(ch rune) bool {

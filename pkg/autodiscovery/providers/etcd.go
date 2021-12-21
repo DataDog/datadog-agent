@@ -220,7 +220,7 @@ func hasTemplateFields(nodes client.Nodes) bool {
 }
 
 func init() {
-	RegisterProvider("etcd", NewEtcdConfigProvider)
+	RegisterProvider(names.EtcdRegisterName, NewEtcdConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the EtcdConfigProvider

@@ -245,11 +245,10 @@ func saveAuthToken(token, tokenPath string) error {
 	}
 
 	if err := perms.RestrictAccessToUser(tokenPath); err != nil {
-		log.Infof("Wrote auth token acl")
-	} else {
 		log.Errorf("Failed to write auth token acl %s", err)
 		return err
 	}
+	log.Infof("Wrote auth token acl")
 
 	return nil
 }
