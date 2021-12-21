@@ -231,8 +231,8 @@ func (t *Tagger) Stop() error {
 	return nil
 }
 
-// getTags returns a read only list of tags for a given entity.
-func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (*tagset.Tags, error) {
+// EntityTags returns the tags for a given entity, at the given cardinality
+func (t *Tagger) EntityTags(entity string, cardinality collectors.TagCardinality) (*tagset.Tags, error) {
 	if entity == "" {
 		telemetry.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return tagset.EmptyTags, fmt.Errorf("empty entity ID")
@@ -244,19 +244,9 @@ func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (
 	return cachedTags, nil
 }
 
-// AccumulateTagsFor appends tags for a given entity from the tagger to the TagAccumulator
-func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb *tagset.Builder) error {
-	tags, err := t.getTags(entity, cardinality)
-	if err != nil {
-		return err
-	}
-	tb.AddTags(tags)
-	return nil
-}
-
 // Tag returns a copy of the tags for a given entity
 func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-	tags, err := t.getTags(entity, cardinality)
+	tags, err := t.EntityTags(entity, cardinality)
 	if err != nil {
 		return nil, err
 	}

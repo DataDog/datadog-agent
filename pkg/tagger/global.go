@@ -110,23 +110,23 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 	return defaultTagger.Tag(entity, cardinality)
 }
 
-// AccumulateTagsFor queries the defaultTagger to get entity tags from cache or
-// sources and appends them to the TagAccumulator.  It can return tags at high
-// cardinality (with tags about individual containers), or at orchestrator
-// cardinality (pod/task level).
-func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb *tagset.Builder) error {
+// EntityTags queries the defaultTagger to get entity tags from cache or
+// sources and returns them. It can return tags at high cardinality (with tags
+// about individual containers), or at orchestrator cardinality (pod/task
+// level).
+func EntityTags(entity string, cardinality collectors.TagCardinality) (*tagset.Tags, error) {
 	//TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
 	if captureTagger != nil {
-		err := captureTagger.AccumulateTagsFor(entity, cardinality, tb)
+		tags, err := captureTagger.EntityTags(entity, cardinality)
 		if err == nil {
 			mux.RUnlock()
-			return nil
+			return tags, nil
 		}
 	}
 	mux.RUnlock()
 
-	return defaultTagger.AccumulateTagsFor(entity, cardinality, tb)
+	return defaultTagger.EntityTags(entity, cardinality)
 }
 
 // TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
@@ -175,36 +175,21 @@ func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
 	return Tag(entityID, cardinality)
 }
 
-// OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)
-func OrchestratorScopeTag() ([]string, error) {
+// OrchestratorScopeTags queries tags for orchestrator scope (e.g.
+// task_arn in ECS Fargate) and returns them.
+func OrchestratorScopeTags() (*tagset.Tags, error) {
 	mux.RLock()
 	if captureTagger != nil {
-		tags, err := captureTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
-		if err == nil && len(tags) > 0 {
+		tags, err := captureTagger.EntityTags(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
+
+		if err == nil {
 			mux.RUnlock()
 			return tags, nil
 		}
 	}
 	mux.RUnlock()
 
-	return defaultTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
-}
-
-// OrchestratorScopeTagBuilder queries tags for orchestrator scope (e.g.
-// task_arn in ECS Fargate) and appends them to the TagAccumulator
-func OrchestratorScopeTagBuilder(tb *tagset.Builder) error {
-	mux.RLock()
-	if captureTagger != nil {
-		err := captureTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
-
-		if err == nil {
-			mux.RUnlock()
-			return nil
-		}
-	}
-	mux.RUnlock()
-
-	return defaultTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
+	return defaultTagger.EntityTags(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
 }
 
 // Stop queues a stop signal to the defaultTagger
@@ -250,31 +235,51 @@ func init() {
 // OriginTags returns the origin detection tags for the given origins, at the given
 // cardinality.
 func OriginTags(origin string, k8sOriginID string, cardinalityName string) *tagset.Tags {
-	tb := tagset.NewBuilder(20)
+	var tags *tagset.Tags
 	cardinality := taggerCardinality(cardinalityName)
 
 	if origin != packets.NoOrigin {
-		if err := AccumulateTagsFor(origin, cardinality, tb); err != nil {
+		origTags, err := EntityTags(origin, cardinality)
+		if err != nil {
 			log.Errorf(err.Error())
+		} else {
+			tags = origTags
 		}
 	}
 
 	// Include orchestrator scope tags if the cardinality is set to orchestrator
 	if cardinality == collectors.OrchestratorCardinality {
-		if err := OrchestratorScopeTagBuilder(tb); err != nil {
+		orchTags, err := OrchestratorScopeTags()
+		if err != nil {
 			log.Error(err.Error())
+		} else {
+			if tags != nil {
+				tags = tagset.Union(tags, orchTags)
+			} else {
+				tags = orchTags
+			}
 		}
 	}
 
 	if k8sOriginID != "" {
-		if err := AccumulateTagsFor(k8sOriginID, cardinality, tb); err != nil {
+		origTags, err := EntityTags(k8sOriginID, cardinality)
+		if err != nil {
 			tlmUDPOriginDetectionError.Inc()
 			log.Tracef("Cannot get tags for entity %s: %s", k8sOriginID, err)
+		} else {
+			if tags != nil {
+				tags = tagset.Union(tags, origTags)
+			} else {
+				tags = origTags
+			}
 		}
 
 	}
 
-	return tb.Close()
+	if tags == nil {
+		tags = tagset.EmptyTags
+	}
+	return tags
 }
 
 // taggerCardinality converts tagger cardinality string to collectors.TagCardinality

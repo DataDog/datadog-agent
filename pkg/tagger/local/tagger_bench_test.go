@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func initTagger() *Tagger {
@@ -53,10 +52,8 @@ func BenchmarkTagBuilderLowCardinality(b *testing.B) {
 	defer tagger.Stop()
 
 	b.RunParallel(func(pb *testing.PB) {
-		tb := tagset.NewBuilder(10)
 		for pb.Next() {
-			tagger.AccumulateTagsFor("test", collectors.LowCardinality, tb)
-			tb.Close()
+			tagger.EntityTags("test", collectors.LowCardinality)
 		}
 	})
 	b.ReportAllocs()
@@ -79,10 +76,8 @@ func BenchmarkTagBuilderHighCardinality(b *testing.B) {
 	defer tagger.Stop()
 
 	b.RunParallel(func(pb *testing.PB) {
-		tb := tagset.NewBuilder(10)
 		for pb.Next() {
-			tagger.AccumulateTagsFor("test", collectors.HighCardinality, tb)
-			tb.Close()
+			tagger.EntityTags("test", collectors.HighCardinality)
 		}
 	})
 	b.ReportAllocs()

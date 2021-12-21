@@ -72,19 +72,17 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 	return tags, nil
 }
 
-// AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb *tagset.Builder) error {
+// EntityTags returns tags for a given entity at the desired cardinality.
+func (t *Tagger) EntityTags(entityID string, cardinality collectors.TagCardinality) (*tagset.Tags, error) {
 	tags := t.store.LookupHashed(entityID, cardinality)
 
 	if tags.Len() == 0 {
 		telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
-		return nil
+	} else {
+		telemetry.QueriesByCardinality(cardinality).Success.Inc()
 	}
 
-	telemetry.QueriesByCardinality(cardinality).Success.Inc()
-	tb.AddTags(tags)
-
-	return nil
+	return tags, nil
 }
 
 // Standard returns the standard tags for a given entity.

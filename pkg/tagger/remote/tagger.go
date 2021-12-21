@@ -147,16 +147,13 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 	return []string{}, nil
 }
 
-// AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb *tagset.Builder) error {
+// EntityTags returns tags for a given entity at the desired cardinality.
+func (t *Tagger) EntityTags(entityID string, cardinality collectors.TagCardinality) (*tagset.Tags, error) {
 	tags, err := t.Tag(entityID, cardinality)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	for _, tag := range tags {
-		tb.Add(tag)
-	}
-	return nil
+	return tagset.NewTags(tags), nil
 }
 
 // Standard returns the standard tags for a given entity.

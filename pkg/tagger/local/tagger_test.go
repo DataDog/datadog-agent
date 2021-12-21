@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -106,10 +105,9 @@ func TestTagBuilder(t *testing.T) {
 		},
 	})
 
-	tb := tagset.NewBuilder(10)
-	err := tagger.AccumulateTagsFor("entity_name", collectors.HighCardinality, tb)
+	tags, err := tagger.EntityTags("entity_name", collectors.HighCardinality)
 	assert.NoError(t, err)
-	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Close().Sorted())
+	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tags.Sorted())
 }
 
 func TestFetchAllCached(t *testing.T) {

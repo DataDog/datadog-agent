@@ -52,7 +52,7 @@ func (f *FakeTagger) SetTagsFromInfo(tags []*collectors.TagInfo) {
 	f.store.ProcessTagInfo(tags)
 }
 
-// SetError allows to set an error to be returned when `Tag` or `AccumulateTagsFor` is called
+// SetError allows to set an error to be returned when `Tag` or `EntityTags` is called
 // for this entity and cardinality
 func (f *FakeTagger) SetError(entity string, cardinality collectors.TagCardinality, err error) {
 	f.Lock()
@@ -85,17 +85,14 @@ func (f *FakeTagger) Tag(entity string, cardinality collectors.TagCardinality) (
 	return tags, nil
 }
 
-// AccumulateTagsFor fake implementation
-func (f *FakeTagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb *tagset.Builder) error {
+// EntityTags fake implementation
+func (f *FakeTagger) EntityTags(entity string, cardinality collectors.TagCardinality) (*tagset.Tags, error) {
 	tags, err := f.Tag(entity, cardinality)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for _, tag := range tags {
-		tb.Add(tag)
-	}
-	return nil
+	return tagset.NewTags(tags), nil
 }
 
 // Standard fake implementation
