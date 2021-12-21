@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	// DefaultGRPCConnectionTimeoutSecs sets the default value for timeout when connecting to the agent
 	DefaultGRPCConnectionTimeoutSecs = 60
 )
 
