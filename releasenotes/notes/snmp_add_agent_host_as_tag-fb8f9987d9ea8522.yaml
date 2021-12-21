@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [corechecks/snmp] Add agent host as tag when ``use_device_id_as_hostname`` is enabled
+    [corechecks/snmp] Add agent host as tag when ``use_device_id_as_hostname`` is enabled.
