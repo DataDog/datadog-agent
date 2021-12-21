@@ -107,7 +107,7 @@ func (e *eventTransformer) typ() (model.Event_EventType, error) {
 	case types.EventNameDelete:
 		return model.Event_Delete, nil
 	default:
-		return -1, fmt.Errorf("unkown event type %s", e.eventType)
+		return -1, fmt.Errorf("unknown event type %s", e.eventType)
 	}
 }
 
@@ -118,6 +118,6 @@ func (e *eventTransformer) kind() (model.EventsPayload_ObjectKind, error) {
 	case types.ObjectKindPod:
 		return model.EventsPayload_Pod, nil
 	default:
-		return -1, fmt.Errorf("unkown object kind %s", e.objectKind)
+		return -1, fmt.Errorf("unknown object kind %s", e.objectKind)
 	}
 }
