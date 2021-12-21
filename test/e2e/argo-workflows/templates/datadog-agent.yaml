@@ -104,6 +104,10 @@ spec:
                     value: "module.*"
                   - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
                     value: "/tmp/runtime-security.d"
+                securityContext:
+                  capabilities:
+                    drop:
+                      - all
 
           clusterAgent:
             enabled: true
