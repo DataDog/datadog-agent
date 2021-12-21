@@ -31,6 +31,7 @@ jobs:
           pip3 install -r requirements.txt
 
       - name: Setup env variables
+        run: |
           echo "CODEQL_PYTHON=$(which python3)" >> $GITHUB_ENV
           echo "$GOPATH/bin" >> $GITHUB_PATH
           echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
@@ -51,7 +52,6 @@ jobs:
 
       - name: Build DataDog agent
         run: |
-          cd go/src/github.com/DataDog/datadog-agent
           invoke install-tools
           invoke deps
           invoke agent.build --build-exclude=systemd
