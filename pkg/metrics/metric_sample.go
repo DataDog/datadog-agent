@@ -63,7 +63,7 @@ func (m MetricType) String() string {
 type MetricSampleContext interface {
 	GetName() string
 	GetHost() string
-	GetTags(*tagset.Builder)
+	GetTags() *tagset.Tags
 }
 
 // MetricSample represents a raw metric sample
@@ -95,11 +95,14 @@ func (m *MetricSample) GetHost() string {
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(tb *tagset.Builder) {
+func (m *MetricSample) GetTags() *tagset.Tags {
+	// TODO: store *tagset.Tags
+	tb := tagset.NewBuilder(len(m.Tags))
 	for _, tag := range m.Tags {
 		tb.Add(tag)
 	}
 	tb.AddTags(tagger.OriginTags(m.OriginID, m.K8sOriginID, m.Cardinality))
+	return tb.Close()
 }
 
 // Copy returns a deep copy of the m MetricSample
