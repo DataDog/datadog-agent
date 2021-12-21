@@ -163,8 +163,7 @@ func (bldr *SliceBuilder) AddKV(level int, k, v string) {
 // FreezeSlice "freezes" the builder and returns the requested slice of levels.
 // The Add methods cannot be called after freezing.
 func (bldr *SliceBuilder) FreezeSlice(a, b int) *Tags {
-	// free unnecessary memory, and as a convenient side-effect ensure a panic
-	// if any of the Add methods are used after this point
+	// free unnecessary memory
 	bldr.seen = nil
 
 	hash := uint64(0)
