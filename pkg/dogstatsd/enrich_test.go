@@ -899,7 +899,7 @@ func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
-func TestEnrichTags(t *testing.T) {
+func TestExtractTagsMetadata(t *testing.T) {
 	type args struct {
 		tags                       []string
 		defaultHostname            string

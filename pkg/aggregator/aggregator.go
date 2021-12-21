@@ -429,13 +429,11 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
-	tb := tagset.NewBuilder(len(sc.Tags) * 2)
-	for _, tag := range sc.Tags {
-		tb.Add(tag)
-	}
-	tagger.EnrichTags(tb, sc.OriginID, sc.K8sOriginID, sc.Cardinality)
 
-	sc.Tags = tb.Close().UnsafeReadOnlySlice()
+	scTags := tagset.NewTags(sc.Tags)
+	origTags := tagger.OriginTags(sc.OriginID, sc.K8sOriginID, sc.Cardinality)
+
+	sc.Tags = tagset.Union(scTags, origTags).UnsafeReadOnlySlice() // TODO: sc.Tags isn't *Tags yet
 
 	agg.serviceChecks = append(agg.serviceChecks, &sc)
 }
@@ -445,13 +443,11 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
-	tb := tagset.NewBuilder(len(e.Tags) * 2)
-	for _, tag := range e.Tags {
-		tb.Add(tag)
-	}
-	tagger.EnrichTags(tb, e.OriginID, e.K8sOriginID, e.Cardinality)
 
-	e.Tags = tb.Close().UnsafeReadOnlySlice()
+	eTags := tagset.NewTags(e.Tags)
+	origTags := tagger.OriginTags(e.OriginID, e.K8sOriginID, e.Cardinality)
+
+	e.Tags = tagset.Union(eTags, origTags).UnsafeReadOnlySlice() // TODO: e.Tags isn't *Tags yet
 
 	agg.events = append(agg.events, &e)
 }

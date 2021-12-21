@@ -99,7 +99,7 @@ func (m *MetricSample) GetTags(tb *tagset.Builder) {
 	for _, tag := range m.Tags {
 		tb.Add(tag)
 	}
-	tagger.EnrichTags(tb, m.OriginID, m.K8sOriginID, m.Cardinality)
+	tb.AddTags(tagger.OriginTags(m.OriginID, m.K8sOriginID, m.Cardinality))
 }
 
 // Copy returns a deep copy of the m MetricSample

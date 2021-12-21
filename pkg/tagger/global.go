@@ -247,11 +247,10 @@ func init() {
 	SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
 }
 
-// EnrichTags extends a tag list with origin detection tags
-// NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
-// enrichment, the metric and its tags is sent to the context key generator, which
-// is taking care of deduping the tags while generating the context key.
-func EnrichTags(tb *tagset.Builder, origin string, k8sOriginID string, cardinalityName string) {
+// OriginTags returns the origin detection tags for the given origins, at the given
+// cardinality.
+func OriginTags(origin string, k8sOriginID string, cardinalityName string) *tagset.Tags {
+	tb := tagset.NewBuilder(20)
 	cardinality := taggerCardinality(cardinalityName)
 
 	if origin != packets.NoOrigin {
@@ -274,6 +273,8 @@ func EnrichTags(tb *tagset.Builder, origin string, k8sOriginID string, cardinali
 		}
 
 	}
+
+	return tb.Close()
 }
 
 // taggerCardinality converts tagger cardinality string to collectors.TagCardinality
