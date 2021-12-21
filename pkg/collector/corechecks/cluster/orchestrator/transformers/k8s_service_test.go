@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func TestExtractService(t *testing.T) {
+func TestExtractK8sService(t *testing.T) {
 	tests := map[string]struct {
 		input    corev1.Service
 		expected model.Service
@@ -293,6 +293,6 @@ func TestExtractService(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		assert.Equal(t, &test.expected, ExtractService(&test.input))
+		assert.Equal(t, &test.expected, ExtractK8sService(&test.input))
 	}
 }

@@ -21,11 +21,14 @@ import (
 type Collector interface {
 	// Informer returns the shared informer for that resource.
 	Informer() cache.SharedInformer
+
 	// Init is where the collector initialization happens. It is used to create
 	// informers and listers.
 	Init(*CollectorRunConfig)
+
 	// Metadata is used to access information describing the collector.
 	Metadata() *CollectorMetadata
+
 	// Run triggers the collection process given a configuration and returns the
 	// collection result. Returns an error if the collection failed.
 	Run(*CollectorRunConfig) (*CollectorRunResult, error)

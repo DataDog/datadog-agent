@@ -10,7 +10,7 @@ package processors
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/transformers"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -20,29 +20,29 @@ import (
 type K8sServiceHandlers struct{}
 
 // AfterMarshalling is a handler called after resource marshalling.
-func (sp *K8sServiceHandlers) AfterMarshalling(ctx *ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+func (h *K8sServiceHandlers) AfterMarshalling(ctx *ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Service)
 	m.Yaml = yaml
 	return
 }
 
-// AfterMarshalling is a handler called before cache lookup.
-func (sp *K8sServiceHandlers) BeforeCacheCheck(ctx *ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+// BeforeCacheCheck is a handler called before cache lookup.
+func (h *K8sServiceHandlers) BeforeCacheCheck(ctx *ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
-// AfterMarshalling is a handler called before resource marshalling.
-func (sp *K8sServiceHandlers) BeforeMarshalling(ctx *ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+// BeforeMarshalling is a handler called before resource marshalling.
+func (h *K8sServiceHandlers) BeforeMarshalling(ctx *ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (sp *K8sServiceHandlers) BuildMessageBody(ctx *ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
-	var services []*model.Service
+func (h *K8sServiceHandlers) BuildMessageBody(ctx *ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+	models := make([]*model.Service, 0, len(resourceModels))
 
-	for _, r := range resourceModels {
-		services = append(services, r.(*model.Service))
+	for _, m := range resourceModels {
+		models = append(models, m.(*model.Service))
 	}
 
 	return &model.CollectorService{
@@ -50,20 +50,20 @@ func (sp *K8sServiceHandlers) BuildMessageBody(ctx *ProcessorContext, resourceMo
 		ClusterId:   ctx.ClusterID,
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
-		Services:    services,
+		Services:    models,
 		Tags:        ctx.Cfg.ExtraTags,
 	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
-func (sp *K8sServiceHandlers) ExtractResource(ctx *ProcessorContext, resource interface{}) (resourceModel interface{}) {
-	s := resource.(*corev1.Service)
-	return transformers.ExtractService(s)
+func (h *K8sServiceHandlers) ExtractResource(ctx *ProcessorContext, resource interface{}) (resourceModel interface{}) {
+	r := resource.(*corev1.Service)
+	return transformers.ExtractK8sService(r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
-func (sp *K8sServiceHandlers) ResourceList(ctx *ProcessorContext, list interface{}) (resources []interface{}) {
+func (h *K8sServiceHandlers) ResourceList(ctx *ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*corev1.Service)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -75,22 +75,22 @@ func (sp *K8sServiceHandlers) ResourceList(ctx *ProcessorContext, list interface
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (sp *K8sServiceHandlers) ResourceUID(ctx *ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *K8sServiceHandlers) ResourceUID(ctx *ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*corev1.Service).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (sp *K8sServiceHandlers) ResourceVersion(ctx *ProcessorContext, resource, resourceModel interface{}) string {
+func (h *K8sServiceHandlers) ResourceVersion(ctx *ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.Service).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
-func (sp *K8sServiceHandlers) ScrubBeforeExtraction(ctx *ProcessorContext, resource interface{}) {
-	s := resource.(*corev1.Service)
-	redact.RemoveLastAppliedConfigurationAnnotation(s.Annotations)
+func (h *K8sServiceHandlers) ScrubBeforeExtraction(ctx *ProcessorContext, resource interface{}) {
+	r := resource.(*corev1.Service)
+	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
 // it is marshalled to generate a manifest.
-func (sp *K8sServiceHandlers) ScrubBeforeMarshalling(ctx *ProcessorContext, resource interface{}) {}
+func (h *K8sServiceHandlers) ScrubBeforeMarshalling(ctx *ProcessorContext, resource interface{}) {}

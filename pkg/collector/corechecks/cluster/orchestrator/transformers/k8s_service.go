@@ -12,16 +12,15 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	orchutil "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
 
 	corev1 "k8s.io/api/core/v1"
 )
 
-// ExtractService returns the protobuf Service message corresponding to
-// a Kubernetes service object.
-func ExtractService(s *corev1.Service) *model.Service {
+// ExtractK8sService returns the protobuf model corresponding to a Kubernetes
+// Service resource.
+func ExtractK8sService(s *corev1.Service) *model.Service {
 	message := &model.Service{
-		Metadata: orchutil.ExtractMetadata(&s.ObjectMeta),
+		Metadata: extractMetadata(&s.ObjectMeta),
 		Spec: &model.ServiceSpec{
 			ExternalIPs:              s.Spec.ExternalIPs,
 			ExternalTrafficPolicy:    string(s.Spec.ExternalTrafficPolicy),

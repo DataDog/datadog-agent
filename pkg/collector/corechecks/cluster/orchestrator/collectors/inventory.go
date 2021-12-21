@@ -20,7 +20,23 @@ type CollectorInventory struct {
 func NewCollectorInventory() *CollectorInventory {
 	return &CollectorInventory{
 		collectors: []Collector{
+			newK8sClusterCollector(),
+			newK8sClusterRoleCollector(),
+			newK8sClusterRoleBindingCollector(),
+			newK8sCronJobCollector(),
+			newK8sDaemonSetCollector(),
+			newK8sDeploymentCollector(),
+			newK8sJobCollector(),
+			newK8sNodeCollector(),
+			newK8sPersistentVolumeCollector(),
+			newK8sPersistentVolumeClaimCollector(),
+			newK8sReplicaSetCollector(),
+			newK8sRoleCollector(),
+			newK8sRoleBindingCollector(),
 			newK8sServiceCollector(),
+			newK8sServiceAccountCollector(),
+			newK8sStatefulSetCollector(),
+			newK8sUnassignedPodCollector(),
 		},
 	}
 }
@@ -36,8 +52,7 @@ func (ci *CollectorInventory) CollectorByName(collectorName string) (Collector, 
 	return nil, fmt.Errorf("no collector found for name %s", collectorName)
 }
 
-// StableCollectors get a map of all stable collectors in the inventory indexed
-// by name.
+// StableCollectors get a list of all stable collectors in the inventory.
 func (ci *CollectorInventory) StableCollectors() []Collector {
 	var stableCollectors []Collector
 	for _, c := range ci.collectors {

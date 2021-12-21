@@ -15,10 +15,16 @@ import (
 )
 
 var (
-	processingPanicErr = fmt.Errorf("unable to process resources: a panic occurred!")
+	errProcessingPanic = fmt.Errorf("unable to process resources: a panic occurred")
 )
 
 // newListingError creates an error that wraps the cause of a listing failure.
 func newListingError(cause error) error {
 	return errors.WithMessage(cause, "unable to list resources")
+}
+
+// newProcessingError creates an error that wraps the cause of a processing
+// failure.
+func newProcessingError(cause error) error {
+	return errors.WithMessage(cause, "unable to process resources")
 }
