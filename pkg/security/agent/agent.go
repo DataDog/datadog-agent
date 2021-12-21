@@ -103,7 +103,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 			select {
 			case <-logTicker.C:
-				log.Warnf("Error while connecting to the runtime security module: %v", err)
+				log.Errorf("Error while connecting to the runtime security module: %v", err)
 			default:
 				// do nothing
 			}
