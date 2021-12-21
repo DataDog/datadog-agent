@@ -283,6 +283,8 @@ func TestSNMPConfig(t *testing.T) {
 	assertClean(t,
 		`   community_string:   'password'   `,
 		`   community_string: ********`)
+
+
 	assertClean(t,
 		`community: password`,
 		`community: ********`)
