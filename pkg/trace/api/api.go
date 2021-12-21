@@ -420,7 +420,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
 		}, true, err
-	case v06:
+	case v07:
 		buf := getBuffer()
 		defer putBuffer(buf)
 		if _, err = io.Copy(buf, req.Body); err != nil {
@@ -479,7 +479,7 @@ type StatsProcessor interface {
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
 
-	ts := r.tagStats(v06, req.Header)
+	ts := r.tagStats(v07, req.Header)
 	rd := apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	req.Header.Set("Accept", "application/msgpack")
 	var in pb.ClientStatsPayload
@@ -498,7 +498,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 // handleConfig handles config request.
 func (r *HTTPReceiver) handleConfig(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
-	tags := r.tagStats(v06, req.Header).AsTags()
+	tags := r.tagStats(v07, req.Header).AsTags()
 	statusCode := http.StatusOK
 	defer func() {
 		tags = append(tags, fmt.Sprintf("status_code:%d", statusCode))
