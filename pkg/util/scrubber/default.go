@@ -71,15 +71,15 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key"},
 		Repl:  []byte(`$1 ********`),
 	}
+	snmpMultilineReplacer := Replacer{
+		Regex: matchYAMLKeyWithListValue("(community_strings)"),
+		Hints: []string{"community_strings"},
+		Repl:  []byte(`$1 ********`),
+	}
 	certReplacer := Replacer{
 		Regex: matchCert(),
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
-	}
-	snmpCommunityStringsReplacer := Replacer{
-		Regex: matchYAMLKeyWithListValue("(community_strings)"),
-		Hints: []string{"community_strings"},
-		Repl:  []byte(`$1 ********`),
 	}
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
@@ -89,7 +89,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, passwordReplacer)
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
-	scrubber.AddReplacer(MultiLine, snmpCommunityStringsReplacer)
+	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
 }
 
