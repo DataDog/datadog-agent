@@ -3,6 +3,8 @@ package utils
 import (
 	"net/http"
 	"sync/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // WithConcurrencyLimit enforces a maximum number of concurrent requests over
@@ -14,6 +16,7 @@ func WithConcurrencyLimit(limit int, original func(http.ResponseWriter, *http.Re
 		defer atomic.AddInt64(&inFlight, -1)
 
 		if current > int64(limit) {
+			log.Warnf("rejecting request for path=%s concurrency_limit=%d", req.URL.Path, limit)
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
 		}
