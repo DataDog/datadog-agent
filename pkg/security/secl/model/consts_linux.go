@@ -293,7 +293,6 @@ var (
 		"MAP_SHARED":          unix.MAP_SHARED,          /* Share changes */
 		"MAP_PRIVATE":         unix.MAP_PRIVATE,         /* Changes are private */
 		"MAP_SHARED_VALIDATE": unix.MAP_SHARED_VALIDATE, /* share + validate extension flags */
-		"MAP_32BIT":           unix.MAP_32BIT,           /* only give out 32bit addresses */
 		"MAP_ANON":            unix.MAP_ANON,
 		"MAP_ANONYMOUS":       unix.MAP_ANONYMOUS,       /* don't use a file */
 		"MAP_DENYWRITE":       unix.MAP_DENYWRITE,       /* ETXTBSY */

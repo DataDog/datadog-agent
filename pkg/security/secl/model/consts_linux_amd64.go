@@ -13,8 +13,6 @@ import (
 
 var (
 	ptraceArchConstants = map[string]uint32{
-		"PTRACE_GETREGS":           unix.PTRACE_GETREGS,
-		"PTRACE_SETREGS":           unix.PTRACE_SETREGS,
 		"PTRACE_GETFPREGS":         unix.PTRACE_GETFPREGS,
 		"PTRACE_SETFPREGS":         unix.PTRACE_SETFPREGS,
 		"PTRACE_GETFPXREGS":        unix.PTRACE_GETFPXREGS,
@@ -26,5 +24,9 @@ var (
 		"PTRACE_SYSEMU":            unix.PTRACE_SYSEMU,
 		"PTRACE_SYSEMU_SINGLESTEP": unix.PTRACE_SYSEMU_SINGLESTEP,
 		"PTRACE_SINGLEBLOCK":       unix.PTRACE_SINGLEBLOCK,
+	}
+
+	mmapFlagArchConstants = map[string]int{
+		"MAP_32BIT": unix.MAP_32BIT, /* only give out 32bit addresses */
 	}
 )

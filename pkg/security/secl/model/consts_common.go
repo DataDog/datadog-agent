@@ -528,6 +528,10 @@ func initProtConstansts() {
 }
 
 func initMMapFlagsConstants() {
+	for k, v := range mmapFlagArchConstants {
+		mmapFlagConstants[k] = v
+	}
+
 	for k, v := range mmapFlagConstants {
 		SECLConstants[k] = &eval.IntEvaluator{Value: v}
 	}
