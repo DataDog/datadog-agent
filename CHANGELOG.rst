@@ -19,7 +19,7 @@ Release on: 2021-12-22
 Security Notes
 --------------
 
-- Remove all dependencies on `log4j` and use `java.util.logging` instead
+- Remove all dependencies on ``log4j`` and use ``java.util.logging`` instead
 
 
 .. _Release Notes_7.32.3:
