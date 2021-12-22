@@ -14,7 +14,6 @@ Prelude
 
 Release on: 2021-12-22
 
-.. _Release Notes_7.32.4_Security Notes:
 
 - JMXFetch: Remove all dependencies on ``log4j`` and use ``java.util.logging`` instead.
 
