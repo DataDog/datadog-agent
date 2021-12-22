@@ -7,6 +7,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -16,6 +17,8 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -103,7 +106,15 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 			select {
 			case <-logTicker.C:
-				log.Warnf("Error while connecting to the runtime security module: %v", err)
+				msg := fmt.Sprintf("error while connecting to the runtime security module: %v", err)
+
+				if e, ok := status.FromError(err); ok {
+					switch e.Code() {
+					case codes.Unavailable:
+						msg += ", please check that the runtime security module is enabled in the system-probe.yaml config file"
+					}
+				}
+				log.Error(msg)
 			default:
 				// do nothing
 			}
