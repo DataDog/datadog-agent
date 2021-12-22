@@ -463,7 +463,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 			want: []workloadmeta.CollectorEvent{
 				{
 					Type:   workloadmeta.EventTypeSet,
-					Source: collectorID,
+					Source: workloadmeta.SourceClusterOrchestrator,
 					Entity: &workloadmeta.KubernetesPod{
 						EntityID: workloadmeta.EntityID{
 							Kind: workloadmeta.KindKubernetesPod,
@@ -501,7 +501,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 			want: []workloadmeta.CollectorEvent{
 				{
 					Type:   workloadmeta.EventTypeSet,
-					Source: collectorID,
+					Source: workloadmeta.SourceClusterOrchestrator,
 					Entity: &workloadmeta.KubernetesPod{
 						EntityID: workloadmeta.EntityID{
 							Kind: workloadmeta.KindKubernetesPod,
@@ -526,7 +526,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 			want: []workloadmeta.CollectorEvent{
 				{
 					Type:   workloadmeta.EventTypeSet,
-					Source: collectorID,
+					Source: workloadmeta.SourceClusterOrchestrator,
 					Entity: &workloadmeta.KubernetesPod{
 						EntityID: workloadmeta.EntityID{
 							Kind: workloadmeta.KindKubernetesPod,
