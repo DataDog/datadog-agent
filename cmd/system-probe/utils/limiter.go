@@ -7,6 +7,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// DefaultMaxConcurrentRequests determines the maximum number of requests in-flight for a given handler
+// We choose 2 because one is for regular agent checks and another one is for manual troubleshooting
+const DefaultMaxConcurrentRequests = 2
+
 // WithConcurrencyLimit enforces a maximum number of concurrent requests over
 // over a certain HTTP handler function
 func WithConcurrencyLimit(limit int, original func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
