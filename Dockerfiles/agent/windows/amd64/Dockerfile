@@ -1,4 +1,9 @@
 ARG BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-1809
+FROM ${BASE_IMAGE} as unzipper
+SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
+COPY datadog-agent-latest.amd64.zip uncompress-zip.ps1 ./
+RUN . ./uncompress-zip.ps1
+
 FROM ${BASE_IMAGE}
 
 ARG WITH_JMX="false"
@@ -10,7 +15,9 @@ USER ContainerAdministrator
 
 SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
 
-COPY datadog-agent-latest.amd64.zip install.ps1 ./
+COPY --from=unzipper ["C:/ProgramData/Datadog", "C:/ProgramData/Datadog"]
+COPY --from=unzipper ["C:/Program Files/Datadog", "C:/Program Files/Datadog"]
+COPY install.ps1 ./
 RUN . ./install.ps1
 
 EXPOSE 8125/udp 8126/tcp
