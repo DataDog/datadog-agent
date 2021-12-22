@@ -6,6 +6,7 @@
 package tagstore
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -251,8 +252,8 @@ func TestGetEntityTags(t *testing.T) {
 	etags := newEntityTags("deadbeef")
 
 	// Get empty tags and make sure cache is now set to valid
-	tags := etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 0)
+	tags := etags.getTags(collectors.HighCardinality)
+	assert.Equal(t, []string{}, tags.Sorted())
 	assert.True(t, etags.cacheValid)
 
 	// Add tags but don't invalidate the cache, we should return empty arrays
@@ -260,19 +261,17 @@ func TestGetEntityTags(t *testing.T) {
 		lowCardTags:  []string{"low1", "low2"},
 		highCardTags: []string{"high1", "high2"},
 	}
-	tags = etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 0)
+	tags = etags.getTags(collectors.HighCardinality)
+	assert.Equal(t, []string{}, tags.Sorted())
 	assert.True(t, etags.cacheValid)
 
 	// Invalidate the cache, we should now get the tags
 	etags.cacheValid = false
-	tags = etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 4)
-	assert.ElementsMatch(t, tags, []string{"low1", "low2", "high1", "high2"})
+	tags = etags.getTags(collectors.HighCardinality)
+	assert.Equal(t, []string{"high1", "high2", "low1", "low2"}, tags.Sorted())
 	assert.True(t, etags.cacheValid)
-	tags = etags.get(collectors.LowCardinality)
-	assert.Len(t, tags, 2)
-	assert.ElementsMatch(t, tags, []string{"low1", "low2"})
+	tags = etags.getTags(collectors.LowCardinality)
+	assert.Equal(t, []string{"low1", "low2"}, tags.Sorted())
 }
 
 func (s *StoreTestSuite) TestGetExpiredTags() {
@@ -304,8 +303,8 @@ func TestDuplicateSourceTags(t *testing.T) {
 	etags := newEntityTags("deadbeef")
 
 	// Get empty tags and make sure cache is now set to valid
-	tags := etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 0)
+	tags := etags.getTags(collectors.HighCardinality)
+	assert.Equal(t, []string{}, tags.Sorted())
 	assert.True(t, etags.cacheValid)
 
 	// Mock collector priorities
@@ -331,19 +330,17 @@ func TestDuplicateSourceTags(t *testing.T) {
 		highCardTags: []string{"tag4:sourceClusterLow"},
 	}
 
-	tags = etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 0)
+	tags = etags.getTags(collectors.HighCardinality)
+	assert.Equal(t, []string{}, tags.Sorted())
 	assert.True(t, etags.cacheValid)
 
 	// Invalidate the cache, we should now get the tags
 	etags.cacheValid = false
-	tags = etags.get(collectors.HighCardinality)
-	assert.Len(t, tags, 7)
-	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh", "tag4:sourceClusterLow", "tag5:sourceLow"})
+	tags = etags.getTags(collectors.HighCardinality)
+	assert.Equal(t, []string{"bar", "foo", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh", "tag4:sourceClusterLow", "tag5:sourceLow"}, tags.Sorted())
 	assert.True(t, etags.cacheValid)
-	tags = etags.get(collectors.LowCardinality)
-	assert.Len(t, tags, 5)
-	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh"})
+	tags = etags.getTags(collectors.LowCardinality)
+	assert.Equal(t, []string{"bar", "foo", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh"}, tags.Sorted())
 }
 
 type entityEventExpectation struct {
@@ -452,6 +449,7 @@ func checkEvents(t *testing.T, expectations []entityEventExpectation, events []t
 
 	for i, expectation := range expectations {
 		event := events[i]
+		fmt.Printf("evt=%#v\n", event)
 
 		passed = assert.Equal(t, expectation.eventType, event.EventType)
 		passed = passed && assert.Equal(t, expectation.id, event.Entity.ID)
@@ -461,10 +459,10 @@ func checkEvents(t *testing.T, expectations []entityEventExpectation, events []t
 
 		assert.Equal(t, expectation.lowCardTags, event.Entity.LowCardinalityTags)
 		if cardinality == collectors.OrchestratorCardinality {
-			assert.Equal(t, expectation.orchCardTags, event.Entity.OrchestratorCardinalityTags)
+			assert.ElementsMatch(t, expectation.orchCardTags, event.Entity.OrchestratorCardinalityTags)
 			assert.Empty(t, event.Entity.HighCardinalityTags)
 		} else if cardinality == collectors.HighCardinality {
-			assert.Equal(t, expectation.orchCardTags, event.Entity.OrchestratorCardinalityTags)
+			assert.ElementsMatch(t, expectation.orchCardTags, event.Entity.OrchestratorCardinalityTags)
 			assert.Equal(t, expectation.highCardTags, event.Entity.HighCardinalityTags)
 		} else {
 			assert.Empty(t, event.Entity.OrchestratorCardinalityTags)

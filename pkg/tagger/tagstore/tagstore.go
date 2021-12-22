@@ -274,7 +274,7 @@ func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardina
 	if present == false {
 		return tagset.EmptyTags
 	}
-	return storedTags.getHashedTags(cardinality)
+	return storedTags.getTags(cardinality)
 }
 
 // Lookup gets tags from the store and returns them concatenated in a string slice.

@@ -47,11 +47,7 @@ func (e *EntityTags) getStandard() []string {
 	return tags
 }
 
-func (e *EntityTags) get(cardinality collectors.TagCardinality) []string {
-	return e.getHashedTags(cardinality).UnsafeReadOnlySlice()
-}
-
-func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) *tagset.Tags {
+func (e *EntityTags) getTags(cardinality collectors.TagCardinality) *tagset.Tags {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
