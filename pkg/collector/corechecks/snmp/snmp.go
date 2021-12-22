@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
 var timeNow = time.Now
@@ -31,6 +32,7 @@ type Check struct {
 	config         *checkconfig.CheckConfig
 	singleDeviceCk *devicecheck.DeviceCheck
 	discovery      discovery.Discovery
+	sessionFactory session.Factory
 }
 
 // Run executes the check
@@ -125,10 +127,10 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	}
 
 	if c.config.IsDiscovery() {
-		c.discovery = discovery.NewDiscovery(c.config)
+		c.discovery = discovery.NewDiscovery(c.config, c.sessionFactory)
 		c.discovery.Start()
 	} else {
-		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress)
+		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress, c.sessionFactory)
 		if err != nil {
 			return fmt.Errorf("failed to create device check: %s", err)
 		}
@@ -148,7 +150,8 @@ func (c *Check) Interval() time.Duration {
 
 func snmpFactory() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(common.SnmpIntegrationName),
+		CheckBase:      core.NewCheckBase(common.SnmpIntegrationName),
+		sessionFactory: session.NewGosnmpSession,
 	}
 }
 

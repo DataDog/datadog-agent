@@ -124,10 +124,23 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
 
+	demux := initAgentDemultiplexer(options, hostname)
+
+	if demultiplexerInstance != nil {
+		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
+	}
+	demultiplexerInstance = demux
+
+	go demux.Run()
+	return demux
+}
+
+func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *AgentDemultiplexer {
+
 	// prepare the multiple forwarders
 	// -------------------------------
 
-	log.Debugf("Starting forwarders")
+	log.Debugf("Creating forwarders")
 	// orchestrator forwarder
 	var orchestratorForwarder *forwarder.DefaultForwarder
 	if options.UseOrchestratorForwarder {
@@ -177,18 +190,13 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 		senders: newSenders(agg),
 	}
 
-	if demultiplexerInstance != nil {
-		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
-	}
-	demultiplexerInstance = demux
-
-	go demux.Run()
 	return demux
 }
 
 // Run runs all demultiplexer parts
 func (d *AgentDemultiplexer) Run() {
 	if !d.options.DontStartForwarders {
+		log.Debugf("Starting forwarders")
 		if d.forwarders.orchestrator != nil {
 			d.forwarders.orchestrator.Start() //nolint:errcheck
 		} else {
