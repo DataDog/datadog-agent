@@ -121,7 +121,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 		}
 	}
 	if lineHandler == nil {
-		if dd_conf.Datadog.GetBool("logs_config.auto_multi_line_detection") || source.Config.AutoMultiLine {
+		if source.Config.AutoMultiLineEnabled() {
 			log.Infof("Auto multi line log detection enabled")
 
 			if multiLinePattern != nil {

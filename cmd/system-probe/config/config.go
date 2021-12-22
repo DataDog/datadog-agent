@@ -139,14 +139,14 @@ func load(configPath string) (*Config, error) {
 		if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
 			site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
 		} else {
-			site = fmt.Sprintf(profiling.ProfileURLTemplate, cfgSite)
+			site = fmt.Sprintf(profiling.ProfilingURLTemplate, cfgSite)
 			if cfgURL != "" {
 				site = cfgURL
 			}
 		}
 
 		profSettings = &profiling.Settings{
-			Site:                 site,
+			ProfilingURL:         site,
 			Env:                  cfg.GetString(key(spNS, "internal_profiling.env")),
 			Service:              "system-probe",
 			Period:               cfg.GetDuration(key(spNS, "internal_profiling.period")),

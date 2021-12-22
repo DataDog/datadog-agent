@@ -64,7 +64,7 @@ type PrometheusServicesConfigProvider struct {
 }
 
 // NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
-func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationProviders) (ConfigProvider, error) {
+func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {

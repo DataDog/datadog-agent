@@ -107,18 +107,12 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
 	if c.config.Name == "" {
-		var checkName string
 		// Set 'name' field of the instance if not already defined in rawInstance config.
 		// The name/device_id will be used by Check.BuildID for building the check id.
 		// Example of check id: `snmp:<DEVICE_ID>:a3ec59dfb03e4457`
-		if c.config.IsDiscovery() {
-			checkName = fmt.Sprintf("%s:%s", c.config.Namespace, c.config.Network)
-		} else {
-			checkName = c.config.DeviceID
-		}
-		setNameErr := rawInstance.SetNameForInstance(checkName)
+		setNameErr := rawInstance.SetNameForInstance(c.config.DeviceID)
 		if setNameErr != nil {
-			log.Warnf("error setting check name (checkName=%s): %s", checkName, setNameErr)
+			log.Debugf("error setting device_id as name: %s", setNameErr)
 		}
 	}
 

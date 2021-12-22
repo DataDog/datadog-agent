@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -204,6 +205,7 @@ type BufferedAggregator struct {
 	MetricSamplePool *metrics.MetricSamplePool
 
 	statsdSampler          TimeSampler
+	tagsStore              *tags.Store
 	checkSamplers          map[check.ID]*CheckSampler
 	serviceChecks          metrics.ServiceChecks
 	events                 metrics.Events
@@ -244,6 +246,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName = flavor.HerokuAgent
 	}
 
+	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator")
+
 	var flushMetricsAndSerializeInParallelChanSize int
 	if config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") {
 		flushMetricsAndSerializeInParallelChanSize = config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size")
@@ -267,7 +271,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
-		statsdSampler:           *NewTimeSampler(bucketSize),
+		tagsStore:               tagsStore,
+		statsdSampler:           *NewTimeSampler(bucketSize, tagsStore),
 		checkSamplers:           make(map[check.ID]*CheckSampler),
 		flushInterval:           flushInterval,
 		serializer:              s,
@@ -360,6 +365,7 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
 		config.Datadog.GetBool("check_sampler_expire_metrics"),
 		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
+		agg.tagsStore,
 	)
 	return nil
 }
@@ -456,6 +462,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series met
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	sketches := agg.statsdSampler.flush(float64(before.UnixNano())/float64(time.Second), series)
+
 	for _, checkSampler := range agg.checkSamplers {
 		checkSeries, sk := checkSampler.flush()
 		for _, s := range checkSeries {
@@ -499,6 +506,7 @@ func updateSerieTelemetry(start time.Time, serieCount int, err error) {
 	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 	aggregatorSeriesFlushed.Add(int64(serieCount))
 	tlmFlush.Add(float64(serieCount), "series", state)
+
 }
 
 func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metrics.SerieSink) {
@@ -607,6 +615,7 @@ func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.Sk
 func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSerializer bool) {
 	if agg.flushMetricsAndSerializeInParallelChanSize == 0 {
 		series, sketches := agg.GetSeriesAndSketches(start)
+
 		agg.sendSketches(start, sketches, waitForSerializer)
 		agg.sendSeries(start, series, waitForSerializer)
 	} else {
@@ -786,6 +795,12 @@ func (agg *BufferedAggregator) run() {
 		case <-agg.TickerChan:
 			start := time.Now()
 			agg.Flush(start, false)
+
+			// Do this here, rather than in the Flush():
+			// - make sure Shrink doesn't happen concurrently with sample processing.
+			// - we don't need to Shrink() on stop
+			agg.tagsStore.Shrink()
+
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
 			aggregatorEventPlatformErrorLogged = false
