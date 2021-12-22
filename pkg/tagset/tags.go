@@ -13,8 +13,12 @@ import (
 )
 
 // Tags contains a set of tags, along with a 64-bit hash considered to be
-// unique to that set of tags. Tags in the tagset are unique. The order of
-// the tags is undefined.
+// unique to that set of tags. Tags in the tagset are unique. The order of the
+// tags is undefined.
+//
+// Tags are always handled by pointer (`*tagset.Tags`).  Avoid using the nil
+// form of this pointer; in cases where no tags are necessary, use
+// `tagset.EmptyTags` instead.  This avoids many unnecessary nil checks.
 //
 // The constructor functions associated with this type use the default factory.
 type Tags struct {
