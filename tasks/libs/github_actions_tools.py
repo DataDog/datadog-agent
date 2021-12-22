@@ -29,8 +29,8 @@ def trigger_macos_workflow(
     workflow="macos.yaml",
     github_action_ref="master",
     datadog_agent_ref=DEFAULT_BRANCH,
-    release_version="nightly-a7",
-    major_version="7",
+    release_version=None,
+    major_version=None,
     python_runtimes="3",
 ):
     """
