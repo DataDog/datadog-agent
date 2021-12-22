@@ -15,19 +15,19 @@ struct ptrace_event_t {
 
 SYSCALL_KPROBE3(ptrace, u32, request, pid_t, pid, void *, addr) {
     struct syscall_cache_t syscall = {
-            .type = EVENT_PTRACE,
-            .ptrace = {
-                .request = request,
-                .pid = pid,
-                .addr = (u64)addr,
-            }
-        };
+        .type = EVENT_PTRACE,
+        .ptrace = {
+            .request = request,
+            .pid = pid,
+            .addr = (u64)addr,
+        }
+    };
 
-        cache_syscall(&syscall);
-        return 0;
+    cache_syscall(&syscall);
+    return 0;
 }
 
-int __attribute__((always_inline)) sys_ptrace_ret(struct pt_regs *ctx, int retval) {
+int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_PTRACE);
     if (!syscall)
         return 0;
@@ -49,6 +49,11 @@ int __attribute__((always_inline)) sys_ptrace_ret(struct pt_regs *ctx, int retva
 
 SYSCALL_KRETPROBE(ptrace) {
     return sys_ptrace_ret(ctx, (int)PT_REGS_RC(ctx));
+}
+
+SEC("tracepoint/syscalls/sys_exit_ptrace")
+int tracepoint_syscalls_sys_exit_ptrace(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_ptrace_ret(args, (int)args->ret);
 }
 
 #endif

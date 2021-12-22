@@ -12,13 +12,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/stretchr/testify/assert"
-
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -50,7 +48,7 @@ func TestMMapEvent(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "mmap", event.GetType(), "wrong event type")
-			assert.NotEqual(t, 0, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.VMProtection(event.MMap.Protection)))
+			assert.NotEqual(t, 0, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
 
 			if !validateMMapSchema(t, event) {
 				t.Error(event.String())
