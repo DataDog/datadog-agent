@@ -135,10 +135,11 @@ func matchYAMLKeyWithListValue(key string) *regexp.Regexp {
 	*/
 	return regexp.MustCompile(
 		fmt.Sprintf(`(\s*%s\s*:)\s*(?:\n(?:\s+-\s+.*)*|\[(?:\n?.*)*\])`, key),
-		/*
-		   (\s*%s\s*:)       -> match key(s)
-		   (?:\s+-\s+.*)*    -> match multiple lines starting with `-`
-		   \[(?:\n?.*)*\]    -> match anything enclosed between `[` and `]`
+		/*                  ----------       ---------------  -------------
+		                    match key(s)     |                |
+		                                     match multiple   match anything
+		                                     lines starting   enclosed between `[` and `]`
+		                                     with `-`
 		*/
 	)
 }
