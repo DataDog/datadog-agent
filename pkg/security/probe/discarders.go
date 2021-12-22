@@ -324,33 +324,27 @@ func getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field e
 	}, nil
 }
 
-// Important should always be called after having checked that the file is not a discarder itself otherwise it can report incorrect
-// parent discarder
 func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string) (bool, error) {
 	dirname := filepath.Dir(filename)
 
-	// check cache first
+	// if the ruleset changed we need to flush all the previous functions
 	if id.rs != rs {
 		id.parentDiscarderFnc = make(map[eval.Field]func(dirname string) (bool, error))
 		id.rs = rs
 	}
 
 	fnc, exists := id.parentDiscarderFnc[field]
-	if !exists
-		if ; exists {
-
-			return fnc(dirname)
-		}
-
-		fnc, err := getParentDiscarderFnc(rs, eventType, field, filename)
-		if err != nil {
+	if !exists {
+		var err error
+		if fnc, err = getParentDiscarderFnc(rs, eventType, field, filename); err != nil {
 			return false, err
 		}
 		id.parentDiscarderFnc[field] = fnc
+	}
 
 	seclog.Tracef("`%s` discovered as parent discarder", dirname)
 
-	return parentDiscarderFnc(dirname)
+	return fnc(dirname)
 }
 
 func (id *inodeDiscarders) discardParentInode(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, uint32, uint64, error) {
