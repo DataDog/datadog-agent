@@ -21,9 +21,8 @@ import (
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
-// NewSession returns a new session
-// Can be replaced in tests to use a mock session
-var NewSession = NewGosnmpSession
+// Factory will create new sessions
+type Factory func(config *checkconfig.CheckConfig) (Session, error)
 
 // Session interface for connecting to a snmp device
 type Session interface {
