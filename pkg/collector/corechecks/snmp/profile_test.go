@@ -30,10 +30,10 @@ func TestProfileMetadata_f5(t *testing.T) {
 	config.Datadog.Set("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
+	chk := Check{sessionFactory: sessionFactory}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
