@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"testing"
 
+	tagset "github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,11 +20,13 @@ func TestMetricSampleCopy(t *testing.T) {
 	src.Name = "metric.name"
 	src.RawValue = "0.1"
 	src.SampleRate = 1
-	src.Tags = []string{"a:b", "c:d"}
+	src.Tags = tagset.NewTags([]string{"a:b", "c:d"})
 	src.Timestamp = 1234
 	src.Value = 0.1
 	dst := src.Copy()
 
 	assert.False(t, src == dst)
 	assert.True(t, reflect.DeepEqual(&src, &dst))
+	dst.Name = "changed"
+	assert.NotEqual(t, src.Name, dst.Name)
 }

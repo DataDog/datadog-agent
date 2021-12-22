@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -233,7 +234,7 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 		Name:            metric,
 		Value:           value,
 		Mtype:           mType,
-		Tags:            tags,
+		Tags:            tagset.NewTags(tags), // TODO: should take *tagset.Tags as arg
 		Host:            hostname,
 		SampleRate:      1,
 		Timestamp:       timeNowNano(),

@@ -640,7 +640,8 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		// All metricSamples already share the same Tags slice. We can
 		// extends the first one and reuse it for the rest.
 		if idx == 0 {
-			metricSamples[idx].Tags = append(metricSamples[idx].Tags, s.extraTags...)
+			// TODO: do this better
+			metricSamples[idx].Tags = tagset.Union(metricSamples[idx].Tags, tagset.NewTags(s.extraTags))
 		} else {
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
@@ -702,17 +703,15 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
-	tags := tagset.NewTags(sample.Tags)
-
 	// key
-	key := ckey.Generate(sample.Name, "", tags)
+	key := ckey.Generate(sample.Name, "", sample.Tags)
 
 	// store
 	ms := s.Debug.Stats[key]
 	ms.Count++
 	ms.LastSeen = now
 	ms.Name = sample.Name
-	ms.Tags = strings.Join(tags.Sorted(), " ")
+	ms.Tags = strings.Join(sample.Tags.Sorted(), " ")
 	s.Debug.Stats[key] = ms
 
 	s.Debug.metricsCounts.metricChan <- struct{}{}

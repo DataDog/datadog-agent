@@ -107,7 +107,7 @@ func TestUDPReceive(t *testing.T) {
 		assert.Equal(t, sample.Name, "daemon")
 		assert.EqualValues(t, sample.Value, 666.0)
 		assert.Equal(t, sample.Mtype, metrics.GaugeType)
-		assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2"})
+		assert.Equal(t, []string{"sometag1:somevalue1", "sometag2:somevalue2"}, sample.Tags.Sorted())
 	case <-time.After(100 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -545,7 +545,7 @@ func TestExtraTags(t *testing.T) {
 		assert.Equal(t, sample.Name, "daemon")
 		assert.EqualValues(t, sample.Value, 666.0)
 		assert.Equal(t, sample.Mtype, metrics.GaugeType)
-		assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
+		assert.Equal(t, []string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"}, sample.Tags.Sorted())
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -559,7 +559,7 @@ func TestDebugStatsSpike(t *testing.T) {
 	defer s.Stop()
 
 	s.EnableMetricsStats()
-	sample := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
+	sample := metrics.MetricSample{Name: "some.metric1", Tags: tagset.EmptyTags}
 
 	send := func(count int) {
 		for i := 0; i < count; i++ {
@@ -602,16 +602,16 @@ func TestDebugStats(t *testing.T) {
 	s.EnableMetricsStats()
 
 	// data
-	sample1 := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
-	sample2 := metrics.MetricSample{Name: "some.metric2", Tags: []string{"a"}}
-	sample3 := metrics.MetricSample{Name: "some.metric3", Tags: make([]string, 0)}
-	sample4 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"b", "c"}}
-	sample5 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"c", "b"}}
-	hash1 := ckey.Generate(sample1.Name, "", tagset.NewTags(sample1.Tags))
-	hash2 := ckey.Generate(sample2.Name, "", tagset.NewTags(sample2.Tags))
-	hash3 := ckey.Generate(sample3.Name, "", tagset.NewTags(sample3.Tags))
-	hash4 := ckey.Generate(sample4.Name, "", tagset.NewTags(sample4.Tags))
-	hash5 := ckey.Generate(sample5.Name, "", tagset.NewTags(sample5.Tags))
+	sample1 := metrics.MetricSample{Name: "some.metric1", Tags: tagset.EmptyTags}
+	sample2 := metrics.MetricSample{Name: "some.metric2", Tags: tagset.NewTags([]string{"a"})}
+	sample3 := metrics.MetricSample{Name: "some.metric3", Tags: tagset.EmptyTags}
+	sample4 := metrics.MetricSample{Name: "some.metric4", Tags: tagset.NewTags([]string{"b", "c"})}
+	sample5 := metrics.MetricSample{Name: "some.metric4", Tags: tagset.NewTags([]string{"c", "b"})}
+	hash1 := ckey.Generate(sample1.Name, "", sample1.Tags)
+	hash2 := ckey.Generate(sample2.Name, "", sample2.Tags)
+	hash3 := ckey.Generate(sample3.Name, "", sample3.Tags)
+	hash4 := ckey.Generate(sample4.Name, "", sample4.Tags)
+	hash5 := ckey.Generate(sample5.Name, "", sample5.Tags)
 
 	// test ingestion and ingestion time
 	s.storeMetricStats(sample1)
@@ -727,7 +727,7 @@ dogstatsd_mapper_profiles:
 			expectedSamples: []MetricSample{
 				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name"}, Mtype: metrics.GaugeType, Value: 666.0},
 				{Name: "test.job.size", Tags: []string{"foo:my_job_type", "bar:my_job_name"}, Mtype: metrics.GaugeType, Value: 666.0},
-				{Name: "test.job.size.not_match", Tags: nil, Mtype: metrics.GaugeType, Value: 666.0},
+				{Name: "test.job.size.not_match", Tags: []string{}, Mtype: metrics.GaugeType, Value: 666.0},
 			},
 			expectedCacheSize: 1000,
 		},
@@ -798,7 +798,12 @@ dogstatsd_mapper_profiles:
 				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
-					actualSamples = append(actualSamples, MetricSample{Name: sample.Name, Tags: sample.Tags, Mtype: sample.Mtype, Value: sample.Value})
+					actualSamples = append(actualSamples, MetricSample{
+						Name:  sample.Name,
+						Tags:  sample.Tags.UnsafeReadOnlySlice(), // TODO: dogstatsd.MetricSample doesn't use *Tags yet
+						Mtype: sample.Mtype,
+						Value: sample.Value,
+					})
 				}
 			}
 			for _, sample := range scenario.expectedSamples {

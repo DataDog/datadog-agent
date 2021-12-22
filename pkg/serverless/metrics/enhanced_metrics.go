@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,7 +59,7 @@ func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string
 			Name:       runtimeDurationMetric,
 			Value:      float64(duration),
 			Mtype:      metrics.DistributionType,
-			Tags:       tags,
+			Tags:       tagset.NewTags(tags),
 			SampleRate: 1,
 			Timestamp:  float64(end.UnixNano()),
 		}}
@@ -85,35 +86,35 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 		Name:       maxMemoryUsedMetric,
 		Value:      float64(maxMemoryUsedMb),
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       memorySizeMetric,
 		Value:      memorySize,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       billedDurationMetric,
 		Value:      billedDuration * msToSec,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       durationMetric,
 		Value:      durationMs * msToSec,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(billedDuration, memorySize),
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}}
@@ -122,7 +123,7 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 			Name:       initDurationMetric,
 			Value:      initDurationMs * msToSec,
 			Mtype:      metrics.DistributionType,
-			Tags:       tags,
+			Tags:       tagset.NewTags(tags),
 			SampleRate: 1,
 			Timestamp:  timestamp,
 		}
@@ -157,7 +158,7 @@ func incrementEnhancedMetric(name string, tags []string, timestamp float64, metr
 		Name:       name,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}}

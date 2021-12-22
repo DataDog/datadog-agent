@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -37,7 +38,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       d.ExtraTags.Tags,
+		Tags:       tagset.NewTags(d.ExtraTags.Tags),
 		SampleRate: 1,
 		Timestamp:  float64(endInvocationTime.UnixNano()),
 	}})

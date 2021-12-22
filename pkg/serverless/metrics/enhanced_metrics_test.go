@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +25,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 		Name:       OutOfMemoryMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}})
@@ -33,7 +34,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 		Name:       errorsMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}})
@@ -60,42 +61,42 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Name:       maxMemoryUsedMetric,
 		Value:      256.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
 		Name:       memorySizeMetric,
 		Value:      1024.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
 		Name:       billedDurationMetric,
 		Value:      0.80,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
 		Name:       durationMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(800.0, 1024.0),
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
 		Name:       initDurationMetric,
 		Value:      0.1,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}})
@@ -114,35 +115,35 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Name:       maxMemoryUsedMetric,
 		Value:      256.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
 		Name:       memorySizeMetric,
 		Value:      1024.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
 		Name:       billedDurationMetric,
 		Value:      0.80,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
 		Name:       durationMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(800.0, 1024.0),
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}})
@@ -160,7 +161,7 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 		Name:       timeoutsMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
@@ -179,7 +180,7 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 		Name:       invocationsMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
@@ -198,7 +199,7 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 		Name:       OutOfMemoryMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(mockTime.UnixNano()),
 	}})
@@ -216,7 +217,7 @@ func TestSendErrorsEnhancedMetric(t *testing.T) {
 		Name:       errorsMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(mockTime.UnixNano()),
 	}})
@@ -278,7 +279,7 @@ func TestGenerateRuntimeDurationMetricOK(t *testing.T) {
 		Name:       runtimeDurationMetric,
 		Value:      153,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       tagset.NewTags(tags),
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()),
 	}})

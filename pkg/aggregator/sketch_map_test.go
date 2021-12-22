@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func TestInsert(t *testing.T) {
@@ -24,7 +25,7 @@ func TestInsert(t *testing.T) {
 		Name:       "test.metric.name1",
 		Value:      1,
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"a", "b"},
+		Tags:       tagset.NewTags([]string{"a", "b"}),
 		SampleRate: 1,
 	}
 

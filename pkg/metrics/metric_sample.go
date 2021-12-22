@@ -72,7 +72,7 @@ type MetricSample struct {
 	Value           float64
 	RawValue        string
 	Mtype           MetricType
-	Tags            []string
+	Tags            *tagset.Tags
 	Host            string
 	SampleRate      float64
 	Timestamp       float64
@@ -96,20 +96,15 @@ func (m *MetricSample) GetHost() string {
 
 // GetTags returns the metric sample tags
 func (m *MetricSample) GetTags() *tagset.Tags {
-	// TODO: store *tagset.Tags
-	tb := tagset.NewBuilder(len(m.Tags))
-	for _, tag := range m.Tags {
-		tb.Add(tag)
+	origTags := tagger.OriginTags(m.OriginID, m.K8sOriginID, m.Cardinality)
+	if m.Tags != nil {
+		return tagset.Union(m.Tags, origTags)
 	}
-	tb.AddTags(tagger.OriginTags(m.OriginID, m.K8sOriginID, m.Cardinality))
-	return tb.Close()
+	return origTags
 }
 
 // Copy returns a deep copy of the m MetricSample
 func (m *MetricSample) Copy() *MetricSample {
-	dst := &MetricSample{}
-	*dst = *m
-	dst.Tags = make([]string, len(m.Tags))
-	copy(dst.Tags, m.Tags)
-	return dst
+	dst := *m
+	return &dst
 }
