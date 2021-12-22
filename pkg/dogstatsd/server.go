@@ -139,7 +139,7 @@ type Server struct {
 	defaultHostname           string
 	histToDist                bool
 	histToDistPrefix          string
-	extraTags                 []string
+	extraTags                 *tagset.Tags
 	Debug                     *dsdServerDebug
 	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
@@ -318,7 +318,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		defaultHostname:           defaultHostname,
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
-		extraTags:                 extraTags,
+		extraTags:                 tagset.NewTags(extraTags),
 		eolTerminationUDP:         eolTerminationUDP,
 		eolTerminationUDS:         eolTerminationUDS,
 		eolTerminationNamedPipe:   eolTerminationNamedPipe,
@@ -640,8 +640,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		// All metricSamples already share the same Tags slice. We can
 		// extends the first one and reuse it for the rest.
 		if idx == 0 {
-			// TODO: do this better
-			metricSamples[idx].Tags = tagset.Union(metricSamples[idx].Tags, tagset.NewTags(s.extraTags))
+			metricSamples[idx].Tags = tagset.Union(metricSamples[idx].Tags, s.extraTags)
 		} else {
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
@@ -659,7 +658,7 @@ func (s *Server) parseEventMessage(parser *parser, message []byte, origin string
 		return nil, err
 	}
 	event := enrichEvent(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
-	event.Tags = append(event.Tags, s.extraTags...)
+	event.Tags = append(event.Tags, s.extraTags.UnsafeReadOnlySlice()...) // TODO: event.Tags isn't *Tags yet
 	tlmProcessed.Inc("events", "ok", "")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
@@ -673,7 +672,7 @@ func (s *Server) parseServiceCheckMessage(parser *parser, message []byte, origin
 		return nil, err
 	}
 	serviceCheck := enrichServiceCheck(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
-	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
+	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags.UnsafeReadOnlySlice()...) // TODO: serviceCheck.Tags isn't *Tags yet
 	dogstatsdServiceCheckPackets.Add(1)
 	tlmProcessed.Inc("service_checks", "ok", "")
 	return serviceCheck, nil
@@ -842,6 +841,6 @@ func FormatDebugStats(stats []byte) (string, error) {
 }
 
 // SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
-func (s *Server) SetExtraTags(tags []string) {
-	s.extraTags = tags
+func (s *Server) SetExtraTags(tags []string) { // TODO: take a *tags.Tagset
+	s.extraTags = tagset.NewTags(tags)
 }
