@@ -71,20 +71,6 @@ func (bldr *SliceBuilder) reset(levels, capacity int) {
 		bldr.offsets[i] = 0
 	}
 
-	// ensure at least the requested capacity for bldr.tags
-	if bldr.tags == nil || cap(bldr.tags) < capacity {
-		bldr.tags = make([]string, 0, capacity)
-	} else {
-		bldr.tags = bldr.tags[:0]
-	}
-
-	// ensure at least the requested capacity for bldr.hashes
-	if bldr.hashes == nil || cap(bldr.hashes) < capacity {
-		bldr.hashes = make([]uint64, 0, capacity)
-	} else {
-		bldr.hashes = bldr.hashes[:0]
-	}
-
 	// expand bldr.offsets to at least length levels
 	if bldr.levelHashes == nil || cap(bldr.levelHashes) < levels {
 		bldr.levelHashes = make([]uint64, levels)
@@ -96,6 +82,8 @@ func (bldr *SliceBuilder) reset(levels, capacity int) {
 		bldr.levelHashes[i] = 0
 	}
 
+	bldr.tags = make([]string, 0, capacity)
+	bldr.hashes = make([]uint64, 0, capacity)
 	bldr.seen = map[uint64]struct{}{}
 }
 
@@ -191,6 +179,8 @@ func (bldr *SliceBuilder) FreezeSlice(a, b int) *Tags {
 
 // Close closes the builder, freeing its resources.
 func (bldr *SliceBuilder) Close() {
-	bldr.seen = nil // free unnecessary memory
+	bldr.seen = nil
+	bldr.hashes = nil
+	bldr.tags = nil
 	bldr.factory.sliceBuilderClosed(bldr)
 }
