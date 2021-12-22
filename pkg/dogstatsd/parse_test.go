@@ -40,15 +40,14 @@ func TestParseTags(t *testing.T) {
 	p := newParser(newFloat64ListPool())
 	rawTags := []byte("tag:test,mytag,good:boy")
 	tags := p.parseTags(rawTags)
-	expectedTags := []string{"tag:test", "mytag", "good:boy"}
-	assert.ElementsMatch(t, expectedTags, tags)
+	assert.Equal(t, []string{"good:boy", "mytag", "tag:test"}, tags.Sorted())
 }
 
 func TestParseTagsEmpty(t *testing.T) {
 	p := newParser(newFloat64ListPool())
 	rawTags := []byte("")
 	tags := p.parseTags(rawTags)
-	assert.Nil(t, tags)
+	assert.Equal(t, []string{}, tags.Sorted())
 }
 
 func TestUnsafeParseFloat(t *testing.T) {

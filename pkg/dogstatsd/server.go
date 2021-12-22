@@ -627,7 +627,8 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		if mapResult != nil {
 			log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name, mapResult.Name, mapResult.Tags)
 			sample.name = mapResult.Name
-			sample.tags = append(sample.tags, mapResult.Tags...)
+			mapTags := tagset.NewTags(mapResult.Tags) // TODO: Map should return *Tags
+			sample.tags = tagset.Union(sample.tags, mapTags)
 		}
 	}
 	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlocklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)

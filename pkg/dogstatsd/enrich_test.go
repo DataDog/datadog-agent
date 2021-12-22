@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 var (
@@ -317,7 +318,7 @@ func TestConvertServiceCheckMinimal(t *testing.T) {
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginID)
 	assert.Equal(t, "", sc.K8sOriginID)
-	assert.Equal(t, []string(nil), sc.Tags)
+	assert.Equal(t, []string{}, sc.Tags)
 }
 
 func TestConvertServiceCheckError(t *testing.T) {
@@ -356,7 +357,7 @@ func TestConvertServiceCheckMetadataTimestamp(t *testing.T) {
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginID)
 	assert.Equal(t, "", sc.K8sOriginID)
-	assert.Equal(t, []string(nil), sc.Tags)
+	assert.Equal(t, []string{}, sc.Tags)
 }
 
 func TestConvertServiceCheckMetadataHostname(t *testing.T) {
@@ -370,7 +371,7 @@ func TestConvertServiceCheckMetadataHostname(t *testing.T) {
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginID)
 	assert.Equal(t, "", sc.K8sOriginID)
-	assert.Equal(t, []string(nil), sc.Tags)
+	assert.Equal(t, []string{}, sc.Tags)
 }
 
 func TestConvertServiceCheckMetadataHostnameInTag(t *testing.T) {
@@ -426,7 +427,7 @@ func TestConvertServiceCheckMetadataMessage(t *testing.T) {
 	assert.Equal(t, "this is fine", sc.Message)
 	assert.Equal(t, "", sc.OriginID)
 	assert.Equal(t, "", sc.K8sOriginID)
-	assert.Equal(t, []string(nil), sc.Tags)
+	assert.Equal(t, []string{}, sc.Tags)
 }
 
 func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
@@ -452,7 +453,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginID)
 	assert.Equal(t, "", sc.K8sOriginID)
-	assert.Equal(t, []string(nil), sc.Tags)
+	assert.Equal(t, []string{}, sc.Tags)
 }
 
 func TestServiceCheckOriginTag(t *testing.T) {
@@ -477,7 +478,7 @@ func TestConvertEventMinimal(t *testing.T) {
 	assert.Equal(t, int64(0), e.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
-	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, []string{}, e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
@@ -495,7 +496,7 @@ func TestConvertEventMultilinesText(t *testing.T) {
 	assert.Equal(t, int64(0), e.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
-	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, []string{}, e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
@@ -513,7 +514,7 @@ func TestConvertEventPipeInTitle(t *testing.T) {
 	assert.Equal(t, int64(0), e.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
-	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, []string{}, e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
@@ -596,7 +597,7 @@ func TestConvertEventMetadataTimestamp(t *testing.T) {
 	assert.Equal(t, int64(21), e.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
-	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, []string{}, e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
@@ -614,7 +615,7 @@ func TestConvertEventMetadataPriority(t *testing.T) {
 	assert.Equal(t, int64(0), e.Ts)
 	assert.Equal(t, metrics.EventPriorityLow, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
-	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, []string{}, e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
@@ -632,7 +633,7 @@ func TestConvertEventMetadataHostname(t *testing.T) {
 	assert.Equal(t, int64(0), e.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "localhost", e.Host)
-	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, []string{}, e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
@@ -686,7 +687,7 @@ func TestConvertEventMetadataAlertType(t *testing.T) {
 	assert.Equal(t, int64(0), e.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
-	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, []string{}, e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeWarning, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
@@ -704,7 +705,7 @@ func TestConvertEventMetadataAggregatioKey(t *testing.T) {
 	assert.Equal(t, int64(0), e.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
-	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, []string{}, e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "some aggregation key", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
@@ -722,7 +723,7 @@ func TestConvertEventMetadataSourceType(t *testing.T) {
 	assert.Equal(t, int64(0), e.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
-	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, []string{}, e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "this is the source", e.SourceTypeName)
@@ -897,7 +898,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 	tests := []struct {
 		name              string
 		args              args
-		wantedTags        []string
+		wantedTags        *tagset.Tags
 		wantedHost        string
 		wantedOrigin      string
 		wantedK8sOrigin   string
@@ -910,7 +911,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "",
 				entityIDPrecendenceEnabled: true,
 			},
-			wantedTags:        nil,
+			wantedTags:        tagset.EmptyTags,
 			wantedHost:        "foo",
 			wantedOrigin:      "",
 			wantedK8sOrigin:   "",
@@ -924,7 +925,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: true,
 			},
-			wantedTags:        []string{"env:prod"},
+			wantedTags:        tagset.NewTags([]string{"env:prod"}),
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
 			wantedK8sOrigin:   "",
@@ -938,7 +939,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: true,
 			},
-			wantedTags:        nil,
+			wantedTags:        tagset.EmptyTags,
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
 			wantedK8sOrigin:   "",
@@ -952,7 +953,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: true,
 			},
-			wantedTags:        []string{"env:prod"},
+			wantedTags:        tagset.NewTags([]string{"env:prod"}),
 			wantedHost:        "foo",
 			wantedOrigin:      "",
 			wantedK8sOrigin:   "kubernetes_pod_uid://my-id",
@@ -966,7 +967,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: true,
 			},
-			wantedTags:        []string{"env:prod"},
+			wantedTags:        tagset.NewTags([]string{"env:prod"}),
 			wantedHost:        "foo",
 			wantedOrigin:      "",
 			wantedK8sOrigin:   "",
@@ -980,7 +981,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
 			},
-			wantedTags:        []string{"env:prod"},
+			wantedTags:        tagset.NewTags([]string{"env:prod"}),
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
 			wantedK8sOrigin:   "kubernetes_pod_uid://42",
@@ -994,7 +995,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
 			},
-			wantedTags:        []string{"env:prod"},
+			wantedTags:        tagset.NewTags([]string{"env:prod"}),
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
 			wantedK8sOrigin:   "kubernetes_pod_uid://42",
@@ -1008,7 +1009,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
 			},
-			wantedTags:        []string{"env:prod"},
+			wantedTags:        tagset.NewTags([]string{"env:prod"}),
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
 			wantedK8sOrigin:   "kubernetes_pod_uid://42",
@@ -1022,7 +1023,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
 			},
-			wantedTags:        []string{"env:prod"},
+			wantedTags:        tagset.NewTags([]string{"env:prod"}),
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
 			wantedK8sOrigin:   "kubernetes_pod_uid://42",
@@ -1036,7 +1037,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
 			},
-			wantedTags:        []string{"env:prod"},
+			wantedTags:        tagset.NewTags([]string{"env:prod"}),
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
 			wantedK8sOrigin:   "kubernetes_pod_uid://42",
@@ -1050,7 +1051,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
 			},
-			wantedTags:        []string{"env:prod"},
+			wantedTags:        tagset.NewTags([]string{"env:prod"}),
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
 			wantedK8sOrigin:   "kubernetes_pod_uid://42",
@@ -1060,7 +1061,7 @@ func TestExtractTagsMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.defaultHostname, tt.args.originTags, tt.args.entityIDPrecendenceEnabled)
-			assert.Equal(t, tt.wantedTags, tags)
+			assert.Equal(t, tt.wantedTags.Sorted(), tags.Sorted())
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
 			assert.Equal(t, tt.wantedK8sOrigin, k8sOrigin)

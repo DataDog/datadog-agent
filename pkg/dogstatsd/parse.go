@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 type messageType int
@@ -69,12 +70,12 @@ func nextField(message []byte) ([]byte, []byte) {
 	return message[:sepIndex], message[sepIndex+1:]
 }
 
-func (p *parser) parseTags(rawTags []byte) []string {
+func (p *parser) parseTags(rawTags []byte) *tagset.Tags {
 	if len(rawTags) == 0 {
-		return nil
+		return tagset.EmptyTags
 	}
 	tagsCount := bytes.Count(rawTags, commaSeparator)
-	tagsList := make([]string, tagsCount+1)
+	bldr := tagset.NewBuilder(tagsCount + 1)
 
 	i := 0
 	for i < tagsCount {
@@ -82,12 +83,12 @@ func (p *parser) parseTags(rawTags []byte) []string {
 		if tagPos < 0 {
 			break
 		}
-		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos])
+		bldr.Add(p.interner.LoadOrStore(rawTags[:tagPos]))
 		rawTags = rawTags[tagPos+len(commaSeparator):]
 		i++
 	}
-	tagsList[i] = p.interner.LoadOrStore(rawTags)
-	return tagsList
+	bldr.Add(p.interner.LoadOrStore(rawTags))
+	return bldr.Close()
 }
 
 func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
@@ -131,7 +132,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	}
 
 	sampleRate := 1.0
-	var tags []string
+	tags := tagset.EmptyTags
 	var optionalField []byte
 	for message != nil {
 		optionalField, message = nextField(message)

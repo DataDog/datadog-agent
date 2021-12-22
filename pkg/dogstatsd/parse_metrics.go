@@ -8,6 +8,8 @@ package dogstatsd
 import (
 	"bytes"
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 type metricType int
@@ -43,7 +45,7 @@ type dogstatsdMetricSample struct {
 	setValue   string
 	metricType metricType
 	sampleRate float64
-	tags       []string
+	tags       *tagset.Tags
 }
 
 // sanity checks a given message against the metric sample format

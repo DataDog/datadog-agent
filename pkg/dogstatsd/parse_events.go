@@ -8,6 +8,7 @@ package dogstatsd
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -161,7 +162,7 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	case bytes.HasPrefix(optionalField, eventAlertTypePrefix):
 		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
-		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
+		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):]).UnsafeReadOnlySlice()
 	}
 	if err != nil {
 		return event, err

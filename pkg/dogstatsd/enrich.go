@@ -21,8 +21,12 @@ var (
 	CardinalityTagPrefix = "dd.internal.card:"
 )
 
-func extractTagsMetadata(tags []string, defaultHostname string, originTags string, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
+func extractTagsMetadata(tags []string, defaultHostname string, originTags string, entityIDPrecedenceEnabled bool) (*tagset.Tags, string, string, string, string) {
 	host := defaultHostname
+
+	slice := make([]string, len(tags))
+	copy(slice, tags)
+	tags = slice
 
 	n := 0
 	entityIDValue, cardinality := "", ""
@@ -58,7 +62,7 @@ func extractTagsMetadata(tags []string, defaultHostname string, originTags strin
 		k8sOrigin = kubelet.KubePodTaggerEntityPrefix + entityIDValue
 	}
 
-	return tags, host, origin, k8sOrigin, cardinality
+	return tagset.NewTags(tags), host, origin, k8sOrigin, cardinality
 }
 
 func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
@@ -102,10 +106,7 @@ func isMetricBlocklisted(metricName string, metricBlocklist []string) bool {
 func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
 	metricBlocklist []string, defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
 	metricName := ddSample.name
-	tagslice, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(ddSample.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
-
-	// TODO: do this earlier
-	tags := tagset.NewTags(tagslice)
+	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(ddSample.tags.UnsafeReadOnlySlice(), defaultHostname, origin, entityIDPrecedenceEnabled)
 
 	if !isExcluded(metricName, namespace, excludedNamespaces) {
 		metricName = namespace + metricName
@@ -190,7 +191,7 @@ func enrichEvent(event dogstatsdEvent, defaultHostname string, origin string, en
 		Text:           event.text,
 		Ts:             event.timestamp,
 		Priority:       enrichEventPriority(event.priority),
-		Tags:           tags,
+		Tags:           tags.UnsafeReadOnlySlice(),
 		AlertType:      enrichEventAlertType(event.alertType),
 		AggregationKey: event.aggregationKey,
 		SourceTypeName: event.sourceType,
@@ -229,7 +230,7 @@ func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname stri
 		Ts:          serviceCheck.timestamp,
 		Status:      enrichServiceCheckStatus(serviceCheck.status),
 		Message:     serviceCheck.message,
-		Tags:        tags,
+		Tags:        tags.UnsafeReadOnlySlice(),
 		OriginID:    originID,
 		K8sOriginID: k8sOriginID,
 		Cardinality: cardinality,
