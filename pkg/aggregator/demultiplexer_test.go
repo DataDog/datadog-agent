@@ -146,6 +146,7 @@ func TestDemuxSerializerCreated(t *testing.T) {
 
 func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	require := require.New(t)
+	var defaultCheckID check.ID // empty check.ID is the default sender ID
 
 	// default options should have created all forwarders except for the orchestrator
 	// forwarders since we're not in a cluster-agent environment
@@ -154,7 +155,6 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	opts.FlushInterval = time.Hour
 	demux := initAgentDemultiplexer(opts, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
-	go demux.Run()
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
 	require.NotNil(demux.sharedSerializer)
@@ -166,14 +166,19 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	sender.Count("my.third.check.metric", 42.0, "", []string{"team:agent-core", "dev:remeh"})
 	sender.Commit()
 
-	var defaultCheckID check.ID // empty check.ID is the default sender ID
+	// we have to run the aggregator for it to process these samples, but we
+	// want to stop it to read its samplers information, which is never happening
+	// in real life but which can cause races during this unit test.
+	// we want to make sure the aggregator has time to process these samples
+	// in its select before shutting it down, unfortunately, there is no other
+	// way today than giving it some time to run
+	go func() {
+		time.Sleep(250 * time.Millisecond)
+		demux.aggregator.stopChan <- struct{}{}
+	}()
+	demux.aggregator.run()
 
-	// nothing should have been flushed to the serializer/samplers yet
-	require.Len(demux.aggregator.checkSamplers[defaultCheckID].series, 0)
-
-	// flush the data down the pipeline
-	demux.FlushAggregatedData(time.Now(), true)
-	require.Len(demux.aggregator.checkSamplers[defaultCheckID].series, 3)
-
-	demux.Stop(false)
+	series, sketches := demux.aggregator.checkSamplers[defaultCheckID].flush()
+	require.Len(series, 3)
+	require.Len(sketches, 0)
 }
