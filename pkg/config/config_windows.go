@@ -21,13 +21,14 @@ var (
 	defaultGuiPort              = 5002
 	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	defaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
-	defaultProcessAgentLogFile  = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
+	// DefaultProcessAgentLogFile is the default process-agent log file
+	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
 
 	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	defaultSystemProbeAddress     = "localhost:3333"
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
-
-	defaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
+	// DefaultDDAgentBin the process agent's binary
+	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
 )
 
 // ServiceName is the name that'll be used to register the Agent
@@ -56,7 +57,7 @@ func init() {
 	if _here, err := executable.Folder(); err == nil {
 		agentFilePath := filepath.Join(_here, "..", "..", "embedded", "agent.exe")
 		if _, err := os.Stat(agentFilePath); err == nil {
-			defaultDDAgentBin = agentFilePath
+			DefaultDDAgentBin = agentFilePath
 		}
 	}
 }

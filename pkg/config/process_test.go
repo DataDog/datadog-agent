@@ -18,11 +18,11 @@ var allProcessSettings = []struct {
 }{
 	{
 		key:          "process_config.dd_agent_bin",
-		defaultValue: defaultDDAgentBin,
+		defaultValue: DefaultDDAgentBin,
 	},
 	{
 		key:          "process_config.log_file",
-		defaultValue: defaultProcessAgentLogFile,
+		defaultValue: DefaultProcessAgentLogFile,
 	},
 	{
 		key:          "process_config.grpc_connection_timeout_secs",

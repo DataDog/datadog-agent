@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -206,6 +207,41 @@ func TestEnvGrpcConnectionTimeoutSecs(t *testing.T) {
 	_ = os.Unsetenv("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS")
 }
 
+func TestYamlConfig(t *testing.T) {
+	// Reset the config
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+
+	f, err := ioutil.TempFile("", "yamlConfigTest*.yaml")
+	defer os.Remove(f.Name())
+	assert.NoError(t, err)
+
+	_, err = f.WriteString(`
+log_level: debug
+log_to_console: false
+process_config:
+    log_file: /tmp/test
+    dd_agent_bin: /tmp/test
+    grpc_connection_timeout_secs: 1
+    remote_tagger: false
+    process_discovery:
+        enabled: true
+        interval: 1h
+`)
+	assert.NoError(t, err)
+
+	_, err = NewAgentConfig("test", f.Name(), "")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "debug", config.Datadog.GetString("log_level"))
+	assert.False(t, config.Datadog.GetBool("log_to_console"))
+	assert.Equal(t, "/tmp/test", config.Datadog.GetString("process_config.log_file"))
+	assert.Equal(t, "/tmp/test", config.Datadog.GetString("process_config.dd_agent_bin"))
+	assert.Equal(t, 1, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
+	assert.False(t, config.Datadog.GetBool("process_config.remote_tagger"))
+	assert.True(t, config.Datadog.GetBool("process_config.process_discovery.enabled"))
+	assert.Equal(t, time.Hour, config.Datadog.GetDuration("process_config.process_discovery.interval"))
+}
+
 func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
 	newConfig()
 	defer restoreGlobalConfig()
@@ -300,6 +336,16 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(6062, agentConfig.ProcessExpVarPort)
 
 	os.Unsetenv("DOCKER_DD_AGENT")
+
+	assert.Equal("info", config.Datadog.GetString("log_level"))
+	assert.True(config.Datadog.GetBool("log_to_console"))
+	assert.Equal(config.DefaultProcessAgentLogFile, config.Datadog.GetString("process_config.log_file"))
+	assert.Equal(config.DefaultDDAgentBin, config.Datadog.GetString("process_config.dd_agent_bin"))
+	assert.Equal(config.DefaultGRPCConnectionTimeoutSecs, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
+	assert.True(config.Datadog.GetBool("process_config.remote_tagger"))
+	assert.False(config.Datadog.GetBool("process_config.process_discovery.enabled"))
+	assert.Equal(4*time.Hour, config.Datadog.GetDuration("process_config.process_discovery.interval"))
+
 }
 
 func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
