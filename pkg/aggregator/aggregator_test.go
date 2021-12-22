@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -105,7 +106,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	// -
 
 	s := &serializer.MockSerializer{}
-	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
+	agg := newTestBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addServiceCheck(metrics.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -137,7 +138,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 	// -
 
 	s := &serializer.MockSerializer{}
-	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
+	agg := newTestBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addEvent(metrics.Event{
 		// only populate required fields
@@ -205,7 +206,7 @@ func TestDefaultData(t *testing.T) {
 	// -
 
 	s := &serializer.MockSerializer{}
-	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+	agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 	start := time.Now()
 
 	s.On("SendServiceChecks", metrics.ServiceChecks{{
@@ -257,7 +258,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 		return func(t *testing.T) {
 			s := &serializer.MockSerializer{}
-			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+			agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 			go agg.run()
 			start := time.Now()
 
@@ -317,7 +318,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 
 		return func(t *testing.T) {
 			s := &serializer.MockSerializer{}
-			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+			agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 			start := time.Now()
 
 			var tags []string
@@ -363,7 +364,7 @@ func TestRecurrentSeries(t *testing.T) {
 	// -
 
 	s := &serializer.MockSerializer{}
-	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+	agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 
 	// Add two recurrentSeries
 	AddRecurrentSeries(&metrics.Serie{
@@ -491,7 +492,7 @@ func TestTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
 			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
-			agg := NewBufferedAggregator(nil, nil, "hostname", time.Second)
+			agg := newTestBufferedAggregator(nil, nil, "hostname", time.Second)
 			agg.agentTags = tt.agentTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
 		})
@@ -606,4 +607,9 @@ func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map
 		r.EqualValues(expected, serie)
 	}
 	r.Empty(expectedSeries)
+}
+
+func newTestBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration) *BufferedAggregator {
+	config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", false)
+	return NewBufferedAggregator(s, eventPlatformForwarder, hostname, flushInterval)
 }
