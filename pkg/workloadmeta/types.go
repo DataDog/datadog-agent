@@ -50,14 +50,9 @@ type Source string
 
 // Defined Sources
 const (
-	SourceDocker       Source = "docker"
-	SourceContainerd   Source = "containerd"
-	SourceECS          Source = "ecs"
-	SourceECSFargate   Source = "ecs_fargate"
-	SourceKubelet      Source = "kubelet"
-	SourceKubeMetadata Source = "kube_metadata"
-	SourcePodman       Source = "podman"
-	SourceCloudfoundry Source = "cloudfoundry"
+	SourceRuntime             Source = "runtime"
+	SourceNodeOrchestrator    Source = "node_orchestrator"
+	SourceClusterOrchestrator Source = "cluster_orchestrator"
 )
 
 // ContainerRuntime is the container runtime used by a container.
