@@ -147,20 +147,19 @@ func TestDemuxSerializerCreated(t *testing.T) {
 func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	require := require.New(t)
 
-	resetDemuxInstance(require)
-
 	// default options should have created all forwarders except for the orchestrator
 	// forwarders since we're not in a cluster-agent environment
 
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
-	demux := InitAndStartAgentDemultiplexer(opts, "")
+	demux := initAgentDemultiplexer(opts, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
+	go demux.Run()
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
 	require.NotNil(demux.sharedSerializer)
 
-	sender, err := GetDefaultSender()
+	sender, err := demux.GetDefaultSender()
 	require.NoError(err)
 	sender.Count("my.check.metric", 1.0, "", []string{"team:agent-core", "dev:remeh"})
 	sender.Count("my.second.check.metric", 5.0, "", []string{"team:agent-core", "dev:remeh"})
