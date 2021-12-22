@@ -37,48 +37,12 @@ type subscriber struct {
 	filter   *Filter
 }
 
-type sourceToEntity map[Source]Entity
-
-func (s sourceToEntity) merge(sources []Source) Entity {
-	if len(sources) == 0 {
-		sources = s.sources()
-	}
-
-	var merged Entity
-	for _, source := range sources {
-		if e, ok := s[source]; ok {
-			if merged == nil {
-				merged = e.DeepCopy()
-			} else {
-				err := merged.Merge(e)
-				if err != nil {
-					log.Errorf("cannot merge %+v into %+v: %s", merged, e, err)
-				}
-			}
-		}
-	}
-
-	return merged
-}
-
-func (s sourceToEntity) sources() []Source {
-	sources := make([]Source, 0, len(s))
-
-	for source := range s {
-		sources = append(sources, source)
-	}
-
-	sort.SliceStable(sources, func(i, j int) bool { return sources[i] < sources[j] })
-
-	return sources
-}
-
 // store is a central storage of metadata about workloads. A workload is any
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
 type store struct {
 	storeMut sync.RWMutex
-	store    map[Kind]map[string]sourceToEntity
+	store    map[Kind]map[string]*cachedEntity
 
 	subscribersMut sync.RWMutex
 	subscribers    []subscriber
@@ -106,7 +70,7 @@ func newStore(catalog map[string]collectorFactory) *store {
 	}
 
 	return &store{
-		store:      make(map[Kind]map[string]sourceToEntity),
+		store:      make(map[Kind]map[string]*cachedEntity),
 		candidates: candidates,
 		collectors: make(map[string]Collector),
 		eventCh:    make(chan []CollectorEvent, eventChBufferSize),
@@ -218,16 +182,14 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 			continue
 		}
 
-		for _, entity := range entitiesOfKind {
-			sources, ok := sub.filter.SelectSources(entity.sources())
-			if !ok {
-				continue
+		for _, cachedEntity := range entitiesOfKind {
+			entity := cachedEntity.get(sub.filter.Source())
+			if entity != nil {
+				events = append(events, Event{
+					Type:   EventTypeSet,
+					Entity: entity,
+				})
 			}
-
-			events = append(events, Event{
-				Type:   EventTypeSet,
-				Entity: entity.merge(sources),
-			})
 		}
 	}
 
@@ -320,7 +282,7 @@ func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 	}
 
 	for _, e := range entities {
-		pod := e.merge(nil).(*KubernetesPod)
+		pod := e.cached.(*KubernetesPod)
 		for _, podContainer := range pod.Containers {
 			if podContainer.ID == containerID {
 				return pod, nil
@@ -406,33 +368,33 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		entitiesOfKind, ok := s.store[meta.Kind]
 		if !ok {
-			s.store[meta.Kind] = make(map[string]sourceToEntity)
+			s.store[meta.Kind] = make(map[string]*cachedEntity)
 			entitiesOfKind = s.store[meta.Kind]
 		}
 
-		entityOfSource, ok := entitiesOfKind[meta.ID]
+		cachedEntity, ok := entitiesOfKind[meta.ID]
 
 		switch ev.Type {
 		case EventTypeSet:
 			if !ok {
-				entitiesOfKind[meta.ID] = make(sourceToEntity)
-				entityOfSource = entitiesOfKind[meta.ID]
+				entitiesOfKind[meta.ID] = newCachedEntity()
+				cachedEntity = entitiesOfKind[meta.ID]
 			}
 
-			if _, found := entityOfSource[ev.Source]; !found {
-				telemetry.StoredEntities.Inc(string(meta.Kind), string(ev.Source))
+			if found := cachedEntity.set(ev.Source, ev.Entity); !found {
+				telemetry.StoredEntities.Inc(
+					string(meta.Kind),
+					string(ev.Source),
+				)
 			}
-
-			entityOfSource[ev.Source] = ev.Entity
 		case EventTypeUnset:
-			if ok {
-				if _, found := entityOfSource[ev.Source]; found {
-					telemetry.StoredEntities.Dec(string(meta.Kind), string(ev.Source))
-				}
+			if ok && cachedEntity.unset(ev.Source) {
+				telemetry.StoredEntities.Dec(
+					string(meta.Kind),
+					string(ev.Source),
+				)
 
-				delete(entityOfSource, ev.Source)
-
-				if len(entityOfSource) == 0 {
+				if len(cachedEntity.sources) == 0 {
 					delete(entitiesOfKind, meta.ID)
 				}
 			}
@@ -458,9 +420,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		for _, ev := range evs {
 			entityID := ev.Entity.GetID()
-			_, ok := filter.SelectSources([]Source{ev.Source})
-
-			if !filter.MatchKind(entityID.Kind) || !ok {
+			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) {
 				// event should be filtered out because it
 				// doesn't match the filter
 				continue
@@ -474,7 +434,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				// had one source removed, but others remain
 				filteredEvents = append(filteredEvents, Event{
 					Type:   EventTypeSet,
-					Entity: entityOfSource.merge(filteredSources),
+					Entity: entityOfSource.get(filter.Source()),
 				})
 
 			} else {
@@ -505,7 +465,7 @@ func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 		return nil, errors.NewNotFound(id)
 	}
 
-	return entity.merge(nil), nil
+	return entity.cached, nil
 }
 
 func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
@@ -519,7 +479,7 @@ func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
 
 	entities := make([]Entity, 0, len(entitiesOfKind))
 	for _, entity := range entitiesOfKind {
-		entities = append(entities, entity.merge(nil))
+		entities = append(entities, entity.cached)
 	}
 
 	return entities, nil
