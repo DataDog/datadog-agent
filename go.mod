@@ -27,7 +27,7 @@ replace (
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
 
-// pinned to grpc v1.28.0 - this pin is required due to k8s.io/apiserver (and other_ pins being set to v0.21.5
+// pinned to grpc v1.28.0 - this pin is required due to k8s.io/apiserver (and other) pins being set to v0.21.5
 //                          the kubernetes pins are required at this time. We will bump grpc once k8s releases
 //                          v1.24 or v1.25.
 replace (
