@@ -10,12 +10,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
 	Name string
-	Tags []string
+	Tags *tagset.Tags
 	Host string
 }
 
@@ -41,7 +42,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		// per context instead of one per sample.
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSampleContext.GetName(),
-			Tags: tags.UnsafeReadOnlySlice(),
+			Tags: tags,
 			Host: metricSampleContext.GetHost(),
 		}
 	}

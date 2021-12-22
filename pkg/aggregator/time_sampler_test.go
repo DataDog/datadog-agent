@@ -273,7 +273,7 @@ func TestSketch(t *testing.T) {
 			for _, v := range values {
 				sampler.addSample(&metrics.MetricSample{
 					Name:       ctx.Name,
-					Tags:       tagset.NewTags(ctx.Tags), // TODO: Context.Tags should be *Tags
+					Tags:       ctx.Tags,
 					Host:       ctx.Host,
 					Value:      v,
 					Mtype:      metrics.DistributionType,
@@ -294,7 +294,7 @@ func TestSketch(t *testing.T) {
 	t.Run("single bucket", func(t *testing.T) {
 		var (
 			now float64
-			ctx = Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
+			ctx = Context{Name: "m.0", Tags: tagset.NewTags([]string{"a"}), Host: "host"}
 			exp = &quantile.Sketch{}
 		)
 
@@ -309,7 +309,7 @@ func TestSketch(t *testing.T) {
 		_, flushed := sampler.flush(now)
 		metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 			Name:     ctx.Name,
-			Tags:     ctx.Tags,
+			Tags:     ctx.Tags.UnsafeReadOnlySlice(), // TODO: SketchSeries.Tags isn't *Tags yet
 			Host:     ctx.Host,
 			Interval: 10,
 			Points: []metrics.SketchPoint{
@@ -318,7 +318,7 @@ func TestSketch(t *testing.T) {
 					Ts:     0,
 				},
 			},
-			ContextKey: ckey.Generate(ctx.Name, ctx.Host, tagset.NewTags(ctx.Tags)),
+			ContextKey: ckey.Generate(ctx.Name, ctx.Host, ctx.Tags),
 		}, flushed[0])
 
 		_, flushed = sampler.flush(now)

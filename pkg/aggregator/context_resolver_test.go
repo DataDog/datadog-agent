@@ -60,15 +60,15 @@ func TestTrackContext(t *testing.T) {
 	}
 	expectedContext1 := Context{
 		Name: mSample1.Name,
-		Tags: mSample1.Tags.UnsafeReadOnlySlice(),
+		Tags: mSample1.Tags,
 	}
 	expectedContext2 := Context{
 		Name: mSample2.Name,
-		Tags: mSample2.Tags.UnsafeReadOnlySlice(),
+		Tags: mSample2.Tags,
 	}
 	expectedContext3 := Context{
 		Name: mSample3.Name,
-		Tags: mSample3.Tags.UnsafeReadOnlySlice(),
+		Tags: mSample3.Tags,
 		Host: mSample3.Host,
 	}
 	contextResolver := newContextResolver()
@@ -81,15 +81,15 @@ func TestTrackContext(t *testing.T) {
 	// When we look up the 2 keys, they return the correct contexts
 	context1 := contextResolver.contextsByKey[contextKey1]
 	assert.Equal(t, expectedContext1.Name, context1.Name)
-	assert.ElementsMatch(t, expectedContext1.Tags, context1.Tags)
+	assert.Equal(t, expectedContext1.Tags, context1.Tags)
 
 	context2 := contextResolver.contextsByKey[contextKey2]
 	assert.Equal(t, expectedContext2.Name, context2.Name)
-	assert.ElementsMatch(t, expectedContext2.Tags, context2.Tags)
+	assert.Equal(t, expectedContext2.Tags, context2.Tags)
 
 	context3 := contextResolver.contextsByKey[contextKey3]
 	assert.Equal(t, expectedContext3.Name, context3.Name)
-	assert.ElementsMatch(t, expectedContext3.Tags, context3.Tags)
+	assert.Equal(t, expectedContext3.Tags, context3.Tags)
 
 	unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
 	_, ok := contextResolver.contextsByKey[unknownContextKey]
@@ -162,6 +162,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 }
 
 func TestTagDeduplication(t *testing.T) {
+	// TODO: this is kind of silly now
 	resolver := newContextResolver()
 
 	ckey := resolver.trackContext(&metrics.MetricSample{
@@ -169,6 +170,5 @@ func TestTagDeduplication(t *testing.T) {
 		Tags: tagset.NewTags([]string{"bar", "bar"}),
 	})
 
-	assert.Equal(t, len(resolver.contextsByKey[ckey].Tags), 1)
-	assert.Equal(t, resolver.contextsByKey[ckey].Tags, []string{"bar"})
+	assert.Equal(t, []string{"bar"}, resolver.contextsByKey[ckey].Tags.Sorted())
 }
