@@ -406,6 +406,21 @@ A mmap command was executed
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
 | `mmap.addr` | int |  |
+| `mmap.file.change_time` | int | Change time of the file |
+| `mmap.file.filesystem` | string | File's filesystem |
+| `mmap.file.gid` | int | GID of the file's owner |
+| `mmap.file.group` | string | Group of the file's owner |
+| `mmap.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `mmap.file.inode` | int | Inode of the file |
+| `mmap.file.mode` | int | Mode/rights of the file |
+| `mmap.file.modification_time` | int | Modification time of the file |
+| `mmap.file.mount_id` | int | Mount ID of the file |
+| `mmap.file.name` | string | File's basename |
+| `mmap.file.path` | string | File's path |
+| `mmap.file.rights` | int | Mode/rights of the file |
+| `mmap.file.uid` | int | UID of the file's owner |
+| `mmap.file.user` | string | User of the file's owner |
+| `mmap.flags` | int |  |
 | `mmap.len` | int |  |
 | `mmap.protection` | int |  |
 | `mmap.retval` | int | Return value of the syscall |

@@ -529,7 +529,9 @@ CWS logs have the following JSON schema:
     "required": [
         "address",
         "length",
-        "protection"
+        "protection",
+        "flags",
+        "file"
     ],
     "properties": {
         "address": {
@@ -543,6 +545,14 @@ CWS logs have the following JSON schema:
         "protection": {
             "type": "string",
             "description": "memory segment protection"
+        },
+        "flags": {
+            "type": "string",
+            "description": "memory segment flags"
+        },
+        "file": {
+            "$ref": "#/definitions/File",
+            "description": "mmaped file"
         }
     },
     "additionalProperties": false,
@@ -556,7 +566,12 @@ CWS logs have the following JSON schema:
 | `address` | memory segment address |
 | `length` | memory segment length |
 | `protection` | memory segment protection |
+| `flags` | memory segment flags |
+| `file` | mmaped file |
 
+| References |
+| ---------- |
+| [File](#file) |
 
 ## `MProtectEvent`
 
