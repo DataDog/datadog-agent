@@ -28,10 +28,10 @@ func StartServer(cfg *config.Config) error {
 	}
 
 	// Register stats endpoint
-	mux.HandleFunc("/debug/stats", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		stats := module.GetStats()
 		utils.WriteAsJSON(w, stats)
-	})
+	}))
 
 	setupConfigHandlers(mux)
 
