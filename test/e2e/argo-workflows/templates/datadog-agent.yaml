@@ -385,7 +385,7 @@ spec:
         parameters:
           - name: namespace
           - name: site
-      activeDeadlineSeconds: 500
+      activeDeadlineSeconds: 900
       script:
         image: python
         envFrom:
