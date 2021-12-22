@@ -172,7 +172,6 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	// nothing should have been flushed to the serializer/samplers yet
 	require.Len(demux.aggregator.checkSamplers[defaultCheckID].series, 0)
 
-
 	// need time for aggregator to run
 	time.Sleep(10 * time.Second)
 
