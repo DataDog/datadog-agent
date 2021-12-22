@@ -859,13 +859,13 @@ func TestCheck_Run(t *testing.T) {
 			name:                  "failed to fetch sysobjectid with invalid value",
 			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
 			sysObjectIDPacket:     sysObjectIDPacketInvalidValueMock,
-			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got float64 type: gosnmp.SnmpPDU{Name:\"1.3.6.1.2.1.1.2.0\", Type:0x6, Value:1}",
+			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got type `float64` and value `1`",
 		},
 		{
 			name:                  "failed to fetch sysobjectid with conversion error",
 			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
 			sysObjectIDPacket:     sysObjectIDPacketInvalidConversionMock,
-			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got gosnmp.SnmpPDU type: gosnmp.SnmpPDU{Name:\"1.3.6.1.2.1.1.2.0\", Type:0x6, Value:gosnmp.SnmpPDU{Name:\"\", Type:0x0, Value:interface {}(nil)}}",
+			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got type `gosnmp.SnmpPDU` and value `{<nil>  EndOfContents}`",
 		},
 		{
 			name:                  "failed to fetch sysobjectid with error oid",
