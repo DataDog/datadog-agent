@@ -28,6 +28,9 @@ import (
 // nor did benchmarks with xxhash (slightly slower).
 type ContextKey uint64
 
+// TagsKey is a non-cryptographic hash of only the tags in a context. See ContextKey.
+type TagsKey uint64
+
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
 	return &KeyGenerator{
@@ -46,8 +49,16 @@ type KeyGenerator struct {
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
 func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *tagset.HashingTagsAccumulator) ContextKey {
-	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ g.hg.Hash(tagsBuf)
-	return ContextKey(hash)
+	key, _ := g.GenerateWithTags(name, hostname, tagsBuf)
+	return key
+}
+
+// GenerateWithTags returns the ContextKey and TagsKey hashes for the given parameters.
+// tagsBuf is re-arranged in place and truncated to only contain unique tags.
+func (g *KeyGenerator) GenerateWithTags(name, hostname string, tagsBuf *tagset.HashingTagsAccumulator) (ContextKey, TagsKey) {
+	tags := g.hg.Hash(tagsBuf)
+	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ tags
+	return ContextKey(hash), TagsKey(tags)
 }
 
 // Equals returns whether the two context keys are equal or not.

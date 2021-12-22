@@ -199,9 +199,10 @@ func (a *Agent) Process(p *api.Payload) {
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
 	ss := new(writer.SampledChunks)
-	var envtraces []stats.EnvTrace
 	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
+	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
 
+	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
 	for i := 0; i < len(p.Chunks()); {
 		chunk := p.Chunk(i)
 		if len(chunk.Spans) == 0 {
@@ -223,11 +224,6 @@ func (a *Agent) Process(p *api.Payload) {
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
 		normalizeChunk(chunk, root)
-		if p.TracerPayload.Hostname == "" {
-			// Older tracers set tracer hostname in the root span.
-			p.TracerPayload.Hostname = root.Meta[tagHostname]
-		}
-
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
@@ -280,33 +276,40 @@ func (a *Agent) Process(p *api.Payload) {
 			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
-		env := a.conf.DefaultEnv
-		if v := traceutil.GetEnv(chunk.Spans); v != "" {
-			// this trace has a user defined env.
-			env = v
+		if p.TracerPayload.Hostname == "" {
+			// Older tracers set tracer hostname in the root span.
+			p.TracerPayload.Hostname = root.Meta[tagHostname]
 		}
-		pt := ProcessedTrace{
+		if p.TracerPayload.Env == "" {
+			p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
+		}
+		if p.TracerPayload.AppVersion == "" {
+			p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
+		}
+
+		pt := traceutil.ProcessedTrace{
 			TraceChunk:       chunk,
-			WeightedTrace:    stats.NewWeightedTrace(chunk, root, p.TracerPayload.Hostname),
 			Root:             root,
-			Env:              env,
+			AppVersion:       p.TracerPayload.AppVersion,
+			TracerEnv:        p.TracerPayload.Env,
+			TracerHostname:   p.TracerPayload.Hostname,
 			ClientDroppedP0s: p.ClientDroppedP0s > 0,
 		}
 		if !p.ClientComputedStats {
-			if envtraces == nil {
-				envtraces = make([]stats.EnvTrace, 0, len(p.Chunks()))
-			}
-			envtraces = append(envtraces, stats.EnvTrace{
-				Trace: pt.WeightedTrace,
-				Env:   pt.Env,
-			})
+			statsInput.Traces = append(statsInput.Traces, pt)
 		}
 
-		numEvents, keep := a.sample(ts, pt)
-		if !keep && numEvents == 0 {
-			// the trace was dropped and no analyzed span were kept
-			p.RemoveChunk(i)
-			continue
+		numEvents, keep, filteredChunk := a.sample(ts, pt)
+		if !keep {
+			if numEvents == 0 {
+				// the trace was dropped and no analyzed span were kept
+				p.RemoveChunk(i)
+				continue
+			}
+			// The sampler step filtered a subset of spans in the chunk. The new filtered chunk
+			// is added to the TracerPayload to be sent to TraceWriter.
+			// The complete chunk is still sent to the stats concentrator.
+			p.ReplaceChunk(i, filteredChunk)
 		}
 
 		if !chunk.DroppedTrace {
@@ -328,14 +331,8 @@ func (a *Agent) Process(p *api.Payload) {
 	if ss.Size > 0 {
 		a.TraceWriter.In <- ss
 	}
-	if len(envtraces) > 0 {
-		in := stats.Input{Traces: envtraces}
-		if !features.Has("disable_cid_stats") && a.conf.FargateOrchestrator != fargate.Unknown {
-			// only allow the ContainerID stats dimension if we're in a Fargate instance
-			// and it's not prohibited by the disable_cid_stats feature flag.
-			in.ContainerID = p.TracerPayload.ContainerID
-		}
-		a.Concentrator.In <- in
+	if len(statsInput.Traces) > 0 {
+		a.Concentrator.In <- statsInput
 	}
 }
 
@@ -395,7 +392,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 }
 
 // sample reports the number of events found in pt and whether the chunk should be kept as a trace.
-func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (numEvents int64, keep bool) {
+func (a *Agent) sample(ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvents int64, keep bool, filteredChunk *pb.TraceChunk) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
 	if hasPriority {
@@ -405,22 +402,28 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (numEvents int64, k
 	}
 
 	if priority < 0 {
-		return 0, false
+		return 0, false, nil
 	}
 
 	sampled := a.runSamplers(pt, hasPriority)
-	pt.TraceChunk.DroppedTrace = !sampled
-	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, pt.TraceChunk)
+
+	filteredChunk = pt.TraceChunk
+	if !sampled {
+		filteredChunk = new(pb.TraceChunk)
+		*filteredChunk = *pt.TraceChunk
+		filteredChunk.DroppedTrace = true
+	}
+	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
 
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
 	atomic.AddInt64(&ts.EventsSampled, numEvents)
 
-	return numEvents, sampled
+	return numEvents, sampled, filteredChunk
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
-func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) bool {
+func (a *Agent) runSamplers(pt traceutil.ProcessedTrace, hasPriority bool) bool {
 	if hasPriority {
 		return a.samplePriorityTrace(pt)
 	}
@@ -430,26 +433,26 @@ func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) bool {
 // samplePriorityTrace samples traces with priority set on them. PrioritySampler and
 // ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
-func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
-	if a.PrioritySampler.Sample(pt.TraceChunk, pt.Root, pt.Env, pt.ClientDroppedP0s) {
+func (a *Agent) samplePriorityTrace(pt traceutil.ProcessedTrace) bool {
+	if a.PrioritySampler.Sample(pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0s) {
 		return true
 	}
 	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.Env)
+		return a.ErrorsSampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
 	if a.conf.DisableRareSampler {
 		return false
 	}
-	return a.RareSampler.Sample(pt.TraceChunk, pt.Env)
+	return a.RareSampler.Sample(pt.TraceChunk, pt.TracerEnv)
 }
 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces
 // get sampled by either the score sampler or the error sampler if they have an error.
-func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) bool {
+func (a *Agent) sampleNoPriorityTrace(pt traceutil.ProcessedTrace) bool {
 	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.Env)
+		return a.ErrorsSampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
-	return a.NoPrioritySampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.Env)
+	return a.NoPrioritySampler.Sample(pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 }
 
 func traceContainsError(trace pb.Trace) bool {
