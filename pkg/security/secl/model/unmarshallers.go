@@ -620,19 +620,20 @@ func (e *PTraceEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *MMapEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return 0, err
 	}
 
-	if len(data)-read < 16 {
+	if len(data)-read < 20 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Addr = ByteOrder.Uint64(data[read : read+8])
 	e.Len = ByteOrder.Uint32(data[read+8 : read+12])
 	e.Protection = int(ByteOrder.Uint32(data[read+12 : read+16]))
-	return read + 16, nil
+	e.Flags = int(ByteOrder.Uint32(data[read+16 : read+20]))
+	return read + 20, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

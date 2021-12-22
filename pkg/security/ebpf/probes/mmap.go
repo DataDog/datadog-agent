@@ -10,7 +10,15 @@ package probes
 import manager "github.com/DataDog/ebpf-manager"
 
 // mmapProbes holds the list of probes used to track mmap events
-var mmapProbes []*manager.Probe
+var mmapProbes = []*manager.Probe{
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/fget",
+			EBPFFuncName: "kretprobe_fget",
+		},
+	},
+}
 
 func getMMapProbes() []*manager.Probe {
 	mmapProbes = append(mmapProbes, ExpandSyscallProbes(&manager.Probe{

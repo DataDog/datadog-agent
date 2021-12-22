@@ -31,6 +31,41 @@ const (
 )
 
 var (
+	vmConstants = map[string]int{
+		"VM_NONE":         0x0,
+		"VM_READ":         0x1,
+		"VM_WRITE":        0x2,
+		"VM_EXEC":         0x4,
+		"VM_SHARED":       0x8,
+		"VM_MAYREAD":      0x00000010,
+		"VM_MAYWRITE":     0x00000020,
+		"VM_MAYEXEC":      0x00000040,
+		"VM_MAYSHARE":     0x00000080,
+		"VM_GROWSDOWN":    0x00000100, /* general info on the segment */
+		"VM_UFFD_MISSING": 0x00000200, /* missing pages tracking */
+		"VM_PFNMAP":       0x00000400, /* Page-ranges managed without "struct page", just pure PFN */
+		"VM_UFFD_WP":      0x00001000, /* wrprotect pages tracking */
+		"VM_LOCKED":       0x00002000,
+		"VM_IO":           0x00004000, /* Memory mapped I/O or similar */
+		"VM_SEQ_READ":     0x00008000, /* App will access data sequentially */
+		"VM_RAND_READ":    0x00010000, /* App will not benefit from clustered reads */
+		"VM_DONTCOPY":     0x00020000, /* Do not copy this vma on fork */
+		"VM_DONTEXPAND":   0x00040000, /* Cannot expand with mremap() */
+		"VM_LOCKONFAULT":  0x00080000, /* Lock the pages covered when they are faulted in */
+		"VM_ACCOUNT":      0x00100000, /* Is a VM accounted object */
+		"VM_NORESERVE":    0x00200000, /* should the VM suppress accounting */
+		"VM_HUGETLB":      0x00400000, /* Huge TLB Page VM */
+		"VM_SYNC":         0x00800000, /* Synchronous page faults */
+		"VM_ARCH_1":       0x01000000, /* Architecture-specific flag */
+		"VM_WIPEONFORK":   0x02000000, /* Wipe VMA contents in child. */
+		"VM_DONTDUMP":     0x04000000, /* Do not include in the core dump */
+		"VM_SOFTDIRTY":    0x08000000, /* Not soft dirty clean area */
+		"VM_MIXEDMAP":     0x10000000, /* Can contain "struct page" and pure PFN pages */
+		"VM_HUGEPAGE":     0x20000000, /* MADV_HUGEPAGE marked this vma */
+		"VM_NOHUGEPAGE":   0x40000000, /* MADV_NOHUGEPAGE marked this vma */
+		"VM_MERGEABLE":    0x80000000, /* KSM may merge identical pages */
+	}
+
 	// BPFCmdConstants is the list of BPF commands
 	BPFCmdConstants = map[string]BPFCmd{
 		"BPF_MAP_CREATE":                  BpfMapCreateCmd,
@@ -373,7 +408,9 @@ var (
 	bpfProgramTypeStrings     = map[uint32]string{}
 	bpfAttachTypeStrings      = map[uint32]string{}
 	ptraceFlagsStrings        = map[uint32]string{}
-	vmFlagsStrings            = map[int]string{}
+	vmStrings                 = map[int]string{}
+	protStrings               = map[int]string{}
+	mmapFlagStrings           = map[int]string{}
 )
 
 // File flags
@@ -476,7 +513,27 @@ func initVMConstants() {
 	}
 
 	for k, v := range vmConstants {
-		vmFlagsStrings[v] = k
+		vmStrings[v] = k
+	}
+}
+
+func initProtConstansts() {
+	for k, v := range protConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+	}
+
+	for k, v := range protConstants {
+		protStrings[v] = k
+	}
+}
+
+func initMMapFlagsConstants() {
+	for k, v := range mmapFlagConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+	}
+
+	for k, v := range mmapFlagConstants {
+		mmapFlagStrings[v] = k
 	}
 }
 
@@ -493,6 +550,8 @@ func initConstants() {
 	initBPFAttachTypeConstants()
 	initPtraceConstants()
 	initVMConstants()
+	initProtConstansts()
+	initMMapFlagsConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -1288,9 +1347,23 @@ func (f PTraceRequest) String() string {
 	return fmt.Sprintf("%d", f)
 }
 
-// VMProtection represents a virtual memory protection bitmask value
-type VMProtection int
+// VMFlag represents a VM_* bitmask value
+type VMFlag int
 
-func (vmp VMProtection) String() string {
-	return bitmaskToString(int(vmp), vmFlagsStrings)
+func (vmf VMFlag) String() string {
+	return bitmaskToString(int(vmf), vmStrings)
+}
+
+// Protection represents a virtual memory protection bitmask value
+type Protection int
+
+func (p Protection) String() string {
+	return bitmaskToString(int(p), protStrings)
+}
+
+// MMapFlag represents a mmap flag value
+type MMapFlag int
+
+func (mmf MMapFlag) String() string {
+	return bitmaskToString(int(mmf), mmapFlagStrings)
 }

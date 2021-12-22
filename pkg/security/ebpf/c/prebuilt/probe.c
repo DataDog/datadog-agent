@@ -6,6 +6,7 @@
 #include <linux/version.h>
 #include <linux/bpf.h>
 #include <linux/filter.h>
+#include <uapi/asm-generic/mman-common.h>
 
 #include "defs.h"
 #include "buffer_selector.h"

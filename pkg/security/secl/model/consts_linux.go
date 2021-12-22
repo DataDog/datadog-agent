@@ -280,11 +280,48 @@ var (
 		"PTRACE_GET_SYSCALL_INFO":     unix.PTRACE_GET_SYSCALL_INFO,
 	}
 
-	vmConstants = map[string]int{
-		"VM_READ":   1,
-		"VM_WRITE":  2,
-		"VM_EXEC":   4,
-		"VM_SHARED": 8,
+	protConstants = map[string]int{
+		"PROT_NONE":      unix.PROT_NONE,
+		"PROT_READ":      unix.PROT_READ,
+		"PROT_WRITE":     unix.PROT_WRITE,
+		"PROT_EXEC":      unix.PROT_EXEC,
+		"PROT_GROWSDOWN": unix.PROT_GROWSDOWN,
+		"PROT_GROWSUP":   unix.PROT_GROWSUP,
+	}
+
+	mmapFlagConstants = map[string]int{
+		"MAP_SHARED":          unix.MAP_SHARED,          /* Share changes */
+		"MAP_PRIVATE":         unix.MAP_PRIVATE,         /* Changes are private */
+		"MAP_SHARED_VALIDATE": unix.MAP_SHARED_VALIDATE, /* share + validate extension flags */
+		"MAP_32BIT":           unix.MAP_32BIT,           /* only give out 32bit addresses */
+		"MAP_ANON":            unix.MAP_ANON,
+		"MAP_ANONYMOUS":       unix.MAP_ANONYMOUS,       /* don't use a file */
+		"MAP_DENYWRITE":       unix.MAP_DENYWRITE,       /* ETXTBSY */
+		"MAP_EXECUTABLE":      unix.MAP_EXECUTABLE,      /* mark it as an executable */
+		"MAP_FIXED":           unix.MAP_FIXED,           /* Interpret addr exactly */
+		"MAP_FIXED_NOREPLACE": unix.MAP_FIXED_NOREPLACE, /* MAP_FIXED which doesn't unmap underlying mapping */
+		"MAP_GROWSDOWN":       unix.MAP_GROWSDOWN,       /* stack-like segment */
+		"MAP_HUGETLB":         unix.MAP_HUGETLB,         /* create a huge page mapping */
+		"MAP_LOCKED":          unix.MAP_LOCKED,          /* pages are locked */
+		"MAP_NONBLOCK":        unix.MAP_NONBLOCK,        /* do not block on IO */
+		"MAP_NORESERVE":       unix.MAP_NORESERVE,       /* don't check for reservations */
+		"MAP_POPULATE":        unix.MAP_POPULATE,        /* populate (prefault) pagetables */
+		"MAP_STACK":           unix.MAP_STACK,           /* give out an address that is best suited for process/thread stacks */
+		"MAP_SYNC":            unix.MAP_SYNC,            /* perform synchronous page faults for the mapping */
+		"MAP_UNINITIALIZED":   0x4000000,                /* For anonymous mmap, memory could be uninitialized */
+		"MAP_HUGE_16KB":       14 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_64KB":       16 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_512KB":      19 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_1MB":        20 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_2MB":        21 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_8MB":        23 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_16MB":       24 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_32MB":       25 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_256MB":      28 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_512MB":      29 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_1GB":        30 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_2GB":        31 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_16GB":       34 << unix.MAP_HUGE_SHIFT,
 	}
 
 	unlinkFlagsConstants = map[string]int{

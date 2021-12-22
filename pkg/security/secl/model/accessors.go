@@ -1431,6 +1431,156 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "mmap.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).MMap.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mmap.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).MMap.File.Filesytem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "mmap.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).MMap.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mmap.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).MMap.File.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "mmap.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).MMap.File.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "mmap.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).MMap.File.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mmap.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).MMap.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mmap.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).MMap.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mmap.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).MMap.File.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mmap.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).MMap.File.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "mmap.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).MMap.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "mmap.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).MMap.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "mmap.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).MMap.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mmap.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).MMap.File.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "mmap.flags":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return (*Event)(ctx.Object).MMap.Flags
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "mmap.len":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6225,6 +6375,36 @@ func (e *Event) GetFields() []eval.Field {
 
 		"mmap.addr",
 
+		"mmap.file.change_time",
+
+		"mmap.file.filesystem",
+
+		"mmap.file.gid",
+
+		"mmap.file.group",
+
+		"mmap.file.in_upper_layer",
+
+		"mmap.file.inode",
+
+		"mmap.file.mode",
+
+		"mmap.file.modification_time",
+
+		"mmap.file.mount_id",
+
+		"mmap.file.name",
+
+		"mmap.file.path",
+
+		"mmap.file.rights",
+
+		"mmap.file.uid",
+
+		"mmap.file.user",
+
+		"mmap.flags",
+
 		"mmap.len",
 
 		"mmap.protection",
@@ -7411,6 +7591,66 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mmap.addr":
 
 		return int(e.MMap.Addr), nil
+
+	case "mmap.file.change_time":
+
+		return int(e.MMap.File.FileFields.CTime), nil
+
+	case "mmap.file.filesystem":
+
+		return e.MMap.File.Filesytem, nil
+
+	case "mmap.file.gid":
+
+		return int(e.MMap.File.FileFields.GID), nil
+
+	case "mmap.file.group":
+
+		return e.MMap.File.FileFields.Group, nil
+
+	case "mmap.file.in_upper_layer":
+
+		return e.MMap.File.FileFields.InUpperLayer, nil
+
+	case "mmap.file.inode":
+
+		return int(e.MMap.File.FileFields.Inode), nil
+
+	case "mmap.file.mode":
+
+		return int(e.MMap.File.FileFields.Mode), nil
+
+	case "mmap.file.modification_time":
+
+		return int(e.MMap.File.FileFields.MTime), nil
+
+	case "mmap.file.mount_id":
+
+		return int(e.MMap.File.FileFields.MountID), nil
+
+	case "mmap.file.name":
+
+		return e.MMap.File.BasenameStr, nil
+
+	case "mmap.file.path":
+
+		return e.MMap.File.PathnameStr, nil
+
+	case "mmap.file.rights":
+
+		return int(e.MMap.File.FileFields.Mode), nil
+
+	case "mmap.file.uid":
+
+		return int(e.MMap.File.FileFields.UID), nil
+
+	case "mmap.file.user":
+
+		return e.MMap.File.FileFields.User, nil
+
+	case "mmap.flags":
+
+		return e.MMap.Flags, nil
 
 	case "mmap.len":
 
@@ -10657,6 +10897,51 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "mmap.addr":
 		return "mmap", nil
 
+	case "mmap.file.change_time":
+		return "mmap", nil
+
+	case "mmap.file.filesystem":
+		return "mmap", nil
+
+	case "mmap.file.gid":
+		return "mmap", nil
+
+	case "mmap.file.group":
+		return "mmap", nil
+
+	case "mmap.file.in_upper_layer":
+		return "mmap", nil
+
+	case "mmap.file.inode":
+		return "mmap", nil
+
+	case "mmap.file.mode":
+		return "mmap", nil
+
+	case "mmap.file.modification_time":
+		return "mmap", nil
+
+	case "mmap.file.mount_id":
+		return "mmap", nil
+
+	case "mmap.file.name":
+		return "mmap", nil
+
+	case "mmap.file.path":
+		return "mmap", nil
+
+	case "mmap.file.rights":
+		return "mmap", nil
+
+	case "mmap.file.uid":
+		return "mmap", nil
+
+	case "mmap.file.user":
+		return "mmap", nil
+
+	case "mmap.flags":
+		return "mmap", nil
+
 	case "mmap.len":
 		return "mmap", nil
 
@@ -12165,6 +12450,66 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "mmap.addr":
+
+		return reflect.Int, nil
+
+	case "mmap.file.change_time":
+
+		return reflect.Int, nil
+
+	case "mmap.file.filesystem":
+
+		return reflect.String, nil
+
+	case "mmap.file.gid":
+
+		return reflect.Int, nil
+
+	case "mmap.file.group":
+
+		return reflect.String, nil
+
+	case "mmap.file.in_upper_layer":
+
+		return reflect.Bool, nil
+
+	case "mmap.file.inode":
+
+		return reflect.Int, nil
+
+	case "mmap.file.mode":
+
+		return reflect.Int, nil
+
+	case "mmap.file.modification_time":
+
+		return reflect.Int, nil
+
+	case "mmap.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "mmap.file.name":
+
+		return reflect.String, nil
+
+	case "mmap.file.path":
+
+		return reflect.String, nil
+
+	case "mmap.file.rights":
+
+		return reflect.Int, nil
+
+	case "mmap.file.uid":
+
+		return reflect.Int, nil
+
+	case "mmap.file.user":
+
+		return reflect.String, nil
+
+	case "mmap.flags":
 
 		return reflect.Int, nil
 
@@ -14918,6 +15263,168 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.Addr"}
 		}
 		e.MMap.Addr = uint64(v)
+
+		return nil
+
+	case "mmap.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.CTime"}
+		}
+		e.MMap.File.FileFields.CTime = uint64(v)
+
+		return nil
+
+	case "mmap.file.filesystem":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.Filesytem"}
+		}
+		e.MMap.File.Filesytem = str
+
+		return nil
+
+	case "mmap.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.GID"}
+		}
+		e.MMap.File.FileFields.GID = uint32(v)
+
+		return nil
+
+	case "mmap.file.group":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Group"}
+		}
+		e.MMap.File.FileFields.Group = str
+
+		return nil
+
+	case "mmap.file.in_upper_layer":
+
+		var ok bool
+		if e.MMap.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.InUpperLayer"}
+		}
+		return nil
+
+	case "mmap.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Inode"}
+		}
+		e.MMap.File.FileFields.Inode = uint64(v)
+
+		return nil
+
+	case "mmap.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Mode"}
+		}
+		e.MMap.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "mmap.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.MTime"}
+		}
+		e.MMap.File.FileFields.MTime = uint64(v)
+
+		return nil
+
+	case "mmap.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.MountID"}
+		}
+		e.MMap.File.FileFields.MountID = uint32(v)
+
+		return nil
+
+	case "mmap.file.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.BasenameStr"}
+		}
+		e.MMap.File.BasenameStr = str
+
+		return nil
+
+	case "mmap.file.path":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.PathnameStr"}
+		}
+		e.MMap.File.PathnameStr = str
+
+		return nil
+
+	case "mmap.file.rights":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Mode"}
+		}
+		e.MMap.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "mmap.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.UID"}
+		}
+		e.MMap.File.FileFields.UID = uint32(v)
+
+		return nil
+
+	case "mmap.file.user":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.User"}
+		}
+		e.MMap.File.FileFields.User = str
+
+		return nil
+
+	case "mmap.flags":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "MMap.Flags"}
+		}
+		e.MMap.Flags = int(v)
 
 		return nil
 

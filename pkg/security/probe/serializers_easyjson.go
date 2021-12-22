@@ -2550,6 +2550,18 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe13(in *jl
 			out.Len = uint32(in.Uint32())
 		case "protection":
 			out.Protection = string(in.String())
+		case "flags":
+			out.Flags = string(in.String())
+		case "file":
+			if in.IsNull() {
+				in.Skip()
+				out.File = nil
+			} else {
+				if out.File == nil {
+					out.File = new(FileSerializer)
+				}
+				(*out.File).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2578,6 +2590,20 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe13(out *j
 		const prefix string = ",\"protection\":"
 		out.RawString(prefix)
 		out.String(string(in.Protection))
+	}
+	{
+		const prefix string = ",\"flags\":"
+		out.RawString(prefix)
+		out.String(string(in.Flags))
+	}
+	{
+		const prefix string = ",\"file\":"
+		out.RawString(prefix)
+		if in.File == nil {
+			out.RawString("null")
+		} else {
+			(*in.File).MarshalEasyJSON(out)
+		}
 	}
 	out.RawByte('}')
 }

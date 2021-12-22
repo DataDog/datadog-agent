@@ -354,7 +354,9 @@
       "required": [
         "address",
         "length",
-        "protection"
+        "protection",
+        "flags",
+        "file"
       ],
       "properties": {
         "address": {
@@ -368,6 +370,14 @@
         "protection": {
           "type": "string",
           "description": "memory segment protection"
+        },
+        "flags": {
+          "type": "string",
+          "description": "memory segment flags"
+        },
+        "file": {
+          "$ref": "#/definitions/File",
+          "description": "mmaped file"
         }
       },
       "additionalProperties": false,

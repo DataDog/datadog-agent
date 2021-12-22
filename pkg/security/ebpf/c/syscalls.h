@@ -153,6 +153,9 @@ struct syscall_cache_t {
             u64 addr;
             u32 len;
             int protection;
+            int flags;
+            struct file_t file;
+            struct dentry *dentry;
         } mmap;
 
         struct {

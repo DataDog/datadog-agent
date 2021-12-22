@@ -214,9 +214,11 @@ type BPFEventSerializer struct {
 
 // MMapEventSerializer serializes a mmap event to JSON
 type MMapEventSerializer struct {
-	Address    string `json:"address" jsonschema_description:"memory segment address"`
-	Len        uint32 `json:"length" jsonschema_description:"memory segment length"`
-	Protection string `json:"protection" jsonschema_description:"memory segment protection"`
+	Address    string          `json:"address" jsonschema_description:"memory segment address"`
+	Len        uint32          `json:"length" jsonschema_description:"memory segment length"`
+	Protection string          `json:"protection" jsonschema_description:"memory segment protection"`
+	Flags      string          `json:"flags" jsonschema_description:"memory segment flags"`
+	File       *FileSerializer `json:"file" jsonschema_description:"mmaped file"`
 }
 
 // MProtectEventSerializer serializes a mmap event to JSON
@@ -527,7 +529,9 @@ func newMMapEventSerializer(e *Event) *MMapEventSerializer {
 	return &MMapEventSerializer{
 		Address:    fmt.Sprintf("0x%x", e.MMap.Addr),
 		Len:        e.MMap.Len,
-		Protection: model.VMProtection(e.MMap.Protection).String(),
+		Protection: model.Protection(e.MMap.Protection).String(),
+		Flags:      model.MMapFlag(e.MMap.Flags).String(),
+		File:       newFileSerializer(&e.MMap.File, e),
 	}
 }
 
@@ -535,8 +539,8 @@ func newMProtectEventSerializer(e *Event) *MProtectEventSerializer {
 	return &MProtectEventSerializer{
 		VMStart:       fmt.Sprintf("0x%x", e.MProtect.VMStart),
 		VMEnd:         fmt.Sprintf("0x%x", e.MProtect.VMEnd),
-		VMProtection:  model.VMProtection(e.MProtect.VMProtection).String(),
-		ReqProtection: model.VMProtection(e.MProtect.ReqProtection).String(),
+		VMProtection:  model.VMFlag(e.MProtect.VMProtection).String(),
+		ReqProtection: model.VMFlag(e.MProtect.ReqProtection).String(),
 	}
 }
 
