@@ -55,4 +55,7 @@ func setupProcesses(config Config) {
 	// Process Discovery Check
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false, "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED")
 	config.BindEnvAndSetDefault("process_config.process_discovery.interval", 4*time.Hour, "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL", "DD_PROCESS_AGENT_PROCESS_DISCOVERY_INTERVAL")
+
+	// Allows for enabling or disabling realtime mode
+	config.BindEnvAndSetDefault("process_config.allow_rt", true, "DD_PROCESS_CONFIG_ALLOW_RT", "DD_PROCESS_AGENT_ALLOW_RT")
 }

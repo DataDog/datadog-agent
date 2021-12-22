@@ -40,6 +40,10 @@ var allProcessSettings = []struct {
 		key:          "process_config.process_discovery.interval",
 		defaultValue: 4 * time.Hour,
 	},
+	{
+		key:          "process_config.allow_rt",
+		defaultValue: true,
+	},
 }
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
