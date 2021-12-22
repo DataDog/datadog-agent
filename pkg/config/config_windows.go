@@ -52,7 +52,7 @@ func setAssetFs(config Config) {}
 
 func init() {
 	if pd, err := winutil.GetProgramDataDir(); err == nil {
-		defaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
+		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 	}
 	if _here, err := executable.Folder(); err == nil {
 		agentFilePath := filepath.Join(_here, "..", "..", "embedded", "agent.exe")
