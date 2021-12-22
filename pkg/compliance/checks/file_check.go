@@ -79,6 +79,8 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		if err == nil {
 			vars[compliance.FileFieldContent] = content
 			regoInput["content"] = content
+		} else {
+			log.Errorf("error reading file: %v", err)
 		}
 
 		user, err := getFileUser(fi)

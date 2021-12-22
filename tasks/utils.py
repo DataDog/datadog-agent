@@ -154,6 +154,8 @@ def get_build_flags(
     """
     gcflags = ""
     ldflags = get_version_ldflags(ctx, prefix, major_version=major_version)
+    # External linker flags; needs to be handled separately to avoid overrides
+    extldflags = ""
     env = {"GO111MODULE": "on"}
 
     if sys.platform == 'win32':
@@ -213,7 +215,8 @@ def get_build_flags(
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
-        ldflags += "-s -w -linkmode=external '-extldflags=-static' "
+        ldflags += "-s -w -linkmode=external "
+        extldflags += "-static "
     elif rtloader_lib:
         ldflags += f"-r {':'.join(rtloader_lib)} "
 
@@ -225,6 +228,14 @@ def get_build_flags(
             ldflags += "-linkmode internal "
     elif os.environ.get("NO_GO_OPT"):
         gcflags = "-N -l"
+
+    # On macOS work around https://github.com/golang/go/issues/38824
+    # as done in https://go-review.googlesource.com/c/go/+/372798
+    if sys.platform == "darwin":
+        extldflags += "-Wl,-bind_at_load "
+
+    if extldflags:
+        ldflags += f"'-extldflags={extldflags}' "
 
     return ldflags, gcflags, env
 

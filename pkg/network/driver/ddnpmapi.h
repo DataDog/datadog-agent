@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x0a
+#define DD_NPMDRIVER_VERSION       0x0c
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -54,6 +54,11 @@ typedef unsigned char       uint8_t;
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
 
+#define DDNPMDRIVER_IOCTL_SET_HTTP_FILTER CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x807, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
 #pragma pack(1)
 
 /*!
@@ -72,7 +77,6 @@ typedef struct _handle_stats {
     volatile LONG64       write_bytes;
 
     volatile LONG64		  ioctl_calls;	//! number of ioctl calls to the driver
-
 } HANDLE_STATS;
 
 typedef struct _flow_handle_stats {
@@ -87,11 +91,16 @@ typedef struct _flow_handle_stats {
     volatile LONG64         num_flow_collisions;
 
     // num_flow_structures and peak_num_flow_structures valid only on per-handle stats;
-    // will not be kept for global stats.
+    // will not be kept for global stats.  
     volatile LONG64         num_flow_structures;      // total number of flow structures
     volatile LONG64         peak_num_flow_structures; // high water mark of numFlowStructures
-
     volatile LONG64         num_flows_missed_max_exceeded;
+
+    // same for no_handle flows
+    volatile LONG64         num_flows_no_handle;
+    volatile LONG64         peak_num_flows_no_handle;
+    volatile LONG64         num_flows_missed_max_no_handle_exceeded;
+
 } FLOW_STATS;
 
 typedef struct _transport_handle_stats {
@@ -134,7 +143,7 @@ typedef struct _filterAddress
     uint8_t                   v4_address[4];    // address in network byte order, so v4_address[0] = top network tuple
     uint8_t                   v4_padding[4];    // pad out to 64 bit boundary
     uint8_t                   v6_address[16];
-    uint64_t                  mask; // number of mask bits.
+    uint64_t                  mask; // number of mask bits.  
 } FILTER_ADDRESS;
 
 #define     DIRECTION_INBOUND    ((uint64_t)0)

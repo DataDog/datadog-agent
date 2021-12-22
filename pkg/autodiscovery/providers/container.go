@@ -39,7 +39,7 @@ type ContainerConfigProvider struct {
 }
 
 // NewContainerConfigProvider creates a new ContainerConfigProvider
-func NewContainerConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewContainerConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	containerFilter, err := containers.NewAutodiscoveryFilter(containers.GlobalFilter)
 	if err != nil {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)

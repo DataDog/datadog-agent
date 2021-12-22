@@ -27,7 +27,9 @@ replace (
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
 
-// pinned to grpc v1.28.0
+// pinned to grpc v1.28.0 - this pin is required due to k8s.io/apiserver (and other) pins being set to v0.21.5
+//                          the kubernetes pins are required at this time. We will bump grpc once k8s releases
+//                          v1.24 or v1.25.
 replace (
 	github.com/grpc-ecosystem/grpc-gateway => github.com/grpc-ecosystem/grpc-gateway v1.12.2
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.28.0
@@ -69,7 +71,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.33.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.33.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.33.0-rc.4
-	github.com/DataDog/datadog-go v4.8.2+incompatible
+	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20211116165855-af5870810f0b
 	github.com/DataDog/ebpf-manager v1.0.2
@@ -105,7 +107,7 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.2
-	github.com/containerd/containerd v1.5.7
+	github.com/containerd/containerd v1.5.8
 	github.com/containerd/typeurl v1.0.2
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
@@ -148,7 +150,7 @@ require (
 	github.com/iceber/iouring-go v0.0.0-20210726032807-b073cc83b2b8
 	github.com/imdario/mergo v0.3.12
 	github.com/iovisor/gobpf v0.2.0
-	github.com/itchyny/gojq v0.12.5
+	github.com/itchyny/gojq v0.12.6
 	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/karrick/godirwalk v1.16.1
@@ -215,7 +217,7 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20211111083644-e5c967477495
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20211110154304-99a53858aa08
+	golang.org/x/sys v0.0.0-20211124211545-fe61309f8881
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.1.8

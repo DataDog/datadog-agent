@@ -34,14 +34,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
+func demuxOpts() aggregator.DemultiplexerOptions {
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.FlushInterval = 1 * time.Hour
+	opts.DontStartForwarders = true
+	return opts
+}
+
 func TestBasicSample(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	chk := Check{sessionFactory: sessionFactory}
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -282,10 +290,10 @@ tags:
 func TestSupportedMetricTypes(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
+	chk := Check{sessionFactory: sessionFactory}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 collect_device_metadata: false
@@ -354,14 +362,16 @@ metrics:
 
 func TestProfile(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
+	chk := Check{sessionFactory: sessionFactory}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -660,11 +670,11 @@ profiles:
 func TestServiceCheckFailures(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	sess.ConnectErr = fmt.Errorf("can't connect")
-	chk := Check{}
+	chk := Check{sessionFactory: sessionFactory}
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -898,11 +908,11 @@ func TestCheck_Run(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			checkconfig.SetConfdPathAndCleanProfiles()
 			sess := session.CreateMockSession()
-			session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+			sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 				return sess, nil
 			}
 			sess.ConnectErr = tt.sessionConnError
-			chk := Check{}
+			chk := Check{sessionFactory: sessionFactory}
 
 			// language=yaml
 			rawInstanceConfig := []byte(`
@@ -917,7 +927,8 @@ community_string: public
 			sender := new(mocksender.MockSender)
 
 			if !tt.disableAggregator {
-				aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+				aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+
 			}
 
 			mocksender.SetSender(sender, chk.ID())
@@ -958,11 +969,11 @@ func TestCheck_Run_sessionCloseError(t *testing.T) {
 	log.SetupLogger(l, "debug")
 
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	sess.CloseErr = fmt.Errorf("close error")
-	chk := Check{}
+	chk := Check{sessionFactory: sessionFactory}
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1007,14 +1018,15 @@ metrics:
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
+	chk := Check{sessionFactory: sessionFactory}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -1250,14 +1262,15 @@ tags:
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
+	chk := Check{sessionFactory: sessionFactory}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.5
@@ -1339,11 +1352,11 @@ func TestDiscovery(t *testing.T) {
 	timeNow = common.MockTimeNow
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	chk := Check{sessionFactory: sessionFactory}
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1626,11 +1639,11 @@ func TestDiscovery_CheckError(t *testing.T) {
 	log.SetupLogger(l, "debug")
 
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	chk := Check{sessionFactory: sessionFactory}
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1707,11 +1720,11 @@ func TestDeviceIDAsHostname(t *testing.T) {
 
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	chk := Check{sessionFactory: sessionFactory}
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1870,11 +1883,12 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	timeNow = common.MockTimeNow
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{}
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	chk := Check{sessionFactory: sessionFactory}
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
