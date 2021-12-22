@@ -34,7 +34,11 @@ type ClusterChecksConfigProvider struct {
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
 // cluster check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
+func NewClusterChecksConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+	if providerConfig == nil {
+		providerConfig = &config.ConfigurationProviders{}
+	}
+
 	c := &ClusterChecksConfigProvider{
 		graceDuration: defaultGraceDuration,
 	}
@@ -52,8 +56,8 @@ func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigPr
 		}
 	}
 
-	if cfg.GraceTimeSeconds > 0 {
-		c.graceDuration = time.Duration(cfg.GraceTimeSeconds) * time.Second
+	if providerConfig.GraceTimeSeconds > 0 {
+		c.graceDuration = time.Duration(providerConfig.GraceTimeSeconds) * time.Second
 	}
 
 	// Register in the cluster agent as soon as possible
@@ -140,7 +144,7 @@ func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integratio
 }
 
 func init() {
-	RegisterProvider("clusterchecks", NewClusterChecksConfigProvider)
+	RegisterProvider(names.ClusterChecksRegisterName, NewClusterChecksConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the ClusterChecksConfigProvider

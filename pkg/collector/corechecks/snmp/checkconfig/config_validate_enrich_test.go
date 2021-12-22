@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checkconfig
 
 import (
@@ -153,7 +158,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"column symbols [{1.2 abc  <nil>}] doesn't have a 'metric_tags' section",
+				"column symbols [{1.2 abc  <nil>   <nil>}] doesn't have a 'metric_tags' section",
 			},
 		},
 		{
@@ -302,28 +307,28 @@ func Test_validateEnrichMetrics(t *testing.T) {
 			expectedMetrics: []MetricsConfig{
 				{
 					Symbol: SymbolConfig{
-						OID:                 "1.2.3",
-						Name:                "myMetric",
-						ExtractValue:        `(\d+)C`,
-						ExtractValuePattern: regexp.MustCompile(`(\d+)C`),
+						OID:                  "1.2.3",
+						Name:                 "myMetric",
+						ExtractValue:         `(\d+)C`,
+						ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
 					},
 				},
 				{
 					Symbols: []SymbolConfig{
 						{
-							OID:                 "1.2",
-							Name:                "hey",
-							ExtractValue:        `(\d+)C`,
-							ExtractValuePattern: regexp.MustCompile(`(\d+)C`),
+							OID:                  "1.2",
+							Name:                 "hey",
+							ExtractValue:         `(\d+)C`,
+							ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
 						},
 					},
 					MetricTags: MetricTagConfigList{
 						MetricTagConfig{
 							Column: SymbolConfig{
-								OID:                 "1.2.3",
-								Name:                "abc",
-								ExtractValue:        `(\d+)C`,
-								ExtractValuePattern: regexp.MustCompile(`(\d+)C`),
+								OID:                  "1.2.3",
+								Name:                 "abc",
+								ExtractValue:         `(\d+)C`,
+								ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
 							},
 							Tag: "hello",
 						},
@@ -459,10 +464,10 @@ func Test_validateEnrichMetadata(t *testing.T) {
 					Fields: map[string]MetadataField{
 						"name": {
 							Symbol: SymbolConfig{
-								OID:                 "1.2.3",
-								Name:                "someSymbol",
-								ExtractValue:        "(\\w)",
-								ExtractValuePattern: regexp.MustCompile(`(\w)`),
+								OID:                  "1.2.3",
+								Name:                 "someSymbol",
+								ExtractValue:         "(\\w)",
+								ExtractValueCompiled: regexp.MustCompile(`(\w)`),
 							},
 						},
 					},

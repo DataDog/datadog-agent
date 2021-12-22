@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package snmp
 
 import (
@@ -12,13 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
-)
-
-const (
-	snmpCheckName = "snmp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
 var timeNow = time.Now
@@ -29,6 +32,7 @@ type Check struct {
 	config         *checkconfig.CheckConfig
 	singleDeviceCk *devicecheck.DeviceCheck
 	discovery      discovery.Discovery
+	sessionFactory session.Factory
 }
 
 // Run executes the check
@@ -54,7 +58,7 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
-			deviceCk.SetSender(report.NewMetricSender(sender, deviceCk.GetHostname()))
+			deviceCk.SetSender(report.NewMetricSender(sender, deviceCk.GetDeviceHostname()))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -64,7 +68,7 @@ func (c *Check) Run() error {
 		tags = append(tags, c.config.GetNetworkTags()...)
 		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, c.singleDeviceCk.GetHostname()))
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, c.singleDeviceCk.GetDeviceHostname()))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 
@@ -123,10 +127,10 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	}
 
 	if c.config.IsDiscovery() {
-		c.discovery = discovery.NewDiscovery(c.config)
+		c.discovery = discovery.NewDiscovery(c.config, c.sessionFactory)
 		c.discovery.Start()
 	} else {
-		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress)
+		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress, c.sessionFactory)
 		if err != nil {
 			return fmt.Errorf("failed to create device check: %s", err)
 		}
@@ -146,10 +150,11 @@ func (c *Check) Interval() time.Duration {
 
 func snmpFactory() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(snmpCheckName),
+		CheckBase:      core.NewCheckBase(common.SnmpIntegrationName),
+		sessionFactory: session.NewGosnmpSession,
 	}
 }
 
 func init() {
-	core.RegisterCheck(snmpCheckName, snmpFactory)
+	core.RegisterCheck(common.SnmpIntegrationName, snmpFactory)
 }

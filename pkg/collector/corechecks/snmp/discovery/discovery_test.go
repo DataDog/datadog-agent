@@ -1,19 +1,41 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package discovery
 
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"net"
+	"path/filepath"
 	"testing"
 	"time"
 )
 
+func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {
+	var deviceCount int
+	for start := time.Now(); time.Since(start) < timeout; {
+		deviceCount = len(discovery.GetDiscoveredDeviceConfigs())
+		if deviceCount >= expectedDeviceCount {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("timeout after waiting for %v, expected at least %d devices but %d has been discovered", timeout, expectedDeviceCount, deviceCount)
+}
+
 func TestDiscovery(t *testing.T) {
+	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscovery"))
+	config.Datadog.Set("run_path", path)
+
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 
@@ -35,9 +57,9 @@ func TestDiscovery(t *testing.T) {
 		DiscoveryWorkers:   1,
 		IgnoredIPAddresses: map[string]bool{"192.168.0.5": true},
 	}
-	discovery := NewDiscovery(checkConfig)
+	discovery := NewDiscovery(checkConfig, sessionFactory)
 	discovery.Start()
-	time.Sleep(100 * time.Millisecond)
+	assert.NoError(t, waitForDiscoveredDevices(&discovery, 7, 2*time.Second))
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
@@ -60,9 +82,11 @@ func TestDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryCache(t *testing.T) {
-	SetTestRunPath()
+	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscoveryCache"))
+	config.Datadog.Set("run_path", path)
+
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 
@@ -83,9 +107,9 @@ func TestDiscoveryCache(t *testing.T) {
 		DiscoveryInterval: 3600,
 		DiscoveryWorkers:  1,
 	}
-	discovery := NewDiscovery(checkConfig)
+	discovery := NewDiscovery(checkConfig, sessionFactory)
 	discovery.Start()
-	time.Sleep(100 * time.Millisecond)
+	assert.NoError(t, waitForDiscoveredDevices(&discovery, 4, 2*time.Second))
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
@@ -105,7 +129,7 @@ func TestDiscoveryCache(t *testing.T) {
 	// test cache
 	// session is never used, the devices are loaded from cache
 	sess2 := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	discovery.sessionFactory = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess2, nil
 	}
 
@@ -115,9 +139,9 @@ func TestDiscoveryCache(t *testing.T) {
 		DiscoveryInterval: 3600,
 		DiscoveryWorkers:  0, // no workers, the devices will be loaded from cache
 	}
-	discovery2 := NewDiscovery(checkConfig)
+	discovery2 := NewDiscovery(checkConfig, sessionFactory)
 	discovery2.Start()
-	time.Sleep(100 * time.Millisecond)
+	assert.NoError(t, waitForDiscoveredDevices(&discovery2, 4, 2*time.Second))
 	discovery2.Stop()
 
 	deviceConfigsFromCache := discovery2.GetDiscoveredDeviceConfigs()
@@ -133,7 +157,7 @@ func TestDiscoveryTicker(t *testing.T) {
 	t.Skip() // TODO: FIX ME, currently this test is leading to data race when ran with other tests
 
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 
@@ -154,7 +178,7 @@ func TestDiscoveryTicker(t *testing.T) {
 		DiscoveryInterval: 1,
 		DiscoveryWorkers:  1,
 	}
-	discovery := NewDiscovery(checkConfig)
+	discovery := NewDiscovery(checkConfig, sessionFactory)
 	discovery.Start()
 	time.Sleep(1500 * time.Millisecond)
 	discovery.Stop()
@@ -172,7 +196,6 @@ func TestDiscovery_checkDevice(t *testing.T) {
 		DiscoveryInterval: 1,
 		DiscoveryWorkers:  1,
 	}
-	discovery := NewDiscovery(checkConfig)
 	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)
 	assert.Nil(t, err)
 	startingIP := ipAddr.Mask(ipNet.Mask)
@@ -202,12 +225,14 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	}
 
 	var sess *session.MockSession
+	discovery := NewDiscovery(checkConfig, session.NewMockSession)
 
 	checkDeviceOnce := func() {
 		sess = session.CreateMockSession()
-		session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 			return sess, nil
 		}
+		discovery.sessionFactory = sessionFactory
 		sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&packet, nil)
 		err = discovery.checkDevice(job) // add device
 		assert.Nil(t, err)
@@ -215,9 +240,10 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	}
 
 	// session configuration error
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	discovery.sessionFactory = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return nil, fmt.Errorf("some error")
 	}
+
 	err = discovery.checkDevice(job)
 	assert.EqualError(t, err, "error configure session for ip 192.168.0.0: some error")
 	assert.Equal(t, 0, len(discovery.discoveredDevices))
@@ -233,7 +259,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	// Test session.Get() error
 	checkDeviceOnce()
 	sess = session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	discovery.sessionFactory = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	var nilPacket *gosnmp.SnmpPacket
@@ -245,7 +271,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	// Test session.Get() packet with no variable
 	checkDeviceOnce()
 	sess = session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	discovery.sessionFactory = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	packetNoVariable := gosnmp.SnmpPacket{
@@ -259,7 +285,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	// Test session.Get() packet with nil value
 	checkDeviceOnce()
 	sess = session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	discovery.sessionFactory = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	packetNilValue := gosnmp.SnmpPacket{
@@ -287,7 +313,7 @@ func TestDiscovery_createDevice(t *testing.T) {
 		DiscoveryAllowedFailures: 3,
 		Namespace:                "default",
 	}
-	discovery := NewDiscovery(checkConfig)
+	discovery := NewDiscovery(checkConfig, session.NewMockSession)
 	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)
 	assert.Nil(t, err)
 	startingIP := ipAddr.Mask(ipNet.Mask)

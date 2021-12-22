@@ -56,7 +56,7 @@ type configInfo struct {
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -291,7 +291,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 }
 
 func init() {
-	RegisterProvider(KubeEndpointsProviderName, NewKubeEndpointsConfigProvider)
+	RegisterProvider(names.KubeEndpointsRegisterName, NewKubeEndpointsConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the kubeEndpointsConfigProvider

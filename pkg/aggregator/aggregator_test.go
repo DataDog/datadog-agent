@@ -33,17 +33,45 @@ import (
 var checkID1 check.ID = "1"
 var checkID2 check.ID = "2"
 
-func TestRegisterCheckSampler(t *testing.T) {
-	resetAggregator()
+const defaultHostname = "hostname"
+const altDefaultHostname = "althostname"
 
-	agg := InitAggregator(nil, nil, "")
+func init() {
+	initF()
+}
+
+func initF() {
+	demultiplexerInstance = nil
+	opts := DefaultDemultiplexerOptions(nil)
+	opts.FlushInterval = 1 * time.Hour
+	opts.DontStartForwarders = true
+	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
+	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
+	recurrentSeries = metrics.Series{}
+	tagsetTlm.reset()
+}
+
+func getAggregator() *BufferedAggregator {
+	if demultiplexerInstance == nil {
+		initF()
+	}
+	return demultiplexerInstance.Aggregator()
+}
+
+func TestRegisterCheckSampler(t *testing.T) {
+	// this test IS USING globals
+	// -
+
+	agg := getAggregator()
+	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+
 	err := agg.registerSender(checkID1)
 	assert.Nil(t, err)
-	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+	assert.Len(t, agg.checkSamplers, 1)
 
 	err = agg.registerSender(checkID2)
 	assert.Nil(t, err)
-	assert.Len(t, aggregatorInstance.checkSamplers, 2)
+	assert.Len(t, agg.checkSamplers, 2)
 
 	// Already registered sender => error
 	err = agg.registerSender(checkID2)
@@ -51,15 +79,18 @@ func TestRegisterCheckSampler(t *testing.T) {
 }
 
 func TestDeregisterCheckSampler(t *testing.T) {
-	resetAggregator()
+	// this test IS USING globals
+	// -
 
-	agg := InitAggregator(nil, nil, "")
+	agg := getAggregator()
+	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
-	assert.Len(t, aggregatorInstance.checkSamplers, 2)
+	assert.Len(t, agg.checkSamplers, 2)
 
 	agg.deregisterSender(checkID1)
-	require.Len(t, aggregatorInstance.checkSamplers, 1)
+	require.Len(t, agg.checkSamplers, 1)
 	_, ok := agg.checkSamplers[checkID1]
 	assert.False(t, ok)
 	_, ok = agg.checkSamplers[checkID2]
@@ -67,8 +98,11 @@ func TestDeregisterCheckSampler(t *testing.T) {
 }
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
-	resetAggregator()
-	agg := InitAggregator(nil, nil, "resolved-hostname")
+	// this test is not using anything global
+	// -
+
+	s := &serializer.MockSerializer{}
+	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addServiceCheck(metrics.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -96,8 +130,11 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 }
 
 func TestAddEventDefaultValues(t *testing.T) {
-	resetAggregator()
-	agg := InitAggregator(nil, nil, "resolved-hostname")
+	// this test is not using anything global
+	// -
+
+	s := &serializer.MockSerializer{}
+	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addEvent(metrics.Event{
 		// only populate required fields
@@ -142,8 +179,12 @@ func TestAddEventDefaultValues(t *testing.T) {
 }
 
 func TestSetHostname(t *testing.T) {
-	resetAggregator()
-	agg := InitAggregator(nil, nil, "hostname")
+	// this test IS USING globals
+	// -
+
+	agg := getAggregator()
+	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+
 	assert.Equal(t, "hostname", agg.hostname)
 	sender, err := GetSender(checkID1)
 	require.NoError(t, err)
@@ -157,9 +198,11 @@ func TestSetHostname(t *testing.T) {
 }
 
 func TestDefaultData(t *testing.T) {
-	resetAggregator()
+	// this test IS USING globals (tagsetTlm) but a local aggregator
+	// -
+
 	s := &serializer.MockSerializer{}
-	agg := InitAggregator(s, nil, "hostname")
+	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 	start := time.Now()
 
 	s.On("SendServiceChecks", metrics.ServiceChecks{{
@@ -197,6 +240,9 @@ func TestDefaultData(t *testing.T) {
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
+	// this test IS USING globals (tagsetTlm and recurrentSeries) but a local aggregator
+	// -
+
 	test := func(tagCount int) func(t *testing.T) {
 		expHugeCounts := make([]uint64, tagsetTlm.size)
 
@@ -207,9 +253,9 @@ func TestSeriesTooManyTags(t *testing.T) {
 		}
 
 		return func(t *testing.T) {
-			resetAggregator()
 			s := &serializer.MockSerializer{}
-			agg := InitAggregator(s, nil, "hostname")
+			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+			go agg.run()
 			start := time.Now()
 
 			var tags []string
@@ -241,6 +287,11 @@ func TestSeriesTooManyTags(t *testing.T) {
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Series"]
 			assert.Equal(t, expMap, gotMap)
+
+			// reset telemetry for next tests
+			agg.stopChan <- struct{}{}
+			recurrentSeries = metrics.Series{}
+			tagsetTlm.reset()
 		}
 	}
 	t.Run("not-huge", test(10))
@@ -249,6 +300,9 @@ func TestSeriesTooManyTags(t *testing.T) {
 }
 
 func TestDistributionsTooManyTags(t *testing.T) {
+	// this test IS USING globals (tagsetTlm and recurrentSeries) but a local aggregator
+	// -
+
 	test := func(tagCount int) func(t *testing.T) {
 		expHugeCounts := make([]uint64, tagsetTlm.size)
 
@@ -259,9 +313,8 @@ func TestDistributionsTooManyTags(t *testing.T) {
 		}
 
 		return func(t *testing.T) {
-			resetAggregator()
 			s := &serializer.MockSerializer{}
-			agg := InitAggregator(s, nil, "hostname")
+			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 			start := time.Now()
 
 			var tags []string
@@ -281,7 +334,6 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			s.On("SendServiceChecks", mock.Anything).Return(nil).Times(1)
 			s.On("SendSeries", mock.Anything).Return(nil).Times(1)
 			s.On("SendSketch", mock.Anything).Return(nil).Times(1)
-
 			agg.Flush(start, true)
 			s.AssertNotCalled(t, "SendEvents")
 
@@ -292,6 +344,10 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Sketches"]
 			assert.Equal(t, expMap, gotMap)
+
+			// reset for next tests
+			recurrentSeries = metrics.Series{}
+			tagsetTlm.reset()
 		}
 	}
 	t.Run("not-huge", test(10))
@@ -299,8 +355,10 @@ func TestDistributionsTooManyTags(t *testing.T) {
 	t.Run("huge", test(110))
 }
 
-func TestRecurentSeries(t *testing.T) {
-	resetAggregator()
+func TestRecurrentSeries(t *testing.T) {
+	// this test IS USING globals (recurrentSeries) but a local aggregator
+	// -
+
 	s := &serializer.MockSerializer{}
 	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 
@@ -379,6 +437,9 @@ func TestRecurentSeries(t *testing.T) {
 }
 
 func TestTags(t *testing.T) {
+	// this test is not using anything global
+	// -
+
 	tests := []struct {
 		name                    string
 		tlmContainerTagsEnabled bool

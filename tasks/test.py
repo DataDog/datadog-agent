@@ -17,6 +17,7 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, generate, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
+from .libs.copyright import CopyrightLinter
 from .libs.junit_upload import junit_upload_from_tgz, produce_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
@@ -546,6 +547,17 @@ def lint_python(ctx):
     ctx.run("black --check --diff .")
     ctx.run("isort --check-only --diff .")
     ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
+
+
+@task
+def lint_copyrights(_, fix=False, dry_run=False, debug=False):
+    """
+    Checks that all Go files contain the appropriate copyright header. If '--fix'
+    is provided as an option, it will try to fix problems as it finds them. If
+    '--dry_run' is provided when fixing, no changes to the files will be applied.
+    """
+
+    CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run)
 
 
 @task

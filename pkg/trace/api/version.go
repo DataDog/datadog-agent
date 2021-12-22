@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 // Version is a dumb way to version our collector handlers
@@ -69,11 +74,11 @@ const (
 	//
 	v05 Version = "v0.5"
 
-	// v06
+	// v07
 	//
 	// Content-Type: application/msgpack
 	// Payload: TracerPayload (pkg/trace/pb/tracer_payload.proto)
 	// Response: Service sampling rates.
 	//
-	v06 Version = "v0.6"
+	v07 Version = "v0.7"
 )

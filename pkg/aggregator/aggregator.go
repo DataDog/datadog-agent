@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -94,9 +95,6 @@ func timeNowNano() float64 {
 }
 
 var (
-	aggregatorInstance *BufferedAggregator
-	aggregatorInit     sync.Once
-
 	aggregatorExpvars = expvar.NewMap("aggregator")
 	flushTimeStats    = make(map[string]*Stats)
 	flushCountStats   = make(map[string]*Stats)
@@ -183,28 +181,7 @@ func InitAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforw
 
 // InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
 func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration) *BufferedAggregator {
-	aggregatorInit.Do(func() {
-		aggregatorInstance = NewBufferedAggregator(s, eventPlatformForwarder, hostname, flushInterval)
-		go aggregatorInstance.run()
-	})
-
-	return aggregatorInstance
-}
-
-// SetDefaultAggregator allows to force a custom Aggregator as the default one and run it.
-// This is useful for testing or benchmarking.
-func SetDefaultAggregator(agg *BufferedAggregator) {
-	aggregatorInstance = agg
-	go aggregatorInstance.run()
-}
-
-// StopDefaultAggregator stops the default aggregator. Based on 'flushData'
-// waiting metrics (from checks or closed dogstatsd buckets) will be sent to
-// the serializer before stopping.
-func StopDefaultAggregator() {
-	if aggregatorInstance != nil {
-		aggregatorInstance.Stop()
-	}
+	return NewBufferedAggregator(s, eventPlatformForwarder, hostname, flushInterval)
 }
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
@@ -228,6 +205,7 @@ type BufferedAggregator struct {
 	MetricSamplePool *metrics.MetricSamplePool
 
 	statsdSampler          TimeSampler
+	tagsStore              *tags.Store
 	checkSamplers          map[check.ID]*CheckSampler
 	serviceChecks          metrics.ServiceChecks
 	events                 metrics.Events
@@ -266,6 +244,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName = flavor.HerokuAgent
 	}
 
+	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator")
+
 	aggregator := &BufferedAggregator{
 		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),
 		bufferedMetricInWithTs: make(chan []metrics.MetricSample, bufferSize),
@@ -284,7 +264,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
-		statsdSampler:           *NewTimeSampler(bucketSize),
+		tagsStore:               tagsStore,
+		statsdSampler:           *NewTimeSampler(bucketSize, tagsStore),
 		checkSamplers:           make(map[check.ID]*CheckSampler),
 		flushInterval:           flushInterval,
 		serializer:              s,
@@ -344,7 +325,6 @@ func (agg *BufferedAggregator) SetHostname(hostname string) {
 
 // AddAgentStartupTelemetry adds a startup event and count to be sent on the next flush
 func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
-
 	metric := &metrics.MetricSample{
 		Name:       fmt.Sprintf("datadog.%s.started", agg.agentName),
 		Value:      1,
@@ -377,6 +357,7 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
 		config.Datadog.GetBool("check_sampler_expire_metrics"),
 		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
+		agg.tagsStore,
 	)
 	return nil
 }
@@ -712,11 +693,11 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 
 // Stop stops the aggregator. Based on 'flushData' waiting metrics (from checks
 // or closed dogstatsd buckets) will be sent to the serializer before stopping.
-func (agg *BufferedAggregator) Stop() {
+func (agg *BufferedAggregator) Stop(flush bool) {
 	agg.stopChan <- struct{}{}
 
 	timeout := config.Datadog.GetDuration("aggregator_stop_timeout") * time.Second
-	if timeout > 0 {
+	if flush && timeout > 0 {
 		done := make(chan struct{})
 		go func() {
 			agg.Flush(time.Now(), true)
@@ -753,6 +734,12 @@ func (agg *BufferedAggregator) run() {
 		case <-agg.TickerChan:
 			start := time.Now()
 			agg.Flush(start, false)
+
+			// Do this here, rather than in the Flush():
+			// - make sure Shrink doesn't happen concurrently with sample processing.
+			// - we don't need to Shrink() on stop
+			agg.tagsStore.Shrink()
+
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
 			aggregatorEventPlatformErrorLogged = false

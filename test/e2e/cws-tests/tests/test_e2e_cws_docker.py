@@ -5,12 +5,12 @@ import unittest
 import uuid
 import warnings
 
-from lib.app import App
 from lib.config import gen_datadog_agent_config, gen_system_probe_config
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
+from lib.cws.app import App
+from lib.cws.policy import PolicyLoader
 from lib.docker import DockerHelper
 from lib.log import wait_agent_log
-from lib.policy import PolicyLoader
 from lib.stepper import Step
 
 
@@ -71,7 +71,7 @@ class TestE2EDocker(unittest.TestCase):
             )
             self.system_probe_config = gen_system_probe_config(log_level="TRACE", log_patterns=["module.APIServer.*"])
 
-            self.container = self.docker_helper.start_agent(
+            self.container = self.docker_helper.start_cws_agent(
                 image,
                 self.policies,
                 datadog_agent_config=self.datadog_agent_config,

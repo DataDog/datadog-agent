@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package config
 
 import (
@@ -249,12 +254,12 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			if s == "" {
 				s = config.DefaultSite
 			}
-			site = fmt.Sprintf(profiling.ProfileURLTemplate, s)
+			site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
 		}
 
 		v, _ := version.Agent()
 		a.ProfilingSettings = &profiling.Settings{
-			Site:                 site,
+			ProfilingURL:         site,
 			Env:                  config.Datadog.GetString("env"),
 			Service:              "process-agent",
 			Period:               config.Datadog.GetDuration("internal_profiling.period"),

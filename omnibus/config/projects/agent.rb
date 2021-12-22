@@ -4,8 +4,15 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 
-name 'agent'
-package_name 'datadog-agent'
+flavor = ENV['AGENT_FLAVOR']
+
+if flavor.nil? || flavor == 'base'
+  name 'agent'
+  package_name 'datadog-agent'
+else
+  name "agent-#{flavor}"
+  package_name "datadog-#{flavor}-agent"
+end
 license "Apache-2.0"
 license_file "../LICENSE"
 
@@ -273,6 +280,11 @@ if linux?
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
 end
+
+# default package_scripts_path and resource_path are based on project name,
+# but we change the name based on flavor, so let's hardcode it to "agent"
+package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent"
+resources_path "#{Omnibus::Config.project_root}/resources/agent"
 
 exclude '\.git*'
 exclude 'bundler\/git'

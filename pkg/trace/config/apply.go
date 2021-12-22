@@ -26,7 +26,10 @@ import (
 )
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
-const apiEndpointPrefix = "https://trace.agent."
+const (
+	apiEndpointPrefix       = "https://trace.agent."
+	telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
+)
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
@@ -151,6 +154,12 @@ type Enablable struct {
 	Enabled bool `mapstructure:"enabled"`
 }
 
+// TelemetryConfig holds Instrumentation telemetry Endpoints information
+type TelemetryConfig struct {
+	Enabled   bool `mapstructure:"enabled"`
+	Endpoints []*Endpoint
+}
+
 // JSONObfuscationConfig holds the obfuscation configuration for sensitive
 // data found in JSON objects.
 type JSONObfuscationConfig struct {
@@ -199,6 +208,25 @@ type WriterConfig struct {
 	FlushPeriodSeconds float64 `mapstructure:"flush_period_seconds"`
 }
 
+// appendEndpoints appends any endpoint configuration found at the given cfgKey.
+// The format for cfgKey should be a map which has the URL as a key and one or
+// more API keys as an array value.
+func appendEndpoints(endpoints []*Endpoint, cfgKey string) []*Endpoint {
+	if !config.Datadog.IsSet(cfgKey) {
+		return endpoints
+	}
+	for url, keys := range config.Datadog.GetStringMapStringSlice(cfgKey) {
+		if len(keys) == 0 {
+			log.Errorf("'%s' entries must have at least one API key present", cfgKey)
+			continue
+		}
+		for _, key := range keys {
+			endpoints = append(endpoints, &Endpoint{Host: url, APIKey: config.SanitizeAPIKey(key)})
+		}
+	}
+	return endpoints
+}
+
 func (c *AgentConfig) applyDatadogConfig() error {
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*Endpoint{{}}
@@ -216,28 +244,8 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.StatsdPort = config.Datadog.GetInt("dogstatsd_port")
 	}
 
-	site := config.Datadog.GetString("site")
-	if site != "" {
-		c.Endpoints[0].Host = apiEndpointPrefix + site
-	}
-	if host := config.Datadog.GetString("apm_config.apm_dd_url"); host != "" {
-		c.Endpoints[0].Host = host
-		if site != "" {
-			log.Infof("'site' and 'apm_dd_url' are both set, using endpoint: %q", host)
-		}
-	}
-	if config.Datadog.IsSet("apm_config.additional_endpoints") {
-		for url, keys := range config.Datadog.GetStringMapStringSlice("apm_config.additional_endpoints") {
-			if len(keys) == 0 {
-				log.Errorf("'additional_endpoints' entries must have at least one API key present")
-				continue
-			}
-			for _, key := range keys {
-				key = config.SanitizeAPIKey(key)
-				c.Endpoints = append(c.Endpoints, &Endpoint{Host: url, APIKey: key})
-			}
-		}
-	}
+	c.Endpoints[0].Host = config.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if config.Datadog.IsSet("proxy.no_proxy") {
 		proxyList := config.Datadog.GetStringSlice("proxy.no_proxy")
@@ -358,6 +366,14 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
 
+	if config.Datadog.GetBool("apm_config.telemetry.enabled") {
+		c.TelemetryConfig.Enabled = true
+		c.TelemetryConfig.Endpoints = []*Endpoint{{
+			Host:   config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
+			APIKey: c.Endpoints[0].APIKey,
+		}}
+		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
+	}
 	c.Obfuscation = new(ObfuscationConfig)
 	if config.Datadog.IsSet("apm_config.obfuscation") {
 		var o ObfuscationConfig
@@ -464,13 +480,17 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	if config.Datadog.GetBool("apm_config.internal_profiling.enabled") {
-		profilingSite := config.Datadog.GetString("internal_profiling.profile_dd_url")
-		if profilingSite == "" {
-			profilingSite = site
+		endpoint := config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if endpoint == "" {
+			s := config.Datadog.GetString("site")
+			if s == "" {
+				s = config.DefaultSite
+			}
+			endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
 		}
 
 		c.ProfilingSettings = &profiling.Settings{
-			Site: profilingSite,
+			ProfilingURL: endpoint,
 
 			// remaining configuration parameters use the top-level `internal_profiling` config
 			Period:               config.Datadog.GetDuration("internal_profiling.period"),
