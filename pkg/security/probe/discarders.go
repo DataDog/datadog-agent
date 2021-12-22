@@ -210,54 +210,27 @@ var (
 	discarderEvent = NewEvent(nil, nil)
 )
 
-// Important should always be called after having checked that the file is not a discarder itself otherwise it can report incorrect
-// parent discarder
-func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType model.EventType, filenameField eval.Field, filename string) (bool, error) {
-	dirname := filepath.Dir(filename)
-
-	// check cache first
-	if id.rs != rs {
-		id.parentDiscarderFnc = make(map[eval.Field]func(dirname string) (bool, error))
-		id.rs = rs
-	} else {
-		if fnc, exists := id.parentDiscarderFnc[filenameField]; exists {
-			return fnc(dirname)
-		}
+func getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string) (func(dirname string) (bool, error), error) {
+	bucket := rs.GetBucket(eventType.String())
+	if bucket == nil {
+		return nil, nil
 	}
 
-	// compile
-	if _, err := discarderEvent.GetFieldType(filenameField); err != nil {
-		fnc := func(dirname string) (bool, error) {
-			return false, err
-		}
-		id.parentDiscarderFnc[filenameField] = fnc
-		return fnc(dirname)
+	if _, err := discarderEvent.GetFieldType(field); err != nil {
+		return nil, err
 	}
 
-	if !strings.HasSuffix(filenameField, model.PathSuffix) {
-		fnc := func(dirname string) (bool, error) {
-			return false, errors.New("path suffix not found")
-		}
-		id.parentDiscarderFnc[filenameField] = fnc
-		return fnc(dirname)
+	if !strings.HasSuffix(field, model.PathSuffix) {
+		return nil, errors.New("path suffix not found")
 	}
 
-	basenameField := strings.Replace(filenameField, model.PathSuffix, model.NameSuffix, 1)
+	basenameField := strings.Replace(field, model.PathSuffix, model.NameSuffix, 1)
 	if _, err := discarderEvent.GetFieldType(basenameField); err != nil {
-		fnc := func(dirname string) (bool, error) {
-			return false, err
-		}
-		id.parentDiscarderFnc[filenameField] = fnc
-		return fnc(dirname)
+		return nil, err
 	}
 
 	var valueFnc func(dirname string) (bool, bool, error)
 	var valueFncs []func(dirname string) (bool, bool, error)
-
-	bucket := rs.GetBucket(eventType.String())
-	if bucket == nil {
-		return false, nil
-	}
 
 	for _, rule := range bucket.GetRules() {
 		// ensure we don't push parent discarder if there is another rule relying on the parent path
@@ -273,13 +246,13 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 		// /etc/conf.d/httpd.conf is a discarder but not the parent
 
 		// check filename
-		if values := rule.GetFieldValues(filenameField); len(values) > 0 {
+		if values := rule.GetFieldValues(field); len(values) > 0 {
 			for _, value := range values {
 				if value.Type == eval.PatternValueType {
 					valueDir := path.Dir(value.Value.(string))
 					regexDir, err := eval.PatternToRegexp(valueDir)
 					if err != nil {
-						return false, err
+						return nil, err
 					}
 
 					regexValue := value.Regexp
@@ -322,7 +295,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 		}
 	}
 
-	parentDiscarderFnc := func(dirname string) (bool, error) {
+	return func(dirname string) (bool, error) {
 		var result, altered bool
 		var err error
 
@@ -339,17 +312,41 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 			}
 		}
 
-		if err := discarderEvent.SetFieldValue(filenameField, dirname); err != nil {
+		if err := discarderEvent.SetFieldValue(field, dirname); err != nil {
 			return false, err
 		}
 
-		if isDiscarder, _ := rs.IsDiscarder(discarderEvent, filenameField); !isDiscarder {
+		if isDiscarder, _ := rs.IsDiscarder(discarderEvent, field); !isDiscarder {
 			return false, nil
 		}
 
 		return true, nil
+	}, nil
+}
+
+// Important should always be called after having checked that the file is not a discarder itself otherwise it can report incorrect
+// parent discarder
+func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string) (bool, error) {
+	dirname := filepath.Dir(filename)
+
+	// check cache first
+	if id.rs != rs {
+		id.parentDiscarderFnc = make(map[eval.Field]func(dirname string) (bool, error))
+		id.rs = rs
 	}
-	id.parentDiscarderFnc[filenameField] = parentDiscarderFnc
+
+	fnc, exists := id.parentDiscarderFnc[field]
+	if !exists
+		if ; exists {
+
+			return fnc(dirname)
+		}
+
+		fnc, err := getParentDiscarderFnc(rs, eventType, field, filename)
+		if err != nil {
+			return false, err
+		}
+		id.parentDiscarderFnc[field] = fnc
 
 	seclog.Tracef("`%s` discovered as parent discarder", dirname)
 
