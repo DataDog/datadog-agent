@@ -2,6 +2,26 @@
 Release Notes
 =============
 
+.. _Release Notes_7.32.4:
+
+7.32.4 / 6.32.4
+======
+
+.. _Release Notes_7.32.4_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-12-22
+
+.. _Release Notes_7.32.4_Security Notes:
+
+Security Notes
+--------------
+
+- Remove all dependencies on `log4j` and use `java.util.logging` instead
+
+
 .. _Release Notes_7.32.3:
 
 7.32.3 / 6.32.3
