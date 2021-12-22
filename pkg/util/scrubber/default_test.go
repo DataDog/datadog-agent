@@ -305,7 +305,7 @@ other_config: 1
   community_strings: ********
 other_config: 1
 `)
-assertClean(t,
+	assertClean(t,
 		`
 snmp_traps_config:
   community_strings: [
