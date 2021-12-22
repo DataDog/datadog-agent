@@ -6,6 +6,7 @@
 package tagset
 
 import (
+	"encoding/json"
 	"sort"
 	"strings"
 
@@ -56,6 +57,12 @@ func (tags *Tags) String() string {
 // Len returns the number of tags in the tagset
 func (tags *Tags) Len() int {
 	return len(tags.tags)
+}
+
+// MarshalJSON implements json.Marshaler to marshal the tag set as a JSON
+// array.
+func (tags *Tags) MarshalJSON() ([]byte, error) {
+	return json.Marshal(tags.tags)
 }
 
 // Hash returns the hash of this tagset

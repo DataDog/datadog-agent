@@ -6,6 +6,7 @@
 package tagset
 
 import (
+	"encoding/json"
 	"sort"
 	"testing"
 
@@ -62,6 +63,19 @@ func (tags *Tags) validate(t *testing.T) {
 func TestTags_Tags_String(t *testing.T) {
 	tagset := newTags([]string{"foo", "bar"})
 	require.Equal(t, tagset.String(), "foo, bar")
+}
+
+func TestTags_Tags_MarshalJSON(t *testing.T) {
+	tagset := newTags([]string{"foo", "bar"})
+	j, err := tagset.MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, []byte(`["foo","bar"]`), j)
+}
+
+func TestTags_Tags_MarshalJSON_empty(t *testing.T) {
+	j, err := json.Marshal(EmptyTags)
+	require.NoError(t, err)
+	require.Equal(t, []byte(`[]`), j)
 }
 
 func TestTags_Tags_Hash(t *testing.T) {
