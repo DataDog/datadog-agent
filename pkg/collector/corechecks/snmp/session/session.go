@@ -21,7 +21,7 @@ import (
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
-// Factory will create new sessions
+// Factory will create a new Session
 type Factory func(config *checkconfig.CheckConfig) (Session, error)
 
 // Session interface for connecting to a snmp device
