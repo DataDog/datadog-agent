@@ -196,6 +196,8 @@ func TestOnlyEnvConfig(t *testing.T) {
 // TestEnvGrpcConnectionTimeoutSecs tests DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS.
 // This environment variable cannot be tested with the other environment variables because it is overridden.
 func TestEnvGrpcConnectionTimeoutSecs(t *testing.T) {
+	providers.Register(providerMocks.FakeContainerImpl{})
+
 	_ = os.Setenv("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", "1")
 	_, _ = NewAgentConfig("test", "", "")
 	assert.Equal(t, 1, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
