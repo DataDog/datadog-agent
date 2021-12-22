@@ -30,6 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// one for process-agent checks and another one for manual troubleshooting
+const maxConcurrentRequests = 2
+
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
 var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
@@ -70,7 +73,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 func (nt *networkTracer) Register(httpMux *module.Router) error {
 	var runCounter uint64
 
-	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(5, func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(maxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
