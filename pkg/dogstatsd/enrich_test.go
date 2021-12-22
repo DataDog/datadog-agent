@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 var (
@@ -66,6 +64,7 @@ func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (
 func parseAndEnrichEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseEvent(message)
+	fmt.Printf("parsed=%#v\n", parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -888,6 +887,8 @@ func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
+/*
+TODO: not that interesting anymore, now that this isn't removing tags from the tagset
 func TestExtractTagsMetadata(t *testing.T) {
 	type args struct {
 		tags                       []string
@@ -1069,3 +1070,4 @@ func TestExtractTagsMetadata(t *testing.T) {
 		})
 	}
 }
+*/

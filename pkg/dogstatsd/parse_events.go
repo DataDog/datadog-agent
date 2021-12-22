@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,7 +38,11 @@ type dogstatsdEvent struct {
 	priority       eventPriority
 	sourceType     string
 	alertType      alertType
-	tags           []string
+	// tags *not* including enriching tags below
+	tags           *tagset.Tags
+	hostTag        string
+	entityIDTag    string
+	cardinalityTag string
 }
 
 type eventHeader struct {
@@ -162,7 +167,7 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	case bytes.HasPrefix(optionalField, eventAlertTypePrefix):
 		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
-		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):]).UnsafeReadOnlySlice()
+		newEvent.tags, newEvent.hostTag, newEvent.entityIDTag, newEvent.cardinalityTag = p.parseTags(optionalField[len(eventTagsPrefix):])
 	}
 	if err != nil {
 		return event, err
@@ -193,6 +198,7 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 		text:      string(text),
 		priority:  priorityNormal,
 		alertType: alertTypeInfo,
+		tags:      tagset.EmptyTags,
 	}
 
 	if len(rawEvent) == header.textLength+header.titleLength+1 {

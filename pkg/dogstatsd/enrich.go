@@ -9,40 +9,27 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 var (
-	hostTagPrefix       = "host:"
-	entityIDTagPrefix   = "dd.internal.entity_id:"
 	entityIDIgnoreValue = "none"
-	// CardinalityTagPrefix is used to set the dynamic cardinality
-	CardinalityTagPrefix = "dd.internal.card:"
 )
 
-func extractTagsMetadata(tags []string, defaultHostname string, originTags string, entityIDPrecedenceEnabled bool) (*tagset.Tags, string, string, string, string) {
-	host := defaultHostname
+func extractTagsMetadata(hostTag, entityIDTag, cardinalityTag, defaultHostname string, originTags string, entityIDPrecedenceEnabled bool) (string, string, string, string) {
+	var host, entityIDValue, cardinality string
 
-	slice := make([]string, len(tags))
-	copy(slice, tags)
-	tags = slice
-
-	n := 0
-	entityIDValue, cardinality := "", ""
-	for _, tag := range tags {
-		if strings.HasPrefix(tag, hostTagPrefix) {
-			host = tag[len(hostTagPrefix):]
-		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
-			entityIDValue = tag[len(entityIDTagPrefix):]
-		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
-			cardinality = tag[len(CardinalityTagPrefix):]
-		} else {
-			tags[n] = tag
-			n++
-		}
+	if hostTag != "" {
+		host = hostTag[len(hostTagPrefix):]
+	} else {
+		host = defaultHostname
 	}
-	tags = tags[:n]
+	if entityIDTag != "" {
+		entityIDValue = entityIDTag[len(entityIDTagPrefix):]
+	}
+	if cardinalityTag != "" {
+		cardinality = cardinalityTag[len(CardinalityTagPrefix):]
+	}
 
 	origin := ""
 	// We use the UDS socket origin if no origin ID was specify in the tags
@@ -62,7 +49,7 @@ func extractTagsMetadata(tags []string, defaultHostname string, originTags strin
 		k8sOrigin = kubelet.KubePodTaggerEntityPrefix + entityIDValue
 	}
 
-	return tagset.NewTags(tags), host, origin, k8sOrigin, cardinality
+	return host, origin, k8sOrigin, cardinality
 }
 
 func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
@@ -106,7 +93,8 @@ func isMetricBlocklisted(metricName string, metricBlocklist []string) bool {
 func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
 	metricBlocklist []string, defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
 	metricName := ddSample.name
-	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(ddSample.tags.UnsafeReadOnlySlice(), defaultHostname, origin, entityIDPrecedenceEnabled)
+	tags := ddSample.tags
+	hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(ddSample.hostTag, ddSample.entityIDTag, ddSample.cardinalityTag, defaultHostname, origin, entityIDPrecedenceEnabled)
 
 	if !isExcluded(metricName, namespace, excludedNamespaces) {
 		metricName = namespace + metricName
@@ -184,14 +172,15 @@ func enrichEventAlertType(dogstatsdAlertType alertType) metrics.EventAlertType {
 }
 
 func enrichEvent(event dogstatsdEvent, defaultHostname string, origin string, entityIDPrecedenceEnabled bool) *metrics.Event {
-	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(event.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
+	tags := event.tags
+	hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(event.hostTag, event.entityIDTag, event.cardinalityTag, defaultHostname, origin, entityIDPrecedenceEnabled)
 
 	enrichedEvent := &metrics.Event{
 		Title:          event.title,
 		Text:           event.text,
 		Ts:             event.timestamp,
 		Priority:       enrichEventPriority(event.priority),
-		Tags:           tags.UnsafeReadOnlySlice(),
+		Tags:           tags.UnsafeReadOnlySlice(), // TODO: metrics.Event doesn't use *Tags yet
 		AlertType:      enrichEventAlertType(event.alertType),
 		AggregationKey: event.aggregationKey,
 		SourceTypeName: event.sourceType,
@@ -223,14 +212,15 @@ func enrichServiceCheckStatus(status serviceCheckStatus) metrics.ServiceCheckSta
 }
 
 func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string, origin string, entityIDPrecedenceEnabled bool) *metrics.ServiceCheck {
-	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(serviceCheck.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
+	tags := serviceCheck.tags
+	hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(serviceCheck.hostTag, serviceCheck.entityIDTag, serviceCheck.cardinalityTag, defaultHostname, origin, entityIDPrecedenceEnabled)
 
 	enrichedServiceCheck := &metrics.ServiceCheck{
 		CheckName:   serviceCheck.name,
 		Ts:          serviceCheck.timestamp,
 		Status:      enrichServiceCheckStatus(serviceCheck.status),
 		Message:     serviceCheck.message,
-		Tags:        tags.UnsafeReadOnlySlice(),
+		Tags:        tags.UnsafeReadOnlySlice(), // TODO: metrics.ServiceCheck doesn't use *Tags yet
 		OriginID:    originID,
 		K8sOriginID: k8sOriginID,
 		Cardinality: cardinality,

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,7 +29,11 @@ type dogstatsdServiceCheck struct {
 	timestamp int64
 	hostname  string
 	message   string
-	tags      []string
+	// tags *not* including enriching tags below
+	tags           *tagset.Tags
+	hostTag        string
+	entityIDTag    string
+	cardinalityTag string
 }
 
 var (
@@ -92,7 +97,7 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 	case bytes.HasPrefix(optionalField, serviceCheckHostnamePrefix):
 		newServiceCheck.hostname = string(optionalField[len(serviceCheckHostnamePrefix):])
 	case bytes.HasPrefix(optionalField, serviceCheckTagsPrefix):
-		newServiceCheck.tags = p.parseTags(optionalField[len(serviceCheckTagsPrefix):]).UnsafeReadOnlySlice()
+		newServiceCheck.tags, newServiceCheck.hostTag, newServiceCheck.entityIDTag, newServiceCheck.cardinalityTag = p.parseTags(optionalField[len(serviceCheckTagsPrefix):])
 	case bytes.HasPrefix(optionalField, serviceCheckMessagePrefix):
 		newServiceCheck.message = string(optionalField[len(serviceCheckMessagePrefix):])
 	}
@@ -124,6 +129,7 @@ func (p *parser) parseServiceCheck(message []byte) (dogstatsdServiceCheck, error
 	serviceCheck := dogstatsdServiceCheck{
 		name:   string(name),
 		status: status,
+		tags:   tagset.EmptyTags,
 	}
 
 	var optionalField []byte

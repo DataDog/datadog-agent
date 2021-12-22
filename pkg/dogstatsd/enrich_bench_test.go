@@ -8,30 +8,18 @@ package dogstatsd
 import (
 	"fmt"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-func buildTags(tagCount int) *tagset.Tags {
-	bldr := tagset.NewBuilder(tagCount)
-	for i := 0; i < tagCount; i++ {
-		bldr.Add(fmt.Sprintf("tag%d:val%d", i, i))
-	}
-
-	return bldr.Close()
-}
-
-// used to store the result and avoid optimizations
-var tags *tagset.Tags
-
+// TODO: remove this, as it's no longer useful
 func BenchmarkExtractTagsMetadata(b *testing.B) {
 	for i := 20; i <= 200; i += 20 {
 		b.Run(fmt.Sprintf("%d-tags", i), func(sb *testing.B) {
-			baseTags := tagset.Union(tagset.NewTags([]string{hostTagPrefix + "foo", entityIDTagPrefix + "bar"}), buildTags(i/10))
+			hostTag := hostTagPrefix + "foo"
+			entityIDTag := entityIDTagPrefix + "bar"
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				tags, _, _, _, _ = extractTagsMetadata(baseTags.UnsafeReadOnlySlice(), "hostname", "", false)
+				_, _, _, _ = extractTagsMetadata(hostTag, entityIDTag, "", "hostname", "", false)
 			}
 		})
 	}

@@ -45,7 +45,11 @@ type dogstatsdMetricSample struct {
 	setValue   string
 	metricType metricType
 	sampleRate float64
-	tags       *tagset.Tags
+	// tags *not* including enriching tags below
+	tags           *tagset.Tags
+	hostTag        string
+	entityIDTag    string
+	cardinalityTag string
 }
 
 // sanity checks a given message against the metric sample format

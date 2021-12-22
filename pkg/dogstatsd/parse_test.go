@@ -39,15 +39,22 @@ func TestIdentifyRandomString(t *testing.T) {
 func TestParseTags(t *testing.T) {
 	p := newParser(newFloat64ListPool())
 	rawTags := []byte("tag:test,mytag,good:boy")
-	tags := p.parseTags(rawTags)
+	tags, hostTag, entityIDTag, cardinalityTag := p.parseTags(rawTags)
 	assert.Equal(t, []string{"good:boy", "mytag", "tag:test"}, tags.Sorted())
+	assert.Equal(t, "", hostTag)
+	assert.Equal(t, "", entityIDTag)
+	assert.Equal(t, "", cardinalityTag)
+	// TODO: should have tests for extracting special tags
 }
 
 func TestParseTagsEmpty(t *testing.T) {
 	p := newParser(newFloat64ListPool())
 	rawTags := []byte("")
-	tags := p.parseTags(rawTags)
+	tags, hostTag, entityIDTag, cardinalityTag := p.parseTags(rawTags)
 	assert.Equal(t, []string{}, tags.Sorted())
+	assert.Equal(t, "", hostTag)
+	assert.Equal(t, "", entityIDTag)
+	assert.Equal(t, "", cardinalityTag)
 }
 
 func TestUnsafeParseFloat(t *testing.T) {

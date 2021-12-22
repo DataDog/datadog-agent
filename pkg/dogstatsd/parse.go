@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -21,6 +22,13 @@ const (
 	metricSampleType messageType = iota
 	serviceCheckType
 	eventType
+)
+
+// Tag prefixes with special meaning
+const (
+	hostTagPrefix        = "host:"
+	entityIDTagPrefix    = "dd.internal.entity_id:"
+	CardinalityTagPrefix = "dd.internal.card:"
 )
 
 var (
@@ -70,12 +78,26 @@ func nextField(message []byte) ([]byte, []byte) {
 	return message[:sepIndex], message[sepIndex+1:]
 }
 
-func (p *parser) parseTags(rawTags []byte) *tagset.Tags {
+// TODO: this should really return a struct with the special tags broken out
+func (p *parser) parseTags(rawTags []byte) (tags *tagset.Tags, hostTag, entityIDTag, cardinalityTag string) {
+	tags = tagset.EmptyTags
 	if len(rawTags) == 0 {
-		return tagset.EmptyTags
+		return
 	}
 	tagsCount := bytes.Count(rawTags, commaSeparator)
 	bldr := tagset.NewBuilder(tagsCount + 1)
+
+	add := func(tag string) {
+		if strings.HasPrefix(tag, hostTagPrefix) {
+			hostTag = tag
+		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
+			entityIDTag = tag
+		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
+			cardinalityTag = tag
+		} else {
+			bldr.Add(tag)
+		}
+	}
 
 	i := 0
 	for i < tagsCount {
@@ -83,12 +105,13 @@ func (p *parser) parseTags(rawTags []byte) *tagset.Tags {
 		if tagPos < 0 {
 			break
 		}
-		bldr.Add(p.interner.LoadOrStore(rawTags[:tagPos]))
+		add(p.interner.LoadOrStore(rawTags[:tagPos]))
 		rawTags = rawTags[tagPos+len(commaSeparator):]
 		i++
 	}
-	bldr.Add(p.interner.LoadOrStore(rawTags))
-	return bldr.Close()
+	add(p.interner.LoadOrStore(rawTags))
+	tags = bldr.Close()
+	return
 }
 
 func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
@@ -133,11 +156,12 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 
 	sampleRate := 1.0
 	tags := tagset.EmptyTags
+	var hostTag, entityIDTag, cardinalityTag string
 	var optionalField []byte
 	for message != nil {
 		optionalField, message = nextField(message)
 		if bytes.HasPrefix(optionalField, tagsFieldPrefix) {
-			tags = p.parseTags(optionalField[1:])
+			tags, hostTag, entityIDTag, cardinalityTag = p.parseTags(optionalField[1:])
 		} else if bytes.HasPrefix(optionalField, sampleRateFieldPrefix) {
 			sampleRate, err = parseMetricSampleSampleRate(optionalField[1:])
 			if err != nil {
@@ -147,13 +171,16 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	}
 
 	return dogstatsdMetricSample{
-		name:       p.interner.LoadOrStore(name),
-		value:      value,
-		values:     values,
-		setValue:   string(setValue),
-		metricType: metricType,
-		sampleRate: sampleRate,
-		tags:       tags,
+		name:           p.interner.LoadOrStore(name),
+		value:          value,
+		values:         values,
+		setValue:       string(setValue),
+		metricType:     metricType,
+		sampleRate:     sampleRate,
+		tags:           tags,
+		hostTag:        hostTag,
+		entityIDTag:    entityIDTag,
+		cardinalityTag: cardinalityTag,
 	}, nil
 }
 
