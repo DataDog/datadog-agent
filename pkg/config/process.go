@@ -6,7 +6,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -27,7 +26,6 @@ func procBindEnvAndSetDefault(config Config, key string, val interface{}, env ..
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
 	envs := append([]string{processConfigKey, processAgentKey}, env...)
-	fmt.Println("env", envs)
 	config.BindEnvAndSetDefault(key, val, envs...)
 }
 
