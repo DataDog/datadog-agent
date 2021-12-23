@@ -132,11 +132,6 @@ func TestOnlyEnvConfig(t *testing.T) {
 	assert.Equal(t, 1234, agentConfig.MaxCtrProcessesPerMessage)
 	_ = os.Unsetenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE")
 
-	_ = os.Setenv("DD_LOG_LEVEL", "warn")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.Equal(t, "warn", config.Datadog.GetString("log_level"))
-	_ = os.Unsetenv("DD_LOG_LEVEL")
-
 	_ = os.Setenv("DD_PROCESS_CONFIG_LOG_FILE", "/tmp/test")
 	_, _ = NewAgentConfig("test", "", "")
 	assert.Equal(t, "/tmp/test", config.Datadog.GetString("process_config.log_file"))
@@ -146,11 +141,6 @@ func TestOnlyEnvConfig(t *testing.T) {
 	_, _ = NewAgentConfig("test", "", "")
 	assert.Equal(t, "/tmp/test", config.Datadog.GetString("process_config.log_file"))
 	_ = os.Unsetenv("DD_PROCESS_AGENT_LOG_FILE")
-
-	_ = os.Setenv("DD_LOG_TO_CONSOLE", "false")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.False(t, config.Datadog.GetBool("log_to_console"))
-	_ = os.Unsetenv("DD_LOG_TO_CONSOLE")
 
 	_ = os.Setenv("DD_PROCESS_CONFIG_DD_AGENT_BIN", "/tmp/test")
 	_, _ = NewAgentConfig("test", "", "")

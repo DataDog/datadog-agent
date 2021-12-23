@@ -103,3 +103,15 @@ func TestProcessConfigPrefixes(t *testing.T) {
 		})
 	}
 }
+
+func TestEnvVarOverride(t *testing.T) {
+	cfg := setupConf()
+
+	reset := setEnvForTest("DD_LOG_LEVEL", "warn")
+	defer reset()
+	assert.Equal(t, "warn", cfg.GetString("log_level"))
+
+	reset = setEnvForTest("DD_LOG_TO_CONSOLE", "false")
+	defer reset()
+	assert.False(t, cfg.GetBool("log_to_console"))
+}
