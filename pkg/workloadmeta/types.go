@@ -50,9 +50,23 @@ type Source string
 
 // Defined Sources
 const (
-	SourceAll                 Source = ""
-	SourceRuntime             Source = "runtime"
-	SourceNodeOrchestrator    Source = "node_orchestrator"
+	// SourceAll matches any source. Should not be returned by collectors,
+	// as its only meant to be used in filters.
+	SourceAll Source = ""
+
+	// SourceRuntime represents entities detected by the container runtime
+	// running on the node, collecting lower level information about
+	// containers. `docker`, `containerd`, `podman` and `ecs_fargate` use
+	// this source.
+	SourceRuntime Source = "runtime"
+
+	// SourceNodeOrchestrator represents entities detected by the node
+	// agent from an orchestrator. `kubelet` and `ecs` use this.
+	SourceNodeOrchestrator Source = "node_orchestrator"
+
+	// SourceClusterOrchestrator represents entities detected by calling
+	// the central component of an orchestrator, or the Datadog Cluster
+	// Agent.  `kube_metadata` and `cloudfoundry` use this.
 	SourceClusterOrchestrator Source = "cluster_orchestrator"
 )
 
