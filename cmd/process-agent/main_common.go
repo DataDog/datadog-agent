@@ -181,7 +181,11 @@ func runAgent(exit chan struct{}) {
 		}()
 	}
 
-	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath, true)
+	// Note: This only considers container sources that are already setup. It's possible that container sources may
+	//       need a few minutes to be ready on newly provisioned hosts.
+	_, err := util.GetContainers()
+	canAccessContainers := err == nil
+	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath, canAccessContainers)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
