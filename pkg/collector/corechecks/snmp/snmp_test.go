@@ -23,9 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
@@ -1726,8 +1727,9 @@ metric_tags:
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
-	config.Datadog.Set("hostname", "test-hostname")
-	config.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
+	coreconfig.Datadog.Set("hostname", "test-hostname")
+	coreconfig.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -1891,6 +1893,8 @@ use_device_id_as_hostname: true
 }
 
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
+	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
+	coreconfig.Datadog.Set("hostname", "my-hostname")
 	timeNow = common.MockTimeNow
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -2047,7 +2051,7 @@ metrics:
 
 	for _, deviceData := range deviceMap {
 		hostname := "device:" + deviceData.deviceID
-		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
+		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30", "agent_host:my-hostname"}
 		snmpGlobalTags := common.CopyStrings(snmpTags)
 		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
 		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
