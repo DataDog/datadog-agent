@@ -1,0 +1,91 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2021-present Datadog, Inc.
+
+package util
+
+import (
+	"context"
+	"sync"
+)
+
+// BufferedChan behaves like a `chan []interface{}` (See thread safety for restrictions), but is
+// most efficient as it uses internally a channel of []interface{}.
+// Thread safety:
+// 	- BufferedChan.Put cannot be called concurrently.
+// 	- BufferedChan.Get cannot be called concurrently.
+//  - BufferedChan.Put can be called while another gouroutine call BufferedChan.Get.
+type BufferedChan struct {
+	c        chan []interface{}
+	pool     *sync.Pool
+	putSlice []interface{}
+	getSlice []interface{}
+	getIndex int
+	ctx      context.Context
+}
+
+// NewBufferedChan creates a new instance of `BufferedChan`.
+// `ctx`` cancels all Put and Get operations.
+func NewBufferedChan(ctx context.Context, chanSize int, bufferSize int) *BufferedChan {
+	pool := &sync.Pool{
+		New: func() interface{} {
+			return make([]interface{}, 0, bufferSize)
+		},
+	}
+	return &BufferedChan{
+		c:        make(chan []interface{}, chanSize),
+		pool:     pool,
+		putSlice: pool.Get().([]interface{}),
+		ctx:      ctx,
+	}
+}
+
+// Put puts a new value into c.
+// Cannot be called concurrently.
+func (c *BufferedChan) Put(value interface{}) {
+	if cap(c.putSlice) <= len(c.putSlice) {
+		select {
+		case c.c <- c.putSlice:
+		case <-c.ctx.Done():
+		}
+		c.putSlice = c.pool.Get().([]interface{})[:0]
+	}
+	c.putSlice = append(c.putSlice, value)
+}
+
+// Close flushes and closes the channel
+func (c *BufferedChan) Close() {
+	if len(c.putSlice) > 0 {
+		c.c <- c.putSlice
+	}
+	close(c.c)
+}
+
+// Get gets the value and returns false when the channel is closed and all
+//  values were read.
+// Cannot be called concurrently.
+func (c *BufferedChan) Get() (interface{}, bool) {
+	if c.getIndex >= len(c.getSlice) {
+		if c.getSlice != nil {
+			c.pool.Put(c.getSlice)
+		}
+
+		var ok bool
+		select {
+		case c.getSlice, ok = <-c.c:
+			if !ok {
+				return nil, false
+			}
+		case <-c.ctx.Done():
+			return nil, false
+		}
+		c.getIndex = 0
+		if len(c.getSlice) == 0 {
+			return nil, false
+		}
+	}
+	value := c.getSlice[c.getIndex]
+	c.getIndex++
+	return value, true
+}
