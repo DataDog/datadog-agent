@@ -42,11 +42,7 @@ func (f *Filter) MatchKind(k Kind) bool {
 // MatchSource returns true if the filter matches the passed sources. If the
 // filter is nil, or has SourceAll, it always matches.
 func (f *Filter) MatchSource(source Source) bool {
-	if source == SourceAll || f.Source() == SourceAll {
-		return true
-	}
-
-	return f.Source() == source
+	return f.Source() == SourceAll || f.Source() == source
 }
 
 // Source returns the source this filter is filtering by. If the filter is nil,

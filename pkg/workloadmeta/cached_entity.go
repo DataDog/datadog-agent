@@ -6,6 +6,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// cachedEntity stores each source of an entity, alongside a cached version
+// with all of the sources merged into one. It is not thread-safe, as its only
+// meant to be used internally by workloadmeta.Store, and is protected by
+// a `Store.storeMut` lock.
 type cachedEntity struct {
 	cached        Entity
 	sources       map[Source]Entity
@@ -18,57 +22,61 @@ func newCachedEntity() *cachedEntity {
 	}
 }
 
-func (s *cachedEntity) unset(source Source) bool {
-	if _, found := s.sources[source]; found {
-		delete(s.sources, source)
-		s.computeCache()
+func (e *cachedEntity) unset(source Source) bool {
+	if _, found := e.sources[source]; found {
+		delete(e.sources, source)
+		e.computeCache()
 		return true
 	}
 
 	return false
 }
 
-func (s *cachedEntity) set(source Source, entity Entity) bool {
-	_, found := s.sources[source]
+func (e *cachedEntity) set(source Source, entity Entity) bool {
+	_, found := e.sources[source]
 
-	s.sources[source] = entity
-	s.computeCache()
+	e.sources[source] = entity
+	e.computeCache()
 
 	return found
 }
 
-func (s *cachedEntity) get(source Source) Entity {
+func (e *cachedEntity) get(source Source) Entity {
 	if source == SourceAll {
-		return s.cached
+		return e.cached
 	}
 
-	return s.sources[source]
+	return e.sources[source]
 }
 
-func (s *cachedEntity) computeCache() {
+// computeCache merges the entities in e.sources into one and caches the result
+// in e.cached. Priority is established by the string representation of the
+// source in alphabetical order, and data is considered missing if it's a zero
+// value. Conflicts are not expected (entities should represent the same data),
+// so the sorting is to ensure deterministic behavior more than anything.
+func (e *cachedEntity) computeCache() {
 	var sources []string
-	for source := range s.sources {
+	for source := range e.sources {
 		sources = append(sources, string(source))
 	}
 
-	// sort sources for deterministic merging
 	sort.Strings(sources)
 
-	s.sortedSources = sources
+	e.sortedSources = sources
 
 	var merged Entity
-	for _, source := range s.sortedSources {
-		if e, ok := s.sources[Source(source)]; ok {
+	for _, source := range e.sortedSources {
+		if e, ok := e.sources[Source(source)]; ok {
 			if merged == nil {
 				merged = e.DeepCopy()
 			} else {
 				err := merged.Merge(e)
 				if err != nil {
-					log.Errorf("cannot merge %+v into %+v: %s", merged, e, err)
+					log.Errorf("Cannot merge %+v into %+v: %s", merged, e, err)
 				}
 			}
 		}
 	}
 
-	s.cached = merged
+	e.cached = merged
 }

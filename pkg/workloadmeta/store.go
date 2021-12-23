@@ -42,7 +42,7 @@ type subscriber struct {
 // a kubernetes pod, or a task in any cloud provider.
 type store struct {
 	storeMut sync.RWMutex
-	store    map[Kind]map[string]*cachedEntity
+	store    map[Kind]map[string]*cachedEntity // store[entity.Kind][entity.ID] = &cachedEntity{}
 
 	subscribersMut sync.RWMutex
 	subscribers    []subscriber
