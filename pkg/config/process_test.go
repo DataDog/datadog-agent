@@ -108,36 +108,60 @@ func TestEnvVarOverride(t *testing.T) {
 	cfg := setupConf()
 
 	reset := setEnvForTest("DD_LOG_LEVEL", "warn")
-	defer reset()
 	assert.Equal(t, "warn", cfg.GetString("log_level"))
+	reset()
 
 	reset = setEnvForTest("DD_LOG_TO_CONSOLE", "false")
-	defer reset()
 	assert.False(t, cfg.GetBool("log_to_console"))
+	reset()
 
 	reset = setEnvForTest("DD_PROCESS_CONFIG_LOG_FILE", "test")
-	defer reset()
 	assert.Equal(t, "test", cfg.GetString("process_config.log_file"))
+	reset()
+
+	reset = setEnvForTest("DD_PROCESS_AGENT_LOG_FILE", "test1")
+	assert.Equal(t, "test1", cfg.GetString("process_config.log_file"))
+	reset()
 
 	reset = setEnvForTest("DD_PROCESS_CONFIG_DD_AGENT_BIN", "test")
-	defer reset()
 	assert.Equal(t, "test", cfg.GetString("process_config.dd_agent_bin"))
+	reset()
+
+	reset = setEnvForTest("DD_PROCESS_AGENT_DD_AGENT_BIN", "test1")
+	assert.Equal(t, "test1", cfg.GetString("process_config.dd_agent_bin"))
+	reset()
 
 	reset = setEnvForTest("DD_PROCESS_CONFIG_REMOTE_TAGGER", "false")
-	defer reset()
 	assert.False(t, cfg.GetBool("process_config.remote_tagger"))
+	reset()
+
+	reset = setEnvForTest("DD_PROCESS_AGENT_REMOTE_TAGGER", "false")
+	assert.False(t, cfg.GetBool("process_config.remote_tagger"))
+	reset()
 
 	reset = setEnvForTest("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", "1")
-	defer reset()
 	assert.Equal(t, 1, cfg.GetInt("process_config.grpc_connection_timeout_secs"))
+	reset()
+
+	reset = setEnvForTest("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS", "1")
+	assert.Equal(t, 1, cfg.GetInt("process_config.grpc_connection_timeout_secs"))
+	reset()
 
 	reset = setEnvForTest("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "true")
-	defer reset()
 	assert.True(t, cfg.GetBool("process_config.process_discovery.enabled"))
+	reset()
+
+	reset = setEnvForTest("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "true")
+	assert.True(t, cfg.GetBool("process_config.process_discovery.enabled"))
+	reset()
 
 	reset = setEnvForTest("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL", "1h")
-	defer reset()
 	assert.Equal(t, time.Hour, cfg.GetDuration("process_config.process_discovery.interval"))
+	reset()
+
+	reset = setEnvForTest("DD_PROCESS_AGENT_PROCESS_DISCOVERY_INTERVAL", "1h")
+	assert.Equal(t, time.Hour, cfg.GetDuration("process_config.process_discovery.interval"))
+	reset()
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {
