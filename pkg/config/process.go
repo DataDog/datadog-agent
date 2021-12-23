@@ -19,13 +19,13 @@ const (
 // procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
 // We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
 // Additionally, procEnvAndSetDefault allows us to additively provide environment variables, which BindEnvAndSetDefault does not.
-func procBindEnvAndSetDefault(config Config, key string, val interface{}, env ...string) {
+func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
-	envs := append([]string{processConfigKey, processAgentKey}, env...)
+	envs := append([]string{processConfigKey, processAgentKey})
 	config.BindEnvAndSetDefault(key, val, envs...)
 }
 
@@ -69,6 +69,11 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.remote_tagger", true)
 
 	// Process Discovery Check
-	procBindEnvAndSetDefault(config, "process_config.process_discovery.enabled", false, "DD_PROCESS_CONFIG_DISCOVERY_ENABLED", "DD_PROCESS_AGENT_DISCOVERY_ENABLED")
+	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false,
+		"DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED",
+		"DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED",
+		"DD_PROCESS_CONFIG_DISCOVERY_ENABLED", // Also bind old environment variables
+		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
+	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 }
