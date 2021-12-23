@@ -12,18 +12,23 @@ Move-Item "Datadog Agent" "C:/Program Files/Datadog/"
 #   Install 7zip module
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# See why here https://docs.microsoft.com/en-us/powershell/scripting/gallery/installing-psget?view=powershell-7#get-the-latest-version-from-powershell-gallery
-Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+$sevenzip="https://www.7-zip.org/a/7z1900-x64.exe"
 
-Set-PSRepository -Name 'PSGallery' -SourceLocation "https://www.powershellgallery.com/api/v2" -InstallationPolicy Trusted
-Install-Module -Name 7Zip4PowerShell -Force
+Write-Host -ForegroundColor Green "Installing 7zip $sevenzip"
+$out = "$($PSScriptRoot)\7zip.exe"
+(New-Object System.Net.WebClient).DownloadFile($sevenzip, $out)
+Start-Process 7zip.exe -ArgumentList '/S' -Wait
+Remove-Item $out
+setx PATH "$Env:Path;c:\program files\7-zip"
+$Env:Path="$Env:Path;c:\program files\7-zip"
+Write-Host -ForegroundColor Green Done with 7zip
 
 #   Extract embbeded3.7z
-Expand-7Zip -ArchiveFileName "C:/Program Files/Datadog/Datadog Agent/embedded3.7z" -TargetPath "C:/Program Files/Datadog/Datadog Agent"
+& 7z x "C:/Program Files/Datadog/Datadog Agent/embedded3.7z" -o"C:/Program Files/Datadog/Datadog Agent"
 Remove-Item "C:/Program Files/Datadog/Datadog Agent/embedded3.7z"
 
 If (Test-Path -Path "C:/Program Files/Datadog/Datadog Agent/embedded2.7z") {
-  Expand-7Zip -ArchiveFileName "C:/Program Files/Datadog/Datadog Agent/embedded2.7z" -TargetPath "C:/Program Files/Datadog/Datadog Agent"
+  & 7z x "C:/Program Files/Datadog/Datadog Agent/embedded2.7z" -o"C:/Program Files/Datadog/Datadog Agent"
   Remove-Item "C:/Program Files/Datadog/Datadog Agent/embedded2.7z"
 }
 
