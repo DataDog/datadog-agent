@@ -12,7 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// Sender sends logs to different destinations.
+// Sender sends logs to different destinations. Destinations can be either
+// reliable or unreliable. The sender ensures that logs are sent to at least
+// one reliable destination and will block the pipeline if they are in an
+// error state. Unreliable destinations will only send logs when at least
+// one reliable destination is also sending logs. However they do not update
+// the auditor or block the pipeline if they fail. There will always be at
+// least 1 reliable destination (the main destination).
 type Sender struct {
 	inputChan    chan *message.Payload
 	outputChan   chan *message.Payload
