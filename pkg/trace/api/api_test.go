@@ -50,7 +50,7 @@ type noopStatsProcessor struct{}
 func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
-	dynConf := sampler.NewDynamicConfig("none")
+	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload, 5000)
 	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
