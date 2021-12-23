@@ -165,14 +165,11 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 		envs[env] = struct{}{}
 	}
 
-	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf", "BAZ")
+	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
 
 	_, ok := envs["DD_PROCESS_CONFIG_FOO_BAR"]
 	assert.True(t, ok)
 
 	_, ok = envs["DD_PROCESS_AGENT_FOO_BAR"]
-	assert.True(t, ok)
-
-	_, ok = envs["BAZ"]
 	assert.True(t, ok)
 }
