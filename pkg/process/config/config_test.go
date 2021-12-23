@@ -131,56 +131,6 @@ func TestOnlyEnvConfig(t *testing.T) {
 	agentConfig, _ = NewAgentConfig("test", "", "")
 	assert.Equal(t, 1234, agentConfig.MaxCtrProcessesPerMessage)
 	_ = os.Unsetenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE")
-
-	_ = os.Setenv("DD_PROCESS_CONFIG_LOG_FILE", "/tmp/test")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.Equal(t, "/tmp/test", config.Datadog.GetString("process_config.log_file"))
-	_ = os.Unsetenv("DD_PROCESS_CONFIG_LOG_FILE")
-
-	_ = os.Setenv("DD_PROCESS_AGENT_LOG_FILE", "/tmp/test")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.Equal(t, "/tmp/test", config.Datadog.GetString("process_config.log_file"))
-	_ = os.Unsetenv("DD_PROCESS_AGENT_LOG_FILE")
-
-	_ = os.Setenv("DD_PROCESS_CONFIG_DD_AGENT_BIN", "/tmp/test")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.Equal(t, "/tmp/test", config.Datadog.GetString("process_config.dd_agent_bin"))
-	_ = os.Unsetenv("DD_PROCESS_CONFIG_DD_AGENT_BIN")
-
-	_ = os.Setenv("DD_PROCESS_AGENT_DD_AGENT_BIN", "/tmp/test")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.Equal(t, "/tmp/test", config.Datadog.GetString("process_config.dd_agent_bin"))
-	_ = os.Unsetenv("DD_PROCESS_AGENT_DD_AGENT_BIN")
-
-	_ = os.Setenv("DD_PROCESS_CONFIG_REMOTE_TAGGER", "false")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.False(t, config.Datadog.GetBool("process_config.remote_tagger"))
-	_ = os.Unsetenv("DD_PROCESS_CONFIG_REMOTE_TAGGER")
-
-	_ = os.Setenv("DD_PROCESS_AGENT_REMOTE_TAGGER", "false")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.False(t, config.Datadog.GetBool("process_config.remote_tagger"))
-	_ = os.Unsetenv("DD_PROCESS_AGENT_REMOTE_TAGGER")
-
-	_ = os.Setenv("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "true")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.True(t, config.Datadog.GetBool("process_config.process_discovery.enabled"))
-	_ = os.Unsetenv("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED")
-
-	_ = os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "true")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.True(t, config.Datadog.GetBool("process_config.process_discovery.enabled"))
-	_ = os.Unsetenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED")
-
-	_ = os.Setenv("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL", "1h")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.Equal(t, time.Hour, config.Datadog.GetDuration("process_config.process_discovery.interval"))
-	_ = os.Unsetenv("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL")
-
-	_ = os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_INTERVAL", "2h")
-	_, _ = NewAgentConfig("test", "", "")
-	assert.Equal(t, 2*time.Hour, config.Datadog.GetDuration("process_config.process_discovery.interval"))
-	_ = os.Unsetenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_INTERVAL")
 }
 
 // TestEnvGrpcConnectionTimeoutSecs tests DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS.
