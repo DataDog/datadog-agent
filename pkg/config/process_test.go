@@ -63,7 +63,7 @@ func TestProcessConfig(t *testing.T) {
 }
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_CONFIG` prefix, there is a `DD_PROCESS_AGENT` prefix as well.
-func TestPrefixes(t *testing.T) {
+func TestProcessAgentPrefixes(t *testing.T) {
 	envVarSlice := setupConf().GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
@@ -76,6 +76,29 @@ func TestPrefixes(t *testing.T) {
 		}
 
 		processAgentEnvVar := strings.Replace(envVar, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
+		t.Run(fmt.Sprintf("%s and %s", envVar, processAgentEnvVar), func(t *testing.T) {
+			// Check to see if envVars contains processAgentEnvVar. We can't use assert.Contains,
+			// because when it fails the library prints all of envVars which is too noisy
+			_, ok := envVars[processAgentEnvVar]
+			assert.Truef(t, ok, "%s is defined but not %s", envVar, processAgentEnvVar)
+		})
+	}
+}
+
+// TestPrefixes tests that for every corresponding `DD_PROCESS_AGENT` prefix, there is a `DD_PROCESS_CONFIG` prefix as well.
+func TestProcessConfigPrefixes(t *testing.T) {
+	envVarSlice := setupConf().GetEnvVars()
+	envVars := make(map[string]struct{}, len(envVarSlice))
+	for _, envVar := range envVarSlice {
+		envVars[envVar] = struct{}{}
+	}
+
+	for envVar := range envVars {
+		if !strings.HasPrefix(envVar, "DD_PROCESS_AGENT") {
+			continue
+		}
+
+		processAgentEnvVar := strings.Replace(envVar, "PROCESS_AGENT", "PROCESS_CONFIG", 1)
 		t.Run(fmt.Sprintf("%s and %s", envVar, processAgentEnvVar), func(t *testing.T) {
 			// Check to see if envVars contains processAgentEnvVar. We can't use assert.Contains,
 			// because when it fails the library prints all of envVars which is too noisy

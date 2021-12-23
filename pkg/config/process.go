@@ -16,6 +16,9 @@ const (
 )
 
 func setupProcesses(config Config) {
+	procBindEnvAndSetDefault := func(key string, val interface{}, env string) {
+		config.BindEnvAndSetDefault(key, val, "DD_PROCESS_CONFIG_"+env, "DD_PROCESS_AGENT_"+env)
+	}
 	// Note that `BindEnvAndSetDefault` automatically creates environment variables with the `DD_PROCESS_CONFIG` prefix.
 	// This means that we must manually add the same environment variable, but with the `DD_PROCESS_AGENT` prefix if we want to support that too.
 
@@ -41,7 +44,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.blacklist_patterns")
 	config.SetKnown("process_config.intervals.container")
 	config.SetKnown("process_config.intervals.container_realtime")
-	config.BindEnvAndSetDefault("process_config.dd_agent_bin", DefaultDDAgentBin, "DD_PROCESS_CONFIG_DD_AGENT_BIN", "DD_PROCESS_AGENT_DD_AGENT_BIN")
+	procBindEnvAndSetDefault("process_config.dd_agent_bin", DefaultDDAgentBin, "DD_AGENT_BIN")
 	config.SetKnown("process_config.custom_sensitive_words")
 	config.SetKnown("process_config.scrub_args")
 	config.SetKnown("process_config.strip_proc_arguments")
@@ -52,15 +55,15 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
-	config.BindEnvAndSetDefault("process_config.log_file", DefaultProcessAgentLogFile, "DD_PROCESS_CONFIG_LOG_FILE", "DD_PROCESS_AGENT_LOG_FILE")
+	procBindEnvAndSetDefault("process_config.log_file", DefaultProcessAgentLogFile, "LOG_FILE")
 	config.SetKnown("process_config.internal_profiling.enabled")
-	config.BindEnvAndSetDefault("process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs, "DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", "DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS") // Note that this is an integer, not a duration
-	config.BindEnvAndSetDefault("process_config.remote_tagger", true, "DD_PROCESS_CONFIG_REMOTE_TAGGER", "DD_PROCESS_AGENT_REMOTE_TAGGER")
+	procBindEnvAndSetDefault("process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs, "GRPC_CONNECTION_TIMEOUT_SECS")
+	procBindEnvAndSetDefault("process_config.remote_tagger", true, "REMOTE_TAGGER")
 
 	// Process Discovery Check
-	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false, "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED")
-	config.BindEnvAndSetDefault("process_config.process_discovery.interval", 4*time.Hour, "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL", "DD_PROCESS_AGENT_PROCESS_DISCOVERY_INTERVAL")
+	procBindEnvAndSetDefault("process_config.process_discovery.enabled", false, "PROCESS_DISCOVERY_ENABLED")
+	procBindEnvAndSetDefault("process_config.process_discovery.interval", 4*time.Hour, "PROCESS_DISCOVERY_INTERVAL")
 
 	// Allows for enabling or disabling realtime mode
-	config.BindEnvAndSetDefault("process_config.allow_rt", true, "DD_PROCESS_CONFIG_ALLOW_RT", "DD_PROCESS_AGENT_ALLOW_RT")
+	procBindEnvAndSetDefault("process_config.allow_rt", true, "ALLOW_RT")
 }
