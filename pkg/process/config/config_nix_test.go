@@ -25,15 +25,6 @@ import (
 
 var secretScriptBuilder sync.Once
 
-// secretsTestRestoreConfig is an alternate version of restoreGlobalConfig designed for secrets tests
-// It restores the config without deregistering the cgroup provider, allowing tests to pass.
-// The reason this is important is that `restoreGlobalConfig` deregisters the container provider called in the init function of
-// `"github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"`.
-// This means that there will be a nil pointer exception when the process agent tries to initially use the cgroup provider to collect containers.
-func secretsTestRestoreConfig() {
-	config.Datadog = originalConfig
-}
-
 func setupSecretScript() error {
 	script := "./testdata/secret"
 	goCmd, err := exec.LookPath("go")
