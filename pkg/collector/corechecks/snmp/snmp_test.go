@@ -708,6 +708,7 @@ func TestCheckID(t *testing.T) {
 	check1 := snmpFactory()
 	check2 := snmpFactory()
 	check3 := snmpFactory()
+	checkSubnet := snmpFactory()
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -724,6 +725,12 @@ ip_address: 3.3.3.3
 community_string: abc
 namespace: ns3
 `)
+	// language=yaml
+	rawInstanceConfigSubnet := []byte(`
+network_address: 10.10.10.0/24
+community_string: abc
+namespace: nsSubnet
+`)
 
 	err := check1.Configure(rawInstanceConfig1, []byte(``), "test")
 	assert.Nil(t, err)
@@ -731,10 +738,13 @@ namespace: ns3
 	assert.Nil(t, err)
 	err = check3.Configure(rawInstanceConfig3, []byte(``), "test")
 	assert.Nil(t, err)
+	err = checkSubnet.Configure(rawInstanceConfigSubnet, []byte(``), "test")
+	assert.Nil(t, err)
 
 	assert.Equal(t, check.ID("snmp:default:1.1.1.1:a3ec59dfb03e4457"), check1.ID())
 	assert.Equal(t, check.ID("snmp:default:2.2.2.2:3979cd473e4beb3f"), check2.ID())
 	assert.Equal(t, check.ID("snmp:ns3:3.3.3.3:819516f4c3986cc6"), check3.ID())
+	assert.Equal(t, check.ID("snmp:nsSubnet:10.10.10.0/24:be3c32b7c5c1c696"), checkSubnet.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }
 
