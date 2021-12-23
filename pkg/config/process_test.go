@@ -73,8 +73,6 @@ func TestProcessAgentPrefixes(t *testing.T) {
 
 		processAgentEnvVar := strings.Replace(envVar, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 		t.Run(fmt.Sprintf("%s and %s", envVar, processAgentEnvVar), func(t *testing.T) {
-			// Check to see if envVars contains processAgentEnvVar. We can't use assert.Contains,
-			// because when it fails the library prints all of envVars which is too noisy
 			_, ok := envVars[processAgentEnvVar]
 			assert.Truef(t, ok, "%s is defined but not %s", envVar, processAgentEnvVar)
 		})
@@ -162,8 +160,19 @@ func TestEnvVarOverride(t *testing.T) {
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {
 	cfg := setupConf()
+	envs := map[string]struct{}{}
+	for _, env := range cfg.GetEnvVars() {
+		envs[env] = struct{}{}
+	}
+
 	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf", "BAZ")
-	assert.Contains(t, cfg.GetEnvVars(), "DD_PROCESS_CONFIG_FOO_BAR")
-	assert.Contains(t, cfg.GetEnvVars(), "DD_PROCESS_AGENT_FOO_BAR")
-	assert.Contains(t, cfg.GetEnvVars(), "BAZ")
+
+	_, ok := envs["DD_PROCESS_CONFIG_FOO_BAR"]
+	assert.True(t, ok)
+
+	_, ok = envs["DD_PROCESS_AGENT_FOO_BAR"]
+	assert.True(t, ok)
+
+	_, ok = envs["BAZ"]
+	assert.True(t, ok)
 }
