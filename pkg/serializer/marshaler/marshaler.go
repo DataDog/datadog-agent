@@ -52,6 +52,12 @@ type StreamJSONMarshaler interface {
 	DescribeItem(i int) string
 }
 
+// IterableMarshaler provides both IterableStreamJSONMarshaler and V2 marshaler.
+type IterableMarshaler interface {
+	IterableStreamJSONMarshaler
+	MarshalSplitCompress(*BufferContext) ([]*[]byte, error)
+}
+
 // IterableStreamJSONMarshaler is an interface for iterable metrics that are able to
 // serialize themselves in a stream.
 // Expected usage:
