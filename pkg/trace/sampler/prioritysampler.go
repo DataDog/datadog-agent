@@ -69,18 +69,19 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 
 // Start runs and block on the Sampler main loop
 func (s *PrioritySampler) Start() {
-	s.localRates.Start()
-	if s.remoteRates != nil {
-		s.remoteRates.Start()
-	}
 	go func() {
-		t := time.NewTicker(syncPeriod)
-		defer t.Stop()
+		updateRates := time.NewTicker(decayPeriod)
+		statsTicker := time.NewTicker(10 * time.Second)
+		defer updateRates.Stop()
+		defer statsTicker.Stop()
 
 		for {
 			select {
-			case <-t.C:
-				s.rateByService.SetAll(s.ratesByService())
+			case <-updateRates.C:
+				s.updateRates()
+			case <-statsTicker.C:
+				s.localRates.report()
+				s.remoteRates.report()
 			case <-s.exit:
 				return
 			}
@@ -88,12 +89,15 @@ func (s *PrioritySampler) Start() {
 	}()
 }
 
+// update sampling rates
+func (s *PrioritySampler) updateRates() {
+	s.localRates.update()
+	s.remoteRates.update()
+	s.rateByService.SetAll(s.ratesByService())
+}
+
 // Stop stops the sampler main loop
 func (s *PrioritySampler) Stop() {
-	s.localRates.Stop()
-	if s.remoteRates != nil {
-		s.remoteRates.Stop()
-	}
 	close(s.exit)
 }
 

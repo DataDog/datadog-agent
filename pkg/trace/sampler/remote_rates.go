@@ -9,14 +9,12 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -106,55 +104,13 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]float64) {
 	r.mu.Unlock()
 }
 
-// Start runs and adjust rates per signature following remote TPS targets
-func (r *RemoteRates) Start() {
-	go func() {
-		defer watchdog.LogOnPanic()
-		decayTicker := time.NewTicker(defaultDecayPeriod)
-		adjustTicker := time.NewTicker(adjustPeriod)
-		statsTicker := time.NewTicker(10 * time.Second)
-		defer decayTicker.Stop()
-		defer adjustTicker.Stop()
-		defer statsTicker.Stop()
-		for {
-			select {
-			case <-decayTicker.C:
-				r.DecayScores()
-			case <-adjustTicker.C:
-				r.AdjustScoring()
-			case <-statsTicker.C:
-				r.report()
-			case <-r.exit:
-				close(r.stopped)
-				return
-			}
-		}
-	}()
-}
-
-// DecayScores decays scores of all samplers
-func (r *RemoteRates) DecayScores() {
+// update all samplers
+func (r *RemoteRates) update() {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, s := range r.samplers {
-		s.Backend.DecayScore()
+		s.update()
 	}
-}
-
-// AdjustScoring adjust scores of all samplers
-func (r *RemoteRates) AdjustScoring() {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	for _, s := range r.samplers {
-		s.AdjustScoring()
-	}
-}
-
-// Stop stops RemoteRates main loop
-func (r *RemoteRates) Stop() {
-	close(r.exit)
-	r.stopSubscriber()
-	<-r.stopped
 }
 
 func (r *RemoteRates) getSampler(sig Signature) (*Sampler, bool) {

@@ -73,7 +73,7 @@ func TestTargetTPS(t *testing.T) {
 	periods := 50
 
 	s.targetTPS = atomic.NewFloat(targetTPS)
-	periodSeconds := defaultDecayPeriod.Seconds()
+	periodSeconds := decayPeriod.Seconds()
 	tracesPerPeriod := tps * periodSeconds
 	// Set signature score offset high enough not to kick in during the test.
 	s.signatureScoreOffset.Store(2 * tps)
