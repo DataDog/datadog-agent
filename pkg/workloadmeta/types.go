@@ -50,6 +50,7 @@ type Source string
 
 // Defined Sources
 const (
+	SourceAll                 Source = ""
 	SourceRuntime             Source = "runtime"
 	SourceNodeOrchestrator    Source = "node_orchestrator"
 	SourceClusterOrchestrator Source = "cluster_orchestrator"
