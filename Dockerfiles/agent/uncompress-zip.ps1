@@ -11,6 +11,10 @@ Move-Item "Datadog Agent" "C:/Program Files/Datadog/"
 
 #   Install 7zip module
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# See why here https://docs.microsoft.com/en-us/powershell/scripting/gallery/installing-psget?view=powershell-7#get-the-latest-version-from-powershell-gallery
+Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+
 Set-PSRepository -Name 'PSGallery' -SourceLocation "https://www.powershellgallery.com/api/v2" -InstallationPolicy Trusted
 Install-Module -Name 7Zip4PowerShell -Force
 
