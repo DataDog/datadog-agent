@@ -34,11 +34,27 @@ type batchStrategy struct {
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
-func NewBatchStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, serializer Serializer, batchWait time.Duration, maxBatchSize int, maxContentSize int, pipelineName string, contentEncoding ContentEncoding) Strategy {
+func NewBatchStrategy(inputChan chan *message.Message,
+	outputChan chan *message.Payload,
+	serializer Serializer,
+	batchWait time.Duration,
+	maxBatchSize int,
+	maxContentSize int,
+	pipelineName string,
+	contentEncoding ContentEncoding) Strategy {
 	return newBatchStrategyWithClock(inputChan, outputChan, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
 }
 
-func newBatchStrategyWithClock(inputChan chan *message.Message, outputChan chan *message.Payload, serializer Serializer, batchWait time.Duration, maxBatchSize int, maxContentSize int, pipelineName string, clock clock.Clock, contentEncoding ContentEncoding) Strategy {
+func newBatchStrategyWithClock(inputChan chan *message.Message,
+	outputChan chan *message.Payload,
+	serializer Serializer,
+	batchWait time.Duration,
+	maxBatchSize int,
+	maxContentSize int,
+	pipelineName string,
+	clock clock.Clock,
+	contentEncoding ContentEncoding) Strategy {
+
 	return &batchStrategy{
 		inputChan:        inputChan,
 		outputChan:       outputChan,
