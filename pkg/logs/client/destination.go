@@ -5,8 +5,13 @@
 
 package client
 
+import "github.com/DataDog/datadog-agent/pkg/logs/message"
+
 // Destination sends a payload to a specific endpoint over a given network protocol.
 type Destination interface {
-	Send(payload []byte) error
-	SendAsync(payload []byte)
+
+	// Start starts the destination send loop. close the intput to stop listening for payloads. stopChan is
+	// signaled when the destination has fully shutdown and all buffered payloads have been flushed. isRetrying is
+	// signaled when the retry state changes. isRetrying can be nil if you don't need to handle retries.
+	Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{})
 }

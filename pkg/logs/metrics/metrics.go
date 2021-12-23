@@ -56,6 +56,8 @@ var (
 	// TlmSenderLatency a histogram of http sender latency (ms)
 	TlmSenderLatency = telemetry.NewHistogram("logs", "sender_latency",
 		nil, "Histogram of http sender latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
+	// DestinationExpVars a map of sender utilization metrics for each http destination
+	DestinationExpVars = expvar.Map{}
 	// TODO: Add LogsCollected for the total number of collected logs.
 
 )
@@ -70,4 +72,5 @@ func init() {
 	LogsExpvars.Set("BytesSent", &BytesSent)
 	LogsExpvars.Set("EncodedBytesSent", &EncodedBytesSent)
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
+	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
 }
