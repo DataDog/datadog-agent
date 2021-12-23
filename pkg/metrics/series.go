@@ -221,6 +221,39 @@ func (a APIMetricType) seriesAPIV2Enum() int32 {
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
 func (series Series) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return marshalSplitCompress(newSerieSliceIterator(series), bufferContext)
+}
+
+type serieIterator interface {
+	MoveNext() bool
+	Current() *Serie
+}
+
+// serieSliceIterator implements serieIterator interface for `[]*Serie`.
+type serieSliceIterator struct {
+	series []*Serie
+	index  int
+}
+
+func newSerieSliceIterator(series []*Serie) *serieSliceIterator {
+	return &serieSliceIterator{
+		series: series,
+		index:  -1,
+	}
+}
+func (s *serieSliceIterator) MoveNext() bool {
+	s.index++
+	return s.index < len(s.series)
+}
+
+func (s *serieSliceIterator) Current() *Serie {
+	return s.series[s.index]
+}
+
+// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
+// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
+// compressed protobuf marshaled MetricPayload objects.
+func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
@@ -276,7 +309,8 @@ func (series Series) MarshalSplitCompress(bufferContext *marshaler.BufferContext
 		return nil, err
 	}
 
-	for _, serie := range series {
+	for iterator.MoveNext() {
+		serie := iterator.Current()
 		buf.Reset()
 		err = ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
 			var err error
