@@ -40,20 +40,20 @@ func (f *Filter) MatchKind(k Kind) bool {
 }
 
 // MatchSource returns true if the filter matches the passed sources. If the
-// filter is nil, or has no sources, it always matches.
+// filter is nil, or has SourceAll, it always matches.
 func (f *Filter) MatchSource(source Source) bool {
-	if source == "" || f.Source() == "" {
+	if source == SourceAll || f.Source() == SourceAll {
 		return true
 	}
 
 	return f.Source() == source
 }
 
-// Source returns the source this filter is filtering by. If there is no
-// source, or the filter is nil, returns "".
+// Source returns the source this filter is filtering by. If the filter is nil,
+// returns SourceAll.
 func (f *Filter) Source() Source {
 	if f == nil {
-		return ""
+		return SourceAll
 	}
 
 	return f.source

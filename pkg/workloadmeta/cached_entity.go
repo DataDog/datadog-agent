@@ -38,7 +38,7 @@ func (s *cachedEntity) set(source Source, entity Entity) bool {
 }
 
 func (s *cachedEntity) get(source Source) Entity {
-	if source == "" {
+	if source == SourceAll {
 		return s.cached
 	}
 
