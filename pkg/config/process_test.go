@@ -107,61 +107,57 @@ func TestProcessConfigPrefixes(t *testing.T) {
 func TestEnvVarOverride(t *testing.T) {
 	cfg := setupConf()
 
-	reset := setEnvForTest("DD_LOG_LEVEL", "warn")
-	assert.Equal(t, "warn", cfg.GetString("log_level"))
-	reset()
+	for _, tc := range []struct {
+		key, env, value string
+		expected        interface{}
+	}{
+		{
+			key:      "log_level",
+			env:      "DD_LOG_LEVEL",
+			value:    "warn",
+			expected: "warn",
+		},
+		{
+			key:      "log_to_console",
+			env:      "DD_LOG_TO_CONSOLE",
+			value:    "false",
+			expected: false,
+		},
+		{
+			key:      "process_config.log_file",
+			env:      "DD_PROCESS_CONFIG_LOG_FILE",
+			value:    "test",
+			expected: "test",
+		},
+		{
+			key:      "process_config.dd_agent_bin",
+			env:      "DD_PROCESS_AGENT_DD_AGENT_BIN",
+			value:    "test",
+			expected: "test",
+		},
+		{
+			key:      "process_config.grpc_connection_timeout_secs",
+			env:      "DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS",
+			value:    "1",
+			expected: 1,
+		},
+	} {
+		t.Run(tc.env, func(t *testing.T) {
+			reset := setEnvForTest(tc.env, tc.value)
+			assert.Equal(t, tc.expected, cfg.Get(tc.key))
+			reset()
+		})
 
-	reset = setEnvForTest("DD_LOG_TO_CONSOLE", "false")
-	assert.False(t, cfg.GetBool("log_to_console"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_CONFIG_LOG_FILE", "test")
-	assert.Equal(t, "test", cfg.GetString("process_config.log_file"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_AGENT_LOG_FILE", "test1")
-	assert.Equal(t, "test1", cfg.GetString("process_config.log_file"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_CONFIG_DD_AGENT_BIN", "test")
-	assert.Equal(t, "test", cfg.GetString("process_config.dd_agent_bin"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_AGENT_DD_AGENT_BIN", "test1")
-	assert.Equal(t, "test1", cfg.GetString("process_config.dd_agent_bin"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_CONFIG_REMOTE_TAGGER", "false")
-	assert.False(t, cfg.GetBool("process_config.remote_tagger"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_AGENT_REMOTE_TAGGER", "false")
-	assert.False(t, cfg.GetBool("process_config.remote_tagger"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", "1")
-	assert.Equal(t, 1, cfg.GetInt("process_config.grpc_connection_timeout_secs"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS", "1")
-	assert.Equal(t, 1, cfg.GetInt("process_config.grpc_connection_timeout_secs"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "true")
-	assert.True(t, cfg.GetBool("process_config.process_discovery.enabled"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "true")
-	assert.True(t, cfg.GetBool("process_config.process_discovery.enabled"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL", "1h")
-	assert.Equal(t, time.Hour, cfg.GetDuration("process_config.process_discovery.interval"))
-	reset()
-
-	reset = setEnvForTest("DD_PROCESS_AGENT_PROCESS_DISCOVERY_INTERVAL", "1h")
-	assert.Equal(t, time.Hour, cfg.GetDuration("process_config.process_discovery.interval"))
-	reset()
+		// Also test the DD_PROCESS_AGENT prefix if it has one
+		if strings.HasPrefix(tc.env, "DD_PROCESS_CONFIG") {
+			env := strings.Replace(tc.env, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
+			t.Run(env, func(t *testing.T) {
+				reset := setEnvForTest(env, tc.value)
+				assert.Equal(t, tc.expected, cfg.Get(tc.key))
+				reset()
+			})
+		}
+	}
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {
