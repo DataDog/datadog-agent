@@ -19,11 +19,9 @@ class Gitlab(RemoteAPI):
     BASE_URL = "https://gitlab.ddbuild.io/api/v4"
 
     def __init__(self, project_name="", api_token=""):
-        super(Gitlab, self).__init__()
-
+        super(Gitlab, self).__init__("Gitlab")
         self.api_token = api_token
         self.project_name = project_name
-        self.api_name = "Gitlab"
         self.authorization_error_message = (
             "HTTP 401: Your GITLAB_TOKEN may have expired. You can "
             "check and refresh it at "

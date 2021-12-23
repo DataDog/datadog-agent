@@ -20,8 +20,8 @@ class RemoteAPI(object):
 
     BASE_URL = ""
 
-    def __init__(self):
-        self.api_name = "Unknown API"
+    def __init__(self, api_name):
+        self.api_name = api_name
         self.authorization_error_message = "HTTP 401 Unauthorized"
 
     def request(
