@@ -45,12 +45,8 @@ func osinit() {
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}
-}
 
-// NewAssetFs  Should never be called on non-android
-func setAssetFs(config Config) {}
-
-func init() {
+	// Process Agent
 	if pd, err := winutil.GetProgramDataDir(); err == nil {
 		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 	}
@@ -61,3 +57,6 @@ func init() {
 		}
 	}
 }
+
+// NewAssetFs  Should never be called on non-android
+func setAssetFs(config Config) {}
