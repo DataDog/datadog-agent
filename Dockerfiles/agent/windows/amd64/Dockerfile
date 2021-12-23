@@ -1,5 +1,6 @@
 ARG BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-1809
 FROM ${BASE_IMAGE} as unzipper
+USER ContainerAdministrator
 SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
 COPY datadog-agent-latest.amd64.zip uncompress-zip.ps1 ./
 RUN . ./uncompress-zip.ps1
