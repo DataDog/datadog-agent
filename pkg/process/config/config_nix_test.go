@@ -63,7 +63,7 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	defer secretsTestRestoreConfig()
+	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
 	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
@@ -71,11 +71,7 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 
 	assert := assert.New(t)
 
-	agentConfig, err := NewAgentConfig(
-		"test",
-		"./testdata/TestDDAgentConfigYamlEnc.yaml",
-		"",
-	)
+	agentConfig, err := NewAgentConfig("test", "./testdata/TestDDAgentConfigYamlEnc.yaml", "", false)
 	assert.NoError(err)
 
 	ep := agentConfig.APIEndpoints[0]
@@ -87,17 +83,13 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	defer secretsTestRestoreConfig()
+	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
 	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 	assert := assert.New(t)
-	agentConfig, err := NewAgentConfig(
-		"test",
-		"./testdata/TestDDAgentConfigYamlEnc2.yaml",
-		"",
-	)
+	agentConfig, err := NewAgentConfig("test", "./testdata/TestDDAgentConfigYamlEnc2.yaml", "", false)
 	assert.NoError(err)
 
 	ep := agentConfig.APIEndpoints[0]
@@ -109,7 +101,7 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	defer secretsTestRestoreConfig()
+	defer restoreGlobalConfig()
 
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
 	config.InitConfig(config.Datadog)
@@ -122,9 +114,7 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	defer os.Unsetenv("DD_HOSTNAME")
 
 	assert := assert.New(t)
-	agentConfig, err := NewAgentConfig(
-		"test", "./testdata/TestEnvSiteConfig-Enc.yaml", "",
-	)
+	agentConfig, err := NewAgentConfig("test", "./testdata/TestEnvSiteConfig-Enc.yaml", "", false)
 	assert.NoError(err)
 
 	assert.Equal("secret-my_api_key", config.Datadog.Get("api_key"))

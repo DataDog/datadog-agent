@@ -269,18 +269,13 @@ func LoadConfigIfExists(path string) error {
 
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
+func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string, canAccessContainers bool) (*AgentConfig, error) {
 	var err error
 
 	// For Agent 6 we will have a YAML config file to use.
 	if err := LoadConfigIfExists(yamlPath); err != nil {
 		return nil, err
 	}
-
-	// Note: This only considers container sources that are already setup. It's possible that container sources may
-	//       need a few minutes to be ready on newly provisioned hosts.
-	_, err = util.GetContainers()
-	canAccessContainers := err == nil
 
 	cfg := NewDefaultAgentConfig(canAccessContainers)
 
