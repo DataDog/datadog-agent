@@ -94,6 +94,7 @@ type MetricSerializer interface {
 	SendEvents(e EventsStreamJSONMarshaler) error
 	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
+	SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error
 	SendSketch(sketches marshaler.Marshaler) error
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
@@ -202,6 +203,11 @@ func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler
 }
 
 func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler, policy stream.OnErrItemTooBigPolicy) (forwarder.Payloads, http.Header, error) {
+	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(payload)
+	return s.serializeIterableStreamablePayload(adapter, policy)
+}
+
+func (s Serializer) serializeIterableStreamablePayload(payload marshaler.IterableStreamJSONMarshaler, policy stream.OnErrItemTooBigPolicy) (forwarder.Payloads, http.Header, error) {
 	payloads, err := s.seriesJSONPayloadBuilder.BuildWithOnErrItemTooBigPolicy(payload, policy)
 	return payloads, jsonExtraHeadersWithCompression, err
 }
@@ -286,6 +292,22 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 	}
 
 	return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, extraHeaders)
+}
+
+// SendIterableSeries serializes a list of series and sends the payload to the forwarder
+func (s *Serializer) SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error {
+	if !s.enableSeries {
+		log.Debug("series payloads are disabled: dropping it")
+		return nil
+	}
+
+	seriesPayloads, extraHeaders, err := s.serializeIterableStreamablePayload(series, stream.DropItemOnErrItemTooBig)
+
+	if err != nil {
+		return fmt.Errorf("dropping series payload: %s", err)
+	}
+
+	return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder

@@ -226,6 +226,8 @@ type BufferedAggregator struct {
 
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
+
+	flushMetricsAndSerializeInParallelChanSize int
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
@@ -245,6 +247,11 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	}
 
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator")
+
+	var flushMetricsAndSerializeInParallelChanSize int
+	if config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") {
+		flushMetricsAndSerializeInParallelChanSize = config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size")
+	}
 
 	aggregator := &BufferedAggregator{
 		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),
@@ -280,6 +287,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentTags:               tagger.AgentTags,
 		ServerlessFlush:         make(chan bool),
 		ServerlessFlushDone:     make(chan struct{}),
+		flushMetricsAndSerializeInParallelChanSize: flushMetricsAndSerializeInParallelChanSize,
 	}
 
 	return aggregator
@@ -442,16 +450,27 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
 func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, metrics.SketchSeriesList) {
+	var series metrics.Series
+	sketches := agg.getSeriesAndSketches(before, &series)
+	return series, sketches
+}
+
+// getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
+// The parameter `before` is used as an end interval while retrieving series and sketches
+// from the time sampler. Metrics and sketches before this timestamp should be returned.
+func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series metrics.SerieSink) metrics.SketchSeriesList {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
+	sketches := agg.statsdSampler.flush(float64(before.UnixNano())/float64(time.Second), series)
 
-	series, sketches := agg.statsdSampler.flush(float64(before.UnixNano()) / float64(time.Second))
 	for _, checkSampler := range agg.checkSamplers {
-		s, sk := checkSampler.flush()
-		series = append(series, s...)
+		checkSeries, sk := checkSampler.flush()
+		for _, s := range checkSeries {
+			series.Append(s)
+		}
 		sketches = append(sketches, sk...)
 	}
-	return series, sketches
+	return sketches
 }
 
 func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
@@ -473,6 +492,11 @@ func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.Sk
 func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
 	log.Debugf("Flushing %d series to the forwarder", len(series))
 	err := agg.serializer.SendSeries(series)
+	updateSerieTelemetry(start, len(series), err)
+	tagsetTlm.updateHugeSeriesTelemetry(&series)
+}
+
+func updateSerieTelemetry(start time.Time, serieCount int, err error) {
 	state := stateOk
 	if err != nil {
 		log.Warnf("Error flushing series: %v", err)
@@ -480,13 +504,12 @@ func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series
 		state = stateError
 	}
 	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
-	aggregatorSeriesFlushed.Add(int64(len(series)))
-	tlmFlush.Add(float64(len(series)), "series", state)
+	aggregatorSeriesFlushed.Add(int64(serieCount))
+	tlmFlush.Add(float64(serieCount), "series", state)
 
-	tagsetTlm.updateHugeSeriesTelemetry(&series)
 }
 
-func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {
+func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metrics.SerieSink) {
 	recurrentSeriesLock.Lock()
 	// Adding recurrentSeries to the flushed ones
 	for _, extra := range recurrentSeries {
@@ -516,13 +539,13 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 				})
 		}
 		newSerie.Points = updatedPoints
-		series = append(series, newSerie)
+		series.Append(newSerie)
 	}
 	recurrentSeriesLock.Unlock()
 
 	// Send along a metric that showcases that this Agent is running (internally, in backend,
 	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
-	series = append(series, &metrics.Serie{
+	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           agg.tags(true),
@@ -532,7 +555,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	})
 
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
-	series = append(series, &metrics.Serie{
+	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
 		Tags:           agg.tags(false),
@@ -540,7 +563,10 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	})
+}
 
+func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {
+	agg.appendDefaultSeries(start, &series)
 	addFlushCount("Series", int64(len(series)))
 
 	// For debug purposes print out all metrics/tag combinations
@@ -558,6 +584,22 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	}
 }
 
+func (agg *BufferedAggregator) sendIterableSeries(
+	start time.Time,
+	series *metrics.IterableSeries,
+	done chan<- struct{}) {
+	go func() {
+		log.Debugf("Flushing series to the forwarder")
+
+		err := agg.serializer.SendIterableSeries(series)
+		// if err == nil, SenderStopped was called and it is safe to read the number of series.
+		count := series.SeriesCount()
+		addFlushCount("Series", int64(count))
+		updateSerieTelemetry(start, int(count), err)
+		close(done)
+	}()
+}
+
 func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.SketchSeriesList, waitForSerializer bool) {
 	// Serialize and forward sketches in a separate goroutine
 	addFlushCount("Sketches", int64(len(sketches)))
@@ -571,10 +613,29 @@ func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.Sk
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSerializer bool) {
-	series, sketches := agg.GetSeriesAndSketches(start)
+	if agg.flushMetricsAndSerializeInParallelChanSize == 0 {
+		series, sketches := agg.GetSeriesAndSketches(start)
 
-	agg.sendSketches(start, sketches, waitForSerializer)
-	agg.sendSeries(start, series, waitForSerializer)
+		agg.sendSketches(start, sketches, waitForSerializer)
+		agg.sendSeries(start, series, waitForSerializer)
+	} else {
+		logPayloads := config.Datadog.GetBool("log_payloads")
+		series := metrics.NewIterableSeries(func(s *metrics.Serie) {
+			if logPayloads {
+				log.Debugf("Flushing the following metrics: %s", s)
+			}
+			tagsetTlm.updateHugeSerieTelemetry(s)
+		}, agg.flushMetricsAndSerializeInParallelChanSize)
+		done := make(chan struct{})
+		agg.sendIterableSeries(start, series, done)
+		sketches := agg.getSeriesAndSketches(start, series)
+		agg.appendDefaultSeries(start, series)
+		series.SenderStopped()
+		if waitForSerializer {
+			<-done
+		}
+		agg.sendSketches(start, sketches, waitForSerializer)
+	}
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
