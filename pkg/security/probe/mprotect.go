@@ -15,7 +15,11 @@ import (
 )
 
 var mprotectCapabilities = Capabilities{
-	"mprotect.protection": {
+	"mprotect.req_protection": {
+		PolicyFlags:     PolicyFlagFlags,
+		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+	},
+	"mprotect.vm_protection": {
 		PolicyFlags:     PolicyFlagFlags,
 		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
 	},
