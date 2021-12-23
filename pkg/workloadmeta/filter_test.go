@@ -37,7 +37,7 @@ func TestFilterMatch(t *testing.T) {
 			name: "matching single kind",
 			filter: NewFilter(
 				[]Kind{KindContainer},
-				"",
+				SourceAll,
 			),
 			event:    ev,
 			expected: true,
@@ -46,7 +46,7 @@ func TestFilterMatch(t *testing.T) {
 			name: "matching one of kinds",
 			filter: NewFilter(
 				[]Kind{KindContainer, KindKubernetesPod},
-				"",
+				SourceAll,
 			),
 			event:    ev,
 			expected: true,
@@ -55,7 +55,7 @@ func TestFilterMatch(t *testing.T) {
 			name: "matching no kind",
 			filter: NewFilter(
 				[]Kind{KindKubernetesPod},
-				"",
+				SourceAll,
 			),
 			event:    ev,
 			expected: false,
