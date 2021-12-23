@@ -89,3 +89,20 @@ func dumpIterableStream(marshaler marshaler.IterableStreamJSONMarshaler) []byte 
 	marshaler.WriteFooter(jsonStream)
 	return jsonStream.Buffer()
 }
+
+func BenchmarkIterableSeries(b *testing.B) {
+	iterableSeries := NewIterableSeries(func(*Serie) {}, 100*1000)
+	done := make(chan struct{})
+	go func() {
+		defer iterableSeries.IterationStopped()
+		for iterableSeries.MoveNext() {
+		}
+		close(done)
+	}()
+
+	for i := 0; i < b.N; i++ {
+		iterableSeries.Append(&Serie{Name: "name"})
+	}
+	iterableSeries.SenderStopped()
+	<-done
+}
