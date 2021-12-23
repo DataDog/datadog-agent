@@ -554,4 +554,14 @@ func init() {
 	SupportedDiscarders["removexattr.file.path"] = true
 
 	allDiscarderHandlers["bpf"] = processDiscarderWrapper(model.BPFEventType, nil)
+
+	allDiscarderHandlers["mmap"] = processDiscarderWrapper(model.MMapEventType,
+		filenameDiscarderWrapper(model.MMapEventType, nil,
+			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
+				return "mmap.file.path", event.MMap.File.MountID, event.MMap.File.Inode, event.MMap.File.PathID, false
+			}))
+	SupportedDiscarders["mmap.file.path"] = true
+
+	allDiscarderHandlers["mprotect"] = processDiscarderWrapper(model.MProtectEventType, nil)
+	allDiscarderHandlers["ptrace"] = processDiscarderWrapper(model.PTraceEventType, nil)
 }

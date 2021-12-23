@@ -1,6 +1,59 @@
 #ifndef _MMAP_H_
 #define _MMAP_H_
 
+struct bpf_map_def SEC("maps/mmap_flags_approvers") mmap_flags_approvers = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    u32 *flags = bpf_map_lookup_elem(&mmap_flags_approvers, &key);
+    if (flags != NULL && (syscall->mmap.flags & *flags) > 0) {
+        return 1;
+    }
+    return 0;
+}
+
+struct bpf_map_def SEC("maps/mmap_protection_approvers") mmap_protection_approvers = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+int __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    u32 *flags = bpf_map_lookup_elem(&mmap_protection_approvers, &key);
+    if (flags != NULL && (syscall->mmap.protection & *flags) > 0) {
+        return 1;
+    }
+    return 0;
+}
+
+int __attribute__((always_inline)) mmap_approvers(struct syscall_cache_t *syscall) {
+    int pass_to_userspace = 0;
+
+    if ((syscall->policy.flags & BASENAME) > 0 && syscall->mmap.dentry != NULL) {
+        pass_to_userspace = approve_by_basename(syscall->mmap.dentry, EVENT_MMAP);
+    }
+
+    if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
+        pass_to_userspace = approve_mmap_by_protection(syscall);
+        if (!pass_to_userspace) {
+            pass_to_userspace = approve_mmap_by_flags(syscall);
+        }
+    }
+
+    return pass_to_userspace;
+}
+
 struct mmap_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -17,8 +70,8 @@ struct mmap_event_t {
 };
 
 SYSCALL_KPROBE4(mmap, void *, addr, size_t, len, int, protection, int, flags) {
-    // TODO: remove this; for now we only care about memory regions with both VM_WRITE and VM_EXEC activated
-    if (!( (protection & (VM_WRITE|VM_EXEC)) == (VM_WRITE|VM_EXEC) || ( (protection & VM_EXEC) == VM_EXEC && (flags & MAP_ANONYMOUS) == 0) )) {
+    struct policy_t policy = fetch_policy(EVENT_MMAP);
+    if (is_discarded_by_process(policy.mode, EVENT_MMAP)) {
         return 0;
     }
 
@@ -43,6 +96,10 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
        return 0;
+    }
+
+    if (filter_syscall(syscall, mmap_approvers)) {
+        return discard_syscall(syscall);
     }
 
     struct mmap_event_t event = {
