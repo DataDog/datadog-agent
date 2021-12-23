@@ -1272,12 +1272,6 @@ api_key:
   #   - 'sql*'
   #   - '*pass*d*'
 
-  ## @param allow_rt - boolean - optional - default: true
-  ## @env DD_PROCESS_CONFIG_ALLOW_RT - boolean - optional
-  ## Allows toggling on or off the realtime checks in the agent.
-  #
-  # allow_rt: true
-
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.

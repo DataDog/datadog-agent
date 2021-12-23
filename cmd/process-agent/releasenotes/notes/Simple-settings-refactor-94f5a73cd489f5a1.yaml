@@ -1,7 +1,5 @@
 ---
 prelude: Process Agent Config Changes
-features:
-  - Added `process_config.allow_rt` setting, which allows the user to toggle the realtime checks. It is true by default.
 deprecations:
   - Removed `LOG_TO_CONSOLE` and `DD_LOGS_STDOUT` environment variables. Please use `DD_LOG_TO_CONSOLE` instead
   - Removed `LOG_LEVEL` environment variable. Please use `DD_LOG_LEVEL` instead.
