@@ -7,7 +7,6 @@ package sampler
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"testing"
 
@@ -64,25 +63,22 @@ func TestExtraSampleRate(t *testing.T) {
 func TestTargetTPS(t *testing.T) {
 	// Test the "effectiveness" of the targetTPS option.
 	assert := assert.New(t)
-	targetTPS := 5.0
+	targetTPS := 10.0
 	s := getTestErrorsSampler(targetTPS)
 
-	tps := 100.0
+	generatedTPS := 200.0
 	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
-	initPeriods := 20
-	periods := 50
+	initPeriods := 10
+	periods := 300
 
 	s.targetTPS = atomic.NewFloat(targetTPS)
 	periodSeconds := decayPeriod.Seconds()
-	tracesPerPeriod := tps * periodSeconds
-	// Set signature score offset high enough not to kick in during the test.
-	s.signatureScoreOffset.Store(2 * tps)
-	s.signatureScoreFactor.Store(math.Pow(s.Sampler.signatureScoreSlope.Load(), math.Log10(s.Sampler.signatureScoreOffset.Load())))
+	tracesPerPeriod := generatedTPS * periodSeconds
 
 	sampledCount := 0
 
 	for period := 0; period < initPeriods+periods; period++ {
-		s.Backend.DecayScore()
+		s.update()
 		for i := 0; i < int(tracesPerPeriod); i++ {
 			trace, root := getTestTrace()
 			sampled := s.Sample(trace, root, defaultEnv)
@@ -92,18 +88,15 @@ func TestTargetTPS(t *testing.T) {
 			}
 		}
 	}
+	assert.InEpsilon(targetTPS, s.Backend.GetSampledScore(), 0.2)
 
-	// Check that the sampled score pre-targetTPS is equals to the incoming number of traces per second
-	assert.InEpsilon(tps, s.Backend.GetSampledScore(), 0.01)
-
-	// We should have kept less traces per second than targetTPS
-	assert.True(s.targetTPS.Load() >= float64(sampledCount)/(float64(periods)*periodSeconds))
+	// We should keep the right percentage of traces
+	assert.InEpsilon(targetTPS/generatedTPS, float64(sampledCount)/(tracesPerPeriod*float64(initPeriods+periods)), 0.1)
 
 	// We should have a throughput of sampled traces around targetTPS
 	// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
 	// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-	assert.InEpsilon(s.targetTPS.Load(), float64(sampledCount)/(float64(periods)*periodSeconds),
-		0.01+defaultDecayFactor-1)
+	assert.InEpsilon(targetTPS, float64(sampledCount)/(float64(periods+initPeriods)*decayPeriod.Seconds()), 0.1)
 }
 
 func TestDisable(t *testing.T) {
