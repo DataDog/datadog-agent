@@ -71,6 +71,8 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")
 	config.BindEnv("apm_config.errors_per_second", "DD_APM_ERROR_TPS")
 	config.BindEnv("apm_config.disable_rare_sampler", "DD_APM_DISABLE_RARE_SAMPLER")
+	config.BindEnv("apm_config.remote_max_traces_per_second", "DD_APM_REMOTE_MAX_TPS")
+
 	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")
 	config.BindEnv("apm_config.max_cpu_percent", "DD_APM_MAX_CPU_PERCENT")
 	config.BindEnv("apm_config.env", "DD_APM_ENV")
