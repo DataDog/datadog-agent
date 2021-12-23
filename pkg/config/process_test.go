@@ -115,3 +115,11 @@ func TestEnvVarOverride(t *testing.T) {
 	defer reset()
 	assert.False(t, cfg.GetBool("log_to_console"))
 }
+
+func TestProcBindEnvAndSetDefault(t *testing.T) {
+	cfg := setupConf()
+	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf", "BAZ")
+	assert.Contains(t, cfg.GetEnvVars(), "DD_PROCESS_CONFIG_FOO_BAR")
+	assert.Contains(t, cfg.GetEnvVars(), "DD_PROCESS_AGENT_FOO_BAR")
+	assert.Contains(t, cfg.GetEnvVars(), "BAZ")
+}

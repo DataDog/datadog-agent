@@ -6,7 +6,9 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -15,13 +17,21 @@ const (
 	DefaultGRPCConnectionTimeoutSecs = 60
 )
 
-func setupProcesses(config Config) {
-	procBindEnvAndSetDefault := func(key string, val interface{}, env string) {
-		config.BindEnvAndSetDefault(key, val, "DD_PROCESS_CONFIG_"+env, "DD_PROCESS_AGENT_"+env)
-	}
-	// Note that `BindEnvAndSetDefault` automatically creates environment variables with the `DD_PROCESS_CONFIG` prefix.
-	// This means that we must manually add the same environment variable, but with the `DD_PROCESS_AGENT` prefix if we want to support that too.
+// procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
+// We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
+// Additionally, procEnvAndSetDefault allows us to additively provide environment variables, which BindEnvAndSetDefault does not.
+func procBindEnvAndSetDefault(config Config, key string, val interface{}, env ...string) {
+	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
+	// variable convention as the core agent.
+	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
+	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
+	envs := append([]string{processConfigKey, processAgentKey}, env...)
+	fmt.Println("env", envs)
+	config.BindEnvAndSetDefault(key, val, envs...)
+}
+
+func setupProcesses(config Config) {
 	config.SetDefault("process_config.enabled", "false")
 	// process_config.enabled is only used on Windows by the core agent to start the process agent service.
 	// it can be set from file, but not from env. Override it with value from DD_PROCESS_AGENT_ENABLED.
@@ -44,7 +54,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.blacklist_patterns")
 	config.SetKnown("process_config.intervals.container")
 	config.SetKnown("process_config.intervals.container_realtime")
-	procBindEnvAndSetDefault("process_config.dd_agent_bin", DefaultDDAgentBin, "DD_AGENT_BIN")
+	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", DefaultDDAgentBin)
 	config.SetKnown("process_config.custom_sensitive_words")
 	config.SetKnown("process_config.scrub_args")
 	config.SetKnown("process_config.strip_proc_arguments")
@@ -55,12 +65,12 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
-	procBindEnvAndSetDefault("process_config.log_file", DefaultProcessAgentLogFile, "LOG_FILE")
+	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	config.SetKnown("process_config.internal_profiling.enabled")
-	procBindEnvAndSetDefault("process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs, "GRPC_CONNECTION_TIMEOUT_SECS")
-	procBindEnvAndSetDefault("process_config.remote_tagger", true, "REMOTE_TAGGER")
+	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
+	procBindEnvAndSetDefault(config, "process_config.remote_tagger", true)
 
 	// Process Discovery Check
-	procBindEnvAndSetDefault("process_config.process_discovery.enabled", false, "PROCESS_DISCOVERY_ENABLED")
-	procBindEnvAndSetDefault("process_config.process_discovery.interval", 4*time.Hour, "PROCESS_DISCOVERY_INTERVAL")
+	procBindEnvAndSetDefault(config, "process_config.process_discovery.enabled", false, "DD_PROCESS_CONFIG_DISCOVERY_ENABLED", "DD_PROCESS_AGENT_DISCOVERY_ENABLED")
+	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 }
