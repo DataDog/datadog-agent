@@ -36,6 +36,8 @@ func (m *Model) NewEvent() eval.Event {
 func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
 	// check that all path are absolute
 	if strings.HasSuffix(field, "path") {
+
+		// do not support regular expression on path, currently unable to support discarder for fegex value
 		if fieldValue.Type == eval.RegexpValueType {
 			return fmt.Errorf("regexp not supported on path `%s`", field)
 		}
