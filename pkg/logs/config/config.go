@@ -27,7 +27,7 @@ const SnmpTraps = "snmp_traps"
 const (
 	tcpEndpointPrefix            = "agent-intake.logs."
 	httpEndpointPrefix           = "agent-http-intake.logs."
-	serverlessHTTPEndpointPrefix = "lambda-http-intake.logs."
+	serverlessHTTPEndpointPrefix = "http-intake.logs."
 )
 
 // DefaultIntakeProtocol indicates that no special protocol is in use for the endpoint intake track type.
