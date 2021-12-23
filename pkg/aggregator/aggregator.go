@@ -227,7 +227,13 @@ type BufferedAggregator struct {
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
 
-	flushMetricsAndSerializeInParallelChanSize int
+	flushAndSerializeInParallel flushAndSerializeInParallel
+}
+
+type flushAndSerializeInParallel struct {
+	enabled     bool
+	channelSize int
+	bufferSize  int
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
@@ -247,11 +253,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	}
 
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator")
-
-	var flushMetricsAndSerializeInParallelChanSize int
-	if config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") {
-		flushMetricsAndSerializeInParallelChanSize = config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size")
-	}
 
 	aggregator := &BufferedAggregator{
 		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),
@@ -287,7 +288,11 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentTags:               tagger.AgentTags,
 		ServerlessFlush:         make(chan bool),
 		ServerlessFlushDone:     make(chan struct{}),
-		flushMetricsAndSerializeInParallelChanSize: flushMetricsAndSerializeInParallelChanSize,
+		flushAndSerializeInParallel: flushAndSerializeInParallel{
+			enabled:     config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel"),
+			bufferSize:  config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
+			channelSize: config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
+		},
 	}
 
 	return aggregator
@@ -613,7 +618,7 @@ func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.Sk
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSerializer bool) {
-	if agg.flushMetricsAndSerializeInParallelChanSize == 0 {
+	if !agg.flushAndSerializeInParallel.enabled {
 		series, sketches := agg.GetSeriesAndSketches(start)
 
 		agg.sendSketches(start, sketches, waitForSerializer)
@@ -625,7 +630,7 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSe
 				log.Debugf("Flushing the following metrics: %s", s)
 			}
 			tagsetTlm.updateHugeSerieTelemetry(s)
-		}, agg.flushMetricsAndSerializeInParallelChanSize)
+		}, agg.flushAndSerializeInParallel.channelSize, agg.flushAndSerializeInParallel.bufferSize)
 		done := make(chan struct{})
 		agg.sendIterableSeries(start, series, done)
 		sketches := agg.getSeriesAndSketches(start, series)

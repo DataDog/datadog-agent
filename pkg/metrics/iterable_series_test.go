@@ -6,6 +6,8 @@
 package metrics
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -16,7 +18,7 @@ import (
 )
 
 func TestIterableSeries(t *testing.T) {
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 1)
+	iterableSeries := NewIterableSeries(func(*Serie) {}, 10, 1)
 	done := make(chan struct{})
 	var descritions []string
 	go func() {
@@ -41,7 +43,7 @@ func TestIterableSeries(t *testing.T) {
 func TestIterableSeriesCallback(t *testing.T) {
 	var series Series
 	callback := func(s *Serie) { series = append(series, s) }
-	iterableSeries := NewIterableSeries(callback, 10)
+	iterableSeries := NewIterableSeries(callback, 10, 10)
 	iterableSeries.Append(&Serie{Name: "serie1"})
 	iterableSeries.Append(&Serie{Name: "serie2"})
 
@@ -53,7 +55,7 @@ func TestIterableSeriesCallback(t *testing.T) {
 }
 
 func TestIterableSeriesReceiverStopped(t *testing.T) {
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 1)
+	iterableSeries := NewIterableSeries(func(*Serie) {}, 1, 1)
 	iterableSeries.Append(&Serie{Name: "serie1"})
 
 	// Next call to Append must not block
@@ -68,7 +70,7 @@ func TestIterableStreamJSONMarshalerAdapter(t *testing.T) {
 	series = append(series, &Serie{Name: "serie2"})
 	series = append(series, &Serie{Name: "serie3"})
 
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 3)
+	iterableSeries := NewIterableSeries(func(*Serie) {}, 4, 2)
 	for _, serie := range series {
 		iterableSeries.Append(serie)
 	}
@@ -91,18 +93,48 @@ func dumpIterableStream(marshaler marshaler.IterableStreamJSONMarshaler) []byte 
 }
 
 func BenchmarkIterableSeries(b *testing.B) {
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 100*1000)
+	for bufferSize := 1000; bufferSize <= 8000; bufferSize *= 2 {
+		b.Run(fmt.Sprintf("%v", bufferSize), func(b *testing.B) {
+			iterableSeries := NewIterableSeries(func(*Serie) {}, 100, bufferSize)
+			done := make(chan struct{})
+			go func() {
+				defer iterableSeries.IterationStopped()
+				for iterableSeries.MoveNext() {
+				}
+				close(done)
+			}()
+
+			for i := 0; i < b.N; i++ {
+				iterableSeries.Append(&Serie{Name: "name"})
+			}
+			iterableSeries.SenderStopped()
+			<-done
+		})
+	}
+}
+
+func TestIterableSeriesSeveralValues(t *testing.T) {
+	iterableSeries := NewIterableSeries(func(*Serie) {}, 10, 2)
 	done := make(chan struct{})
+	var series []*Serie
 	go func() {
 		defer iterableSeries.IterationStopped()
 		for iterableSeries.MoveNext() {
+			series = append(series, iterableSeries.Current())
 		}
 		close(done)
 	}()
-
-	for i := 0; i < b.N; i++ {
-		iterableSeries.Append(&Serie{Name: "name"})
+	var expected []string
+	for i := 0; i < 101; i++ {
+		name := "serie" + strconv.Itoa(i)
+		expected = append(expected, name)
+		iterableSeries.Append(&Serie{Name: name})
 	}
 	iterableSeries.SenderStopped()
 	<-done
+	r := require.New(t)
+	r.Len(series, len(expected))
+	for i, v := range expected {
+		r.Equal(v, series[i].Name)
+	}
 }
