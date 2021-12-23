@@ -44,10 +44,10 @@ type DeviceCheck struct {
 }
 
 // NewDeviceCheck returns a new DeviceCheck
-func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) (*DeviceCheck, error) {
+func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
 	newConfig := config.CopyWithNewIP(ipAddress)
 
-	sess, err := session.NewSession(newConfig)
+	sess, err := sessionFactory(newConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure session: %s", err)
 	}

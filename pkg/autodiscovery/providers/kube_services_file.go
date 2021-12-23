@@ -22,7 +22,7 @@ type KubeServiceFileConfigProvider struct {
 }
 
 // NewKubeServiceFileConfigProvider returns a new KubeServiceFileConfigProvider
-func NewKubeServiceFileConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeServiceFileConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	return &KubeServiceFileConfigProvider{}, nil
 }
 

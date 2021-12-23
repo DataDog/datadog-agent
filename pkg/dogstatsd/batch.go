@@ -29,7 +29,8 @@ type batcher struct {
 	metricSamplePool *metrics.MetricSamplePool
 }
 
-func newBatcher(agg *aggregator.BufferedAggregator) *batcher {
+func newBatcher(demux aggregator.Demultiplexer) *batcher {
+	agg := demux.Aggregator()
 	s, e, sc := agg.GetBufferedChannels()
 	return &batcher{
 		samples:            agg.MetricSamplePool.GetBatch(),

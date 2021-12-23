@@ -184,6 +184,7 @@
     <ClCompile Include="userrights.cpp" />
     <ClCompile Include="winacl.cpp" />
     <ClCompile Include="caninstall.cpp" />
+    <ClCompile Include="decompress.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CustomAction.def" />
@@ -203,6 +204,7 @@
     <ClInclude Include="targetver.h" />
     <ClInclude Include="customaction.h" />
     <ClInclude Include="winacl.h" />
+    <ClInclude Include="decompress.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="customaction.rc">

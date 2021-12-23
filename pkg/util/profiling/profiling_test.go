@@ -14,7 +14,7 @@ import (
 
 func TestProfiling(t *testing.T) {
 	settings := Settings{
-		Site:                 "https://nowhere.testing.dev",
+		ProfilingURL:         "https://nowhere.testing.dev",
 		Env:                  "testing",
 		Service:              "test-agent",
 		Period:               time.Minute,

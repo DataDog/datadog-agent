@@ -16,6 +16,7 @@ golang_deps_generate                 @DataDog/agent-core
 build_system-probe*                  @DataDog/agent-network
 cluster_agent_cloudfoundry-build*    @Datadog/integrations-tools-and-libs
 cluster_agent-build*                 @DataDog/container-integrations
+build_serverless*                    @DataDog/serverless
 
 # Image build
 docker_build*                        @DataDog/container-integrations

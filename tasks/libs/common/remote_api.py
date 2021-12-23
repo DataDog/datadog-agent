@@ -66,9 +66,9 @@ class RemoteAPI(object):
                     r = requests.post(url, headers=headers, data=data, stream=stream_output)
             else:
                 r = requests.get(url, headers=headers, stream=stream_output)
-            if r.status_code == 401:
-                print(self.authorization_error_message)
-
+            if r.status_code >= 400:
+                if r.status_code == 401:
+                    print(self.authorization_error_message)
                 print(f"{self.api_name} says: {r.json()}")
                 raise Exit(code=1)
         except requests.exceptions.Timeout:

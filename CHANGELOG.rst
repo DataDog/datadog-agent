@@ -2,6 +2,37 @@
 Release Notes
 =============
 
+.. _Release Notes_7.32.4:
+
+7.32.4 / 6.32.4
+======
+
+.. _Release Notes_7.32.4_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-12-22
+
+
+- JMXFetch: Remove all dependencies on ``log4j`` and use ``java.util.logging`` instead.
+
+.. _Release Notes_7.32.3:
+
+7.32.3 / 6.32.3
+======
+
+.. _Release Notes_7.32.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-12-15
+
+.. _Release Notes_7.32.3_Security Notes:
+
+- Upgrade the log4j dependency to 2.12.2 in JMXFetch to fully address `CVE-2021-44228 <https://nvd.nist.gov/vuln/detail/CVE-2021-44228>`_ and `CVE-2021-45046 <https://nvd.nist.gov/vuln/detail/CVE-2021-45046>`_
+
 .. _Release Notes_7.32.2:
 
 7.32.2 / 6.32.2

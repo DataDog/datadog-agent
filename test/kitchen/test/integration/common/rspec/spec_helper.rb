@@ -30,7 +30,7 @@ def get_service_name(flavor)
   # Return the service name of the given flavor depending on the OS
   if os == :windows
     case flavor
-    when "datadog-agent", "datadog-iot-agent"
+    when "datadog-agent", "datadog-heroku-agent", "datadog-iot-agent"
       "datadogagent"
     when "datadog-dogstatsd"
       # Placeholder, not used yet
@@ -38,7 +38,7 @@ def get_service_name(flavor)
     end
   else
     case flavor
-    when "datadog-agent", "datadog-iot-agent"
+    when "datadog-agent", "datadog-heroku-agent", "datadog-iot-agent"
       "datadog-agent"
     when "datadog-dogstatsd"
       "datadog-dogstatsd"
@@ -736,11 +736,11 @@ shared_examples_for 'an Agent that is removed' do
       expect(system(uninstallcmd)).to be_truthy
     else
       if system('which apt-get &> /dev/null')
-        expect(system("sudo apt-get -q -y remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo apt-get -q -y remove #{get_agent_flavor} > /dev/null")).to be_truthy
       elsif system('which yum &> /dev/null')
-        expect(system("sudo yum -y remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo yum -y remove #{get_agent_flavor} > /dev/null")).to be_truthy
       elsif system('which zypper &> /dev/null')
-        expect(system("sudo zypper --non-interactive remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo zypper --non-interactive remove #{get_agent_flavor} > /dev/null")).to be_truthy
       else
         raise 'Unknown package manager'
       end

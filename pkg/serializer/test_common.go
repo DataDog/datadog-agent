@@ -28,6 +28,11 @@ func (s *MockSerializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) err
 	return s.Called(sc).Error(0)
 }
 
+// SendIterableSeries serializes a list of Serie and sends the payload to the forwarder
+func (s *MockSerializer) SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error {
+	return s.Called(series).Error(0)
+}
+
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *MockSerializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	return s.Called(series).Error(0)
@@ -45,6 +50,11 @@ func (s *MockSerializer) SendMetadata(m marshaler.JSONMarshaler) error {
 
 // SendHostMetadata serializes a host metadata payload and sends it to the forwarder
 func (s *MockSerializer) SendHostMetadata(m marshaler.JSONMarshaler) error {
+	return s.Called(m).Error(0)
+}
+
+// SendAgentchecksMetadata serializes a metadata payload and sends it to the forwarder
+func (s *MockSerializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 	return s.Called(m).Error(0)
 }
 

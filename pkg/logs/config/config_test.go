@@ -537,7 +537,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 
 	main := Endpoint{
 		APIKey:           "123",
-		Host:             "lambda-http-intake.logs.datadoghq.com",
+		Host:             "http-intake.logs.datadoghq.com",
 		Port:             0,
 		UseSSL:           true,
 		UseCompression:   true,

@@ -6,6 +6,7 @@
 #include "http-buffer.h"
 #include "sockfd.h"
 #include "conn-tuple.h"
+#include "tags-types.h"
 
 // TODO: Replace those by injected constants based on system configuration
 // once we have port range detection merged into the codebase.
@@ -61,7 +62,7 @@ int socket__http_filter(struct __sk_buff* skb) {
     char buffer[HTTP_BUFFER_SIZE];
     __builtin_memset(buffer, 0, sizeof(buffer));
     read_skb_data(skb, skb_info.data_off, buffer);
-    http_process(buffer, &skb_info, src_port);
+    http_process(buffer, &skb_info, src_port, NO_TAGS);
     return 0;
 }
 
@@ -202,7 +203,7 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
 
     skb_info_t skb_info = {0};
     __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
-    http_process(buffer, &skb_info, skb_info.tup.sport);
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBSSL);
  cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -224,7 +225,7 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
 
     skb_info_t skb_info = {0};
     __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
-    http_process(buffer, &skb_info, skb_info.tup.sport);
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBSSL);
     return 0;
 }
 
@@ -245,7 +246,7 @@ int uprobe__SSL_shutdown(struct pt_regs* ctx) {
 
     // TODO: this is just a hack. Let's get rid of this skb_info argument altogether
     skb_info.tcp_flags |= TCPHDR_FIN;
-    http_process(buffer, &skb_info, skb_info.tup.sport);
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBSSL);
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
     return 0;
 }
@@ -331,7 +332,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs* ctx) {
 
     skb_info_t skb_info = {0};
     __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
-    http_process(buffer, &skb_info, skb_info.tup.sport);
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBGNUTLS);
  cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -355,7 +356,7 @@ int uprobe__gnutls_record_send(struct pt_regs* ctx) {
 
     skb_info_t skb_info = {0};
     __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
-    http_process(buffer, &skb_info, skb_info.tup.sport);
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBGNUTLS);
     return 0;
 }
 
@@ -378,7 +379,7 @@ int uprobe__gnutls_bye(struct pt_regs* ctx) {
 
     // TODO: this is just a hack. Let's get rid of this skb_info argument altogether
     skb_info.tcp_flags |= TCPHDR_FIN;
-    http_process(buffer, &skb_info, skb_info.tup.sport);
+    http_process(buffer, &skb_info, skb_info.tup.sport, LIBGNUTLS);
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
     return 0;
 }

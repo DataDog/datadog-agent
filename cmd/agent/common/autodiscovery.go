@@ -78,7 +78,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 	for _, cp := range uniqueConfigProviders {
 		factory, found := providers.ProviderCatalog[cp.Name]
 		if found {
-			configProvider, err := factory(cp)
+			configProvider, err := factory(&cp)
 			if err != nil {
 				log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				continue

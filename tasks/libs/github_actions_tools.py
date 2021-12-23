@@ -26,10 +26,11 @@ def create_or_refresh_macos_build_github_workflows(github_workflows=None):
 
 
 def trigger_macos_workflow(
+    workflow="macos.yaml",
     github_action_ref="master",
     datadog_agent_ref=DEFAULT_BRANCH,
-    release_version="nightly-a7",
-    major_version="7",
+    release_version=None,
+    major_version=None,
     python_runtimes="3",
 ):
     """
@@ -60,7 +61,7 @@ def trigger_macos_workflow(
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
-    create_or_refresh_macos_build_github_workflows().trigger_workflow("macos.yaml", github_action_ref, inputs)
+    create_or_refresh_macos_build_github_workflows().trigger_workflow(workflow, github_action_ref, inputs)
 
     # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
     # that started after we triggered the workflow.
@@ -69,7 +70,7 @@ def trigger_macos_workflow(
     MAX_RETRIES = 10  # Retry up to 10 times
     for i in range(MAX_RETRIES):
         print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
-        run = get_macos_workflow_run_for_ref(github_action_ref)
+        run = get_macos_workflow_run_for_ref(workflow, github_action_ref)
         if run is not None and run.get("created_at", datetime.fromtimestamp(0).strftime("%Y-%m-%dT%H:%M:%SZ")) >= now:
             return run.get("id")
 
@@ -80,11 +81,11 @@ def trigger_macos_workflow(
     raise Exit(code=1)
 
 
-def get_macos_workflow_run_for_ref(github_action_ref="master"):
+def get_macos_workflow_run_for_ref(workflow="macos.yaml", github_action_ref="master"):
     """
     Get the latest workflow for the given ref.
     """
-    return create_or_refresh_macos_build_github_workflows().latest_workflow_run_for_ref("macos.yaml", github_action_ref)
+    return create_or_refresh_macos_build_github_workflows().latest_workflow_run_for_ref(workflow, github_action_ref)
 
 
 def follow_workflow_run(run_id):

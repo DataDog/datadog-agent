@@ -30,3 +30,18 @@ func (o *Opts) WithLegacyFields(fields map[Field]Field) *Opts {
 	o.LegacyFields = fields
 	return o
 }
+
+// WithMacros set macros fields
+func (o *Opts) WithMacros(macros map[MacroID]*Macro) *Opts {
+	o.Macros = macros
+	return o
+}
+
+// AddMacro add a macro
+func (o *Opts) AddMacro(macro *Macro) *Opts {
+	if o.Macros == nil {
+		o.Macros = make(map[string]*Macro)
+	}
+	o.Macros[macro.ID] = macro
+	return o
+}
