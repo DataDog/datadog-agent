@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from invoke.exceptions import Exit
 
-from .remote_api import RemoteAPI
+from .remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
 
@@ -131,12 +131,15 @@ class Gitlab(RemoteAPI):
         path = f"/projects/{quote(self.project_name, safe='')}/repository/commits/{commit_sha}"
         return self.make_request(path, json_output=True)
 
-    def artifact(self, job_id, artifact_name):
+    def artifact(self, job_id, artifact_name, ignore_not_found=False):
         path = f"/projects/{quote(self.project_name, safe='')}/jobs/{job_id}/artifacts/{artifact_name}"
-        response = self.make_request(path, stream_output=True)
-        if response.status_code != 200:
-            return None
-        return response
+        try:
+            response = self.make_request(path, stream_output=True)
+            return response
+        except APIError as e:
+            if e.status_code == 404 and ignore_not_found:
+                return None
+            raise e
 
     def all_jobs(self, pipeline_id):
         """

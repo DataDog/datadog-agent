@@ -6,6 +6,13 @@ from invoke.exceptions import Exit
 errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
 
+class APIError(Exception):
+    def __init__(self, request, api_name):
+        super(APIError, self).__init__(f"{api_name} says: {request.json()}")
+        self.status_code = request.status_code
+        self.request = request
+
+
 class RemoteAPI(object):
     """
     Helper class to perform calls against a given remote API.
@@ -69,8 +76,7 @@ class RemoteAPI(object):
             if r.status_code >= 400:
                 if r.status_code == 401:
                     print(self.authorization_error_message)
-                print(f"{self.api_name} says: {r.json()}")
-                raise Exit(code=1)
+                raise APIError(r, self.api_name)
         except requests.exceptions.Timeout:
             print(f"Connection to {self.api_name} ({url}) timed out.")
             raise Exit(code=1)
