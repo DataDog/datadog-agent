@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -36,6 +37,7 @@ func newDefaultConfig() config.Exporter {
 				ResourceAttributesAsTags:             false,
 				InstrumentationLibraryMetadataAsTags: false,
 			},
+			TagCardinality: collectors.LowCardinalityString,
 			HistConfig: histogramConfig{
 				Mode:         "distributions",
 				SendCountSum: false,
@@ -57,9 +59,10 @@ func (f hostnameProviderFunc) Hostname(ctx context.Context) (string, error) {
 // exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
 type exporter struct {
-	tr       *translator.Translator
-	s        serializer.MetricSerializer
-	hostname string
+	tr          *translator.Translator
+	s           serializer.MetricSerializer
+	hostname    string
+	cardinality string
 }
 
 func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.Translator, error) {
@@ -116,9 +119,10 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 	}
 
 	return &exporter{
-		tr:       tr,
-		s:        s,
-		hostname: hostname,
+		tr:          tr,
+		s:           s,
+		hostname:    hostname,
+		cardinality: cfg.Metrics.TagCardinality,
 	}, nil
 }
 
@@ -129,6 +133,7 @@ func (e *exporter) ConsumeMetrics(ctx context.Context, ld pdata.Metrics) error {
 		return err
 	}
 
+	consumer.enrichTags(e.cardinality)
 	consumer.addTelemetryMetric(e.hostname)
 	if err := consumer.flush(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
