@@ -225,8 +225,8 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 
 func (p *passthroughPipeline) Start() {
 	p.auditor.Start()
-	p.strategy.Start()
-	if p.sender != nil {
+	if p.strategy != nil {
+		p.strategy.Start()
 		p.sender.Start()
 	}
 }
@@ -274,7 +274,7 @@ func NewNoopEventPlatformForwarder() EventPlatformForwarder {
 	f := newDefaultEventPlatformForwarder()
 	// remove the senders
 	for _, p := range f.pipelines {
-		p.sender = nil
+		p.strategy = nil
 	}
 	return f
 }
