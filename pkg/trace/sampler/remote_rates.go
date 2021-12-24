@@ -6,7 +6,6 @@
 package sampler
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,7 +48,7 @@ func newRemoteRates() *RemoteRates {
 	if !features.Has("remote_rates") {
 		return nil
 	}
-	client, err := remote.NewClient(context.Background(), remote.Facts{ID: "trace-agent", Name: "trace-agent", Version: version.AgentVersion}, []data.Product{data.ProductAPMSampling})
+	client, err := remote.NewClient(remote.Facts{ID: "trace-agent", Name: "trace-agent", Version: version.AgentVersion}, []data.Product{data.ProductAPMSampling})
 	if err != nil {
 		log.Errorf("Error when subscribing to remote config management %v", err)
 		return nil

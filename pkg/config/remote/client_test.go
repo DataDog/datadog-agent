@@ -80,7 +80,7 @@ func TestClientEmptyResponse(t *testing.T) {
 	config.Datadog.Set("remote_configuration.director_root", embeddedRoot)
 
 	testFacts := Facts{ID: "test-agent", Name: "test-agent-name", Version: "v6.1.1"}
-	client, err := newClient(context.Background(), testFacts, []rdata.Product{rdata.ProductAPMSampling})
+	client, err := newClient(testFacts, []rdata.Product{rdata.ProductAPMSampling})
 	assert.NoError(t, err)
 
 	testServer.On("ClientGetConfigs", mock.Anything, &pbgo.ClientGetConfigsRequest{Client: &pbgo.Client{
@@ -119,7 +119,7 @@ func TestClientValidResponse(t *testing.T) {
 	config.Datadog.Set("remote_configuration.director_root", embeddedRoot)
 
 	testFacts := Facts{ID: "test-agent", Name: "test-agent-name", Version: "v6.1.1"}
-	client, err := newClient(context.Background(), testFacts, []rdata.Product{rdata.ProductAPMSampling})
+	client, err := newClient(testFacts, []rdata.Product{rdata.ProductAPMSampling})
 	assert.NoError(t, err)
 
 	testServer.On("ClientGetConfigs", mock.Anything, &pbgo.ClientGetConfigsRequest{Client: &pbgo.Client{

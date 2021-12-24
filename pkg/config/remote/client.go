@@ -43,8 +43,8 @@ type Facts struct {
 }
 
 // NewClient creates a new client
-func NewClient(ctx context.Context, facts Facts, products []data.Product) (*Client, error) {
-	client, err := newClient(ctx, facts, products)
+func NewClient(facts Facts, products []data.Product) (*Client, error) {
+	client, err := newClient(facts, products)
 	if err != nil {
 		return nil, err
 	}
@@ -52,12 +52,12 @@ func NewClient(ctx context.Context, facts Facts, products []data.Product) (*Clie
 	return client, nil
 }
 
-func newClient(ctx context.Context, facts Facts, products []data.Product, dialOpts ...grpc.DialOption) (*Client, error) {
+func newClient(facts Facts, products []data.Product, dialOpts ...grpc.DialOption) (*Client, error) {
 	token, err := security.FetchAuthToken()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not acquire agent auth token")
 	}
-	ctx, close := context.WithCancel(ctx)
+	ctx, close := context.WithCancel(context.Background())
 	md := metadata.MD{
 		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
 	}
