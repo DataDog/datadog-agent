@@ -92,7 +92,9 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"batch": nil,
+					"batch": map[string]interface{}{
+						"timeout": "10s",
+					},
 				},
 				"exporters": map[string]interface{}{
 					"otlp": map[string]interface{}{
@@ -197,7 +199,9 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"batch": nil,
+					"batch": map[string]interface{}{
+						"timeout": "10s",
+					},
 				},
 				"exporters": map[string]interface{}{
 					"serializer": map[string]interface{}{
