@@ -38,7 +38,7 @@ type Sender interface {
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
 	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
-	ContainerLifecycleEvent(msgs []serializer.ContainerLifeCycleMessage)
+	ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage)
 }
 
 // RawSender interface to submit samples to aggregator directly
@@ -91,7 +91,7 @@ type senderOrchestratorMetadata struct {
 }
 
 type senderContainerLifecycleEvent struct {
-	msgs []serializer.ContainerLifeCycleMessage
+	msgs []serializer.ContainerLifecycleMessage
 }
 
 type checkSenderPool struct {
@@ -403,7 +403,7 @@ func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody,
 	s.orchestratorOut <- om
 }
 
-func (s *checkSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifeCycleMessage) {
+func (s *checkSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
 	s.contlcycleOut <- senderContainerLifecycleEvent{msgs: msgs}
 }
 

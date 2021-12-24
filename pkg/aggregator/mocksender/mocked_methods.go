@@ -108,6 +108,6 @@ func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, 
 }
 
 // ContainerLifecycleEvent submit container life cycle messages
-func (m *MockSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifeCycleMessage) {
+func (m *MockSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
 	m.Called(msgs)
 }

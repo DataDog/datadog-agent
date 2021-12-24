@@ -9,5 +9,5 @@ import (
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 )
 
-// ContainerLifeCycleMessage is a type alias for contlcycle proto payload
-type ContainerLifeCycleMessage = contlcycle.EventsPayload
+// ContainerLifecycleMessage is a type alias for contlcycle proto payload
+type ContainerLifecycleMessage = contlcycle.EventsPayload

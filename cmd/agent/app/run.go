@@ -369,6 +369,7 @@ func StartAgent() error {
 	// Enable core agent specific features like persistence-to-disk
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts.UseContainerLifecycleForwarder = config.Datadog.GetBool("container_lifecycle.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 	// start dogstatsd

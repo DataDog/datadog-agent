@@ -69,6 +69,6 @@ func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hos
 }
 
 // SendContainerLifecycleEvent serializes & send container lifecycle event payloads
-func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifeCycleMessage, hostname string) error {
+func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostname string) error {
 	return s.Called(msgs, hostname).Error(0)
 }

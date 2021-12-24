@@ -85,12 +85,12 @@ func (e *eventTransformer) toPayloadModel() (model.EventsPayload, error) {
 func (e *eventTransformer) toEventModel() (*model.Event, error) {
 	event := &model.Event{}
 
-	typ, err := e.typ()
+	evType, err := e.evType()
 	if err != nil {
 		return nil, err
 	}
 
-	event.EventType = typ
+	event.EventType = evType
 
 	switch e.objectKind {
 	case types.ObjectKindContainer:
@@ -122,7 +122,7 @@ func (e *eventTransformer) toEventModel() (*model.Event, error) {
 	return event, nil
 }
 
-func (e *eventTransformer) typ() (model.Event_EventType, error) {
+func (e *eventTransformer) evType() (model.Event_EventType, error) {
 	switch e.eventType {
 	case types.EventNameDelete:
 		return model.Event_Delete, nil

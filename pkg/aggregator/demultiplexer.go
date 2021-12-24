@@ -117,7 +117,7 @@ func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOption
 		FlushInterval:                  DefaultFlushInterval,
 		UseEventPlatformForwarder:      true,
 		UseOrchestratorForwarder:       true,
-		UseContainerLifecycleForwarder: true,
+		UseContainerLifecycleForwarder: false,
 	}
 }
 
@@ -239,6 +239,10 @@ func (d *AgentDemultiplexer) Run() {
 			log.Debug("not starting the shared forwarder")
 		}
 		log.Debug("Forwarders started")
+	}
+
+	if d.options.UseContainerLifecycleForwarder {
+		d.aggregator.contLcycleDequeueOnce.Do(func() { go d.aggregator.dequeueContainerLifecycleEvents() })
 	}
 
 	d.aggregator.run() // this is the blocking call

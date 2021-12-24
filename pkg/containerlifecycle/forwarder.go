@@ -29,6 +29,10 @@ func buildKeysPerDomains(conf config.Config) (map[string][]string, error) {
 		},
 	}
 
+	if !conf.IsSet("container_lifecycle.additional_endpoints") {
+		return keysPerDomain, nil
+	}
+
 	additionalEndpoints := conf.GetStringMapStringSlice("container_lifecycle.additional_endpoints")
 
 	return config.MergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)

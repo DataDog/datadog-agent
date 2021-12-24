@@ -103,7 +103,7 @@ type MetricSerializer interface {
 	SendProcessesMetadata(data interface{}) error
 	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
-	SendContainerLifecycleEvent(msgs []ContainerLifeCycleMessage, hostName string) error
+	SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostName string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -464,7 +464,7 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 }
 
 // SendContainerLifecycleEvent serializes & sends container lifecycle event payloads
-func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifeCycleMessage, hostname string) error {
+func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostname string) error {
 	if s.contlcycleForwarder == nil {
 		return errors.New("container lifecycle forwarder is not setup")
 	}
