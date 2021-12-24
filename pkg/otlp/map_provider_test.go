@@ -230,7 +230,9 @@ func TestNewMap(t *testing.T) {
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
 			cfgProvider := newMapProvider(testInstance.pcfg)
-			cfg, err := cfgProvider.Get(context.Background())
+			retrieved, err := cfgProvider.Retrieve(context.Background(), nil)
+			require.NoError(t, err)
+			cfg, err := retrieved.Get(context.Background())
 			require.NoError(t, err)
 			tcfg := config.NewMapFromStringMap(testInstance.ocfg)
 			assert.Equal(t, tcfg.ToStringMap(), cfg.ToStringMap())
@@ -256,7 +258,10 @@ func TestUnmarshal(t *testing.T) {
 			},
 		},
 	})
-	configMap, err := mapProvider.Get(context.Background())
+	retrieved, err := mapProvider.Retrieve(context.Background(), nil)
+	require.NoError(t, err)
+
+	configMap, err := retrieved.Get(context.Background())
 	require.NoError(t, err)
 
 	components, err := getComponents(&serializer.MockSerializer{})
