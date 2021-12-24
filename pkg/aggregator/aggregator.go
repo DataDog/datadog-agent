@@ -119,6 +119,8 @@ var (
 	aggregatorDogstatsdContexts                = expvar.Int{}
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
+	aggregatorContainerLifecycleEvents         = expvar.Int{}
+	aggregatorContainerLifecycleEventsErrors   = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -168,6 +170,8 @@ func init() {
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
+	aggregatorExpvars.Set("ContainerLifecycleEvents", &aggregatorContainerLifecycleEvents)
+	aggregatorExpvars.Set("ContainerLifecycleEventsErrors", &aggregatorContainerLifecycleEventsErrors)
 
 	tagsetTlm = newTagsetTelemetry([]uint64{90, 100})
 
@@ -199,6 +203,11 @@ type BufferedAggregator struct {
 	checkHistogramBucketIn chan senderHistogramBucket
 	orchestratorMetadataIn chan senderOrchestratorMetadata
 	eventPlatformIn        chan senderEventPlatformEvent
+
+	contLcycleIn          chan senderContainerLifecycleEvent
+	contLcycleBuffer      chan senderContainerLifecycleEvent
+	contLcycleStopper     chan struct{}
+	contLcycleDequeueOnce sync.Once
 
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
 	// Used by the Dogstatsd Batcher.
@@ -268,6 +277,10 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
 		eventPlatformIn:        make(chan senderEventPlatformEvent, bufferSize),
+
+		contLcycleIn:      make(chan senderContainerLifecycleEvent, bufferSize),
+		contLcycleBuffer:  make(chan senderContainerLifecycleEvent, bufferSize),
+		contLcycleStopper: make(chan struct{}),
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
@@ -756,6 +769,7 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 // or closed dogstatsd buckets) will be sent to the serializer before stopping.
 func (agg *BufferedAggregator) Stop(flush bool) {
 	agg.stopChan <- struct{}{}
+	close(agg.contLcycleStopper)
 
 	timeout := config.Datadog.GetDuration("aggregator_stop_timeout") * time.Second
 	if flush && timeout > 0 {
@@ -897,7 +911,37 @@ func (agg *BufferedAggregator) run() {
 				}
 			}
 			tlmFlush.Add(1, event.eventType, state)
+		case event := <-agg.contLcycleIn:
+			aggregatorContainerLifecycleEvents.Add(1)
+			agg.handleContainerLifecycleEvent(event)
 		}
+	}
+}
+
+// dequeueContainerLifecycleEvents consumes buffered container lifecycle events.
+// It is blocking so it should be started in its own routine and only one instance should be started.
+func (agg *BufferedAggregator) dequeueContainerLifecycleEvents() {
+	for {
+		select {
+		case event := <-agg.contLcycleBuffer:
+			if err := agg.serializer.SendContainerLifecycleEvent(event.msgs, agg.hostname); err != nil {
+				aggregatorContainerLifecycleEventsErrors.Add(1)
+				log.Warnf("Error submitting container lifecycle data: %w", err)
+			}
+		case <-agg.contLcycleStopper:
+			return
+		}
+	}
+}
+
+// handleContainerLifecycleEvent forwards container lifecycle events to the buffering channel.
+func (agg *BufferedAggregator) handleContainerLifecycleEvent(event senderContainerLifecycleEvent) {
+	select {
+	case agg.contLcycleBuffer <- event:
+		return
+	default:
+		aggregatorContainerLifecycleEventsErrors.Add(1)
+		log.Warn("Container lifecycle events channel is full")
 	}
 }
 

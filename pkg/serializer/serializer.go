@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 const (
@@ -101,12 +103,14 @@ type MetricSerializer interface {
 	SendProcessesMetadata(data interface{}) error
 	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
+	SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostName string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
 	Forwarder             forwarder.Forwarder
 	orchestratorForwarder forwarder.Forwarder
+	contlcycleForwarder   forwarder.Forwarder
 
 	seriesJSONPayloadBuilder *stream.JSONPayloadBuilder
 
@@ -128,10 +132,11 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder forwarder.Forwarder) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcycleForwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
 		Forwarder:                     forwarder,
 		orchestratorForwarder:         orchestratorForwarder,
+		contlcycleForwarder:           contlcycleForwarder,
 		seriesJSONPayloadBuilder:      stream.NewJSONPayloadBuilder(config.Datadog.GetBool("enable_json_stream_shared_compressor_buffers")),
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
@@ -455,5 +460,29 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 
 		}
 	}
+	return nil
+}
+
+// SendContainerLifecycleEvent serializes & sends container lifecycle event payloads
+func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostname string) error {
+	if s.contlcycleForwarder == nil {
+		return errors.New("container lifecycle forwarder is not setup")
+	}
+
+	for _, msg := range msgs {
+		extraHeaders := make(http.Header)
+		extraHeaders.Set("Content-Type", protobufContentType)
+		msg.Host = hostname
+		encoded, err := proto.Marshal(&msg)
+		if err != nil {
+			return log.Errorf("Unable to encode message: %w", err)
+		}
+
+		payloads := forwarder.Payloads{&encoded}
+		if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(payloads, extraHeaders); err != nil {
+			return log.Errorf("Unable to submit container lifecycle payload: %w", err)
+		}
+	}
+
 	return nil
 }
