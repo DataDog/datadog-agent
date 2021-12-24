@@ -1,14 +1,14 @@
-ARG BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-20h2
-FROM mcr.microsoft.com/powershell:lts-windowsservercore-1809 as unzipper
+ARG BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-1809
+ARG WITH_JMX="false"
+ARG VARIANT="unknown"
+
+FROM mcr.microsoft.com/powershell:lts-windowsservercore-${VARIANT} as unzipper
 USER ContainerAdministrator
 SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
 COPY datadog-agent-latest.amd64.zip uncompress-zip.ps1 ./
 RUN . ./uncompress-zip.ps1
 
 FROM ${BASE_IMAGE}
-
-ARG WITH_JMX="false"
-ARG VARIANT="unknown"
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
