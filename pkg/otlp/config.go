@@ -9,6 +9,7 @@ package otlp
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -144,6 +145,13 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 	metrics := map[string]interface{}{}
 	if isSetExperimentalMetrics(cfg) {
 		metrics = cfg.GetStringMap(config.ExperimentalOTLPMetrics)
+	}
+
+	// HACK: Because of https://github.com/spf13/viper/issues/1012
+	// we need to manually check the environment variable for any nested setting.
+	// The 'correct' solution would be to fix this in our Viper fork.
+	if env, ok := os.LookupEnv("DD_OTLP_TAG_CARDINALITY"); ok {
+		metrics["tag_cardinality"] = env
 	}
 
 	return PipelineConfig{

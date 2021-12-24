@@ -16,6 +16,7 @@ const (
 	ReceiverSubSectionKey           = "receiver"
 	ExperimentalOTLPReceiverSection = ExperimentalOTLPSection + "." + ReceiverSubSectionKey
 	ExperimentalOTLPMetrics         = ExperimentalOTLPSection + ".metrics"
+	tagCardinalityKey               = "otlp_tag_cardinality"
 )
 
 // SetupOTLP related configuration.
@@ -25,6 +26,11 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(ExperimentalOTLPTracesEnabled, true)
 	config.BindEnv(ExperimentalOTLPHTTPPort, "DD_OTLP_HTTP_PORT")
 	config.BindEnv(ExperimentalOTLPgRPCPort, "DD_OTLP_GRPC_PORT")
+
+	// NOTE: This only partially works.
+	// The environment variable is also manually checked
+	// in pkg/otlp/internal/serializerexporter/exporter.go
+	config.BindEnv(tagCardinalityKey, "DD_OTLP_TAG_CARDINALITY")
 
 	config.SetKnown(ExperimentalOTLPMetrics)
 	// Set all subkeys of experimental.otlp.metrics as known

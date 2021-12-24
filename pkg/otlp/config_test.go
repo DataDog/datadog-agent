@@ -194,6 +194,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 					"send_monotonic_counter":                   true,
 					"resource_attributes_as_tags":              true,
 					"instrumentation_library_metadata_as_tags": true,
+					"tag_cardinality":                          "orchestrator",
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
