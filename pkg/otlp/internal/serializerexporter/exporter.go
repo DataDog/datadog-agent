@@ -57,8 +57,9 @@ func (f hostnameProviderFunc) Hostname(ctx context.Context) (string, error) {
 // exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
 type exporter struct {
-	tr *translator.Translator
-	s  serializer.MetricSerializer
+	tr       *translator.Translator
+	s        serializer.MetricSerializer
+	hostname string
 }
 
 func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.Translator, error) {
@@ -109,7 +110,16 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
 
-	return &exporter{tr, s}, nil
+	hostname, err := util.GetHostname(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+
+	return &exporter{
+		tr:       tr,
+		s:        s,
+		hostname: hostname,
+	}, nil
 }
 
 func (e *exporter) ConsumeMetrics(ctx context.Context, ld pdata.Metrics) error {
@@ -119,7 +129,7 @@ func (e *exporter) ConsumeMetrics(ctx context.Context, ld pdata.Metrics) error {
 		return err
 	}
 
-	if err := consumer.flush(e.s); err != nil {
+	if err := consumer.flush(e.hostname, e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
 	return nil
