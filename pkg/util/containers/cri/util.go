@@ -10,15 +10,17 @@ package cri
 import (
 	"context"
 	"fmt"
-	"net"
+	"runtime"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"google.golang.org/grpc"
-	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	"github.com/DataDog/datadog-agent/third_party/kubernetes/pkg/kubelet/cri/remote/util"
 )
 
 var (
@@ -56,11 +58,19 @@ func (c *CRIUtil) init() error {
 		return fmt.Errorf("no cri_socket_path was set")
 	}
 
-	dialer := func(socketPath string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("unix", socketPath, timeout)
+	var protocol string
+	if runtime.GOOS == "windows" {
+		protocol = "npipe"
+	} else {
+		protocol = "unix"
 	}
 
-	conn, err := grpc.Dial(c.socketPath, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(c.connectionTimeout), grpc.WithDialer(dialer))
+	_, dialer, err := util.GetAddressAndDialer(fmt.Sprintf("%s://%s", protocol, c.socketPath))
+	if err != nil {
+		return fmt.Errorf("failed to get dialer: %s", err)
+	}
+
+	conn, err := grpc.Dial(c.socketPath, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(c.connectionTimeout), grpc.WithContextDialer(dialer))
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}

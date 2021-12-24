@@ -61,7 +61,7 @@ type KubeEndpointsFileConfigProvider struct {
 }
 
 // NewKubeEndpointsFileConfigProvider returns a new KubeEndpointsFileConfigProvider
-func NewKubeEndpointsFileConfigProvider(config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeEndpointsFileConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	templates, _, err := ReadConfigFiles(WithAdvancedADOnly)
 	if err != nil {
 		return nil, err
