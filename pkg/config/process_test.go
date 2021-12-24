@@ -160,12 +160,12 @@ func TestEnvVarOverride(t *testing.T) {
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {
 	cfg := setupConf()
+	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
+
 	envs := map[string]struct{}{}
 	for _, env := range cfg.GetEnvVars() {
 		envs[env] = struct{}{}
 	}
-
-	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
 
 	_, ok := envs["DD_PROCESS_CONFIG_FOO_BAR"]
 	assert.True(t, ok)
