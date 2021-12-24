@@ -72,8 +72,7 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 }
 
 // flush all metrics and sketches in consumer.
-func (c *serializerConsumer) flush(hostname string, s serializer.MetricSerializer) error {
-	c.addTelemetryMetric(hostname)
+func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 	if err := s.SendSketch(c.sketches); err != nil {
 		return err
 	}
