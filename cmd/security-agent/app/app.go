@@ -212,7 +212,7 @@ func RunAgent(ctx context.Context) (err error) {
 		log.Infof("All security-agent components are deactivated, exiting")
 
 		// A sleep is necessary so that sysV doesn't think the agent has failed
-		// to startup because of an error. Only applies on Debian 7 and SUSE 11.
+		// to startup because of an error. Only applies on Debian 7.
 		time.Sleep(5 * time.Second)
 
 		return nil
