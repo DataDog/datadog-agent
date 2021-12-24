@@ -10,7 +10,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
 type event interface {
@@ -18,20 +17,20 @@ type event interface {
 	withObjectID(string)
 	withEventType(string)
 	withSource(string)
-	withExitCode(*int32)
-	withExitTimestamp(*int64)
-	toPayloadModel() model.EventsPayload
-	toEventModel() *model.Event
+	withContainerExitCode(*int32)
+	withContainerExitTimestamp(*int64)
+	toPayloadModel() (model.EventsPayload, error)
+	toEventModel() (*model.Event, error)
 }
 
 type eventTransformer struct {
-	tpl        model.EventsPayload
-	objectKind string
-	objectID   string
-	eventType  string
-	source     string
-	exitCode   *int32
-	exitTS     *int64
+	tpl          model.EventsPayload
+	objectKind   string
+	objectID     string
+	eventType    string
+	source       string
+	contExitCode *int32
+	contExitTS   *int64
 }
 
 func newEvent() event {
@@ -56,50 +55,71 @@ func (e *eventTransformer) withSource(source string) {
 	e.source = source
 }
 
-func (e *eventTransformer) withExitCode(exitCode *int32) {
-	e.exitCode = exitCode
+func (e *eventTransformer) withContainerExitCode(exitCode *int32) {
+	e.contExitCode = exitCode
 }
 
-func (e *eventTransformer) withExitTimestamp(exitTS *int64) {
-	e.exitTS = exitTS
+func (e *eventTransformer) withContainerExitTimestamp(exitTS *int64) {
+	e.contExitTS = exitTS
 }
 
-func (e *eventTransformer) toPayloadModel() model.EventsPayload {
+func (e *eventTransformer) toPayloadModel() (model.EventsPayload, error) {
 	payload := e.tpl
 	kind, err := e.kind()
 	if err != nil {
-		log.Debugf("Error getting object kind: %w", err)
-	} else {
-		payload.ObjectKind = kind
+		return model.EventsPayload{}, err
 	}
 
-	payload.Events = []*model.Event{e.toEventModel()}
+	payload.ObjectKind = kind
 
-	return payload
+	event, err := e.toEventModel()
+	if err != nil {
+		return model.EventsPayload{}, err
+	}
+
+	payload.Events = []*model.Event{event}
+
+	return payload, nil
 }
 
-func (e *eventTransformer) toEventModel() *model.Event {
-	event := &model.Event{
-		ObjectID: e.objectID,
-		Source:   e.source,
-	}
+func (e *eventTransformer) toEventModel() (*model.Event, error) {
+	event := &model.Event{}
 
 	typ, err := e.typ()
 	if err != nil {
-		log.Debugf("Error getting event type: %w", err)
-	} else {
-		event.EventType = typ
+		return nil, err
 	}
 
-	if e.exitCode != nil {
-		event.OptionalExitCode = &model.Event_ExitCode{ExitCode: *e.exitCode}
+	event.EventType = typ
+
+	switch e.objectKind {
+	case types.ObjectKindContainer:
+		container := &model.ContainerEvent{
+			ContainerID: e.objectID,
+			Source:      e.source,
+		}
+
+		if e.contExitCode != nil {
+			container.OptionalExitCode = &model.ContainerEvent_ExitCode{ExitCode: *e.contExitCode}
+		}
+
+		if e.contExitTS != nil {
+			container.OptionalExitTimestamp = &model.ContainerEvent_ExitTimestamp{ExitTimestamp: *e.contExitTS}
+		}
+
+		event.TypedEvent = &model.Event_Container{Container: container}
+	case types.ObjectKindPod:
+		pod := &model.PodEvent{
+			PodUID: e.objectID,
+			Source: e.source,
+		}
+
+		event.TypedEvent = &model.Event_Pod{Pod: pod}
+	default:
+		return nil, fmt.Errorf("unknown kind %q", e.objectKind)
 	}
 
-	if e.exitTS != nil {
-		event.OptionalExitTimestamp = &model.Event_ExitTimestamp{ExitTimestamp: *e.exitTS}
-	}
-
-	return event
+	return event, nil
 }
 
 func (e *eventTransformer) typ() (model.Event_EventType, error) {
@@ -114,10 +134,10 @@ func (e *eventTransformer) typ() (model.Event_EventType, error) {
 func (e *eventTransformer) kind() (model.EventsPayload_ObjectKind, error) {
 	switch e.objectKind {
 	case types.ObjectKindContainer:
-		return model.EventsPayload_Cont, nil
+		return model.EventsPayload_Container, nil
 	case types.ObjectKindPod:
 		return model.EventsPayload_Pod, nil
 	default:
-		return -1, fmt.Errorf("unknown object kind %s", e.objectKind)
+		return -1, fmt.Errorf("unknown object kind %q", e.objectKind)
 	}
 }

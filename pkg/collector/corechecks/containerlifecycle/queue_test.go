@@ -13,11 +13,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testEvent(objID string) event {
+func fakeContainerEvent(objID string) event {
 	event := newEvent()
 	event.withObjectID(objID)
+	event.withObjectKind("container")
+	event.withEventType("delete")
 
 	return event
+}
+
+func modelEvents(objIDs ...string) []*model.Event {
+	events := []*model.Event{}
+	for _, id := range objIDs {
+		events = append(events, &model.Event{TypedEvent: &model.Event_Container{Container: &model.ContainerEvent{ContainerID: id}}})
+	}
+
+	return events
 }
 
 func TestSingleQueueAdd(t *testing.T) {
@@ -32,22 +43,22 @@ func TestSingleQueueAdd(t *testing.T) {
 		{
 			name: "empty queue",
 			data: []model.EventsPayload{},
-			ev:   testEvent("obj1"),
-			want: []model.EventsPayload{{Version: "v1", Events: []*model.Event{{ObjectID: "obj1"}}}},
+			ev:   fakeContainerEvent("obj1"),
+			want: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1")}},
 		},
 		{
 			name: "last payload not full",
-			data: []model.EventsPayload{{Version: "v1", Events: []*model.Event{{ObjectID: "obj1"}}}},
-			ev:   testEvent("obj2"),
-			want: []model.EventsPayload{{Version: "v1", Events: []*model.Event{{ObjectID: "obj1"}, {ObjectID: "obj2"}}}},
+			data: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1")}},
+			ev:   fakeContainerEvent("obj2"),
+			want: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1", "obj2")}},
 		},
 		{
 			name: "last payload full",
-			data: []model.EventsPayload{{Version: "v1", Events: []*model.Event{{ObjectID: "obj1"}, {ObjectID: "obj2"}}}},
-			ev:   testEvent("obj3"),
+			data: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1", "obj2")}},
+			ev:   fakeContainerEvent("obj3"),
 			want: []model.EventsPayload{
-				{Version: "v1", Events: []*model.Event{{ObjectID: "obj1"}, {ObjectID: "obj2"}}},
-				{Version: "v1", Events: []*model.Event{{ObjectID: "obj3"}}},
+				{Version: "v1", Events: modelEvents("obj1", "obj2")},
+				{Version: "v1", Events: modelEvents("obj3")},
 			},
 		},
 	}
@@ -56,7 +67,9 @@ func TestSingleQueueAdd(t *testing.T) {
 			queue := newQueue(commonChunkSize)
 			queue.data = tt.data
 
-			queue.add(tt.ev)
+			err := queue.add(tt.ev)
+
+			assert.Nil(t, err)
 			assert.EqualValues(t, tt.want, queue.data)
 		})
 	}
@@ -67,7 +80,7 @@ func TestBatching(t *testing.T) {
 	queue := newQueue(commonChunkSize)
 
 	for i := int64(0); i < 10; i++ {
-		queue.add(testEvent(strconv.FormatInt(i, 10)))
+		queue.add(fakeContainerEvent(strconv.FormatInt(i, 10)))
 	}
 
 	data := queue.dump()
@@ -75,7 +88,6 @@ func TestBatching(t *testing.T) {
 
 	for i := int64(0); i < 5; i++ {
 		assert.Len(t, data[i].Events, commonChunkSize)
-		assert.EqualValues(t, data[i].Events[0], &model.Event{ObjectID: strconv.FormatInt(2*i, 10)})
-		assert.EqualValues(t, data[i].Events[1], &model.Event{ObjectID: strconv.FormatInt(2*i+1, 10)})
+		assert.EqualValues(t, data[i].Events, modelEvents(strconv.FormatInt(2*i, 10), strconv.FormatInt(2*i+1, 10)))
 	}
 }

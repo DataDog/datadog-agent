@@ -444,7 +444,7 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 		sp.agg.checkHistogramBucketIn,
 		sp.agg.orchestratorMetadataIn,
 		sp.agg.eventPlatformIn,
-		sp.agg.contlcycleIn,
+		sp.agg.contLcycleIn,
 	)
 	sp.senders[id] = sender
 	return sender, err

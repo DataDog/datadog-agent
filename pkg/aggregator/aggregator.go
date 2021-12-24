@@ -203,7 +203,10 @@ type BufferedAggregator struct {
 	checkHistogramBucketIn chan senderHistogramBucket
 	orchestratorMetadataIn chan senderOrchestratorMetadata
 	eventPlatformIn        chan senderEventPlatformEvent
-	contlcycleIn           chan senderContainerLifecycleEvent
+
+	contLcycleIn          chan senderContainerLifecycleEvent
+	contLcycleBuffer      chan senderContainerLifecycleEvent
+	contlcycleDequeueOnce sync.Once
 
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
 	// Used by the Dogstatsd Batcher.
@@ -273,7 +276,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
 		eventPlatformIn:        make(chan senderEventPlatformEvent, bufferSize),
-		contlcycleIn:           make(chan senderContainerLifecycleEvent, bufferSize),
+
+		contLcycleIn:     make(chan senderContainerLifecycleEvent, bufferSize),
+		contLcycleBuffer: make(chan senderContainerLifecycleEvent, bufferSize),
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
@@ -903,15 +908,38 @@ func (agg *BufferedAggregator) run() {
 				}
 			}
 			tlmFlush.Add(1, event.eventType, state)
-		case event := <-agg.contlcycleIn:
+		case event := <-agg.contLcycleIn:
+			agg.contlcycleDequeueOnce.Do(func() { go agg.dequeueContainerLifecycleEvents() })
 			aggregatorContainerLifecycleEvents.Add(1)
-			go func(contlcycle senderContainerLifecycleEvent) {
-				if err := agg.serializer.SendContainerLifecycleEvent(event.msgs, agg.hostname); err != nil {
-					aggregatorContainerLifecycleEventErrors.Add(1)
-					log.Errorf("Error submitting container lifecycle data: %w", err)
-				}
-			}(event)
+			agg.handleContainerLifecycleEvent(event)
 		}
+	}
+}
+
+// dequeueContainerLifecycleEvents consumes buffered container lifecycle events.
+// It is blocking, it should run once and in a separate goroutine.
+func (agg *BufferedAggregator) dequeueContainerLifecycleEvents() {
+	for {
+		select {
+		case event := <-agg.contLcycleBuffer:
+			if err := agg.serializer.SendContainerLifecycleEvent(event.msgs, agg.hostname); err != nil {
+				aggregatorContainerLifecycleEventErrors.Add(1)
+				log.Warnf("Error submitting container lifecycle data: %w", err)
+			}
+		case <-agg.stopChan:
+			return
+		}
+	}
+}
+
+// handleContainerLifecycleEvent forwards container lifecycle events to the buffering channel.
+func (agg *BufferedAggregator) handleContainerLifecycleEvent(event senderContainerLifecycleEvent) {
+	select {
+	case agg.contLcycleBuffer <- event:
+		return
+	default:
+		aggregatorContainerLifecycleEventErrors.Add(1)
+		log.Warn("Container lifecycle events channel is full")
 	}
 }
 

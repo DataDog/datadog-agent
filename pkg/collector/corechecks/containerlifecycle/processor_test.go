@@ -32,7 +32,7 @@ func TestProcessQueues(t *testing.T) {
 		{
 			name: "one container",
 			containersQueue: &queue{data: []model.EventsPayload{
-				{Version: "v1", Events: []*model.Event{{ObjectID: "cont1"}}},
+				{Version: "v1", Events: modelEvents("cont1")},
 			}},
 			podsQueue: &queue{},
 			wantFunc: func(t *testing.T, s *mocksender.MockSender) {
@@ -42,12 +42,12 @@ func TestProcessQueues(t *testing.T) {
 		{
 			name: "multiple chunks per types",
 			containersQueue: &queue{data: []model.EventsPayload{
-				{Version: "v1", Events: []*model.Event{{ObjectID: "cont1"}, {ObjectID: "cont2"}}},
-				{Version: "v1", Events: []*model.Event{{ObjectID: "cont3"}}},
+				{Version: "v1", Events: modelEvents("cont1", "cont2")},
+				{Version: "v1", Events: modelEvents("cont3")},
 			}},
 			podsQueue: &queue{data: []model.EventsPayload{
-				{Version: "v1", Events: []*model.Event{{ObjectID: "pod1"}, {ObjectID: "pod2"}}},
-				{Version: "v1", Events: []*model.Event{{ObjectID: "pod3"}}},
+				{Version: "v1", Events: modelEvents("pod1", "pod2")},
+				{Version: "v1", Events: modelEvents("pod3")},
 			}},
 			wantFunc: func(t *testing.T, s *mocksender.MockSender) {
 				s.AssertNumberOfCalls(t, "ContainerLifecycleEvent", 2)

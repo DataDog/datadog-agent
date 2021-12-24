@@ -207,8 +207,9 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 // Run runs all demultiplexer parts
 func (d *AgentDemultiplexer) Run() {
 	if !d.options.DontStartForwarders {
-		// orchestrator forwarder
 		log.Debugf("Starting forwarders")
+
+		// orchestrator forwarder
 		if d.forwarders.orchestrator != nil {
 			d.forwarders.orchestrator.Start() //nolint:errcheck
 		} else {

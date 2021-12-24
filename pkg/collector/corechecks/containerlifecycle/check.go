@@ -26,6 +26,10 @@ const (
 	defaultPollInterval = 10
 )
 
+func init() {
+	core.RegisterCheck(checkName, CheckFactory)
+}
+
 // Config holds the container_lifecycle check configuration
 type Config struct {
 	chunkSize    int `yaml:"chunk_size"`
@@ -132,8 +136,4 @@ func CheckFactory() check.Check {
 		instance:          &Config{},
 		stopCh:            make(chan struct{}),
 	}
-}
-
-func init() {
-	core.RegisterCheck(checkName, CheckFactory)
 }

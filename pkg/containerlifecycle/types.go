@@ -9,9 +9,9 @@ const (
 	// PayloadV1 represents the payload v1 version
 	PayloadV1 = "v1"
 	// EventNameDelete represents deletion events
-	EventNameDelete = "del"
+	EventNameDelete = "delete"
 	// ObjectKindContainer represents container events
-	ObjectKindContainer = "cont"
+	ObjectKindContainer = "container"
 	// ObjectKindPod represents pod events
 	ObjectKindPod = "pod"
 )

@@ -39,16 +39,25 @@ func (q *queue) reset() {
 	q.data = []model.EventsPayload{}
 }
 
-func (q *queue) add(ev event) {
+func (q *queue) add(ev event) error {
 	if q.isEmpty() || q.isLastPayloadFull() {
-		payload := ev.toPayloadModel()
-		q.addPayload(payload)
+		payload, err := ev.toPayloadModel()
+		if err != nil {
+			return err
+		}
 
-		return
+		q.addPayload(payload)
+		return nil
 	}
 
-	event := ev.toEventModel()
+	event, err := ev.toEventModel()
+	if err != nil {
+		return err
+	}
+
 	q.addEvent(event)
+
+	return nil
 }
 
 func (q *queue) addPayload(payload model.EventsPayload) {

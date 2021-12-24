@@ -52,23 +52,29 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 					continue
 				}
 
-				p.processContainer(container, event.Sources)
+				err := p.processContainer(container, event.Sources)
+				if err != nil {
+					log.Debugf("Couldn't process container %q: %w", container.ID, err)
+				}
 			case workloadmeta.KindKubernetesPod:
-				p.processPod(event.Entity)
+				err := p.processPod(event.Entity)
+				if err != nil {
+					log.Debugf("Couldn't process pod %q: %w", event.Entity.GetID().ID, err)
+				}
 			case workloadmeta.KindECSTask: // not supported
 			default:
-				log.Debugf("Cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
+				log.Tracef("Cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
 
 		case workloadmeta.EventTypeSet: // not supported
 		default:
-			log.Debugf("Cannot handle event of type %d", event.Type)
+			log.Tracef("Cannot handle event of type %d", event.Type)
 		}
 	}
 }
 
 // processContainer enqueue container events
-func (p *processor) processContainer(container *workloadmeta.Container, sources []workloadmeta.Source) {
+func (p *processor) processContainer(container *workloadmeta.Container, sources []workloadmeta.Source) error {
 	event := newEvent()
 	event.withObjectKind(types.ObjectKindContainer)
 	event.withEventType(types.EventNameDelete)
@@ -80,26 +86,26 @@ func (p *processor) processContainer(container *workloadmeta.Container, sources 
 
 	if !container.State.FinishedAt.IsZero() {
 		ts := container.State.FinishedAt.Unix()
-		event.withExitTimestamp(&ts)
+		event.withContainerExitTimestamp(&ts)
 	}
 
 	if container.State.ExitCode != nil {
 		code := int32(*container.State.ExitCode)
-		event.withExitCode(&code)
+		event.withContainerExitCode(&code)
 	}
 
-	p.containersQueue.add(event)
+	return p.containersQueue.add(event)
 }
 
 // processPod enqueue pod events
-func (p *processor) processPod(pod workloadmeta.Entity) {
+func (p *processor) processPod(pod workloadmeta.Entity) error {
 	event := newEvent()
 	event.withObjectKind(types.ObjectKindPod)
 	event.withEventType(types.EventNameDelete)
 	event.withObjectID(pod.GetID().ID)
 	event.withSource(string(workloadmeta.SourceKubelet))
 
-	p.podsQueue.add(event)
+	return p.podsQueue.add(event)
 }
 
 // processQueues consumes the data available in the queues
