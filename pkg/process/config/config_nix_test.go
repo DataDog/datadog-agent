@@ -60,13 +60,9 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
-	assert := assert.New(t)
-
-	agentConfig, err := NewAgentConfig("test", "./testdata/TestDDAgentConfigYamlEnc.yaml", "", false)
-	assert.NoError(err)
-
+	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc.yaml", "")
 	ep := agentConfig.APIEndpoints[0]
-	assert.Equal("secret-my_api_key", ep.APIKey)
+	assert.Equal(t, "secret-my_api_key", ep.APIKey)
 }
 
 // TestAgentConfigYamlEnc2 tests the secrets feature on the file TestDDAgentConfigYamlEnc2
@@ -79,13 +75,11 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
-	assert := assert.New(t)
-	agentConfig, err := NewAgentConfig("test", "./testdata/TestDDAgentConfigYamlEnc2.yaml", "", false)
-	assert.NoError(err)
+	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc2.yaml", "")
 
 	ep := agentConfig.APIEndpoints[0]
-	assert.Equal("secret-encrypted_key", ep.APIKey)
-	assert.Equal("secret-burrito.com", ep.Endpoint.String())
+	assert.Equal(t, "secret-encrypted_key", ep.APIKey)
+	assert.Equal(t, "secret-burrito.com", ep.Endpoint.String())
 }
 
 func TestAgentEncryptedVariablesSecrets(t *testing.T) {
@@ -104,12 +98,10 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	defer os.Unsetenv("DD_API_KEY")
 	defer os.Unsetenv("DD_HOSTNAME")
 
-	assert := assert.New(t)
-	agentConfig, err := NewAgentConfig("test", "./testdata/TestEnvSiteConfig-Enc.yaml", "", false)
-	assert.NoError(err)
+	agentConfig := loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-Enc.yaml", "")
 
-	assert.Equal("secret-my_api_key", config.Datadog.Get("api_key"))
+	assert.Equal(t, "secret-my_api_key", config.Datadog.Get("api_key"))
 	ep := agentConfig.APIEndpoints[0]
-	assert.Equal("secret-my_api_key", ep.APIKey)
-	assert.Equal("secret-my-host", agentConfig.HostName)
+	assert.Equal(t, "secret-my_api_key", ep.APIKey)
+	assert.Equal(t, "secret-my-host", agentConfig.HostName)
 }
