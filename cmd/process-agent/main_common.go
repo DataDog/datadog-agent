@@ -181,6 +181,12 @@ func runAgent(exit chan struct{}) {
 		}()
 	}
 
+	// Load the config
+	if err := config.LoadConfigIfExists(opts.configPath); err != nil {
+		_ = log.Criticalf("Error parsing config: %s", err)
+		cleanupAndExit(1)
+	}
+
 	// Note: This only considers container sources that are already setup. It's possible that container sources may
 	//       need a few minutes to be ready on newly provisioned hosts.
 	_, err := util.GetContainers()

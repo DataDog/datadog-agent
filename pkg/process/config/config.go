@@ -272,11 +272,6 @@ func LoadConfigIfExists(path string) error {
 func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string, canAccessContainers bool) (*AgentConfig, error) {
 	var err error
 
-	// For Agent 6 we will have a YAML config file to use.
-	if err := LoadConfigIfExists(yamlPath); err != nil {
-		return nil, err
-	}
-
 	cfg := NewDefaultAgentConfig(canAccessContainers)
 
 	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
