@@ -227,40 +227,6 @@ func getParent(filename string, depth int) string {
 	return filename
 }
 
-func contains(value string, filename string) bool {
-	/*if strings.HasPrefix(value, "*") || strings.HasPrefix(value, "/*") {
-		return true
-	}*/
-
-	if len(value) == 0 || len(filename) == 0 {
-		return false
-	}
-
-	// normalize
-	if rune(value[0]) == '*' {
-		filename = filename[1:]
-	}
-
-	elsFilename := strings.Split(filename, "/")
-	elsValue := strings.Split(value, "/")
-
-	valueLen := len(value)
-
-	for i, elf := range elsFilename {
-		if i+1 > valueLen {
-			return false
-		}
-
-		elv := elsValue[i]
-
-		if elv != "*" && elf != elv {
-			return false
-		}
-	}
-
-	return true
-}
-
 func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, depth int) (func(dirname string) (bool, error), error) {
 	fnc, exists := id.parentDiscarderFncs[depth-1][field]
 	if exists {
@@ -305,17 +271,13 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		if values := rule.GetFieldValues(field); len(values) > 0 {
 			for _, value := range values {
 				if value.Type == eval.PatternValueType {
-					valueStr := value.Value.(string)
+					glob, err := eval.NewGlob(value.Value.(string))
+					if err != nil {
+						return nil, err
+					}
 
-					regexValue := value.Regexp
 					valueFnc = func(dirname string) (bool, bool, error) {
-						//dirname = dirname + "/."
-
-						if regexValue.MatchString(dirname) || contains(valueStr, dirname) {
-							return false, false, nil
-						}
-
-						return true, false, nil
+						return !glob.Contains(dirname), false, nil
 					}
 				} else if value.Type == eval.ScalarValueType {
 					str := value.Value.(string)
@@ -431,11 +393,7 @@ func (id *inodeDiscarders) discardParentInode(rs *rules.RuleSet, eventType model
 		return false, 0, 0, err
 	}
 
-	fmt.Printf("OOOOOOO: %d %s\n", depth, filename)
-
 	for ; depth > 0; depth-- {
-		fmt.Printf("IIIII: %d %d\n", mountID, inode)
-
 		mountID, inode, err = id.dentryResolver.GetParent(mountID, inode, pathID)
 		if err != nil {
 			return false, 0, 0, err
@@ -446,7 +404,6 @@ func (id *inodeDiscarders) discardParentInode(rs *rules.RuleSet, eventType model
 		}
 	}
 
-	fmt.Printf("DDDD: %d %d\n", mountID, inode)
 	if err := id.discardInode(eventType, mountID, inode, false); err != nil {
 		return false, 0, 0, err
 	}
