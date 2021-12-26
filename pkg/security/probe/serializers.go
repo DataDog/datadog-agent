@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -215,10 +217,11 @@ type BPFEventSerializer struct {
 // MMapEventSerializer serializes a mmap event to JSON
 type MMapEventSerializer struct {
 	Address    string          `json:"address" jsonschema_description:"memory segment address"`
+	Offset     uint64          `json:"offset" jsonschema_description:"file offset"`
 	Len        uint32          `json:"length" jsonschema_description:"memory segment length"`
 	Protection string          `json:"protection" jsonschema_description:"memory segment protection"`
 	Flags      string          `json:"flags" jsonschema_description:"memory segment flags"`
-	File       *FileSerializer `json:"file" jsonschema_description:"mmaped file"`
+	File       *FileSerializer `json:"file,omitempty" jsonschema_description:"mmaped file"`
 }
 
 // MProtectEventSerializer serializes a mmap event to JSON
@@ -233,7 +236,7 @@ type MProtectEventSerializer struct {
 type PTraceEventSerializer struct {
 	Request string                    `json:"request" jsonschema_description:"ptrace request"`
 	Address string                    `json:"address" jsonschema_description:"address at which the ptrace request was executed"`
-	Tracee  *ProcessContextSerializer `json:"tracee" jsonschema_description:"process context of the tracee"`
+	Tracee  *ProcessContextSerializer `json:"tracee,omitempty" jsonschema_description:"process context of the tracee"`
 }
 
 // DDContextSerializer serializes a span context to JSON
@@ -526,12 +529,18 @@ func newBPFEventSerializer(e *Event) *BPFEventSerializer {
 }
 
 func newMMapEventSerializer(e *Event) *MMapEventSerializer {
+	var fileSerializer *FileSerializer
+	if e.MMap.Flags&unix.MAP_ANONYMOUS == unix.MAP_ANONYMOUS {
+		fileSerializer = newFileSerializer(&e.MMap.File, e)
+	}
+
 	return &MMapEventSerializer{
 		Address:    fmt.Sprintf("0x%x", e.MMap.Addr),
+		Offset:     e.MMap.Offset,
 		Len:        e.MMap.Len,
 		Protection: model.Protection(e.MMap.Protection).String(),
 		Flags:      model.MMapFlag(e.MMap.Flags).String(),
-		File:       newFileSerializer(&e.MMap.File, e),
+		File:       fileSerializer,
 	}
 }
 

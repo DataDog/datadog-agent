@@ -625,15 +625,16 @@ func (e *MMapEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 20 {
+	if len(data)-read < 28 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Addr = ByteOrder.Uint64(data[read : read+8])
-	e.Len = ByteOrder.Uint32(data[read+8 : read+12])
-	e.Protection = int(ByteOrder.Uint32(data[read+12 : read+16]))
-	e.Flags = int(ByteOrder.Uint32(data[read+16 : read+20]))
-	return read + 20, nil
+	e.Offset = ByteOrder.Uint64(data[read+8 : read+16])
+	e.Len = ByteOrder.Uint32(data[read+16 : read+20])
+	e.Protection = int(ByteOrder.Uint32(data[read+20 : read+24]))
+	e.Flags = int(ByteOrder.Uint32(data[read+24 : read+28]))
+	return read + 28, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

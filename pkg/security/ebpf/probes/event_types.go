@@ -404,9 +404,10 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 	// List of probes required to capture mmap events
 	"mmap": {
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mmap"}, EntryAndExit),
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mmap"}, Exit),
 		},
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/syscalls/sys_enter_mmap", EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/fget", EBPFFuncName: "kretprobe_fget"}},
 		}},
 	},

@@ -1171,11 +1171,6 @@
       "from_agent_version": "7.34",
       "properties": [
         {
-          "name": "mmap.addr",
-          "type": "int",
-          "definition": ""
-        },
-        {
           "name": "mmap.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -1247,11 +1242,6 @@
         },
         {
           "name": "mmap.flags",
-          "type": "int",
-          "definition": ""
-        },
-        {
-          "name": "mmap.len",
           "type": "int",
           "definition": ""
         },

@@ -150,7 +150,7 @@ struct syscall_cache_t {
         } ptrace;
 
         struct {
-            u64 addr;
+            u64 offset;
             u32 len;
             int protection;
             int flags;

@@ -2451,14 +2451,10 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe15(out *j
 		out.RawString(prefix)
 		out.String(string(in.Address))
 	}
-	{
+	if in.Tracee != nil {
 		const prefix string = ",\"tracee\":"
 		out.RawString(prefix)
-		if in.Tracee == nil {
-			out.RawString("null")
-		} else {
-			(*in.Tracee).MarshalEasyJSON(out)
-		}
+		(*in.Tracee).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
@@ -2546,6 +2542,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe13(in *jl
 		switch key {
 		case "address":
 			out.Address = string(in.String())
+		case "offset":
+			out.Offset = uint64(in.Uint64())
 		case "length":
 			out.Len = uint32(in.Uint32())
 		case "protection":
@@ -2582,6 +2580,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe13(out *j
 		out.String(string(in.Address))
 	}
 	{
+		const prefix string = ",\"offset\":"
+		out.RawString(prefix)
+		out.Uint64(uint64(in.Offset))
+	}
+	{
 		const prefix string = ",\"length\":"
 		out.RawString(prefix)
 		out.Uint32(uint32(in.Len))
@@ -2596,14 +2599,10 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe13(out *j
 		out.RawString(prefix)
 		out.String(string(in.Flags))
 	}
-	{
+	if in.File != nil {
 		const prefix string = ",\"file\":"
 		out.RawString(prefix)
-		if in.File == nil {
-			out.RawString("null")
-		} else {
-			(*in.File).MarshalEasyJSON(out)
-		}
+		(*in.File).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

@@ -63,13 +63,30 @@ struct mmap_event_t {
 
     struct file_t file;
     u64 addr;
+    u64 offset;
     u32 len;
     int protection;
     int flags;
     u32 padding;
 };
 
-SYSCALL_KPROBE4(mmap, void *, addr, size_t, len, int, protection, int, flags) {
+struct tracepoint_syscalls_sys_enter_mmap_t {
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    int __syscall_nr;
+    unsigned long addr;
+    unsigned long len;
+    unsigned long protection;
+    unsigned long flags;
+    unsigned long fd;
+    unsigned long offset;
+};
+
+SEC("tracepoint/syscalls/sys_enter_mmap")
+int tracepoint_syscalls_sys_enter_mmap(struct tracepoint_syscalls_sys_enter_mmap_t *args) {
     struct policy_t policy = fetch_policy(EVENT_MMAP);
     if (is_discarded_by_process(policy.mode, EVENT_MMAP)) {
         return 0;
@@ -78,10 +95,10 @@ SYSCALL_KPROBE4(mmap, void *, addr, size_t, len, int, protection, int, flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_MMAP,
         .mmap = {
-            .addr = (u64)addr,
-            .len = (u32)len,
-            .protection = protection,
-            .flags = flags,
+            .offset = args->offset,
+            .len = (u32)args->len,
+            .protection = (int)args->protection,
+            .flags = (int)args->flags,
         }
     };
 
@@ -102,10 +119,15 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
         return discard_syscall(syscall);
     }
 
+    if (retval != -1) {
+        retval = 0;
+    }
+
     struct mmap_event_t event = {
         .syscall.retval = retval,
         .file = syscall->mmap.file,
         .addr = addr,
+        .offset = syscall->mmap.offset,
         .len = syscall->mmap.len,
         .protection = syscall->mmap.protection,
         .flags = syscall->mmap.flags,

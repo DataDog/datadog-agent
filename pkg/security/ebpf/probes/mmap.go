@@ -18,6 +18,13 @@ var mmapProbes = []*manager.Probe{
 			EBPFFuncName: "kretprobe_fget",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "tracepoint/syscalls/sys_enter_mmap",
+			EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap",
+		},
+	},
 }
 
 func getMMapProbes() []*manager.Probe {
@@ -26,6 +33,6 @@ func getMMapProbes() []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mmap",
-	}, EntryAndExit)...)
+	}, Exit)...)
 	return mmapProbes
 }

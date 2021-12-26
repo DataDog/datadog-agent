@@ -614,8 +614,9 @@ type MMapEvent struct {
 	SyscallEvent
 
 	File       FileEvent `field:"file"`
-	Addr       uint64    `field:"addr"`
-	Len        uint32    `field:"len"`
+	Addr       uint64    `field:"-"`
+	Offset     uint64    `field:"-"`
+	Len        uint32    `field:"-"`
 	Protection int       `field:"protection"`
 	Flags      int       `field:"flags"`
 }

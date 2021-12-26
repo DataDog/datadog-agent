@@ -353,15 +353,19 @@
     "MMapEvent": {
       "required": [
         "address",
+        "offset",
         "length",
         "protection",
-        "flags",
-        "file"
+        "flags"
       ],
       "properties": {
         "address": {
           "type": "string",
           "description": "memory segment address"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "file offset"
         },
         "length": {
           "type": "integer",
@@ -414,8 +418,7 @@
     "PTraceEvent": {
       "required": [
         "request",
-        "address",
-        "tracee"
+        "address"
       ],
       "properties": {
         "request": {
