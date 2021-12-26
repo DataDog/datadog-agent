@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
 // +build linux
 
 package probe
@@ -278,7 +277,7 @@ func TestIsGrandParentDiscarder(t *testing.T) {
 }
 
 func BenchmarkParentDiscarder(b *testing.B) {
-	id := inodeDiscarders{}
+	id, _ := newInodeDiscarders(nil, nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
