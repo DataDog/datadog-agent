@@ -67,11 +67,8 @@ It has the following methods:
 
  * Representations - _NOTE:_ order is not defined for any of these methods
    * `Tags.String() string` - human-readable string form
-   * `Tags.MarshalDSD() []byte` - serialize in DogStatsD format (comma-separated)
    * `Tags.MarshalJSON() ([]byte, error)`
-   * `Tags.MarshalYAML() ([]byte, error)`
  * Queries
-   * `UnsafeSliceToTags([]string) *Tags` - temporary constructor for use during phase 2 -- to be removed before phase 3.
    * `Tags.Hash() uint64` - the hash of this set of tags
    * `Tags.Sorted() []string` - a sorted _copy_ of the contained slice of strings (intended for testing)
    * `Tags.Contains(tag string) bool`
@@ -98,13 +95,8 @@ Tags instances created by different factories can be used interchangeably and ar
    * `Factory.NewTag(tag string) *Tags` - create a new Tags, containing only the given tag
    * `Factory.NewBuilder(capacity int) Builder` - create a new Builder, tied back to this factory for caching purposes
    * `Factory.NewSliceBuilder(levels, capacity int) SliceBuilder` - create a new SliceBuilder, tied back to this factory for caching purposes
- * Parsing
-   * `Factory.UnmarshalJSON(data []byte) (Tags, error)`
-   * `Factory.UnmarshalYAML(data []byte) (Tags, error)`
-   * `Factory.ParseDSD(data []byte) (Tags, error)` - Parse tags in DogStatsD format (comma-separated)
  * Combination
    * `Factory.Union(a, b Tags) *Tags` - perform a union of two Tags instances, which may contain the same tags. *How Will This Be Used?* See "Usage Examples", below.
-   * `Factory.DisjointUnion(a, b Tags) *Tags` - like Union, but with the caller promising that the sets are disjoint
 
 #### Builders
 
@@ -220,8 +212,8 @@ For example, a threadsafe factory is implemented as a locking wrapper around an 
 
 Each top-level factory maintains a set of caches, each for a different purpose, mapping `uint64` to `*Tags`.
 The caches are used to cache different kinds of data.
-For example, when parsing a comma-separated list, `Factory.ParseDSD` begins by hashing the input string and searching for an existing Tags instance in a dedicated cache.
-Serializations, unions, and so on are similarly cached.
+For example, when performing a union, `Factory.Union` calculates a unique `uint64` identifier for its inputs and consults the corresponding cache.
+Using different caches reduces the number of entries in any one cache, and allows the cache lifetime parameters to be tuned individually.
 
 Access to these caches is implemented with an internal `Factory.GetCachedTags(cacheId CacheID, key uint64, miss func() *Tags) *Tags` which takes an integer CacheID identifying the cache to query.
 If the item is not available in the cache, then the `miss` function will be used to generate the item.
