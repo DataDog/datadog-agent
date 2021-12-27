@@ -80,7 +80,7 @@ require (
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9
-	github.com/DataDog/zstd v1.4.8
+	github.com/DataDog/zstd v1.5.0
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0
@@ -203,7 +203,7 @@ require (
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.305.1
 	go.opentelemetry.io/collector v0.38.0
-	go.opentelemetry.io/collector/model v0.38.0
+	go.opentelemetry.io/collector/model v0.41.0
 	// Fix vanity import issue
 	go.opentelemetry.io/otel/internal/metric v0.24.1-0.20211006140346-3d4ae8d0b75f // indirect
 	go.uber.org/automaxprocs v1.4.0
@@ -219,7 +219,7 @@ require (
 	golang.org/x/tools v0.1.8
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08
-	google.golang.org/grpc v1.41.0
+	google.golang.org/grpc v1.42.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.34.0
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
