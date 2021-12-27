@@ -13,9 +13,6 @@ import (
 	"time"
 )
 
-// allProcessSettings is a slice that contains details for testing regarding process agent config settings
-// When adding to this list please try to conform to the same ordering that is in `process.go`
-
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
 func TestProcessDefaultConfig(t *testing.T) {
 	cfg := setupConf()
@@ -145,8 +142,8 @@ func TestEnvVarOverride(t *testing.T) {
 		{
 			key:      "process_config.process_discovery.enabled",
 			env:      "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED",
-			value:    "false",
-			expected: false,
+			value:    "true",
+			expected: true,
 		},
 		{
 			key:      "process_config.process_discovery.interval",
