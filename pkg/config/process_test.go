@@ -7,55 +7,48 @@ package config
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 // allProcessSettings is a slice that contains details for testing regarding process agent config settings
 // When adding to this list please try to conform to the same ordering that is in `process.go`
 
-var allProcessSettings = []struct {
-	key          string
-	defaultValue interface{}
-}{
-	{
-		key:          "process_config.dd_agent_bin",
-		defaultValue: DefaultDDAgentBin,
-	},
-	{
-		key:          "process_config.log_file",
-		defaultValue: DefaultProcessAgentLogFile,
-	},
-	{
-		key:          "process_config.grpc_connection_timeout_secs",
-		defaultValue: DefaultGRPCConnectionTimeoutSecs,
-	},
-	{
-		key:          "process_config.remote_tagger",
-		defaultValue: true,
-	},
-	{
-		key:          "process_config.process_discovery.enabled",
-		defaultValue: false,
-	},
-	{
-		key:          "process_config.process_discovery.interval",
-		defaultValue: 4 * time.Hour,
-	},
-	{
-		key:          "process_config.remote_tagger",
-		defaultValue: true,
-	},
-}
-
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
-func TestProcessConfig(t *testing.T) {
+func TestProcessDefaultConfig(t *testing.T) {
 	cfg := setupConf()
 
-	for _, tc := range allProcessSettings {
+	for _, tc := range []struct {
+		key          string
+		defaultValue interface{}
+	}{
+		{
+			key:          "process_config.dd_agent_bin",
+			defaultValue: DefaultDDAgentBin,
+		},
+		{
+			key:          "process_config.log_file",
+			defaultValue: DefaultProcessAgentLogFile,
+		},
+		{
+			key:          "process_config.grpc_connection_timeout_secs",
+			defaultValue: DefaultGRPCConnectionTimeoutSecs,
+		},
+		{
+			key:          "process_config.remote_tagger",
+			defaultValue: true,
+		},
+		{
+			key:          "process_config.process_discovery.enabled",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.process_discovery.interval",
+			defaultValue: 4 * time.Hour,
+		},
+	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
 		})
@@ -148,6 +141,18 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_REMOTE_TAGGER",
 			value:    "false",
 			expected: false,
+		},
+		{
+			key:      "process_config.process_discovery.enabled",
+			env:      "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED",
+			value:    "false",
+			expected: false,
+		},
+		{
+			key:      "process_config.process_discovery.interval",
+			env:      "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL",
+			value:    "1h",
+			expected: time.Hour,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
