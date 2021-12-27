@@ -216,39 +216,6 @@ The result is a kind of multi-level LRU cache that can be tuned to optimize memo
 The tuning might be different for different types of caches.
 Later improvements may perform such tuning automatically, all safely hidden behind the tagset API.
 
-### Implementation Process
-
-#### Phase 1: Land ./pkg/tagset
-
-The first phase of the implementation process is to write and land the tagset implementation, as outlined above.
-This phase is already begun: Vickenty defined somet tagset-related functionality, and Dustin moved that to pkg/tagset.
-The remaining work is mainly to implement factories, and to rename / update some parts of the public API.
-
-Ideally we can ship this change in v7.33.0, maximizing the likelihood of finding bugs or regressions before beginning the next phase.
-
-As part of this phase, we will make some "trial" rewrites of performance-critical components and validate those in realistic benchmarking environments, to be confident that performance is at least on-par with the existing implementation.
-
-#### Phase 2: Use ./pkg/tagset
-
-The second phase is to use this implementation, replacing uses of `[]string` with uses the ./pkg/tagset API.
-During this phase, we will support conversion between Tags and `[]string`, enabling parts of the agent to be updated independently.
-We will know the phase is complete when those conversions are no longer used.
-
-This phase will likely span a few releases, as teams find time to implement it.
-That's OK; in fact, it's an advantage as it will allow teams to focus their QA on the few changes made in each release.
-This effort can be driven by one guild member who is comfortable identifying limited-scope work and either completing it themselves and requesting review from the associated team, or working with that team to schedule the work.
-
-If aspects of the tagset API are revealed to be un-ergonomic during this process, those can be addressed with updates to the API.
-
-Where necessary, this phase will employ benchmarking to ensure that the changes are not making current performance measurably _worse_.
-Performance improvements come in phase 3.
-
-#### Phase 3: Improve ./pkg/tagset
-
-The final phase is to improve the tagset implementation, using the standard performance-related approaches.
-This will involve micro- and macro-benchmarks and profiling to identify performance hotspots, and work to optimize those hotspaots.
-It will also involve measurement of typical workloads to determine suitable tuning heuristics, such as cache parameters.
-
 ### Analysis
 
 - Strengths
