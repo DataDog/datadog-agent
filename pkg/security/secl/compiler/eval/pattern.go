@@ -40,7 +40,7 @@ func toPattern(se *StringEvaluator) error {
 	return nil
 }
 
-func scanSegment(str string) (bool, string, int) {
+func nextSegment(str string) (bool, string, int) {
 	var inSegment bool
 	var start, end int
 
@@ -77,7 +77,7 @@ func PatternMatches(pattern string, str string) bool {
 	}
 
 	for len(pattern) > 0 {
-		star, segment, nextIndex := scanSegment(pattern)
+		star, segment, nextIndex := nextSegment(pattern)
 		if star {
 			index := strings.Index(str, segment)
 			if index == -1 {

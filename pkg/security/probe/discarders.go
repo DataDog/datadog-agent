@@ -46,6 +46,10 @@ var (
 			Name:  "discarder_retention",
 			Value: uint64(DiscardRetention.Nanoseconds()),
 		},
+		{
+			Name:  "max_discarder_depth",
+			Value: uint64(maxParentDiscarderDepth),
+		},
 	}
 )
 

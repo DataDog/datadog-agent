@@ -5,36 +5,38 @@
 
 package eval
 
-import "strings"
+import (
+	"strings"
 
-// Glob describes file glob objecg
+	"github.com/pkg/errors"
+)
+
+// Glob describes file glob object
 type Glob struct {
-	elsPattern []string
+	elements []string
 }
 
-func (g *Glob) contains(filename string, exact bool) bool {
-	if len(g.elsPattern) == 0 || len(filename) == 0 {
+func (g *Glob) contains(filename string, strict bool) bool {
+	if len(g.elements) == 0 || len(filename) == 0 {
 		return false
 	}
 
 	// normalize */ == /*/
-	if g.elsPattern[0] == "*" {
+	if g.elements[0] == "*" {
 		filename = filename[1:]
 	}
 
 	elsFilename := strings.Split(filename, "/")
 
-	valueLen := len(g.elsPattern)
+	valueLen := len(g.elements)
 
 	var elp string
 	for i, elf := range elsFilename {
 		if i+1 > valueLen {
-			// FIX(safchain) should be only **
-			return !exact || elp == "*" || elp == "**"
-			//return !exact || elp == "**"
+			return !strict || elp == "**"
 		}
 
-		elp = g.elsPattern[i]
+		elp = g.elements[i]
 		if !PatternMatches(elp, elf) && elp != "**" {
 			return false
 		}
@@ -53,11 +55,16 @@ func (g *Glob) Matches(filename string) bool {
 	return g.contains(filename, true)
 }
 
-// NewGlob returns a new glob object
-func NewGlob(glob string) (*Glob, error) {
-	// FIX(safchain) enforce ** only at the end
+// NewGlob returns a new glob object from the given pattern
+func NewGlob(pattern string) (*Glob, error) {
+	els := strings.Split(pattern, "/")
+	for i, el := range els {
+		if el == "**" && i+1 != len(els) || strings.Contains(el, "**") && len(el) != len("**") {
+			return nil, errors.New("`**` is allowed only at the end of patterns")
+		}
+	}
 
 	return &Glob{
-		elsPattern: strings.Split(glob, "/"),
+		elements: els,
 	}, nil
 }

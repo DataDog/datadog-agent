@@ -112,6 +112,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
         return DENTRY_INVALID;
     }
 
+    u64 max_discarder_depth;
+    LOAD_CONSTANT("max_discarder_depth", max_discarder_depth);
+
 #pragma unroll
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
     {
@@ -127,8 +130,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
             next_key.mount_id = 0;
         }
 
-        // discard filename and its parent only in order to limit the number of lookup
-        if (input->discarder_type && i < 2) {
+        if (input->discarder_type && i <= max_discarder_depth) {
             if (is_discarded_by_inode(input->discarder_type, key.mount_id, key.ino, i == 0)) {
                 return DENTRY_DISCARDED;
             }

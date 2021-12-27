@@ -9,33 +9,33 @@ import (
 	"testing"
 )
 
-func TestPatternScanSegment(t *testing.T) {
-	star, segment, _ := scanSegment("*test123")
+func TestPatternNextSegment(t *testing.T) {
+	star, segment, _ := nextSegment("*test123")
 	if !star || segment != "test123" {
 		t.Errorf("expected segment not found: %v, %v", star, segment)
 	}
 
-	star, segment, _ = scanSegment("test123*")
+	star, segment, _ = nextSegment("test123*")
 	if star || segment != "test123" {
 		t.Errorf("expected segment not found: %v, %v", star, segment)
 	}
 
-	star, segment, _ = scanSegment("*test123*")
+	star, segment, _ = nextSegment("*test123*")
 	if !star || segment != "test123" {
 		t.Errorf("expected segment not found: %v, %v", star, segment)
 	}
 
-	star, segment, _ = scanSegment("*test*123*")
+	star, segment, _ = nextSegment("*test*123*")
 	if !star || segment != "test" {
 		t.Errorf("expected segment not found: %v, %v", star, segment)
 	}
 
-	star, segment, _ = scanSegment("test")
+	star, segment, _ = nextSegment("test")
 	if star || segment != "test" {
 		t.Errorf("expected segment not found: %v, %v", star, segment)
 	}
 
-	star, segment, _ = scanSegment("**")
+	star, segment, _ = nextSegment("**")
 	if !star || segment != "" {
 		t.Errorf("expected segment not found: %v, %v", star, segment)
 	}

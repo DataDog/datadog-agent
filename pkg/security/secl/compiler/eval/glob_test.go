@@ -9,6 +9,24 @@ import (
 	"testing"
 )
 
+func TestGlobPattern(t *testing.T) {
+	if _, err := NewGlob("**/conf.d"); err == nil {
+		t.Error("should return an error")
+	}
+
+	if _, err := NewGlob("/etc/conf.d/**"); err != nil {
+		t.Error("shouldn't return an error")
+	}
+
+	if _, err := NewGlob("/etc/**/*.conf"); err == nil {
+		t.Error("should return an error")
+	}
+
+	if _, err := NewGlob("/etc/**.conf"); err == nil {
+		t.Error("should return an error")
+	}
+}
+
 func TestGlobContains(t *testing.T) {
 	if glob, _ := NewGlob("/var/log/*"); !glob.Contains("/var/log/httpd") {
 		t.Error("should contain the filename")
@@ -60,8 +78,7 @@ func TestGlobMatches(t *testing.T) {
 		t.Error("should contain the filename")
 	}
 
-	// FIX(safchain) once ** addressed
-	/*if glob, _ := NewGlob("/var/*"); glob.Matches("/var/log/nginx") {
+	if glob, _ := NewGlob("/var/*"); glob.Matches("/var/log/nginx") {
 		t.Error("shouldn't contain the filename")
-	}*/
+	}
 }
