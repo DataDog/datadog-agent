@@ -18,7 +18,6 @@ const (
 
 // procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
 // We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
-// Additionally, procEnvAndSetDefault allows us to additively provide environment variables, which BindEnvAndSetDefault does not.
 func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.

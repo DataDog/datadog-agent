@@ -172,4 +172,7 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 
 	_, ok = envs["DD_PROCESS_AGENT_FOO_BAR"]
 	assert.True(t, ok)
+
+	// Make sure the default is set properly
+	assert.Equal(t, "asdf", cfg.GetString("process_config.foo.bar"))
 }

@@ -42,14 +42,12 @@ func osinit() {
 		defaultRunPath = filepath.Join(pd, "run")
 		defaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
+		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}
 
 	// Process Agent
-	if pd, err := winutil.GetProgramDataDir(); err == nil {
-		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
-	}
 	if _here, err := executable.Folder(); err == nil {
 		agentFilePath := filepath.Join(_here, "..", "..", "embedded", "agent.exe")
 		if _, err := os.Stat(agentFilePath); err == nil {
