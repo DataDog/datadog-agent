@@ -28,6 +28,11 @@ func (s *MockSerializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) err
 	return s.Called(sc).Error(0)
 }
 
+// SendIterableSeries serializes a list of Serie and sends the payload to the forwarder
+func (s *MockSerializer) SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error {
+	return s.Called(series).Error(0)
+}
+
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *MockSerializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	return s.Called(series).Error(0)
@@ -61,4 +66,9 @@ func (s *MockSerializer) SendProcessesMetadata(data interface{}) error {
 // SendOrchestratorMetadata serializes & send orchestrator metadata payloads
 func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error {
 	return s.Called(msgs, hostName, clusterID, payloadType).Error(0)
+}
+
+// SendContainerLifecycleEvent serializes & send container lifecycle event payloads
+func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostname string) error {
+	return s.Called(msgs, hostname).Error(0)
 }

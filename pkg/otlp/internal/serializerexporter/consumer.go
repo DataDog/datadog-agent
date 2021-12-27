@@ -8,6 +8,7 @@ package serializerexporter
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
@@ -56,6 +57,18 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, name string,
 			Interval: 1,
 		},
 	)
+}
+
+// addTelemetryMetric to know if an Agent is using OTLP metrics.
+func (c *serializerConsumer) addTelemetryMetric(hostname string) {
+	c.series = append(c.series, &metrics.Serie{
+		Name:           "datadog.agent.otlp.metrics",
+		Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
+		Tags:           []string{},
+		Host:           hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	})
 }
 
 // flush all metrics and sketches in consumer.

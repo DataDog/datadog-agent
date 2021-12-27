@@ -203,6 +203,7 @@ type ContainerState struct {
 	Running    bool
 	StartedAt  time.Time
 	FinishedAt time.Time
+	ExitCode   *uint32
 }
 
 // String returns a string representation of ContainerState.
@@ -213,6 +214,9 @@ func (c ContainerState) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Started At:", c.StartedAt)
 		_, _ = fmt.Fprintln(&sb, "Finished At:", c.FinishedAt)
+		if c.ExitCode != nil {
+			_, _ = fmt.Fprintln(&sb, "Exit Code:", *c.ExitCode)
+		}
 	}
 
 	return sb.String()

@@ -32,7 +32,7 @@ type provider struct {
 	numberOfPipelines         int
 	auditor                   auditor.Auditor
 	diagnosticMessageReceiver diagnostic.MessageReceiver
-	outputChan                chan *message.Message
+	outputChan                chan *message.Payload
 	processingRules           []*config.ProcessingRule
 	endpoints                 *config.Endpoints
 

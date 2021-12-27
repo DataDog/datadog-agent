@@ -121,6 +121,7 @@ func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarder
 		return nil
 	}
 	return aggregator.InitAndStartServerlessDemultiplexer(resolver.NewSingleDomainResolvers(keysPerDomain), "serverless", forwarderTimeout)
+
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {

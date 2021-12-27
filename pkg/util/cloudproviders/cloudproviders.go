@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/tencent"
 )
@@ -97,6 +98,7 @@ func GetHostAliases(ctx context.Context) []string {
 		{name: "kubelet", callback: kubelet.GetHostAliases},
 		{name: tencent.CloudProviderName, callback: tencent.GetHostAliases},
 		{name: oracle.CloudProviderName, callback: oracle.GetHostAliases},
+		{name: kubernetes.CloudProviderName, callback: kubernetes.GetHostAliases},
 	}
 
 	for _, cloudAliasesDetector := range detectors {
