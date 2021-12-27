@@ -34,12 +34,12 @@
 
 .tests_windows_sysprobe:
   stage: source_test
-  needs: ["windows_x64_go_deps"]
+  needs: ["go_deps"]
   tags: [ "runner:windows-docker", "windowsversion:1809" ]
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-    - docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e GOMODCACHE="c:\gomodcache" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\sysprobe.bat
+    - docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e GOMODCACHE="c:\modcache" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\sysprobe.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   artifacts:
     when: always
@@ -50,7 +50,7 @@ tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: [ "runner:main" ]
-  needs: [ "linux_x64_go_deps" ]
+  needs: [ "go_deps" ]
   variables:
     ARCH: amd64
   before_script:
@@ -71,7 +71,7 @@ tests_ebpf_arm64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "linux_arm64_go_deps" ]
+  needs: [ "go_deps" ]
   variables:
     ARCH: arm64
   before_script:
