@@ -103,7 +103,7 @@ Tags instances created by different factories can be used interchangeably and ar
    * `Factory.UnmarshalYAML(data []byte) (Tags, error)`
    * `Factory.ParseDSD(data []byte) (Tags, error)` - Parse tags in DogStatsD format (comma-separated)
  * Combination
-   * `Factory.Union(a, b Tags) *Tags` - perform a union of two Tags instances, which may contain the same tags
+   * `Factory.Union(a, b Tags) *Tags` - perform a union of two Tags instances, which may contain the same tags. *How Will This Be Used?* See "Usage Examples", below.
    * `Factory.DisjointUnion(a, b Tags) *Tags` - like Union, but with the caller promising that the sets are disjoint
 
 #### Builders
@@ -127,6 +127,9 @@ This supports Tagger's tag-cardinality functionality while saving some memory sp
 For example, a SliceBuilder can produce a Tags containing high, orchestrator, and low-cardinality tags as well as a Tags with only the low-cardinality tags, sharing that space.
 Adding the same tag twice to a SliceBuilder is a no-op if both are at the same level, but results in undefined behavior if the levels differ.
 
+*How Will This Be Used?* SliceBuilder will be used in the Tagger, which calculates all tags for an entity and then slices those tags by cardinality.
+See "Usage Examples", below.
+
 Builder methods are:
 
  * `Builder`
@@ -146,16 +149,36 @@ Builder methods are:
 
 The following are a few examples of how this functionality might be used in practice.
 
-Consider a DSD metric from intake to serialization: the DSD worker uses a thread-specific factory's `ParseDSD` to parse the tags from the incoming message.
-It attaches the resulting Tags to the metric, and passes it along to the aggregator.
+##### Union
+
+Consider a DSD metric from intake to serialization: the DSD worker parses the incoming message into a metric with Tags attached, and passes that along to the aggregator.
 The aggregator calls the Tagger to get enriching tags.
 The aggregator then uses a factory's `Union` operation to combine the parsed and enriching tags into the final Tags for this metric.
-It calculates the context hash using the `Tags.Hash()` and aggregates appropriately.
-When the time comes to flush the metric, the serializer uses the appropriate Tags method (such as `SerializeJSON`) to include the tags in the payload sent to the forwarder.
+It calculates the context hash, using the already-calculated `Tags.Hash()` for the tags, and aggregates appropriately.
 
-When the Tagger learns of a new entity, it uses a `SliceBuilder` to accumulate tags by cardinality, and then uses teh `FreezeSlice` methods of that builder to generate slices at each possible cardinality.
+```go
+func (m *MetricSample) GetTags() *tagset.Tags {
+    return tagset.Union(m.Tags, tagger.OriginTags(m.OriginID, m.K8sOriginID, m.Cardinality))
+}
+```
+
+##### SliceBuilder
+
+When the Tagger learns of a new entity, it uses a `SliceBuilder` to accumulate tags by cardinality, mapping each cardinality to a level.
+It then uses the `FreezeSlice` methods of that builder to generate slices at each possible cardinality.
 These slices share a single backing array, saving memory.
-It calls `SliceBuilder.Close()` when finished, returning the builder's memory to the factory.
+The Tagger code is too complex to include here, but the following snippet demonstrates the concept:
+
+```go
+bldr := tagset.NewSliceBuilder(NumCardinalities, 10)  // NumCardinalities levels, 10 tags each
+for _, entityTag in entity.tagsAndCardinalities {
+    bldr.Add(entityTag.Cardinality, entityTag.Tag)
+}
+entity.LowCardTags =bldr.FreezeSlice(0, LowCardinality+1)
+entity.LowOrchCardTags =bldr.FreezeSlice(0, OrchestratorCardinality+1)
+entity.AllTags = bldr.FreezeSlice(0, NumCardinalities)
+bldr.Close()
+```
 
 ### API Implementation
 
