@@ -10,116 +10,14 @@
 package docker
 
 import (
-	"context"
-	"errors"
 	"testing"
-	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 )
-
-func TestStats(t *testing.T) {
-	apiStats := types.StatsJSON{Stats: types.Stats{MemoryStats: types.MemoryStats{Limit: 512}}}
-	cachedStats := types.StatsJSON{Stats: types.Stats{MemoryStats: types.MemoryStats{Limit: 256}}}
-	type fields struct {
-		lastScrapeTime time.Time
-	}
-	type args struct {
-		containerID   string
-		cacheValidity time.Duration
-		clientFunc    dockerStatsFunc
-	}
-	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		loadFunc func()
-		want     *types.StatsJSON
-		wantErr  bool
-		wantFunc func() error
-	}{
-		{
-			name: "empty cache, call api, set cache",
-			args: args{
-				containerID:   "container_id",
-				cacheValidity: 5 * time.Second,
-				clientFunc:    func(context.Context, string) (*types.StatsJSON, error) { return &apiStats, nil },
-			},
-			loadFunc: func() {},
-			want:     &apiStats,
-			wantErr:  false,
-			wantFunc: func() error {
-				if _, found := cache.Cache.Get("docker-container_id"); !found {
-					return errors.New("container stats not cached")
-				}
-				return nil
-			},
-		},
-		{
-			name: "cache is valid",
-			fields: fields{
-				lastScrapeTime: time.Now(),
-			},
-			args: args{
-				containerID:   "container_id",
-				cacheValidity: 10 * time.Second,
-				clientFunc: func(context.Context, string) (*types.StatsJSON, error) {
-					return nil, errors.New("should use cache")
-				},
-			},
-			loadFunc: func() { cache.Cache.Set("docker-container_id", &cachedStats, statsCacheExpiration) },
-			want:     &cachedStats,
-			wantErr:  false,
-			wantFunc: func() error {
-				if _, found := cache.Cache.Get("docker-container_id"); !found {
-					return errors.New("container stats not cached")
-				}
-				return nil
-			},
-		},
-		{
-			name: "cache is populated, but invalid",
-			fields: fields{
-				lastScrapeTime: time.Now().Add(-30 * time.Second),
-			},
-			args: args{
-				containerID:   "container_id",
-				cacheValidity: 10 * time.Second,
-				clientFunc:    func(context.Context, string) (*types.StatsJSON, error) { return &apiStats, nil },
-			},
-			loadFunc: func() { cache.Cache.Set("docker-container_id", &cachedStats, statsCacheExpiration) },
-			want:     &apiStats,
-			wantErr:  false,
-			wantFunc: func() error {
-				if _, found := cache.Cache.Get("docker-container_id"); !found {
-					return errors.New("container stats not cached")
-				}
-				return nil
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			e := &dockerCollector{
-				lastScrapeTime: tt.fields.lastScrapeTime,
-			}
-
-			tt.loadFunc()
-			got, err := e.stats(tt.args.containerID, tt.args.cacheValidity, tt.args.clientFunc)
-
-			assert.Equal(t, tt.wantErr, err != nil)
-			assert.EqualValues(t, tt.want, got)
-			assert.Nil(t, tt.wantFunc())
-
-			cache.Cache.Flush()
-		})
-	}
-}
 
 func Test_convertNetworkStats(t *testing.T) {
 	tests := []struct {
