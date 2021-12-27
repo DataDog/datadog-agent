@@ -45,6 +45,10 @@ var allProcessSettings = []struct {
 		key:          "process_config.process_discovery.interval",
 		defaultValue: 4 * time.Hour,
 	},
+	{
+		key:          "process_config.remote_tagger",
+		defaultValue: true,
+	},
 }
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
@@ -138,6 +142,12 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS",
 			value:    "1",
 			expected: 1,
+		},
+		{
+			key:      "process_config.remote_tagger",
+			env:      "DD_PROCESS_CONFIG_REMOTE_TAGGER",
+			value:    "false",
+			expected: false,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
