@@ -142,7 +142,7 @@ func (ic *datadogIndividualClient) queryMetrics(from, to int64, query string) ([
 			ic.retryInterval = minRetryInterval
 		}
 		return series, err
-	} else {
+	} else { // revive:disable-line:indent-error-flow
 		ic.lastQuerySucceeded = false
 		ic.lastFailure = time.Now()
 		ic.retryInterval *= 2
@@ -181,7 +181,7 @@ func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]d
 			}
 			cl.lastUsedClient = i
 			return series, nil
-		} else {
+		} else { // revive:disable-line:indent-error-flow
 			log.Infof("Failed to query metrics on %s: %#v", c.client.GetBaseUrl(), err)
 			errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
 		}
@@ -191,7 +191,7 @@ func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]d
 		log.Infof("Although we shouldn’t query %s because of the backoff policy, we’re going to do so because no other valid endpoint succeeded so far.", c.client.GetBaseUrl())
 		if series, err := c.queryMetrics(from, to, query); err == nil {
 			return series, nil
-		} else {
+		} else { // revive:disable-line:indent-error-flow
 			errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
 		}
 	}
