@@ -631,38 +631,16 @@ func TestProcessMetadata(t *testing.T) {
 
 	t.Run("credentials", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			errChan := make(chan error, 1)
-			var wg sync.WaitGroup
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 2001, 2001, 0); errno != 0 {
-					errChan <- error(errno)
-					return
-				}
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1001, 1001, 0); errno != 0 {
-					errChan <- error(errno)
-					return
-				}
-
-				if _, err = syscall.ForkExec(testFile, []string{}, nil); err != nil {
-					errChan <- err
-				}
-			}()
-
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
+			attr := &syscall.ProcAttr{
+				Sys: &syscall.SysProcAttr{
+					Credential: &syscall.Credential{
+						Uid: 1001,
+						Gid: 2001,
+					},
+				},
 			}
-			return nil
+			_, err := syscall.ForkExec(testFile, []string{}, attr)
+			return err
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assert.Equal(t, 1001, int(event.Exec.Credentials.UID), "wrong uid")
