@@ -34,11 +34,11 @@ import (
 
 // Agent represents the data pipeline that collects, decodes,
 // processes and sends logs to the backend
-// + ------------------------------------------------------ +
-// |                                                        |
-// | Collector -> Decoder -> Processor -> Sender -> Auditor |
-// |                                                        |
-// + ------------------------------------------------------ +
+// + --------------------------------------------------------------------------------- +
+// |                                                                                   |
+// | Collector -> Decoder -> Processor -> Strategy -> Sender -> Destination -> Auditor |
+// |                                                                                   |
+// + --------------------------------------------------------------------------------- +
 type Agent struct {
 	auditor                   auditor.Auditor
 	destinationsCtx           *client.DestinationsContext

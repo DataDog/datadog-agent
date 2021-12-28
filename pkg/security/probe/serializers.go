@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -build_tags linux $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/probe/doc_generator -output ../../../docs/cloud-workload-security/backend.schema.json
 
 // Unless explicitly stated otherwise all files in this repository are licensed
@@ -11,19 +11,11 @@
 package probe
 
 import (
-	"encoding/json"
 	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-)
-
-// Event categories for JSON serialization
-const (
-	FIMCategory     = "File Activity"
-	ProcessActivity = "Process Activity"
-	KernelActivity  = "Kernel Activity"
 )
 
 // FileSerializer serializes a file to JSON
@@ -59,20 +51,20 @@ type UserContextSerializer struct {
 // CredentialsSerializer serializes a set credentials to JSON
 // easyjson:json
 type CredentialsSerializer struct {
-	UID          int          `json:"uid" jsonschema_description:"User ID"`
-	User         string       `json:"user,omitempty" jsonschema_description:"User name"`
-	GID          int          `json:"gid" jsonschema_description:"Group ID"`
-	Group        string       `json:"group,omitempty" jsonschema_description:"Group name"`
-	EUID         int          `json:"euid" jsonschema_description:"Effective User ID"`
-	EUser        string       `json:"euser,omitempty" jsonschema_description:"Effective User name"`
-	EGID         int          `json:"egid" jsonschema_description:"Effective Group ID"`
-	EGroup       string       `json:"egroup,omitempty" jsonschema_description:"Effective Group name"`
-	FSUID        int          `json:"fsuid" jsonschema_description:"Filesystem User ID"`
-	FSUser       string       `json:"fsuser,omitempty" jsonschema_description:"Filesystem User name"`
-	FSGID        int          `json:"fsgid" jsonschema_description:"Filesystem Group ID"`
-	FSGroup      string       `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
-	CapEffective JStringArray `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
-	CapPermitted JStringArray `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
+	UID          int      `json:"uid" jsonschema_description:"User ID"`
+	User         string   `json:"user,omitempty" jsonschema_description:"User name"`
+	GID          int      `json:"gid" jsonschema_description:"Group ID"`
+	Group        string   `json:"group,omitempty" jsonschema_description:"Group name"`
+	EUID         int      `json:"euid" jsonschema_description:"Effective User ID"`
+	EUser        string   `json:"euser,omitempty" jsonschema_description:"Effective User name"`
+	EGID         int      `json:"egid" jsonschema_description:"Effective Group ID"`
+	EGroup       string   `json:"egroup,omitempty" jsonschema_description:"Effective Group name"`
+	FSUID        int      `json:"fsuid" jsonschema_description:"Filesystem User ID"`
+	FSUser       string   `json:"fsuser,omitempty" jsonschema_description:"Filesystem User name"`
+	FSGID        int      `json:"fsgid" jsonschema_description:"Filesystem Group ID"`
+	FSGroup      string   `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
+	CapEffective []string `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
+	CapPermitted []string `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
 }
 
 // SetuidSerializer serializes a setuid event
@@ -97,22 +89,11 @@ type SetgidSerializer struct {
 	FSGroup string `json:"fsgroup,omitempty" jsonschema_description:"Filesystem Group name"`
 }
 
-// JStringArray handles empty array properly not generating null output but []
-type JStringArray []string
-
-// MarshalJSON custom marshaller to handle empty array
-func (j *JStringArray) MarshalJSON() ([]byte, error) {
-	if len(*j) == 0 {
-		return []byte("[]"), nil
-	}
-	return json.Marshal([]string(*j))
-}
-
 // CapsetSerializer serializes a capset event
 // easyjson:json
 type CapsetSerializer struct {
-	CapEffective JStringArray `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
-	CapPermitted JStringArray `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
+	CapEffective []string `json:"cap_effective" jsonschema_description:"Effective Capacity set"`
+	CapPermitted []string `json:"cap_permitted" jsonschema_description:"Permitted Capacity set"`
 }
 
 // ProcessCredentialsSerializer serializes the process credentials to JSON
@@ -124,7 +105,6 @@ type ProcessCredentialsSerializer struct {
 
 // ProcessCacheEntrySerializer serializes a process cache entry to JSON
 // easyjson:json
-//  jsonschema_description:""
 type ProcessCacheEntrySerializer struct {
 	Pid                 uint32                        `json:"pid,omitempty" jsonschema_description:"Process ID"`
 	PPid                uint32                        `json:"ppid,omitempty" jsonschema_description:"Parent Process ID"`
@@ -207,6 +187,30 @@ type SELinuxEventSerializer struct {
 	BoolCommit    *selinuxBoolCommitSerializer    `json:"bool_commit,omitempty" jsonschema_description:"SELinux boolean commit"`
 }
 
+// BPFMapSerializer serializes a BPF map to JSON
+// easyjson:json
+type BPFMapSerializer struct {
+	Name    string `json:"name,omitempty" jsonschema_description:"Name of the BPF map"`
+	MapType string `json:"map_type,omitempty" jsonschema_description:"Type of the BPF map"`
+}
+
+// BPFProgramSerializer serializes a BPF map to JSON
+// easyjson:json
+type BPFProgramSerializer struct {
+	Name        string   `json:"name,omitempty" jsonschema_description:"Name of the BPF program"`
+	ProgramType string   `json:"program_type,omitempty" jsonschema_description:"Type of the BPF program"`
+	AttachType  string   `json:"attach_type,omitempty" jsonschema_description:"Attach type of the BPF program"`
+	Helpers     []string `json:"helpers,omitempty" jsonschema_description:"List of helpers used by the BPF program"`
+}
+
+// BPFEventSerializer serializes a BPF event to JSON
+// easyjson:json
+type BPFEventSerializer struct {
+	Cmd     string                `json:"cmd" jsonschema_description:"BPF command"`
+	Map     *BPFMapSerializer     `json:"map,omitempty" jsonschema_description:"BPF map"`
+	Program *BPFProgramSerializer `json:"program,omitempty" jsonschema_description:"BPF program"`
+}
+
 // DDContextSerializer serializes a span context to JSON
 // easyjson:json
 type DDContextSerializer struct {
@@ -217,12 +221,13 @@ type DDContextSerializer struct {
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
-	*EventContextSerializer    `json:"evt,omitempty"`
+	EventContextSerializer     `json:"evt,omitempty"`
 	*FileEventSerializer       `json:"file,omitempty"`
 	*SELinuxEventSerializer    `json:"selinux,omitempty"`
+	*BPFEventSerializer        `json:"bpf,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
-	ProcessContextSerializer   *ProcessContextSerializer   `json:"process,omitempty"`
-	DDContextSerializer        *DDContextSerializer        `json:"dd,omitempty"`
+	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
+	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
 	ContainerContextSerializer *ContainerContextSerializer `json:"container,omitempty"`
 	Date                       time.Time                   `json:"date,omitempty"`
 }
@@ -316,25 +321,13 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 		EGroup:       ce.EGroup,
 		FSGID:        int(ce.FSGID),
 		FSGroup:      ce.FSGroup,
-		CapEffective: JStringArray(model.KernelCapability(ce.CapEffective).StringArray()),
-		CapPermitted: JStringArray(model.KernelCapability(ce.CapPermitted).StringArray()),
+		CapEffective: model.KernelCapability(ce.CapEffective).StringArray(),
+		CapPermitted: model.KernelCapability(ce.CapPermitted).StringArray(),
 	}
 }
 
 func scrubArgs(pr *model.Process, e *Event) ([]string, bool) {
-	argv, truncated := e.resolvers.ProcessResolver.GetProcessArgv(pr)
-
-	// scrub args, do not send args if no scrubber instance is passed
-	// can be the case for some custom event
-	if e.scrubber == nil {
-		argv = []string{}
-	} else {
-		if newArgv, changed := e.scrubber.ScrubCommand(argv); changed {
-			argv = newArgv
-		}
-	}
-
-	return argv, truncated
+	return e.resolvers.ProcessResolver.GetScrubbedProcessArgv(pr)
 }
 
 func scrubEnvs(pr *model.Process, e *Event) ([]string, bool) {
@@ -390,15 +383,15 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 	return pceSerializer
 }
 
-func newDDContextSerializer(e *Event) *DDContextSerializer {
-	return &DDContextSerializer{
+func newDDContextSerializer(e *Event) DDContextSerializer {
+	return DDContextSerializer{
 		SpanID:  e.SpanContext.SpanID,
 		TraceID: e.SpanContext.TraceID,
 	}
 }
 
-func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {
-	var ps *ProcessContextSerializer
+func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) ProcessContextSerializer {
+	var ps ProcessContextSerializer
 
 	if e == nil {
 		// custom events create an empty event
@@ -408,7 +401,7 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		}
 	}
 
-	ps = &ProcessContextSerializer{
+	ps = ProcessContextSerializer{
 		ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e),
 	}
 
@@ -473,6 +466,37 @@ func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
 	}
 }
 
+func newBPFMapSerializer(e *Event) *BPFMapSerializer {
+	if e.BPF.Map.ID == 0 {
+		return nil
+	}
+	return &BPFMapSerializer{
+		Name:    e.BPF.Map.Name,
+		MapType: model.BPFMapType(e.BPF.Map.Type).String(),
+	}
+}
+
+func newBPFProgramSerializer(e *Event) *BPFProgramSerializer {
+	if e.BPF.Program.ID == 0 {
+		return nil
+	}
+
+	return &BPFProgramSerializer{
+		Name:        e.BPF.Program.Name,
+		ProgramType: model.BPFProgramType(e.BPF.Program.Type).String(),
+		AttachType:  model.BPFAttachType(e.BPF.Program.AttachType).String(),
+		Helpers:     model.StringifyHelpersList(e.BPF.Program.Helpers),
+	}
+}
+
+func newBPFEventSerializer(e *Event) *BPFEventSerializer {
+	return &BPFEventSerializer{
+		Cmd:     model.BPFCmd(e.BPF.Cmd).String(),
+		Map:     newBPFMapSerializer(e),
+		Program: newBPFProgramSerializer(e),
+	}
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
 	case syscall.Errno(retval) == syscall.EACCES || syscall.Errno(retval) == syscall.EPERM:
@@ -487,9 +511,8 @@ func serializeSyscallRetval(retval int64) string {
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *Event) *EventSerializer {
 	s := &EventSerializer{
-		EventContextSerializer: &EventContextSerializer{
-			Name:     model.EventType(event.Type).String(),
-			Category: FIMCategory,
+		EventContextSerializer: EventContextSerializer{
+			Name: model.EventType(event.Type).String(),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(event.ResolveProcessCacheEntry(), event, event.resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
@@ -505,7 +528,11 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	s.UserContextSerializer.User = s.ProcessContextSerializer.User
 	s.UserContextSerializer.Group = s.ProcessContextSerializer.Group
 
-	switch model.EventType(event.Type) {
+	eventType := model.EventType(event.Type)
+
+	s.Category = model.GetEventTypeCategory(eventType.String())
+
+	switch eventType {
 	case model.FileChmodEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chmod.File, event),
@@ -631,7 +658,6 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			FSUser: event.ResolveSetuidFSUser(&event.SetUID),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.SetgidEventType:
 		s.ProcessContextSerializer.Credentials.Destination = &SetgidSerializer{
 			GID:     int(event.SetGID.GID),
@@ -642,33 +668,30 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			FSGroup: event.ResolveSetgidFSGroup(&event.SetGID),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.CapsetEventType:
 		s.ProcessContextSerializer.Credentials.Destination = &CapsetSerializer{
-			CapEffective: JStringArray(model.KernelCapability(event.Capset.CapEffective).StringArray()),
-			CapPermitted: JStringArray(model.KernelCapability(event.Capset.CapPermitted).StringArray()),
+			CapEffective: model.KernelCapability(event.Capset.CapEffective).StringArray(),
+			CapPermitted: model.KernelCapability(event.Capset.CapPermitted).StringArray(),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.ForkEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.ExitEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newProcessFileSerializerWithResolvers(&event.processCacheEntry.Process, event.resolvers),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-		s.Category = ProcessActivity
 	case model.SELinuxEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.SELinux.File, event),
 		}
 		s.SELinuxEventSerializer = newSELinuxSerializer(event)
-		s.Category = KernelActivity
+	case model.BPFEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
+		s.BPFEventSerializer = newBPFEventSerializer(event)
 	}
 
 	return s

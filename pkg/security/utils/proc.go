@@ -26,7 +26,7 @@ import (
 func Getpid() int32 {
 	p, err := os.Readlink(filepath.Join(util.HostProc(), "/self"))
 	if err == nil {
-		if pid, err := strconv.Atoi(p); err == nil {
+		if pid, err := strconv.ParseInt(p, 10, 32); err == nil {
 			return int32(pid)
 		}
 	}

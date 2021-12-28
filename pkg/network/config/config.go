@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package config
 
 import (
@@ -153,6 +158,9 @@ type Config struct {
 
 	// RecordedQueryTypes enables specific DNS query types to be recorded
 	RecordedQueryTypes []string
+
+	// HTTP replace rules
+	HTTPReplaceRules []*ReplaceRule
 }
 
 func join(pieces ...string) string {
@@ -213,6 +221,14 @@ func New() *Config {
 		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+	}
+
+	httpRRKey := join(netNS, "http_replace_rules")
+	rr, err := parseReplaceRules(cfg, httpRRKey)
+	if err != nil {
+		log.Errorf("error parsing %q: %v", httpRRKey, err)
+	} else {
+		c.HTTPReplaceRules = rr
 	}
 
 	if c.OffsetGuessThreshold > maxOffsetThreshold {

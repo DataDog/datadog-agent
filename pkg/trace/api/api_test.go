@@ -119,6 +119,26 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 	testBody(http.StatusRequestEntityTooLarge, " []")
 }
 
+func TestListenTCP(t *testing.T) {
+	t.Run("measured", func(t *testing.T) {
+		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 0}}
+		ln, err := r.listenTCP(":0")
+		defer ln.Close()
+		assert.NoError(t, err)
+		_, ok := ln.(*measuredListener)
+		assert.True(t, ok)
+	})
+
+	t.Run("limited", func(t *testing.T) {
+		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 10}}
+		ln, err := r.listenTCP(":0")
+		defer ln.Close()
+		assert.NoError(t, err)
+		_, ok := ln.(*rateLimitedListener)
+		assert.True(t, ok)
+	})
+}
+
 func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
 	r := newTestReceiverFromConfig(config.New())
@@ -136,6 +156,7 @@ func TestStateHeaders(t *testing.T) {
 		// this one will return 500, but that's fine, we want to test that all
 		// reponses have the header regardless of status code
 		"/v0.5/traces",
+		"/v0.7/traces",
 	} {
 		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
 		if err != nil {
@@ -190,8 +211,8 @@ func TestLegacyReceiver(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case p := <-tc.r.out:
-				assert.Len(p.Traces, 1)
-				rt := p.Traces[0]
+				assert.Len(p.Chunks(), 1)
+				rt := p.Chunk(0).Spans
 				assert.Len(rt, 1)
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
@@ -255,7 +276,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case p := <-tc.r.out:
-				rt := p.Traces[0]
+				rt := p.Chunk(0).Spans
 				assert.Len(rt, 1)
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
@@ -322,7 +343,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case p := <-tc.r.out:
-					rt := p.Traces[0]
+					rt := p.Chunk(0).Spans
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
@@ -345,7 +366,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case p := <-tc.r.out:
-					rt := p.Traces[0]
+					rt := p.Chunk(0).Spans
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
@@ -497,51 +518,67 @@ func TestDecodeV05(t *testing.T) {
 	assert.NoError(err)
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
-	traces, err := decodeTraces(v05, req)
+	req.Header.Set(headerContainerID, "abcdef123789456")
+	tp, _, err := decodeTracerPayload(v05, req, &info.TagStats{
+		Tags: info.Tags{
+			Lang:          "python",
+			LangVersion:   "3.8.1",
+			TracerVersion: "1.2.3",
+		},
+	})
 	assert.NoError(err)
-	assert.EqualValues(traces, pb.Traces{
-		{
+	assert.EqualValues(tp, &pb.TracerPayload{
+		ContainerID:     "abcdef123789456",
+		LanguageName:    "python",
+		LanguageVersion: "3.8.1",
+		TracerVersion:   "1.2.3",
+		Chunks: []*pb.TraceChunk{
 			{
-				Service:  "Service",
-				Name:     "Name",
-				Resource: "Resource",
-				TraceID:  1,
-				SpanID:   2,
-				ParentID: 3,
-				Start:    123,
-				Duration: 456,
-				Error:    1,
-				Meta:     map[string]string{"A": "B"},
-				Metrics:  map[string]float64{"X": 1.2},
-				Type:     "sql",
-			},
-			{
-				Service:  "Service2",
-				Name:     "Name2",
-				Resource: "Resource2",
-				TraceID:  2,
-				SpanID:   3,
-				ParentID: 3,
-				Start:    789,
-				Duration: 456,
-				Error:    0,
-				Meta:     map[string]string{"c": "d"},
-				Metrics:  map[string]float64{"y": 1.4},
-				Type:     "sql",
-			},
-			{
-				Service:  "Service2",
-				Name:     "Name2",
-				Resource: "Resource2",
-				TraceID:  2,
-				SpanID:   3,
-				ParentID: 3,
-				Start:    789,
-				Duration: 456,
-				Error:    0,
-				Meta:     map[string]string{"c": "d"},
-				Metrics:  nil,
-				Type:     "sql",
+				Priority: int32(sampler.PriorityNone),
+				Spans: []*pb.Span{
+					{
+						Service:  "Service",
+						Name:     "Name",
+						Resource: "Resource",
+						TraceID:  1,
+						SpanID:   2,
+						ParentID: 3,
+						Start:    123,
+						Duration: 456,
+						Error:    1,
+						Meta:     map[string]string{"A": "B"},
+						Metrics:  map[string]float64{"X": 1.2},
+						Type:     "sql",
+					},
+					{
+						Service:  "Service2",
+						Name:     "Name2",
+						Resource: "Resource2",
+						TraceID:  2,
+						SpanID:   3,
+						ParentID: 3,
+						Start:    789,
+						Duration: 456,
+						Error:    0,
+						Meta:     map[string]string{"c": "d"},
+						Metrics:  map[string]float64{"y": 1.4},
+						Type:     "sql",
+					},
+					{
+						Service:  "Service2",
+						Name:     "Name2",
+						Resource: "Resource2",
+						TraceID:  2,
+						SpanID:   3,
+						ParentID: 3,
+						Start:    789,
+						Duration: 456,
+						Error:    0,
+						Meta:     map[string]string{"c": "d"},
+						Metrics:  nil,
+						Type:     "sql",
+					},
+				},
 			},
 		},
 	})
@@ -790,6 +827,8 @@ func TestClientComputedTopLevel(t *testing.T) {
 }
 
 func TestConfigEndpoint(t *testing.T) {
+	defer func(old string) { features.Set(old) }(strings.Join(features.All(), ","))
+
 	var tcs = []struct {
 		name               string
 		reqBody            string

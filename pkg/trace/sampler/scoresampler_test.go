@@ -20,14 +20,14 @@ import (
 
 const defaultEnv = "none"
 
-func getTestErrorsSampler() *ErrorsSampler {
+func getTestErrorsSampler(tps float64) *ErrorsSampler {
 	// Disable debug logs in these tests
 	seelog.UseLogger(seelog.Disabled)
 
 	// No extra fixed sampling, no maximum TPS
 	conf := &config.AgentConfig{
 		ExtraSampleRate: 1,
-		TargetTPS:       0,
+		ErrorTPS:        tps,
 	}
 	return NewErrorsSampler(conf)
 }
@@ -44,9 +44,9 @@ func getTestTrace() (pb.Trace, *pb.Span) {
 func TestExtraSampleRate(t *testing.T) {
 	assert := assert.New(t)
 
-	s := getTestErrorsSampler()
+	s := getTestErrorsSampler(10)
 	trace, root := getTestTrace()
-	signature := testComputeSignature(trace)
+	signature := testComputeSignature(trace, "")
 
 	// Feed the s with a signature so that it has a < 1 sample rate
 	for i := 0; i < int(1e6); i++ {
@@ -61,33 +61,12 @@ func TestExtraSampleRate(t *testing.T) {
 	assert.Equal(s.GetSampleRate(trace, root, signature), s.extraRate*sRate)
 }
 
-func TestErrorSampleThresholdTo1(t *testing.T) {
-	assert := assert.New(t)
-	env := defaultEnv
-
-	s := getTestErrorsSampler()
-	for i := 0; i < 1e2; i++ {
-		trace, root := getTestTrace()
-		s.Sample(trace, root, env)
-		rate, _ := root.Metrics["_dd.errors_sr"]
-		assert.Equal(1.0, rate)
-	}
-	for i := 0; i < 1e3; i++ {
-		trace, root := getTestTrace()
-		s.Sample(trace, root, env)
-		rate, _ := root.Metrics["_dd.errors_sr"]
-		if rate < 1 {
-			assert.True(rate < errorSamplingRateThresholdTo1)
-		}
-	}
-}
-
 func TestTargetTPS(t *testing.T) {
 	// Test the "effectiveness" of the targetTPS option.
 	assert := assert.New(t)
-	s := getTestErrorsSampler()
-
 	targetTPS := 5.0
+	s := getTestErrorsSampler(targetTPS)
+
 	tps := 100.0
 	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
 	initPeriods := 20
@@ -127,13 +106,23 @@ func TestTargetTPS(t *testing.T) {
 		0.01+defaultDecayFactor-1)
 }
 
+func TestDisable(t *testing.T) {
+	assert := assert.New(t)
+
+	s := getTestErrorsSampler(0)
+	trace, root := getTestTrace()
+	for i := 0; i < int(1e2); i++ {
+		assert.False(s.Sample(trace, root, defaultEnv))
+	}
+}
+
 func BenchmarkSampler(b *testing.B) {
 	// Benchmark the resource consumption of many traces sampling
 
 	// Up to signatureCount different signatures
 	signatureCount := 20
 
-	s := getTestErrorsSampler()
+	s := getTestErrorsSampler(10)
 
 	b.ResetTimer()
 	b.ReportAllocs()

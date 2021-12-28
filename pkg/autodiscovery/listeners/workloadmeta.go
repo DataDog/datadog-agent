@@ -9,8 +9,10 @@ package listeners
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -93,6 +95,15 @@ func (l *workloadmetaListenerImpl) Store() workloadmeta.Store {
 }
 
 func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentSvcID string) {
+	kind := kindFromSvcID(svcID)
+	if parentSvcID != "" {
+		if _, ok := l.children[parentSvcID]; !ok {
+			l.children[parentSvcID] = make(map[string]struct{})
+		}
+
+		l.children[parentSvcID][svcID] = struct{}{}
+	}
+
 	if old, found := l.services[svcID]; found {
 		if svcEqual(old, svc) {
 			log.Tracef("%s received a duplicated service '%s', ignoring", l.name, svc.GetEntity())
@@ -101,18 +112,12 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 
 		log.Tracef("%s received an updated service '%s', removing the old one", l.name, svc.GetEntity())
 		l.delService <- old
+		telemetry.WatchedResources.Dec(l.name, kind)
 	}
 
 	l.services[svcID] = svc
 	l.newService <- svc
-
-	if parentSvcID != "" {
-		if _, ok := l.children[parentSvcID]; !ok {
-			l.children[parentSvcID] = make(map[string]struct{})
-		}
-
-		l.children[parentSvcID][svcID] = struct{}{}
-	}
+	telemetry.WatchedResources.Inc(l.name, kind)
 }
 
 func (l *workloadmetaListenerImpl) IsExcluded(ft containers.FilterType, name, image, ns string) bool {
@@ -226,8 +231,18 @@ func (l *workloadmetaListenerImpl) removeService(svcID string) {
 
 	delete(l.services, svcID)
 	l.delService <- svc
+	telemetry.WatchedResources.Dec(l.name, kindFromSvcID(svcID))
 }
 
 func buildSvcID(entityID workloadmeta.EntityID) string {
 	return fmt.Sprintf("%s://%s", entityID.Kind, entityID.ID)
+}
+
+func kindFromSvcID(svcID string) string {
+	sep := "://"
+	if strings.Contains(svcID, sep) {
+		return strings.Split(svcID, sep)[0]
+	}
+
+	return "unknown"
 }

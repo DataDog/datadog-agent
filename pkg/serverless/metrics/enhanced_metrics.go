@@ -14,11 +14,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Latest Lambda pricing per https://aws.amazon.com/lambda/pricing/
 const (
+	// Latest Lambda pricing per https://aws.amazon.com/lambda/pricing/
 	baseLambdaInvocationPrice = 0.0000002
 	lambdaPricePerGbSecond    = 0.0000166667
 	msToSec                   = 0.001
+
+	// Enhanced metrics
+	maxMemoryUsedMetric   = "aws.lambda.enhanced.max_memory_used"
+	memorySizeMetric      = "aws.lambda.enhanced.memorysize"
+	runtimeDurationMetric = "aws.lambda.enhanced.runtime_duration"
+	billedDurationMetric  = "aws.lambda.enhanced.billed_duration"
+	durationMetric        = "aws.lambda.enhanced.duration"
+	estimatedCostMetric   = "aws.lambda.enhanced.estimated_cost"
+	initDurationMetric    = "aws.lambda.enhanced.init_duration"
+	// OutOfMemoryMetric is the name of the out of memory enhanced Lambda metric
+	OutOfMemoryMetric = "aws.lambda.enhanced.out_of_memory"
+	timeoutsMetric    = "aws.lambda.enhanced.timeouts"
+	errorsMetric      = "aws.lambda.enhanced.errors"
+	invocationsMetric = "aws.lambda.enhanced.invocations"
 )
 
 func getOutOfMemorySubstrings() []string {
@@ -29,6 +43,7 @@ func getOutOfMemorySubstrings() []string {
 		"Runtime exited with error: signal: killed", // Node
 		"MemoryError", // Python
 		"failed to allocate memory (NoMemoryError)", // Ruby
+		"OutOfMemoryException",                      // .NET
 	}
 }
 
@@ -40,7 +55,7 @@ func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string
 	} else {
 		duration := end.Sub(start).Milliseconds()
 		metricsChan <- []metrics.MetricSample{{
-			Name:       "aws.lambda.enhanced.runtime_duration",
+			Name:       runtimeDurationMetric,
 			Value:      float64(duration),
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
@@ -54,14 +69,8 @@ func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string
 func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, tags []string, metricsChan chan []metrics.MetricSample) {
 	for _, substring := range getOutOfMemorySubstrings() {
 		if strings.Contains(logString, substring) {
-			metricsChan <- []metrics.MetricSample{{
-				Name:       "aws.lambda.enhanced.out_of_memory",
-				Value:      1.0,
-				Mtype:      metrics.DistributionType,
-				Tags:       tags,
-				SampleRate: 1,
-				Timestamp:  float64(time.UnixNano()),
-			}}
+			SendOutOfMemoryEnhancedMetric(tags, time, metricsChan)
+			SendErrorsEnhancedMetric(tags, time, metricsChan)
 			return
 		}
 	}
@@ -73,35 +82,35 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 	billedDuration := float64(billedDurationMs)
 	memorySize := float64(memorySizeMb)
 	enhancedMetrics := []metrics.MetricSample{{
-		Name:       "aws.lambda.enhanced.max_memory_used",
+		Name:       maxMemoryUsedMetric,
 		Value:      float64(maxMemoryUsedMb),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
-		Name:       "aws.lambda.enhanced.memorysize",
+		Name:       memorySizeMetric,
 		Value:      memorySize,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
-		Name:       "aws.lambda.enhanced.billed_duration",
+		Name:       billedDurationMetric,
 		Value:      billedDuration * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
-		Name:       "aws.lambda.enhanced.duration",
+		Name:       durationMetric,
 		Value:      durationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
-		Name:       "aws.lambda.enhanced.estimated_cost",
+		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(billedDuration, memorySize),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
@@ -110,7 +119,7 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 	}}
 	if initDurationMs > 0 {
 		initDurationMetric := metrics.MetricSample{
-			Name:       "aws.lambda.enhanced.init_duration",
+			Name:       initDurationMetric,
 			Value:      initDurationMs * msToSec,
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
@@ -122,15 +131,35 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 	metricsChan <- enhancedMetrics
 }
 
-// SendTimeoutEnhancedMetric sends an enhanced metric representing a timeout
+// SendOutOfMemoryEnhancedMetric sends an enhanced metric representing a function running out of memory at a given time
+func SendOutOfMemoryEnhancedMetric(tags []string, time time.Time, metricsChan chan []metrics.MetricSample) {
+	incrementEnhancedMetric(OutOfMemoryMetric, tags, float64(time.UnixNano()), metricsChan)
+}
+
+// SendErrorsEnhancedMetric sends an enhanced metric representing an error at a given time
+func SendErrorsEnhancedMetric(tags []string, time time.Time, metricsChan chan []metrics.MetricSample) {
+	incrementEnhancedMetric(errorsMetric, tags, float64(time.UnixNano()), metricsChan)
+}
+
+// SendTimeoutEnhancedMetric sends an enhanced metric representing a timeout at the current time
 func SendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
+	incrementEnhancedMetric(timeoutsMetric, tags, float64(time.Now().UnixNano()), metricsChan)
+}
+
+// SendInvocationEnhancedMetric sends an enhanced metric representing an invocation at the current time
+func SendInvocationEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
+	incrementEnhancedMetric(invocationsMetric, tags, float64(time.Now().UnixNano()), metricsChan)
+}
+
+// incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
+func incrementEnhancedMetric(name string, tags []string, timestamp float64, metricsChan chan []metrics.MetricSample) {
 	metricsChan <- []metrics.MetricSample{{
-		Name:       "aws.lambda.enhanced.timeouts",
+		Name:       name,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(time.Now().UnixNano()),
+		Timestamp:  timestamp,
 	}}
 }
 

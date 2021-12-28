@@ -54,7 +54,6 @@ func initEndpointExpvars() {
 		endpoints.ContainerEndpoint,
 		endpoints.EventsEndpoint,
 		endpoints.HostMetadataEndpoint,
-		endpoints.MetadataEndpoint,
 		endpoints.OrchestratorEndpoint,
 		endpoints.ProcessesEndpoint,
 		endpoints.RtContainerEndpoint,

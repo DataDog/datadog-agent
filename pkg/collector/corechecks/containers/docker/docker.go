@@ -47,6 +47,7 @@ type DockerCheck struct {
 	cappedSender                *cappedSender
 	collectContainerSizeCounter uint64
 	containerFilter             *containers.Filter
+	okExitCodes                 map[int]struct{}
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *containers.Container) {
@@ -291,10 +292,7 @@ func (d *DockerCheck) Run() error {
 				}
 			}
 			if d.instance.CollectExitCodes {
-				err = d.reportExitCodes(events, sender)
-				if err != nil {
-					log.Warn(err.Error())
-				}
+				d.reportExitCodes(events, sender)
 			}
 		}
 	}
@@ -434,7 +432,28 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
 	}
 
+	d.setOkExitCodes()
+
 	return nil
+}
+
+// setOkExitCodes defines the ok exit codes based on
+// the default values and the OkExitCodes config field.
+func (d *DockerCheck) setOkExitCodes() {
+	d.okExitCodes = map[int]struct{}{}
+
+	// Apply custom ok exit codes if defined.
+	if len(d.instance.OkExitCodes) > 0 {
+		for _, code := range d.instance.OkExitCodes {
+			d.okExitCodes[code] = struct{}{}
+		}
+
+		return
+	}
+
+	// Set default ok exit codes.
+	// 143 is returned when docker sends a SIGTERM to stop a container.
+	d.okExitCodes = map[int]struct{}{0: {}, 143: {}}
 }
 
 // DockerFactory is exported for integration testing

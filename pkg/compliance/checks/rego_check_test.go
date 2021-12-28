@@ -5,6 +5,7 @@
 package checks
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -17,16 +18,13 @@ import (
 )
 
 type regoFixture struct {
-	name      string
-	resources []compliance.RegoResource
-	module    string
-	findings  string
-	scope     compliance.RuleScope
+	name     string
+	inputs   []compliance.RegoInput
+	module   string
+	findings string
 
 	processes     processes
-	useCache      bool
 	expectReports []*compliance.Report
-	expectError   error
 }
 
 func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
@@ -40,11 +38,11 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 	}
 
 	regoCheck := &regoCheck{
-		ruleID:    ruleID,
-		resources: f.resources,
+		ruleID: ruleID,
+		inputs: f.inputs,
 	}
 
-	if err := regoCheck.compileRule(rule, f.scope, &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.compileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -55,9 +53,7 @@ func (f *regoFixture) run(t *testing.T) {
 	t.Helper()
 	assert := assert.New(t)
 
-	if !f.useCache {
-		cache.Cache.Delete(processCacheKey)
-	}
+	cache.Cache.Delete(processCacheKey)
 	processFetcher = func() (processes, error) {
 		for pid, p := range f.processes {
 			p.Pid = pid
@@ -78,14 +74,13 @@ func (f *regoFixture) run(t *testing.T) {
 
 	reports := regoCheck.check(env)
 	assert.Equal(f.expectReports, reports)
-	assert.Equal(f.expectError, reports[0].Error)
 }
 
-func TestRegoProcessCheck(t *testing.T) {
+func TestRegoCheck(t *testing.T) {
 	tests := []regoFixture{
 		{
 			name: "simple case",
-			resources: []compliance.RegoResource{
+			inputs: []compliance.RegoInput{
 				{
 					ResourceCommon: compliance.ResourceCommon{
 						Process: &compliance.Process{
@@ -93,6 +88,7 @@ func TestRegoProcessCheck(t *testing.T) {
 						},
 					},
 					TagName: "processes",
+					Type:    "array",
 				},
 			},
 			module: `
@@ -100,12 +96,20 @@ func TestRegoProcessCheck(t *testing.T) {
 
 				import data.datadog as dd
 
+				process_data(p) = d {
+					d := {
+						"process.name": p.name,
+						"process.exe": p.exe,
+						"process.cmdLine": p.cmdLine,
+					}
+				}
+
 				default valid = false
 
 				findings[f] {
 					p := input.processes[_]
 					p.flags["--path"] == "foo"
-					f := dd.passed_finding("process", "42", dd.process_data(p))
+					f := dd.passed_finding("process", "42", process_data(p))
 				}
 			`,
 			findings: "data.test.findings",
@@ -127,8 +131,145 @@ func TestRegoProcessCheck(t *testing.T) {
 						ID:   "42",
 						Type: "process",
 					},
+					Evaluator: "rego",
 				},
 			},
+		},
+		{
+			name: "failing case",
+			inputs: []compliance.RegoInput{
+				{
+					ResourceCommon: compliance.ResourceCommon{
+						Process: &compliance.Process{
+							Name: "proc1",
+						},
+					},
+					TagName: "processes",
+					Type:    "array",
+				},
+			},
+			module: `
+				package test
+
+				import data.datadog as dd
+
+				process_data(p) = d {
+					d := {
+						"process.name": p.name,
+						"process.exe": p.exe,
+						"process.cmdLine": p.cmdLine,
+					}
+				}
+
+				default valid = false
+
+				findings[f] {
+					p := input.processes[_]
+					p.flags["--path"] == "foo"
+					f := dd.failing_finding("process", "42", process_data(p))
+				}
+			`,
+			findings: "data.test.findings",
+			processes: processes{
+				42: {
+					Name:    "proc1",
+					Cmdline: []string{"arg1", "--path=foo"},
+				},
+			},
+			expectReports: []*compliance.Report{
+				{
+					Passed: false,
+					Data: event.Data{
+						"process.name":    "proc1",
+						"process.exe":     "",
+						"process.cmdLine": []interface{}{"arg1", "--path=foo"},
+					},
+					Resource: compliance.ReportResource{
+						ID:   "42",
+						Type: "process",
+					},
+					Evaluator: "rego",
+				},
+			},
+		},
+		{
+			name: "error case",
+			inputs: []compliance.RegoInput{
+				{
+					ResourceCommon: compliance.ResourceCommon{
+						Process: &compliance.Process{
+							Name: "proc1",
+						},
+					},
+					TagName: "processes",
+					Type:    "array",
+				},
+			},
+			module: `
+				package test
+
+				import data.datadog as dd
+
+				default valid = false
+
+				findings[f] {
+					p := input.processes[_]
+					f := dd.error_finding("process", "42", "error message")
+				}
+			`,
+			findings: "data.test.findings",
+			processes: processes{
+				42: {
+					Name:    "proc1",
+					Cmdline: []string{"arg1", "--path=foo"},
+				},
+			},
+			expectReports: []*compliance.Report{
+				{
+					Passed: false,
+					Data:   nil,
+					Resource: compliance.ReportResource{
+						ID:   "42",
+						Type: "process",
+					},
+					Evaluator: "rego",
+					Error:     errors.New("error message"),
+				},
+			},
+		},
+		{
+			name: "empty case",
+			inputs: []compliance.RegoInput{
+				{
+					ResourceCommon: compliance.ResourceCommon{
+						Process: &compliance.Process{
+							Name: "proc2",
+						},
+					},
+					TagName: "processes",
+					Type:    "array",
+				},
+			},
+			module: `
+				package test
+
+				import data.datadog as dd
+
+				default valid = false
+
+				findings[f] {
+					p := input.processes[_]
+					f := dd.error_finding("process", "42", "error message")
+				}
+			`,
+			findings: "data.test.findings",
+			processes: processes{
+				42: {
+					Name:    "proc1",
+					Cmdline: []string{"arg1", "--path=foo"},
+				},
+			},
+			expectReports: nil,
 		},
 	}
 

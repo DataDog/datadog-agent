@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -9,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -225,6 +230,13 @@ func (l *Collector) run(exit chan struct{}) error {
 	l.rtProcessResults = api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
 	l.podResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
 
+	go func() {
+		<-exit
+		l.processResults.Stop()
+		l.rtProcessResults.Stop()
+		l.podResults.Stop()
+	}()
+
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -293,19 +305,19 @@ func (l *Collector) run(exit chan struct{}) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(l.processResults, processForwarder, exit)
+		l.consumePayloads(l.processResults, processForwarder)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(l.rtProcessResults, rtProcessForwarder, exit)
+		l.consumePayloads(l.rtProcessResults, rtProcessForwarder)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(l.podResults, podForwarder, exit)
+		l.consumePayloads(l.podResults, podForwarder)
 	}()
 
 	for _, c := range l.enabledChecks {
@@ -395,10 +407,10 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 	}
 }
 
-func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder, exit chan struct{}) {
+func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
 	for {
-		// results.Poll() will block until either `exit` is closed, or an item is available on the queue (a check run occurs and adds data)
-		item, ok := results.Poll(exit)
+		// results.Poll() will return ok=false when stopped
+		item, ok := results.Poll()
 		if !ok {
 			return
 		}

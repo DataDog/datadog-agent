@@ -12,72 +12,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
-
-func TestPathValidation(t *testing.T) {
-	mod := &Model{}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/var/log/*"}); err != nil {
-		t.Errorf("shouldn't return an error: %s", err)
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "~/apache/httpd.conf"}); err == nil {
-		t.Error("should return an error")
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "../../../etc/apache/httpd.conf"}); err == nil {
-		t.Error("should return an error")
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/etc/apache/./httpd.conf"}); err == nil {
-		t.Error("should return an error")
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "*/"}); err == nil {
-		t.Error("should return an error")
-	}
-
-	var val string
-	for i := 0; i <= model.MaxPathDepth; i++ {
-		val += "a/"
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: val}); err == nil {
-		t.Error("should return an error")
-	}
-
-	val = ""
-	for i := 0; i <= model.MaxSegmentLength; i++ {
-		val += "a"
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: val}); err == nil {
-		t.Error("should return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/run/..data", Type: eval.PatternValueType}); err != nil {
-		t.Error("shouldn't return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "./data", Type: eval.PatternValueType}); err == nil {
-		t.Error("should return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "../data", Type: eval.PatternValueType}); err == nil {
-		t.Error("should return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/data/../a", Type: eval.PatternValueType}); err == nil {
-		t.Error("should return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "*/data", Type: eval.PatternValueType}); err != nil {
-		t.Error("shouldn't return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: ".*", Type: eval.RegexpValueType}); err == nil {
-		t.Error("should return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/etc/*", Type: eval.PatternValueType}); err != nil {
-		t.Error("shouldn't return an error")
-	}
-}
 
 func TestSetFieldValue(t *testing.T) {
 	event := &Event{}

@@ -14,11 +14,11 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -95,8 +95,13 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 					// try the next cloud provider
 					continue
 				}
+				// if the clustername is valid but contains a "_" in the middle of it, we will replace it later such that
+				// to make it valid to RFC1123.
 				if clusterName != "" {
 					log.Infof("Using cluster name %s auto discovered from the %s API", clusterName, cloudProvider)
+					if strings.HasSuffix(clusterName, "-") || strings.HasSuffix(clusterName, "_") {
+						log.Errorf("Registering an invalid clusterName as they are not allowed to end with `_` or `-`")
+					}
 					data.clusterName = clusterName
 					break
 				}

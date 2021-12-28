@@ -18,6 +18,7 @@ from invoke.exceptions import Exit, ParseError
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .docker import pull_base_images
+from .flavor import AgentFlavor
 from .go import deps, generate
 from .rtloader import clean as rtloader_clean
 from .rtloader import install as rtloader_install
@@ -40,6 +41,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 
 AGENT_CORECHECKS = [
+    "container",
     "containerd",
     "cpu",
     "cri",
@@ -87,7 +89,7 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
-    iot=False,
+    flavor=AgentFlavor.base.name,
     development=True,
     skip_assets=False,
     embedded_path=None,
@@ -108,8 +110,9 @@ def build(
     Example invokation:
         inv agent.build --build-exclude=systemd
     """
+    flavor = AgentFlavor[flavor]
 
-    if not exclude_rtloader and not iot:
+    if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
         rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path)
@@ -143,26 +146,19 @@ def build(
         ver = get_version_numeric_only(ctx, major_version=major_version)
         build_maj, build_min, build_patch = ver.split(".")
 
-        command = "windmc --target {target_arch} -r cmd/agent cmd/agent/agentmsg.mc ".format(target_arch=windres_target)
+        command = f"windmc --target {windres_target} -r cmd/agent cmd/agent/agentmsg.mc "
         ctx.run(command, env=env)
 
-        command = "windres --target {target_arch} --define {py_runtime_var}=1 --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{build_arch}=1".format(
-            py_runtime_var=py_runtime_var,
-            build_maj=build_maj,
-            build_min=build_min,
-            build_patch=build_patch,
-            target_arch=windres_target,
-            build_arch=arch,
-        )
+        command = f"windres --target {windres_target} --define {py_runtime_var}=1 --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{arch}=1"
         command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
 
-    if iot:
+    if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="iot", arch=arch)
+        build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
     else:
         build_include = (
-            get_default_build_tags(build="agent", arch=arch)
+            get_default_build_tags(build="agent", arch=arch, flavor=flavor)
             if build_include is None
             else filter_incompatible_tags(build_include.split(","), arch=arch)
         )
@@ -184,7 +180,7 @@ def build(
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
-        "flavor": "iot-agent" if iot else "agent",
+        "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
     ctx.run(cmd.format(**args), env=env)
 
@@ -193,7 +189,7 @@ def build(
 
     # Render the Agent configuration file template
     build_type = "agent-py3"
-    if iot:
+    if flavor.is_iot():
         build_type = "iot-agent"
     elif has_both_python(python_runtimes):
         build_type = "agent-py2py3"
@@ -205,14 +201,15 @@ def build(
         generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
 
     if not skip_assets:
-        refresh_assets(ctx, build_tags, development=development, iot=iot, windows_sysprobe=windows_sysprobe)
+        refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
 
 
 @task
-def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=False):
+def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name, windows_sysprobe=False):
     """
     Clean up and refresh Collector's assets and config files
     """
+    flavor = AgentFlavor[flavor]
     # ensure BIN_PATH exists
     if not os.path.exists(BIN_PATH):
         os.mkdir(BIN_PATH)
@@ -226,7 +223,7 @@ def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=
         copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
         copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
-    if not iot:
+    if not flavor.is_iot():
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
         # copy the dd-agent placeholder to the bin folder
         bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
@@ -237,9 +234,9 @@ def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    for check in AGENT_CORECHECKS if not iot else IOT_AGENT_CORECHECKS:
-        check_dir = os.path.join(dist_folder, "conf.d/{}.d/".format(check))
-        copy_tree("./cmd/agent/dist/conf.d/{}.d/".format(check), check_dir)
+    for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
+        check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
+        copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
     if "apm" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
     if "process" in build_tags:
@@ -254,7 +251,15 @@ def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=
 
 
 @task
-def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, iot=False, skip_build=False):
+def run(
+    ctx,
+    rebuild=False,
+    race=False,
+    build_include=None,
+    build_exclude=None,
+    flavor=AgentFlavor.base.name,
+    skip_build=False,
+):
     """
     Execute the agent binary.
 
@@ -262,7 +267,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, iot)
+        build(ctx, rebuild, race, build_include, build_exclude, flavor)
 
     ctx.run(os.path.join(BIN_PATH, bin_name("agent")))
 
@@ -276,7 +281,7 @@ def system_tests(_):
 
 
 @task
-def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False):
+def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, signed_pull=True):
     """
     Build the docker image
     """
@@ -288,30 +293,29 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
     build_context = "Dockerfiles/agent"
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     pkg_dir = os.path.join(base_dir, 'pkg')
-    deb_glob = 'datadog-agent*_{}.deb'.format(arch)
-    dockerfile_path = "{}/{}/Dockerfile".format(build_context, arch)
+    deb_glob = f'datadog-agent*_{arch}.deb'
+    dockerfile_path = f"{build_context}/{arch}/Dockerfile"
     list_of_files = glob.glob(os.path.join(pkg_dir, deb_glob))
     # get the last debian package built
     if not list_of_files:
-        print("No debian package build found in {}".format(pkg_dir))
+        print(f"No debian package build found in {pkg_dir}")
         print("See agent.omnibus-build")
         raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
-
     # Pull base image with content trust enabled
-    pull_base_images(ctx, dockerfile_path, signed_pull=True)
-    common_build_opts = "-t {} -f {}".format(AGENT_TAG, dockerfile_path)
+    pull_base_images(ctx, dockerfile_path, signed_pull)
+    common_build_opts = f"-t {AGENT_TAG} -f {dockerfile_path}"
     if python_version not in BOTH_VERSIONS:
-        common_build_opts = "{} --build-arg PYTHON_VERSION={}".format(common_build_opts, python_version)
+        common_build_opts = f"{common_build_opts} --build-arg PYTHON_VERSION={python_version}"
 
     # Build with the testing target
     if not skip_tests:
-        ctx.run("docker build {} --target testing {}".format(common_build_opts, build_context))
+        ctx.run(f"docker build {common_build_opts} --target testing {build_context}")
 
     # Build with the release target
-    ctx.run("docker build {} --target release {}".format(common_build_opts, build_context))
-    ctx.run("rm {}/{}".format(build_context, deb_glob))
+    ctx.run(f"docker build {common_build_opts} --target release {build_context}")
+    ctx.run(f"rm {build_context}/{deb_glob}")
 
 
 @task
@@ -334,9 +338,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     # thinks that the parameters are for it to interpret.
     # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
-        test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
+        test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
 
     prefixes = [
         "./test/integration/config_providers/...",
@@ -346,7 +350,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     ]
 
     for prefix in prefixes:
-        ctx.run("{} {}".format(go_cmd, prefix))
+        ctx.run(f"{go_cmd} {prefix}")
 
 
 def get_omnibus_env(
@@ -359,6 +363,7 @@ def get_omnibus_env(
     system_probe_bin=None,
     nikos_path=None,
     go_mod_cache=None,
+    flavor=AgentFlavor.base,
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -399,6 +404,7 @@ def get_omnibus_env(
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     if nikos_path:
         env['NIKOS_PATH'] = nikos_path
+    env['AGENT_FLAVOR'] = flavor.name
 
     return env
 
@@ -407,7 +413,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, omnibus_s3_cache=
     with ctx.cd("omnibus"):
         overrides_cmd = ""
         if base_dir:
-            overrides_cmd = "--override=base_dir:{}".format(base_dir)
+            overrides_cmd = f"--override=base_dir:{base_dir}"
 
         omnibus = "bundle exec omnibus"
         if sys.platform == 'win32':
@@ -445,7 +451,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
 
         cmd = "bundle install"
         if gem_path:
-            cmd += " --path {}".format(gem_path)
+            cmd += f" --path {gem_path}"
         ctx.run(cmd, env=env)
 
 
@@ -458,7 +464,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
 )
 def omnibus_build(
     ctx,
-    iot=False,
+    flavor=AgentFlavor.base.name,
     agent_binaries=False,
     log_level="info",
     base_dir=None,
@@ -477,6 +483,7 @@ def omnibus_build(
     """
     Build the Agent packages with Omnibus Installer.
     """
+    flavor = AgentFlavor[flavor]
     deps_elapsed = None
     bundle_elapsed = None
     omnibus_elapsed = None
@@ -504,10 +511,11 @@ def omnibus_build(
         system_probe_bin=system_probe_bin,
         nikos_path=nikos_path,
         go_mod_cache=go_mod_cache,
+        flavor=flavor,
     )
 
     target_project = "agent"
-    if iot:
+    if flavor.is_iot():
         target_project = "iot-agent"
     elif agent_binaries:
         target_project = "agent-binaries"
@@ -532,9 +540,9 @@ def omnibus_build(
 
     print("Build component timing:")
     if not skip_deps:
-        print("Deps:    {}".format(deps_elapsed))
-    print("Bundle:  {}".format(bundle_elapsed))
-    print("Omnibus: {}".format(omnibus_elapsed))
+        print(f"Deps:    {deps_elapsed}")
+    print(f"Bundle:  {bundle_elapsed}")
+    print(f"Omnibus: {omnibus_elapsed}")
 
 
 @task
@@ -546,12 +554,12 @@ def build_dep_tree(ctx, git_ref=""):
     """
     saved_branch = None
     if git_ref:
-        print("Tag {} specified. Checking out the branch...".format(git_ref))
+        print(f"Tag {git_ref} specified. Checking out the branch...")
 
         result = ctx.run("git rev-parse --abbrev-ref HEAD", hide='stdout')
         saved_branch = result.stdout
 
-        ctx.run("git checkout {}".format(git_ref))
+        ctx.run(f"git checkout {git_ref}")
     else:
         print("No tag specified. Using the current state of repository.")
 
@@ -559,7 +567,7 @@ def build_dep_tree(ctx, git_ref=""):
         ctx.run("go run tools/dep_tree_resolver/go_deps.go")
     finally:
         if saved_branch:
-            ctx.run("git checkout {}".format(saved_branch), hide='stdout')
+            ctx.run(f"git checkout {saved_branch}", hide='stdout')
 
 
 @task
@@ -567,7 +575,7 @@ def omnibus_manifest(
     ctx,
     platform=None,
     arch=None,
-    iot=False,
+    flavor=AgentFlavor.base.name,
     agent_binaries=False,
     log_level="info",
     base_dir=None,
@@ -580,6 +588,7 @@ def omnibus_manifest(
     system_probe_bin=None,
     go_mod_cache=None,
 ):
+    flavor = AgentFlavor[flavor]
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
 
@@ -592,10 +601,11 @@ def omnibus_manifest(
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
+        flavor=flavor,
     )
 
     target_project = "agent"
-    if iot:
+    if flavor.is_iot():
         target_project = "iot-agent"
     elif agent_binaries:
         target_project = "agent-binaries"
@@ -604,9 +614,9 @@ def omnibus_manifest(
 
     task = "manifest"
     if platform is not None:
-        task += " --platform-family={} --platform={} ".format(platform, platform)
+        task += f" --platform-family={platform} --platform={platform} "
     if arch is not None:
-        task += " --architecture={} ".format(arch)
+        task += f" --architecture={arch} "
 
     omnibus_run_task(
         ctx=ctx,
@@ -630,7 +640,7 @@ def check_supports_python_version(_, filename, python):
     with open(filename, 'r') as f:
         tree = ast.parse(f.read(), filename=filename)
 
-    prefix = 'Programming Language :: Python :: {}'.format(python)
+    prefix = f'Programming Language :: Python :: {python}'
     for node in ast.walk(tree):
         if isinstance(node, ast.keyword) and node.arg == "classifiers":
             classifiers = ast.literal_eval(node.value)
@@ -708,7 +718,7 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
     for integration in integrations.strip().split(","):
         integration_path = os.path.join(integrations_dir, integration)
         if not os.path.exists(integration_path):
-            raise Exit("Integration {} given, but doesn't exist in {}".format(integration, integrations_dir), code=2)
+            raise Exit(f"Integration {integration} given, but doesn't exist in {integrations_dir}", code=2)
         last_commit = ctx.run(
             LAST_DIRECTORY_COMMIT_PATTERN.format(integrations_dir=integrations_dir, integration=integration),
             hide="both",
@@ -716,7 +726,7 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
         )
         integrations_hashes[integration] = last_commit.stdout.strip()
 
-    print("Trying to retrieve {} integration wheels from cache".format(len(integrations_hashes)))
+    print(f"Trying to retrieve {len(integrations_hashes)} integration wheels from cache")
     # On windows, maximum length of a command line call is 8191 characters, therefore
     # we do multiple syncs that fit within that limit (we use 8100 as a nice round number
     # and just to make sure we don't do any of-by-one errors that would break this).
@@ -724,8 +734,8 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
     # executable in quotes; also we have to not put the * in quotes, as there's no
     # expansion on it, unlike on Linux
     exclude_wildcard = "*" if platform.system().lower() == "windows" else "'*'"
-    sync_command_prefix = "\"{}\" s3 sync s3://{} {} --no-sign-request --exclude {}".format(
-        awscli, bucket, target_dir, exclude_wildcard
+    sync_command_prefix = (
+        f"\"{awscli}\" s3 sync s3://{bucket} {target_dir} --no-sign-request --exclude {exclude_wildcard}"
     )
     sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
     for integration, hash in integrations_hashes.items():
@@ -761,16 +771,14 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
             continue
         elif len(files_matched) > 1:
             raise Exit(
-                "More than 1 wheel for integration {} matched by {}: {}".format(
-                    integration, original_path_glob, files_matched
-                )
+                f"More than 1 wheel for integration {integration} matched by {original_path_glob}: {files_matched}"
             )
         wheel_path = files_matched[0]
-        print("Found cached wheel for integration {}".format(integration))
+        print(f"Found cached wheel for integration {integration}")
         shutil.move(wheel_path, target_dir)
-        found.append("datadog_{}".format(integration))
+        found.append(f"datadog_{integration}")
 
-    print("Found {} cached integration wheels".format(len(found)))
+    print(f"Found {len(found)} cached integration wheels")
     with open(os.path.join(target_dir, "found.txt"), "w") as f:
         f.write('\n'.join(found))
 
@@ -790,11 +798,9 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     matching_glob = os.path.join(build_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration))
     files_matched = glob.glob(matching_glob)
     if len(files_matched) == 0:
-        raise Exit("No wheel for integration {} found in {}".format(integration, build_dir))
+        raise Exit(f"No wheel for integration {integration} found in {build_dir}")
     elif len(files_matched) > 1:
-        raise Exit(
-            "More than 1 wheel for integration {} matched by {}: {}".format(integration, matching_glob, files_matched)
-        )
+        raise Exit(f"More than 1 wheel for integration {integration} matched by {matching_glob}: {files_matched}")
 
     wheel_path = files_matched[0]
 
@@ -808,6 +814,6 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     target_name = CACHED_WHEEL_DIRECTORY_PATTERN.format(
         hash=hash, python_version=python, branch=branch
     ) + os.path.basename(wheel_path)
-    print("Caching wheel {}".format(target_name))
+    print(f"Caching wheel {target_name}")
     # NOTE: on Windows, the awscli is usually in program files, so we have the executable
-    ctx.run("\"{}\" s3 cp {} s3://{}/{} --acl public-read".format(awscli, wheel_path, bucket, target_name))
+    ctx.run(f"\"{awscli}\" s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testing
 
 import (
@@ -31,6 +36,22 @@ func (s *Store) GetContainer(id string) (*workloadmeta.Container, error) {
 	}
 
 	return entity.(*workloadmeta.Container), nil
+}
+
+// ListContainers returns metadata about all known containers.
+func (s *Store) ListContainers() ([]*workloadmeta.Container, error) {
+	entities, err := s.listEntitiesByKind(workloadmeta.KindContainer)
+	if err != nil {
+		return nil, err
+	}
+
+	// Not very efficient
+	containers := make([]*workloadmeta.Container, 0, len(entities))
+	for _, entity := range entities {
+		containers = append(containers, entity.(*workloadmeta.Container))
+	}
+
+	return containers, nil
 }
 
 // GetKubernetesPod returns metadata about a Kubernetes pod.
@@ -120,6 +141,11 @@ func (s *Store) Notify(events []workloadmeta.CollectorEvent) {
 	panic("not implemented")
 }
 
+// Dump is not implemented in the testing store.
+func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
+	panic("not implemented")
+}
+
 func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta.Entity, error) {
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
@@ -135,4 +161,21 @@ func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta
 	}
 
 	return entity, nil
+}
+
+func (s *Store) listEntitiesByKind(kind workloadmeta.Kind) ([]workloadmeta.Entity, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	entitiesOfKind, ok := s.store[kind]
+	if !ok {
+		return nil, errors.NewNotFound(string(kind))
+	}
+
+	entities := make([]workloadmeta.Entity, 0, len(entitiesOfKind))
+	for _, entity := range entitiesOfKind {
+		entities = append(entities, entity)
+	}
+
+	return entities, nil
 }

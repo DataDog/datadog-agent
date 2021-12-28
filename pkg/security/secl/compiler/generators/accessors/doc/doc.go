@@ -1,5 +1,3 @@
-//go:generate go run github.com/mailru/easyjson/easyjson $GOFILE
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -18,12 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
 )
 
-// easyjson:json
 type documentation struct {
 	Types []eventType `json:"secl"`
 }
 
-// easyjson:json
 type eventType struct {
 	Name             string              `json:"name"`
 	Definition       string              `json:"definition"`
@@ -32,7 +28,6 @@ type eventType struct {
 	Properties       []eventTypeProperty `json:"properties"`
 }
 
-// easyjson:json
 type eventTypeProperty struct {
 	Name string `json:"name"`
 	Type string `json:"type"`

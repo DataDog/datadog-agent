@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 var (
@@ -109,16 +110,36 @@ func NewStore(catalog map[string]collectorFactory) Store {
 
 // Start starts the workload metadata store.
 func (s *store) Start(ctx context.Context) {
-	retryTicker := time.NewTicker(retryCollectorInterval)
-	pullTicker := time.NewTicker(pullCollectorInterval)
-	health := health.RegisterLiveness("workloadmeta-store")
-
-	pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
-
-	// Start processing events before starting collectors, as in some cases
-	// they may be able to generate more events than what fits in eventCh's
-	// buffer, and the store will deadlock.
 	go func() {
+		health := health.RegisterLiveness("workloadmeta-store")
+		for {
+			select {
+			case <-health.C:
+
+			case evs := <-s.eventCh:
+				s.handleEvents(evs)
+
+			case <-ctx.Done():
+				err := health.Deregister()
+				if err != nil {
+					log.Warnf("error de-registering health check: %s", err)
+				}
+
+				return
+			}
+		}
+	}()
+
+	go func() {
+		retryTicker := time.NewTicker(retryCollectorInterval)
+		pullTicker := time.NewTicker(pullCollectorInterval)
+		health := health.RegisterLiveness("workloadmeta-puller")
+		pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
+
+		// Start a pull immediately to fill the store without waiting for the
+		// next tick.
+		s.pull(pullCtx)
+
 		for {
 			select {
 			case <-health.C:
@@ -132,9 +153,6 @@ func (s *store) Start(ctx context.Context) {
 				pullCtx, pullCancel = context.WithTimeout(ctx, pullCollectorInterval)
 				s.pull(pullCtx)
 
-			case evs := <-s.eventCh:
-				s.handleEvents(evs)
-
 			case <-retryTicker.C:
 				stop := s.startCandidates(ctx)
 
@@ -146,6 +164,8 @@ func (s *store) Start(ctx context.Context) {
 				retryTicker.Stop()
 				pullTicker.Stop()
 
+				pullCancel()
+
 				err := health.Deregister()
 				if err != nil {
 					log.Warnf("error de-registering health check: %s", err)
@@ -156,12 +176,7 @@ func (s *store) Start(ctx context.Context) {
 		}
 	}()
 
-	// Start collectors immediately
 	s.startCandidates(ctx)
-
-	// Start a pull immediately to fill the store without waiting for the
-	// next tick.
-	s.pull(pullCtx)
 
 	log.Info("workloadmeta store initialized successfully")
 }
@@ -178,10 +193,6 @@ func (s *store) Subscribe(name string, filter *Filter) chan EventBundle {
 		ch:     make(chan EventBundle, 1),
 		filter: filter,
 	}
-
-	s.subscribersMut.Lock()
-	s.subscribers = append(s.subscribers, sub)
-	s.subscribersMut.Unlock()
 
 	var events []Event
 
@@ -222,6 +233,15 @@ func (s *store) Subscribe(name string, filter *Filter) chan EventBundle {
 	// the subscriber is not ready to receive events yet
 	notifyChannel(sub.name, sub.ch, events, false)
 
+	// From the moment we add the subscriber to the list, the store can try to
+	// send it events, that's why it's important that we do this after the line
+	// above. Otherwise, it can cause a deadlock.
+	s.subscribersMut.Lock()
+	s.subscribers = append(s.subscribers, sub)
+	s.subscribersMut.Unlock()
+
+	telemetry.Subscribers.Inc()
+
 	return sub.ch
 }
 
@@ -233,6 +253,7 @@ func (s *store) Unsubscribe(ch chan EventBundle) {
 	for i, sub := range s.subscribers {
 		if sub.ch == ch {
 			s.subscribers = append(s.subscribers[:i], s.subscribers[i+1:]...)
+			telemetry.Subscribers.Dec()
 			break
 		}
 	}
@@ -248,6 +269,22 @@ func (s *store) GetContainer(id string) (*Container, error) {
 	}
 
 	return entity.(*Container), nil
+}
+
+// ListContainers returns metadata about all known containers.
+func (s *store) ListContainers() ([]*Container, error) {
+	entities, err := s.listEntitiesByKind(KindContainer)
+	if err != nil {
+		return nil, err
+	}
+
+	// Not very efficient
+	containers := make([]*Container, 0, len(entities))
+	for _, entity := range entities {
+		containers = append(containers, entity.(*Container))
+	}
+
+	return containers, nil
 }
 
 // GetKubernetesPod returns metadata about a Kubernetes pod.
@@ -339,6 +376,7 @@ func (s *store) pull(ctx context.Context) {
 			err := c.Pull(ctx)
 			if err != nil {
 				log.Warnf("error pulling from collector %q: %s", id, err.Error())
+				telemetry.PullErrors.Inc(id)
 			}
 		}(id, c)
 	}
@@ -350,6 +388,8 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 	for _, ev := range evs {
 		meta := ev.Entity.GetID()
 
+		telemetry.EventsReceived.Inc(string(meta.Kind), string(ev.Source))
+
 		entitiesOfKind, ok := s.store[meta.Kind]
 		if !ok {
 			s.store[meta.Kind] = make(map[string]sourceToEntity)
@@ -360,15 +400,22 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		switch ev.Type {
 		case EventTypeSet:
-			entityOfSource, ok := entitiesOfKind[meta.ID]
 			if !ok {
 				entitiesOfKind[meta.ID] = make(sourceToEntity)
 				entityOfSource = entitiesOfKind[meta.ID]
 			}
 
+			if _, found := entityOfSource[ev.Source]; !found {
+				telemetry.StoredEntities.Inc(string(meta.Kind), string(ev.Source))
+			}
+
 			entityOfSource[ev.Source] = ev.Entity
 		case EventTypeUnset:
 			if ok {
+				if _, found := entityOfSource[ev.Source]; found {
+					telemetry.StoredEntities.Dec(string(meta.Kind), string(ev.Source))
+				}
+
 				delete(entityOfSource, ev.Source)
 
 				if len(entityOfSource) == 0 {
@@ -424,7 +471,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				filteredEvents = append(filteredEvents, Event{
 					Type:    EventTypeUnset,
 					Sources: evSources,
-					Entity:  ev.Entity.GetID(),
+					Entity:  ev.Entity,
 				})
 				continue
 			}
@@ -432,7 +479,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 			filteredEvents = append(filteredEvents, Event{
 				Type:    EventTypeUnset,
 				Sources: evSources,
-				Entity:  ev.Entity.GetID(),
+				Entity:  ev.Entity,
 			})
 		}
 
@@ -443,7 +490,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
-		return nil, errors.NewNotFound(id)
+		return nil, errors.NewNotFound(string(kind))
 	}
 
 	s.storeMut.RLock()
@@ -455,6 +502,23 @@ func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 	}
 
 	return entity.merge(nil), nil
+}
+
+func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
+	entitiesOfKind, ok := s.store[kind]
+	if !ok {
+		return nil, errors.NewNotFound(string(kind))
+	}
+
+	entities := make([]Entity, 0, len(entitiesOfKind))
+	for _, entity := range entitiesOfKind {
+		entities = append(entities, entity.merge(nil))
+	}
+
+	return entities, nil
 }
 
 func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
@@ -475,8 +539,10 @@ func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) 
 		select {
 		case <-bundle.Ch:
 			timer.Stop()
+			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
 		case <-timer.C:
 			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle dump: %+v", name, bundle)
+			telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
 		}
 	}
 }

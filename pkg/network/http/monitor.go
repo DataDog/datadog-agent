@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package http
@@ -72,7 +78,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 
 	telemetry := newTelemetry()
-	statkeeper := newHTTPStatkeeper(c.MaxHTTPStatsBuffered, telemetry)
+	statkeeper := newHTTPStatkeeper(c, telemetry)
 
 	handler := func(transactions []httpTX) {
 		if statkeeper != nil {

@@ -1,9 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package report
 
 import (
 	"fmt"
-	"regexp"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,6 +44,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.Metr
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
+		// TODO: Support extract value see II-635
 		value, err := values.GetScalarValue(metricTag.OID)
 		if err != nil {
 			continue
@@ -56,7 +60,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.Metr
 }
 
 func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
-	value, err := values.GetScalarValue(metric.Symbol.OID)
+	value, err := getScalarValueFromSymbol(values, metric.Symbol)
 	if err != nil {
 		log.Debugf("report scalar: error getting scalar value: %v", err)
 		return
@@ -64,38 +68,29 @@ func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, va
 
 	scalarTags := common.CopyStrings(tags)
 	scalarTags = append(scalarTags, metric.GetSymbolTags()...)
-	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options, metric.Symbol.ExtractValuePattern)
+	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options)
 }
 
 func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	rowTagsCache := make(map[string][]string)
 	for _, symbol := range metricConfig.Symbols {
-		metricValues, err := values.GetColumnValues(symbol.OID)
+		metricValues, err := getColumnValueFromSymbol(values, symbol)
 		if err != nil {
 			continue
 		}
 		for fullIndex, value := range metricValues {
 			// cache row tags by fullIndex to avoid rebuilding it for every column rows
 			if _, ok := rowTagsCache[fullIndex]; !ok {
-				rowTagsCache[fullIndex] = append(common.CopyStrings(tags), metricConfig.GetTags(fullIndex, values)...)
+				rowTagsCache[fullIndex] = append(common.CopyStrings(tags), metricConfig.MetricTags.GetTags(fullIndex, values)...)
 			}
 			rowTags := rowTagsCache[fullIndex]
-			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options, symbol.ExtractValuePattern)
+			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options)
 			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags)
 		}
 	}
 }
 
-func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, forcedType string, options checkconfig.MetricsConfigOption, extractValuePattern *regexp.Regexp) {
-	if extractValuePattern != nil {
-		extractedValue, err := value.ExtractStringValue(extractValuePattern)
-		if err != nil {
-			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, extractValuePattern, err)
-			return
-		}
-		value = extractedValue
-	}
-
+func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, forcedType string, options checkconfig.MetricsConfigOption) {
 	metricFullName := "snmp." + metricName
 	if forcedType == "" {
 		if value.SubmissionType != "" {

@@ -20,9 +20,17 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 	go GenerateEnhancedMetricsFromFunctionLog("JavaScript heap out of memory", reportLogTime, tags, metricsChan)
 
 	generatedMetrics := <-metricsChan
-
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
-		Name:       "aws.lambda.enhanced.out_of_memory",
+		Name:       OutOfMemoryMetric,
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLogTime.UnixNano()),
+	}})
+	generatedMetrics = <-metricsChan
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
+		Name:       errorsMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
@@ -49,42 +57,42 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 	generatedMetrics := <-metricsChan
 
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
-		Name:       "aws.lambda.enhanced.max_memory_used",
+		Name:       maxMemoryUsedMetric,
 		Value:      256.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
-		Name:       "aws.lambda.enhanced.memorysize",
+		Name:       memorySizeMetric,
 		Value:      1024.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
-		Name:       "aws.lambda.enhanced.billed_duration",
+		Name:       billedDurationMetric,
 		Value:      0.80,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
-		Name:       "aws.lambda.enhanced.duration",
+		Name:       durationMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
-		Name:       "aws.lambda.enhanced.estimated_cost",
+		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(800.0, 1024.0),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
-		Name:       "aws.lambda.enhanced.init_duration",
+		Name:       initDurationMetric,
 		Value:      0.1,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
@@ -103,35 +111,35 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 	generatedMetrics := <-metricsChan
 
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
-		Name:       "aws.lambda.enhanced.max_memory_used",
+		Name:       maxMemoryUsedMetric,
 		Value:      256.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
-		Name:       "aws.lambda.enhanced.memorysize",
+		Name:       memorySizeMetric,
 		Value:      1024.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
-		Name:       "aws.lambda.enhanced.billed_duration",
+		Name:       billedDurationMetric,
 		Value:      0.80,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
-		Name:       "aws.lambda.enhanced.duration",
+		Name:       durationMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()),
 	}, {
-		Name:       "aws.lambda.enhanced.estimated_cost",
+		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(800.0, 1024.0),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
@@ -149,13 +157,68 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 	generatedMetrics := <-metricsChan
 
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
-		Name:       "aws.lambda.enhanced.timeouts",
+		Name:       timeoutsMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
+	}})
+}
+
+func TestSendInvocationEnhancedMetric(t *testing.T) {
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+
+	go SendInvocationEnhancedMetric(tags, metricsChan)
+
+	generatedMetrics := <-metricsChan
+
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
+		Name:       invocationsMetric,
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		// compare the generated timestamp to itself because we can't know its value
+		Timestamp: generatedMetrics[0].Timestamp,
+	}})
+}
+
+func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+	mockTime := time.Now()
+	go SendOutOfMemoryEnhancedMetric(tags, mockTime, metricsChan)
+
+	generatedMetrics := <-metricsChan
+
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
+		Name:       OutOfMemoryMetric,
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(mockTime.UnixNano()),
+	}})
+}
+
+func TestSendErrorsEnhancedMetric(t *testing.T) {
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+	mockTime := time.Now()
+	go SendErrorsEnhancedMetric(tags, mockTime, metricsChan)
+
+	generatedMetrics := <-metricsChan
+
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
+		Name:       errorsMetric,
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(mockTime.UnixNano()),
 	}})
 }
 
@@ -212,7 +275,7 @@ func TestGenerateRuntimeDurationMetricOK(t *testing.T) {
 	go GenerateRuntimeDurationMetric(startTime, endTime, "myStatus", tags, metricsChan)
 	generatedMetrics := <-metricsChan
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
-		Name:       "aws.lambda.enhanced.runtime_duration",
+		Name:       runtimeDurationMetric,
 		Value:      153,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,

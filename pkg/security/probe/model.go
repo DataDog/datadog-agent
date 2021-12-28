@@ -8,7 +8,6 @@
 package probe
 
 import (
-	"encoding/json"
 	"path"
 	"strings"
 	"syscall"
@@ -17,6 +16,7 @@ import (
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/mailru/easyjson/jwriter"
 )
 
 const (
@@ -112,6 +112,11 @@ func (ev *Event) ResolveXAttrName(e *model.SetXAttrEvent) string {
 		e.Name, _ = model.UnmarshalString(e.NameRaw[:], 200)
 	}
 	return e.Name
+}
+
+// ResolveHelpers returns the list of eBPF helpers used by the current program
+func (ev *Event) ResolveHelpers(e *model.BPFProgram) []uint32 {
+	return e.Helpers
 }
 
 // ResolveXAttrNamespace returns the string representation of the extended attribute namespace
@@ -390,7 +395,7 @@ func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
 }
 
 func (ev *Event) String() string {
-	d, err := json.Marshal(ev)
+	d, err := ev.MarshalJSON()
 	if err != nil {
 		return err.Error()
 	}
@@ -405,7 +410,11 @@ func (ev *Event) SetPathResolutionError(err error) {
 // MarshalJSON returns the JSON encoding of the event
 func (ev *Event) MarshalJSON() ([]byte, error) {
 	s := NewEventSerializer(ev)
-	return json.Marshal(s)
+	w := &jwriter.Writer{
+		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+	}
+	s.MarshalEasyJSON(w)
+	return w.BuildBytes()
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event

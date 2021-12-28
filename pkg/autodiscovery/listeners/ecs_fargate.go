@@ -25,7 +25,7 @@ type ECSFargateListener struct {
 }
 
 // NewECSFargateListener returns a new ECSFargateListener.
-func NewECSFargateListener() (ServiceListener, error) {
+func NewECSFargateListener(Config) (ServiceListener, error) {
 	const name = "ad-ecsfargatelistener"
 	l := &ECSFargateListener{}
 	f := workloadmeta.NewFilter(

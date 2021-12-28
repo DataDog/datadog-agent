@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build linux
-
 package model
 
 import (
@@ -17,7 +15,7 @@ type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	id, err := UnmarshalString(data, 64)
 	if err != nil {
@@ -28,7 +26,7 @@ func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	return 64, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
@@ -44,7 +42,7 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 4, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
@@ -61,7 +59,7 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 8, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 24 {
 		return 0, ErrNotEnoughData
@@ -73,7 +71,7 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	return 24, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SetuidEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
@@ -84,7 +82,7 @@ func (e *SetuidEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SetgidEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
@@ -95,7 +93,7 @@ func (e *SetgidEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CapsetEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
@@ -105,7 +103,7 @@ func (e *CapsetEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 40 {
 		return 0, ErrNotEnoughData
@@ -129,7 +127,7 @@ func unmarshalTime(data []byte) time.Time {
 	return time.Time{}
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
 	read, err := UnmarshalBinary(data, &e.FileFields)
@@ -146,7 +144,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 	var ttyRaw [64]byte
 	SliceToArray(data[read:read+64], unsafe.Pointer(&ttyRaw))
-	ttyName, _ := UnmarshalString(ttyRaw[:], 64)
+	ttyName, err := UnmarshalString(ttyRaw[:], 64)
+	if err != nil {
+		return 0, err
+	}
 	if IsPrintableASCII(ttyName) {
 		e.TTYName = ttyName
 	}
@@ -154,7 +155,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 	var commRaw [16]byte
 	SliceToArray(data[read:read+16], unsafe.Pointer(&commRaw))
-	e.Comm, _ = UnmarshalString(commRaw[:], 16)
+	e.Comm, err = UnmarshalString(commRaw[:], 16)
+	if err != nil {
+		return 0, err
+	}
 	read += 16
 
 	// Unmarshal pid_cache_t
@@ -183,12 +187,12 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	return read, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 	return UnmarshalBinary(data, &e.Process)
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
@@ -201,7 +205,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 136 {
 		return 0, ErrNotEnoughData
@@ -214,7 +218,7 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 136, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 72 {
 		return 0, ErrNotEnoughData
@@ -244,17 +248,17 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	return 72, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
 	return UnmarshalBinary(data, &e.FileFields)
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	return UnmarshalBinary(data, &e.SyscallEvent, &e.Source, &e.Target)
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
@@ -270,7 +274,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 4, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
@@ -293,11 +297,15 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 	// Notes: bytes 36 to 40 are used to pad the structure
 
 	SliceToArray(data[40:56], unsafe.Pointer(&e.FSTypeRaw))
+	e.FSType, err = UnmarshalString(e.FSTypeRaw[:], 16)
+	if err != nil {
+		return 0, err
+	}
 
 	return 56, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
@@ -314,7 +322,7 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 8, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
@@ -326,7 +334,7 @@ func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.File)
 	if err != nil {
@@ -368,7 +376,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 8, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
@@ -380,17 +388,17 @@ func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 	return 8, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 	return UnmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	return UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
@@ -406,7 +414,7 @@ func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 200, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
@@ -415,7 +423,7 @@ func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 8, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
@@ -432,7 +440,7 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 8, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
@@ -450,7 +458,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 8, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
@@ -486,7 +494,7 @@ func UnmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int,
 	return read, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountReleasedEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
@@ -496,4 +504,99 @@ func (e *MountReleasedEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.DiscarderRevision = ByteOrder.Uint32(data[4:8])
 
 	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *BPFEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	cursor := read
+
+	read, err = e.Map.UnmarshalBinary(data[cursor:])
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
+	read, err = e.Program.UnmarshalBinary(data[cursor:])
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
+	if len(data) < cursor+4 {
+		return 0, ErrNotEnoughData
+	}
+	e.Cmd = ByteOrder.Uint32(data[cursor : cursor+4])
+	return cursor + 4, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (m *BPFMap) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 24 {
+		return 0, ErrNotEnoughData
+	}
+	m.ID = ByteOrder.Uint32(data[0:4])
+	m.Type = ByteOrder.Uint32(data[4:8])
+
+	var err error
+	m.Name, err = UnmarshalString(data[8:24], 16)
+	if err != nil {
+		return 0, err
+	}
+	return 24, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (p *BPFProgram) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 56 {
+		return 0, ErrNotEnoughData
+	}
+	p.ID = ByteOrder.Uint32(data[0:4])
+	p.Type = ByteOrder.Uint32(data[4:8])
+	p.AttachType = ByteOrder.Uint32(data[8:12])
+	// padding
+	helpers := []uint64{0, 0, 0}
+	helpers[0] = ByteOrder.Uint64(data[16:24])
+	helpers[1] = ByteOrder.Uint64(data[24:32])
+	helpers[2] = ByteOrder.Uint64(data[32:40])
+	p.Helpers = parseHelpers(helpers)
+
+	var err error
+	p.Name, err = UnmarshalString(data[40:56], 16)
+	if err != nil {
+		return 0, err
+	}
+	return 56, nil
+}
+
+func parseHelpers(helpers []uint64) []uint32 {
+	var rep []uint32
+	var add bool
+
+	if len(helpers) < 3 {
+		return rep
+	}
+
+	for i := 0; i < 192; i++ {
+		add = false
+		if i < 64 {
+			if helpers[0]&(1<<i) == (1 << i) {
+				add = true
+			}
+		} else if i < 128 {
+			if helpers[1]&(1<<(i-64)) == (1 << (i - 64)) {
+				add = true
+			}
+		} else if i < 192 {
+			if helpers[2]&(1<<(i-128)) == (1 << (i - 128)) {
+				add = true
+			}
+		}
+
+		if add {
+			rep = append(rep, uint32(i))
+		}
+	}
+	return rep
 }

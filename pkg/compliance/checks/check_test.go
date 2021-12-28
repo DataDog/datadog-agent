@@ -52,6 +52,7 @@ func TestCheckRun(t *testing.T) {
 				ResourceType:     resourceType,
 				ResourceID:       resourceID,
 				Result:           "passed",
+				Evaluator:        "legacy",
 				Data: event.Data{
 					"file.permissions": 0644,
 				},
@@ -74,6 +75,7 @@ func TestCheckRun(t *testing.T) {
 				ResourceType:     resourceType,
 				ResourceID:       resourceID,
 				Result:           "failed",
+				Evaluator:        "legacy",
 				Data: event.Data{
 					"file.permissions": 0644,
 				},
@@ -94,6 +96,7 @@ func TestCheckRun(t *testing.T) {
 				ResourceType:     resourceType,
 				ResourceID:       resourceID,
 				Result:           "error",
+				Evaluator:        "legacy",
 				Data: event.Data{
 					"error": "check error",
 				},

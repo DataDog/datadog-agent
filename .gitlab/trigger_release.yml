@@ -8,7 +8,7 @@
   tags: ["runner:main"]
   script:
     - python3 -m pip install -r requirements.txt
-    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "master" --variables "RELEASE_VERSION"
+    - inv pipeline.trigger-child-pipeline --no-follow --project-name "DataDog/agent-release-management" --git-ref "master" --variables "RELEASE_VERSION"
 
 trigger_release_6:
   extends: .agent_release_management_trigger

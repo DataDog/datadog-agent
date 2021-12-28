@@ -35,28 +35,30 @@ func getTestPrioritySampler() *PrioritySampler {
 	return NewPrioritySampler(conf, &DynamicConfig{})
 }
 
-func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (pb.Trace, *pb.Span) {
+func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (*pb.TraceChunk, *pb.Span) {
 	tID := randomTraceID()
-	trace := pb.Trace{
-		&pb.Span{TraceID: tID, SpanID: 1, ParentID: 0, Start: 42, Duration: 1000000, Service: service, Type: "web", Meta: map[string]string{"env": defaultEnv}, Metrics: map[string]float64{}},
-		&pb.Span{TraceID: tID, SpanID: 2, ParentID: 1, Start: 100, Duration: 200000, Service: service, Type: "sql"},
+	spans := []*pb.Span{
+		{TraceID: tID, SpanID: 1, ParentID: 0, Start: 42, Duration: 1000000, Service: service, Type: "web", Meta: map[string]string{"env": defaultEnv}, Metrics: map[string]float64{}},
+		{TraceID: tID, SpanID: 2, ParentID: 1, Start: 100, Duration: 200000, Service: service, Type: "sql"},
 	}
 	r := rand.Float64()
 	priority := PriorityAutoDrop
 	rates := s.ratesByService()
-	key := ServiceSignature{trace[0].Service, defaultEnv}
+	key := ServiceSignature{spans[0].Service, defaultEnv}
 	var rate float64
 	if serviceRate, ok := rates[key]; ok {
 		rate = serviceRate
-		trace[0].Metrics[agentRateKey] = serviceRate
+		spans[0].Metrics[agentRateKey] = serviceRate
 	} else {
 		rate = 1
 	}
 	if r <= rate {
 		priority = PriorityAutoKeep
 	}
-	SetSamplingPriority(trace[0], priority)
-	return trace, trace[0]
+	return &pb.TraceChunk{
+		Priority: int32(priority),
+		Spans:    spans,
+	}, spans[0]
 }
 
 func TestPrioritySample(t *testing.T) {
@@ -71,52 +73,52 @@ func TestPrioritySample(t *testing.T) {
 	assert.Equal(0.0, s.localRates.Backend.GetSampledScore(), "checkeing fresh backend sampled score is 0")
 
 	s = getTestPrioritySampler()
-	trace, root := getTestTraceWithService(t, "my-service", s)
+	chunk, root := getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, -1)
-	sampled := s.Sample(trace, root, env, false)
+	chunk.Priority = -1
+	sampled := s.Sample(chunk, root, env, false)
 	assert.False(sampled, "trace with negative priority is dropped")
 	assert.Equal(0.0, s.localRates.Backend.GetTotalScore(), "sampling a priority -1 trace should *NOT* impact sampler backend")
 	assert.Equal(0.0, s.localRates.Backend.GetSampledScore(), "sampling a priority -1 trace should *NOT* impact sampler backend")
 
 	s = getTestPrioritySampler()
-	trace, root = getTestTraceWithService(t, "my-service", s)
+	chunk, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, 0)
-	sampled = s.Sample(trace, root, env, false)
+	chunk.Priority = 0
+	sampled = s.Sample(chunk, root, env, false)
 	assert.False(sampled, "trace with priority 0 is dropped")
 	assert.True(0.0 < s.localRates.Backend.GetTotalScore(), "sampling a priority 0 trace should increase total score")
 	assert.Equal(0.0, s.localRates.Backend.GetSampledScore(), "sampling a priority 0 trace should *NOT* increase sampled score")
 
 	s = getTestPrioritySampler()
-	trace, root = getTestTraceWithService(t, "my-service", s)
+	chunk, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, 1)
-	sampled = s.Sample(trace, root, env, false)
+	chunk.Priority = 1
+	sampled = s.Sample(chunk, root, env, false)
 	assert.True(sampled, "trace with priority 1 is kept")
 	assert.True(0.0 < s.localRates.Backend.GetTotalScore(), "sampling a priority 0 trace should increase total score")
 	assert.True(0.0 < s.localRates.Backend.GetSampledScore(), "sampling a priority 0 trace should increase sampled score")
 
 	s = getTestPrioritySampler()
-	trace, root = getTestTraceWithService(t, "my-service", s)
+	chunk, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, 2)
-	sampled = s.Sample(trace, root, env, false)
+	chunk.Priority = 2
+	sampled = s.Sample(chunk, root, env, false)
 	assert.True(sampled, "trace with priority 2 is kept")
 	assert.Equal(0.0, s.localRates.Backend.GetTotalScore(), "sampling a priority 2 trace should *NOT* increase total score")
 	assert.Equal(0.0, s.localRates.Backend.GetSampledScore(), "sampling a priority 2 trace should *NOT* increase sampled score")
 
 	s = getTestPrioritySampler()
-	trace, root = getTestTraceWithService(t, "my-service", s)
+	chunk, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, PriorityUserKeep)
-	sampled = s.Sample(trace, root, env, false)
+	chunk.Priority = int32(PriorityUserKeep)
+	sampled = s.Sample(chunk, root, env, false)
 	assert.True(sampled, "trace with high priority is kept")
 	assert.Equal(0.0, s.localRates.Backend.GetTotalScore(), "sampling a high priority trace should *NOT* increase total score")
 	assert.Equal(0.0, s.localRates.Backend.GetSampledScore(), "sampling a high priority trace should *NOT* increase sampled score")
 
-	delete(root.Metrics, KeySamplingPriority)
-	sampled = s.Sample(trace, root, env, false)
+	chunk.Priority = int32(PriorityNone)
+	sampled = s.Sample(chunk, root, env, false)
 	assert.False(sampled, "this should not happen but a trace without priority sampling set should be dropped")
 }
 
@@ -126,18 +128,18 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 
 	s := getTestPrioritySampler()
 	for i := 0; i < 1e2; i++ {
-		trace, root := getTestTraceWithService(t, "my-service", s)
-		SetSamplingPriority(root, SamplingPriority(i%2))
-		sampled := s.Sample(trace, root, env, false)
+		chunk, root := getTestTraceWithService(t, "my-service", s)
+		chunk.Priority = int32(i % 2)
+		sampled := s.Sample(chunk, root, env, false)
 		if sampled {
 			rate, _ := root.Metrics[agentRateKey]
 			assert.Equal(1.0, rate)
 		}
 	}
 	for i := 0; i < 1e3; i++ {
-		trace, root := getTestTraceWithService(t, "my-service", s)
-		SetSamplingPriority(root, SamplingPriority(i%2))
-		sampled := s.Sample(trace, root, env, false)
+		chunk, root := getTestTraceWithService(t, "my-service", s)
+		chunk.Priority = int32(i % 2)
+		sampled := s.Sample(chunk, root, env, false)
 		if sampled {
 			rate, _ := root.Metrics[agentRateKey]
 			if rate < 1 {
@@ -219,14 +221,14 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 
 			tracesPerDecay := tc.generatedTPS * defaultDecayPeriod.Seconds()
 			for i := 0; i < int(tracesPerDecay); i++ {
-				trace, root := getTestTraceWithService(t, tc.service, s)
+				chunk, root := getTestTraceWithService(t, tc.service, s)
 
 				var sampled bool
 				if !tc.clientDrop {
-					sampled = s.Sample(trace, root, defaultEnv, false)
+					sampled = s.Sample(chunk, root, defaultEnv, false)
 				} else {
-					if prio, _ := GetSamplingPriority(root); prio == 1 {
-						sampled = s.Sample(trace, root, defaultEnv, true)
+					if prio, _ := GetSamplingPriority(chunk); prio == 1 {
+						sampled = s.Sample(chunk, root, defaultEnv, true)
 
 					} else {
 						s.CountClientDroppedP0s(1)

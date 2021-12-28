@@ -8,6 +8,7 @@ package eval
 import (
 	"container/list"
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 	"syscall"
@@ -18,12 +19,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
-// NewOptsWithParams initializes a new Opts instance with Constants parameters
-func NewOptsWithParams(constants map[string]interface{}, legacyAttributes map[Field]Field) *Opts {
+func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]Field) *Opts {
 	return &Opts{
-		Constants:        constants,
-		Macros:           make(map[MacroID]*Macro),
-		LegacyAttributes: legacyAttributes,
+		Constants:    constants,
+		Macros:       make(map[MacroID]*Macro),
+		LegacyFields: legacyFields,
+		Variables: map[string]VariableValue{
+			"pid": {
+				IntFnc: func(ctx *Context) int {
+					return os.Getpid()
+				},
+			},
+			"str": {
+				StringFnc: func(ctx *Context) string {
+					return "aaa"
+				},
+			},
+		},
 	}
 }
 
@@ -49,7 +61,7 @@ func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) 
 
 	ctx := NewContext(unsafe.Pointer(event))
 
-	opts := NewOptsWithParams(testConstants, nil)
+	opts := newOptsWithParams(testConstants, nil)
 	rule, err := parseRule(expr, model, opts)
 	if err != nil {
 		return false, nil, err
@@ -318,6 +330,36 @@ func TestRegexp(t *testing.T) {
 	}
 }
 
+func TestVariables(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name: fmt.Sprintf("/proc/%d/maps/aaa", os.Getpid()),
+			pid:  os.Getpid(),
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.name == "/proc/${pid}/maps/${str}"`, Expected: true},
+		{Expr: `process.name == "/proc/${pid}/maps/${str"`, Expected: false},
+		{Expr: `process.name == "/proc/${pid/maps/${str"`, Expected: false},
+		{Expr: `process.pid == ${pid}`, Expected: true},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
 func TestInArray(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
@@ -492,7 +534,7 @@ func TestMacroList(t *testing.T) {
 		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	opts := NewOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]interface{}), nil)
 	opts.Macros = map[string]*Macro{
 		"list": macro,
 	}
@@ -536,7 +578,7 @@ func TestMacroExpression(t *testing.T) {
 		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	opts := NewOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]interface{}), nil)
 	opts.Macros = map[string]*Macro{
 		"is_passwd": macro,
 	}
@@ -579,7 +621,7 @@ func TestMacroPartial(t *testing.T) {
 		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	opts := NewOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]interface{}), nil)
 	opts.Macros = map[string]*Macro{
 		"is_passwd": macro,
 	}
@@ -644,7 +686,7 @@ func TestNestedMacros(t *testing.T) {
 
 	model := &testModel{}
 
-	opts := NewOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]interface{}), nil)
 	opts.Macros = map[string]*Macro{
 		"sensitive_files":     macro1,
 		"is_sensitive_opened": macro2,
@@ -680,7 +722,7 @@ func TestFieldValidator(t *testing.T) {
 
 func TestLegacyField(t *testing.T) {
 	model := &testModel{}
-	opts := NewOptsWithParams(testConstants, legacyAttributes)
+	opts := newOptsWithParams(testConstants, legacyFields)
 
 	tests := []struct {
 		Expr     string
@@ -701,7 +743,7 @@ func TestLegacyField(t *testing.T) {
 
 func TestRegisterSyntaxError(t *testing.T) {
 	model := &testModel{}
-	opts := NewOptsWithParams(testConstants, nil)
+	opts := newOptsWithParams(testConstants, nil)
 
 	tests := []struct {
 		Expr     string

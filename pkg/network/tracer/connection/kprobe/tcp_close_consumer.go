@@ -1,8 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package kprobe
 
 import (
+	"sync"
 	"sync/atomic"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -22,6 +29,7 @@ type tcpCloseConsumer struct {
 	batchManager *perfBatchManager
 	requests     chan chan struct{}
 	buffer       *network.ConnectionBuffer
+	once         sync.Once
 
 	// Telemetry
 	perfReceived int64
@@ -75,7 +83,9 @@ func (c *tcpCloseConsumer) Stop() {
 		return
 	}
 	c.perfHandler.Stop()
-	close(c.requests)
+	c.once.Do(func() {
+		close(c.requests)
+	})
 }
 
 func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {

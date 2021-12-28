@@ -28,7 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -77,8 +79,7 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 )
 
 const (
-	// loggerName is the name of the serverless agent logger
-	loggerName config.LoggerName = "SAGENT"
+	loggerName config.LoggerName = "DD_EXTENSION"
 
 	runtimeAPIEnvVar = "AWS_LAMBDA_RUNTIME_API"
 
@@ -93,7 +94,7 @@ const (
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
 	logsAPICollectionRoute     = "/lambda/logs"
-	logsAPITimeout             = 1000
+	logsAPITimeout             = 25
 	logsAPIMaxBytes            = 262144
 	logsAPIMaxItems            = 1000
 )
@@ -293,6 +294,17 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	wg.Wait()
+
+	// start the proxy if needed
+	_ = proxy.Start(
+		"127.0.0.1:9000",
+		"127.0.0.1:9001",
+		&invocationlifecycle.ProxyProcessor{
+			ExtraTags:           serverlessDaemon.ExtraTags,
+			MetricChannel:       serverlessDaemon.MetricAgent.GetMetricChannel(),
+			ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
+			DetectLambdaLibrary: func() bool { return serverlessDaemon.LambdaLibraryDetected },
+		})
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on

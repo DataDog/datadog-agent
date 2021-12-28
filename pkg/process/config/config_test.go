@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux || windows
 // +build linux windows
 
 package config
@@ -655,9 +661,9 @@ func TestProcessDiscoveryConfig(t *testing.T) {
 			cfg := AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
 			cfg.initProcessDiscoveryCheck()
 
-			// Make sure that the process discovery check is only enabled when both the process-agent is set to false,
+			// Make sure that the process discovery check is only enabled when both the process-agent is not set to true,
 			// and procDiscoveryEnabled isn't overridden.
-			if procDiscoveryEnabled == true && procConfigEnabled == "false" {
+			if procDiscoveryEnabled == true && procConfigEnabled != "true" {
 				assert.ElementsMatch([]string{DiscoveryCheckName}, cfg.EnabledChecks)
 
 				// Interval Tests:

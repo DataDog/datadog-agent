@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -41,6 +41,7 @@ func processStatefulSetList(statefulSetList []*v1.StatefulSet, groupID int32, cf
 		if orchestrator.SkipKubernetesResource(statefulSet.UID, statefulSet.ResourceVersion, orchestrator.K8sStatefulSet) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(statefulSet.Annotations)
 
 		// extract statefulSet info
 		statefulSetModel := extractStatefulSet(statefulSet)
@@ -72,6 +73,8 @@ func processStatefulSetList(statefulSetList []*v1.StatefulSet, groupID int32, cf
 		})
 	}
 
+	orchestrator.SetCacheStats(len(statefulSetList), len(statefulSetMsgs), orchestrator.K8sStatefulSet)
+
 	log.Debugf("Collected & enriched %d out of %d StatefulSets in %s", len(statefulSetMsgs), len(statefulSetList), time.Since(start))
 	return messages, nil
 }
@@ -84,6 +87,7 @@ func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *con
 		if orchestrator.SkipKubernetesResource(daemonSet.UID, daemonSet.ResourceVersion, orchestrator.K8sDaemonSet) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(daemonSet.Annotations)
 
 		// extract daemonSet info
 		daemonSetModel := extractDaemonSet(daemonSet)
@@ -114,6 +118,8 @@ func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *con
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(daemonSetList), len(daemonSetMsgs), orchestrator.K8sDaemonSet)
 
 	log.Debugf("Collected & enriched %d out of %d DaemonSets in %s", len(daemonSetMsgs), len(daemonSetList), time.Since(start))
 	return messages, nil
@@ -166,6 +172,8 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(cronJobList), len(cronJobMsgs), orchestrator.K8sCronJob)
 
 	log.Debugf("Collected & enriched %d out of %d CronJobs in %s", len(cronJobMsgs), len(cronJobList), time.Since(start))
 	return messages, nil
@@ -232,6 +240,8 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		})
 	}
 
+	orchestrator.SetCacheStats(len(deploymentList), len(deployMsgs), orchestrator.K8sDeployment)
+
 	log.Debugf("Collected & enriched %d out of %d Deployments in %s", len(deployMsgs), len(deploymentList), time.Since(start))
 	return messages, nil
 }
@@ -295,6 +305,8 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(jobList), len(jobMsgs), orchestrator.K8sJob)
 
 	log.Debugf("Collected & enriched %d out of %d Jobs in %s", len(jobMsgs), len(jobList), time.Since(start))
 	return messages, nil
@@ -363,6 +375,8 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		})
 	}
 
+	orchestrator.SetCacheStats(len(rsList), len(rsMsgs), orchestrator.K8sReplicaSet)
+
 	log.Debugf("Collected & enriched %d out of %d ReplicaSets in %s", len(rsMsgs), len(rsList), time.Since(start))
 	return messages, nil
 }
@@ -389,6 +403,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		if orchestrator.SkipKubernetesResource(svc.UID, svc.ResourceVersion, orchestrator.K8sService) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(svc.Annotations)
 
 		serviceModel := extractService(svc)
 
@@ -419,6 +434,8 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(serviceList), len(serviceMsgs), orchestrator.K8sService)
 
 	log.Debugf("Collected & enriched %d out of %d Services in %s", len(serviceMsgs), len(serviceList), time.Since(start))
 	return messages, nil
@@ -493,6 +510,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		if orchestrator.SkipKubernetesResource(node.UID, node.ResourceVersion, orchestrator.K8sNode) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(node.Annotations)
 
 		nodeModel := extractNode(node)
 		// k8s objects only have json "omitempty" annotations
@@ -530,6 +548,8 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(nodesList), len(nodeMsgs), orchestrator.K8sNode)
 
 	log.Debugf("Collected & enriched %d out of %d Nodes in %s", len(nodeMsgs), len(nodesList), time.Since(start))
 	return nodeMessages, model.Cluster{
@@ -637,6 +657,7 @@ func processPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int3
 		if orchestrator.SkipKubernetesResource(pv.UID, pv.ResourceVersion, orchestrator.K8sPersistentVolume) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(pv.Annotations)
 
 		pvModel := extractPersistentVolume(pv)
 
@@ -669,6 +690,8 @@ func processPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int3
 			Tags:              cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(pvList), len(pvMsgs), orchestrator.K8sPersistentVolume)
 
 	log.Debugf("Collected & enriched %d out of %d Persistent volumes in %s", len(pvMsgs), len(pvList), time.Since(start))
 	return messages, nil
@@ -705,6 +728,7 @@ func processPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, g
 		if orchestrator.SkipKubernetesResource(pvc.UID, pvc.ResourceVersion, orchestrator.K8sPersistentVolumeClaim) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(pvc.Annotations)
 
 		pvModel := extractPersistentVolumeClaim(pvc)
 
@@ -736,6 +760,8 @@ func processPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, g
 		})
 	}
 
+	orchestrator.SetCacheStats(len(pvcList), len(pvcMsgs), orchestrator.K8sPersistentVolumeClaim)
+
 	log.Debugf("Collected & enriched %d out of %d Persistent volume claims in %s", len(pvcMsgs), len(pvcList), time.Since(start))
 	return messages, nil
 }
@@ -761,6 +787,7 @@ func processRoleList(roleList []*rbacv1.Role, groupID int32, cfg *config.Orchest
 		if orchestrator.SkipKubernetesResource(role.UID, role.ResourceVersion, orchestrator.K8sRole) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(role.Annotations)
 
 		roleModel := extractRole(role)
 
@@ -792,6 +819,8 @@ func processRoleList(roleList []*rbacv1.Role, groupID int32, cfg *config.Orchest
 		})
 	}
 
+	orchestrator.SetCacheStats(len(roleList), len(roleMsgs), orchestrator.K8sRole)
+
 	log.Debugf("Collected & enriched %d out of %d Roles in %s", len(roleMsgs), len(roleList), time.Since(start))
 	return messages, nil
 }
@@ -817,6 +846,7 @@ func processRoleBindingList(roleBindingList []*rbacv1.RoleBinding, groupID int32
 		if orchestrator.SkipKubernetesResource(roleBinding.UID, roleBinding.ResourceVersion, orchestrator.K8sRoleBinding) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(roleBinding.Annotations)
 
 		roleBindingModel := extractRoleBinding(roleBinding)
 
@@ -848,6 +878,8 @@ func processRoleBindingList(roleBindingList []*rbacv1.RoleBinding, groupID int32
 		})
 	}
 
+	orchestrator.SetCacheStats(len(roleBindingList), len(roleBindingMsgs), orchestrator.K8sRoleBinding)
+
 	log.Debugf("Collected & enriched %d out of %d RoleBindings in %s", len(roleBindingMsgs), len(roleBindingList), time.Since(start))
 	return messages, nil
 }
@@ -873,6 +905,7 @@ func processClusterRoleList(clusterRoleList []*rbacv1.ClusterRole, groupID int32
 		if orchestrator.SkipKubernetesResource(clusterRole.UID, clusterRole.ResourceVersion, orchestrator.K8sClusterRole) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(clusterRole.Annotations)
 
 		clusterRoleModel := extractClusterRole(clusterRole)
 
@@ -904,6 +937,8 @@ func processClusterRoleList(clusterRoleList []*rbacv1.ClusterRole, groupID int32
 		})
 	}
 
+	orchestrator.SetCacheStats(len(clusterRoleList), len(clusterRoleMsgs), orchestrator.K8sClusterRole)
+
 	log.Debugf("Collected & enriched %d out of %d ClusterRoles in %s", len(clusterRoleMsgs), len(clusterRoleList), time.Since(start))
 	return messages, nil
 }
@@ -929,6 +964,7 @@ func processClusterRoleBindingList(clusterRoleBindingList []*rbacv1.ClusterRoleB
 		if orchestrator.SkipKubernetesResource(clusterRoleBinding.UID, clusterRoleBinding.ResourceVersion, orchestrator.K8sClusterRoleBinding) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(clusterRoleBinding.Annotations)
 
 		clusterRoleBindingModel := extractClusterRoleBinding(clusterRoleBinding)
 
@@ -960,6 +996,8 @@ func processClusterRoleBindingList(clusterRoleBindingList []*rbacv1.ClusterRoleB
 		})
 	}
 
+	orchestrator.SetCacheStats(len(clusterRoleBindingList), len(clusterRoleBindingMsgs), orchestrator.K8sClusterRoleBinding)
+
 	log.Debugf("Collected & enriched %d out of %d ClusterRoleBindings in %s", len(clusterRoleBindingMsgs), len(clusterRoleBindingList), time.Since(start))
 	return messages, nil
 }
@@ -985,6 +1023,7 @@ func processServiceAccountList(serviceAccountList []*corev1.ServiceAccount, grou
 		if orchestrator.SkipKubernetesResource(serviceAcount.UID, serviceAcount.ResourceVersion, orchestrator.K8sServiceAccount) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(serviceAcount.Annotations)
 
 		clusterRoleBindingModel := extractServiceAccount(serviceAcount)
 
@@ -1015,6 +1054,8 @@ func processServiceAccountList(serviceAccountList []*corev1.ServiceAccount, grou
 			Tags:            cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(serviceAccountList), len(serviceAccountMsgs), orchestrator.K8sServiceAccount)
 
 	log.Debugf("Collected & enriched %d out of %d ServiceAccounts in %s", len(serviceAccountMsgs), len(serviceAccountList), time.Since(start))
 	return messages, nil

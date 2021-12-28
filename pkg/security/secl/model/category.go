@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build linux
-
 package model
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -15,15 +13,29 @@ type EventCategory = string
 // Event categories
 const (
 	// FIMCategory FIM events
-	FIMCategory EventCategory = "fim"
-	// RuntimeCategory Process events
-	RuntimeCategory EventCategory = "runtime"
+	FIMCategory EventCategory = "File Activity"
+	// ProcessCategory process events
+	ProcessCategory EventCategory = "Process Activity"
+	// KernelCategory Kernel events
+	KernelCategory EventCategory = "Kernel Activity"
 )
+
+// GetAllCategories returns all categories
+func GetAllCategories() []EventCategory {
+	return []EventCategory{
+		FIMCategory,
+		ProcessCategory,
+		KernelCategory,
+	}
+}
 
 // GetEventTypeCategory returns the category for the given event type
 func GetEventTypeCategory(eventType eval.EventType) EventCategory {
-	if eventType == "exec" {
-		return RuntimeCategory
+	switch eventType {
+	case "exec":
+		return ProcessCategory
+	case "bpf", "selinux":
+		return KernelCategory
 	}
 
 	return FIMCategory

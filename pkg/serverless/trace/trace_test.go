@@ -63,22 +63,27 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
 	assert.NotNil(t, agent.cancel)
-
 }
 
 func TestLoadConfigShouldBeFast(t *testing.T) {
-	timeout := time.After(1 * time.Second)
-	done := make(chan bool)
-	go func() {
-		var agent = &ServerlessTraceAgent{}
-		agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
-		defer agent.Stop()
-		done <- true
-	}()
+	startTime := time.Now()
+	agent := &ServerlessTraceAgent{}
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
+	defer agent.Stop()
+	assert.True(t, time.Since(startTime) < time.Second)
+}
 
-	select {
-	case <-timeout:
-		t.Fatal("Tracer config load/validation is too long")
-	case <-done:
+func TestBuildTraceBlocklist(t *testing.T) {
+	userProvidedBlocklist := []string{
+		"GET /toto",
+		"PATCH /tutu",
 	}
+	expected := []string{
+		"GET /toto",
+		"PATCH /tutu",
+		"GET /lambda/hello",
+		"POST /lambda/flush",
+	}
+	result := buildTraceBlocklist(userProvidedBlocklist)
+	assert.Equal(t, expected, result)
 }

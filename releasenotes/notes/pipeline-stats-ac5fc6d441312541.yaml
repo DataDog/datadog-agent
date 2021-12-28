@@ -1,0 +1,3 @@
+features:
+  - |
+    APM: Adds a new endpoint to the Datadog Agent to forward pipeline stats to the Datadog backend.

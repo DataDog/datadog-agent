@@ -107,6 +107,9 @@ filtered_agent_requirements_in = 'agent_requirements-py2.in'
 agent_requirements_in = 'agent_requirements.in'
 
 build do
+  license "BSD-3-Clause"
+  license_file "./LICENSE"
+
   # The dir for confs
   if osx?
     conf_dir = "#{install_dir}/etc/conf.d"
@@ -276,7 +279,7 @@ build do
 
     tasks_dir_in = windows_safe_path(Dir.pwd)
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
-    cache_branch = /^(7\.\d+\.x|main)$/.match(ENV.fetch('CI_COMMIT_BRANCH', ''))
+    cache_branch = `cd .. && inv release.get-release-json-value base_branch`.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
     awscli = if windows? then '"c:\program files\amazon\awscli\bin\aws"' else 'aws' end
     if cache_bucket != ''

@@ -31,7 +31,7 @@ CLANG_EXE_CMD = "clang {flags} '{c_file}' -o '{out_file}'"
 def get_go_env(ctx, go_version):
     goenv = {}
     if go_version:
-        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        lines = ctx.run(f"gimme {go_version}").stdout.split("\n")
         for line in lines:
             for env_var in GIMME_ENV_VARS:
                 if env_var in line:
@@ -73,14 +73,10 @@ def build(
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run(
-            "windmc --target {target_arch}  -r cmd/security-agent/windows_resources cmd/security-agent/windows_resources/security-agent-msg.mc".format(
-                target_arch=windres_target
-            )
+            f"windmc --target {windres_target}  -r cmd/security-agent/windows_resources cmd/security-agent/windows_resources/security-agent-msg.mc"
         )
         ctx.run(
-            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/security-agent/windows_resources/security-agent.rc --target {target_arch} -O coff -o cmd/security-agent/rsrc.syso".format(
-                maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
-            )
+            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/security-agent/windows_resources/security-agent.rc --target {windres_target} -O coff -o cmd/security-agent/rsrc.syso"
         )
 
     # TODO use pkg/version for this
@@ -95,7 +91,7 @@ def build(
 
     goenv = {}
     if go_version:
-        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        lines = ctx.run(f"gimme {go_version}").stdout.split("\n")
         for line in lines:
             for env_var in GIMME_ENV_VARS:
                 if env_var in line:
@@ -110,7 +106,7 @@ def build(
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
-    ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
+    ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(
         build="security-agent"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
@@ -144,8 +140,25 @@ def gen_mocks(ctx):
     Generate mocks.
     """
 
+    interfaces = [
+        "AuditClient",
+        "Builder",
+        "Clients",
+        "Configuration",
+        "DockerClient",
+        "Env",
+        "Evaluatable",
+        "Iterator",
+        "KubeClient",
+        "RegoConfiguration",
+        "Reporter",
+        "Scheduler",
+    ]
+
+    interface_regex = "|".join(f"^{i}\\$" for i in interfaces)
+
     with ctx.cd("./pkg/compliance"):
-        ctx.run("./gen_mocks.sh")
+        ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
 
 
 @task
@@ -162,6 +175,13 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     }
 
     ctx.run(cmd.format(**args))
+
+
+def build_go_syscall_tester(ctx, build_dir):
+    syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
+    syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
+    ctx.run(f"go build -o {syscall_tester_exe_file} -tags syscalltesters {syscall_tester_go_dir}/syscall_go_tester.go ")
+    return syscall_tester_exe_file
 
 
 def build_syscall_x86_tester(ctx, build_dir, static=True):
@@ -192,9 +212,10 @@ def build_syscall_tester(ctx, build_dir, static=True):
 def build_embed_syscall_tester(ctx, static=True):
     syscall_tester_bin = build_syscall_tester(ctx, os.path.join(".", "bin"), static=static)
     syscall_x86_tester_bin = build_syscall_x86_tester(ctx, os.path.join(".", "bin"), static=static)
+    syscall_go_tester_bin = build_go_syscall_tester(ctx, os.path.join(".", "bin"))
     bundle_files(
         ctx,
-        [syscall_tester_bin, syscall_x86_tester_bin],
+        [syscall_tester_bin, syscall_x86_tester_bin, syscall_go_tester_bin],
         "bin",
         "pkg/security/tests/syscall_tester/bindata.go",
         "syscall_tester",
@@ -285,6 +306,7 @@ def stress_tests(
     output='pkg/security/tests/stresssuite',
     bundle_ebpf=True,
     testflags='',
+    skip_linters=False,
 ):
     build_stress_tests(
         ctx,
@@ -293,6 +315,7 @@ def stress_tests(
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
+        skip_linters=skip_linters,
     )
 
     run_functional_tests(
@@ -380,6 +403,7 @@ def docker_functional_tests(
     arch="x64",
     major_version='7',
     testflags='',
+    static=False,
     skip_linters=False,
 ):
     build_functional_tests(
@@ -389,6 +413,7 @@ def docker_functional_tests(
         major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=True,
+        static=static,
         skip_linters=skip_linters,
     )
 
@@ -419,6 +444,8 @@ RUN apt-get update -y \
     cmd = 'docker run --name {container_name} {caps} --privileged -d --pid=host '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
+    cmd += '-v /:/host/root -e HOST_ROOT=/host/root '
+    cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
     cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
@@ -445,7 +472,7 @@ RUN apt-get update -y \
 
 
 @task
-def generate_documentation(ctx, go_generate=False):
+def generate_cws_documentation(ctx, go_generate=False):
     if go_generate:
         cws_go_generate(ctx)
 

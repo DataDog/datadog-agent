@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -60,7 +61,7 @@ func init() {
 type AutoConfig struct {
 	providers          []*configPoller
 	listeners          []listeners.ServiceListener
-	listenerCandidates map[string]listeners.ServiceListenerFactory
+	listenerCandidates map[string]*listenerCandidate
 	listenerRetryStop  chan struct{}
 	scheduler          *scheduler.MetaScheduler
 	listenerStop       chan struct{}
@@ -73,11 +74,20 @@ type AutoConfig struct {
 	ranOnce uint32
 }
 
+type listenerCandidate struct {
+	factory listeners.ServiceListenerFactory
+	config  listeners.Config
+}
+
+func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
+	return l.factory(l.config)
+}
+
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	ac := &AutoConfig{
 		providers:          make([]*configPoller, 0, 9),
-		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
+		listenerCandidates: make(map[string]*listenerCandidate),
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
 		healthListening:    health.RegisterLiveness("ad-servicelistening"),
@@ -265,11 +275,19 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 
 // schedule takes a slice of configs and schedule them
 func (ac *AutoConfig) schedule(configs []integration.Config) {
+	for _, conf := range configs {
+		telemetry.ScheduledConfigs.Inc(conf.Provider, conf.Type())
+	}
+
 	ac.scheduler.Schedule(configs)
 }
 
 // unschedule takes a slice of configs and unschedule them
 func (ac *AutoConfig) unschedule(configs []integration.Config) {
+	for _, conf := range configs {
+		telemetry.ScheduledConfigs.Dec(conf.Provider, conf.Type())
+	}
+
 	ac.scheduler.Unschedule(configs)
 }
 
@@ -349,7 +367,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []config.Listeners) 
 			continue
 		}
 		log.Debugf("Listener %s was registered", c.Name)
-		ac.listenerCandidates[c.Name] = factory
+		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, config: &c}
 	}
 }
 
@@ -357,8 +375,8 @@ func (ac *AutoConfig) initListenerCandidates() bool {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
-	for name, factory := range ac.listenerCandidates {
-		listener, err := factory()
+	for name, candidate := range ac.listenerCandidates {
+		listener, err := candidate.try()
 		switch {
 		case err == nil:
 			// Init successful, let's start listening

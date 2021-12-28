@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+// +build !serverless
+
 package otlp
 
 import (
@@ -19,7 +21,7 @@ func buildKey(keys ...string) string {
 	return strings.Join(keys, config.KeyDelimiter)
 }
 
-var _ parserprovider.MapProvider = (*mapProvider)(nil)
+var _ config.MapProvider = (*mapProvider)(nil)
 
 type mapProvider config.Map
 
@@ -51,7 +53,7 @@ service:
       exporters: [otlp]
 `
 
-func newTracesMapProvider(tracePort uint) parserprovider.MapProvider {
+func newTracesMapProvider(tracePort uint) config.MapProvider {
 	configMap := config.NewMap()
 	configMap.Set(buildKey("exporters", "otlp", "endpoint"), fmt.Sprintf("%s:%d", "localhost", tracePort))
 	return parserprovider.NewMergeMapProvider(
@@ -68,6 +70,7 @@ receivers:
 
 processors:
   batch:
+    timeout: 10s
 
 exporters:
   serializer:
@@ -80,38 +83,36 @@ service:
       exporters: [serializer]
 `
 
-func newMetricsMapProvider() parserprovider.MapProvider {
-	return parserprovider.NewInMemoryMapProvider(strings.NewReader(defaultMetricsConfig))
+func newMetricsMapProvider(cfg PipelineConfig) config.MapProvider {
+	configMap := config.NewMap()
+
+	configMap.Set(
+		buildKey("exporters", "serializer", "metrics"),
+		cfg.Metrics,
+	)
+
+	return parserprovider.NewMergeMapProvider(
+		parserprovider.NewInMemoryMapProvider(strings.NewReader(defaultMetricsConfig)),
+		mapProvider(*configMap),
+	)
 }
 
-func newReceiverProvider(cfg PipelineConfig) parserprovider.MapProvider {
-	configMap := config.NewMap()
-	if cfg.GRPCPort > 0 {
-		configMap.Set(
-			buildKey("receivers", "otlp", "protocols", "grpc", "endpoint"),
-			fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort),
-		)
-	}
-
-	if cfg.HTTPPort > 0 {
-		configMap.Set(
-			buildKey("receivers", "otlp", "protocols", "http", "endpoint"),
-			fmt.Sprintf("%s:%d", cfg.BindHost, cfg.HTTPPort),
-		)
-	}
-
+func newReceiverProvider(otlpReceiverConfig map[string]interface{}) config.MapProvider {
+	configMap := config.NewMapFromStringMap(map[string]interface{}{
+		"receivers": map[string]interface{}{"otlp": otlpReceiverConfig},
+	})
 	return mapProvider(*configMap)
 }
 
-// newMapProvider creates a parserprovider.MapProvider with the fixed configuration.
-func newMapProvider(cfg PipelineConfig) parserprovider.MapProvider {
-	var providers []parserprovider.MapProvider
+// newMapProvider creates a config.MapProvider with the fixed configuration.
+func newMapProvider(cfg PipelineConfig) config.MapProvider {
+	var providers []config.MapProvider
 	if cfg.TracesEnabled {
 		providers = append(providers, newTracesMapProvider(cfg.TracePort))
 	}
 	if cfg.MetricsEnabled {
-		providers = append(providers, newMetricsMapProvider())
+		providers = append(providers, newMetricsMapProvider(cfg))
 	}
-	providers = append(providers, newReceiverProvider(cfg))
+	providers = append(providers, newReceiverProvider(cfg.OTLPReceiverConfig))
 	return parserprovider.NewMergeMapProvider(providers...)
 }

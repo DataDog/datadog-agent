@@ -1,8 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package http
 
 import (
+	"fmt"
 	"math"
 	"os"
 
@@ -11,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"golang.org/x/sys/unix"
@@ -54,9 +62,23 @@ type subprogram interface {
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
-	bytecode, err := netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
-	if err != nil {
-		return nil, err
+	var bytecode bytecode.AssetReader
+	var err error
+	if c.EnableRuntimeCompiler {
+		bytecode, err = getRuntimeCompiledHTTP(c)
+		if err != nil {
+			if !c.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("error compiling network http tracer: %s", err)
+			}
+			log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
+		}
+	}
+
+	if bytecode == nil {
+		bytecode, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
+		if err != nil {
+			return nil, fmt.Errorf("could not read bpf module: %s", err)
+		}
 	}
 
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
@@ -87,20 +109,22 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	openSSLProgram, _ := newOpenSSLProgram(c, sockFD)
+	sslProgram, _ := newSSLProgram(c, sockFD)
 	program := &ebpfProgram{
 		Manager:                mgr,
 		bytecode:               bytecode,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{openSSLProgram},
+		subprograms:            []subprogram{sslProgram},
 	}
 
 	return program, nil
 }
 
 func (e *ebpfProgram) Init() error {
+	defer e.bytecode.Close()
+
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
 	}

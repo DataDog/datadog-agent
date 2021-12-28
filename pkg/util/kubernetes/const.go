@@ -77,6 +77,8 @@ const (
 	ServiceTagName = "kube_service"
 	// NamespaceTagName represents the Namespace tag name
 	NamespaceTagName = "kube_namespace"
+	// PersistentVolumeClaimTagName represents the PersistentVolumeClaim tag name
+	PersistentVolumeClaimTagName = "persistentvolumeclaim"
 
 	// ResourceNameTagName represents any resource tag name
 	ResourceNameTagName = "kube_resource_name"

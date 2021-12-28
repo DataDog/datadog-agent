@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package tracer
@@ -60,6 +66,7 @@ type Tracer struct {
 	expiredTCPConns  int64
 	closedConns      int64
 	connStatsMapSize int64
+	lastCheck        int64
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -103,9 +110,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	//needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
-	// should be the above, but HTTP is lacking a runtime version right now, so always do offset guessing
-	needsOffsets := true
+	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
 		for i := 0; i < 5; i++ {
@@ -210,7 +215,7 @@ func newReverseDNS(supported bool, c *config.Config) dns.ReverseDNS {
 	rdns, err := dns.NewReverseDNS(c)
 	if err != nil {
 		log.Errorf("could not instantiate dns inspector: %s", err)
-		return nil
+		return dns.NewNullReverseDNS()
 	}
 
 	log.Info("dns inspection enabled")
@@ -312,6 +317,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	t.activeBuffer.Reset()
 
+	t.retryConntrack(delta.Conns)
+
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
@@ -319,6 +326,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.getConnTelemetry(len(active))
 	rctm := t.getRuntimeCompilationTelemetry()
+	atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
 
 	return &network.Connections{
 		BufferedData:                delta.BufferedData,
@@ -533,6 +541,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"conn_valid_skipped":  skipped, // Skipped connections (e.g. Local DNS requests)
 		"expired_tcp_conns":   expiredTCP,
 		"conn_stats_map_size": connStatsMapSize,
+		"last_check":          atomic.LoadInt64(&t.lastCheck),
 	}
 	for k, v := range runtime.Tracer.GetTelemetry() {
 		tracerStats[k] = v
@@ -631,6 +640,26 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 	}
 
 	cs.Via = t.gwLookup.Lookup(cs)
+}
+
+func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
+	// If we're sampling events there is no point in retrying a Conntrack lookup.
+	if t.conntracker.IsSampling() {
+		return
+	}
+
+	// Check conntrack once again for short-lived connections that are missing IPTranslations
+	// The motivation here is to catch a race condition where the netlink event is processed
+	// after the connection is closed
+	for i, c := range connections {
+		if c.IPTranslation == nil && (c.Type == network.UDP || c.IsShortLived()) {
+			translation := t.conntracker.GetTranslationForConn(c)
+			if translation != nil {
+				connections[i].IPTranslation = translation
+				t.conntracker.DeleteTranslation(c)
+			}
+		}
+	}
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {

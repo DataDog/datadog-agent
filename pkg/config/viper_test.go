@@ -93,6 +93,23 @@ func TestGetConfigEnvVars(t *testing.T) {
 	assert.Contains(t, config.GetEnvVars(), "DD_CONFIG_OPTION")
 }
 
+// check for de-duplication of environment variables by declaring two
+// config parameters using DD_CONFIG_OPTION, and asserting that
+// GetConfigVars only returns that env var once.
+func TestGetConfigEnvVarsDedupe(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	config.BindEnv("config_option_1", "DD_CONFIG_OPTION")
+	config.BindEnv("config_option_2", "DD_CONFIG_OPTION")
+	count := 0
+	for _, v := range config.GetEnvVars() {
+		if v == "DD_CONFIG_OPTION" {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count)
+}
+
 func TestGetFloat64SliceE(t *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 

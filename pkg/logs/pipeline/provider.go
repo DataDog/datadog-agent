@@ -32,12 +32,12 @@ type provider struct {
 	numberOfPipelines         int
 	auditor                   auditor.Auditor
 	diagnosticMessageReceiver diagnostic.MessageReceiver
-	outputChan                chan *message.Message
+	outputChan                chan *message.Payload
 	processingRules           []*config.ProcessingRule
 	endpoints                 *config.Endpoints
 
 	pipelines            []*Pipeline
-	currentPipelineIndex int32
+	currentPipelineIndex uint32
 	destinationsContext  *client.DestinationsContext
 
 	serverless bool
@@ -96,8 +96,7 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	if pipelinesLen == 0 {
 		return nil
 	}
-	index := int(p.currentPipelineIndex+1) % pipelinesLen
-	defer atomic.StoreInt32(&p.currentPipelineIndex, int32(index))
+	index := atomic.AddUint32(&p.currentPipelineIndex, uint32(1)) % uint32(pipelinesLen)
 	nextPipeline := p.pipelines[index]
 	return nextPipeline.InputChan
 }

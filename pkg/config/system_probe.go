@@ -1,8 +1,18 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package config
 
 import (
+	"encoding/json"
+	"os"
+	"path"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -21,14 +31,14 @@ const (
 	// defaultKernelHeadersDownloadDir is the default path for downloading kernel headers for runtime compilation
 	defaultKernelHeadersDownloadDir = "/var/tmp/datadog-agent/system-probe/kernel-headers"
 
-	// defaultAptConfigDir is the default path to the apt config directory
-	defaultAptConfigDir = "/etc/apt"
+	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
+	defaultAptConfigDirSuffix = "/apt"
 
-	// defaultYumReposDir is the default path to the yum repository directory
-	defaultYumReposDir = "/etc/yum.repos.d"
+	// defaultYumReposDirSuffix is the default path under `/etc` to the yum repository directory
+	defaultYumReposDirSuffix = "/yum.repos.d"
 
-	// defaultZypperReposDir is the default path to the zypper repository directory
-	defaultZypperReposDir = "/etc/zypp/repos.d"
+	// defaultZypperReposDirSuffix is the default path under `/etc` to the zypper repository directory
+	defaultZypperReposDirSuffix = "/zypp/repos.d"
 
 	defaultOffsetThreshold = 400
 )
@@ -82,9 +92,9 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "runtime_compiler_output_dir"), defaultRuntimeCompilerOutputDir, "DD_RUNTIME_COMPILER_OUTPUT_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_dirs"), []string{}, "DD_KERNEL_HEADER_DIRS")
 	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_download_dir"), defaultKernelHeadersDownloadDir, "DD_KERNEL_HEADER_DOWNLOAD_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "apt_config_dir"), defaultAptConfigDir, "DD_APT_CONFIG_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "yum_repos_dir"), defaultYumReposDir, "DD_YUM_REPOS_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "zypper_repos_dir"), defaultZypperReposDir, "DD_ZYPPER_REPOS_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "apt_config_dir"), suffixHostEtc(defaultAptConfigDirSuffix), "DD_APT_CONFIG_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "yum_repos_dir"), suffixHostEtc(defaultYumReposDirSuffix), "DD_YUM_REPOS_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "zypper_repos_dir"), suffixHostEtc(defaultZypperReposDirSuffix), "DD_ZYPPER_REPOS_DIR")
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -102,7 +112,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_dns_inspection"), false, "DD_DISABLE_DNS_INSPECTION")
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_stats"), true, "DD_COLLECT_DNS_STATS")
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_local_dns"), false, "DD_COLLECT_LOCAL_DNS")
-	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_domains"), false, "DD_COLLECT_DNS_DOMAINS")
+	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_domains"), true, "DD_COLLECT_DNS_DOMAINS")
 	cfg.BindEnvAndSetDefault(join(spNS, "max_dns_stats"), 20000)
 	cfg.BindEnvAndSetDefault(join(spNS, "dns_timeout_in_s"), 15)
 
@@ -120,6 +130,15 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
+	httpRules := join(netNS, "http_replace_rules")
+	cfg.BindEnv(httpRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
+	cfg.SetEnvKeyTransformer(httpRules, func(in string) interface{} {
+		var out []map[string]string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Warnf(`%q can not be parsed: %v`, httpRules, err)
+		}
+		return out
+	})
 
 	// list of DNS query types to be recorded
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})
@@ -144,4 +163,11 @@ func InitSystemProbeConfig(cfg Config) {
 
 func join(pieces ...string) string {
 	return strings.Join(pieces, ".")
+}
+
+func suffixHostEtc(suffix string) string {
+	if value, _ := os.LookupEnv("HOST_ETC"); value != "" {
+		return path.Join(value, suffix)
+	}
+	return path.Join("/etc", suffix)
 }

@@ -19,6 +19,7 @@ type DockerConfig struct {
 	CollectContainerSize     bool               `yaml:"collect_container_size"`
 	CollectContainerSizeFreq uint64             `yaml:"collect_container_size_frequency"`
 	CollectExitCodes         bool               `yaml:"collect_exit_codes"`
+	OkExitCodes              []int              `yaml:"ok_exit_codes"`
 	CollectImagesStats       bool               `yaml:"collect_images_stats"`
 	CollectImageSize         bool               `yaml:"collect_image_size"`
 	CollectDiskStats         bool               `yaml:"collect_disk_stats"`

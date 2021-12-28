@@ -15,16 +15,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func clearMetadata() {
-	checkCacheMutex.Lock()
-	defer checkCacheMutex.Unlock()
-	checkMetadataCache = make(map[string]*checkMetadataCacheEntry)
-	agentCacheMutex.Lock()
-	defer agentCacheMutex.Unlock()
-	agentMetadataCache = make(AgentMetadata)
+	checkMetadataMutex.Lock()
+	defer checkMetadataMutex.Unlock()
+	checkMetadata = make(map[string]*checkMetadataCacheEntry)
+	agentMetadataMutex.Lock()
+	defer agentMetadataMutex.Unlock()
+	agentMetadata = make(AgentMetadata)
 
 	// purge metadataUpdatedC
 L:
@@ -269,7 +271,7 @@ func Test_createCheckInstanceMetadata_returnsNewMetadata(t *testing.T) {
 		metadataKey    = "a-metadata-key"
 	)
 
-	checkMetadataCache[checkID] = &checkMetadataCacheEntry{
+	checkMetadata[checkID] = &checkMetadataCacheEntry{
 		CheckInstanceMetadata: CheckInstanceMetadata{
 			metadataKey: "a-metadata-value",
 		},
@@ -278,5 +280,82 @@ func Test_createCheckInstanceMetadata_returnsNewMetadata(t *testing.T) {
 	md := createCheckInstanceMetadata(checkID, configProvider)
 	(*md)[metadataKey] = "a-different-metadata-value"
 
-	assert.NotEqual(t, checkMetadataCache[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])
+	assert.NotEqual(t, checkMetadata[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])
+}
+
+// Test the `initializeConfig` function and especially its scrubbing of secret values.
+func TestInitializeConfig(t *testing.T) {
+	cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	testString := func(cfgName, invName, input, output string) func(*testing.T) {
+		return func(t *testing.T) {
+			cfg.Set(cfgName, input)
+			initializeConfig(cfg)
+			require.Equal(t, output, agentMetadata[invName].(string))
+		}
+	}
+
+	testStringSlice := func(cfgName, invName string, input, output []string) func(*testing.T) {
+		return func(t *testing.T) {
+			cfg.Set(cfgName, input)
+			initializeConfig(cfg)
+			require.Equal(t, output, agentMetadata[invName].([]string))
+		}
+	}
+
+	t.Run("config_apm_dd_url", testString(
+		"apm_config.apm_dd_url",
+		"config_apm_dd_url",
+		"http://name:sekrit@someintake.example.com/",
+		"http://name:********@someintake.example.com/",
+	))
+
+	t.Run("config_dd_url", testString(
+		"dd_url",
+		"config_dd_url",
+		"http://name:sekrit@someintake.example.com/",
+		"http://name:********@someintake.example.com/",
+	))
+
+	t.Run("config_logs_dd_url", testString(
+		"logs_config.logs_dd_url",
+		"config_logs_dd_url",
+		"http://name:sekrit@someintake.example.com/",
+		"http://name:********@someintake.example.com/",
+	))
+
+	t.Run("config_logs_socks5_proxy_address", testString(
+		"logs_config.socks5_proxy_address",
+		"config_logs_socks5_proxy_address",
+		"http://name:sekrit@proxy.example.com/",
+		"http://name:********@proxy.example.com/",
+	))
+
+	t.Run("config_no_proxy", testStringSlice(
+		"proxy.no_proxy",
+		"config_no_proxy",
+		[]string{"http://noprox.example.com", "http://name:sekrit@proxy.example.com/"},
+		[]string{"http://noprox.example.com", "http://name:********@proxy.example.com/"},
+	))
+
+	t.Run("config_process_dd_url", testString(
+		"process_config.process_dd_url",
+		"config_process_dd_url",
+		"http://name:sekrit@someintake.example.com/",
+		"http://name:********@someintake.example.com/",
+	))
+
+	t.Run("config_proxy_http", testString(
+		"proxy.http",
+		"config_proxy_http",
+		"http://name:sekrit@proxy.example.com/",
+		"http://name:********@proxy.example.com/",
+	))
+
+	t.Run("config_proxy_https", testString(
+		"proxy.https",
+		"config_proxy_https",
+		"https://name:sekrit@proxy.example.com/",
+		"https://name:********@proxy.example.com/",
+	))
 }

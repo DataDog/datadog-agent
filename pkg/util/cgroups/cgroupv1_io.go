@@ -27,8 +27,8 @@ func (c *cgroupV1) GetIOStats(stats *IOStats) error {
 	stats.ReadOperations = uint64Ptr(0)
 	stats.WriteOperations = uint64Ptr(0)
 
-	c.parseV1blkio(c.pathFor("blkio", "blkio.throttle.io_service_bytes"), stats.Devices, bytesWritter(stats))
-	c.parseV1blkio(c.pathFor("blkio", "blkio.throttle.io_serviced"), stats.Devices, opsWritter(stats))
+	c.parseV1blkio(c.pathFor("blkio", "blkio.throttle.io_service_bytes"), stats.Devices, bytesWriter(stats))
+	c.parseV1blkio(c.pathFor("blkio", "blkio.throttle.io_serviced"), stats.Devices, opsWriter(stats))
 
 	// In case we did not get any device info, clearing everything
 	if len(stats.Devices) == 0 {
@@ -42,7 +42,7 @@ func (c *cgroupV1) GetIOStats(stats *IOStats) error {
 	return nil
 }
 
-func (c *cgroupV1) parseV1blkio(path string, perDevice map[string]DeviceIOStats, writter func(*DeviceIOStats, string, uint64) bool) {
+func (c *cgroupV1) parseV1blkio(path string, perDevice map[string]DeviceIOStats, Writer func(*DeviceIOStats, string, uint64) bool) {
 	if err := parseColumnStats(c.fr, path, func(fields []string) error {
 		if len(fields) < 3 {
 			return nil
@@ -55,7 +55,7 @@ func (c *cgroupV1) parseV1blkio(path string, perDevice map[string]DeviceIOStats,
 		}
 
 		device := perDevice[fields[0]]
-		if writter(&device, fields[1], value) {
+		if Writer(&device, fields[1], value) {
 			perDevice[fields[0]] = device
 		}
 
@@ -65,7 +65,7 @@ func (c *cgroupV1) parseV1blkio(path string, perDevice map[string]DeviceIOStats,
 	}
 }
 
-func bytesWritter(stats *IOStats) func(*DeviceIOStats, string, uint64) bool {
+func bytesWriter(stats *IOStats) func(*DeviceIOStats, string, uint64) bool {
 	return func(device *DeviceIOStats, opType string, value uint64) bool {
 		written := false
 
@@ -84,7 +84,7 @@ func bytesWritter(stats *IOStats) func(*DeviceIOStats, string, uint64) bool {
 	}
 }
 
-func opsWritter(stats *IOStats) func(*DeviceIOStats, string, uint64) bool {
+func opsWriter(stats *IOStats) func(*DeviceIOStats, string, uint64) bool {
 	return func(device *DeviceIOStats, opType string, value uint64) bool {
 		written := false
 

@@ -55,6 +55,16 @@ kitchen_debian_install_script_iot_agent-a7:
     - .kitchen_scenario_debian_a7
     - .kitchen_test_install_script_iot_agent
 
+kitchen_debian_install_script_heroku_agent-a6:
+  extends:
+    - .kitchen_scenario_debian_a6
+    - .kitchen_test_install_script_heroku_agent
+
+kitchen_debian_install_script_heroku_agent-a7:
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_install_script_heroku_agent
+
 kitchen_debian_install_script_dogstatsd-a7:
   extends:
     - .kitchen_scenario_debian_a7

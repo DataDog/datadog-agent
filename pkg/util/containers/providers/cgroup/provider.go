@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inmetrics.
 
+//go:build linux
 // +build linux
 
 package cgroup

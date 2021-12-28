@@ -90,11 +90,13 @@ func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T,
 		_, _ = d.stop()
 
 		if out, err := d.start(); err != nil {
-			t.Fatalf("%s: %s", string(out), err)
+			t.Errorf("%s: %s", string(out), err)
+			return
 		}
 		fnc(t, d.Type(), d.Command)
 		if out, err := d.stop(); err != nil {
-			t.Fatalf("%s: %s", string(out), err)
+			t.Errorf("%s: %s", string(out), err)
+			return
 		}
 	})
 }

@@ -88,11 +88,6 @@ type ServiceCheck struct {
 // ServiceChecks represents a list of service checks ready to be serialize
 type ServiceChecks []*ServiceCheck
 
-// Marshal serializes service checks using protobuf (v2)
-func (sc ServiceChecks) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("ServiceChecks payload serialization is not implemented")
-}
-
 // MarshalJSON serializes service checks to JSON so it can be sent to V1 endpoints
 //FIXME(olivier): to be removed when v2 endpoints are available
 func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
@@ -144,7 +139,7 @@ func (sc ServiceChecks) MarshalStrings() ([]string, [][]string) {
 }
 
 // SplitPayload breaks the payload into times number of pieces
-func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	serviceCheckExpvar.Add("TimesSplit", 1)
 	tlmServiceCheck.Inc("times_split")
 	// only split it up as much as possible
@@ -153,7 +148,7 @@ func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 		tlmServiceCheck.Inc("shorter")
 		times = len(sc)
 	}
-	splitPayloads := make([]marshaler.Marshaler, times)
+	splitPayloads := make([]marshaler.AbstractMarshaler, times)
 	batchSize := len(sc) / times
 	n := 0
 	for i := 0; i < times; i++ {
@@ -193,13 +188,13 @@ func (sc ServiceChecks) WriteHeader(stream *jsoniter.Stream) error {
 	return stream.Flush()
 }
 
-// WriteFooter prints the payload footer for this type
+// WriteFooter writes the payload footer for this type
 func (sc ServiceChecks) WriteFooter(stream *jsoniter.Stream) error {
 	stream.WriteArrayEnd()
 	return stream.Flush()
 }
 
-// WriteItem prints the json representation of an item
+// WriteItem writes the json representation of an item
 func (sc ServiceChecks) WriteItem(stream *jsoniter.Stream, i int) error {
 	if i < 0 || i > len(sc)-1 {
 		return errors.New("out of range")

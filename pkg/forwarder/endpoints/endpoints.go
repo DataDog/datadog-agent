@@ -20,6 +20,8 @@ var (
 	V1SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/v1/sketches", Name: "sketches_v1"} // nolint unused for now
 	// V1ValidateEndpoint is a v1 endpoint used to validate API keys
 	V1ValidateEndpoint = transaction.Endpoint{Route: "/api/v1/validate", Name: "validate_v1"}
+	// V1MetadataEndpoint is a v1 endpoint used for metadata (only used for inventory metadata for now)
+	V1MetadataEndpoint = transaction.Endpoint{Route: "/api/v1/metadata", Name: "metadata_v1"}
 
 	// SeriesEndpoint is the v2 endpoint used to send series
 	SeriesEndpoint = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"}
@@ -31,8 +33,6 @@ var (
 	SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/beta/sketches", Name: "sketches_v2"}
 	// HostMetadataEndpoint is the v2 endpoint used to send host medatada
 	HostMetadataEndpoint = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
-	// MetadataEndpoint is the v2 endpoint used to send other metadata
-	MetadataEndpoint = transaction.Endpoint{Route: "/api/v2/metadata", Name: "metadata_v2"}
 
 	// ProcessesEndpoint is a v1 endpoint used to send processes checks
 	ProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
@@ -48,4 +48,6 @@ var (
 	ConnectionsEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
 	// OrchestratorEndpoint is a v1 endpoint used to send orchestrator checks
 	OrchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
+	// ContainerLifecycleEndpoint is an event platform endpoint used to send container lifecycle events
+	ContainerLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/contlcycle", Name: "contlcycle"}
 )

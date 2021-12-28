@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package listeners
@@ -17,11 +18,12 @@ import (
 )
 
 const (
-	containerID   = "foobarquux"
-	containerName = "agent"
-	podID         = "foobar"
-	podName       = "datadog-agent-foobar"
-	podNamespace  = "default"
+	containerID          = "foobarquux"
+	containerName        = "agent"
+	runtimeContainerName = "k8s_datadog-agent_agent"
+	podID                = "foobar"
+	podName              = "datadog-agent-foobar"
+	podNamespace         = "default"
 )
 
 func TestKubeletCreatePodService(t *testing.T) {
@@ -136,7 +138,12 @@ func TestKubeletCreateContainerService(t *testing.T) {
 	}
 
 	containerEntityMeta := workloadmeta.EntityMeta{
-		Name: containerName,
+		Name: runtimeContainerName,
+	}
+
+	imageWithShortname := workloadmeta.ContainerImage{
+		RawName:   "gcr.io/foobar:latest",
+		ShortName: "foobar",
 	}
 
 	basicImage := workloadmeta.ContainerImage{
@@ -147,10 +154,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 	basicContainer := &workloadmeta.Container{
 		EntityID:   containerEntityID,
 		EntityMeta: containerEntityMeta,
-		Image: workloadmeta.ContainerImage{
-			RawName:   "gcr.io/foobar:latest",
-			ShortName: "foobar",
-		},
+		Image:      imageWithShortname,
 		State: workloadmeta.ContainerState{
 			Running: true,
 		},
@@ -200,12 +204,18 @@ func TestKubeletCreateContainerService(t *testing.T) {
 	tests := []struct {
 		name             string
 		pod              *workloadmeta.KubernetesPod
+		podContainer     *workloadmeta.OrchestratorContainer
 		container        *workloadmeta.Container
 		expectedServices map[string]wlmListenerSvc
 	}{
 		{
-			name:      "basic container setup",
-			pod:       pod,
+			name: "basic container setup",
+			pod:  pod,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: imageWithShortname,
+			},
 			container: basicContainer,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
@@ -235,6 +245,11 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			name:      "recently stopped container excludes metrics but not logs",
 			pod:       pod,
 			container: recentlyStoppedContainer,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					parent: "kubernetes_pod://foobar",
@@ -262,6 +277,11 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		{
 			name: "old stopped container does not get collected",
 			pod:  pod,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
 			container: &workloadmeta.Container{
 				EntityID:   containerEntityID,
 				EntityMeta: containerEntityMeta,
@@ -274,8 +294,13 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{},
 		},
 		{
-			name:      "container with multiple ports collects them in ascending order",
-			pod:       pod,
+			name: "container with multiple ports collects them in ascending order",
+			pod:  pod,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
 			container: multiplePortsContainer,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
@@ -310,8 +335,13 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			},
 		},
 		{
-			name:      "pod with custom check names and identifiers",
-			pod:       podWithAnnotations,
+			name: "pod with custom check names and identifiers",
+			pod:  podWithAnnotations,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
 			container: customIDsContainer,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
@@ -344,7 +374,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newKubeletListener(t)
 
-			listener.createContainerService(tt.pod, tt.container, integration.After)
+			listener.createContainerService(tt.pod, tt.podContainer, tt.container, integration.After)
 
 			wlm.assertServices(tt.expectedServices)
 		})

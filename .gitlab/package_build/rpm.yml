@@ -26,6 +26,7 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-syscall-wrapper.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.c.${PACKAGE_ARCH} /tmp/system-probe/tracer.c
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/http.c.${PACKAGE_ARCH} /tmp/system-probe/http.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.c.${PACKAGE_ARCH} /tmp/system-probe/conntrack.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill.c.${PACKAGE_ARCH} /tmp/system-probe/oom-kill.c
@@ -128,7 +129,7 @@ agent_rpm-arm64-a7:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - inv -e agent.omnibus-build --flavor iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks

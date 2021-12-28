@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package valuestore
 
 import (
@@ -46,6 +51,9 @@ func (sv ResultValue) ExtractStringValue(extractValuePattern *regexp.Regexp) (Re
 		matches := extractValuePattern.FindStringSubmatch(srcValue)
 		if matches == nil {
 			return ResultValue{}, fmt.Errorf("extract value extractValuePattern does not match (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
+		}
+		if len(matches) < 2 {
+			return ResultValue{}, fmt.Errorf("extract value pattern des not contain any matching group (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
 		}
 		matchedValue := matches[1] // use first matching group
 		return ResultValue{SubmissionType: sv.SubmissionType, Value: matchedValue}, nil

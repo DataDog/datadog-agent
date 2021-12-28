@@ -133,6 +133,11 @@ func (c *complianceCheck) Run() error {
 		}
 		resourceQuadIDs[quadID] = true
 
+		evaluator := report.Evaluator
+		if evaluator == "" {
+			evaluator = "legacy"
+		}
+
 		e := &event.Event{
 			AgentRuleID:      quadID.AgentRuleID,
 			AgentFrameworkID: quadID.AgentFrameworkID,
@@ -141,6 +146,7 @@ func (c *complianceCheck) Run() error {
 			ResourceType:     quadID.ResourceType,
 			Result:           result,
 			Data:             data,
+			Evaluator:        evaluator,
 			ExpireAt:         c.computeExpireAt(),
 		}
 

@@ -42,7 +42,7 @@ func (d *DockerCheck) retrieveEvents(du *docker.DockerUtil) ([]*docker.Container
 }
 
 // reportExitCodes monitors events for non zero exit codes and sends service checks
-func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender aggregator.Sender) error {
+func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender aggregator.Sender) {
 	for _, ev := range events {
 		// Filtering
 		if ev.Action != "die" {
@@ -62,17 +62,19 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 		// Building and sending message
 		message := fmt.Sprintf("Container %s exited with %d", ev.ContainerName, exitCodeInt)
 		status := metrics.ServiceCheckOK
-		if exitCodeInt != 0 {
+		if _, ok := d.okExitCodes[int(exitCodeInt)]; !ok {
 			status = metrics.ServiceCheckCritical
 		}
+
 		tags, err := tagger.Tag(ev.ContainerEntityName(), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
+			tags = []string{}
 		}
+
+		tags = append(tags, "exit_code:"+exitCodeString)
 		sender.ServiceCheck(DockerExit, status, "", tags, message)
 	}
-
-	return nil
 }
 
 // reportEvents aggregates and sends events to the Datadog event feed

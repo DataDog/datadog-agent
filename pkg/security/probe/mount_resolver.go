@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
@@ -35,11 +36,7 @@ const (
 	deleteDelayTime = 5 * time.Second
 )
 
-// newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
-func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) {
-	var err error
-	var groupID uint64
-
+func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	// Has optional fields, which is a space separated list of values.
 	// Example: shared:2 master:7
 	if len(mnt.Optional) > 0 {
@@ -48,12 +45,20 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) 
 			if len(optionSplit) == 2 {
 				target, value := optionSplit[0], optionSplit[1]
 				if target == "shared" || target == "master" {
-					if groupID, err = strconv.ParseUint(value, 10, 64); err != nil {
-						return nil, err
-					}
+					groupID, err := strconv.ParseUint(value, 10, 32)
+					return uint32(groupID), err
 				}
 			}
 		}
+	}
+	return 0, nil
+}
+
+// newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
+func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) {
+	groupID, err := parseGroupID(mnt)
+	if err != nil {
+		return nil, err
 	}
 
 	// create a MountEvent out of the parsed MountInfo
@@ -62,7 +67,7 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) 
 		MountPointStr: mnt.Mountpoint,
 		RootStr:       mnt.Root,
 		MountID:       uint32(mnt.ID),
-		GroupID:       uint32(groupID),
+		GroupID:       groupID,
 		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
 		FSType:        mnt.FSType,
 	}, nil
@@ -75,11 +80,13 @@ type deleteRequest struct {
 
 // MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
-	probe       *Probe
-	lock        sync.RWMutex
-	mounts      map[uint32]*model.MountEvent
-	devices     map[uint32]map[uint32]*model.MountEvent
-	deleteQueue []deleteRequest
+	probe            *Probe
+	lock             sync.RWMutex
+	mounts           map[uint32]*model.MountEvent
+	devices          map[uint32]map[uint32]*model.MountEvent
+	deleteQueue      []deleteRequest
+	overlayPathCache *simplelru.LRU
+	parentPathCache  *simplelru.LRU
 }
 
 // SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
@@ -260,7 +267,13 @@ func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) s
 }
 
 func (mr *MountResolver) getParentPath(mountID uint32) string {
-	return mr._getParentPath(mountID, map[uint32]bool{})
+	if entry, found := mr.parentPathCache.Get(mountID); found {
+		return entry.(string)
+	}
+
+	path := mr._getParentPath(mountID, map[uint32]bool{})
+	mr.parentPathCache.Add(mountID, path)
+	return path
 }
 
 func (mr *MountResolver) _getAncestor(mount *model.MountEvent, cache map[uint32]bool) *model.MountEvent {
@@ -287,9 +300,18 @@ func (mr *MountResolver) getAncestor(mount *model.MountEvent) *model.MountEvent 
 
 // getOverlayPath uses deviceID to find overlay path
 func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
+	if entry, found := mr.parentPathCache.Get(mount.MountID); found {
+		return entry.(string)
+	}
+
+	if ancestor := mr.getAncestor(mount); ancestor != nil {
+		mount = ancestor
+	}
+
 	for _, deviceMount := range mr.devices[mount.Device] {
 		if mount.MountID != deviceMount.MountID && deviceMount.IsOverlayFS() {
 			if p := mr.getParentPath(deviceMount.MountID); p != "" {
+				mr.parentPathCache.Add(mount.MountID, p)
 				return p
 			}
 		}
@@ -314,6 +336,10 @@ func (mr *MountResolver) dequeue(now time.Time) {
 		if prev := mr.mounts[req.mount.MountID]; prev == req.mount {
 			mr.delete(req.mount)
 		}
+
+		// clear cache anyway
+		mr.parentPathCache.Remove(req.mount.MountID)
+		mr.overlayPathCache.Remove(req.mount)
 
 		i++
 	}
@@ -358,12 +384,7 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 		return "", "", "", nil
 	}
 
-	ref := mount
-	if ancestor := mr.getAncestor(mount); ancestor != nil {
-		ref = ancestor
-	}
-
-	return mr.getOverlayPath(ref), mr.getParentPath(mountID), mount.RootStr, nil
+	return mr.getOverlayPath(mount), mr.getParentPath(mountID), mount.RootStr, nil
 }
 
 func getMountIDOffset(probe *Probe) uint64 {
@@ -395,6 +416,10 @@ func getSizeOfStructInode(probe *Probe) uint64 {
 		sizeOf = 632
 	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < skernel.Kernel4_16:
 		sizeOf = 608
+	case skernel.Kernel5_0 <= probe.kernelVersion.Code && probe.kernelVersion.Code < skernel.Kernel5_1:
+		sizeOf = 584
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_13:
+		sizeOf = 592
 	}
 
 	return sizeOf
@@ -410,12 +435,84 @@ func getSuperBlockMagicOffset(probe *Probe) uint64 {
 	return sizeOf
 }
 
-// NewMountResolver instantiates a new mount resolver
-func NewMountResolver(probe *Probe) *MountResolver {
-	return &MountResolver{
-		probe:   probe,
-		lock:    sync.RWMutex{},
-		devices: make(map[uint32]map[uint32]*model.MountEvent),
-		mounts:  make(map[uint32]*model.MountEvent),
+func getVFSLinkDentryPosition(probe *Probe) uint64 {
+	position := uint64(2)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 3
 	}
+
+	return position
+}
+
+func getVFSMKDirDentryPosition(probe *Probe) uint64 {
+	position := uint64(2)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 3
+	}
+
+	return position
+}
+
+func getVFSLinkTargetDentryPosition(probe *Probe) uint64 {
+	position := uint64(3)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 4
+	}
+
+	return position
+}
+
+func getVFSSetxattrDentryPosition(probe *Probe) uint64 {
+	position := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 2
+	}
+
+	return position
+}
+
+func getVFSRemovexattrDentryPosition(probe *Probe) uint64 {
+	position := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 2
+	}
+
+	return position
+}
+
+func getVFSRenameInputType(probe *Probe) uint64 {
+	inputType := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		inputType = 2
+	}
+
+	return inputType
+}
+
+// NewMountResolver instantiates a new mount resolver
+func NewMountResolver(probe *Probe) (*MountResolver, error) {
+	overlayPathCache, err := simplelru.NewLRU(256, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	parentPathCache, err := simplelru.NewLRU(256, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MountResolver{
+		probe:            probe,
+		lock:             sync.RWMutex{},
+		devices:          make(map[uint32]map[uint32]*model.MountEvent),
+		mounts:           make(map[uint32]*model.MountEvent),
+		overlayPathCache: overlayPathCache,
+		parentPathCache:  parentPathCache,
+	}, nil
 }

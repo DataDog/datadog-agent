@@ -1,17 +1,17 @@
 name "pip3"
-
-default_version "20.3.3"
+default_version "21.3.1"
 
 dependency "setuptools3"
 
 source :url => "https://github.com/pypa/pip/archive/#{version}.tar.gz",
-       :sha256 => "016f8d509871b72fb05da911db513c11059d8a99f4591dda3050a3cf83a29a79",
+       :sha256 => "cbfb6a0b5bc2d1e4b4647729ee5b944bb313c8ffd9ff83b9d2e0f727f0c79714",
        :extract => :seven_zip
 
 relative_path "pip-#{version}"
 
 build do
-  ship_license "https://raw.githubusercontent.com/pypa/pip/main/LICENSE.txt"
+  license "MIT"
+  license_file "https://raw.githubusercontent.com/pypa/pip/main/LICENSE.txt"
 
   if ohai["platform"] == "windows"
     python_bin = "#{windows_safe_path(python_3_embedded)}\\python.exe"

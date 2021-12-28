@@ -53,18 +53,16 @@ func TestRename(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 			if errno != 0 {
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
-
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
-
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
@@ -83,18 +81,16 @@ func TestRename(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_RENAMEAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
 			if errno != 0 {
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
-
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
-
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
@@ -114,20 +110,18 @@ func TestRename(t *testing.T) {
 			_, _, errno := syscall.Syscall6(unix.SYS_RENAMEAT2, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
 			if errno != 0 {
 				if errno == syscall.ENOSYS {
-					t.Skip("renameat2 not supported")
+					return ErrSkipTest{"renameat2 not supported"}
 				}
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
-
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
-
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
@@ -172,10 +166,7 @@ func TestRenameInvalidate(t *testing.T) {
 
 	for i := 0; i != 5; i++ {
 		test.WaitSignal(t, func() error {
-			if err := os.Rename(testOldFile, testNewFile); err != nil {
-				t.Fatal(err)
-			}
-			return nil
+			return os.Rename(testOldFile, testNewFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rename.file.destination.path", testNewFile)
@@ -237,18 +228,15 @@ func TestRenameReuseInode(t *testing.T) {
 	test.WaitSignal(t, func() error {
 		f, err = os.Create(testNewFile)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		return nil
+
+		return f.Close()
 	}, func(event *sprobe.Event, rule *rules.Rule) {
 		assert.Equal(t, "open", event.GetType(), "wrong event type")
 	})
 
 	testNewFileInode := getInode(t, testNewFile)
-
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
 
 	if err := os.Rename(testOldFile, testNewFile); err != nil {
 		t.Fatal(err)
@@ -268,7 +256,7 @@ func TestRenameReuseInode(t *testing.T) {
 	test.WaitSignal(t, func() error {
 		f, err = os.Create(testReuseInodeFile)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		return f.Close()
 	}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -314,7 +302,7 @@ func TestRenameFolder(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			testFile, err := os.OpenFile(filename.Load().(string), os.O_RDWR|os.O_CREATE, 0755)
 			if err != nil {
-				t.Fatal(err)
+				return err
 			}
 			return testFile.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {

@@ -17,11 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // CreateSecurityAgentArchive packages up the files
-func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus map[string]interface{}) (string, error) {
+func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}) (string, error) {
 	zipFilePath := getArchivePath()
 
 	tempDir, err := createTempDir()
@@ -46,7 +45,7 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus ma
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		err = zipSecurityAgentStatusFile(tempDir, hostname, runtimeStatus)
+		err = zipSecurityAgentStatusFile(tempDir, hostname, runtimeStatus, complianceStatus)
 		if err != nil {
 			log.Infof("Error getting the status of the Security Agent, %q", err)
 			return "", err
@@ -124,17 +123,17 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus ma
 	return zipFilePath, nil
 }
 
-func zipSecurityAgentStatusFile(tempDir, hostname string, runtimeStatus map[string]interface{}) error {
+func zipSecurityAgentStatusFile(tempDir, hostname string, runtimeStatus, complianceStatus map[string]interface{}) error {
 	// Grab the status
 	log.Infof("Zipping the status at %s for %s", tempDir, hostname)
-	s, err := status.GetAndFormatSecurityAgentStatus(runtimeStatus)
+	s, err := status.GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus)
 	if err != nil {
 		log.Infof("Error zipping the status: %q", err)
 		return err
 	}
 
 	// Clean it up
-	cleaned, err := scrubber.ScrubBytes(s)
+	cleaned, err := flareScrubber.ScrubBytes(s)
 	if err != nil {
 		log.Infof("Error redacting the log files: %q", err)
 		return err

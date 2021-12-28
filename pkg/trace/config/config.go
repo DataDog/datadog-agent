@@ -68,9 +68,11 @@ type AgentConfig struct {
 	ExtraAggregators []string
 
 	// Sampler configuration
-	ExtraSampleRate float64
-	TargetTPS       float64
-	MaxEPS          float64
+	ExtraSampleRate    float64
+	TargetTPS          float64
+	ErrorTPS           float64
+	DisableRareSampler bool
+	MaxEPS             float64
 
 	// Receiver
 	ReceiverHost    string
@@ -135,6 +137,9 @@ type AgentConfig struct {
 
 	// Profiling settings, or nil if profiling is disabled
 	ProfilingSettings *profiling.Settings
+
+	// Telemetry settings
+	TelemetryConfig *TelemetryConfig
 }
 
 // Tag represents a key/value pair.
@@ -160,6 +165,7 @@ func New() *AgentConfig {
 
 		ExtraSampleRate: 1.0,
 		TargetTPS:       10,
+		ErrorTPS:        10,
 		MaxEPS:          200,
 
 		ReceiverHost:    "localhost",
@@ -184,11 +190,15 @@ func New() *AgentConfig {
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
+		Obfuscation:                 &ObfuscationConfig{},
 
 		GlobalTags: make(map[string]string),
 
 		DDAgentBin:   defaultDDAgentBin,
 		OTLPReceiver: &OTLP{},
+		TelemetryConfig: &TelemetryConfig{
+			Endpoints: []*Endpoint{{Host: telemetryEndpointPrefix + coreconfig.DefaultSite}},
+		},
 	}
 }
 

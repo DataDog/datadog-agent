@@ -27,7 +27,7 @@ const SnmpTraps = "snmp_traps"
 const (
 	tcpEndpointPrefix            = "agent-intake.logs."
 	httpEndpointPrefix           = "agent-http-intake.logs."
-	serverlessHTTPEndpointPrefix = "lambda-http-intake.logs."
+	serverlessHTTPEndpointPrefix = "http-intake.logs."
 )
 
 // DefaultIntakeProtocol indicates that no special protocol is in use for the endpoint intake track type.
@@ -155,6 +155,7 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
+		IsReliable:              true,
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
@@ -213,6 +214,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		BackoffFactor:           logsConfig.senderBackoffFactor(),
 		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
+		IsReliable:              true,
 	}
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
@@ -227,7 +229,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 	if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
 		host, port, err := parseAddress(logsDDURL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsConfig.getConfigKey("logs_dd_url"), err)
+			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}
 		main.Host = host
 		main.Port = port
@@ -241,6 +243,14 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
+		additionals[i].UseCompression = main.UseCompression
+		additionals[i].CompressionLevel = main.CompressionLevel
+		additionals[i].BackoffBase = main.BackoffBase
+		additionals[i].BackoffMax = main.BackoffMax
+		additionals[i].BackoffFactor = main.BackoffFactor
+		additionals[i].RecoveryInterval = main.RecoveryInterval
+		additionals[i].RecoveryReset = main.RecoveryReset
+
 		if additionals[i].Version == 0 {
 			additionals[i].Version = main.Version
 		}

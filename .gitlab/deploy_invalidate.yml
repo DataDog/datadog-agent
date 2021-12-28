@@ -16,8 +16,8 @@
   dependencies: []
   script:
     - cd /deploy_scripts/cloudfront-invalidation
-    - "REPO=apt RUNNER_ENV=build-stable REPO_ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
-    - "REPO=yum RUNNER_ENV=build-stable REPO_ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+    - "REPO=apt RUNNER_ENV=build-stable REPO_ENV=staging PATTERN_SUBSTRING=/$BUCKET_BRANCH/ ./invalidate.sh"
+    - "REPO=yum RUNNER_ENV=build-stable REPO_ENV=staging PATTERN_SUBSTRING=/$BUCKET_BRANCH/ ./invalidate.sh"
 
 deploy_cloudfront_invalidate_on_success:
   extends: .deploy_cloudfront_invalidate

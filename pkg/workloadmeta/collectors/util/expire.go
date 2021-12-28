@@ -45,6 +45,14 @@ func (e *Expire) Update(id workloadmeta.EntityID, ts time.Time) bool {
 	return !found
 }
 
+// Remove forgets an ID.
+func (e *Expire) Remove(id workloadmeta.EntityID) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	delete(e.lastSeen, id)
+}
+
 // ComputeExpires returns a list of IDs that have not been seen in the Expire's
 // duration.
 func (e *Expire) ComputeExpires() []workloadmeta.EntityID {

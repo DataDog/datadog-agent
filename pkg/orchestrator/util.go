@@ -14,6 +14,9 @@ import (
 // NodeType represents a kind of resource used by a container orchestrator.
 type NodeType int
 
+// CheckName is the cluster check name of the orchestrator check
+var CheckName = "orchestrator"
+
 const (
 	// K8sDeployment represents a Kubernetes Deployment
 	K8sDeployment NodeType = iota
@@ -180,4 +183,14 @@ func GroupSize(msgs, maxPerMessage int) int {
 		groupSize++
 	}
 	return groupSize
+}
+
+// SetCacheStats sets the cache stats for each resource
+func SetCacheStats(resourceListLen int, resourceMsgLen int, nodeType NodeType) {
+	stats := CheckStats{
+		CacheHits: resourceListLen - resourceMsgLen,
+		CacheMiss: resourceMsgLen,
+		NodeType:  nodeType,
+	}
+	KubernetesResourceCache.Set(BuildStatsKey(nodeType), stats, NoExpiration)
 }

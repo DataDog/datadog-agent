@@ -7,6 +7,7 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -22,37 +23,28 @@ import (
 type Pipeline struct {
 	InputChan chan *message.Message
 	processor *processor.Processor
+	strategy  sender.Strategy
 	sender    *sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
-	var destinations *client.Destinations
-	if endpoints.UseHTTP {
-		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
-		}
-		destinations = client.NewDestinations(main, additionals)
-	} else {
-		main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
-		}
-		destinations = client.NewDestinations(main, additionals)
-	}
+func NewPipeline(outputChan chan *message.Payload,
+	processingRules []*config.ProcessingRule,
+	endpoints *config.Endpoints,
+	destinationsContext *client.DestinationsContext,
+	diagnosticMessageReceiver diagnostic.MessageReceiver,
+	serverless bool,
+	pipelineID int) *Pipeline {
 
-	senderChan := make(chan *message.Message, config.ChanSize)
+	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID)
 
-	var strategy sender.Strategy
-	if endpoints.UseHTTP || serverless {
-		strategy = sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", pipelineID)
-	} else {
-		strategy = sender.StreamStrategy
-	}
-	sender := sender.NewSender(senderChan, outputChan, destinations, strategy)
+	strategyInput := make(chan *message.Message, config.ChanSize)
+	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
+
+	var logsSender *sender.Sender
+
+	strategy := getStrategy(strategyInput, senderInput, endpoints, serverless, pipelineID)
+	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	var encoder processor.Encoder
 	if serverless {
@@ -66,29 +58,66 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	}
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, senderChan, processingRules, encoder, diagnosticMessageReceiver)
+	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver)
 
 	return &Pipeline{
 		InputChan: inputChan,
 		processor: processor,
-		sender:    sender,
+		strategy:  strategy,
+		sender:    logsSender,
 	}
 }
 
 // Start launches the pipeline
 func (p *Pipeline) Start() {
 	p.sender.Start()
+	p.strategy.Start()
 	p.processor.Start()
 }
 
 // Stop stops the pipeline
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
+	p.strategy.Stop()
 	p.sender.Stop()
 }
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
-	p.sender.Flush(ctx)    // flush the sender
+}
+
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int) *client.Destinations {
+	reliable := []client.Destination{}
+	additionals := []client.Destination{}
+
+	if endpoints.UseHTTP {
+		for i, endpoint := range endpoints.GetReliableEndpoints() {
+			telemetryName := fmt.Sprintf("logs_%d_reliable_%d", pipelineID, i)
+			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName))
+		}
+		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
+			telemetryName := fmt.Sprintf("logs_%d_unreliable_%d", pipelineID, i)
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
+		}
+		return client.NewDestinations(reliable, additionals)
+	}
+	for _, endpoint := range endpoints.GetReliableEndpoints() {
+		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, true))
+	}
+	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
+		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false))
+	}
+	return client.NewDestinations(reliable, additionals)
+}
+
+func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
+	if endpoints.UseHTTP || serverless {
+		encoder := sender.IdentityContentType
+		if endpoints.Main.UseCompression {
+			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+		}
+		return sender.NewBatchStrategy(inputChan, outputChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
+	}
+	return sender.NewStreamStrategy(inputChan, outputChan)
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package listeners
@@ -40,7 +41,7 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener() (ServiceListener, error) {
+func NewKubeletListener(Config) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
@@ -72,7 +73,7 @@ func (l *KubeletListener) processPod(
 			continue
 		}
 
-		l.createContainerService(pod, container, creationTime)
+		l.createContainerService(pod, &podContainer, container, creationTime)
 
 		containers = append(containers, container)
 	}
@@ -115,17 +116,24 @@ func (l *KubeletListener) createPodService(
 
 func (l *KubeletListener) createContainerService(
 	pod *workloadmeta.KubernetesPod,
+	podContainer *workloadmeta.OrchestratorContainer,
 	container *workloadmeta.Container,
 	creationTime integration.CreationTime,
 ) {
-	containerImg := container.Image
+	// we need to take the container name and image from the pod spec, as
+	// the information from the container in the workloadmeta store might
+	// have extra information resolved by the container runtime that won't
+	// match what the user specified.
+	containerName := podContainer.Name
+	containerImg := podContainer.Image
+
 	if l.IsExcluded(
 		containers.GlobalFilter,
-		container.Name,
+		containerName,
 		containerImg.RawName,
 		pod.Namespace,
 	) {
-		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, container.Image.RawName, pod.Namespace)
+		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, containerName, containerImg.RawName, pod.Namespace)
 		return
 	}
 
@@ -167,22 +175,22 @@ func (l *KubeletListener) createContainerService(
 		// from metrics collection but keep them for collecting logs.
 		metricsExcluded: l.IsExcluded(
 			containers.MetricsFilter,
-			container.Name,
+			containerName,
 			containerImg.RawName,
 			pod.Namespace,
 		) || !container.State.Running,
 		logsExcluded: l.IsExcluded(
 			containers.LogsFilter,
-			container.Name,
+			containerName,
 			containerImg.RawName,
 			pod.Namespace,
 		),
 	}
 
-	adIdentifier := container.Name
+	adIdentifier := containerName
 
 	// Check for custom AD identifiers
-	if customADID, found := utils.GetCustomCheckID(pod.Annotations, container.Name); found {
+	if customADID, found := utils.GetCustomCheckID(pod.Annotations, containerName); found {
 		adIdentifier = customADID
 		svc.adIdentifiers = append(svc.adIdentifiers, customADID)
 	}

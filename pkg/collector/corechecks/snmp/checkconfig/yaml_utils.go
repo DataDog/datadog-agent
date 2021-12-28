@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checkconfig
 
 import (
@@ -81,7 +86,7 @@ func (b *Boolean) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 //UnmarshalYAML unmarshalls MetricTagConfigList
-func (a *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var multi []MetricTagConfig
 	err := unmarshal(&multi)
 	if err != nil {
@@ -95,6 +100,6 @@ func (a *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) e
 			multi = append(multi, MetricTagConfig{symbolTag: tag})
 		}
 	}
-	*a = multi
+	*mtcl = multi
 	return nil
 }

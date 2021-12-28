@@ -132,5 +132,5 @@ go generate ./path/to/the/touched/file
 
 To generate the final markdown files (at the root of `docs/cloud-workload-security`) please run:
 ```sh
-inv -e security-agent.generate-documentation
+inv -e security-agent.generate-cws-documentation
 ```

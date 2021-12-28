@@ -19,7 +19,7 @@ func Config(getClient settings.ClientBuilder) *cobra.Command {
 		Use:   "config",
 		Short: "Print the runtime configuration of a running agent",
 		Long:  ``,
-		RunE:  func(_ *cobra.Command, _ []string) error { return showRuntimeConfiguration(getClient) },
+		RunE:  func(cmd *cobra.Command, args []string) error { return showRuntimeConfiguration(getClient, cmd, args) },
 	}
 
 	cmd.AddCommand(listRuntime(getClient))
@@ -35,7 +35,9 @@ func listRuntime(getClient settings.ClientBuilder) *cobra.Command {
 		Use:   "list-runtime",
 		Short: "List settings that can be changed at runtime",
 		Long:  ``,
-		RunE:  func(_ *cobra.Command, _ []string) error { return listRuntimeConfigurableValue(getClient) },
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return listRuntimeConfigurableValue(getClient, cmd, args)
+		},
 	}
 }
 
@@ -45,7 +47,7 @@ func set(getClient settings.ClientBuilder) *cobra.Command {
 		Use:   "set [setting] [value]",
 		Short: "Set, for the current runtime, the value of a given configuration setting",
 		Long:  ``,
-		RunE:  func(_ *cobra.Command, args []string) error { return setConfigValue(getClient, args) },
+		RunE:  func(cmd *cobra.Command, args []string) error { return setConfigValue(getClient, cmd, args) },
 	}
 }
 
@@ -55,12 +57,12 @@ func get(getClient settings.ClientBuilder) *cobra.Command {
 		Use:   "get [setting]",
 		Short: "Get, for the current runtime, the value of a given configuration setting",
 		Long:  ``,
-		RunE:  func(_ *cobra.Command, args []string) error { return getConfigValue(getClient, args) },
+		RunE:  func(cmd *cobra.Command, args []string) error { return getConfigValue(getClient, cmd, args) },
 	}
 }
 
-func showRuntimeConfiguration(getClient settings.ClientBuilder) error {
-	c, err := getClient()
+func showRuntimeConfiguration(getClient settings.ClientBuilder, cmd *cobra.Command, args []string) error {
+	c, err := getClient(cmd, args)
 	if err != nil {
 		return err
 	}
@@ -75,8 +77,8 @@ func showRuntimeConfiguration(getClient settings.ClientBuilder) error {
 	return nil
 }
 
-func listRuntimeConfigurableValue(getClient settings.ClientBuilder) error {
-	c, err := getClient()
+func listRuntimeConfigurableValue(getClient settings.ClientBuilder, cmd *cobra.Command, args []string) error {
+	c, err := getClient(cmd, args)
 	if err != nil {
 		return err
 	}
@@ -96,12 +98,12 @@ func listRuntimeConfigurableValue(getClient settings.ClientBuilder) error {
 	return nil
 }
 
-func setConfigValue(getClient settings.ClientBuilder, args []string) error {
+func setConfigValue(getClient settings.ClientBuilder, cmd *cobra.Command, args []string) error {
 	if len(args) != 2 {
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
 
-	c, err := getClient()
+	c, err := getClient(cmd, args)
 	if err != nil {
 		return err
 	}
@@ -120,12 +122,12 @@ func setConfigValue(getClient settings.ClientBuilder, args []string) error {
 	return nil
 }
 
-func getConfigValue(getClient settings.ClientBuilder, args []string) error {
+func getConfigValue(getClient settings.ClientBuilder, cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("a single setting name must be specified")
 	}
 
-	c, err := getClient()
+	c, err := getClient(cmd, args)
 	if err != nil {
 		return err
 	}

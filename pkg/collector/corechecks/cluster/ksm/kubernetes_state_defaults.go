@@ -209,5 +209,9 @@ var (
 				"label_failure_domain_beta_kubernetes_io_zone",   // k8s < v1.17
 			},
 		},
+		"kube_node_info": {
+			LabelsToMatch: []string{"node"},
+			LabelsToGet:   []string{"container_runtime_version", "kernel_version", "kubelet_version", "os_image"},
+		},
 	}
 )

@@ -37,16 +37,17 @@ type ExecutionContext struct {
 	StartTime          time.Time
 }
 
-// CollectionRouteInfo is the route on which the AWS environment is sending the logs
-// for the extension to collect them. It is attached to the main HTTP server
-// already receiving hits from the libraries client.
-type CollectionRouteInfo struct {
+// LambdaLogsCollector is the route to which the AWS environment is sending the logs
+// for the extension to collect them.
+type LambdaLogsCollector struct {
 	LogChannel             chan *logConfig.ChannelMessage
 	MetricChannel          chan []metrics.MetricSample
 	ExtraTags              *Tags
 	ExecutionContext       *ExecutionContext
 	LogsEnabled            bool
 	EnhancedMetricsEnabled bool
+	// HandleRuntimeDone is the function to be called when a platform.runtimeDone log message is received
+	HandleRuntimeDone func()
 }
 
 // platformObjectRecord contains additional information found in Platform log messages
@@ -104,7 +105,8 @@ const (
 type logMessage struct {
 	time    time.Time
 	logType string
-	// "extension" / "function" log messages contain a record which is basically a log string
+	// stringRecord is a string representation of the message's contents. It can be either received directly
+	// from the logs API or added by the extension after receiving it.
 	stringRecord string
 	objectRecord platformObjectRecord
 }
@@ -263,8 +265,8 @@ func GetLambdaSource() *logConfig.LogSource {
 	return nil
 }
 
-// ServeHTTP - see type CollectionRouteInfo comment.
-func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP - see type LambdaLogsCollector comment.
+func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
@@ -276,12 +278,16 @@ func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func processLogMessages(c *CollectionRouteInfo, messages []logMessage) {
+func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 	for _, message := range messages {
-		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.MetricChannel)
+		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.MetricChannel, c.HandleRuntimeDone)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
+			// Do not send platform log messages without a stringRecord to the intake
+			if message.stringRecord == "" && message.logType != logTypeFunction {
+				continue
+			}
 			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, c.ExecutionContext.ARN, c.ExecutionContext.LastRequestID)
 			c.LogChannel <- logMessage
 		}
@@ -289,7 +295,7 @@ func processLogMessages(c *CollectionRouteInfo, messages []logMessage) {
 }
 
 // processMessage performs logic about metrics and tags on the message
-func processMessage(message logMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
+func processMessage(message logMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample, handleRuntimeDone func()) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 	if !shouldProcessLog(executionContext, message) {
 		return
@@ -321,5 +327,16 @@ func processMessage(message logMessage, executionContext *ExecutionContext, enha
 
 	if message.logType == logTypePlatformLogsDropped {
 		log.Debug("Logs were dropped by the AWS Lambda Logs API")
+	}
+
+	// If we receive a runtimeDone log message for the current invocation, we know the runtime is done
+	// If we receive a runtimeDone message for a different invocation, we received the message too late and we ignore it
+	if message.logType == logTypePlatformRuntimeDone {
+		if executionContext.LastRequestID == message.objectRecord.requestID {
+			log.Debugf("Received a runtimeDone log message for the current invocation %s", message.objectRecord.requestID)
+			handleRuntimeDone()
+		} else {
+			log.Debugf("Received a runtimeDone log message for the non-current invocation %s, ignoring it", message.objectRecord.requestID)
+		}
 	}
 }

@@ -10,6 +10,6 @@ security_go_generate_check:
     - pip3 install -r docs/cloud-workload-security/scripts/requirements-docs.txt
   script:
     - inv -e security-agent.cws-go-generate
-    - inv -e security-agent.generate-documentation
+    - inv -e security-agent.generate-cws-documentation
     - git status --porcelain
     - test -z "$(git status --porcelain)"

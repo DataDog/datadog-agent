@@ -23,6 +23,11 @@ var allowedEnvvarNames = []string{
 	"DOCKER_HOST",
 	"DOCKER_TLS_VERIFY",
 
+	// HOST vars used in containerized agent
+	"HOST_ETC",
+	"HOST_PROC",
+	"HOST_ROOT",
+
 	// Proxy settings
 	"HTTP_PROXY",
 	"HTTPS_PROXY",
@@ -53,6 +58,8 @@ var allowedEnvvarNames = []string{
 	"DD_APM_MAX_EPS",
 	"DD_APM_TPS", //deprecated
 	"DD_APM_MAX_TPS",
+	"DD_APM_ERROR_TPS",
+	"DD_APM_DISABLE_RARE_SAMPLER",
 	"DD_APM_MAX_MEMORY",
 	"DD_APM_MAX_CPU_PERCENT",
 	"DD_APM_FEATURES",
@@ -122,12 +129,5 @@ func zipEnvvars(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "envvars.log")
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(b.Bytes())
-	return err
+	return writeScrubbedFile(f, b.Bytes())
 }

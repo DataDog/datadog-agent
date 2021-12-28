@@ -107,7 +107,8 @@ type StressReport struct {
 		Value float64
 		Unit  string
 	} `json:",omitempty"`
-	Top []byte `json:"-"`
+	TopCPU []byte `json:"-"`
+	TopMem []byte `json:"-"`
 }
 
 // AddMetric add custom metrics to the report
@@ -137,8 +138,8 @@ func (s *StressReport) Delta() float64 {
 }
 
 // Print prints the report in a human readable format
-func (s *StressReport) Print() {
-	fmt.Println("----- Stress Report -----")
+func (s *StressReport) Print(t *testing.T) {
+	fmt.Printf("----- Stress Report for %s -----\n", t.Name())
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', tabwriter.AlignRight)
 	fmt.Fprintf(w, "%s\t\t%d iterations\t%15.4f ns/iteration", s.Duration, s.Iteration, float64(s.Duration.Nanoseconds())/float64(s.Iteration))
 	if s.Extras != nil {
@@ -155,8 +156,13 @@ func (s *StressReport) Print() {
 	w.Flush()
 
 	fmt.Println()
-	fmt.Println("----- Profiling Report -----")
-	fmt.Println(string(s.Top))
+	fmt.Printf("----- Profiling Report CPU for %s -----\n", t.Name())
+	fmt.Println(string(s.TopCPU))
+	fmt.Println()
+
+	fmt.Println()
+	fmt.Printf("----- Profiling Report Memory for %s -----\n", t.Name())
+	fmt.Println(string(s.TopMem))
 	fmt.Println()
 }
 
@@ -237,9 +243,12 @@ func getTopData(filename string, from string, size int) ([]byte, error) {
 
 // StressIt starts the stress test
 func StressIt(t *testing.T, pre, post, fnc func() error, opts StressOpts) (StressReport, error) {
+	var report StressReport
+
 	proCPUFile, err := ioutil.TempFile("/tmp", "stress-cpu-")
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return report, err
 	}
 
 	if !opts.KeepProfile {
@@ -250,12 +259,14 @@ func StressIt(t *testing.T, pre, post, fnc func() error, opts StressOpts) (Stres
 
 	if pre != nil {
 		if err := pre(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return report, err
 		}
 	}
 
 	if err := pprof.StartCPUProfile(proCPUFile); err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return report, err
 	}
 
 	done := make(chan bool)
@@ -291,7 +302,8 @@ LOOP:
 	runtime.GC()
 	proMemFile, err := ioutil.TempFile("/tmp", "stress-mem-")
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return report, err
 	}
 
 	if !opts.KeepProfile {
@@ -301,24 +313,34 @@ LOOP:
 	}
 
 	if err := pprof.WriteHeapProfile(proMemFile); err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return report, err
 	}
 
 	if post != nil {
 		if err := post(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return report, err
 		}
 	}
 
-	topData, err := getTopData(proCPUFile.Name(), opts.TopFrom, 50)
+	topDataCPU, err := getTopData(proCPUFile.Name(), opts.TopFrom, 50)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return report, err
 	}
 
-	report := StressReport{
+	topDataMem, err := getTopData(proMemFile.Name(), opts.TopFrom, 50)
+	if err != nil {
+		t.Error(err)
+		return report, err
+	}
+
+	report = StressReport{
 		Duration:  duration,
 		Iteration: iteration,
-		Top:       topData,
+		TopCPU:    topDataCPU,
+		TopMem:    topDataMem,
 	}
 
 	if opts.DiffBase != "" {
@@ -336,7 +358,8 @@ LOOP:
 	// save report for further comparison
 	if opts.ReportFile != "" {
 		if err := report.Save(opts.ReportFile, t.Name()); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return report, err
 		}
 	}
 

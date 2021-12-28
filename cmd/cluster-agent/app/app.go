@@ -39,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -98,10 +97,9 @@ metadata for their metrics.`,
 		},
 	}
 
-	confPath              string
-	flagNoColor           bool
-	stopCh                chan struct{}
-	orchestratorForwarder *forwarder.DefaultForwarder
+	confPath    string
+	flagNoColor bool
+	stopCh      chan struct{}
 )
 
 func init() {
@@ -212,23 +210,18 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+
 	// If a cluster-agent looses the connectivity to DataDog, we still want it to remain ready so that its endpoint remains in the service because:
 	// * It is still able to serve metrics to the WPA controller and
 	// * The metrics reported are reported as stale so that there is no "lie" about the accuracy of the reported metrics.
 	// Serving stale data is better than serving no data at all.
+	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
 	forwarderOpts.DisableAPIKeyChecking = true
-	f := forwarder.NewDefaultForwarder(forwarderOpts)
-	f.Start() //nolint:errcheck
-	// setup the orchestrator forwarder
-	orchestratorForwarder = orchcfg.NewOrchestratorForwarder()
-	if orchestratorForwarder != nil {
-		orchestratorForwarder.Start() //nolint:errcheck
-	}
-	s := serializer.NewSerializer(f, orchestratorForwarder)
-
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname)
-	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
+	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts.UseEventPlatformForwarder = false
+	opts.UseContainerLifecycleForwarder = false
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
@@ -277,24 +270,6 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Info("Orchestrator explorer is disabled")
 	}
 
-	if config.Datadog.GetBool("admission_controller.enabled") {
-		admissionCtx := admissionpkg.ControllerContext{
-			IsLeaderFunc:        le.IsLeader,
-			LeaderSubscribeFunc: le.Subscribe,
-			SecretInformers:     apiCl.CertificateSecretInformerFactory,
-			WebhookInformers:    apiCl.WebhookConfigInformerFactory,
-			Client:              apiCl.Cl,
-			DiscoveryClient:     apiCl.DiscoveryCl,
-			StopCh:              stopCh,
-		}
-		err = admissionpkg.StartControllers(admissionCtx)
-		if err != nil {
-			log.Errorf("Could not start admission controller: %v", err)
-		}
-	} else {
-		log.Info("Admission controller is disabled")
-	}
-
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -332,25 +307,6 @@ func start(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
-	// Admission Controller Goroutine
-	if config.Datadog.GetBool("admission_controller.enabled") {
-		// Setup the the k8s admission webhook server
-		server := admissioncmd.NewServer()
-		server.Register(config.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
-		server.Register(config.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)
-
-		// Start the k8s admission webhook server
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			errServ := server.Run(mainCtx, apiCl.Cl)
-			if errServ != nil {
-				log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
-			}
-		}()
-	}
-
 	// Compliance
 	if config.Datadog.GetBool("compliance_config.enabled") {
 		wg.Add(1)
@@ -361,6 +317,42 @@ func start(cmd *cobra.Command, args []string) error {
 				log.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
+	}
+
+	if config.Datadog.GetBool("admission_controller.enabled") {
+		admissionCtx := admissionpkg.ControllerContext{
+			IsLeaderFunc:        le.IsLeader,
+			LeaderSubscribeFunc: le.Subscribe,
+			SecretInformers:     apiCl.CertificateSecretInformerFactory,
+			WebhookInformers:    apiCl.WebhookConfigInformerFactory,
+			Client:              apiCl.Cl,
+			DiscoveryClient:     apiCl.DiscoveryCl,
+			StopCh:              stopCh,
+		}
+
+		err = admissionpkg.StartControllers(admissionCtx)
+		if err != nil {
+			log.Errorf("Could not start admission controller: %v", err)
+		} else {
+			// Webhook and secret controllers are started successfully
+			// Setup the the k8s admission webhook server
+			server := admissioncmd.NewServer()
+			server.Register(config.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
+			server.Register(config.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)
+
+			// Start the k8s admission webhook server
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				errServ := server.Run(mainCtx, apiCl.Cl)
+				if errServ != nil {
+					log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
+				}
+			}()
+		}
+	} else {
+		log.Info("Admission controller is disabled")
 	}
 
 	log.Infof("All components started. Cluster Agent now running.")
@@ -388,13 +380,7 @@ func start(cmd *cobra.Command, args []string) error {
 		close(stopCh)
 	}
 
-	// stopping forwarders
-	if f != nil {
-		f.Stop()
-	}
-	if orchestratorForwarder != nil {
-		orchestratorForwarder.Stop()
-	}
+	demux.Stop(true)
 
 	log.Info("See ya!")
 	log.Flush()

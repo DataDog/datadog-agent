@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testutil
 
 import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +24,7 @@ func PingTCP(t *testing.T, ip net.IP, port int) net.Conn {
 		addr = fmt.Sprintf("[%s]:%d", ip, port)
 	}
 
-	conn, err := net.Dial(network, addr)
+	conn, err := net.DialTimeout(network, addr, time.Second)
 	require.NoError(t, err)
 
 	_, err = conn.Write([]byte("ping"))

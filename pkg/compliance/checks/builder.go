@@ -157,7 +157,7 @@ func (c *kubeClient) ClusterID() (string, error) {
 }
 
 // WithKubernetesClient allows specific Kubernetes client
-func WithKubernetesClient(cli env.KubeClient, clusterID string) BuilderOption {
+func WithKubernetesClient(cli dynamic.Interface, clusterID string) BuilderOption {
 	return func(b *builder) error {
 		b.kubeClient = &kubeClient{Interface: cli, clusterID: clusterID}
 		return nil
@@ -224,7 +224,7 @@ func WithRegoInput(regoInputPath string) BuilderOption {
 		if err != nil {
 			return err
 		}
-		return json.Unmarshal(content, &b.regoInput)
+		return json.Unmarshal(content, &b.regoInputOverride)
 	}
 }
 
@@ -294,7 +294,7 @@ type builder struct {
 	kubeClient   *kubeClient
 	isLeaderFunc func() bool
 
-	regoInput         map[string]map[string]interface{}
+	regoInputOverride map[string]eval.RegoInputMap
 	regoInputDumpPath string
 
 	status *status
@@ -379,6 +379,12 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 		check, err := b.checkFromRule(&suite.Meta, &r)
+		if err != nil {
+			if err != ErrRuleDoesNotApply {
+				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
+			}
+			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
+		}
 
 		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
 			return err
@@ -392,6 +398,12 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 		check, err := b.checkFromRegoRule(&suite.Meta, &r)
+		if err != nil {
+			if err != ErrRuleDoesNotApply {
+				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
+			}
+			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
+		}
 
 		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
 			return err
@@ -438,14 +450,17 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 		return nil, err
 	}
 
-	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
-	if err != nil {
-		return nil, err
-	}
+	// skip host match check if rego input is overridden
+	if b.regoInputOverride == nil {
+		eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
+		if err != nil {
+			return nil, err
+		}
 
-	if !eligible {
-		log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
-		return nil, ErrRuleDoesNotApply
+		if !eligible {
+			log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
+			return nil, ErrRuleDoesNotApply
+		}
 	}
 
 	return b.newRegoCheck(meta, ruleScope, rule, fallthroughReporter)
@@ -573,13 +588,17 @@ func (b *builder) isKubernetesNodeEligible(hostSelector string) (bool, error) {
 		return false, err
 	}
 
+	labelKeys := b.nodeLabelKeys()
 	nodeInstance := eval.NewInstance(
 		eval.VarMap{
-			"node.labels": b.nodeLabelKeys(),
+			"node.labels": labelKeys,
 		},
 		eval.FunctionMap{
 			"node.hasLabel": b.nodeHasLabel,
 			"node.label":    b.nodeLabel,
+		},
+		eval.RegoInputMap{
+			"labels": labelKeys,
 		},
 	)
 
@@ -660,8 +679,8 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 
 func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
 	regoCheck := &regoCheck{
-		ruleID:    rule.ID,
-		resources: rule.Resources,
+		ruleID: rule.ID,
+		inputs: rule.Inputs,
 	}
 
 	if err := regoCheck.compileRule(rule, ruleScope, meta); err != nil {
@@ -707,8 +726,8 @@ func (b *builder) KubeClient() env.KubeClient {
 	return b.kubeClient
 }
 
-func (b *builder) ProvidedInput(ruleID string) env.ProvidedInputMap {
-	return b.regoInput[ruleID]
+func (b *builder) ProvidedInput(ruleID string) eval.RegoInputMap {
+	return b.regoInputOverride[ruleID]
 }
 
 func (b *builder) DumpInputPath() string {
@@ -762,6 +781,7 @@ func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
 			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(jsonGetter)),
 			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(yamlGetter)),
 		},
+		nil,
 	)
 
 	return ev.Evaluate(instance)

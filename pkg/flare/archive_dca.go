@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // CreateDCAArchive packages up the files
@@ -154,7 +153,7 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 	}
 
 	// Clean it up
-	cleaned, err := scrubber.ScrubBytes(s)
+	cleaned, err := flareScrubber.ScrubBytes(s)
 	if err != nil {
 		log.Infof("Error redacting the log files: %q", err)
 		return err
@@ -211,7 +210,7 @@ func zipClusterAgentClusterChecks(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterChecks(writer) //nolint:errcheck
+	GetClusterChecks(writer, "") //nolint:errcheck
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "clusterchecks.log")
@@ -220,14 +219,7 @@ func zipClusterAgentClusterChecks(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(b.Bytes())
-	return err
+	return writeScrubbedFile(f, b.Bytes())
 }
 
 func zipHPAStatus(tempDir, hostname string) error {
@@ -288,14 +280,7 @@ func zipClusterAgentDiagnose(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(b.Bytes())
-	return err
+	return writeScrubbedFile(f, b.Bytes())
 }
 
 func zipClusterAgentTelemetry(tempDir, hostname string) error {
@@ -310,12 +295,5 @@ func zipClusterAgentTelemetry(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = w.Write(payload)
-	return err
+	return writeScrubbedFile(f, payload)
 }

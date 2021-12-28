@@ -13,7 +13,10 @@ import (
 	"strings"
 )
 
-// format is 0,1,5-8
+// parseCPUSetFormat counts CPUs in CPUSet specs like "0,1,5-8". These are comma-separated lists
+// of processor IDs, with hyphenated ranges representing closed sets.
+// So "0,1,5-8" represents processors 0, 1, 5, 6, 7, 8.
+// The function returns the count of CPUs, in this case 6.
 func parseCPUSetFormat(line string) uint64 {
 	var numCPUs uint64
 

@@ -126,7 +126,7 @@ func newResolvedInstances(resolvedInstances []resolvedInstance) *resolvedIterato
 	return newResolvedIterator(newInstanceIterator(instances))
 }
 
-type resolveFunc func(ctx context.Context, e env.Env, ruleID string, resource compliance.ResourceCommon) (resolved, error)
+type resolveFunc func(ctx context.Context, e env.Env, ruleID string, resource compliance.ResourceCommon, rego bool) (resolved, error)
 
 type resourceCheck struct {
 	ruleID   string
@@ -142,7 +142,7 @@ func (c *resourceCheck) check(env env.Env) []*compliance.Report {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	resolved, err := c.resolve(ctx, env, c.ruleID, c.resource.ResourceCommon)
+	resolved, err := c.resolve(ctx, env, c.ruleID, c.resource.ResourceCommon, false)
 	if err != nil {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
@@ -208,6 +208,8 @@ func resourceKindToResolverAndFields(env env.Env, ruleID string, kind compliance
 			return nil, nil, log.Errorf("%s: kube client not initialized", ruleID)
 		}
 		return resolveKubeapiserver, kubeResourceReportedFields, nil
+	case compliance.KindConstants:
+		return resolveConstants, nil, nil
 	default:
 		return nil, nil, ErrResourceKindNotSupported
 	}

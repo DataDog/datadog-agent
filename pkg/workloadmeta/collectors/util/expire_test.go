@@ -14,7 +14,7 @@ import (
 	"gotest.tools/assert"
 )
 
-func TestUpdate(t *testing.T) {
+func TestUpdateAndRemove(t *testing.T) {
 	expiryDuration := 5 * time.Minute
 	expire := NewExpire(expiryDuration)
 
@@ -41,6 +41,9 @@ func TestUpdate(t *testing.T) {
 	require.Len(t, expire.lastSeen, 1)
 	require.Equal(t, expire.lastSeen[testContainerID], now)
 
+	// Remove container, expect store to be empty
+	expire.Remove(testContainerID)
+	require.Len(t, expire.lastSeen, 0)
 }
 
 func TestComputeExpires(t *testing.T) {

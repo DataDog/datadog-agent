@@ -1,9 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package report
 
 import (
 	"bufio"
 	"bytes"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -24,19 +28,18 @@ func TestSendMetric(t *testing.T) {
 		count int
 	}
 	tests := []struct {
-		caseName            string
-		metricName          string
-		value               valuestore.ResultValue
-		tags                []string
-		forcedType          string
-		options             checkconfig.MetricsConfigOption
-		extractValuePattern *regexp.Regexp
-		expectedMethod      string
-		expectedMetricName  string
-		expectedValue       float64
-		expectedTags        []string
-		expectedSubMetrics  int
-		expectedLogs        []logCount
+		caseName           string
+		metricName         string
+		value              valuestore.ResultValue
+		tags               []string
+		forcedType         string
+		options            checkconfig.MetricsConfigOption
+		expectedMethod     string
+		expectedMetricName string
+		expectedValue      float64
+		expectedTags       []string
+		expectedSubMetrics int
+		expectedLogs       []logCount
 	}{
 		{
 			caseName:           "Gauge metric case",
@@ -224,33 +227,6 @@ func TestSendMetric(t *testing.T) {
 				{"[DEBUG] sendMetric: metric `snmp.gauge.metric`: unsupported forcedType: invalidForceType", 1},
 			},
 		},
-		{
-			caseName:            "Extract Value OK case",
-			metricName:          "gauge.metric",
-			value:               valuestore.ResultValue{SubmissionType: "gauge", Value: string("22C")},
-			tags:                []string{},
-			extractValuePattern: regexp.MustCompile(`(\d+)C`),
-			expectedMethod:      "Gauge",
-			expectedMetricName:  "snmp.gauge.metric",
-			expectedValue:       float64(22),
-			expectedTags:        []string{},
-			expectedSubMetrics:  1,
-		},
-		{
-			caseName:            "Extract Value not matched",
-			metricName:          "gauge.metric",
-			value:               valuestore.ResultValue{SubmissionType: "gauge", Value: string("NOMATCH")},
-			tags:                []string{},
-			extractValuePattern: regexp.MustCompile(`(\d+)C`),
-			expectedMethod:      "",
-			expectedMetricName:  "",
-			expectedValue:       0,
-			expectedTags:        []string{},
-			expectedSubMetrics:  0,
-			expectedLogs: []logCount{
-				{"[DEBUG] sendMetric: error extracting value from", 1},
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.caseName, func(t *testing.T) {
@@ -267,7 +243,7 @@ func TestSendMetric(t *testing.T) {
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			metricSender.sendMetric(tt.metricName, tt.value, tt.tags, tt.forcedType, tt.options, tt.extractValuePattern)
+			metricSender.sendMetric(tt.metricName, tt.value, tt.tags, tt.forcedType, tt.options)
 			assert.Equal(t, tt.expectedSubMetrics, metricSender.submittedMetrics)
 			if tt.expectedMethod != "" {
 				mockSender.AssertCalled(t, tt.expectedMethod, tt.expectedMetricName, tt.expectedValue, "", tt.expectedTags)

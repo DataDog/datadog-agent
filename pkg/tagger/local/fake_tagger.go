@@ -75,7 +75,7 @@ func (f *FakeTagger) Stop() error {
 
 // Tag fake implementation
 func (f *FakeTagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-	tags, _ := f.store.Lookup(entity, cardinality)
+	tags := f.store.Lookup(entity, cardinality)
 
 	key := f.getKey(entity, cardinality)
 	if err := f.errors[key]; err != nil {

@@ -65,19 +65,26 @@ func TestMount(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			// Test mount
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
-				t.Fatalf("could not create bind mount: %s", err)
+				return fmt.Errorf("could not create bind mount: %s", err)
 			}
 			return nil
 		}, func(event *sprobe.Event) bool {
-			assert.Equal(t, "mount", event.GetType(), "wrong event type")
-			assert.Equal(t, "/"+dstMntBasename, event.Mount.MountPointStr, "wrong mount point")
-			assert.Equal(t, "xfs", event.Mount.GetFSType(), "wrong mount fs type")
-
 			mntID = event.Mount.MountID
-			return true
+
+			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
+				return true
+			}
+
+			// filter by pid
+			if pce := event.ResolveProcessCacheEntry(); pce.Pid != testSuitePid {
+				return false
+			}
+
+			return assert.Equal(t, "/"+dstMntBasename, event.Mount.MountPointStr, "wrong mount point") &&
+				assert.Equal(t, "xfs", event.Mount.GetFSType(), "wrong mount fs type")
 		}, 3*time.Second, model.FileMountEventType)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 	})
 
@@ -92,7 +99,7 @@ func TestMount(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := f.Close(); err != nil {
+		if err = f.Close(); err != nil {
 			t.Fatal(err)
 		}
 		defer os.Remove(file)
@@ -114,14 +121,21 @@ func TestMount(t *testing.T) {
 	t.Run("umount", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			// Test umount
-			if err := syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
-				t.Fatalf("could not unmount test-mount: %s", err)
+			if err = syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
+				return fmt.Errorf("could not unmount test-mount: %s", err)
 			}
 			return nil
 		}, func(event *sprobe.Event) bool {
-			assert.Equal(t, "umount", event.GetType(), "wrong event type")
-			assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
-			return true
+			if !assert.Equal(t, "umount", event.GetType(), "wrong event type") {
+				return true
+			}
+
+			// filter by process
+			if pce := event.ResolveProcessCacheEntry(); pce.Pid != testSuitePid {
+				return false
+			}
+
+			return assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
 		}, 3*time.Second, model.FileUmountEventType)
 		if err != nil {
 			t.Error(err)

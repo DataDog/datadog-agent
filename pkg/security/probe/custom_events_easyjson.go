@@ -172,23 +172,9 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 	out.RawByte('}')
 }
 
-// MarshalJSON supports json.Marshaler interface
-func (v RulesetLoadedEvent) MarshalJSON() ([]byte, error) {
-	w := jwriter.Writer{}
-	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(&w, v)
-	return w.Buffer.BuildBytes(), w.Error
-}
-
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v RulesetLoadedEvent) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
-}
-
-// UnmarshalJSON supports json.Unmarshaler interface
-func (v *RulesetLoadedEvent) UnmarshalJSON(data []byte) error {
-	r := jlexer.Lexer{Data: data}
-	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(&r, v)
-	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
@@ -252,23 +238,9 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 	out.RawByte('}')
 }
 
-// MarshalJSON supports json.Marshaler interface
-func (v RuleLoaded) MarshalJSON() ([]byte, error) {
-	w := jwriter.Writer{}
-	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(&w, v)
-	return w.Buffer.BuildBytes(), w.Error
-}
-
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v RuleLoaded) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(w, v)
-}
-
-// UnmarshalJSON supports json.Unmarshaler interface
-func (v *RuleLoaded) UnmarshalJSON(data []byte) error {
-	r := jlexer.Lexer{Data: data}
-	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(&r, v)
-	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
@@ -339,23 +311,9 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 	out.RawByte('}')
 }
 
-// MarshalJSON supports json.Marshaler interface
-func (v RuleIgnored) MarshalJSON() ([]byte, error) {
-	w := jwriter.Writer{}
-	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(&w, v)
-	return w.Buffer.BuildBytes(), w.Error
-}
-
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v RuleIgnored) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(w, v)
-}
-
-// UnmarshalJSON supports json.Unmarshaler interface
-func (v *RuleIgnored) UnmarshalJSON(data []byte) error {
-	r := jlexer.Lexer{Data: data}
-	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(&r, v)
-	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
@@ -505,23 +463,9 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 	out.RawByte('}')
 }
 
-// MarshalJSON supports json.Marshaler interface
-func (v PolicyLoaded) MarshalJSON() ([]byte, error) {
-	w := jwriter.Writer{}
-	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(&w, v)
-	return w.Buffer.BuildBytes(), w.Error
-}
-
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v PolicyLoaded) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(w, v)
-}
-
-// UnmarshalJSON supports json.Unmarshaler interface
-func (v *PolicyLoaded) UnmarshalJSON(data []byte) error {
-	r := jlexer.Lexer{Data: data}
-	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(&r, v)
-	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
@@ -562,15 +506,7 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 				in.AddError((out.DiscardedUntil).UnmarshalJSON(data))
 			}
 		case "process":
-			if in.IsNull() {
-				in.Skip()
-				out.Process = nil
-			} else {
-				if out.Process == nil {
-					out.Process = new(ProcessContextSerializer)
-				}
-				(*out.Process).UnmarshalEasyJSON(in)
-			}
+			(out.Process).UnmarshalEasyJSON(in)
 		default:
 			in.SkipRecursive()
 		}
@@ -613,32 +549,14 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 	{
 		const prefix string = ",\"process\":"
 		out.RawString(prefix)
-		if in.Process == nil {
-			out.RawString("null")
-		} else {
-			(*in.Process).MarshalEasyJSON(out)
-		}
+		(in.Process).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
-}
-
-// MarshalJSON supports json.Marshaler interface
-func (v NoisyProcessEvent) MarshalJSON() ([]byte, error) {
-	w := jwriter.Writer{}
-	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(&w, v)
-	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v NoisyProcessEvent) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(w, v)
-}
-
-// UnmarshalJSON supports json.Unmarshaler interface
-func (v *NoisyProcessEvent) UnmarshalJSON(data []byte) error {
-	r := jlexer.Lexer{Data: data}
-	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(&r, v)
-	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
@@ -734,23 +652,9 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jw
 	out.RawByte('}')
 }
 
-// MarshalJSON supports json.Marshaler interface
-func (v EventLostWrite) MarshalJSON() ([]byte, error) {
-	w := jwriter.Writer{}
-	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(&w, v)
-	return w.Buffer.BuildBytes(), w.Error
-}
-
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v EventLostWrite) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(w, v)
-}
-
-// UnmarshalJSON supports json.Unmarshaler interface
-func (v *EventLostWrite) UnmarshalJSON(data []byte) error {
-	r := jlexer.Lexer{Data: data}
-	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(&r, v)
-	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
@@ -816,23 +720,9 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jw
 	out.RawByte('}')
 }
 
-// MarshalJSON supports json.Marshaler interface
-func (v EventLostRead) MarshalJSON() ([]byte, error) {
-	w := jwriter.Writer{}
-	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(&w, v)
-	return w.Buffer.BuildBytes(), w.Error
-}
-
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v EventLostRead) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(w, v)
-}
-
-// UnmarshalJSON supports json.Unmarshaler interface
-func (v *EventLostRead) UnmarshalJSON(data []byte) error {
-	r := jlexer.Lexer{Data: data}
-	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(&r, v)
-	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
@@ -910,23 +800,9 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(out *jw
 	out.RawByte('}')
 }
 
-// MarshalJSON supports json.Marshaler interface
-func (v AbnormalPathEvent) MarshalJSON() ([]byte, error) {
-	w := jwriter.Writer{}
-	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(&w, v)
-	return w.Buffer.BuildBytes(), w.Error
-}
-
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v AbnormalPathEvent) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(w, v)
-}
-
-// UnmarshalJSON supports json.Unmarshaler interface
-func (v *AbnormalPathEvent) UnmarshalJSON(data []byte) error {
-	r := jlexer.Lexer{Data: data}
-	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(&r, v)
-	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface

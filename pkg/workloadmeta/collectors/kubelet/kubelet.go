@@ -51,7 +51,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 	c.store = store
 	c.lastExpire = time.Now()
 	c.expireFreq = expireFreq
-	c.watcher, err = kubelet.NewPodWatcher(expireFreq, true)
+	c.watcher, err = kubelet.NewPodWatcher(expireFreq)
 	if err != nil {
 		return err
 	}

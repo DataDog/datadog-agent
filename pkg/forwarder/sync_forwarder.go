@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package forwarder
 
 import (
@@ -63,6 +68,12 @@ func (f *SyncForwarder) SubmitV1Series(payload Payloads, extra http.Header) erro
 	return f.sendHTTPTransactions(transactions)
 }
 
+// SubmitSeries will send timeseries to the v2 endpoint
+func (f *SyncForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
+	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SeriesEndpoint, payload, true, extra)
+	return f.sendHTTPTransactions(transactions)
+}
+
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
 func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, true, extra)
@@ -77,18 +88,6 @@ func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header) erro
 // the backend handles v2 endpoints).
 func (f *SyncForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1CheckRunsEndpoint, payload, true, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitEvents will send an event type payload to Datadog backend.
-func (f *SyncForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.EventsEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitServiceChecks will send a service check type payload to Datadog backend.
-func (f *SyncForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.ServiceChecksEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -146,4 +145,9 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Head
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
+}
+
+// SubmitContainerLifecycleEvents sends container lifecycle events
+func (f *SyncForwarder) SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error {
+	return f.defaultForwarder.SubmitContainerLifecycleEvents(payload, extra)
 }

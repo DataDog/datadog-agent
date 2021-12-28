@@ -12,6 +12,8 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"sort"
+
 	"sync/atomic"
 	"testing"
 	"time"
@@ -23,8 +25,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -33,17 +37,45 @@ import (
 var checkID1 check.ID = "1"
 var checkID2 check.ID = "2"
 
-func TestRegisterCheckSampler(t *testing.T) {
-	resetAggregator()
+const defaultHostname = "hostname"
+const altDefaultHostname = "althostname"
 
-	agg := InitAggregator(nil, nil, "")
+func init() {
+	initF()
+}
+
+func initF() {
+	demultiplexerInstance = nil
+	opts := DefaultDemultiplexerOptions(nil)
+	opts.FlushInterval = 1 * time.Hour
+	opts.DontStartForwarders = true
+	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
+	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
+	recurrentSeries = metrics.Series{}
+	tagsetTlm.reset()
+}
+
+func getAggregator() *BufferedAggregator {
+	if demultiplexerInstance == nil {
+		initF()
+	}
+	return demultiplexerInstance.Aggregator()
+}
+
+func TestRegisterCheckSampler(t *testing.T) {
+	// this test IS USING globals
+	// -
+
+	agg := getAggregator()
+	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+
 	err := agg.registerSender(checkID1)
 	assert.Nil(t, err)
-	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+	assert.Len(t, agg.checkSamplers, 1)
 
 	err = agg.registerSender(checkID2)
 	assert.Nil(t, err)
-	assert.Len(t, aggregatorInstance.checkSamplers, 2)
+	assert.Len(t, agg.checkSamplers, 2)
 
 	// Already registered sender => error
 	err = agg.registerSender(checkID2)
@@ -51,15 +83,18 @@ func TestRegisterCheckSampler(t *testing.T) {
 }
 
 func TestDeregisterCheckSampler(t *testing.T) {
-	resetAggregator()
+	// this test IS USING globals
+	// -
 
-	agg := InitAggregator(nil, nil, "")
+	agg := getAggregator()
+	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
-	assert.Len(t, aggregatorInstance.checkSamplers, 2)
+	assert.Len(t, agg.checkSamplers, 2)
 
 	agg.deregisterSender(checkID1)
-	require.Len(t, aggregatorInstance.checkSamplers, 1)
+	require.Len(t, agg.checkSamplers, 1)
 	_, ok := agg.checkSamplers[checkID1]
 	assert.False(t, ok)
 	_, ok = agg.checkSamplers[checkID2]
@@ -67,8 +102,11 @@ func TestDeregisterCheckSampler(t *testing.T) {
 }
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
-	resetAggregator()
-	agg := InitAggregator(nil, nil, "resolved-hostname")
+	// this test is not using anything global
+	// -
+
+	s := &serializer.MockSerializer{}
+	agg := newTestBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addServiceCheck(metrics.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -96,8 +134,11 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 }
 
 func TestAddEventDefaultValues(t *testing.T) {
-	resetAggregator()
-	agg := InitAggregator(nil, nil, "resolved-hostname")
+	// this test is not using anything global
+	// -
+
+	s := &serializer.MockSerializer{}
+	agg := newTestBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addEvent(metrics.Event{
 		// only populate required fields
@@ -142,8 +183,12 @@ func TestAddEventDefaultValues(t *testing.T) {
 }
 
 func TestSetHostname(t *testing.T) {
-	resetAggregator()
-	agg := InitAggregator(nil, nil, "hostname")
+	// this test IS USING globals
+	// -
+
+	agg := getAggregator()
+	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+
 	assert.Equal(t, "hostname", agg.hostname)
 	sender, err := GetSender(checkID1)
 	require.NoError(t, err)
@@ -157,9 +202,11 @@ func TestSetHostname(t *testing.T) {
 }
 
 func TestDefaultData(t *testing.T) {
-	resetAggregator()
+	// this test IS USING globals (tagsetTlm) but a local aggregator
+	// -
+
 	s := &serializer.MockSerializer{}
-	agg := InitAggregator(s, nil, "hostname")
+	agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 	start := time.Now()
 
 	s.On("SendServiceChecks", metrics.ServiceChecks{{
@@ -197,6 +244,9 @@ func TestDefaultData(t *testing.T) {
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
+	// this test IS USING globals (tagsetTlm and recurrentSeries) but a local aggregator
+	// -
+
 	test := func(tagCount int) func(t *testing.T) {
 		expHugeCounts := make([]uint64, tagsetTlm.size)
 
@@ -207,9 +257,9 @@ func TestSeriesTooManyTags(t *testing.T) {
 		}
 
 		return func(t *testing.T) {
-			resetAggregator()
 			s := &serializer.MockSerializer{}
-			agg := InitAggregator(s, nil, "hostname")
+			agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+			go agg.run()
 			start := time.Now()
 
 			var tags []string
@@ -241,6 +291,11 @@ func TestSeriesTooManyTags(t *testing.T) {
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Series"]
 			assert.Equal(t, expMap, gotMap)
+
+			// reset telemetry for next tests
+			agg.stopChan <- struct{}{}
+			recurrentSeries = metrics.Series{}
+			tagsetTlm.reset()
 		}
 	}
 	t.Run("not-huge", test(10))
@@ -249,6 +304,9 @@ func TestSeriesTooManyTags(t *testing.T) {
 }
 
 func TestDistributionsTooManyTags(t *testing.T) {
+	// this test IS USING globals (tagsetTlm and recurrentSeries) but a local aggregator
+	// -
+
 	test := func(tagCount int) func(t *testing.T) {
 		expHugeCounts := make([]uint64, tagsetTlm.size)
 
@@ -259,9 +317,8 @@ func TestDistributionsTooManyTags(t *testing.T) {
 		}
 
 		return func(t *testing.T) {
-			resetAggregator()
 			s := &serializer.MockSerializer{}
-			agg := InitAggregator(s, nil, "hostname")
+			agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 			start := time.Now()
 
 			var tags []string
@@ -281,7 +338,6 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			s.On("SendServiceChecks", mock.Anything).Return(nil).Times(1)
 			s.On("SendSeries", mock.Anything).Return(nil).Times(1)
 			s.On("SendSketch", mock.Anything).Return(nil).Times(1)
-
 			agg.Flush(start, true)
 			s.AssertNotCalled(t, "SendEvents")
 
@@ -292,6 +348,10 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Sketches"]
 			assert.Equal(t, expMap, gotMap)
+
+			// reset for next tests
+			recurrentSeries = metrics.Series{}
+			tagsetTlm.reset()
 		}
 	}
 	t.Run("not-huge", test(10))
@@ -299,10 +359,12 @@ func TestDistributionsTooManyTags(t *testing.T) {
 	t.Run("huge", test(110))
 }
 
-func TestRecurentSeries(t *testing.T) {
-	resetAggregator()
+func TestRecurrentSeries(t *testing.T) {
+	// this test IS USING globals (recurrentSeries) but a local aggregator
+	// -
+
 	s := &serializer.MockSerializer{}
-	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+	agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 
 	// Add two recurrentSeries
 	AddRecurrentSeries(&metrics.Serie{
@@ -376,9 +438,13 @@ func TestRecurentSeries(t *testing.T) {
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 	s.AssertExpectations(t)
+	recurrentSeries = nil
 }
 
 func TestTags(t *testing.T) {
+	// this test is not using anything global
+	// -
+
 	tests := []struct {
 		name                    string
 		tlmContainerTagsEnabled bool
@@ -424,10 +490,126 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
 			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
-			agg := NewBufferedAggregator(nil, nil, "hostname", time.Second)
+			agg := newTestBufferedAggregator(nil, nil, "hostname", time.Second)
 			agg.agentTags = tt.agentTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
 		})
 	}
+}
+
+func TestAggregatorFlush(t *testing.T) {
+	defer config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", nil)
+
+	tests := []struct {
+		name    string
+		enabled bool
+	}{
+		{
+			name:    "aggregator_flush_metrics_and_serialize_in_parallel false",
+			enabled: false,
+		},
+		{
+			name:    "aggregator_flush_metrics_and_serialize_in_parallel true",
+			enabled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", tt.enabled)
+			s := &MockSerializerIterableSerie{}
+			s.On("SendServiceChecks", mock.Anything).Return(nil)
+			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+			expectedSeries := flushSomeSamples(agg)
+			assertSeriesEqual(t, s.series, expectedSeries)
+			s.AssertExpectations(t)
+		})
+	}
+}
+
+// The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.
+// It calls internaly `Printf` on each field of the real type of `IterableStreamJSONMarshaler` which is `IterableSeries`.
+// It can lead to a race condition, if another goruntine call `IterableSeries.Append` which modifies `series.count`.
+// MockSerializerIterableSerie overrides `SendIterableSeries` to avoid this issue.
+// It also overrides `SendSeries` for simplificy.
+type MockSerializerIterableSerie struct {
+	series []*metrics.Serie
+	serializer.MockSerializer
+}
+
+func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error {
+	iterableSerie := series.(*metrics.IterableSeries)
+	defer iterableSerie.IterationStopped()
+
+	for iterableSerie.MoveNext() {
+		s.series = append(s.series, iterableSerie.Current())
+	}
+	return nil
+}
+
+func (s *MockSerializerIterableSerie) SendSeries(series marshaler.StreamJSONMarshaler) error {
+	s.series = append(s.series, series.(metrics.Series)...)
+	return nil
+}
+
+func flushSomeSamples(agg *BufferedAggregator) map[string]*metrics.Serie {
+	timeSamplerBucketSize := float64(10)
+	timestamps := []float64{0, timeSamplerBucketSize}
+	sampleCount := 100
+	expectedSeries := make(map[string]*metrics.Serie)
+
+	for v, timestamp := range timestamps {
+		value := float64(v + 1)
+		for i := 0; i < sampleCount; i++ {
+			name := fmt.Sprintf("serie%d", i)
+			agg.addSample(&metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType}, timestamp)
+			if _, found := expectedSeries[name]; !found {
+				expectedSeries[name] = &metrics.Serie{
+					Name:     name,
+					MType:    metrics.APICountType,
+					Interval: int64(timeSamplerBucketSize),
+					Tags:     make([]string, 0)}
+			}
+			expectedSeries[name].Points = append(expectedSeries[name].Points, metrics.Point{Ts: timestamp, Value: value})
+		}
+	}
+	agg.Flush(time.Unix(int64(timeSamplerBucketSize*2), 0), true)
+	return expectedSeries
+}
+
+func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map[string]*metrics.Serie) {
+	// default series
+	expectedSeries["n_o_i_n_d_e_x.datadog.agent.payload.dropped"] = nil
+	expectedSeries["datadog.agent.running"] = nil
+	r := require.New(t)
+
+	for _, serie := range series {
+		expected, found := expectedSeries[serie.Name]
+		delete(expectedSeries, serie.Name)
+		if !found {
+			t.Fatalf("Cannot found serie: %s", serie.Name)
+		}
+		if expected == nil {
+			// default series
+			continue
+		}
+		// ignore context key
+		expected.ContextKey = serie.ContextKey
+
+		sort.Slice(serie.Points, func(i int, j int) bool {
+			return serie.Points[i].Ts < serie.Points[j].Ts
+		})
+		sort.Slice(expected.Points, func(i int, j int) bool {
+			return expected.Points[i].Ts < expected.Points[j].Ts
+		})
+		r.EqualValues(expected, serie)
+	}
+	r.Empty(expectedSeries)
+}
+
+func newTestBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration) *BufferedAggregator {
+	config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", false)
+	return NewBufferedAggregator(s, eventPlatformForwarder, hostname, flushInterval)
 }

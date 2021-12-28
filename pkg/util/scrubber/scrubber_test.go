@@ -69,7 +69,7 @@ func TestCleanFile(t *testing.T) {
 	require.Equal(t, "a line with bar\na line with bar", string(res))
 }
 
-func TestScrubURL(t *testing.T) {
+func TestScrubLine(t *testing.T) {
 	scrubber := New()
 	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile(`([A-Za-z][A-Za-z0-9+-.]+\:\/\/|\b)([^\:]+)\:([^\s]+)\@`),
@@ -80,6 +80,6 @@ func TestScrubURL(t *testing.T) {
 		Regex: regexp.MustCompile(".*"),
 		Repl:  []byte("UHOH"),
 	})
-	res := scrubber.ScrubURL("https://foo:bar@example.com")
+	res := scrubber.ScrubLine("https://foo:bar@example.com")
 	require.Equal(t, "https://foo:********@example.com", res)
 }

@@ -50,7 +50,7 @@ func TestMkdir(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -58,7 +58,6 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, uint16(event.Mkdir.Mode), mkdirMode)
 			assert.Equal(t, getInode(t, testFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, event.Mkdir.File.Mode, expectedMode)
-
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 		})
@@ -73,17 +72,15 @@ func TestMkdir(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
-				t.Fatal(error(errno))
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat")
-
 			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, uint16(event.Mkdir.Mode), 0777)
 			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
-
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 		})
@@ -118,6 +115,8 @@ func TestMkdirError(t *testing.T) {
 			var wg sync.WaitGroup
 			wg.Add(1)
 
+			errChan := make(chan error, 1)
+
 			go func() {
 				defer wg.Done()
 
@@ -125,19 +124,29 @@ func TestMkdirError(t *testing.T) {
 				// do not unlock, we want the thread to be killed when exiting the goroutine
 
 				if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1, 1, 0); errno != 0 {
-					t.Error(err)
+					errChan <- error(errno)
+					return
 				}
 
 				if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1, 1, 0); errno != 0 {
-					t.Error(err)
+					errChan <- error(errno)
+					return
 				}
 
 				if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
-					t.Error(error(errno))
+					errChan <- error(errno)
+					return
 				}
 			}()
 
 			wg.Wait()
+
+			select {
+			case err = <-errChan:
+				return err
+			default:
+			}
+
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")

@@ -7,12 +7,15 @@ package config
 
 // Experimental OTLP configuration paths.
 const (
-	experimentalOTLPPrefix         = "experimental.otlp"
-	ExperimentalOTLPHTTPPort       = experimentalOTLPPrefix + ".http_port"
-	ExperimentalOTLPgRPCPort       = experimentalOTLPPrefix + ".grpc_port"
-	ExperimentalOTLPTracePort      = experimentalOTLPPrefix + ".internal_traces_port"
-	ExperimentalOTLPMetricsEnabled = experimentalOTLPPrefix + ".metrics_enabled"
-	ExperimentalOTLPTracesEnabled  = experimentalOTLPPrefix + ".traces_enabled"
+	ExperimentalOTLPSection         = "experimental.otlp"
+	ExperimentalOTLPHTTPPort        = ExperimentalOTLPSection + ".http_port"
+	ExperimentalOTLPgRPCPort        = ExperimentalOTLPSection + ".grpc_port"
+	ExperimentalOTLPTracePort       = ExperimentalOTLPSection + ".internal_traces_port"
+	ExperimentalOTLPMetricsEnabled  = ExperimentalOTLPSection + ".metrics_enabled"
+	ExperimentalOTLPTracesEnabled   = ExperimentalOTLPSection + ".traces_enabled"
+	ReceiverSubSectionKey           = "receiver"
+	ExperimentalOTLPReceiverSection = ExperimentalOTLPSection + "." + ReceiverSubSectionKey
+	ExperimentalOTLPMetrics         = ExperimentalOTLPSection + ".metrics"
 )
 
 // SetupOTLP related configuration.
@@ -22,4 +25,11 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(ExperimentalOTLPTracesEnabled, true)
 	config.BindEnv(ExperimentalOTLPHTTPPort, "DD_OTLP_HTTP_PORT")
 	config.BindEnv(ExperimentalOTLPgRPCPort, "DD_OTLP_GRPC_PORT")
+
+	config.SetKnown(ExperimentalOTLPMetrics)
+	// Set all subkeys of experimental.otlp.metrics as known
+	config.SetKnown(ExperimentalOTLPMetrics + ".*")
+	config.SetKnown(ExperimentalOTLPReceiverSection)
+	// Set all subkeys of experimental.otlp.receiver as known
+	config.SetKnown(ExperimentalOTLPReceiverSection + ".*")
 }

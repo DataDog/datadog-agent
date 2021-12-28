@@ -13,10 +13,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
 // Reader is the main interface to scrape data from cgroups
+// Calling RefreshCgroups() with your cache toleration is mandatory to retrieve accurate data
+// All Reader methods support concurrent calls
 type Reader struct {
 	hostPrefix             string
 	procPath               string
@@ -26,8 +29,8 @@ type Reader struct {
 	impl                   readerImpl
 
 	cgroups         map[string]Cgroup
+	cgroupsLock     sync.RWMutex
 	scrapeTimestmap time.Time
-	cacheValidFor   time.Duration
 }
 
 type readerImpl interface {
@@ -97,15 +100,6 @@ func WithCgroupV1BaseController(controller string) ReaderOption {
 	}
 }
 
-// WithCgroupPathsCache sets the duration during which the discovered cgroup paths are considered valid.
-// Note that only the paths are cached, not the statistics.
-// Default to 0 if not set (no cache).
-func WithCgroupPathsCache(validFor time.Duration) ReaderOption {
-	return func(r *Reader) {
-		r.cacheValidFor = validFor
-	}
-}
-
 // NewReader returns a new cgroup reader with given options
 func NewReader(opts ...ReaderOption) (*Reader, error) {
 	r := &Reader{}
@@ -155,30 +149,36 @@ func (r *Reader) init() error {
 }
 
 // ListCgroups returns list of known cgroups
-func (r *Reader) ListCgroups() ([]Cgroup, error) {
-	if err := r.refreshCache(); err != nil {
-		return nil, err
-	}
+func (r *Reader) ListCgroups() []Cgroup {
+	r.cgroupsLock.RLock()
+	defer r.cgroupsLock.RUnlock()
 
 	cgroups := make([]Cgroup, 0, len(r.cgroups))
 	for _, cg := range r.cgroups {
 		cgroups = append(cgroups, cg)
 	}
 
-	return cgroups, nil
+	return cgroups
 }
 
 // GetCgroup returns cgroup for a given id, or nil if not found.
-func (r *Reader) GetCgroup(id string) (Cgroup, error) {
-	if err := r.refreshCache(); err != nil {
-		return nil, err
-	}
+func (r *Reader) GetCgroup(id string) Cgroup {
+	r.cgroupsLock.RLock()
+	defer r.cgroupsLock.RUnlock()
 
-	return r.cgroups[id], nil
+	return r.cgroups[id]
 }
 
-// RefreshCgroups forces the refresh of cgroup paths, regardless of cache settings.
-func (r *Reader) RefreshCgroups() error {
+// RefreshCgroups triggers a refresh if data are older than cacheValidity. 0 to always refesh.
+func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
+	r.cgroupsLock.Lock()
+	defer r.cgroupsLock.Unlock()
+
+	// Refresh not required
+	if r.scrapeTimestmap.Add(cacheValidity).After(time.Now()) {
+		return nil
+	}
+
 	newCgroups, err := r.impl.parseCgroups()
 	if err != nil {
 		return err
@@ -186,13 +186,5 @@ func (r *Reader) RefreshCgroups() error {
 
 	r.scrapeTimestmap = time.Now()
 	r.cgroups = newCgroups
-	return nil
-}
-
-func (r *Reader) refreshCache() error {
-	if r.cacheValidFor == 0 || time.Now().After(r.scrapeTimestmap.Add(r.cacheValidFor)) {
-		return r.RefreshCgroups()
-	}
-
 	return nil
 }

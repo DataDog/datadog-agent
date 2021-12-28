@@ -17,6 +17,8 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, generate, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
+from .libs.copyright import CopyrightLinter
+from .libs.junit_upload import junit_upload_from_tgz, produce_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
@@ -78,7 +80,7 @@ def install_tools(ctx):
         for path, tools in TOOLS.items():
             with ctx.cd(path):
                 for tool in tools:
-                    ctx.run("go install {}".format(tool))
+                    ctx.run(f"go install {tool}")
 
 
 @task()
@@ -106,6 +108,7 @@ def test(
     save_result_json=None,
     rerun_fails=None,
     go_mod="mod",
+    junit_tar="",
 ):
     """
     Run all the tools and tests on the given module and targets.
@@ -157,7 +160,7 @@ def test(
         # lint without build flags (linting some file is better than no linting).
         print("--- Vetting and linting (legacy):")
         for module in modules:
-            print("----- Module '{}'".format(module.full_path()))
+            print(f"----- Module '{module.full_path()}'")
             if not module.condition():
                 print("----- Skipped")
                 continue
@@ -174,7 +177,7 @@ def test(
         if sys.platform != 'win32':
             print("--- golangci_lint:")
             for module in modules:
-                print("----- Module '{}'".format(module.full_path()))
+                print(f"----- Module '{module.full_path()}'")
                 if not module.condition():
                     print("----- Skipped")
                     continue
@@ -208,7 +211,7 @@ def test(
     covermode_opt = ""
     build_cpus_opt = ""
     if cpus:
-        build_cpus_opt = "-p {}".format(cpus)
+        build_cpus_opt = f"-p {cpus}"
     if race:
         # race doesn't appear to be supported on non-x64 platforms
         if arch == "x86":
@@ -234,7 +237,7 @@ def test(
 
     coverprofile = ""
     if coverage:
-        coverprofile = "-coverprofile={}".format(PROFILE_COV)
+        coverprofile = f"-coverprofile={PROFILE_COV}"
 
     nocache = '-count=1' if not cache else ''
 
@@ -243,10 +246,15 @@ def test(
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
         # We don't need to do that for TMP_JSON since gotestsum overwrites the output.
-        print("Removing existing '{}' file".format(save_result_json))
+        print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
 
-    cmd = 'gotestsum {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    junit_file_flag = ""
+    junit_file = "junit-out.xml"
+    if junit_tar:
+        junit_file_flag = "--junitfile " + junit_file
+
+    cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
     args = {
         "go_mod": go_mod,
@@ -260,13 +268,15 @@ def test(
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
-        "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if save_result_json else "",
-        "rerun_fails": "--rerun-fails={}".format(rerun_fails) if rerun_fails else "",
+        "json_flag": f'--jsonfile "{TMP_JSON}" ' if save_result_json else "",
+        "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
+        "junit_file_flag": junit_file_flag,
     }
 
     failed_modules = []
+    junit_files = []
     for module in modules:
-        print("----- Module '{}'".format(module.full_path()))
+        print(f"----- Module '{module.full_path()}'")
         if not module.condition():
             print("----- Skipped")
             continue
@@ -274,8 +284,7 @@ def test(
         with ctx.cd(module.full_path()):
             res = ctx.run(
                 cmd.format(
-                    packages=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
-                    **args
+                    packages=' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets), **args
                 ),
                 env=env,
                 out_stream=test_profiler,
@@ -291,13 +300,18 @@ def test(
             ) as module_file:
                 json_file.write(module_file.read())
 
+        junit_files.append(os.path.join(module.full_path(), junit_file))
+
+    if junit_tar:
+        produce_junit_tar(junit_files, junit_tar)
+
     if failed_modules:
         # Exit if any of the modules failed
-        raise Exit(code=1, message="Unit tests failed in the following modules: {}".format(', '.join(failed_modules)))
+        raise Exit(code=1, message=f"Unit tests failed in the following modules: {', '.join(failed_modules)}")
 
     if coverage:
         print("\n--- Test coverage:")
-        ctx.run("go tool cover -func {}".format(PROFILE_COV))
+        ctx.run(f"go tool cover -func {PROFILE_COV}")
 
     if profile:
         print("\n--- Top 15 packages sorted by run time:")
@@ -313,21 +327,21 @@ def lint_teamassignment(_):
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
 
     if branch == DEFAULT_BRANCH:
-        print("Running on {}, skipping check for team assignment.".format(DEFAULT_BRANCH))
+        print(f"Running on {DEFAULT_BRANCH}, skipping check for team assignment.")
     elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
 
-        res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
+        res = requests.get(f"https://api.github.com/repos/DataDog/datadog-agent/issues/{pr_id}")
         issue = res.json()
 
         for label in issue.get('labels', {}):
             if re.match('team/', label['name']):
-                print("Team Assignment: {}".format(label['name']))
+                print(f"Team Assignment: {label['name']}")
                 return
 
-        print("PR {} requires team assignment".format(pr_url))
+        print(f"PR {pr_url} requires team assignment")
         raise Exit(code=1)
 
     # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
@@ -345,19 +359,19 @@ def lint_milestone(_):
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
 
     if branch == DEFAULT_BRANCH:
-        print("Running on {}, skipping check for milestone.".format(DEFAULT_BRANCH))
+        print(f"Running on {DEFAULT_BRANCH}, skipping check for milestone.")
     elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
 
-        res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
+        res = requests.get(f"https://api.github.com/repos/DataDog/datadog-agent/issues/{pr_id}")
         pr = res.json()
         if pr.get("milestone"):
-            print("Milestone: {}".format(pr["milestone"].get("title", "NO_TITLE")))
+            print(f"Milestone: {pr['milestone'].get('title', 'NO_TITLE')}")
             return
 
-        print("PR {} requires a milestone.".format(pr_url))
+        print(f"PR {pr_url} requires a milestone.")
         raise Exit(code=1)
 
     # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
@@ -376,7 +390,7 @@ def lint_releasenote(ctx):
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
 
     if branch == DEFAULT_BRANCH:
-        print("Running on {}, skipping release note check.".format(DEFAULT_BRANCH))
+        print(f"Running on {DEFAULT_BRANCH}, skipping release note check.")
     # Check if a releasenote has been added/changed
     elif pr_url:
         import requests
@@ -384,14 +398,14 @@ def lint_releasenote(ctx):
         pr_id = pr_url.rsplit('/')[-1]
 
         # first check 'changelog/no-changelog' label
-        res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
+        res = requests.get(f"https://api.github.com/repos/DataDog/datadog-agent/issues/{pr_id}")
         issue = res.json()
         if any([l['name'] == 'changelog/no-changelog' for l in issue.get('labels', {})]):
             print("'changelog/no-changelog' label found on the PR: skipping linting")
             return
 
         # Then check that at least one note was touched by the PR
-        url = "https://api.github.com/repos/DataDog/datadog-agent/pulls/{}/files".format(pr_id)
+        url = f"https://api.github.com/repos/DataDog/datadog-agent/pulls/{pr_id}/files"
         # traverse paginated github response
         while True:
             res = requests.get(url)
@@ -437,7 +451,7 @@ def lint_filenames(ctx):
         forbidden_chars = '<>:"\\|?*'
         for file in files:
             if any(char in file for char in forbidden_chars):
-                print("Error: Found illegal character in path {}".format(file))
+                print(f"Error: Found illegal character in path {file}")
                 failure = True
 
     print("Checking filename length")
@@ -447,11 +461,7 @@ def lint_filenames(ctx):
     max_length = 255
     for file in files:
         if not file.startswith('test/kitchen/') and prefix_length + len(file) > max_length:
-            print(
-                "Error: path {} is too long ({} characters too many)".format(
-                    file, prefix_length + len(file) - max_length
-                )
-            )
+            print(f"Error: path {file} is too long ({prefix_length + len(file) - max_length} characters too many)")
             failure = True
 
     if failure:
@@ -470,13 +480,13 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def e2e_tests(ctx, target="gitlab", agent_image="", dca_image=""):
+def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=""):
     """
     Run e2e tests in several environments.
     """
     choices = ["gitlab", "dev", "local"]
     if target not in choices:
-        print('target %s not in %s' % (target, choices))
+        print(f'target {target} not in {choices}')
         raise Exit(1)
     if not os.getenv("DATADOG_AGENT_IMAGE"):
         if not agent_image:
@@ -488,8 +498,11 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image=""):
             print("define DATADOG_CLUSTER_AGENT_IMAGE envvar or image flag")
             raise Exit(1)
         os.environ["DATADOG_CLUSTER_AGENT_IMAGE"] = dca_image
+    if not os.getenv("ARGO_WORKFLOW"):
+        if argo_workflow:
+            os.environ["ARGO_WORKFLOW"] = argo_workflow
 
-    ctx.run("./test/e2e/scripts/setup-instance/00-entrypoint-%s.sh" % target)
+    ctx.run(f"./test/e2e/scripts/setup-instance/00-entrypoint-{target}.sh")
 
 
 class TestProfiler:
@@ -507,9 +520,6 @@ class TestProfiler:
     def flush(self):
         sys.stdout.flush()
 
-    def reset(self):
-        self.out_buffer = ""
-
     def print_sorted(self, limit=0):
         if self.times:
             sorted_times = sorted(self.times, key=operator.itemgetter(1), reverse=True)
@@ -517,7 +527,7 @@ class TestProfiler:
             if limit:
                 sorted_times = sorted_times[:limit]
             for pkg, time in sorted_times:
-                print("{}s\t{}".format(time, pkg))
+                print(f"{time}s\t{pkg}")
 
 
 @task
@@ -529,19 +539,29 @@ def lint_python(ctx):
     """
 
     print(
-        """Remember to set up pre-commit to lint your files before committing:
-    https://github.com/DataDog/datadog-agent/blob/{}/docs/dev/agent_dev_env.md#pre-commit-hooks""".format(
-            DEFAULT_BRANCH
-        )
+        f"""Remember to set up pre-commit to lint your files before committing:
+    https://github.com/DataDog/datadog-agent/blob/{DEFAULT_BRANCH}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
     )
 
     ctx.run("flake8 .")
     ctx.run("black --check --diff .")
     ctx.run("isort --check-only --diff .")
+    ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
 
 
 @task
-def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
+def lint_copyrights(_, fix=False, dry_run=False, debug=False):
+    """
+    Checks that all Go files contain the appropriate copyright header. If '--fix'
+    is provided as an option, it will try to fix problems as it finds them. If
+    '--dry_run' is provided when fixing, no changes to the files will be applied.
+    """
+
+    CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run)
+
+
+@task
+def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
     """
     Installs the requested version of shellcheck in the specified folder (by default /usr/local/bin).
     Required to run the shellcheck pre-commit hook.
@@ -556,13 +576,16 @@ def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
         platform = "linux"
 
     ctx.run(
-        "wget -qO- \"https://github.com/koalaman/shellcheck/releases/download/v{sc_version}/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp".format(
-            sc_version=version, platform=platform
-        )
+        f"wget -qO- \"https://github.com/koalaman/shellcheck/releases/download/v{version}/shellcheck-v{version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp"
     )
-    ctx.run(
-        "cp \"/tmp/shellcheck-v{sc_version}/shellcheck\" {destination}".format(
-            sc_version=version, destination=destination
-        )
-    )
-    ctx.run("rm -rf \"/tmp/shellcheck-v{sc_version}\"".format(sc_version=version))
+    ctx.run(f"cp \"/tmp/shellcheck-v{version}/shellcheck\" {destination}")
+    ctx.run(f"rm -rf \"/tmp/shellcheck-v{version}\"")
+
+
+@task()
+def junit_upload(_, tgz_path):
+    """
+    Uploads JUnit XML files from an archive produced by the `test` task.
+    """
+
+    junit_upload_from_tgz(tgz_path)

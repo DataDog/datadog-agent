@@ -10,16 +10,12 @@ import (
 )
 
 func TestPatternValue(t *testing.T) {
-	re, err := patternToRegexp("^$[]{}+?/etc/?+*.conf")
+	re, err := PatternToRegexp("^$[]{}+?/etc/?+*.conf")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if re.String() != "^\\^\\$\\[\\]\\{\\}\\+\\?/etc/\\?\\+.*\\.conf$" {
 		t.Fatalf("expected regexp not found: %s", re.String())
-	}
-
-	if _, err = patternToRegexp("*"); err == nil {
-		t.Fatal("wildcard only pattern is not supported")
 	}
 }

@@ -30,10 +30,8 @@ def build(ctx, major_version='7', vstudio_root=None, arch="x64", debug=False):
 
     ver = get_version_numeric_only(ctx, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
-    verprops = " /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} ".format(
-        build_maj=build_maj, build_min=build_min, build_patch=build_patch
-    )
-    print("arch is {}".format(arch))
+    verprops = f" /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} "
+    print(f"arch is {arch}")
     cmd = ""
     configuration = "Release"
     if debug:
@@ -49,24 +47,20 @@ def build(ctx, major_version='7', vstudio_root=None, arch="x64", debug=False):
         batchfile = "vcvars64.bat"
         if arch == "x86":
             batchfile = "vcvars32.bat"
-        vs_env_bat = '{}\\VC\\Auxiliary\\Build\\{}'.format(vsroot, batchfile)
-        cmd = 'call \"{}\" && msbuild {}\\install-cmd\\install-cmd.vcxproj /p:Configuration={} /p:Platform={}'.format(
-            vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch
-        )
+        vs_env_bat = f'{vsroot}\\VC\\Auxiliary\\Build\\{batchfile}'
+        cmd = f'call "{vs_env_bat}" && msbuild {CUSTOM_ACTION_ROOT_DIR}\\install-cmd\\install-cmd.vcxproj /p:Configuration={configuration} /p:Platform={arch}'
     else:
-        cmd = 'msbuild {}\\install-cmd\\install-cmd.vcxproj /p:Configuration={} /p:Platform={}'.format(
-            CUSTOM_ACTION_ROOT_DIR, configuration, arch
-        )
+        cmd = f'msbuild {CUSTOM_ACTION_ROOT_DIR}\\install-cmd\\install-cmd.vcxproj /p:Configuration={configuration} /p:Platform={arch}'
 
     cmd += verprops
-    print("Build Command: %s" % cmd)
+    print(f"Build Command: {cmd}")
 
     ctx.run(cmd)
     srcdll = None
     if arch is not None and arch == "x86":
-        srcdll = "{}\\install-cmd\\{}\\install-cmd.exe".format(CUSTOM_ACTION_ROOT_DIR, configuration)
+        srcdll = f"{CUSTOM_ACTION_ROOT_DIR}\\install-cmd\\{configuration}\\install-cmd.exe"
     else:
-        srcdll = "{}\\install-cmd\\x64\\{}\\install-cmd.exe".format(CUSTOM_ACTION_ROOT_DIR, configuration)
+        srcdll = f"{CUSTOM_ACTION_ROOT_DIR}\\install-cmd\\x64\\{configuration}\\install-cmd.exe"
     shutil.copy2(srcdll, BIN_PATH)
 
 
@@ -77,7 +71,7 @@ def clean(_, arch="x64", debug=False):
         configuration = "Debug"
 
     if arch is not None and arch == "x86":
-        srcdll = "{}\\install-cmd\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration)
+        srcdll = f"{CUSTOM_ACTION_ROOT_DIR}\\install-cmd\\{configuration}"
     else:
-        srcdll = "{}\\install-cmd\\x64\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration)
+        srcdll = f"{CUSTOM_ACTION_ROOT_DIR}\\install-cmd\\x64\\{configuration}"
     shutil.rmtree(srcdll, BIN_PATH)

@@ -57,7 +57,14 @@ int kprobe_vfs_mkdir(struct pt_regs *ctx) {
         return 0;
     }
 
-    syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);;
+    syscall->mkdir.dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    // change the register based on the value of vfs_mkdir_dentry_position
+    if (get_vfs_mkdir_dentry_position() == VFS_ARG_POSITION3) {
+        // prevent the verifier from whining
+        bpf_probe_read(&syscall->mkdir.dentry, sizeof(syscall->mkdir.dentry), &syscall->mkdir.dentry);
+        syscall->mkdir.dentry = (struct dentry *) PT_REGS_PARM3(ctx);
+    }
+
     syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
 
     if (filter_syscall(syscall, mkdir_approvers)) {

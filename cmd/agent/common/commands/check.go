@@ -32,14 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
@@ -135,13 +133,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return err
 			}
 
-			// use the "noop" forwarder because we want the events to be buffered in memory instead of being flushed to the intake
-			eventPlatformForwarder := epforwarder.NewNoopEventPlatformForwarder()
-			eventPlatformForwarder.Start()
-
-			s := serializer.NewSerializer(common.Forwarder, nil)
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-			agg := aggregator.InitAggregatorWithFlushInterval(s, eventPlatformForwarder, hostname, 0)
+			opts := aggregator.DefaultDemultiplexerOptions(nil)
+			opts.FlushInterval = 0
+			opts.UseNoopEventPlatformForwarder = true
+			opts.UseOrchestratorForwarder = false
+			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+
 			common.LoadComponents(config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
@@ -309,13 +307,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			var checkFileOutput bytes.Buffer
 			var instancesData []interface{}
 			for _, c := range cs {
-				s := runCheck(c, agg)
+				s := runCheck(c, demux)
 
 				// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 				time.Sleep(time.Duration(checkDelay) * time.Millisecond)
 
 				if formatJSON {
-					aggregatorData := getMetricsData(agg)
+					aggregatorData := getMetricsData(demux)
 					var collectorData map[string]interface{}
 
 					collectorJSON, _ := status.GetCheckStatusJSON(c, s)
@@ -393,7 +391,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						return fmt.Errorf("no diff data found in %s", profileDataDir)
 					}
 				} else {
-					printMetrics(agg, &checkFileOutput)
+					printMetrics(demux, &checkFileOutput)
 					checkStatus, _ := status.GetCheckStatus(c, s)
 					statusString := string(checkStatus)
 					fmt.Println(statusString)
@@ -437,7 +435,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 	return cmd
 }
 
-func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
+func runCheck(c check.Check, demux aggregator.Demultiplexer) *check.Stats {
 	s := check.NewStats(c)
 	times := checkTimes
 	pause := checkPause
@@ -465,7 +463,8 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	return s
 }
 
-func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buffer) {
+func printMetrics(demux aggregator.Demultiplexer, checkFileOutput *bytes.Buffer) {
+	agg := demux.Aggregator()
 	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
@@ -568,14 +567,11 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
 	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
-	w, err := flare.NewRedactingWriter(flarePath, os.ModePerm, true)
+	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {
-		fmt.Println("Error while writing the check file:", err)
-		return
+		fmt.Println("Error while scrubbing the check file:", err)
 	}
-	defer w.Close()
-
-	_, err = w.Write(checkFileOutput.Bytes())
+	err = ioutil.WriteFile(flarePath, scrubbed, os.ModePerm)
 
 	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)
@@ -608,8 +604,10 @@ func toDebugEpEvents(events map[string][]*message.Message) map[string][]eventPla
 	return result
 }
 
-func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
+func getMetricsData(demux aggregator.Demultiplexer) map[string]interface{} {
 	aggData := make(map[string]interface{})
+
+	agg := demux.Aggregator()
 
 	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {

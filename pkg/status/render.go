@@ -30,6 +30,11 @@ func FormatStatus(data []byte) (string, error) {
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats) //nolint:errcheck
 	forwarderStats := stats["forwarderStats"]
+	if forwarderStatsMap, ok := forwarderStats.(map[string]interface{}); ok {
+		forwarderStatsMap["config"] = stats["config"]
+	} else {
+		log.Warn("The Forwarder status format is invalid. Some parts of the `Forwarder` section may be missing.")
+	}
 	runnerStats := stats["runnerStats"]
 	pyLoaderStats := stats["pyLoaderStats"]
 	pythonInit := stats["pythonInit"]
@@ -122,12 +127,13 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	json.Unmarshal(data, &stats) //nolint:errcheck
 	runnerStats := stats["runnerStats"]
 	complianceChecks := stats["complianceChecks"]
+	complianceStatus := stats["complianceStatus"]
 	title := fmt.Sprintf("Datadog Security Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
 
 	renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"])
-	renderComplianceChecksStats(b, runnerStats, complianceChecks)
+	renderComplianceChecksStats(b, runnerStats, complianceChecks, complianceStatus)
 
 	return b.String(), nil
 }
@@ -173,9 +179,10 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	return b.String(), nil
 }
 
-func renderComplianceChecksStats(w io.Writer, runnerStats interface{}, complianceChecks interface{}) {
+func renderComplianceChecksStats(w io.Writer, runnerStats interface{}, complianceChecks, complianceStatus interface{}) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
+	checkStats["ComplianceStatus"] = complianceStatus
 	checkStats["ComplianceChecks"] = complianceChecks
 	renderStatusTemplate(w, "/compliance.tmpl", checkStats)
 }

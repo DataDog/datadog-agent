@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package network
@@ -73,14 +79,13 @@ func readProcNetWithStatus(path string, status int64) ([]uint16, error) {
 				continue
 			}
 
-			port, err := strconv.ParseInt(string(rawLocal[idx+1:]), 16, 0)
+			port, err := strconv.ParseUint(string(rawLocal[idx+1:]), 16, 16)
 			if err != nil {
 				log.Errorf("error parsing port [%s] as hex: %s", rawLocal[idx+1:], err)
 				continue
 			}
 
 			ports = append(ports, uint16(port))
-
 		}
 	}
 

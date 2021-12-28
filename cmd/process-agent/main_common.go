@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -11,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/agent-payload/v5/process"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
@@ -71,7 +76,7 @@ var (
 	configCommand = cmdconfig.Config(getSettingsClient)
 )
 
-func getSettingsClient() (settings.Client, error) {
+func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 	// Set up the config so we can get the port later
 	// We set this up differently from the main process-agent because this way is quieter
 	cfg := config.NewDefaultAgentConfig(false)
@@ -206,7 +211,10 @@ func runAgent(exit chan struct{}) {
 		t = local.NewTagger(collectors.DefaultCatalog)
 	}
 	tagger.SetDefaultTagger(t)
-	tagger.Init()
+	err = tagger.Init()
+	if err != nil {
+		log.Errorf("failed to start the tagger: %s", err)
+	}
 	defer tagger.Stop() //nolint:errcheck
 
 	err = initInfo(cfg)

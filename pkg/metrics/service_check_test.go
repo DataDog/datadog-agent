@@ -189,7 +189,7 @@ func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		split.Payloads(serviceChecks, true, split.MarshalJSON)
+		split.Payloads(serviceChecks, true, split.JSONMarshalFct)
 	}
 }
 

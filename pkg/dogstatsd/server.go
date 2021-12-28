@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -119,9 +118,12 @@ func initLatencyTelemetry() {
 type Server struct {
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
-	// aggregator is a pointer to the aggregator that the dogstatsd daemon
-	// will send the metrics samples, events and service checks to.
-	aggregator *aggregator.BufferedAggregator
+
+	// demultiplexer will receive the metrics processed by the DogStatsD server,
+	// will take care of processing them concurrently if possible, and will
+	// also take care of forwarding the metrics to the intake.
+	demultiplexer aggregator.Demultiplexer
+
 	// running in their own routine, workers are responsible of parsing the packets
 	// and pushing them to the aggregator
 	workers []*worker
@@ -136,6 +138,7 @@ type Server struct {
 	health                    *health.Handle
 	metricPrefix              string
 	metricPrefixBlacklist     []string
+	metricBlocklist           []string
 	defaultHostname           string
 	histToDist                bool
 	histToDistPrefix          string
@@ -147,7 +150,6 @@ type Server struct {
 	eolTerminationUDP         bool
 	eolTerminationUDS         bool
 	eolTerminationNamedPipe   bool
-	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
 	// disableVerboseLogs is a feature flag to disable the logs capable
 	// of flooding the logger output (e.g. parsing messages error).
@@ -197,7 +199,7 @@ type metricsCountBuckets struct {
 
 // NewServer returns a running DogStatsD server.
 // If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
-func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*Server, error) {
+func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -270,7 +272,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
 		metricPrefix = metricPrefix + "."
 	}
+
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
+	metricBlocklist := config.Datadog.GetStringSlice("statsd_metric_blocklist")
 
 	defaultHostname, err := util.GetHostname(context.TODO())
 	if err != nil {
@@ -310,12 +314,13 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		sharedPacketPool:          sharedPacketPool,
 		sharedPacketPoolManager:   sharedPacketPoolManager,
 		sharedFloat64List:         newFloat64ListPool(),
-		aggregator:                aggregator,
+		demultiplexer:             demultiplexer,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
 		health:                    health.RegisterLiveness("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
 		metricPrefixBlacklist:     metricPrefixBlacklist,
+		metricBlocklist:           metricBlocklist,
 		defaultHostname:           defaultHostname,
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
@@ -323,7 +328,6 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		eolTerminationUDP:         eolTerminationUDP,
 		eolTerminationUDS:         eolTerminationUDS,
 		eolTerminationNamedPipe:   eolTerminationNamedPipe,
-		telemetryEnabled:          telemetry_utils.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
 		Debug: &dsdServerDebug{
@@ -442,8 +446,10 @@ func (s *Server) ServerlessFlush() {
 	for _, w := range s.workers {
 		w.flush()
 	}
-	s.aggregator.ServerlessFlush <- true
-	<-s.aggregator.ServerlessFlushDone
+	// flush the aggregator to have the serializer/forwarder send data to the backend.
+	agg := s.demultiplexer.Aggregator()
+	agg.ServerlessFlush <- true
+	<-agg.ServerlessFlushDone
 }
 
 // dropCR drops a terminal \r from the data.
@@ -633,7 +639,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
+	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlocklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)

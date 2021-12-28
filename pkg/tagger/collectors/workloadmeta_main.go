@@ -25,6 +25,7 @@ const (
 	podSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
 	taskSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
 	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	gardenSource    = workloadmetaCollectorName + "-" + string(workloadmeta.KindGardenContainer)
 )
 
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
@@ -123,14 +124,6 @@ func (c *WorkloadMetaCollector) Stop() error {
 	return nil
 }
 
-// Fetch is a no-op in the WorkloadMetaCollector to prevent expensive and
-// race-condition prone forcing of pulls from upstream collectors.  Since
-// workloadmeta.Store will eventually own notifying all downstream consumers,
-// this codepath should never trigger anyway.
-func (c *WorkloadMetaCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
-	return nil, nil, nil, nil
-}
-
 func workloadmetaFactory() Collector {
 	return &WorkloadMetaCollector{
 		store: workloadmeta.GetGlobalStore(),
@@ -169,6 +162,29 @@ func fargateStaticTags(ctx context.Context) map[string]string {
 	}
 
 	return tags
+}
+
+// retrieveMappingFromConfig gets a stringmapstring config key and
+// lowercases all map keys to make envvar and yaml sources consistent
+func retrieveMappingFromConfig(configKey string) map[string]string {
+	labelsList := config.Datadog.GetStringMapString(configKey)
+	for label, value := range labelsList {
+		delete(labelsList, label)
+		labelsList[strings.ToLower(label)] = value
+	}
+
+	return labelsList
+}
+
+// mergeMaps merges two maps, in case of conflict the first argument is prioritized
+func mergeMaps(first, second map[string]string) map[string]string {
+	for k, v := range second {
+		if _, found := first[k]; !found {
+			first[k] = v
+		}
+	}
+
+	return first
 }
 
 func init() {

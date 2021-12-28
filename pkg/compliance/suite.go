@@ -55,7 +55,7 @@ func (ys *yamlSuite) toSuite() (*Suite, error) {
 			return nil, err
 		}
 
-		if _, ok := rule["inputs"]; ok {
+		if _, ok := rule["input"]; ok {
 			var regoRule RegoRule
 			if err := yaml.Unmarshal(buffer, &regoRule); err != nil {
 				return nil, err

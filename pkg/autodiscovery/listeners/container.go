@@ -31,12 +31,12 @@ type ContainerListener struct {
 }
 
 // NewContainerListener returns a new ContainerListener.
-func NewContainerListener() (ServiceListener, error) {
+func NewContainerListener(Config) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd},
+		[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd, workloadmeta.SourcePodman},
 	)
 
 	var err error

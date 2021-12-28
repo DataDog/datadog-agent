@@ -7,6 +7,8 @@ require "./lib/ostools.rb"
 
 name 'iot-agent'
 package_name 'datadog-iot-agent'
+license "Apache-2.0"
+license_file "../LICENSE"
 
 homepage 'http://www.datadoghq.com'
 

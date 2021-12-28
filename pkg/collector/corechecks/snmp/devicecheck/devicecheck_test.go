@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package devicecheck
 
 import (
@@ -20,7 +25,7 @@ import (
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 
@@ -39,7 +44,7 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4")
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -65,9 +70,9 @@ profiles:
 		{
 			Variables: []gosnmp.SnmpPDU{
 				{
-					Name:  "1.3.6.1.2.1.1.5.0",
-					Type:  gosnmp.OctetString,
-					Value: []byte("foo_sys_name"),
+					Name:  "1.2.3.4.5",
+					Type:  gosnmp.NoSuchObject,
+					Value: nil,
 				},
 				{
 					Name:  "1.3.6.1.2.1.1.1.0",
@@ -77,7 +82,7 @@ profiles:
 				{
 					Name:  "1.3.6.1.2.1.1.2.0",
 					Type:  gosnmp.ObjectIdentifier,
-					Value: "1.2.3.4",
+					Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
 				},
 				{
 					Name:  "1.3.6.1.2.1.1.3.0",
@@ -85,13 +90,35 @@ profiles:
 					Value: 20,
 				},
 				{
+					Name:  "1.3.6.1.2.1.1.5.0",
+					Type:  gosnmp.OctetString,
+					Value: []byte("foo_sys_name"),
+				},
+			},
+		},
+		{
+			Variables: []gosnmp.SnmpPDU{
+				{
+					Name:  "1.2.3.4.5",
+					Type:  gosnmp.NoSuchObject,
+					Value: nil,
+				},
+			},
+		},
+		{
+			Variables: []gosnmp.SnmpPDU{
+				{
 					Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 					Type:  gosnmp.Integer,
 					Value: 30,
 				},
+				{
+					Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.999.0",
+					Type:  gosnmp.NoSuchObject,
+					Value: nil,
+				},
 			},
 		},
-		{},
 	}
 
 	bulkPackets := []gosnmp.SnmpPacket{
@@ -108,17 +135,17 @@ profiles:
 					Value: 141,
 				},
 				{
-					Name:  "1.3.6.1.2.1.2.2.1.2.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte("ifDescRow1"),
-				},
-				{
 					Name:  "1.3.6.1.2.1.2.2.1.6.1",
 					Type:  gosnmp.OctetString,
 					Value: []byte("00:00:00:00:00:01"),
 				},
 				{
 					Name:  "1.3.6.1.2.1.2.2.1.7.1",
+					Type:  gosnmp.Integer,
+					Value: 1,
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.8.1",
 					Type:  gosnmp.Integer,
 					Value: 1,
 				},
@@ -133,17 +160,17 @@ profiles:
 					Value: 142,
 				},
 				{
-					Name:  "1.3.6.1.2.1.2.2.1.2.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte("ifDescRow2"),
-				},
-				{
 					Name:  "1.3.6.1.2.1.2.2.1.6.2",
 					Type:  gosnmp.OctetString,
 					Value: []byte("00:00:00:00:00:02"),
 				},
 				{
 					Name:  "1.3.6.1.2.1.2.2.1.7.2",
+					Type:  gosnmp.Integer,
+					Value: 1,
+				},
+				{
+					Name:  "1.3.6.1.2.1.2.2.1.8.2",
 					Type:  gosnmp.Integer,
 					Value: 1,
 				},
@@ -175,11 +202,7 @@ profiles:
 		},
 		{
 			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.8.1",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
+
 				{
 					Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
 					Type:  gosnmp.OctetString,
@@ -190,11 +213,7 @@ profiles:
 					Type:  gosnmp.OctetString,
 					Value: []byte("descRow1"),
 				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.8.2",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
+
 				{
 					Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
 					Type:  gosnmp.OctetString,
@@ -227,18 +246,22 @@ profiles:
 	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
 	sess.On("Get", []string{
-		"1.3.6.1.2.1.1.5.0",
+		"1.2.3.4.5",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
-		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
+		"1.3.6.1.2.1.1.5.0",
 	}).Return(&packets[0], nil)
 	sess.On("Get", []string{
-		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
-		"1.2.3.4.5",
+		"1.2.3.4.5.0",
 	}).Return(&packets[1], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
+	sess.On("Get", []string{
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
+		"1.3.6.1.4.1.3375.2.1.3.3.3.0",
+	}).Return(&packets[2], nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
 
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
@@ -282,7 +305,7 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4")
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession)
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator

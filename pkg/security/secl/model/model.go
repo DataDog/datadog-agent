@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build linux
-
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -mock -tags linux -output accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -mock -output accessors.go
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -doc -output ../../../../docs/cloud-workload-security/secl.json
 
@@ -48,6 +46,10 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 			errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
 
 			if value != path.Clean(value) {
+				return errAbs
+			}
+
+			if value == "*" {
 				return errAbs
 			}
 
@@ -139,6 +141,7 @@ type Event struct {
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 
 	SELinux SELinuxEvent `field:"selinux" event:"selinux"` // [7.30] [Kernel] An SELinux operation was run
+	BPF     BPFEvent     `field:"bpf" event:"bpf"`         // [7.33] [Kernel] A BPF command was executed
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
@@ -262,10 +265,14 @@ type Process struct {
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
 
-	ArgsEntry     *ArgsEntry `field:"-"`
-	EnvsEntry     *EnvsEntry `field:"-"`
-	EnvsTruncated bool       `field:"-"`
-	ArgsTruncated bool       `field:"-"`
+	ArgsEntry *ArgsEntry `field:"-"`
+	EnvsEntry *EnvsEntry `field:"-"`
+
+	EnvsTruncated bool `field:"-"`
+	ArgsTruncated bool `field:"-"`
+
+	EnvsCache []string `field:"-"` // used as cache
+	ArgsCache []string `field:"-"` // used as cache
 }
 
 // SpanContext describes a span context
@@ -391,9 +398,6 @@ type MountEvent struct {
 
 // GetFSType returns the filesystem type of the mountpoint
 func (m *MountEvent) GetFSType() string {
-	if len(m.FSType) == 0 {
-		m.FSType, _ = UnmarshalString(m.FSTypeRaw[:], 16)
-	}
 	return m.FSType
 }
 
@@ -570,4 +574,29 @@ type UtimesEvent struct {
 	File  FileEvent `field:"file"`
 	Atime time.Time `field:"-"`
 	Mtime time.Time `field:"-"`
+}
+
+// BPFEvent represents a BPF event
+type BPFEvent struct {
+	SyscallEvent
+
+	Map     BPFMap     `field:"map"`  // eBPF map involved in the BPF command
+	Program BPFProgram `field:"prog"` // eBPF program involved in the BPF command
+	Cmd     uint32     `field:"cmd"`  // BPF command name
+}
+
+// BPFMap represents a BPF map
+type BPFMap struct {
+	ID   uint32 `field:"-"`    // ID of the eBPF map
+	Type uint32 `field:"type"` // Type of the eBPF map
+	Name string `field:"-"`    // Name of the eBPF map
+}
+
+// BPFProgram represents a BPF program
+type BPFProgram struct {
+	ID         uint32   `field:"-"`                // ID of the eBPF program
+	Type       uint32   `field:"type"`             // Type of the eBPF program
+	AttachType uint32   `field:"attach_type"`      // Attach type of the eBPF program
+	Helpers    []uint32 `field:"-,ResolveHelpers"` // eBPF helpers used by the eBPF program
+	Name       string   `field:"-"`                // Name of the eBPF program
 }

@@ -16,21 +16,21 @@ import (
 func TestFlagsToString(t *testing.T) {
 	str := OpenFlags(syscall.O_EXCL | syscall.O_TRUNC).String()
 	if str != "O_EXCL | O_TRUNC" {
-		t.Errorf("expexted flags not found, got: %s", str)
+		t.Errorf("expected flags not found, got: %s", str)
 	}
 
 	str = ChmodMode(syscall.S_IWGRP | syscall.S_IRUSR).String()
 	if str != "S_IRUSR | S_IWGRP" {
-		t.Errorf("expexted flags not found, got: %s", str)
+		t.Errorf("expected flags not found, got: %s", str)
 	}
 
 	str = OpenFlags(syscall.O_EXCL | syscall.O_TRUNC | 1<<32).String()
 	if str != fmt.Sprintf("%d | O_EXCL | O_TRUNC", 1<<32) {
-		t.Errorf("expexted flags not found, got: %s", str)
+		t.Errorf("expected flags not found, got: %s", str)
 	}
 
 	str = OpenFlags(syscall.O_RDONLY).String()
 	if str != "O_RDONLY" {
-		t.Errorf("expexted flags not found, got: %s", str)
+		t.Errorf("expected flags not found, got: %s", str)
 	}
 }

@@ -19,18 +19,12 @@ func TestAutoSelectStrategy(t *testing.T) {
 	d := Daemon{
 		lastInvocations: make([]time.Time, 0),
 		flushStrategy:   &flush.AtTheEnd{},
-		clientLibReady:  false,
 	}
 
 	now := time.Now()
-	// when the client library hasn't registered with the extension,
-	// fallback to periodically strategy
-	d.clientLibReady = false
-	assert.Equal((flush.NewPeriodically(defaultFlushInterval)).String(), d.AutoSelectStrategy().String(), "wrong strategy has been selected") // default strategy
 
 	// when not enough data, the flush at the end strategy should be selected
 	// -----
-	d.clientLibReady = true
 
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected") // default strategy
 
@@ -69,7 +63,6 @@ func TestStoreInvocationTime(t *testing.T) {
 	d := Daemon{
 		lastInvocations: make([]time.Time, 0),
 		flushStrategy:   &flush.AtTheEnd{},
-		clientLibReady:  true,
 	}
 
 	now := time.Now()
@@ -89,7 +82,6 @@ func TestInvocationInterval(t *testing.T) {
 	d := Daemon{
 		lastInvocations: make([]time.Time, 0),
 		flushStrategy:   &flush.AtTheEnd{},
-		clientLibReady:  true,
 	}
 
 	// first scenario, validate that we're not computing the interval if we only have 2 invocations done
@@ -142,7 +134,6 @@ func TestUpdateStrategy(t *testing.T) {
 	d := Daemon{
 		lastInvocations:  make([]time.Time, 0),
 		flushStrategy:    flush.NewPeriodically(defaultFlushInterval),
-		clientLibReady:   true,
 		useAdaptiveFlush: false,
 	}
 

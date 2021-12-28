@@ -8,5 +8,5 @@
 ---
 upgrade:
   - |
-    SUSE RPMs are now built on OpenSUSE 42.1. Newly built SUSE RPMs are supported
-    on OpenSUSE >= 15 (including OpenSUSE >= 42) and SLES >= 12.
+    Starting from this version of the Agent, the Agent does not run on SLES 11. 
+    The new minimum requirement is SLES >= 12 or OpenSUSE >= 15 (including OpenSUSE 42).

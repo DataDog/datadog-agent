@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package sampler
 
 import (
@@ -62,12 +67,12 @@ func NewRareSampler() *RareSampler {
 }
 
 // Sample a trace and returns true if trace was sampled (should be kept)
-func (e *RareSampler) Sample(t pb.Trace, root *pb.Span, env string) bool {
-	return e.sample(time.Now(), env, root, t)
+func (e *RareSampler) Sample(t *pb.TraceChunk, env string) bool {
+	return e.sample(time.Now(), env, t)
 }
 
-func (e *RareSampler) sample(now time.Time, env string, root *pb.Span, t pb.Trace) bool {
-	if priority, ok := GetSamplingPriority(root); priority > 0 && ok {
+func (e *RareSampler) sample(now time.Time, env string, t *pb.TraceChunk) bool {
+	if priority, ok := GetSamplingPriority(t); priority > 0 && ok {
 		e.handlePriorityTrace(now, env, t)
 		return false
 	}
@@ -79,9 +84,9 @@ func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
-func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t pb.Trace) {
+func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk) {
 	expire := now.Add(priorityTTL)
-	for _, s := range t {
+	for _, s := range t.Spans {
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
 		}
@@ -89,10 +94,10 @@ func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t pb.Trace)
 	}
 }
 
-func (e *RareSampler) handleTrace(now time.Time, env string, t pb.Trace) bool {
+func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) bool {
 	var sampled bool
 	expire := now.Add(defaultTTL)
-	for _, s := range t {
+	for _, s := range t.Spans {
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
 		}

@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux || windows
 // +build linux windows
 
 package modules
@@ -64,7 +70,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 func (nt *networkTracer) Register(httpMux *module.Router) error {
 	var runCounter uint64
 
-	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
@@ -82,7 +88,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		count := atomic.AddUint64(&runCounter, 1)
 		logRequests(id, count, len(cs.Conns), start)
-	})
+	}))
 
 	httpMux.HandleFunc("/debug/net_maps", func(w http.ResponseWriter, req *http.Request) {
 		cs, err := nt.tracer.DebugNetworkMaps()

@@ -16,7 +16,7 @@ import (
 
 // When no memory limit is set, the Kernel returns a maximum value, being computed as:
 // See https://unix.stackexchange.com/questions/420906/what-is-the-value-for-the-cgroups-limit-in-bytes-if-the-memory-is-not-restricte
-var memoryUnlimitedValue = uint64((math.MaxInt64 / os.Getpagesize()) * os.Getpagesize())
+var memoryUnlimitedValue = (uint64(math.MaxInt64) / uint64(os.Getpagesize())) * uint64(os.Getpagesize())
 
 func (c *cgroupV1) GetMemoryStats(stats *MemoryStats) error {
 	if stats == nil {

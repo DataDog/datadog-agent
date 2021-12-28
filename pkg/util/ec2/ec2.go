@@ -206,18 +206,7 @@ func getMetadataItem(ctx context.Context, endpoint string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	res, err := doHTTPRequest(ctx, metadataURL+endpoint, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
-	if err != nil {
-		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
-	}
-
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("unable to read response body, %s", err)
-	}
-
-	return string(all), nil
+	return doHTTPRequest(ctx, metadataURL+endpoint)
 }
 
 // GetClusterName returns the name of the cluster containing the current EC2 instance
@@ -250,18 +239,9 @@ func extractClusterName(tags []string) (string, error) {
 	return clusterName, nil
 }
 
-func doHTTPRequest(ctx context.Context, url string, method string, headers map[string]string, useToken bool) (*http.Response, error) {
-	client := http.Client{
-		Transport: httputils.CreateHTTPTransport(),
-		Timeout:   time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if useToken {
+func doHTTPRequest(ctx context.Context, url string) (string, error) {
+	headers := map[string]string{}
+	if config.Datadog.GetBool("ec2_prefer_imdsv2") {
 		token, err := getToken(ctx)
 		if err != nil {
 			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
@@ -270,17 +250,7 @@ func doHTTPRequest(ctx context.Context, url string, method string, headers map[s
 		}
 	}
 
-	for header, value := range headers {
-		req.Header.Add(header, value)
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	} else if res.StatusCode != 200 {
-		return nil, fmt.Errorf("status code %d trying to fetch %s", res.StatusCode, url)
-	}
-	return res, nil
+	return httputils.Get(ctx, url, headers, time.Duration(config.Datadog.GetInt("ec2_metadata_timeout"))*time.Millisecond)
 }
 
 func getToken(ctx context.Context) (string, error) {

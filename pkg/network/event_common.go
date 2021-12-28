@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
 import (
@@ -192,6 +197,7 @@ type ConnectionStats struct {
 	IPTranslation    *IPTranslation
 	IntraHost        bool
 	Via              *Via
+	Tags             uint64
 
 	IsAssured bool
 }
@@ -244,6 +250,12 @@ func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
 	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
 	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
 	return buf[:n], nil
+}
+
+// IsShortLived returns true when a connection went through its whole lifecycle
+// between two connection checks
+func (c ConnectionStats) IsShortLived() bool {
+	return c.LastTCPEstablished >= 1 && c.LastTCPClosed >= 1
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"

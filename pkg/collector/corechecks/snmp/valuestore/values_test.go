@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package valuestore
 
 import (
@@ -23,22 +28,6 @@ var storeMock = &ResultValueStore{
 			"2": ResultValue{Value: float64(22)},
 		},
 	},
-}
-
-func Test_resultValueStore_GetScalarValueAsString(t *testing.T) {
-	assert.Equal(t, "", storeMock.GetScalarValueAsString("0.0"))
-	assert.Equal(t, "10", storeMock.GetScalarValueAsString("1.1.1.1.0"))
-	assert.Equal(t, "a_str_value", storeMock.GetScalarValueAsString("1.1.1.2.0"))
-	assert.Equal(t, "", storeMock.GetScalarValueAsString("1.1.1.3.0"))
-}
-
-func Test_resultValueStore_getColumnValueAsString(t *testing.T) {
-	assert.Equal(t, "", storeMock.GetColumnValueAsString("0.0", "1"))              // wrong column
-	assert.Equal(t, "10", storeMock.GetColumnValueAsString("1.1.1", "1"))          // ok float value
-	assert.Equal(t, "a_str_value", storeMock.GetColumnValueAsString("1.1.1", "2")) // ok str value
-	assert.Equal(t, "", storeMock.GetColumnValueAsString("1.1.1", "3"))            // wrong type
-	assert.Equal(t, "", storeMock.GetColumnValueAsString("1.1.1", "99"))           // index not found
-	assert.Equal(t, "21", storeMock.GetColumnValueAsString("1.1.2", "1"))          // ok float value
 }
 
 func Test_resultValueStore_getColumnValueAsFloat(t *testing.T) {

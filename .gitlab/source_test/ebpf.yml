@@ -16,6 +16,7 @@
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/http.c $CI_PROJECT_DIR/.tmp/binary-ebpf/http.c
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/oom-kill.c $CI_PROJECT_DIR/.tmp/binary-ebpf/oom-kill.c
@@ -65,15 +66,6 @@ tests_ebpf_x64:
     - inv -e security-agent.build-functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite --build-flags "-race"
     # Compile runtime security stress tests to be executed in kitchen tests
     - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
-    # Compile main version for comparison, uncomment following lines when merged
-    # - git checkout -f main
-    # - git pull
-    # - inv -e deps
-    # - inv -e system-probe.build --bundle-ebpf --incremental-build
-    # - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
-    # - git reset --hard
-    # - git checkout -
-
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf

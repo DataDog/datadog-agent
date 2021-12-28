@@ -8,7 +8,6 @@ package local
 import (
 	"context"
 	"fmt"
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -75,7 +74,6 @@ func TestInit(t *testing.T) {
 	tagger.Init()
 	defer tagger.Stop()
 
-	assert.Equal(t, 2, len(tagger.fetchers))
 	assert.Equal(t, 1, len(tagger.streamers))
 	assert.Equal(t, 1, len(tagger.pullers))
 
@@ -86,29 +84,6 @@ func TestInit(t *testing.T) {
 	puller := tagger.pullers["pull"].(*DummyCollector)
 	assert.NotNil(t, puller)
 	puller.AssertCalled(t, "Detect", mock.Anything)
-}
-
-func TestFetchAllMiss(t *testing.T) {
-	catalog := collectors.Catalog{"stream": NewDummyStreamer, "pull": NewDummyPuller}
-	tagger := NewTagger(catalog)
-	tagger.Init()
-	defer tagger.Stop()
-
-	streamer := tagger.streamers["stream"].(*DummyCollector)
-	assert.NotNil(t, streamer)
-	streamer.On("Fetch", "entity_name").Return([]string{"low1"}, []string{}, []string{}, nil)
-
-	puller := tagger.pullers["pull"].(*DummyCollector)
-	assert.NotNil(t, puller)
-	puller.On("Fetch", "entity_name").Return([]string{"low2"}, []string{}, []string{}, nil)
-
-	tags, err := tagger.Tag("entity_name", collectors.LowCardinality)
-	assert.NoError(t, err)
-	sort.Strings(tags)
-	assert.Equal(t, []string{"low1", "low2"}, tags)
-
-	streamer.AssertCalled(t, "Fetch", "entity_name")
-	puller.AssertCalled(t, "Fetch", "entity_name")
 }
 
 func TestTagBuilder(t *testing.T) {
@@ -180,39 +155,6 @@ func TestFetchAllCached(t *testing.T) {
 	puller.AssertNotCalled(t, "Fetch", "entity_name")
 }
 
-func TestFetchOneCached(t *testing.T) {
-	catalog := collectors.Catalog{
-		"stream": NewDummyStreamer,
-		"pull":   NewDummyPuller,
-	}
-	tagger := NewTagger(catalog)
-	tagger.Init()
-	defer tagger.Stop()
-
-	tagger.store.ProcessTagInfo([]*collectors.TagInfo{
-		{
-			Entity:      "entity_name",
-			Source:      "stream",
-			LowCardTags: []string{"low1"},
-		},
-	})
-
-	streamer := tagger.streamers["stream"].(*DummyCollector)
-	assert.NotNil(t, streamer)
-	streamer.On("Fetch", "entity_name").Return([]string{"low1"}, []string{}, []string{}, nil)
-
-	puller := tagger.pullers["pull"].(*DummyCollector)
-	assert.NotNil(t, puller)
-	puller.On("Fetch", "entity_name").Return([]string{"low2"}, []string{}, []string{}, nil)
-
-	tags, err := tagger.Tag("entity_name", collectors.HighCardinality)
-	assert.NoError(t, err)
-	assert.ElementsMatch(t, []string{"low1", "low2"}, tags)
-
-	streamer.AssertNotCalled(t, "Fetch", "entity_name")
-	puller.AssertCalled(t, "Fetch", "entity_name")
-}
-
 func TestRetryCollector(t *testing.T) {
 	ctx := context.Background()
 
@@ -232,7 +174,6 @@ func TestRetryCollector(t *testing.T) {
 	defer tagger.Stop()
 
 	assert.Len(t, tagger.candidates, 1)
-	assert.Len(t, tagger.fetchers, 0)
 	c.AssertNumberOfCalls(t, "Detect", 1)
 
 	// Keep trying
@@ -240,7 +181,6 @@ func TestRetryCollector(t *testing.T) {
 		c.On("Detect", mock.Anything).Return(collectors.NoCollection, retryError).Once()
 		tagger.startCollectors(ctx)
 		assert.Len(t, tagger.candidates, 1)
-		assert.Len(t, tagger.fetchers, 0)
 	}
 	c.AssertNumberOfCalls(t, "Detect", 11)
 
@@ -248,7 +188,6 @@ func TestRetryCollector(t *testing.T) {
 	c.On("Detect", mock.Anything).Return(collectors.PullCollection, nil)
 	tagger.startCollectors(ctx)
 	assert.Len(t, tagger.candidates, 0)
-	assert.Len(t, tagger.fetchers, 1)
 	c.AssertNumberOfCalls(t, "Detect", 12)
 
 	// Don't try again
@@ -261,7 +200,7 @@ func TestErrNotFound(t *testing.T) {
 	c.On("Detect", mock.Anything).Return(collectors.PullCollection, nil)
 
 	catalog := collectors.Catalog{
-		"fetcher": func() collectors.Collector { return c },
+		"puller": func() collectors.Collector { return c },
 	}
 	tagger := NewTagger(catalog)
 	tagger.Init()
@@ -271,13 +210,11 @@ func TestErrNotFound(t *testing.T) {
 	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, errors.NewNotFound("")).Once()
 	_, err := tagger.Tag("invalid", collectors.HighCardinality)
 	assert.NoError(t, err)
-	c.AssertNumberOfCalls(t, "Fetch", 1)
 
 	// Fetch will not be called again
 	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, errors.NewNotFound("")).Once()
 	_, err = tagger.Tag("invalid", collectors.HighCardinality)
 	assert.NoError(t, err)
-	c.AssertNumberOfCalls(t, "Fetch", 1)
 }
 
 func TestSafeCache(t *testing.T) {

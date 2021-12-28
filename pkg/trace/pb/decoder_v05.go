@@ -1,8 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package pb
 
 import (
 	"errors"
 	"fmt"
+
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -153,6 +159,7 @@ func (z *Span) UnmarshalMsgDictionary(bts []byte, dict []string) ([]byte, error)
 			delete(z.Meta, key)
 		}
 	}
+	hook, hookok := MetaHook()
 	for sz > 0 {
 		sz--
 		var key, val string
@@ -164,7 +171,11 @@ func (z *Span) UnmarshalMsgDictionary(bts []byte, dict []string) ([]byte, error)
 		if err != nil {
 			return bts, err
 		}
-		z.Meta[key] = val
+		if hookok {
+			z.Meta[key] = hook(key, val)
+		} else {
+			z.Meta[key] = val
+		}
 	}
 	// Metrics (10)
 	sz, bts, err = msgp.ReadMapHeaderBytes(bts)

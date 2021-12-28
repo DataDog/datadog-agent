@@ -1,10 +1,9 @@
 import argparse
 import json
-import os
 from dataclasses import dataclass
 from typing import List
 
-import jinja2
+import common
 
 
 @dataclass
@@ -39,16 +38,6 @@ def remove_schema_props(node):
         return {key: remove_schema_props(item) for key, item in node.items() if key != "$schema"}
     else:
         return node
-
-
-def fill_template(event_schema, parameters, definitions, template_name):
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), "templates")),
-        autoescape=jinja2.select_autoescape(),
-        trim_blocks=True,
-    )
-    templ = env.get_template(template_name)
-    return templ.render(event_schema=event_schema, parameters=parameters, definitions=definitions)
 
 
 def presentable_top_node(top_node):
@@ -101,5 +90,10 @@ if __name__ == "__main__":
     presentable_json = presentable_top_node(json_top_node)
 
     output_file = open(args.output, "w")
-    print(fill_template(presentable_json, parameters, definitions, "backend.md"), file=output_file)
+    print(
+        common.fill_template(
+            "backend.md", event_schema=presentable_json, parameters=parameters, definitions=definitions
+        ),
+        file=output_file,
+    )
     output_file.close()

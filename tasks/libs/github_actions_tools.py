@@ -26,10 +26,11 @@ def create_or_refresh_macos_build_github_workflows(github_workflows=None):
 
 
 def trigger_macos_workflow(
+    workflow="macos.yaml",
     github_action_ref="master",
     datadog_agent_ref=DEFAULT_BRANCH,
-    release_version="nightly-a7",
-    major_version="7",
+    release_version=None,
+    major_version=None,
     python_runtimes="3",
 ):
     """
@@ -50,8 +51,8 @@ def trigger_macos_workflow(
         inputs["python_runtimes"] = python_runtimes
 
     print(
-        "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(
-            github_action_ref, "\n".join(["  - {}: {}".format(k, inputs[k]) for k in inputs])
+        "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(  # noqa: FS002
+            github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
         )
     )
 
@@ -60,7 +61,7 @@ def trigger_macos_workflow(
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
-    create_or_refresh_macos_build_github_workflows().trigger_workflow("macos.yaml", github_action_ref, inputs)
+    create_or_refresh_macos_build_github_workflows().trigger_workflow(workflow, github_action_ref, inputs)
 
     # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
     # that started after we triggered the workflow.
@@ -68,8 +69,8 @@ def trigger_macos_workflow(
     # same time, given that these two jobs will target different github_action_ref on RCs / releases.
     MAX_RETRIES = 10  # Retry up to 10 times
     for i in range(MAX_RETRIES):
-        print("Fetching triggered workflow (try {}/{})".format(i + 1, MAX_RETRIES))
-        run = get_macos_workflow_run_for_ref(github_action_ref)
+        print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
+        run = get_macos_workflow_run_for_ref(workflow, github_action_ref)
         if run is not None and run.get("created_at", datetime.fromtimestamp(0).strftime("%Y-%m-%dT%H:%M:%SZ")) >= now:
             return run.get("id")
 
@@ -80,11 +81,11 @@ def trigger_macos_workflow(
     raise Exit(code=1)
 
 
-def get_macos_workflow_run_for_ref(github_action_ref="master"):
+def get_macos_workflow_run_for_ref(workflow="macos.yaml", github_action_ref="master"):
     """
     Get the latest workflow for the given ref.
     """
-    return create_or_refresh_macos_build_github_workflows().latest_workflow_run_for_ref("macos.yaml", github_action_ref)
+    return create_or_refresh_macos_build_github_workflows().latest_workflow_run_for_ref(workflow, github_action_ref)
 
 
 def follow_workflow_run(run_id):
@@ -114,7 +115,7 @@ def follow_workflow_run(run_id):
             run = github_workflows.workflow_run(run_id)
         except GithubException:
             failures += 1
-            print("Workflow run not found, retrying in 15 seconds (failure {}/{})".format(failures, MAX_FAILURES))
+            print(f"Workflow run not found, retrying in 15 seconds (failure {failures}/{MAX_FAILURES})")
             if failures == MAX_FAILURES:
                 raise Exit(code=1)
             sleep(15)
@@ -128,10 +129,10 @@ def follow_workflow_run(run_id):
                 print(color_message("Workflow run succeeded", "green"))
                 return
             else:
-                print(color_message("Workflow run ended with state: {}".format(conclusion), "red"))
+                print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
                 raise Exit(code=1)
         else:
-            print("Workflow still running... ({}m)".format(minutes))
+            print(f"Workflow still running... ({minutes}m)")
             # For some unknown reason, in Gitlab these lines do not get flushed, leading to not being
             # able to see where's the job at in the logs. The following line forces the flush.
             sys.stdout.flush()
@@ -144,7 +145,7 @@ def download_artifacts(run_id, destination="."):
     """
     Download all artifacts for a given job in the specified location.
     """
-    print(color_message("Downloading artifacts for run {} to {}".format(run_id, destination), "blue"))
+    print(color_message(f"Downloading artifacts for run {run_id} to {destination}", "blue"))
 
     github_workflows = create_or_refresh_macos_build_github_workflows()
     run_artifacts = github_workflows.workflow_run_artifacts(run_id)
