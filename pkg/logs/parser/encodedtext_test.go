@@ -50,3 +50,12 @@ func TestUTF16BEParserHandleMessages(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "Foo", string(msg))
 }
+
+func TestSHIFTJISParserHandleMessages(t *testing.T) {
+	parser := NewEncodedText(SHIFTJIS)
+	testMsg := []byte{0x93, 0xfa, 0x96, 0x7b}
+	msg, _, _, _, err := parser.Parse(testMsg)
+	assert.Nil(t, err)
+	assert.Equal(t, "日本", string(msg))
+}
+

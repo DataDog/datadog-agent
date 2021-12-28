@@ -935,6 +935,7 @@ core,golang.org/x/text/encoding,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/encoding/internal,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/encoding/internal/identifier,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/encoding/unicode,BSD-3-Clause,The Go Authors
+core,golang.org/x/text/encoding/japanese,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/internal/utf8internal,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/runes,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/secure/bidirule,BSD-3-Clause,The Go Authors
