@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"strconv"
-	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -19,11 +17,9 @@ var (
 	variableRegex = regexp.MustCompile(`\${[^}]*}`)
 )
 
-// VariableValue describes secl variable
+// VariableValue describes a SECL variable value
 type VariableValue interface {
 	GetEvaluator() interface{}
-	IntFnc(ctx *Context) int
-	StringFnc(ctx *Context) string
 }
 
 // MutableVariable is the interface implemented by modifiable variables
@@ -31,29 +27,24 @@ type MutableVariable interface {
 	Set(ctx *Context, value interface{}) error
 }
 
-// IntVariable describes an integer variable
-type IntVariable struct {
-	intFnc func(ctx *Context) int
+// Variable describes a SECL variable
+type Variable struct {
 	setFnc func(ctx *Context, value interface{}) error
 }
 
-// IntFnc returns the variable value as an integer
-func (i *IntVariable) IntFnc(ctx *Context) int {
-	return i.intFnc(ctx)
-}
-
-// StringFnc returns the variable value as a string
-func (i *IntVariable) StringFnc(ctx *Context) string {
-	return strconv.FormatInt(int64(i.intFnc(ctx)), 10)
-}
-
 // Set the variable with the specified value
-func (i *IntVariable) Set(ctx *Context, value interface{}) error {
-	if i.setFnc == nil {
+func (v *Variable) Set(ctx *Context, value interface{}) error {
+	if v.setFnc == nil {
 		return errors.New("variable is not mutable")
 	}
 
-	return i.setFnc(ctx, value)
+	return v.setFnc(ctx, value)
+}
+
+// IntVariable describes an integer variable
+type IntVariable struct {
+	Variable
+	intFnc func(ctx *Context) int
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -67,33 +58,18 @@ func (i *IntVariable) GetEvaluator() interface{} {
 
 // NewIntVariable returns a new integer variable
 func NewIntVariable(intFnc func(ctx *Context) int, setFnc func(ctx *Context, value interface{}) error) *IntVariable {
-	return &IntVariable{intFnc: intFnc, setFnc: setFnc}
+	return &IntVariable{
+		Variable: Variable{
+			setFnc: setFnc,
+		},
+		intFnc: intFnc,
+	}
 }
 
 // StringVariable describes a string variable
 type StringVariable struct {
+	Variable
 	strFnc func(ctx *Context) string
-	setFnc func(ctx *Context, value interface{}) error
-}
-
-// IntFnc returns the variable value as an integer
-func (s *StringVariable) IntFnc(ctx *Context) int {
-	i, _ := strconv.Atoi(s.strFnc(ctx))
-	return i
-}
-
-// StringFnc returns the variable value as a string
-func (s *StringVariable) StringFnc(ctx *Context) string {
-	return s.strFnc(ctx)
-}
-
-// Set the variable with the specified value
-func (s *StringVariable) Set(ctx *Context, value interface{}) error {
-	if s.setFnc == nil {
-		return errors.New("variable is not mutable")
-	}
-
-	return s.setFnc(ctx, value)
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -107,35 +83,18 @@ func (s *StringVariable) GetEvaluator() interface{} {
 
 // NewStringVariable returns a new string variable
 func NewStringVariable(strFnc func(ctx *Context) string, setFnc func(ctx *Context, value interface{}) error) *StringVariable {
-	return &StringVariable{strFnc: strFnc, setFnc: setFnc}
+	return &StringVariable{
+		strFnc: strFnc,
+		Variable: Variable{
+			setFnc: setFnc,
+		},
+	}
 }
 
 // BoolVariable describes a boolean variable
 type BoolVariable struct {
+	Variable
 	boolFnc func(ctx *Context) bool
-	setFnc  func(ctx *Context, value interface{}) error
-}
-
-// IntFnc returns the variable value as an integer
-func (b *BoolVariable) IntFnc(ctx *Context) int {
-	if b.boolFnc(ctx) {
-		return 1
-	}
-	return 0
-}
-
-// StringFnc returns the variable value as a string
-func (b *BoolVariable) StringFnc(ctx *Context) string {
-	return strconv.FormatBool(b.boolFnc(ctx))
-}
-
-// Set the variable with the specified value
-func (b *BoolVariable) Set(ctx *Context, value interface{}) error {
-	if b.setFnc == nil {
-		return errors.New("variable is not mutable")
-	}
-
-	return b.setFnc(ctx, value)
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -149,22 +108,17 @@ func (b *BoolVariable) GetEvaluator() interface{} {
 
 // NewBoolVariable returns a new boolean variable
 func NewBoolVariable(boolFnc func(ctx *Context) bool, setFnc func(ctx *Context, value interface{}) error) *BoolVariable {
-	return &BoolVariable{boolFnc: boolFnc, setFnc: setFnc}
+	return &BoolVariable{
+		boolFnc: boolFnc,
+		Variable: Variable{
+			setFnc: setFnc,
+		},
+	}
 }
 
 // MutableIntVariable describes a mutable integer variable
 type MutableIntVariable struct {
 	Value int
-}
-
-// IntFnc returns the variable value as an integer
-func (m *MutableIntVariable) IntFnc(ctx *Context) int {
-	return m.Value
-}
-
-// StringFnc returns the variable value as a string
-func (m *MutableIntVariable) StringFnc(ctx *Context) string {
-	return strconv.FormatInt(int64(m.Value), 10)
 }
 
 // Set the variable with the specified value
@@ -192,25 +146,6 @@ type MutableBoolVariable struct {
 	Value bool
 }
 
-// IntFnc returns the variable value as an integer
-func (m *MutableBoolVariable) IntFnc(ctx *Context) int {
-	if m.Value {
-		return 1
-	}
-	return 0
-}
-
-// StringFnc returns the variable value as a string
-func (m *MutableBoolVariable) StringFnc(ctx *Context) string {
-	return strconv.FormatBool(m.Value)
-}
-
-// Set the variable with the specified value
-func (m *MutableBoolVariable) Set(ctx *Context, value interface{}) error {
-	m.Value = value.(bool)
-	return nil
-}
-
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableBoolVariable) GetEvaluator() interface{} {
 	return &BoolEvaluator{
@@ -218,6 +153,12 @@ func (m *MutableBoolVariable) GetEvaluator() interface{} {
 			return m.Value
 		},
 	}
+}
+
+// Set the variable with the specified value
+func (m *MutableBoolVariable) Set(ctx *Context, value interface{}) error {
+	m.Value = value.(bool)
+	return nil
 }
 
 // NewMutableBoolVariable returns a new mutable boolean variable
@@ -230,23 +171,6 @@ type MutableStringVariable struct {
 	Value string
 }
 
-// IntFnc returns the variable value as an integer
-func (m *MutableStringVariable) IntFnc(ctx *Context) int {
-	i, _ := strconv.Atoi(m.Value)
-	return i
-}
-
-// StringFnc returns the variable value as a string
-func (m *MutableStringVariable) StringFnc(ctx *Context) string {
-	return m.Value
-}
-
-// Set the variable with the specified value
-func (m *MutableStringVariable) Set(ctx *Context, value interface{}) error {
-	m.Value = value.(string)
-	return nil
-}
-
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableStringVariable) GetEvaluator() interface{} {
 	return &StringEvaluator{
@@ -254,6 +178,12 @@ func (m *MutableStringVariable) GetEvaluator() interface{} {
 			return m.Value
 		},
 	}
+}
+
+// Set the variable with the specified value
+func (m *MutableStringVariable) Set(ctx *Context, value interface{}) error {
+	m.Value = value.(string)
+	return nil
 }
 
 // NewMutableStringVariable returns a new mutable string variable
@@ -264,16 +194,6 @@ func NewMutableStringVariable() *MutableStringVariable {
 // MutableStringArrayVariable describes a mutable string array variable
 type MutableStringArrayVariable struct {
 	Values []string
-}
-
-// IntFnc returns the variable value as an integer
-func (m *MutableStringArrayVariable) IntFnc(ctx *Context) int {
-	return 0
-}
-
-// StringFnc returns the variable value as a string
-func (m *MutableStringArrayVariable) StringFnc(ctx *Context) string {
-	return strings.Join(m.Values, " ")
 }
 
 // Set the variable with the specified value
@@ -299,16 +219,6 @@ func NewMutableStringArrayVariable() *MutableStringArrayVariable {
 // MutableIntArrayVariable describes a mutable integer array variable
 type MutableIntArrayVariable struct {
 	Values []int
-}
-
-// IntFnc returns the variable value as an integer
-func (m *MutableIntArrayVariable) IntFnc(ctx *Context) int {
-	return 0
-}
-
-// StringFnc returns the variable value as a string
-func (m *MutableIntArrayVariable) StringFnc(ctx *Context) string {
-	return ""
 }
 
 // Set the variable with the specified value

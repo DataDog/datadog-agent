@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
@@ -199,11 +200,20 @@ func intEvaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (i
 		return nil, pos, NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
 	}
 
-	return &IntEvaluator{
-		EvalFnc: func(ctx *Context) int {
-			return value.IntFnc(ctx)
-		},
-	}, pos, nil
+	evaluator := value.GetEvaluator()
+	switch evaluator := evaluator.(type) {
+	case *IntEvaluator:
+		return evaluator, pos, nil
+	case *StringEvaluator:
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				i, _ := strconv.Atoi(evaluator.EvalFnc(ctx))
+				return i
+			},
+		}, pos, nil
+	default:
+		return nil, pos, NewError(pos, fmt.Sprintf("variable type not supported '%s'", varname))
+	}
 }
 
 func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
@@ -216,11 +226,18 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 				return NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
 			}
 
-			evaluators = append(evaluators, &StringEvaluator{
-				EvalFnc: func(ctx *Context) string {
-					return value.StringFnc(ctx)
-				},
-			})
+			evaluator := value.GetEvaluator()
+			switch evaluator := evaluator.(type) {
+			case *StringEvaluator:
+				evaluators = append(evaluators, evaluator)
+			case *IntEvaluator:
+				evaluators = append(evaluators, &StringEvaluator{
+					EvalFnc: func(ctx *Context) string {
+						return strconv.FormatInt(int64(evaluator.EvalFnc(ctx)), 10)
+					}})
+			default:
+				return NewError(pos, fmt.Sprintf("variable type not supported '%s'", varname))
+			}
 		} else {
 			evaluators = append(evaluators, &StringEvaluator{Value: sub})
 		}

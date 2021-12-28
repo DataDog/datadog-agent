@@ -104,6 +104,7 @@ type ActionDefinition struct {
 	Set *SetDefinition `yaml:"set"`
 }
 
+// Check returns an error if the action in invalid
 func (a *ActionDefinition) Check() error {
 	if a.Set == nil {
 		return errors.New("missing 'set' section in action")
