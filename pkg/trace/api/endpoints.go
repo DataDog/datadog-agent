@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 )
 
 // endpoint specifies an API endpoint definition.
@@ -81,8 +82,8 @@ var endpoints = []endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v05, r.handleTraces) },
 	},
 	{
-		Pattern: "/v0.6/traces",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v06, r.handleTraces) },
+		Pattern: "/v0.7/traces",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v07, r.handleTraces) },
 	},
 	{
 		Pattern: "/profiling/v1/input",
@@ -110,5 +111,10 @@ var endpoints = []endpoint{
 	{
 		Pattern: "/debugger/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
+	},
+	{
+		Pattern:   "/v0.6/config",
+		Handler:   func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleConfig) },
+		IsEnabled: func(_ *config.AgentConfig) bool { return features.Has("config_endpoint") },
 	},
 }
