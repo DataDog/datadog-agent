@@ -255,15 +255,6 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	}
 	// memory will be freed by caller
 	return TrackedCString(obfuscatedQuery.Query)
-
-	out, err := json.Marshal(obfuscatedQuery)
-	if err != nil {
-		// memory will be freed by caller
-		*errResult = TrackedCString(err.Error())
-		return nil
-	}
-	// memory will be freed by caller
-	return TrackedCString(string(out))
 }
 
 // ObfuscateSQLExecPlan obfuscates the provided json query execution plan, writing the error into errResult if the
