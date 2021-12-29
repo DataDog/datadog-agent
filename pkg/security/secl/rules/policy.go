@@ -188,7 +188,7 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 	for _, rule := range allRules {
 		for _, action := range rule.Actions {
 			if err := action.Check(); err != nil {
-				result = multierror.Append(result, err)
+				result = multierror.Append(result, fmt.Errorf("invalid action: %w", err))
 			}
 
 			if action.Set != nil {
@@ -207,25 +207,6 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 					continue
 				}
 
-				switch value := action.Set.Value.(type) {
-				case []interface{}:
-					if len(value) == 0 {
-						result = multierror.Append(result, fmt.Errorf("unable to infer item type for '%s'", action.Set.Name))
-						continue
-					}
-
-					switch arrayType := value[0].(type) {
-					case int:
-						action.Set.Value = cast.ToIntSlice(value)
-					case string:
-						action.Set.Value = cast.ToStringSlice(value)
-					default:
-						result = multierror.Append(result, fmt.Errorf("unsupported array item type '%s' for array '%s'", reflect.TypeOf(arrayType), action.Set.Name))
-						continue
-					}
-				}
-
-				var variable eval.VariableValue
 				var scope StateScope
 
 				if action.Set.Scope != "" {
@@ -237,7 +218,50 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 					scope = ruleSet
 				}
 
-				variable, err = scope.GetVariable(action.Set.Name, action.Set.Value)
+				var variable eval.VariableValue
+				var variableValue interface{}
+
+				if action.Set.Value != nil {
+					switch value := action.Set.Value.(type) {
+					case []interface{}:
+						if len(value) == 0 {
+							result = multierror.Append(result, fmt.Errorf("unable to infer item type for '%s'", action.Set.Name))
+							continue
+						}
+
+						switch arrayType := value[0].(type) {
+						case int:
+							action.Set.Value = cast.ToIntSlice(value)
+						case string:
+							action.Set.Value = cast.ToStringSlice(value)
+						default:
+							result = multierror.Append(result, fmt.Errorf("unsupported array item type '%s' for array '%s'", reflect.TypeOf(arrayType), action.Set.Name))
+							continue
+						}
+					}
+
+					variableValue = action.Set.Value
+				} else if action.Set.Field != "" {
+					kind, err := ruleSet.eventCtor().GetFieldType(action.Set.Field)
+					if err != nil {
+						result = multierror.Append(result, fmt.Errorf("failed to get field '%s': %w", action.Set.Field, err))
+						continue
+					}
+
+					switch kind {
+					case reflect.String:
+						variableValue = ""
+					case reflect.Int:
+						variableValue = 0
+					case reflect.Bool:
+						variableValue = false
+					default:
+						result = multierror.Append(result, fmt.Errorf("unsupported field type '%s' for variable '%s'", kind, action.Set.Name))
+						continue
+					}
+				}
+
+				variable, err = scope.GetVariable(action.Set.Name, variableValue)
 				if err != nil {
 					result = multierror.Append(result, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(action.Set.Value), action.Set.Name, err))
 					continue

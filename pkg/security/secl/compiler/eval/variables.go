@@ -116,6 +116,52 @@ func NewBoolVariable(boolFnc func(ctx *Context) bool, setFnc func(ctx *Context, 
 	}
 }
 
+// StringArrayVariable describes a string array variable
+type StringArrayVariable struct {
+	Variable
+	strFnc func(ctx *Context) []string
+}
+
+// GetEvaluator returns the variable SECL evaluator
+func (s *StringArrayVariable) GetEvaluator() interface{} {
+	return &StringArrayEvaluator{
+		EvalFnc: s.strFnc,
+	}
+}
+
+// NewStringArrayVariable returns a new string array variable
+func NewStringArrayVariable(strFnc func(ctx *Context) []string, setFnc func(ctx *Context, value interface{}) error) *StringArrayVariable {
+	return &StringArrayVariable{
+		strFnc: strFnc,
+		Variable: Variable{
+			setFnc: setFnc,
+		},
+	}
+}
+
+// IntArrayVariable describes an integer array variable
+type IntArrayVariable struct {
+	Variable
+	intFnc func(ctx *Context) []int
+}
+
+// GetEvaluator returns the variable SECL evaluator
+func (s *IntArrayVariable) GetEvaluator() interface{} {
+	return &IntArrayEvaluator{
+		EvalFnc: s.intFnc,
+	}
+}
+
+// NewIntArrayVariable returns a new integer array variable
+func NewIntArrayVariable(intFnc func(ctx *Context) []int, setFnc func(ctx *Context, value interface{}) error) *IntArrayVariable {
+	return &IntArrayVariable{
+		intFnc: intFnc,
+		Variable: Variable{
+			setFnc: setFnc,
+		},
+	}
+}
+
 // MutableIntVariable describes a mutable integer variable
 type MutableIntVariable struct {
 	Value int

@@ -7,6 +7,7 @@ package rules
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
@@ -114,8 +115,8 @@ func (a *ActionDefinition) Check() error {
 		return errors.New("action name is empty")
 	}
 
-	if a.Set.Value == nil {
-		return errors.New("empty value not allowed")
+	if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
+		return errors.New("either 'value' or 'field' must be specified")
 	}
 
 	return nil
@@ -126,9 +127,11 @@ type Scope string
 
 // SetDefinition describes the 'set' section of a rule action
 type SetDefinition struct {
-	Name  string      `yaml:"name"`
-	Value interface{} `yaml:"value"`
-	Scope Scope       `yaml:"scope"`
+	Name   string      `yaml:"name"`
+	Value  interface{} `yaml:"value"`
+	Field  string      `yaml:"field"`
+	Append bool        `yaml:"bool"`
+	Scope  Scope       `yaml:"scope"`
 }
 
 // Rule describes a rule of a ruleset
@@ -450,7 +453,61 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 			}
 
 			if mutable, ok := variable.(eval.MutableVariable); ok {
-				if err := mutable.Set(ctx, action.Set.Value); err != nil {
+				value := action.Set.Value
+				if value == nil {
+					// TODO(lebauce): cache evaluators
+					evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
+					if err != nil {
+						return err
+					}
+
+					value = evaluator.Eval(ctx)
+				}
+
+				if action.Set.Append {
+					// TODO(lebauce): move to variables.go
+					switch value := value.(type) {
+					case string:
+						switch evaluator := variable.GetEvaluator().(type) {
+						case *eval.StringEvaluator:
+							if err := mutable.Set(ctx, evaluator.GetValue(ctx)+value); err != nil {
+								return err
+							}
+						default:
+							return fmt.Errorf("cannot append string array to string variable %s", name)
+						}
+					case []string:
+						switch evaluator := variable.GetEvaluator().(type) {
+						case *eval.StringArrayEvaluator:
+							if err := mutable.Set(ctx, append(evaluator.EvalFnc(ctx), value...)); err != nil {
+								return err
+							}
+						default:
+							return fmt.Errorf("cannot append string array to string variable %s", name)
+						}
+					case int:
+						switch evaluator := variable.GetEvaluator().(type) {
+						case *eval.IntEvaluator:
+							if err := mutable.Set(ctx, evaluator.EvalFnc(ctx)+value); err != nil {
+								return err
+							}
+						default:
+							return fmt.Errorf("cannot append '%s' to int variable %s", reflect.TypeOf(evaluator), name)
+						}
+					case []int:
+						switch evaluator := variable.GetEvaluator().(type) {
+						case *eval.IntArrayEvaluator:
+							if err := mutable.Set(ctx, append(evaluator.EvalFnc(ctx), value...)); err != nil {
+								return err
+							}
+						default:
+							return fmt.Errorf("cannot append '%s' to int array variable %s", reflect.TypeOf(evaluator), name)
+						}
+					default:
+						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
+					}
+				}
+				if err := mutable.Set(ctx, value); err != nil {
 					return err
 				}
 			}

@@ -110,7 +110,11 @@ rules:
 {{- if $Action.Set}}
       - set:
           name: {{$Action.Set.Name}}
+		  {{- if $Action.Set.Value}}
           value: {{$Action.Set.Value}}
+          {{- else if $Action.Set.Field}}
+          field: {{$Action.Set.Field}}
+          {{- end}}
           scope: {{$Action.Set.Scope}}
 {{- end}}
 {{- end}}

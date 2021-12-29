@@ -194,28 +194,6 @@ func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (inte
 	return value.GetEvaluator(), pos, nil
 }
 
-func intEvaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
-	value, exists := opts.Variables[varname]
-	if !exists {
-		return nil, pos, NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
-	}
-
-	evaluator := value.GetEvaluator()
-	switch evaluator := evaluator.(type) {
-	case *IntEvaluator:
-		return evaluator, pos, nil
-	case *StringEvaluator:
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
-				i, _ := strconv.Atoi(evaluator.EvalFnc(ctx))
-				return i
-			},
-		}, pos, nil
-	default:
-		return nil, pos, NewError(pos, fmt.Sprintf("variable type not supported '%s'", varname))
-	}
-}
-
 func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
 	var evaluators []*StringEvaluator
 
