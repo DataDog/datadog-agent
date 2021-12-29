@@ -116,6 +116,9 @@ type SQLConfig struct {
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits"`
 
+	// ReturnJSONMetadata specifies whether the python obfuscator stub will return metadata as JSON.
+	ReturnJSONMetadata bool `json:"return_json_metadata"`
+
 	// KeepSQLAlias reports whether SQL aliases ("AS") should be truncated.
 	KeepSQLAlias bool
 

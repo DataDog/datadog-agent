@@ -243,6 +243,19 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		*errResult = TrackedCString(err.Error())
 		return nil
 	}
+	if sqlOpts.ReturnJSONMetadata {
+		out, err := json.Marshal(obfuscatedQuery)
+		if err != nil {
+			// memory will be freed by caller
+			*errResult = TrackedCString(err.Error())
+			return nil
+		}
+		// memory will be freed by caller
+		return TrackedCString(string(out))
+	}
+	// memory will be freed by caller
+	return TrackedCString(obfuscatedQuery.Query)
+
 	out, err := json.Marshal(obfuscatedQuery)
 	if err != nil {
 		// memory will be freed by caller

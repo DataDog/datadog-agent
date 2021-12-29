@@ -44,6 +44,8 @@ func easyjson4ef41860DecodeGithubComDataDogDatadogAgentPkgObfuscate(in *jlexer.L
 			out.CollectComments = bool(in.Bool())
 		case "replace_digits":
 			out.ReplaceDigits = bool(in.Bool())
+		case "return_json_metadata":
+			out.ReturnJSONMetadata = bool(in.Bool())
 		case "KeepSQLAlias":
 			out.KeepSQLAlias = bool(in.Bool())
 		case "DollarQuotedFunc":
@@ -83,6 +85,11 @@ func easyjson4ef41860EncodeGithubComDataDogDatadogAgentPkgObfuscate(out *jwriter
 		const prefix string = ",\"replace_digits\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.ReplaceDigits))
+	}
+	{
+		const prefix string = ",\"return_json_metadata\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.ReturnJSONMetadata))
 	}
 	{
 		const prefix string = ",\"KeepSQLAlias\":"
