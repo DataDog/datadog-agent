@@ -14,7 +14,7 @@ func TestRemoteConfigKey(t *testing.T) {
 		err    bool
 		output *msgpgo.RemoteConfigKey
 	}{
-		{input: generateKey(t, 2, "datadoghq.com", "58d58c60b8ac337293ce2ca6b28b19eb"), output: &msgpgo.RemoteConfigKey{AppKey: "58d58c60b8ac337293ce2ca6b28b19eb", OrgId: 2, Datacenter: "datadoghq.com"}},
+		{input: generateKey(t, 2, "datadoghq.com", "58d58c60b8ac337293ce2ca6b28b19eb"), output: &msgpgo.RemoteConfigKey{AppKey: "58d58c60b8ac337293ce2ca6b28b19eb", OrgID: 2, Datacenter: "datadoghq.com"}},
 		{input: generateKey(t, 2, "datadoghq.com", ""), err: true},
 		{input: generateKey(t, 2, "", "app_Key"), err: true},
 		{input: generateKey(t, 0, "datadoghq.com", "app_Key"), err: true},
@@ -35,7 +35,7 @@ func TestRemoteConfigKey(t *testing.T) {
 func generateKey(t *testing.T, orgID int64, datacenter string, appKey string) string {
 	key := msgpgo.RemoteConfigKey{
 		AppKey:     appKey,
-		OrgId:      orgID,
+		OrgID:      orgID,
 		Datacenter: datacenter,
 	}
 	rawKey, err := key.MarshalMsg(nil)

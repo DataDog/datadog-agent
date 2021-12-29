@@ -38,7 +38,7 @@ func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error)
 	if err != nil {
 		return nil, err
 	}
-	if key.AppKey == "" || key.Datacenter == "" || key.OrgId == 0 {
+	if key.AppKey == "" || key.Datacenter == "" || key.OrgID == 0 {
 		return nil, fmt.Errorf("invalid remote config key")
 	}
 	return &key, nil

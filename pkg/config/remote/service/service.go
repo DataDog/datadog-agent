@@ -79,8 +79,8 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgId)
-	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgId)
+	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgID)
+	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID)
 	if err != nil {
 		return nil, err
 	}

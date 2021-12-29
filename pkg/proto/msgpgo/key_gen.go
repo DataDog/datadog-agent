@@ -31,9 +31,9 @@ func (z *RemoteConfigKey) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 		case "org":
-			z.OrgId, err = dc.ReadInt64()
+			z.OrgID, err = dc.ReadInt64()
 			if err != nil {
-				err = msgp.WrapError(err, "OrgId")
+				err = msgp.WrapError(err, "OrgID")
 				return
 			}
 		case "dc":
@@ -71,9 +71,9 @@ func (z RemoteConfigKey) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteInt64(z.OrgId)
+	err = en.WriteInt64(z.OrgID)
 	if err != nil {
-		err = msgp.WrapError(err, "OrgId")
+		err = msgp.WrapError(err, "OrgID")
 		return
 	}
 	// write "dc"
@@ -98,7 +98,7 @@ func (z RemoteConfigKey) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendString(o, z.AppKey)
 	// string "org"
 	o = append(o, 0xa3, 0x6f, 0x72, 0x67)
-	o = msgp.AppendInt64(o, z.OrgId)
+	o = msgp.AppendInt64(o, z.OrgID)
 	// string "dc"
 	o = append(o, 0xa2, 0x64, 0x63)
 	o = msgp.AppendString(o, z.Datacenter)
@@ -130,9 +130,9 @@ func (z *RemoteConfigKey) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "org":
-			z.OrgId, bts, err = msgp.ReadInt64Bytes(bts)
+			z.OrgID, bts, err = msgp.ReadInt64Bytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "OrgId")
+				err = msgp.WrapError(err, "OrgID")
 				return
 			}
 		case "dc":
