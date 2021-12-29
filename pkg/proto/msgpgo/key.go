@@ -1,4 +1,4 @@
-package pbgo
+package msgpgo
 
 type RemoteConfigKey struct {
 	AppKey     string `msgpack:"key"`

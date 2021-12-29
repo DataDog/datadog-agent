@@ -10,8 +10,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/gogo/protobuf/proto"
+	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	"go.etcd.io/bbolt"
 )
 
@@ -28,14 +27,14 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 	return db, nil
 }
 
-func parseRemoteConfigKey(serializedKey string) (*pbgo.RemoteConfigKey, error) {
+func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error) {
 	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
 	rawKey, err := encoding.DecodeString(serializedKey)
 	if err != nil {
 		return nil, err
 	}
-	var key pbgo.RemoteConfigKey
-	err = proto.Unmarshal(rawKey, &key)
+	var key msgpgo.RemoteConfigKey
+	_, err = key.UnmarshalMsg(rawKey)
 	if err != nil {
 		return nil, err
 	}

@@ -4,8 +4,7 @@ import (
 	"encoding/base32"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/gogo/protobuf/proto"
+	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,9 +12,9 @@ func TestRemoteConfigKey(t *testing.T) {
 	tests := []struct {
 		input  string
 		err    bool
-		output *pbgo.RemoteConfigKey
+		output *msgpgo.RemoteConfigKey
 	}{
-		{input: generateKey(t, 2, "datadoghq.com", "58d58c60b8ac337293ce2ca6b28b19eb"), output: &pbgo.RemoteConfigKey{AppKey: "58d58c60b8ac337293ce2ca6b28b19eb", OrgId: 2, Datacenter: "datadoghq.com"}},
+		{input: generateKey(t, 2, "datadoghq.com", "58d58c60b8ac337293ce2ca6b28b19eb"), output: &msgpgo.RemoteConfigKey{AppKey: "58d58c60b8ac337293ce2ca6b28b19eb", OrgId: 2, Datacenter: "datadoghq.com"}},
 		{input: generateKey(t, 2, "datadoghq.com", ""), err: true},
 		{input: generateKey(t, 2, "", "app_Key"), err: true},
 		{input: generateKey(t, 0, "datadoghq.com", "app_Key"), err: true},
@@ -34,12 +33,12 @@ func TestRemoteConfigKey(t *testing.T) {
 }
 
 func generateKey(t *testing.T, orgID int64, datacenter string, appKey string) string {
-	key := pbgo.RemoteConfigKey{
+	key := msgpgo.RemoteConfigKey{
 		AppKey:     appKey,
 		OrgId:      orgID,
 		Datacenter: datacenter,
 	}
-	rawKey, err := proto.Marshal(&key)
+	rawKey, err := key.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
