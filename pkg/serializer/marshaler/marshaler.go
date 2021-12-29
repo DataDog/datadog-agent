@@ -52,6 +52,25 @@ type StreamJSONMarshaler interface {
 	DescribeItem(i int) string
 }
 
+// IterableStreamJSONMarshaler is an interface for iterable metrics that are able to
+// serialize themselves in a stream.
+// Expected usage:
+//
+//  defer m.IterationStopped()
+//	m.WriteHeader(stream)
+//	for m.MoveNext() {
+//		m.WriteCurrentItem(stream)
+//  }
+//	m.WriteFooter(stream)
+type IterableStreamJSONMarshaler interface {
+	WriteHeader(*jsoniter.Stream) error
+	WriteFooter(*jsoniter.Stream) error
+	WriteCurrentItem(*jsoniter.Stream) error
+	DescribeCurrentItem() string
+	MoveNext() bool
+	IterationStopped()
+}
+
 // BufferContext contains the buffers used for MarshalSplitCompress so they can be shared between invocations
 type BufferContext struct {
 	CompressorInput   *bytes.Buffer

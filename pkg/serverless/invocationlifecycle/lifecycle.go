@@ -10,14 +10,17 @@ import (
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProxyProcessor is a InvocationProcessor implementation
 type ProxyProcessor struct {
-	ExtraTags     *serverlessLog.Tags
-	MetricChannel chan []metrics.MetricSample
+	ExtraTags           *serverlessLog.Tags
+	ProcessTrace        func(p *api.Payload)
+	MetricChannel       chan []metrics.MetricSample
+	DetectLambdaLibrary func() bool
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
@@ -27,6 +30,10 @@ func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetai
 	log.Debug("[proxy] Invocation invokeHeaders are :", startDetails.InvokeHeaders)
 	log.Debug("[proxy] Invocation invokeEvent payload is :", startDetails.InvokeEventPayload)
 	log.Debug("[proxy] ---------------------------------------")
+
+	if !pp.DetectLambdaLibrary() {
+		startExecutionSpan(startDetails.StartTime)
+	}
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
@@ -35,6 +42,11 @@ func (pp *ProxyProcessor) OnInvokeEnd(endDetails *proxy.InvocationEndDetails) {
 	log.Debug("[proxy] Invocation has finished at :", endDetails.EndTime)
 	log.Debug("[proxy] Invocation isError is :", endDetails.IsError)
 	log.Debug("[proxy] ---------------------------------------")
+
+	if !pp.DetectLambdaLibrary() {
+		log.Debug("Creating and sending function execution span for invocation")
+		endExecutionSpan(pp.ProcessTrace, endDetails.EndTime)
+	}
 
 	if endDetails.IsError {
 		serverlessMetrics.SendErrorsEnhancedMetric(

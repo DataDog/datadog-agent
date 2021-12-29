@@ -188,13 +188,13 @@ func (sc ServiceChecks) WriteHeader(stream *jsoniter.Stream) error {
 	return stream.Flush()
 }
 
-// WriteFooter prints the payload footer for this type
+// WriteFooter writes the payload footer for this type
 func (sc ServiceChecks) WriteFooter(stream *jsoniter.Stream) error {
 	stream.WriteArrayEnd()
 	return stream.Flush()
 }
 
-// WriteItem prints the json representation of an item
+// WriteItem writes the json representation of an item
 func (sc ServiceChecks) WriteItem(stream *jsoniter.Stream, i int) error {
 	if i < 0 || i > len(sc)-1 {
 		return errors.New("out of range")

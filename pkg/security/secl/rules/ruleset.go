@@ -143,10 +143,7 @@ func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.Wrap(err, "compilation error")}
 	}
 
-	if rs.opts.Macros == nil {
-		rs.opts.Macros = make(map[string]*eval.Macro)
-	}
-	rs.opts.Macros[macro.ID] = macro.Macro
+	rs.opts.AddMacro(macro.Macro)
 
 	return macro.Macro, nil
 }

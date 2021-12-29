@@ -48,4 +48,6 @@ var (
 	ConnectionsEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
 	// OrchestratorEndpoint is a v1 endpoint used to send orchestrator checks
 	OrchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
+	// ContainerLifecycleEndpoint is an event platform endpoint used to send container lifecycle events
+	ContainerLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/contlcycle", Name: "contlcycle"}
 )

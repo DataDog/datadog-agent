@@ -13,7 +13,7 @@ import (
 // It has been introduced for the Serverless Agent which doesn't need
 // to maintain a registry.
 type NullAuditor struct {
-	channel     chan *message.Message
+	channel     chan *message.Payload
 	stopChannel chan struct{}
 }
 
@@ -21,7 +21,7 @@ type NullAuditor struct {
 // that should be used on this NullAuditor.
 func NewNullAuditor() *NullAuditor {
 	return &NullAuditor{
-		channel:     make(chan *message.Message),
+		channel:     make(chan *message.Payload),
 		stopChannel: make(chan struct{}),
 	}
 }
@@ -43,7 +43,7 @@ func (a *NullAuditor) Stop() {
 }
 
 // Channel returns the channel on which should be sent the messages.
-func (a *NullAuditor) Channel() chan *message.Message {
+func (a *NullAuditor) Channel() chan *message.Payload {
 	return a.channel
 }
 

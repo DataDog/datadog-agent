@@ -139,9 +139,7 @@ func detectContainerd(features FeatureMap) {
 func isCriSupported() bool {
 	// Containerd support was historically meant for K8S
 	// However, containerd is now used standalone elsewhere.
-	// TODO: Consider having a dedicated setting for containerd standalone
-	// Also, cri is not enabled on Windows (check build_tags.py).
-	return IsKubernetes() && runtime.GOOS != "windows"
+	return IsKubernetes()
 }
 
 func detectFargate(features FeatureMap) {

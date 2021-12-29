@@ -66,6 +66,6 @@ func CreateMockSession() *MockSession {
 }
 
 // NewMockSession creates a mock session
-func NewMockSession() Session {
-	return CreateMockSession()
+func NewMockSession(config *checkconfig.CheckConfig) (Session, error) {
+	return CreateMockSession(), nil
 }

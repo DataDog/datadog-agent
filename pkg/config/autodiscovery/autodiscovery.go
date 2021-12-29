@@ -30,13 +30,38 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 		detectedProviders = append(detectedProviders, prometheusProvider)
 	}
 
-	advancedConfigs, _, err := providers.ReadConfigFiles(providers.WithAdvancedADOnly)
-	if err != nil {
-		log.Debugf("Couldn't read config files: %w", err)
-	}
+	// Auto-add file-based kube service and endpoints config providers based on check config files.
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		advancedConfigs, _, err := providers.ReadConfigFiles(providers.WithAdvancedADOnly)
+		if err != nil {
+			log.Warnf("Couldn't read config files: %w", err)
+		}
 
-	if len(advancedConfigs) > 0 && flavor.GetFlavor() == flavor.ClusterAgent {
-		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "kube_services_file", Polling: false})
+		svcFound, epFound := false, false
+		for _, conf := range advancedConfigs {
+			for _, adv := range conf.AdvancedADIdentifiers {
+				if !svcFound && !adv.KubeService.IsEmpty() {
+					svcFound = true
+					log.Info("Configs with advanced kube service identifiers detected: Adding the 'kube service file' config provider")
+					// Polling is set to false because kube_services_file is a static config provider.
+					// It generates entity IDs based on the provided advanced config: kube_service://<namespace>/<name>
+					detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeServicesFileRegisterName, Polling: false})
+				}
+
+				if !epFound && !adv.KubeEndpoints.IsEmpty() {
+					epFound = true
+					log.Info("Configs with advanced kube endpoints identifiers detected: Adding the 'kube endpoints file' config provider")
+					// Polling is set to true because kube_endpoints_file is a dynamic config provider.
+					// It generates entity IDs based on the provided advanced config + the IPs found in the corresponding Endpoints object: kube_endpoint://<namespace>/<name>/<ip>
+					// The generated entity IDs are subject to change, thus the continuous polling.
+					detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeEndpointsFileRegisterName, Polling: true})
+				}
+			}
+
+			if svcFound && epFound {
+				break
+			}
+		}
 	}
 
 	return detectedProviders, detectedListeners

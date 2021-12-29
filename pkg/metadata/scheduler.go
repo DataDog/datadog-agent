@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -35,16 +35,16 @@ type scheduledCollector struct {
 // Scheduler takes care of sending metadata at specific
 // time intervals
 type Scheduler struct {
-	srl           *serializer.Serializer
+	demux         aggregator.Demultiplexer
 	collectors    map[string]*scheduledCollector
 	context       context.Context
 	contextCancel context.CancelFunc
 }
 
 // NewScheduler builds and returns a new Metadata Scheduler
-func NewScheduler(s *serializer.Serializer) *Scheduler {
+func NewScheduler(demux aggregator.Demultiplexer) *Scheduler {
 	scheduler := &Scheduler{
-		srl:        s,
+		demux:      demux,
 		collectors: make(map[string]*scheduledCollector),
 	}
 
@@ -99,7 +99,7 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 				sc.sendTimer.Reset(interval) // Reset the timer, so it fires again after `interval`.
 				// Note we call `p.Send` on the collector *after* resetting the Timer, so
 				// the time spent by `p.Send` is not added to the total time between runs.
-				if err := p.Send(ctx, c.srl); err != nil {
+				if err := p.Send(ctx, c.demux.Serializer()); err != nil {
 					log.Errorf("Unable to send '%s' metadata: %v", name, err)
 				}
 			}
@@ -152,7 +152,7 @@ func (c *Scheduler) firstRun() error {
 		log.Error("Unable to find 'host' metadata collector in the catalog!")
 		signals.ErrorStopper <- true
 	}
-	return p.Send(context.TODO(), c.srl)
+	return p.Send(context.TODO(), c.demux.Serializer())
 }
 
 // RegisterCollector adds a Metadata Collector to the catalog

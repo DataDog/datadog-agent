@@ -17,12 +17,18 @@ const (
 )
 
 // BucketWithSpans returns a stats bucket populated with spans stats
-func BucketWithSpans(spans []*stats.WeightedSpan) pb.ClientStatsBucket {
+func BucketWithSpans(spans []*pb.Span) pb.ClientStatsBucket {
 	srb := stats.NewRawBucket(0, 1e9)
+	aggKey := stats.PayloadAggregationKey{
+		Env:         defaultEnv,
+		Hostname:    defaultHostname,
+		Version:     "",
+		ContainerID: defaultContainerID,
+	}
 	for _, s := range spans {
 		// override version to ensure all buckets will have the same payload key.
 		s.Meta["version"] = ""
-		srb.HandleSpan(s, "", defaultEnv, defaultHostname, defaultContainerID)
+		srb.HandleSpan(s, 0, true, "", aggKey)
 	}
 	buckets := srb.Export()
 	if len(buckets) != 1 {
@@ -36,9 +42,9 @@ func BucketWithSpans(spans []*stats.WeightedSpan) pb.ClientStatsBucket {
 
 // RandomBucket returns a bucket made from n random spans, useful to run benchmarks and tests
 func RandomBucket(n int) pb.ClientStatsBucket {
-	spans := make([]*stats.WeightedSpan, 0, n)
+	spans := make([]*pb.Span, 0, n)
 	for i := 0; i < n; i++ {
-		spans = append(spans, RandomWeightedSpan())
+		spans = append(spans, RandomSpan())
 	}
 
 	return BucketWithSpans(spans)

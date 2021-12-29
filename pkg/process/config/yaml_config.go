@@ -84,15 +84,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Whether or not the process-agent should output logs to console
-	if config.Datadog.GetBool("log_to_console") {
-		a.LogToConsole = true
-	}
-	// The full path to the file where process-agent logs will be written.
-	if logFile := config.Datadog.GetString(key(ns, "log_file")); logFile != "" {
-		a.LogFile = logFile
-	}
-
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
@@ -197,19 +188,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Overrides the path to the Agent bin used for getting the hostname. The default is usually fine.
-	a.DDAgentBin = defaultDDAgentBin
-	if k := key(ns, "dd_agent_bin"); config.Datadog.IsSet(k) {
-		if agentBin := config.Datadog.GetString(k); agentBin != "" {
-			a.DDAgentBin = agentBin
-		}
-	}
-
-	// Overrides the grpc connection timeout setting to the main agent.
-	if k := key(ns, "grpc_connection_timeout_secs"); config.Datadog.IsSet(k) {
-		a.grpcConnectionTimeout = config.Datadog.GetDuration(k) * time.Second
-	}
-
 	// Windows: Sets windows process table refresh rate (in number of check runs)
 	if argRefresh := config.Datadog.GetInt(key(ns, "windows", "args_refresh_interval")); argRefresh != 0 {
 		a.Windows.ArgsRefreshInterval = argRefresh
@@ -254,12 +232,12 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			if s == "" {
 				s = config.DefaultSite
 			}
-			site = fmt.Sprintf(profiling.ProfileURLTemplate, s)
+			site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
 		}
 
 		v, _ := version.Agent()
 		a.ProfilingSettings = &profiling.Settings{
-			Site:                 site,
+			ProfilingURL:         site,
 			Env:                  config.Datadog.GetString("env"),
 			Service:              "process-agent",
 			Period:               config.Datadog.GetDuration("internal_profiling.period"),
@@ -281,19 +259,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		if sources := config.Datadog.GetStringSlice(containerSourceKey); len(sources) > 0 {
 			util.SetContainerSources(sources)
 		}
-	}
-
-	// Pull additional parameters from the global config file.
-	if level := config.Datadog.GetString("log_level"); level != "" {
-		a.LogLevel = level
-	}
-
-	if k := "dogstatsd_port"; config.Datadog.IsSet(k) {
-		a.StatsdPort = config.Datadog.GetInt(k)
-	}
-
-	if bindHost := config.GetBindHost(); bindHost != "" {
-		a.StatsdHost = bindHost
 	}
 
 	// Build transport (w/ proxy if needed)

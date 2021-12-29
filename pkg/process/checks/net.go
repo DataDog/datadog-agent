@@ -192,18 +192,18 @@ func getConnectionsByPID(conns *model.Connections) map[int32][]*model.Connection
 
 func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[string]int32, namedb *[]string, ip string, entry *model.DNSEntry) {
 	dbentry := &model.DNSDatabaseEntry{
-		NameOffsets: make([]int32, len(entry.Names)),
+		NameOffsets: make([]int32, 0, len(entry.Names)),
 	}
-	for entryidx, name := range entry.Names {
+	for _, name := range entry.Names {
 		// at this point, the NameOffsets slice is actually a slice of indices into
 		// the name slice.  It will be converted prior to encoding.
 		if idx, ok := namemap[name]; ok {
-			dbentry.NameOffsets[entryidx] = idx
+			dbentry.NameOffsets = append(dbentry.NameOffsets, idx)
 		} else {
 			dblen := int32(len(*namedb))
 			*namedb = append(*namedb, name)
 			namemap[name] = dblen
-			dbentry.NameOffsets[entryidx] = dblen
+			dbentry.NameOffsets = append(dbentry.NameOffsets, dblen)
 		}
 
 	}

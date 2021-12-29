@@ -8,7 +8,9 @@
 
 package tracer
 
-import "testing"
+import (
+	"testing"
+)
 
 func dnsSupported(t *testing.T) bool {
 	return true
