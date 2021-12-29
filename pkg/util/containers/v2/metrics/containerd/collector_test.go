@@ -14,6 +14,7 @@ import (
 
 	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
 	v1 "github.com/containerd/cgroups/stats/v1"
+	v2 "github.com/containerd/cgroups/v2/stats"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
@@ -36,16 +37,16 @@ type mockedContainer struct {
 func TestGetContainerStats_Containerd(t *testing.T) {
 	currentTime := time.Now()
 
-	linuxMetrics := v1.Metrics{
+	linuxCgroupV1Metrics := v1.Metrics{
 		CPU: &v1.CPUStat{
 			Usage: &v1.CPUUsage{
-				Total:  1000,
-				Kernel: 600,
-				User:   400,
+				Total:  10000,
+				Kernel: 6000,
+				User:   4000,
 			},
 			Throttling: &v1.Throttle{
 				ThrottledPeriods: 1,
-				ThrottledTime:    100,
+				ThrottledTime:    1000,
 			},
 		},
 		Memory: &v1.MemoryStat{
@@ -117,7 +118,48 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			},
 		},
 	}
-	linuxMetricsAny, err := typeurl.MarshalAny(&linuxMetrics)
+	linuxCgroupV1MetricsAny, err := typeurl.MarshalAny(&linuxCgroupV1Metrics)
+	assert.NoError(t, err)
+
+	linuxCgroupV2Metrics := v2.Metrics{
+		CPU: &v2.CPUStat{
+			UsageUsec:     10,
+			UserUsec:      4,
+			SystemUsec:    6,
+			ThrottledUsec: 1,
+			NrThrottled:   1,
+		},
+		Memory: &v2.MemoryStat{
+			File:        20,
+			Anon:        100,
+			Usage:       1000,
+			UsageLimit:  2000,
+			SwapUsage:   10,
+			Slab:        400,
+			KernelStack: 100,
+		},
+		Io: &v2.IOStat{
+			Usage: []*v2.IOEntry{
+				{
+					Major:  1,
+					Minor:  1,
+					Rbytes: 10,
+					Wbytes: 15,
+					Rios:   1,
+					Wios:   2,
+				},
+				{
+					Major:  1,
+					Minor:  2,
+					Rbytes: 50,
+					Wbytes: 5,
+					Rios:   5,
+					Wios:   1,
+				},
+			},
+		},
+	}
+	linuxCgroupV2MetricsAny, err := typeurl.MarshalAny(&linuxCgroupV2Metrics)
 	assert.NoError(t, err)
 
 	windowsMetrics := wstats.Statistics{
@@ -152,18 +194,62 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		expectedContainerStats *provider.ContainerStats
 	}{
 		{
-			name: "Linux metrics",
+			name: "Linux cgroup v1 metrics",
 			containerdMetrics: &types.Metric{
-				Data: linuxMetricsAny,
+				Data: linuxCgroupV1MetricsAny,
 			},
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
 				CPU: &provider.ContainerCPUStats{
-					Total:            util.Float64Ptr(1000),
-					System:           util.Float64Ptr(600),
-					User:             util.Float64Ptr(400),
+					Total:            util.Float64Ptr(10000),
+					System:           util.Float64Ptr(6000),
+					User:             util.Float64Ptr(4000),
 					ThrottledPeriods: util.Float64Ptr(1),
-					ThrottledTime:    util.Float64Ptr(100),
+					ThrottledTime:    util.Float64Ptr(1000),
+				},
+				Memory: &provider.ContainerMemStats{
+					UsageTotal:   util.Float64Ptr(1000),
+					KernelMemory: util.Float64Ptr(500),
+					Limit:        util.Float64Ptr(2000),
+					RSS:          util.Float64Ptr(100),
+					Cache:        util.Float64Ptr(20),
+					Swap:         util.Float64Ptr(10),
+				},
+				IO: &provider.ContainerIOStats{
+					ReadBytes:       util.Float64Ptr(60),
+					WriteBytes:      util.Float64Ptr(20),
+					ReadOperations:  util.Float64Ptr(6),
+					WriteOperations: util.Float64Ptr(3),
+					Devices: map[string]provider.DeviceIOStats{
+						"1:1": {
+							ReadBytes:       util.Float64Ptr(10),
+							WriteBytes:      util.Float64Ptr(15),
+							ReadOperations:  util.Float64Ptr(1),
+							WriteOperations: util.Float64Ptr(2),
+						},
+						"1:2": {
+							ReadBytes:       util.Float64Ptr(50),
+							WriteBytes:      util.Float64Ptr(5),
+							ReadOperations:  util.Float64Ptr(5),
+							WriteOperations: util.Float64Ptr(1),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Linux cgroup v2 metrics",
+			containerdMetrics: &types.Metric{
+				Data: linuxCgroupV2MetricsAny,
+			},
+			expectedContainerStats: &provider.ContainerStats{
+				Timestamp: currentTime,
+				CPU: &provider.ContainerCPUStats{
+					Total:            util.Float64Ptr(10000),
+					System:           util.Float64Ptr(6000),
+					User:             util.Float64Ptr(4000),
+					ThrottledPeriods: util.Float64Ptr(1),
+					ThrottledTime:    util.Float64Ptr(1000),
 				},
 				Memory: &provider.ContainerMemStats{
 					UsageTotal:   util.Float64Ptr(1000),
