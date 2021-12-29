@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -87,7 +88,7 @@ type HTTPReceiver struct {
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, grpcClient pbgo.AgentSecureClient) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -95,6 +96,13 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	appsecHandler, err := appsec.NewIntakeReverseProxy(conf.NewHTTPTransport())
 	if err != nil {
 		log.Errorf("Could not instantiate AppSec: %v", err)
+	}
+	var grpcClient pbgo.AgentSecureClient
+	if features.Has("config_endpoint") {
+		grpcClient, err = grpc.GetDDAgentSecureClient(context.Background())
+		if err != nil {
+			log.Errorf("could not instantiate the tracer remote config endpoint: %v", err)
+		}
 	}
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),

@@ -57,17 +57,14 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, nil)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
 
 	return receiver
 }
 
 func newTestReceiverFromConfigWithGRPC(conf *config.AgentConfig, grpcClient pbgo.AgentSecureClient) *HTTPReceiver {
-	dynConf := sampler.NewDynamicConfig("none")
-
-	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, grpcClient)
-
+	receiver := newTestReceiverFromConfig(conf)
+	receiver.grpc = grpcClient
 	return receiver
 }
 
@@ -1133,7 +1130,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil, nil)
+	r := NewHTTPReceiver(conf, nil, nil, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
