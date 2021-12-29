@@ -151,6 +151,9 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		return errors.New("orchestrator check is configured but the feature is disabled")
 	}
 	o.orchestratorConfig.IsScrubbingEnabled = corecfg.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
+	if corecfg.Datadog.IsSet("orchestrator_explorer.custom_sensitive_words") {
+		o.orchestratorConfig.Scrubber.AddCustomSensitiveWords(corecfg.Datadog.GetStringSlice("orchestrator_explorer.custom_sensitive_words"))
+	}
 	o.orchestratorConfig.ExtraTags = corecfg.Datadog.GetStringSlice("orchestrator_explorer.extra_tags")
 
 	// check if cluster name is set
