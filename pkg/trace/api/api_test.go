@@ -7,6 +7,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,15 +22,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"google.golang.org/grpc"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
@@ -53,9 +57,48 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, nil)
 
 	return receiver
+}
+
+func newTestReceiverFromConfigWithGRPC(conf *config.AgentConfig, grpcClient pbgo.AgentSecureClient) *HTTPReceiver {
+	dynConf := sampler.NewDynamicConfig("none")
+
+	rawTraceChan := make(chan *Payload, 5000)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, grpcClient)
+
+	return receiver
+}
+
+type mockAgentSecureServer struct {
+	pbgo.AgentSecureClient
+	mock.Mock
+}
+
+func (a *mockAgentSecureServer) TaggerStreamEntities(ctx context.Context, in *pbgo.StreamTagsRequest, opts ...grpc.CallOption) (pbgo.AgentSecure_TaggerStreamEntitiesClient, error) {
+	args := a.Called(ctx, in, opts)
+	return args.Get(0).(pbgo.AgentSecure_TaggerStreamEntitiesClient), args.Error(1)
+}
+
+func (a *mockAgentSecureServer) TaggerFetchEntity(ctx context.Context, in *pbgo.FetchEntityRequest, opts ...grpc.CallOption) (*pbgo.FetchEntityResponse, error) {
+	args := a.Called(ctx, in, opts)
+	return args.Get(0).(*pbgo.FetchEntityResponse), args.Error(1)
+}
+
+func (a *mockAgentSecureServer) DogstatsdCaptureTrigger(ctx context.Context, in *pbgo.CaptureTriggerRequest, opts ...grpc.CallOption) (*pbgo.CaptureTriggerResponse, error) {
+	args := a.Called(ctx, in, opts)
+	return args.Get(0).(*pbgo.CaptureTriggerResponse), args.Error(1)
+}
+
+func (a *mockAgentSecureServer) DogstatsdSetTaggerState(ctx context.Context, in *pbgo.TaggerState, opts ...grpc.CallOption) (*pbgo.TaggerStateResponse, error) {
+	args := a.Called(ctx, in, opts)
+	return args.Get(0).(*pbgo.TaggerStateResponse), args.Error(1)
+}
+
+func (a *mockAgentSecureServer) ClientGetConfigs(ctx context.Context, in *pbgo.ClientGetConfigsRequest, opts ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error) {
+	args := a.Called(ctx, in, opts)
+	return args.Get(0).(*pbgo.ClientGetConfigsResponse), args.Error(1)
 }
 
 func newTestReceiverConfig() *config.AgentConfig {
@@ -834,6 +877,7 @@ func TestConfigEndpoint(t *testing.T) {
 		reqBody            string
 		expectedStatusCode int
 		enabled            bool
+		valid              bool
 		response           string
 	}{
 		{
@@ -848,11 +892,13 @@ func TestConfigEndpoint(t *testing.T) {
 			response:           "unexpected end of JSON input\n",
 		},
 		{
-			name:               "stale",
-			reqBody:            `{"Product":1}`,
+			name:    "valid",
+			reqBody: `{"client":{"id":"test_client"}}`,
+
 			enabled:            true,
-			expectedStatusCode: http.StatusNoContent,
-			response:           "",
+			valid:              true,
+			expectedStatusCode: http.StatusOK,
+			response:           `{"targets":{"version":1,"raw":"dGVzdA=="}}`,
 		},
 	}
 	for _, tc := range tcs {
@@ -862,11 +908,17 @@ func TestConfigEndpoint(t *testing.T) {
 				features.Set("config_endpoint")
 			}
 			conf := newTestReceiverConfig()
-			rcv := newTestReceiverFromConfig(conf)
+			grpc := mockAgentSecureServer{}
+			rcv := newTestReceiverFromConfigWithGRPC(conf, &grpc)
 			mux := rcv.buildMux()
 			server := httptest.NewServer(mux)
-
-			req, _ := http.NewRequest("POST", server.URL+"/v0.6/config", strings.NewReader(tc.reqBody))
+			if tc.valid {
+				var request pbgo.ClientGetConfigsRequest
+				err := json.Unmarshal([]byte(tc.reqBody), &request)
+				assert.NoError(err)
+				grpc.On("ClientGetConfigs", mock.Anything, &request, mock.Anything).Return(&pbgo.ClientGetConfigsResponse{Targets: &pbgo.TopMeta{Version: 1, Raw: []byte("test")}}, nil)
+			}
+			req, _ := http.NewRequest("POST", server.URL+"/v0.6/get_config", strings.NewReader(tc.reqBody))
 			req.Header.Set("Content-Type", "application/msgpack")
 			resp, err := http.DefaultClient.Do(req)
 			assert.Nil(err)
@@ -1081,7 +1133,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil)
+	r := NewHTTPReceiver(conf, nil, nil, nil, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()

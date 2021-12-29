@@ -65,9 +65,8 @@ message Client {
   string id = 3;
   string name = 4;
   string version = 5;
-  oneof client_type {
-    TracerClient tracerClient = 6;
-  }
+  bool is_tracer = 6;
+  TracerClient tracer_client = 7;
 }
 
 message TracerClient {

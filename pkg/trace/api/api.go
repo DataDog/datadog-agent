@@ -71,13 +71,13 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out              chan *Payload
-	conf             *config.AgentConfig
-	dynConf          *sampler.DynamicConfig
-	server           *http.Server
-	statsProcessor   StatsProcessor
-	appsecHandler    http.Handler
-	configSubscriber *config.Subscriber
+	out            chan *Payload
+	conf           *config.AgentConfig
+	dynConf        *sampler.DynamicConfig
+	server         *http.Server
+	statsProcessor StatsProcessor
+	appsecHandler  http.Handler
+	grpc           pbgo.AgentSecureClient
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -87,7 +87,7 @@ type HTTPReceiver struct {
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, grpcClient pbgo.AgentSecureClient) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -100,12 +100,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
 
-		out:              out,
-		statsProcessor:   statsProcessor,
-		configSubscriber: config.NewSubscriber(),
-		conf:             conf,
-		dynConf:          dynConf,
-		appsecHandler:    appsecHandler,
+		out:            out,
+		statsProcessor: statsProcessor,
+		grpc:           grpcClient,
+		conf:           conf,
+		dynConf:        dynConf,
+		appsecHandler:  appsecHandler,
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
@@ -495,8 +495,8 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	r.statsProcessor.ProcessStats(in, req.Header.Get(headerLang), req.Header.Get(headerTracerVersion))
 }
 
-// handleConfig handles config request.
-func (r *HTTPReceiver) handleConfig(w http.ResponseWriter, req *http.Request) {
+// handleGetConfig handles config request.
+func (r *HTTPReceiver) handleGetConfig(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
 	tags := r.tagStats(v07, req.Header).AsTags()
 	statusCode := http.StatusOK
@@ -512,15 +512,14 @@ func (r *HTTPReceiver) handleConfig(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 	}
-	var configsRequest pbgo.GetConfigsRequest
+	var configsRequest pbgo.ClientGetConfigsRequest
 	err = json.Unmarshal(buf.Bytes(), &configsRequest)
 	if err != nil {
 		statusCode = http.StatusBadRequest
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	cfg, err := r.configSubscriber.Get(&configsRequest)
+	cfg, err := r.grpc.ClientGetConfigs(req.Context(), &configsRequest)
 	if err != nil {
 		statusCode = http.StatusInternalServerError
 		http.Error(w, err.Error(), statusCode)
