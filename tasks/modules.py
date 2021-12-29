@@ -71,7 +71,6 @@ DEFAULT_MODULES = {
         ".",
         targets=["./pkg", "./cmd"],
         dependencies=[
-            "pkg/tagset",
             "pkg/util/scrubber",
             "pkg/util/log",
             "pkg/util/winutil",
@@ -81,7 +80,6 @@ DEFAULT_MODULES = {
             "pkg/security/secl",
         ],
     ),
-    "pkg/tagset": GoModule("pkg/tagset"),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
     "pkg/util/log": GoModule("pkg/util/log", dependencies=["pkg/util/scrubber"]),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),

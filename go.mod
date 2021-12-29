@@ -40,7 +40,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
-	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
@@ -67,7 +66,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.33.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/quantile v0.33.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.33.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/tagset v0.33.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/log v0.33.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.33.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.33.0-rc.4
