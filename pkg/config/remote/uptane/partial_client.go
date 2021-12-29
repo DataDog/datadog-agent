@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/theupdateframework/go-tuf/client"
 	"github.com/theupdateframework/go-tuf/data"
 	"github.com/theupdateframework/go-tuf/verify"
@@ -123,13 +122,11 @@ func (c *PartialClient) validateAndUpdateTargets(rawTargets []byte) error {
 	}
 	targetsRole, hasRoleTargets := root.Roles["targets"]
 	if !hasRoleTargets {
-		log.Warn("root is missing a targets role")
-		return nil
+		return fmt.Errorf("root is missing a targets role")
 	}
 	role := &data.Role{Threshold: targetsRole.Threshold, KeyIDs: targetsRole.KeyIDs}
 	if err := db.AddRole("targets", role); err != nil {
-		log.Warnf("could not add targets role to db: %v", err)
-		return nil
+		return fmt.Errorf("could not add targets role to db: %v", err)
 	}
 	var targets data.Targets
 	err = db.Unmarshal(rawTargets, &targets, "targets", 0)
