@@ -6,12 +6,24 @@
 package workloadmeta
 
 // Filter allows a subscriber to filter events by entity kind or event source.
+//
+// A nil filter matches all events.
 type Filter struct {
 	kinds  map[Kind]struct{}
 	source Source
 }
 
 // NewFilter creates a new filter for subscribing to workloadmeta events.
+//
+// Only events for entities with one of the given kinds will be delivered.  If
+// kinds is nil or empty, events for entities of of any kind will be delivered.
+//
+// Similarly, only events for entities collected from the given source will be
+// delivered, and the entities in the events will contain data only from that
+// source.  For example, if source is SourceRuntime, then only events from the
+// runtime will be delivered, and they will not contain any additional metadata
+// from orchestrators or cluster orchestrators.  Use SourceAll to collect data
+// from all sources.
 func NewFilter(kinds []Kind, source Source) *Filter {
 	var kindSet map[Kind]struct{}
 	if len(kinds) > 0 {
@@ -39,7 +51,7 @@ func (f *Filter) MatchKind(k Kind) bool {
 	return ok
 }
 
-// MatchSource returns true if the filter matches the passed sources. If the
+// MatchSource returns true if the filter matches the passed source. If the
 // filter is nil, or has SourceAll, it always matches.
 func (f *Filter) MatchSource(source Source) bool {
 	return f.Source() == SourceAll || f.Source() == source
