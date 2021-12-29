@@ -93,6 +93,8 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL, 2)
 		case config.SHIFTJIS:
 			lineParser = parser.NewEncodedText(parser.SHIFTJIS)
+			// No special handling required for the newline matcher since Shift JIS does not use
+			// newline characters (0x0a) as the second byte of a multibyte sequence.
 			matcher = &decoder.NewLineMatcher{}
 		default:
 			lineParser = parser.Noop

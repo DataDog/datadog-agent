@@ -58,4 +58,3 @@ func TestSHIFTJISParserHandleMessages(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "日本", string(msg))
 }
-
