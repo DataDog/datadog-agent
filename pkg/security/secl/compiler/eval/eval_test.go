@@ -343,6 +343,7 @@ func TestVariables(t *testing.T) {
 		Expected bool
 	}{
 		{Expr: `process.name == "/proc/${pid}/maps/${str}"`, Expected: true},
+		{Expr: `process.name == "/proc/${pid}/maps/${str}3"`, Expected: false},
 		{Expr: `process.name == "/proc/${pid}/maps/${str"`, Expected: false},
 		{Expr: `process.name == "/proc/${pid/maps/${str"`, Expected: false},
 		{Expr: `process.pid == ${pid}`, Expected: true},
