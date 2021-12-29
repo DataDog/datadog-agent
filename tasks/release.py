@@ -16,6 +16,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI, get_github_token
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.remote_api import APIError
 from tasks.pipeline import run
 from tasks.utils import DEFAULT_BRANCH, get_version, nightly_entry_for, release_entry_for
 
@@ -976,7 +977,12 @@ def check_upstream_branch(github, branch):
     """
     Checks if the given branch already exists in the upstream repository
     """
-    github_branch = github.get_branch(branch)
+    try:
+        github_branch = github.get_branch(branch)
+    except APIError as e:
+        if e.status_code == 404:
+            return False
+        raise e
 
     # Return True if the branch exists
     return github_branch and github_branch.get('name', False)

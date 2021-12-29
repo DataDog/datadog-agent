@@ -38,7 +38,7 @@ type KubeletConfigProvider struct {
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeletConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	return &KubeletConfigProvider{
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
 		configErrors:      make(map[string]ErrorMsgSet),

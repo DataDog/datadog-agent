@@ -96,6 +96,7 @@ if node['platform_family'] != 'windows'
     command <<-EOF
       sudo sh -c "sed \'s/api_key:.*/api_key: #{node['dd-agent-step-by-step']['api_key']}/\' \
       /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml"
+      sudo sh -c "chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml"
     EOF
   end
 end

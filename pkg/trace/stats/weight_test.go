@@ -43,22 +43,22 @@ func TestSpanWeight(t *testing.T) {
 	assert := assert.New(t)
 
 	span := fixedSpan()
-	assert.Equal(1., Weight(span))
+	assert.Equal(1., weight(span))
 
 	span.Metrics[keySamplingRateGlobal] = -1.0
-	assert.Equal(1., Weight(span))
+	assert.Equal(1., weight(span))
 
 	span.Metrics[keySamplingRateGlobal] = 0.0
-	assert.Equal(1., Weight(span))
+	assert.Equal(1., weight(span))
 
 	span.Metrics[keySamplingRateGlobal] = 0.25
-	assert.Equal(4., Weight(span))
+	assert.Equal(4., weight(span))
 
 	span.Metrics[keySamplingRateGlobal] = 1.0
-	assert.Equal(1., Weight(span))
+	assert.Equal(1., weight(span))
 
 	span.Metrics[keySamplingRateGlobal] = 1.5
-	assert.Equal(1., Weight(span))
+	assert.Equal(1., weight(span))
 }
 
 func TestSpanWeightNil(t *testing.T) {
@@ -66,5 +66,5 @@ func TestSpanWeightNil(t *testing.T) {
 
 	var span *pb.Span
 
-	assert.Equal(1., Weight(span), "Weight should be callable on nil and return a default value")
+	assert.Equal(1., weight(span), "Weight should be callable on nil and return a default value")
 }

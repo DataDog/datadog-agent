@@ -37,17 +37,19 @@ func makeConnections(n int) []*model.Connection {
 }
 
 func TestDNSNameEncoding(t *testing.T) {
-	p := makeConnections(4)
+	p := makeConnections(5)
 	p[0].Raddr.Ip = "1.1.2.1"
 	p[1].Raddr.Ip = "1.1.2.2"
 	p[2].Raddr.Ip = "1.1.2.3"
 	p[3].Raddr.Ip = "1.1.2.4"
+	p[4].Raddr.Ip = "1.1.2.5"
 
 	dns := map[string]*model.DNSEntry{
 		"1.1.2.1": {Names: []string{"host1.domain.com"}},
 		"1.1.2.2": {Names: []string{"host2.domain.com", "host2.domain2.com"}},
 		"1.1.2.3": {Names: []string{"host3.domain.com", "host3.domain2.com", "host3.domain3.com"}},
 		"1.1.2.4": {Names: []string{"host4.domain.com"}},
+		"1.1.2.5": {Names: nil},
 	}
 	cfg := config.NewDefaultAgentConfig(false)
 	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil, nil)
@@ -55,15 +57,20 @@ func TestDNSNameEncoding(t *testing.T) {
 
 	chunk := chunks[0]
 	conns := chunk.(*model.CollectorConnections)
-	for ip := range dns {
+	dnsParsed := make(map[string]*model.DNSEntry)
+	for _, conn := range p {
+		ip := conn.Raddr.Ip
+		dnsParsed[ip] = &model.DNSEntry{}
 		model.IterateDNSV2(conns.EncodedDnsLookups, ip,
 			func(i, total int, entry int32) bool {
-				_, e := conns.GetDNSNameByOffset(entry)
+				host, e := conns.GetDNSNameByOffset(entry)
 				assert.Nil(t, e)
 				assert.Equal(t, total, len(dns[ip].Names))
+				dnsParsed[ip].Names = append(dnsParsed[ip].Names, host)
 				return true
 			})
 	}
+	assert.Equal(t, dns, dnsParsed)
 
 }
 

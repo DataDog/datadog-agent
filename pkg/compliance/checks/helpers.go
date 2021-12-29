@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Masterminds/sprig"
+	yamlv2 "gopkg.in/yaml.v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,9 +43,12 @@ func parseYAMLContent(data []byte) (interface{}, error) {
 	var content interface{}
 
 	if err := yaml.Unmarshal(data, &content); err != nil {
-		return nil, err
+		if err := yamlv2.Unmarshal(data, &content); err != nil {
+			return nil, err
+		}
 	}
 
+	content = jsonquery.NormalizeYAMLForGoJQ(content)
 	return content, nil
 }
 

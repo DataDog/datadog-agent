@@ -241,77 +241,11 @@ jobs:
           name: generate doxygen documentation
           command: inv -e rtloader.generate-doc
 
-  macos_tests:
-    macos:
-      xcode: 11.7.0
-    environment:
-      BUILDIMAGES_VERSION: "249dd7120e29cf04436a116834f5a3e7f634b6a7" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
-    working_directory: ~/go/src/github.com/DataDog/datadog-agent
-    steps:
-      - checkout
-      - run:
-          name: Remove existing packages
-          command: |
-            brew remove --force $(brew list --formula)
-      - restore_cache:
-          keys:
-            # If incremental dep fails, increase the cache version number
-            # See https://github.com/DataDog/datadog-agent/pull/2384
-            - v6-macosdeps-{{ .Branch }}-{{ .Revision }}
-            - v6-macosdeps-{{ .Branch }}-
-            - v6-macosdeps-main-
-      - run:
-          name: Setup runner
-          command: |
-            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
-      - run:
-          name: Install python deps & clang-format
-          command: |
-            brew install clang-format || brew link --overwrite clang-format
-            python3 -m pip install -r requirements.txt
-      - save_cache:
-          key: v6-macosdeps-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /usr/local/bin
-            - /usr/local/Cellar
-            - /usr/local/lib
-            - /usr/local/Frameworks
-            - /usr/local/opt
-      - run:
-          name: Compile rtloader
-          command: |
-            source ~/.build_setup
-
-            inv rtloader.make --install-prefix=$GOPATH/src/github.com/DataDog/datadog-agent/dev
-            inv rtloader.install
-      - run:
-          name: Lint rtloader
-          command: |
-            source ~/.build_setup
-
-            inv rtloader.format --raise-if-changed
-      - run:
-          name: Test rtloader
-          command: |
-            source ~/.build_setup
-
-            inv rtloader.test
-      - run:
-          name: Run tests
-          command: |
-            source ~/.build_setup
-            inv -e install-tools
-            inv -e deps
-            inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
-            python3 -m tasks.release_tests
-            python3 -m tasks.libs.version_tests
-
 workflows:
   version: 2
   test_and_build:
     jobs:
       - checkout_code
-      - macos_tests
       - dependencies:
           requires:
             - checkout_code

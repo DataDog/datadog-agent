@@ -19,4 +19,5 @@ suites:
       <%= key %>: <%= value %>
       <% end %>
     dd-agent-rspec:
+      agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>

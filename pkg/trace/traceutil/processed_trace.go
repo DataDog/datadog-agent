@@ -3,18 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agent
+package traceutil
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
 	TraceChunk       *pb.TraceChunk
-	WeightedTrace    stats.WeightedTrace
 	Root             *pb.Span
-	Env              string
+	TracerEnv        string
+	AppVersion       string
+	TracerHostname   string
 	ClientDroppedP0s bool
 }
