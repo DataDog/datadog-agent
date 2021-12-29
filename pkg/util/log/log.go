@@ -44,11 +44,10 @@ var (
 
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
-	inner       seelog.LoggerInterface
-	level       seelog.LogLevel
-	extra       map[string]seelog.LoggerInterface
-	l           sync.RWMutex
-	contextLock sync.Mutex
+	inner seelog.LoggerInterface
+	level seelog.LogLevel
+	extra map[string]seelog.LoggerInterface
+	l     sync.RWMutex
 }
 
 // SetupLogger setup agent wide logger
@@ -168,11 +167,8 @@ func (sw *DatadogLogger) scrub(s string) string {
 	return s
 }
 
-// trace logs at the trace level
+// trace logs at the trace level, called with sw.l held
 func (sw *DatadogLogger) trace(s string) {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	sw.inner.Trace(scrubbed)
 
@@ -181,11 +177,9 @@ func (sw *DatadogLogger) trace(s string) {
 	}
 }
 
-// trace logs at the trace level and the current stack depth plus the additional given one
+// trace logs at the trace level and the current stack depth plus the
+// additional given one, called with sw.l held
 func (sw *DatadogLogger) traceStackDepth(s string, depth int) {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 	sw.inner.Trace(scrubbed)
@@ -196,11 +190,8 @@ func (sw *DatadogLogger) traceStackDepth(s string, depth int) {
 	}
 }
 
-// debug logs at the debug level
+// debug logs at the debug level, called with sw.l held
 func (sw *DatadogLogger) debug(s string) {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	sw.inner.Debug(scrubbed)
 
@@ -209,11 +200,8 @@ func (sw *DatadogLogger) debug(s string) {
 	}
 }
 
-// debug logs at the debug level and the current stack depth plus the additional given one
+// debug logs at the debug level and the current stack depth plus the additional given one, called with sw.l held
 func (sw *DatadogLogger) debugStackDepth(s string, depth int) {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 	sw.inner.Debug(scrubbed)
@@ -224,11 +212,8 @@ func (sw *DatadogLogger) debugStackDepth(s string, depth int) {
 	}
 }
 
-// info logs at the info level
+// info logs at the info level, called with sw.l held
 func (sw *DatadogLogger) info(s string) {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	sw.inner.Info(scrubbed)
 	for _, l := range sw.extra {
@@ -236,11 +221,8 @@ func (sw *DatadogLogger) info(s string) {
 	}
 }
 
-// info logs at the info level and the current stack depth plus the additional given one
+// info logs at the info level and the current stack depth plus the additional given one, called with sw.l held
 func (sw *DatadogLogger) infoStackDepth(s string, depth int) {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 	sw.inner.Info(scrubbed)
@@ -251,11 +233,8 @@ func (sw *DatadogLogger) infoStackDepth(s string, depth int) {
 	}
 }
 
-// warn logs at the warn level
+// warn logs at the warn level, called with sw.l held
 func (sw *DatadogLogger) warn(s string) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	err := sw.inner.Warn(scrubbed)
 
@@ -266,11 +245,8 @@ func (sw *DatadogLogger) warn(s string) error {
 	return err
 }
 
-// error logs at the error level and the current stack depth plus the additional given one
+// error logs at the error level and the current stack depth plus the additional given one, called with sw.l held
 func (sw *DatadogLogger) warnStackDepth(s string, depth int) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 	err := sw.inner.Warn(scrubbed)
@@ -283,11 +259,8 @@ func (sw *DatadogLogger) warnStackDepth(s string, depth int) error {
 	return err
 }
 
-// error logs at the error level
+// error logs at the error level, called with sw.l held
 func (sw *DatadogLogger) error(s string) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	err := sw.inner.Error(scrubbed)
 
@@ -298,11 +271,8 @@ func (sw *DatadogLogger) error(s string) error {
 	return err
 }
 
-// error logs at the error level and the current stack depth plus the additional given one
+// error logs at the error level and the current stack depth plus the additional given one, called with sw.l held
 func (sw *DatadogLogger) errorStackDepth(s string, depth int) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 	err := sw.inner.Error(scrubbed)
@@ -315,11 +285,8 @@ func (sw *DatadogLogger) errorStackDepth(s string, depth int) error {
 	return err
 }
 
-// critical logs at the critical level
+// critical logs at the critical level, called with sw.l held
 func (sw *DatadogLogger) critical(s string) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	err := sw.inner.Critical(scrubbed)
 
@@ -330,11 +297,8 @@ func (sw *DatadogLogger) critical(s string) error {
 	return err
 }
 
-// critical logs at the critical level and the current stack depth plus the additional given one
+// critical logs at the critical level and the current stack depth plus the additional given one, called with sw.l held
 func (sw *DatadogLogger) criticalStackDepth(s string, depth int) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(s)
 	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 	err := sw.inner.Critical(scrubbed)
@@ -347,11 +311,8 @@ func (sw *DatadogLogger) criticalStackDepth(s string, depth int) error {
 	return err
 }
 
-// tracef logs with format at the trace level
+// tracef logs with format at the trace level, called with sw.l held
 func (sw *DatadogLogger) tracef(format string, params ...interface{}) {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
 	sw.inner.Trace(scrubbed)
 
@@ -360,11 +321,8 @@ func (sw *DatadogLogger) tracef(format string, params ...interface{}) {
 	}
 }
 
-// debugf logs with format at the debug level
+// debugf logs with format at the debug level, called with sw.l held
 func (sw *DatadogLogger) debugf(format string, params ...interface{}) {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
 	sw.inner.Debug(scrubbed)
 
@@ -373,11 +331,8 @@ func (sw *DatadogLogger) debugf(format string, params ...interface{}) {
 	}
 }
 
-// infof logs with format at the info level
+// infof logs with format at the info level, called with sw.l held
 func (sw *DatadogLogger) infof(format string, params ...interface{}) {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
 	sw.inner.Info(scrubbed)
 
@@ -386,11 +341,8 @@ func (sw *DatadogLogger) infof(format string, params ...interface{}) {
 	}
 }
 
-// warnf logs with format at the warn level
+// warnf logs with format at the warn level, called with sw.l held
 func (sw *DatadogLogger) warnf(format string, params ...interface{}) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
 	err := sw.inner.Warn(scrubbed)
 
@@ -401,11 +353,8 @@ func (sw *DatadogLogger) warnf(format string, params ...interface{}) error {
 	return err
 }
 
-// errorf logs with format at the error level
+// errorf logs with format at the error level, called with sw.l held
 func (sw *DatadogLogger) errorf(format string, params ...interface{}) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
 	err := sw.inner.Error(scrubbed)
 
@@ -416,11 +365,8 @@ func (sw *DatadogLogger) errorf(format string, params ...interface{}) error {
 	return err
 }
 
-// criticalf logs with format at the critical level
+// criticalf logs with format at the critical level, called with sw.l held
 func (sw *DatadogLogger) criticalf(format string, params ...interface{}) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
 	err := sw.inner.Critical(scrubbed)
 
@@ -491,6 +437,8 @@ func formatErrorc(message string, context ...interface{}) error {
 func log(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
 		s := buildLogEntry(v...)
+		logger.l.Lock()
+		defer logger.l.Unlock()
 		logFunc(logger.scrub(s))
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
 		addLogToBuffer(bufferFunc)
@@ -500,6 +448,8 @@ func log(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), v ..
 func logWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string) error, fallbackStderr bool, v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
 		s := buildLogEntry(v...)
+		logger.l.Lock()
+		defer logger.l.Unlock()
 		return logFunc(logger.scrub(s))
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
 		addLogToBuffer(bufferFunc)
@@ -513,6 +463,8 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(stri
 
 func logFormat(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string, ...interface{}), format string, params ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
+		logger.l.Lock()
+		defer logger.l.Unlock()
 		logFunc(format, params...)
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
 		addLogToBuffer(bufferFunc)
@@ -521,6 +473,8 @@ func logFormat(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string,
 
 func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string, ...interface{}) error, format string, fallbackStderr bool, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
+		logger.l.Lock()
+		defer logger.l.Unlock()
 		return logFunc(format, params...)
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
 		addLogToBuffer(bufferFunc)
@@ -535,14 +489,13 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc fun
 func logContext(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), message string, depth int, context ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
 		msg := logger.scrub(message)
-		logger.contextLock.Lock()
+		logger.l.Lock()
+		defer logger.l.Unlock()
 		logger.inner.SetContext(context)
 		logger.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 		logFunc(msg)
 		logger.inner.SetContext(nil)
 		logger.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
-		// Not using defer to make sure we release lock as fast as possible
-		logger.contextLock.Unlock()
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
 		addLogToBuffer(bufferFunc)
 	}
@@ -551,14 +504,13 @@ func logContext(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string
 func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string) error, message string, fallbackStderr bool, depth int, context ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
 		msg := logger.scrub(message)
-		logger.contextLock.Lock()
+		logger.l.Lock()
+		defer logger.l.Unlock()
 		logger.inner.SetContext(context)
 		logger.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 		err := logFunc(msg)
 		logger.inner.SetContext(nil)
 		logger.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
-		// Not using defer to make sure we release lock as fast as possible
-		logger.contextLock.Unlock()
 		return err
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
 		addLogToBuffer(bufferFunc)
