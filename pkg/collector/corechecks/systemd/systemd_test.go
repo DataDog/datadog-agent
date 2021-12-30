@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build systemd
 // +build systemd
 
 package systemd
@@ -829,6 +830,9 @@ func TestIsMonitored(t *testing.T) {
 unit_names:
   - unit1.service
   - unit2.service
+	- unit4@1.service
+	- unit4@2.service
+	- unit5@.service
 `)
 
 	check := SystemdCheck{}
@@ -841,6 +845,8 @@ unit_names:
 		{"unit1.service", true},
 		{"unit2.service", true},
 		{"unit3.service", false},
+		{"unit4@*.service", true},
+		{"unit5@.service", true},
 	}
 	for _, d := range data {
 		t.Run(fmt.Sprintf("check.isMonitored('%s') expected to be %v", d.unitName, d.expectedToBeMonitored), func(t *testing.T) {

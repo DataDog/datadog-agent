@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build systemd
 // +build systemd
 
 package systemd
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -501,7 +503,9 @@ func getServiceCheckStatus(state string, mapping map[string]string) metrics.Serv
 // isMonitored verifies if a unit should be monitored.
 func (c *SystemdCheck) isMonitored(unitName string) bool {
 	for _, name := range c.config.instance.UnitNames {
-		if name == unitName {
+		name = strings.Replace(name, ".", "\\.", -1)
+		name = strings.Replace(name, "*", ".*", -1)
+		if matched, _ := regexp.MatchString(name, unitName); matched {
 			return true
 		}
 	}
