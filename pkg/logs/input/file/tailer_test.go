@@ -301,7 +301,8 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 
 	var err error
 
-	suite.source.Config.AutoMultiLine = true
+	aml := true
+	suite.source.Config.AutoMultiLine = &aml
 	suite.source.Config.AutoMultiLineSampleSize = 3
 
 	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, true), 10*time.Millisecond, NewDecoderFromSource(suite.source))

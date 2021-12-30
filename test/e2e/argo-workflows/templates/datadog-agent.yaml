@@ -37,6 +37,8 @@ spec:
             env:
               - name: DD_HOSTNAME
                 value: k8s-e2e-tests-control-plane
+              - name: DD_OTLP_GRPC_PORT
+                value: "4317"
             leaderElection: true
             logs:
               enabled: true
@@ -89,6 +91,12 @@ spec:
               pullSecrets:
                 - name: docker-registry
             containers:
+              agent:
+                ports:
+                  - containerPort: 4317
+                    hostPort: 4317
+                    name: otlp-port
+                    protocol: TCP
               systemProbe:
                 logLevel: TRACE
                 env:
@@ -96,6 +104,10 @@ spec:
                     value: "module.*"
                   - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
                     value: "/tmp/runtime-security.d"
+                securityContext:
+                  capabilities:
+                    drop:
+                      - all
 
           clusterAgent:
             enabled: true
@@ -373,7 +385,7 @@ spec:
         parameters:
           - name: namespace
           - name: site
-      activeDeadlineSeconds: 500
+      activeDeadlineSeconds: 900
       script:
         image: python
         envFrom:
@@ -393,6 +405,32 @@ spec:
           source /tmp/.venv/bin/activate
           pip install -q -r requirements.txt
           python tests/test_e2e_cws_kubernetes.py --namespace {{inputs.parameters.namespace}} --in-cluster
+
+    - name: test-cspm-e2e
+      inputs:
+        parameters:
+          - name: namespace
+          - name: site
+      activeDeadlineSeconds: 500
+      script:
+        image: python
+        envFrom:
+          - secretRef:
+              name: dd-keys
+        command: [bash]
+        volumeMounts:
+          - name: datadog-agent-volume
+            mountPath: /host/datadog-agent
+        source: |
+          set -euo pipefail
+
+          export DD_SITE={{inputs.parameters.site}}
+
+          cd /host/datadog-agent/test/e2e/cws-tests
+          python -m venv /tmp/.venv
+          source /tmp/.venv/bin/activate
+          pip install -q -r requirements.txt
+          python tests/test_e2e_cspm_kubernetes.py --namespace {{inputs.parameters.namespace}} --in-cluster
 
     - name: describe-agent
       inputs:

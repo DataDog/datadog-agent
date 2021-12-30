@@ -1,8 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package serializerexporter
 
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
@@ -53,14 +59,22 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, name string,
 	)
 }
 
+// addTelemetryMetric to know if an Agent is using OTLP metrics.
+func (c *serializerConsumer) addTelemetryMetric(hostname string) {
+	c.series = append(c.series, &metrics.Serie{
+		Name:           "datadog.agent.otlp.metrics",
+		Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
+		Tags:           []string{},
+		Host:           hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	})
+}
+
 // flush all metrics and sketches in consumer.
 func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 	if err := s.SendSketch(c.sketches); err != nil {
 		return err
 	}
-	if err := s.SendSeries(c.series); err != nil {
-		return err
-	}
-
-	return nil
+	return s.SendSeries(c.series)
 }

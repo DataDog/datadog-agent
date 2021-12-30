@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package snmp
 
 import (
@@ -16,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
 var timeNow = time.Now
@@ -26,6 +32,7 @@ type Check struct {
 	config         *checkconfig.CheckConfig
 	singleDeviceCk *devicecheck.DeviceCheck
 	discovery      discovery.Discovery
+	sessionFactory session.Factory
 }
 
 // Run executes the check
@@ -102,12 +109,18 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
 	if c.config.Name == "" {
+		var checkName string
 		// Set 'name' field of the instance if not already defined in rawInstance config.
 		// The name/device_id will be used by Check.BuildID for building the check id.
 		// Example of check id: `snmp:<DEVICE_ID>:a3ec59dfb03e4457`
-		setNameErr := rawInstance.SetNameForInstance(c.config.DeviceID)
+		if c.config.IsDiscovery() {
+			checkName = fmt.Sprintf("%s:%s", c.config.Namespace, c.config.Network)
+		} else {
+			checkName = c.config.DeviceID
+		}
+		setNameErr := rawInstance.SetNameForInstance(checkName)
 		if setNameErr != nil {
-			log.Debugf("error setting device_id as name: %s", setNameErr)
+			log.Warnf("error setting check name (checkName=%s): %s", checkName, setNameErr)
 		}
 	}
 
@@ -120,10 +133,10 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	}
 
 	if c.config.IsDiscovery() {
-		c.discovery = discovery.NewDiscovery(c.config)
+		c.discovery = discovery.NewDiscovery(c.config, c.sessionFactory)
 		c.discovery.Start()
 	} else {
-		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress)
+		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress, c.sessionFactory)
 		if err != nil {
 			return fmt.Errorf("failed to create device check: %s", err)
 		}
@@ -143,7 +156,8 @@ func (c *Check) Interval() time.Duration {
 
 func snmpFactory() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(common.SnmpIntegrationName),
+		CheckBase:      core.NewCheckBase(common.SnmpIntegrationName),
+		sessionFactory: session.NewGosnmpSession,
 	}
 }
 

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -465,7 +470,7 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 	maxInterval := 0 * time.Second
 	activeClients := int32(0)
 	for _, s := range statuses {
-		shouldEnableRT = shouldEnableRT || (s.ActiveClients > 0 && l.cfg.AllowRealTime)
+		shouldEnableRT = shouldEnableRT || s.ActiveClients > 0
 		if s.ActiveClients > 0 {
 			activeClients += s.ActiveClients
 		}

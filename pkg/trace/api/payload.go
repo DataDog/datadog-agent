@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 import (
@@ -39,4 +44,9 @@ func (p *Payload) Chunk(i int) *pb.TraceChunk {
 // RemoveChunk removes a chunk in TracerPayload by its index
 func (p *Payload) RemoveChunk(i int) {
 	p.TracerPayload.RemoveChunk(i)
+}
+
+// ReplaceChunk replaces a chunk in TracerPayload at a given index
+func (p *Payload) ReplaceChunk(i int, chunk *pb.TraceChunk) {
+	p.TracerPayload.Chunks[i] = chunk
 }

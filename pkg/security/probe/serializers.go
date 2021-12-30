@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -no_std_marshalers -build_tags linux $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/probe/doc_generator -output ../../../docs/cloud-workload-security/backend.schema.json
 
 // Unless explicitly stated otherwise all files in this repository are licensed
@@ -327,19 +327,7 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 }
 
 func scrubArgs(pr *model.Process, e *Event) ([]string, bool) {
-	argv, truncated := e.resolvers.ProcessResolver.GetProcessArgv(pr)
-
-	// scrub args, do not send args if no scrubber instance is passed
-	// can be the case for some custom event
-	if e.scrubber == nil {
-		argv = []string{}
-	} else {
-		if newArgv, changed := e.scrubber.ScrubCommand(argv); changed {
-			argv = newArgv
-		}
-	}
-
-	return argv, truncated
+	return e.resolvers.ProcessResolver.GetScrubbedProcessArgv(pr)
 }
 
 func scrubEnvs(pr *model.Process, e *Event) ([]string, bool) {

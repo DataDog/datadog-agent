@@ -22,38 +22,11 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
-	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	workloadmetaTesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
-
-type mockedContainerdClient struct {
-	containerdutil.ContainerdItf
-	mockContainer   func(id string) (containerd.Container, error)
-	mockInfo        func(ctn containerd.Container) (containers.Container, error)
-	mockSpec        func(ctn containerd.Container) (*oci.Spec, error)
-	mockTaskMetrics func(ctn containerd.Container) (*types.Metric, error)
-	mockTaskPids    func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
-}
-
-func (m *mockedContainerdClient) Container(id string) (containerd.Container, error) {
-	return m.mockContainer(id)
-}
-
-func (m *mockedContainerdClient) Info(ctn containerd.Container) (containers.Container, error) {
-	return m.mockInfo(ctn)
-}
-
-func (m *mockedContainerdClient) Spec(ctn containerd.Container) (*oci.Spec, error) {
-	return m.mockSpec(ctn)
-}
-
-func (m *mockedContainerdClient) TaskMetrics(ctn containerd.Container) (*types.Metric, error) {
-	return m.mockTaskMetrics(ctn)
-}
-
-func (m *mockedContainerdClient) TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
-	return m.mockTaskPids(ctn)
-}
 
 type mockedContainer struct {
 	containerd.Container
@@ -251,10 +224,28 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			collector := containerdCollector{client: containerdClient(test.containerdMetrics)}
+			containerID := "1"
+
+			// The container needs to exist in the workloadmeta store and have a
+			// namespace.
+			workloadmetaStore := workloadmetaTesting.NewStore()
+			workloadmetaStore.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "test-namespace",
+				},
+			})
+
+			collector := containerdCollector{
+				client:            containerdClient(test.containerdMetrics),
+				workloadmetaStore: workloadmetaStore,
+			}
 
 			// ID and cache TTL not relevant for these tests
-			result, err := collector.GetContainerStats("1", 10*time.Second)
+			result, err := collector.GetContainerStats(containerID, 10*time.Second)
 			assert.NoError(t, err)
 
 			result.CPU.Limit = nil         // Don't check this field. It's complex to calculate. Needs separate tests.
@@ -368,10 +359,28 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			collector := containerdCollector{client: containerdClient(test.containerdMetrics)}
+			containerID := "1"
+
+			// The container needs to exist in the workloadmeta store and have a
+			// namespace.
+			workloadmetaStore := workloadmetaTesting.NewStore()
+			workloadmetaStore.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "test-namespace",
+				},
+			})
+
+			collector := containerdCollector{
+				client:            containerdClient(test.containerdMetrics),
+				workloadmetaStore: workloadmetaStore,
+			}
 
 			// ID and cache TTL not relevant for these tests
-			result, err := collector.GetContainerNetworkStats("1", 10*time.Second, test.interfaceMapping)
+			result, err := collector.GetContainerNetworkStats(containerID, 10*time.Second, test.interfaceMapping)
 
 			assert.NoError(t, err)
 			assert.Empty(t, cmp.Diff(test.expectedNetworkStats, result))
@@ -384,22 +393,23 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 //   - 1) Being able to control the metrics returned by the TaskMetrics
 //   function.
 //   - 2) Define functions like Info, Spec, etc. so they don't return errors.
-func containerdClient(metrics *types.Metric) *mockedContainerdClient {
-	return &mockedContainerdClient{
-		mockTaskMetrics: func(ctn containerd.Container) (*types.Metric, error) {
+func containerdClient(metrics *types.Metric) *fake.MockedContainerdClient {
+	return &fake.MockedContainerdClient{
+		MockTaskMetrics: func(ctn containerd.Container) (*types.Metric, error) {
 			return metrics, nil
 		},
-		mockContainer: func(id string) (containerd.Container, error) {
+		MockContainer: func(id string) (containerd.Container, error) {
 			return mockedContainer{}, nil
 		},
-		mockInfo: func(ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(ctn containerd.Container) (containers.Container, error) {
 			return containers.Container{}, nil
 		},
-		mockSpec: func(ctn containerd.Container) (*oci.Spec, error) {
+		MockSpec: func(ctn containerd.Container) (*oci.Spec, error) {
 			return nil, nil
 		},
-		mockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
+		MockSetCurrentNamespace: func(namespace string) {},
 	}
 }

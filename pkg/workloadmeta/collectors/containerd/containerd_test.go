@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -83,9 +84,9 @@ func TestIgnoreEvent(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			client := mockedContainerdClient{
-				mockContainerWithContext: test.getContainerFn,
-				mockImage: func(ctn containerd.Container) (containerd.Image, error) {
+			client := fake.MockedContainerdClient{
+				MockContainerWithCtx: test.getContainerFn,
+				MockImage: func(ctn containerd.Container) (containerd.Image, error) {
 					return &mockedImage{
 						mockName: func() string {
 							return test.imgName

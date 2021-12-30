@@ -53,19 +53,3 @@ func shouldFallback(v *version.Info) (bool, error) {
 
 	return false, nil
 }
-
-func useAdmissionV1(discoveryCl discovery.DiscoveryInterface) (bool, error) {
-	_, resources, err := discoveryCl.ServerGroupsAndResources()
-	if err != nil {
-		return false, err
-	}
-
-	for _, resource := range resources {
-		if resource.GroupVersion == "admissionregistration.k8s.io/v1" {
-			log.Info("Group version 'admissionregistration.k8s.io/v1' is available, using it")
-			return true, nil
-		}
-	}
-
-	return false, nil
-}

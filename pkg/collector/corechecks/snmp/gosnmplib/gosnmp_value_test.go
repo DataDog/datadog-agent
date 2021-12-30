@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package gosnmplib
 
 import (
@@ -126,7 +131,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			valuestore.ResultValue{},
-			fmt.Errorf("oid .1.2.3: IPAddress should be string type but got <nil> type: gosnmp.SnmpPDU{Name:\".1.2.3\", Type:0x40, Value:interface {}(nil)}"),
+			fmt.Errorf("oid .1.2.3: IPAddress should be string type but got type `<nil>` and value `<nil>`"),
 		},
 		{
 			"Null",
@@ -247,7 +252,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			valuestore.ResultValue{},
-			fmt.Errorf("oid .1.2.3: OctetString/BitString should be []byte type but got float64 type: gosnmp.SnmpPDU{Name:\".1.2.3\", Type:0x4, Value:1}"),
+			fmt.Errorf("oid .1.2.3: OctetString/BitString should be []byte type but got type `float64` and value `1`"),
 		},
 		{
 			"gosnmp.OpaqueFloat with wrong type",
@@ -258,7 +263,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			valuestore.ResultValue{},
-			fmt.Errorf("oid .1.2.3: OpaqueFloat should be float32 type but got string type: gosnmp.SnmpPDU{Name:\".1.2.3\", Type:0x78, Value:\"abc\"}"),
+			fmt.Errorf("oid .1.2.3: OpaqueFloat should be float32 type but got type `string` and value `abc`"),
 		},
 		{
 			"gosnmp.OpaqueDouble with wrong type",
@@ -269,7 +274,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			valuestore.ResultValue{},
-			fmt.Errorf("oid .1.2.3: OpaqueDouble should be float64 type but got string type: gosnmp.SnmpPDU{Name:\".1.2.3\", Type:0x79, Value:\"abc\"}"),
+			fmt.Errorf("oid .1.2.3: OpaqueDouble should be float64 type but got type `string` and value `abc`"),
 		},
 		{
 			"gosnmp.ObjectIdentifier with wrong type",
@@ -280,7 +285,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			valuestore.ResultValue{},
-			fmt.Errorf("oid .1.2.3: ObjectIdentifier should be string type but got int type: gosnmp.SnmpPDU{Name:\".1.2.3\", Type:0x6, Value:1}"),
+			fmt.Errorf("oid .1.2.3: ObjectIdentifier should be string type but got type `int` and value `1`"),
 		},
 	}
 	for _, tt := range tests {

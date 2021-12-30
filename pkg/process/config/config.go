@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package config
 
 import (
@@ -31,13 +36,9 @@ import (
 	"google.golang.org/grpc"
 )
 
-const (
-	// defaultProxyPort is the default port used for proxies.
-	// This mirrors the configuration for the infrastructure agent.
-	defaultProxyPort = 3128
-
-	defaultGRPCConnectionTimeout = 60 * time.Second
-)
+// defaultProxyPort is the default port used for proxies.
+// This mirrors the configuration for the infrastructure agent.
+const defaultProxyPort = 3128
 
 // Name for check performed by process-agent or system-probe
 const (
@@ -91,13 +92,12 @@ type WindowsConfig struct {
 
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
+//
+// Deprecated. Use `pkg/config` directly.
 type AgentConfig struct {
 	Enabled                   bool
 	HostName                  string
 	APIEndpoints              []apicfg.Endpoint
-	LogFile                   string
-	LogLevel                  string
-	LogToConsole              bool
 	QueueSize                 int // The number of items allowed in each delivery queue.
 	RTQueueSize               int // the number of items allowed in real-time delivery queue
 	ProcessQueueBytes         int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
@@ -106,11 +106,7 @@ type AgentConfig struct {
 	MaxPerMessage             int
 	MaxCtrProcessesPerMessage int // The maximum number of processes that belong to a container for a given message
 	MaxConnsPerMessage        int
-	AllowRealTime             bool
 	Transport                 *http.Transport `json:"-"`
-	DDAgentBin                string
-	StatsdHost                string
-	StatsdPort                int
 	ProcessExpVarPort         int
 
 	// profiling settings, or nil if profiling is not enabled
@@ -135,8 +131,6 @@ type AgentConfig struct {
 
 	// Windows-specific config
 	Windows WindowsConfig
-
-	grpcConnectionTimeout time.Duration
 }
 
 // CheckIsEnabled returns a bool indicating if the given check name is enabled.
@@ -192,9 +186,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	ac := &AgentConfig{
 		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
-		LogFile:      defaultLogFilePath,
-		LogLevel:     "info",
-		LogToConsole: false,
 
 		// Allow buffering up to 60 megabytes of payload data in total
 		ProcessQueueBytes: 60 * 1000 * 1000,
@@ -206,15 +197,10 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		MaxPerMessage:             maxMessageBatch,
 		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
 		MaxConnsPerMessage:        600,
-		AllowRealTime:             true,
 		HostName:                  "",
 		Transport:                 NewDefaultTransport(),
 		ProcessExpVarPort:         6062,
 		ContainerHostType:         model.ContainerHostType_notSpecified,
-
-		// Statsd for internal instrumentation
-		StatsdHost: "127.0.0.1",
-		StatsdPort: 8125,
 
 		// System probe collection configuration
 		EnableSystemProbe:  false,
@@ -244,8 +230,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			ArgsRefreshInterval: 15, // with default 20s check interval we refresh every 5m
 			AddNewArgs:          true,
 		},
-
-		grpcConnectionTimeout: defaultGRPCConnectionTimeout,
 	}
 
 	// Set default values for proc/sys paths if unset.
@@ -285,18 +269,8 @@ func LoadConfigIfExists(path string) error {
 
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
+func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string, canAccessContainers bool) (*AgentConfig, error) {
 	var err error
-
-	// For Agent 6 we will have a YAML config file to use.
-	if err := LoadConfigIfExists(yamlPath); err != nil {
-		return nil, err
-	}
-
-	// Note: This only considers container sources that are already setup. It's possible that container sources may
-	//       need a few minutes to be ready on newly provisioned hosts.
-	_, err = util.GetContainers()
-	canAccessContainers := err == nil
 
 	cfg := NewDefaultAgentConfig(canAccessContainers)
 
@@ -309,7 +283,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// (Re)configure the logging from our configuration
-	if err := setupLogger(loggerName, cfg.LogFile, cfg); err != nil {
+	logFile := config.Datadog.GetString("process_config.log_file")
+	if err := setupLogger(loggerName, logFile, cfg); err != nil {
 		log.Errorf("failed to setup configured logger: %s", err)
 		return nil, err
 	}
@@ -343,14 +318,11 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		cfg.proxy = nil
 	}
 
-	// Python-style log level has WARNING vs WARN
-	if strings.ToLower(cfg.LogLevel) == "warning" {
-		cfg.LogLevel = "warn"
-	}
-
 	if err := validate.ValidHostname(cfg.HostName); err != nil {
 		// lookup hostname if there is no config override or if the override is invalid
-		if hostname, err := getHostname(context.TODO(), cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
+		agentBin := config.Datadog.GetString("process_config.dd_agent_bin")
+		connectionTimeout := config.Datadog.GetDuration("process_config.grpc_connection_timeout_secs") * time.Second
+		if hostname, err := getHostname(context.TODO(), agentBin, connectionTimeout); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname: %v", err)
@@ -420,24 +392,15 @@ func loadEnvVariables() {
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
-		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS", "process_config.windows.use_perf_counters"},
-		{"DD_PROCESS_AGENT_DISCOVERY_ENABLED", "process_config.process_discovery.enabled"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
-		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
 		{"DD_BIND_HOST", "bind_host"},
 		{"HTTPS_PROXY", "proxy.https"},
 		{"DD_PROXY_HTTPS", "proxy.https"},
-
-		{"DD_LOGS_STDOUT", "log_to_console"},
-		{"LOG_TO_CONSOLE", "log_to_console"},
-		{"DD_LOG_TO_CONSOLE", "log_to_console"},
-		{"LOG_LEVEL", "log_level"}, // Support LOG_LEVEL and DD_LOG_LEVEL but prefer DD_LOG_LEVEL
-		{"DD_LOG_LEVEL", "log_level"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
@@ -640,7 +603,7 @@ func constructProxy(host, scheme string, port int, user, password string) (proxy
 func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig) error {
 	return config.SetupLogger(
 		loggerName,
-		cfg.LogLevel,
+		config.Datadog.GetString("log_level"),
 		logFile,
 		config.GetSyslogURI(),
 		config.Datadog.GetBool("syslog_rfc"),

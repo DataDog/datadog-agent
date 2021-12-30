@@ -201,6 +201,9 @@ def kitchen_prepare(ctx, windows=is_windows):
     for i, pkg in enumerate(target_packages):
         relative_path = os.path.relpath(pkg)
         target_path = os.path.join(KITCHEN_ARTIFACT_DIR, relative_path)
+        target_bin = "testsuite"
+        if windows:
+            target_bin = "testsuite.exe"
 
         test(
             ctx,
@@ -208,7 +211,7 @@ def kitchen_prepare(ctx, windows=is_windows):
             skip_object_files=(i != 0),
             skip_linters=True,
             bundle_ebpf=False,
-            output_path=os.path.join(target_path, "testsuite"),
+            output_path=os.path.join(target_path, target_bin),
         )
 
         # copy ancillary data, if applicable

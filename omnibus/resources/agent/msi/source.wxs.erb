@@ -186,8 +186,6 @@
     </Property>
     <DirectoryRef Id="PROJECTLOCATION">
       <Component Id="CleanupMainApplicationFolder" Guid="096249cf-3fe7-4342-a80f-77101ceed5fe">
-        <!-- We need to use APPLICATIONROOTDIRECTORY variable here or RemoveFolderEx
-             will not remove on "uninstall". -->
         <RegistryValue Root="HKLM"
                        Key="SOFTWARE\Datadog\Datadog Agent"
                        Name="InstallPath"

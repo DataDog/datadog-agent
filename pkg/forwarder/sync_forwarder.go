@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package forwarder
 
 import (
@@ -140,4 +145,9 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Head
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
+}
+
+// SubmitContainerLifecycleEvents sends container lifecycle events
+func (f *SyncForwarder) SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error {
+	return f.defaultForwarder.SubmitContainerLifecycleEvents(payload, extra)
 }

@@ -41,22 +41,23 @@ const (
 // When a new field is added to this struct, please evaluate whether it should be computed in the config Digest
 // and update the field's documentation and the Digest method accordingly
 type Config struct {
-	Name                    string       `json:"check_name"`                // the name of the check (include in digest: true)
-	Instances               []Data       `json:"instances"`                 // the list of instances in Yaml (include in digest: true)
-	InitConfig              Data         `json:"init_config"`               // the init_config in Yaml (include in digest: true)
-	MetricConfig            Data         `json:"metric_config"`             // the metric config in Yaml (jmx check only) (include in digest: false)
-	LogsConfig              Data         `json:"logs"`                      // the logs config in Yaml (logs-agent only) (include in digest: true)
-	ADIdentifiers           []string     `json:"ad_identifiers"`            // the list of AutoDiscovery identifiers (optional) (include in digest: true)
-	Provider                string       `json:"provider"`                  // the provider that issued the config (include in digest: false)
-	Entity                  string       `json:"-"`                         // the entity ID (optional) (include in digest: true)
-	TaggerEntity            string       `json:"-"`                         // the tagger entity ID (optional) (include in digest: false)
-	ClusterCheck            bool         `json:"cluster_check"`             // cluster-check configuration flag (include in digest: false)
-	NodeName                string       `json:"node_name"`                 // node name in case of an endpoint check backed by a pod (include in digest: true)
-	CreationTime            CreationTime `json:"-"`                         // creation time of service (include in digest: false)
-	Source                  string       `json:"source"`                    // the source of the configuration (include in digest: false)
-	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // used to ignore tags coming from autodiscovery (include in digest: true)
-	MetricsExcluded         bool         `json:"metrics_excluded"`          // whether metrics collection is disabled (set by container listeners only) (include in digest: false)
-	LogsExcluded            bool         `json:"logs_excluded"`             // whether logs collection is disabled (set by container listeners only) (include in digest: false)
+	Name                    string                 `json:"check_name"`                // the name of the check (include in digest: true)
+	Instances               []Data                 `json:"instances"`                 // the list of instances in Yaml (include in digest: true)
+	InitConfig              Data                   `json:"init_config"`               // the init_config in Yaml (include in digest: true)
+	MetricConfig            Data                   `json:"metric_config"`             // the metric config in Yaml (jmx check only) (include in digest: false)
+	LogsConfig              Data                   `json:"logs"`                      // the logs config in Yaml (logs-agent only) (include in digest: true)
+	ADIdentifiers           []string               `json:"ad_identifiers"`            // the list of AutoDiscovery identifiers (optional) (include in digest: true)
+	AdvancedADIdentifiers   []AdvancedADIdentifier `json:"advanced_ad_identifiers"`   // the list of advanced AutoDiscovery identifiers (optional) (include in digest: false)
+	Provider                string                 `json:"provider"`                  // the provider that issued the config (include in digest: false)
+	Entity                  string                 `json:"-"`                         // the entity ID (optional) (include in digest: true)
+	TaggerEntity            string                 `json:"-"`                         // the tagger entity ID (optional) (include in digest: false)
+	ClusterCheck            bool                   `json:"cluster_check"`             // cluster-check configuration flag (include in digest: false)
+	NodeName                string                 `json:"node_name"`                 // node name in case of an endpoint check backed by a pod (include in digest: true)
+	CreationTime            CreationTime           `json:"-"`                         // creation time of service (include in digest: false)
+	Source                  string                 `json:"source"`                    // the source of the configuration (include in digest: false)
+	IgnoreAutodiscoveryTags bool                   `json:"ignore_autodiscovery_tags"` // used to ignore tags coming from autodiscovery (include in digest: true)
+	MetricsExcluded         bool                   `json:"metrics_excluded"`          // whether metrics collection is disabled (set by container listeners only) (include in digest: false)
+	LogsExcluded            bool                   `json:"logs_excluded"`             // whether logs collection is disabled (set by container listeners only) (include in digest: false)
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
@@ -72,6 +73,24 @@ type CommonInstanceConfig struct {
 // CommonGlobalConfig holds the reserved fields for the yaml init_config data
 type CommonGlobalConfig struct {
 	Service string `yaml:"service"`
+}
+
+// AdvancedADIdentifier contains user-defined autodiscovery information
+// It replaces ADIdentifiers for advanced use-cases. Typically, file-based k8s service and endpoint checks.
+type AdvancedADIdentifier struct {
+	KubeService   KubeNamespacedName `yaml:"kube_service,omitempty"`
+	KubeEndpoints KubeNamespacedName `yaml:"kube_endpoints,omitempty"`
+}
+
+// KubeNamespacedName identifies a kubernetes object.
+type KubeNamespacedName struct {
+	Name      string `yaml:"name"`
+	Namespace string `yaml:"namespace"`
+}
+
+// IsEmpty returns true if the KubeNamespacedName is empty
+func (k KubeNamespacedName) IsEmpty() bool {
+	return k.Name == "" && k.Namespace == ""
 }
 
 // Equal determines whether the passed config is the same
@@ -115,17 +134,34 @@ func (c *Config) String() string {
 
 // IsTemplate returns if the config has AD identifiers
 func (c *Config) IsTemplate() bool {
-	return len(c.ADIdentifiers) > 0
+	return len(c.ADIdentifiers) > 0 || len(c.AdvancedADIdentifiers) > 0
 }
 
 // IsCheckConfig returns true if the config is a node-agent check configuration,
 func (c *Config) IsCheckConfig() bool {
-	return c.ClusterCheck == false && len(c.Instances) > 0
+	return !c.ClusterCheck && len(c.Instances) > 0
 }
 
 // IsLogConfig returns true if config contains a logs config.
 func (c *Config) IsLogConfig() bool {
 	return c.LogsConfig != nil
+}
+
+// Type returns a string representing the config type.
+func (c *Config) Type() string {
+	if c.IsLogConfig() {
+		return "logs"
+	}
+
+	if c.IsCheckConfig() {
+		return "check"
+	}
+
+	if c.ClusterCheck {
+		return "clustercheck"
+	}
+
+	return "unknown"
 }
 
 // HasFilter returns true if metrics or logs collection must be disabled for this config.

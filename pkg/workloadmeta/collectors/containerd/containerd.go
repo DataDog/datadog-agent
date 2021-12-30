@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -45,17 +46,22 @@ const (
 	TaskResumedTopic = "/tasks/resumed"
 )
 
-// containerLifecycleFilters allows subscribing to containers lifecycle updates only.
-var containerLifecycleFilters = []string{
-	fmt.Sprintf(`topic==%q`, containerCreationTopic),
-	fmt.Sprintf(`topic==%q`, containerUpdateTopic),
-	fmt.Sprintf(`topic==%q`, containerDeletionTopic),
-	fmt.Sprintf(`topic==%q`, TaskStartTopic),
-	fmt.Sprintf(`topic==%q`, TaskOOMTopic),
-	fmt.Sprintf(`topic==%q`, TaskExitTopic),
-	fmt.Sprintf(`topic==%q`, TaskDeleteTopic),
-	fmt.Sprintf(`topic==%q`, TaskPausedTopic),
-	fmt.Sprintf(`topic==%q`, TaskResumedTopic),
+// containerdTopics includes the containerd topics that we want to subscribe to
+var containerdTopics = []string{
+	containerCreationTopic,
+	containerUpdateTopic,
+	containerDeletionTopic,
+	TaskStartTopic,
+	TaskOOMTopic,
+	TaskExitTopic,
+	TaskDeleteTopic,
+	TaskPausedTopic,
+	TaskResumedTopic,
+}
+
+type exitInfo struct {
+	exitCode *uint32
+	exitTS   time.Time
 }
 
 type collector struct {
@@ -64,11 +70,17 @@ type collector struct {
 	filterPausedContainers *containers.Filter
 	eventsChan             <-chan *containerdevents.Envelope
 	errorsChan             <-chan error
+
+	// Container exit info (mainly exit code and exit timestamp) are attached to the corresponding task events.
+	// contToExitInfo caches the exit info of a task to enrich the container deletion event when it's received later.
+	contToExitInfo map[string]*exitInfo
 }
 
 func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{}
+		return &collector{
+			contToExitInfo: make(map[string]*exitInfo),
+		}
 	})
 }
 
@@ -80,7 +92,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	c.store = store
 
 	var err error
-	c.containerdClient, err = cutil.GetContainerdUtil()
+	c.containerdClient, err = cutil.NewContainerdUtil()
 	if err != nil {
 		return err
 	}
@@ -91,7 +103,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	}
 
 	eventsCtx, cancelEvents := context.WithCancel(ctx)
-	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, containerLifecycleFilters...)
+	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, subscribeFilters()...)
 
 	err = c.generateEventsFromContainerList(ctx)
 	if err != nil {
@@ -100,7 +112,13 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	}
 
 	go func() {
+		defer func() {
+			if errClose := c.containerdClient.Close(); errClose != nil {
+				log.Warnf("Error when closing containerd connection: %s", errClose)
+			}
+		}()
 		defer cancelEvents()
+
 		c.stream(ctx)
 	}()
 
@@ -143,20 +161,30 @@ func (c *collector) stream(ctx context.Context) {
 }
 
 func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
-	containerdEvents, err := c.generateInitialEvents(ctx)
+	var events []workloadmeta.CollectorEvent
+
+	namespaces, err := cutil.NamespacesToWatch(ctx, c.containerdClient)
 	if err != nil {
 		return err
 	}
 
-	events := make([]workloadmeta.CollectorEvent, 0, len(containerdEvents))
-	for _, containerdEvent := range containerdEvents {
-		ev, err := buildCollectorEvent(ctx, &containerdEvent, c.containerdClient)
+	for _, namespace := range namespaces {
+		c.containerdClient.SetCurrentNamespace(namespace)
+
+		containerdEvents, err := c.generateInitialEvents(ctx, namespace)
 		if err != nil {
-			log.Warnf(err.Error())
-			continue
+			return err
 		}
 
-		events = append(events, ev)
+		for _, containerdEvent := range containerdEvents {
+			ev, err := c.buildCollectorEvent(ctx, &containerdEvent)
+			if err != nil {
+				log.Warnf(err.Error())
+				continue
+			}
+
+			events = append(events, ev)
+		}
 	}
 
 	if len(events) > 0 {
@@ -166,7 +194,7 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) generateInitialEvents(ctx context.Context) ([]containerdevents.Envelope, error) {
+func (c *collector) generateInitialEvents(ctx context.Context, namespace string) ([]containerdevents.Envelope, error) {
 	var events []containerdevents.Envelope
 
 	existingContainers, err := c.containerdClient.Containers()
@@ -184,6 +212,7 @@ func (c *collector) generateInitialEvents(ctx context.Context) ([]containerdeven
 
 		event := containerdevents.Envelope{
 			Timestamp: time.Now(),
+			Namespace: namespace,
 			Topic:     containerCreationTopic,
 			Event: &types.Any{
 				TypeUrl: "containerd.events.ContainerCreate",
@@ -191,9 +220,13 @@ func (c *collector) generateInitialEvents(ctx context.Context) ([]containerdeven
 			},
 		}
 
+		// if ignoreEvent returns an error, keep the event regardless.
+		// it might've been because of network errors, so it's better
+		// to keep a container we should've ignored than ignoring a
+		// container we should've kept
 		ignore, err := c.ignoreEvent(ctx, &event)
 		if err != nil {
-			return nil, err
+			log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
 		}
 
 		if ignore {
@@ -207,6 +240,8 @@ func (c *collector) generateInitialEvents(ctx context.Context) ([]containerdeven
 }
 
 func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
+	c.containerdClient.SetCurrentNamespace(containerdEvent.Namespace)
+
 	ignore, err := c.ignoreEvent(ctx, containerdEvent)
 	if err != nil {
 		return err
@@ -216,7 +251,7 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 		return nil
 	}
 
-	workloadmetaEvent, err := buildCollectorEvent(ctx, containerdEvent, c.containerdClient)
+	workloadmetaEvent, err := c.buildCollectorEvent(ctx, containerdEvent)
 	if err != nil {
 		return err
 	}
@@ -257,4 +292,49 @@ func (c *collector) ignoreEvent(ctx context.Context, containerdEvent *containerd
 
 	// Only the image name is relevant to exclude paused containers
 	return c.filterPausedContainers.IsExcluded("", img.Name(), ""), nil
+}
+
+// subscribeFilters returns the containerd filters we need to subscribe to based
+// on the "containerd_namespace" option and the containerdTopics array defined.
+//
+// When "containerd_namespace" is empty, it means that we don't want to filter
+// by namespace. In that case, the filters only include topics.
+//
+// When the namespace is not empty, we need to include it on every filter. If we
+// define a filter with the TaskStartTopic topic and a second filter with a
+// namespace, we will receive an event when it is a TaskStartTopic OR
+// (inclusive) when the namespace is the one that we selected. What we need is
+// to only receive events that match both conditions and that's why they need to
+// be specified in the same filter.
+func subscribeFilters() []string {
+	namespace := config.Datadog.GetString("containerd_namespace")
+
+	var filters []string
+
+	for _, topic := range containerdTopics {
+		var filter string
+		if namespace == "" {
+			filter = fmt.Sprintf(`topic==%q`, topic)
+		} else {
+			filter = fmt.Sprintf(`topic==%q,namespace==%q`, topic, namespace)
+		}
+		filters = append(filters, filter)
+	}
+
+	return filters
+}
+
+func (c *collector) getExitInfo(id string) *exitInfo {
+	return c.contToExitInfo[id]
+}
+
+func (c *collector) deleteExitInfo(id string) {
+	delete(c.contToExitInfo, id)
+}
+
+func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time) {
+	c.contToExitInfo[id] = &exitInfo{
+		exitTS:   exitTS,
+		exitCode: exitCode,
+	}
 }

@@ -679,6 +679,33 @@ func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 	return argv, pr.ArgsTruncated || truncated
 }
 
+// GetScrubbedProcessArgv returns the scrubbed args of the event as an array
+func (p *ProcessResolver) GetScrubbedProcessArgv(pr *model.Process) ([]string, bool) {
+	if pr.ArgsEntry == nil {
+		return nil, false
+	}
+
+	if len(pr.ArgsCache) != 0 {
+		return pr.ArgsCache, pr.ArgsTruncated
+	}
+
+	argv, truncated := pr.ArgsEntry.ToArray()
+
+	pr.ArgsTruncated = pr.ArgsTruncated || truncated
+
+	if p.probe.scrubber != nil {
+		if newArgv, changed := p.probe.scrubber.ScrubCommand(argv); changed {
+			pr.ArgsCache = newArgv
+		} else {
+			pr.ArgsCache = argv
+		}
+	} else {
+		pr.ArgsCache = argv
+	}
+
+	return pr.ArgsCache, pr.ArgsTruncated
+}
+
 // SetProcessEnvs set envs to cache entry
 func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {

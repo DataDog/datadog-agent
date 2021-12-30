@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && secrets
 // +build linux,secrets
 
 package config
@@ -50,20 +56,13 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
+	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
-	assert := assert.New(t)
-
-	agentConfig, err := NewAgentConfig(
-		"test",
-		"./testdata/TestDDAgentConfigYamlEnc.yaml",
-		"",
-	)
-	assert.NoError(err)
-
+	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc.yaml", "")
 	ep := agentConfig.APIEndpoints[0]
-	assert.Equal("secret-my_api_key", ep.APIKey)
+	assert.Equal(t, "secret-my_api_key", ep.APIKey)
 }
 
 // TestAgentConfigYamlEnc2 tests the secrets feature on the file TestDDAgentConfigYamlEnc2
@@ -73,19 +72,14 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
+	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
-	assert := assert.New(t)
-	agentConfig, err := NewAgentConfig(
-		"test",
-		"./testdata/TestDDAgentConfigYamlEnc2.yaml",
-		"",
-	)
-	assert.NoError(err)
+	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc2.yaml", "")
 
 	ep := agentConfig.APIEndpoints[0]
-	assert.Equal("secret-encrypted_key", ep.APIKey)
-	assert.Equal("secret-burrito.com", ep.Endpoint.String())
+	assert.Equal(t, "secret-encrypted_key", ep.APIKey)
+	assert.Equal(t, "secret-burrito.com", ep.Endpoint.String())
 }
 
 func TestAgentEncryptedVariablesSecrets(t *testing.T) {
@@ -95,6 +89,7 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	defer restoreGlobalConfig()
 
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
+	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
@@ -103,14 +98,10 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	defer os.Unsetenv("DD_API_KEY")
 	defer os.Unsetenv("DD_HOSTNAME")
 
-	assert := assert.New(t)
-	agentConfig, err := NewAgentConfig(
-		"test", "./testdata/TestEnvSiteConfig-Enc.yaml", "",
-	)
-	assert.NoError(err)
+	agentConfig := loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-Enc.yaml", "")
 
-	assert.Equal("secret-my_api_key", config.Datadog.Get("api_key"))
+	assert.Equal(t, "secret-my_api_key", config.Datadog.Get("api_key"))
 	ep := agentConfig.APIEndpoints[0]
-	assert.Equal("secret-my_api_key", ep.APIKey)
-	assert.Equal("secret-my-host", agentConfig.HostName)
+	assert.Equal(t, "secret-my_api_key", ep.APIKey)
+	assert.Equal(t, "secret-my-host", agentConfig.HostName)
 }

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package discovery
 
 import (
@@ -28,6 +33,8 @@ type Discovery struct {
 	// discoveredDevices contains devices with device deviceDigest as map key
 	// see also CheckConfig.DeviceDigest()
 	discoveredDevices map[checkconfig.DeviceDigest]Device
+
+	sessionFactory session.Factory
 }
 
 // Device implements and store results from the Service interface for the SNMP listener
@@ -171,7 +178,7 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 	deviceIP := job.currentIP.String()
 	config := *job.subnet.config // shallow copy
 	config.IPAddress = deviceIP
-	sess, err := session.NewSession(&config)
+	sess, err := d.sessionFactory(&config)
 	if err != nil {
 		return fmt.Errorf("error configure session for ip %s: %v", deviceIP, err)
 	}
@@ -202,7 +209,7 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 }
 
 func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet, deviceIP string, writeCache bool) {
-	deviceCk, err := devicecheck.NewDeviceCheck(subnet.config, deviceIP)
+	deviceCk, err := devicecheck.NewDeviceCheck(subnet.config, deviceIP, d.sessionFactory)
 	if err != nil {
 		// should not happen since the deviceCheck is expected to be valid at this point
 		// and are only changing the device ip
@@ -300,10 +307,11 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 }
 
 // NewDiscovery return a new Discovery instance
-func NewDiscovery(config *checkconfig.CheckConfig) Discovery {
+func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory) Discovery {
 	return Discovery{
 		discoveredDevices: make(map[checkconfig.DeviceDigest]Device),
 		stop:              make(chan struct{}),
 		config:            config,
+		sessionFactory:    sessionFactory,
 	}
 }

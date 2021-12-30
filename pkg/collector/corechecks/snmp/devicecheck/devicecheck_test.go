@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package devicecheck
 
 import (
@@ -20,7 +25,7 @@ import (
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 
@@ -39,7 +44,7 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4")
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -300,7 +305,7 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4")
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession)
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator

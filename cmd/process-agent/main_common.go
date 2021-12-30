@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -176,7 +181,18 @@ func runAgent(exit chan struct{}) {
 		}()
 	}
 
-	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath)
+	// `GetContainers` will panic when running in docker if the config hasn't called `DetectFeatures`.
+	// `LoadConfigIfExists` does the job of loading the config and calling `DetectFeatures` so that we can detect containers.
+	if err := config.LoadConfigIfExists(opts.configPath); err != nil {
+		_ = log.Criticalf("Error parsing config: %s", err)
+		cleanupAndExit(1)
+	}
+
+	// Note: This only considers container sources that are already setup. It's possible that container sources may
+	//       need a few minutes to be ready on newly provisioned hosts.
+	_, err := util.GetContainers()
+	canAccessContainers := err == nil
+	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath, canAccessContainers)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
@@ -217,7 +233,7 @@ func runAgent(exit chan struct{}) {
 		log.Criticalf("Error initializing info: %s", err)
 		cleanupAndExit(1)
 	}
-	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
+	if err := statsd.Configure(ddconfig.GetBindHost(), ddconfig.Datadog.GetInt("dogstatsd_port")); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
 		cleanupAndExit(1)
 	}

@@ -10,8 +10,7 @@ package probe
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/log"
-
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -19,8 +18,16 @@ import (
 
 func TestApproverAncestors1(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
+
+	var opts rules.Opts
+	opts.
+		WithConstants(model.SECLConstants).
+		WithEventTypeEnabled(enabled).
+		WithLegacyFields(model.SECLLegacyFields).
+		WithLogger(&seclog.PatternLogger{})
+
 	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, rules.NewOptsWithParams(model.SECLConstants, nil, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
+	rs := rules.NewRuleSet(m, m.NewEvent, &opts)
 	addRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
 
 	capabilities, exists := allCapabilities["open"]
@@ -40,8 +47,16 @@ func TestApproverAncestors1(t *testing.T) {
 
 func TestApproverAncestors2(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
+
+	var opts rules.Opts
+	opts.
+		WithConstants(model.SECLConstants).
+		WithEventTypeEnabled(enabled).
+		WithLegacyFields(model.SECLLegacyFields).
+		WithLogger(&seclog.PatternLogger{})
+
 	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, rules.NewOptsWithParams(model.SECLConstants, nil, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
+	rs := rules.NewRuleSet(m, m.NewEvent, &opts)
 	addRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
 	capabilities, exists := allCapabilities["open"]
 	if !exists {

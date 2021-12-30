@@ -16,6 +16,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI, get_github_token
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.remote_api import APIError
 from tasks.pipeline import run
 from tasks.utils import DEFAULT_BRANCH, get_version, nightly_entry_for, release_entry_for
 
@@ -553,7 +554,13 @@ TAG_FOUND_TEMPLATE = "The {} tag is {}"
 
 
 def _fetch_dependency_repo_version(
-    ctx, repo_name, new_agent_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+    repo_name,
+    new_agent_version,
+    max_agent_version,
+    allowed_major_versions,
+    compatible_version_re,
+    github_token,
+    check_for_rc,
 ):
     """
     Fetches the latest tag on a given repository whose version scheme matches the one used for the Agent,
@@ -569,14 +576,13 @@ def _fetch_dependency_repo_version(
     # Get the highest repo version that's not higher than the Agent version we're going to build
     # We don't want to use a tag on dependent repositories that is supposed to be used in a future
     # release of the Agent (eg. if 7.31.1-rc.1 is tagged on integrations-core while we're releasing 7.30.0).
-    max_allowed_version = next_final_version(ctx, new_agent_version.major)
     version = _get_highest_repo_version(
         github_token,
         repo_name,
         new_agent_version.prefix,
         compatible_version_re,
         allowed_major_versions,
-        max_version=max_allowed_version,
+        max_version=max_agent_version,
     )
 
     if check_for_rc and version.is_rc():
@@ -715,7 +721,7 @@ def _update_release_json_entry(
 ##
 
 
-def _update_release_json(ctx, release_json, release_entry, new_version: Version, github_token):
+def _update_release_json(release_json, release_entry, new_version: Version, max_version: Version, github_token):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -736,21 +742,39 @@ def _update_release_json(ctx, release_json, release_entry, new_version: Version,
     check_for_rc = not new_version.is_rc()
 
     integrations_version = _fetch_dependency_repo_version(
-        ctx, "integrations-core", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+        "integrations-core",
+        new_version,
+        max_version,
+        allowed_major_versions,
+        compatible_version_re,
+        github_token,
+        check_for_rc,
     )
 
     omnibus_software_version = _fetch_dependency_repo_version(
-        ctx, "omnibus-software", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+        "omnibus-software",
+        new_version,
+        max_version,
+        allowed_major_versions,
+        compatible_version_re,
+        github_token,
+        check_for_rc,
     )
 
     omnibus_ruby_version = _fetch_dependency_repo_version(
-        ctx, "omnibus-ruby", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+        "omnibus-ruby",
+        new_version,
+        max_version,
+        allowed_major_versions,
+        compatible_version_re,
+        github_token,
+        check_for_rc,
     )
 
     macos_build_version = _fetch_dependency_repo_version(
-        ctx,
         "datadog-agent-macos-build",
         new_version,
+        max_version,
         allowed_major_versions,
         compatible_version_re,
         github_token,
@@ -786,7 +810,7 @@ def _update_release_json(ctx, release_json, release_entry, new_version: Version,
     )
 
 
-def update_release_json(ctx, github_token, new_version: Version):
+def update_release_json(github_token, new_version: Version, max_version: Version):
     """
     Updates the release entries in release.json to prepare the next RC or final build.
     """
@@ -796,7 +820,7 @@ def update_release_json(ctx, github_token, new_version: Version):
     print(f"Updating {release_entry} for {new_version}")
 
     # Update release.json object with the entry for the new version
-    release_json = _update_release_json(ctx, release_json, release_entry, new_version, github_token)
+    release_json = _update_release_json(release_json, release_entry, new_version, max_version, github_token)
 
     _save_release_json(release_json)
 
@@ -878,7 +902,7 @@ def current_version(ctx, major_version) -> Version:
     return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
 
 
-def next_final_version(ctx, major_version) -> Version:
+def next_final_version(ctx, major_version, patch_version) -> Version:
     previous_version = current_version(ctx, major_version)
 
     # Set the new version
@@ -886,8 +910,16 @@ def next_final_version(ctx, major_version) -> Version:
         # If the previous version was a devel version, use the same version without devel
         # (should never happen during regular releases, we always do at least one RC)
         return previous_version.non_devel_version()
+    if previous_version.is_rc():
+        # If the previous version was an RC version, use the same version without RC
+        return previous_version.next_version(rc=False)
 
-    return previous_version.next_version(rc=False)
+    # Else, the latest version was a final release, so we use the next release
+    # (eg. 7.32.1 from 7.32.0).
+    if patch_version:
+        return previous_version.next_version(bump_patch=True, rc=False)
+    else:
+        return previous_version.next_version(bump_minor=True, rc=False)
 
 
 def next_rc_version(ctx, major_version, patch_version=False) -> Version:
@@ -945,7 +977,12 @@ def check_upstream_branch(github, branch):
     """
     Checks if the given branch already exists in the upstream repository
     """
-    github_branch = github.get_branch(branch)
+    try:
+        github_branch = github.get_branch(branch)
+    except APIError as e:
+        if e.status_code == 404:
+            return False
+        raise e
 
     # Return True if the branch exists
     return github_branch and github_branch.get('name', False)
@@ -998,8 +1035,15 @@ def finish(ctx, major_versions="6,7"):
     github_token = get_github_token()
 
     for major_version in list_major_versions:
-        new_version = next_final_version(ctx, major_version)
-        update_release_json(ctx, github_token, new_version)
+        # NOTE: the release process assumes that at least one RC
+        # was built before release.finish is used. It doesn't support
+        # doing final version -> final version updates (eg. 7.32.0 -> 7.32.1
+        # without doing at least 7.32.1-rc.1), as next_final_version won't
+        # find the correct new version.
+        # To support this, we'd have to support a --patch-version param in
+        # release.finish
+        new_version = next_final_version(ctx, major_version, False)
+        update_release_json(github_token, new_version, new_version)
 
     # Update internal module dependencies
     update_modules(ctx, str(new_version))
@@ -1050,6 +1094,10 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     # Get the version of the highest major: useful for some logging & to get
     # the version to use for Go submodules updates
     new_highest_version = next_rc_version(ctx, max(list_major_versions), patch_version)
+    # Get the next final version of the highest major: useful to know which
+    # milestone to target, as well as decide which tags from dependency repositories
+    # can be used.
+    new_final_version = next_final_version(ctx, max(list_major_versions), patch_version)
 
     # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
     versions_string = f"{'/'.join([str(n) for n in list_major_versions[:-1]] + [str(new_highest_version)])}"
@@ -1102,7 +1150,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
         )
 
     # Find milestone based on what the next final version is. If the milestone does not exist, fail.
-    milestone_name = str(next_final_version(ctx, max(list_major_versions)))
+    milestone_name = str(new_final_version)
 
     milestone = github.get_milestone_by_name(milestone_name)
 
@@ -1121,7 +1169,7 @@ Make sure that milestone is open before trying again.""",
     print(color_message("Updating release entries", "bold"))
     for major_version in list_major_versions:
         new_version = next_rc_version(ctx, major_version, patch_version)
-        update_release_json(ctx, github.api_token, new_version)
+        update_release_json(github.api_token, new_version, new_final_version)
 
     # Step 2: Update internal module dependencies
 

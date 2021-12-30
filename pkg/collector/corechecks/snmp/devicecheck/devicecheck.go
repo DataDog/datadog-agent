@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package devicecheck
 
 import (
@@ -39,10 +44,10 @@ type DeviceCheck struct {
 }
 
 // NewDeviceCheck returns a new DeviceCheck
-func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) (*DeviceCheck, error) {
+func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
 	newConfig := config.CopyWithNewIP(ipAddress)
 
-	sess, err := session.NewSession(newConfig)
+	sess, err := sessionFactory(newConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure session: %s", err)
 	}

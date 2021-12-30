@@ -23,6 +23,7 @@ core,code.cloudfoundry.org/lager,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,code.cloudfoundry.org/tlsconfig,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,contrib.go.opencensus.io/exporter/prometheus,Apache-2.0,OpenCensus Authors
 core,github.com/AlekSi/pointer,MIT,Alexey Palazhchenko
+core,github.com/DataDog/agent-payload/v5/contlcycle,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/gogen,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/process,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc"
@@ -467,6 +468,7 @@ core,github.com/klauspost/compress/fse,BSD-3-Clause,Klaus Post | The Go Authors 
 core,github.com/klauspost/compress/gzip,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
 core,github.com/klauspost/compress/huff0,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
 core,github.com/klauspost/compress/internal/snapref,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
+core,github.com/klauspost/compress/zip,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
 core,github.com/klauspost/compress/zstd,BSD-3-Clause,Caleb Spare | Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
 core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Caleb Spare | Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors | The filepathx Authors
 core,github.com/klauspost/pgzip,MIT,Klaus Post

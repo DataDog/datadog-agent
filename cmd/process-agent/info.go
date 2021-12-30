@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -14,6 +19,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -58,7 +64,7 @@ const (
   RTProcess Bytes enqueued: {{.Status.RTProcessQueueBytes}}
   Pod Bytes enqueued: {{.Status.PodQueueBytes}}
 
-  Logs: {{.Status.Config.LogFile}}{{if .Status.ProxyURL}}
+  Logs: {{.Status.LogFile}}{{if .Status.ProxyURL}}
   HttpProxy: {{.Status.ProxyURL}}{{end}}{{if ne .Status.ContainerID ""}}
   Container ID: {{.Status.ContainerID}}{{end}}
 
@@ -263,6 +269,7 @@ type StatusInfo struct {
 	PodQueueBytes       int                    `json:"pod_queue_bytes"`
 	ContainerID         string                 `json:"container_id"`
 	ProxyURL            string                 `json:"proxy_url"`
+	LogFile             string                 `json:"log_file"`
 }
 
 func initInfo(_ *config.AgentConfig) error {
@@ -328,6 +335,7 @@ func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	var info StatusInfo
+	info.LogFile = ddconfig.Datadog.GetString("process_config.log_file")
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		program, banner := getProgramBanner(Version)
 		_ = infoErrorTmpl.Execute(w, struct {

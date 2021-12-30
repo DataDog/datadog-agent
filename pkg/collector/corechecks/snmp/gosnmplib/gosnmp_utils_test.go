@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package gosnmplib
 
 import (
@@ -42,7 +47,7 @@ func TestPacketToString(t *testing.T) {
 					},
 				},
 			},
-			expectedStr: "error=NoError(code:0, idx:0), values=[{\"oid\":\"1.3.6.1.2.1.1.2.0\",\"type\":\"IPAddress\",\"value\":\"10\",\"parse_err\":\"`oid 1.3.6.1.2.1.1.2.0: IPAddress should be string type but got int type: gosnmp.SnmpPDU{Name:\\\"1.3.6.1.2.1.1.2.0\\\", Type:0x40, Value:10}`\"}]",
+			expectedStr: "error=NoError(code:0, idx:0), values=[{\"oid\":\"1.3.6.1.2.1.1.2.0\",\"type\":\"IPAddress\",\"value\":\"10\",\"parse_err\":\"`oid 1.3.6.1.2.1.1.2.0: IPAddress should be string type but got type `int` and value `10``\"}]",
 		},
 		{
 			name:        "nil packet loglevel",

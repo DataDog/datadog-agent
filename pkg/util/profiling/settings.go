@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package profiling
 
 import (
@@ -9,8 +14,9 @@ import (
 
 // Settings contains the settings for internal profiling, to be passed to Start().
 type Settings struct {
-	// Site specifies the datadog site (datadoghq.com, datadoghq.eu, etc.) which profiles will be sent to.
-	Site string
+	// ProfilingURL specifies the URL to which profiles will be sent.  This can be constructed
+	// from a site value with ProfilingURLTemplate.
+	ProfilingURL string
 	// Env specifies the environment to which profiles should be registered.
 	Env string
 	// Service specifies the service name to attach to a profile.
@@ -33,7 +39,7 @@ type Settings struct {
 
 func (settings *Settings) String() string {
 	return fmt.Sprintf("[Target:%q][Env:%q][Period:%s][CPU:%s][Mutex:%d][Block:%d][Routines:%v]",
-		settings.Site,
+		settings.ProfilingURL,
 		settings.Env,
 		settings.Period,
 		settings.CPUDuration,

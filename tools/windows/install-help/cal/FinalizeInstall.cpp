@@ -1,6 +1,13 @@
 #include "stdafx.h"
 #include "PropertyReplacer.h"
 #include "TargetMachine.h"
+#ifndef _CONSOLE
+// install-cmd and uninstall-cmd projects are console projects.
+// skip the decompressing part for those testing projects.
+#include "decompress.h"
+#endif
+#include <array>
+#include <filesystem>
 #include <fstream>
 
 bool ShouldUpdateConfig()
@@ -332,6 +339,35 @@ UINT doFinalizeInstall(CustomActionData &data)
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
+
+#ifndef _CONSOLE
+    {
+        std::array<std::filesystem::path, 2> embeddedArchiveLocations =
+        {
+            installdir + L"\\embedded2.7z",
+            installdir + L"\\embedded3.7z",
+        };
+
+        for (const auto path : embeddedArchiveLocations)
+        {
+            if (std::filesystem::exists(path))
+            {
+                WcaLog(LOGMSG_STANDARD, "Found archive %s, decompressing", path.string().c_str());
+                if (decompress_archive(path, installdir) != 0)
+                {
+                    WcaLog(LOGMSG_STANDARD, "Failed to decompress archive %s", path.string().c_str());
+                    er = ERROR_INSTALL_FAILURE;
+                    goto LExit;
+                }
+                else
+                {
+                    // Delete the archive
+                    std::filesystem::remove(path);
+                }
+            }
+        }
+    }
+#endif
 
     er = addDdUserPermsToFile(data.Sid(), programdataroot);
     WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);

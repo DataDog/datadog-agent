@@ -137,7 +137,20 @@ type ConfigurationProviders struct {
 
 // Listeners helps unmarshalling `listeners` config param
 type Listeners struct {
-	Name string `mapstructure:"name"`
+	Name             string `mapstructure:"name"`
+	EnabledProviders map[string]struct{}
+}
+
+// SetEnabledProviders registers the enabled config providers in the listener config
+func (l *Listeners) SetEnabledProviders(ep map[string]struct{}) {
+	l.EnabledProviders = ep
+}
+
+// IsProviderEnabled returns whether a config provider is enabled
+func (l *Listeners) IsProviderEnabled(provider string) bool {
+	_, found := l.EnabledProviders[provider]
+
+	return found
 }
 
 // Proxy represents the configuration for proxies in the agent
@@ -190,7 +203,7 @@ func InitConfig(config Config) {
 	config.BindEnv("site")
 	config.BindEnv("dd_url")
 	config.BindEnvAndSetDefault("app_key", "")
-	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba"})
+	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle"})
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
@@ -355,6 +368,18 @@ func InitConfig(config Config) {
 		} else {
 			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 		}
+
+		if pathExists("/host/etc") {
+			if val, isSet := os.LookupEnv("HOST_ETC"); !isSet {
+				// We want to detect the host distro informations instead of the one from the container.
+				// 'HOST_ETC' is used by some libraries like gopsutil and by the system-probe to
+				// download the right kernel headers.
+				os.Setenv("HOST_ETC", "/host/etc")
+				log.Debug("Setting environment variable HOST_ETC to '/host/etc'")
+			} else {
+				log.Debugf("'/host/etc' folder detected but HOST_ETC is already set to '%s', leaving it untouched", val)
+			}
+		}
 	} else {
 		config.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -375,7 +400,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	config.BindEnvAndSetDefault("aggregator_stop_timeout", 2)
 	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
+	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
+	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel", true)
+	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 500*1000) // This default value ensures the aggregator dont' wait for the serializer.
+
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
@@ -515,6 +544,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 
@@ -524,8 +554,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 
 	// Containerd
-	// We only support containerd in Kubernetes. By default containerd cri uses `k8s.io` https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
-	config.BindEnvAndSetDefault("containerd_namespace", "k8s.io")
+	config.BindEnvAndSetDefault("containerd_namespace", "")
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
@@ -685,18 +714,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
-
-	// Process agent
-	config.SetDefault("process_config.enabled", "false")
-	// process_config.enabled is only used on Windows by the core agent to start the process agent service.
-	// it can be set from file, but not from env. Override it with value from DD_PROCESS_AGENT_ENABLED.
-	ddProcessAgentEnabled, found := os.LookupEnv("DD_PROCESS_AGENT_ENABLED")
-	if found {
-		AddOverride("process_config.enabled", ddProcessAgentEnabled)
-	}
-
-	config.BindEnv("process_config.process_dd_url", "")
-
 	// Logs Agent
 
 	// External Use: modify those parameters to configure the logs-agent.
@@ -877,46 +894,18 @@ func InitConfig(config Config) {
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url")
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
 
+	// Container lifecycle configuration
+	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
+	config.BindEnv("container_lifecycle.dd_url")
+	config.BindEnv("container_lifecycle.additional_endpoints")
+
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
-	config.BindEnv("process_config.orchestrator_dd_url")
+	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL")
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
 	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
 	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
 	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
-
-	// Process agent
-	config.SetKnown("process_config.dd_agent_env")
-	config.SetKnown("process_config.enabled")
-	config.SetKnown("process_config.intervals.process_realtime")
-	config.SetKnown("process_config.queue_size")
-	config.SetKnown("process_config.rt_queue_size")
-	config.SetKnown("process_config.max_per_message")
-	config.SetKnown("process_config.max_ctr_procs_per_message")
-	config.SetKnown("process_config.cmd_port")
-	config.SetKnown("process_config.intervals.process")
-	config.SetKnown("process_config.blacklist_patterns")
-	config.SetKnown("process_config.intervals.container")
-	config.SetKnown("process_config.intervals.container_realtime")
-	config.SetKnown("process_config.dd_agent_bin")
-	config.SetKnown("process_config.custom_sensitive_words")
-	config.SetKnown("process_config.scrub_args")
-	config.SetKnown("process_config.strip_proc_arguments")
-	config.SetKnown("process_config.windows.args_refresh_interval")
-	config.SetKnown("process_config.windows.add_new_args")
-	config.SetKnown("process_config.windows.use_perf_counters")
-	config.SetKnown("process_config.additional_endpoints.*")
-	config.SetKnown("process_config.container_source")
-	config.SetKnown("process_config.intervals.connections")
-	config.SetKnown("process_config.expvar_port")
-	config.SetKnown("process_config.log_file")
-	config.SetKnown("process_config.internal_profiling.enabled")
-
-	config.BindEnvAndSetDefault("process_config.remote_tagger", true)
-
-	// Process Discovery Check
-	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false)
-	config.BindEnvAndSetDefault("process_config.process_discovery.interval", 4*time.Hour)
 
 	// Network
 	config.BindEnv("network.id")
@@ -986,6 +975,7 @@ func InitConfig(config Config) {
 	setupAPM(config)
 	setupAppSec(config)
 	SetupOTLP(config)
+	setupProcesses(config)
 }
 
 var ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)
@@ -1348,7 +1338,12 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 	}
 
 	additionalEndpoints := config.GetStringMapStringSlice("additional_endpoints")
-	// merge additional endpoints into keysPerDomain
+
+	return MergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
+}
+
+// MergeAdditionalEndpoints merges additional endpoints into keysPerDomain
+func MergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]string) (map[string][]string, error) {
 	for domain, apiKeys := range additionalEndpoints {
 
 		// Validating domain
