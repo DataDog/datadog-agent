@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Implement wildcard unit name selection on systemd
+    Implement wildcard unit name selection on systemd.
