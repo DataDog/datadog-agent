@@ -188,6 +188,7 @@ func runAgent(ctx context.Context) (err error) {
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.UseOrchestratorForwarder = false
 	opts.UseEventPlatformForwarder = false
+	opts.UseContainerLifecycleForwarder = false
 	hname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)

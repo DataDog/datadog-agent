@@ -149,43 +149,44 @@ instances:
         type: rate
       - path: logs-agent/EncodedBytesSent
         type: rate
-      - path: batch_strategy/logs_0/idleMs
+      - path: logs-agent/HttpDestinationStats/logs_0_reliable_0/idleMs
         type: rate
         alias: batch_strategy.idle_time
         tags: 
         - sender:0
-      - path: batch_strategy/logs_0/inUseMs
+      - path: logs-agent/HttpDestinationStats/logs_0_reliable_0/inUseMs
         type: rate
         alias: batch_strategy.in_use_time
         tags: 
         - sender:0
-      - path: batch_strategy/logs_1/idleMs
+      - path: logs-agent/HttpDestinationStats/logs_1_reliable_0/idleMs
         type: rate
         alias: batch_strategy.idle_time
         tags: 
         - sender:1
-      - path: batch_strategy/logs_1/inUseMs
+      - path: logs-agent/HttpDestinationStats/logs_1_reliable_0/inUseMs
         type: rate
         alias: batch_strategy.in_use_time
         tags: 
         - sender:1
-      - path: batch_strategy/logs_2/idleMs
+      - path: logs-agent/HttpDestinationStats/logs_2_reliable_0/idleMs
         type: rate
         alias: batch_strategy.idle_time
         tags: 
         - sender:2
-      - path: batch_strategy/logs_2/inUseMs
+      - path: logs-agent/HttpDestinationStats/logs_2_reliable_0/inUseMs
         type: rate
         alias: batch_strategy.in_use_time
         tags: 
         - sender:2
-      - path: batch_strategy/logs_3/idleMs
+      - path: logs-agent/HttpDestinationStats/logs_3_reliable_0/idleMs
         type: rate
         alias: batch_strategy.idle_time
         tags: 
         - sender:3
-      - path: batch_strategy/logs_3/inUseMs
+      - path: logs-agent/HttpDestinationStats/logs_3_reliable_0/inUseMs
         type: rate
         alias: batch_strategy.in_use_time
         tags: 
         - sender:3
+

@@ -57,6 +57,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
@@ -368,6 +369,7 @@ func StartAgent() error {
 	// Enable core agent specific features like persistence-to-disk
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts.UseContainerLifecycleForwarder = config.Datadog.GetBool("container_lifecycle.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 	// start dogstatsd

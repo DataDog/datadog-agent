@@ -90,6 +90,14 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	// now, simulate a cluster-agent environment and enabled the orchestrator feature
 
+	oee := config.Datadog.Get("orchestrator_explorer.enabled")
+	cre := config.Datadog.Get("clc_runner_enabled")
+	ecp := config.Datadog.Get("extra_config_providers")
+	defer func() {
+		config.Datadog.Set("orchestrator_explorer.enabled", oee)
+		config.Datadog.Set("clc_runner_enabled", cre)
+		config.Datadog.Set("extra_config_providers", ecp)
+	}()
 	config.Datadog.Set("orchestrator_explorer.enabled", true)
 	config.Datadog.Set("clc_runner_enabled", true)
 	config.Datadog.Set("extra_config_providers", []string{"clusterchecks"})

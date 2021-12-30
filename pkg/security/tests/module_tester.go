@@ -695,6 +695,8 @@ func (err ErrSkipTest) Error() string {
 }
 
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHandler) {
+	tb.Helper()
+
 	if err := tm.GetSignal(tb, action, cb); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
@@ -1185,7 +1187,7 @@ func init() {
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	rand.Seed(time.Now().UnixNano())
 
-	testSuitePid = uint32(os.Getpid())
+	testSuitePid = uint32(utils.Getpid())
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")

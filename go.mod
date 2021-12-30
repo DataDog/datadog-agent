@@ -61,7 +61,7 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/BurntSushi/toml v0.4.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.6
+	github.com/DataDog/agent-payload/v5 v5.0.8
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.33.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/quantile v0.33.0-rc.4
@@ -80,7 +80,7 @@ require (
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9
-	github.com/DataDog/zstd v1.4.8
+	github.com/DataDog/zstd v1.5.0
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0
@@ -94,7 +94,7 @@ require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/aws/aws-sdk-go v1.42.20
 	github.com/beevik/ntp v0.3.0
-	github.com/benbjohnson/clock v1.2.0
+	github.com/benbjohnson/clock v1.3.0
 	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
@@ -134,7 +134,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20210423192551-a2663126120b
 	github.com/gorilla/mux v1.8.0
-	github.com/gosnmp/gosnmp v1.32.0
+	github.com/gosnmp/gosnmp v1.34.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.2-0.20210602110014-3305bbb7ac7b

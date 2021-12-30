@@ -74,7 +74,16 @@ func (s *senders) GetDefaultSender() (Sender, error) {
 	s.senderInit.Do(func() {
 		var defaultCheckID check.ID          // the default value is the zero value
 		s.agg.registerSender(defaultCheckID) //nolint:errcheck
-		s.defaultSender = newCheckSender(defaultCheckID, s.agg.hostname, s.agg.checkMetricIn, s.agg.serviceCheckIn, s.agg.eventIn, s.agg.checkHistogramBucketIn, s.agg.orchestratorMetadataIn, s.agg.eventPlatformIn)
+		s.defaultSender = newCheckSender(defaultCheckID,
+			s.agg.hostname,
+			s.agg.checkMetricIn,
+			s.agg.serviceCheckIn,
+			s.agg.eventIn,
+			s.agg.checkHistogramBucketIn,
+			s.agg.orchestratorMetadataIn,
+			s.agg.eventPlatformIn,
+			s.agg.contLcycleIn,
+		)
 	})
 	return s.defaultSender, nil
 }

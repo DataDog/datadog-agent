@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from invoke.exceptions import Exit
 
-from .remote_api import RemoteAPI
+from .remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
 
@@ -19,11 +19,9 @@ class Gitlab(RemoteAPI):
     BASE_URL = "https://gitlab.ddbuild.io/api/v4"
 
     def __init__(self, project_name="", api_token=""):
-        super(Gitlab, self).__init__()
-
+        super(Gitlab, self).__init__("Gitlab")
         self.api_token = api_token
         self.project_name = project_name
-        self.api_name = "Gitlab"
         self.authorization_error_message = (
             "HTTP 401: Your GITLAB_TOKEN may have expired. You can "
             "check and refresh it at "
@@ -131,12 +129,15 @@ class Gitlab(RemoteAPI):
         path = f"/projects/{quote(self.project_name, safe='')}/repository/commits/{commit_sha}"
         return self.make_request(path, json_output=True)
 
-    def artifact(self, job_id, artifact_name):
+    def artifact(self, job_id, artifact_name, ignore_not_found=False):
         path = f"/projects/{quote(self.project_name, safe='')}/jobs/{job_id}/artifacts/{artifact_name}"
-        response = self.make_request(path, stream_output=True)
-        if response.status_code != 200:
-            return None
-        return response
+        try:
+            response = self.make_request(path, stream_output=True)
+            return response
+        except APIError as e:
+            if e.status_code == 404 and ignore_not_found:
+                return None
+            raise e
 
     def all_jobs(self, pipeline_id):
         """

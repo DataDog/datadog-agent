@@ -548,6 +548,15 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 	return node.Labels, nil
 }
 
+// NodeAnnotations is used to fetch the annotations attached to a given node.
+func (c *APIClient) NodeAnnotations(nodeName string) (map[string]string, error) {
+	node, err := c.Cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return node.Annotations, nil
+}
+
 // GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on
 func (c *APIClient) GetNodeForPod(ctx context.Context, namespace, podName string) (string, error) {
 	pod, err := c.Cl.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
