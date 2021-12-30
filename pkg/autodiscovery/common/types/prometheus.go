@@ -6,10 +6,12 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,8 +37,21 @@ var (
 		PrometheusPathAnnotation,
 		PrometheusPortAnnotation,
 	}
-	openmetricsDefaultMetrics = []string{".*"}
+	OpenmetricsDefaultMetricsv1 = []string{"*"}
+	OpenmetricsDefaultMetricsv2 = []string{".*"}
 )
+
+func configPrometheusScrapeChecksTransformer(in string) interface{} {
+	var promChecks []*PrometheusCheck
+	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
+		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
+	}
+	return promChecks
+}
+
+func init() {
+	config.PrometheusScrapeChecksTransformer = configPrometheusScrapeChecksTransformer
+}
 
 // PrometheusCheck represents the openmetrics check instances and the corresponding autodiscovery rules
 type PrometheusCheck struct {
@@ -46,7 +61,8 @@ type PrometheusCheck struct {
 
 // OpenmetricsInstance contains the openmetrics check instance fields
 type OpenmetricsInstance struct {
-	URL                           string                      `mapstructure:"openmetrics_endpoint" yaml:"openmetrics_endpoint,omitempty" json:"openmetrics_endpoint,omitempty"`
+	URLv1                         string                      `mapstructure:"prometheus_url" yaml:"prometheus_url,omitempty" json:"prometheus_url,omitempty"`
+	URLv2                         string                      `mapstructure:"openmetrics_endpoint" yaml:"openmetrics_endpoint,omitempty" json:"openmetrics_endpoint,omitempty"`
 	Namespace                     string                      `mapstructure:"namespace" yaml:"namespace,omitempty" json:"namespace"`
 	Metrics                       []string                    `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
 	Prefix                        string                      `mapstructure:"prometheus_metrics_prefix" yaml:"prometheus_metrics_prefix,omitempty" json:"prometheus_metrics_prefix,omitempty"`
@@ -115,6 +131,17 @@ func (pc *PrometheusCheck) Init() error {
 
 // initInstances defaults the Instances field in PrometheusCheck
 func (pc *PrometheusCheck) initInstances() {
+	var openmetricsDefaultMetrics []string
+	switch config.Datadog.GetInt("prometheus_scrape.version") {
+	case 1:
+		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsv1
+	case 2:
+		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsv2
+	default:
+		log.Errorf("Invalid value for `prometheus_scrape.version`. Can only be 1 or 2.")
+		return
+	}
+
 	if len(pc.Instances) == 0 {
 		// Put a default config
 		pc.Instances = append(pc.Instances, &OpenmetricsInstance{
@@ -226,7 +253,7 @@ func (ad *ADConfig) MatchContainer(name string) bool {
 var DefaultPrometheusCheck = &PrometheusCheck{
 	Instances: []*OpenmetricsInstance{
 		{
-			Metrics:   openmetricsDefaultMetrics,
+			Metrics:   []string{"PLACEHOLDER"},
 			Namespace: openmetricsDefaultNS,
 		},
 	},

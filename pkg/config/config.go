@@ -20,7 +20,6 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -110,6 +109,9 @@ var (
 var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
+
+	// PrometheusScrapeChecksTransformer decodes the `prometheus_scrape.checks` parameter
+	PrometheusScrapeChecksTransformer func(string) interface{}
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
@@ -586,13 +588,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 	config.BindEnv("prometheus_scrape.checks")                                // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
-	config.SetEnvKeyTransformer("prometheus_scrape.checks", func(in string) interface{} {
-		var promChecks []*types.PrometheusCheck
-		if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
-			log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
-		}
-		return promChecks
-	})
+	config.SetEnvKeyTransformer("prometheus_scrape.checks", PrometheusScrapeChecksTransformer)
+	config.BindEnvAndSetDefault("prometheus_scrape.version", 2) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")

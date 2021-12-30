@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,14 +22,27 @@ const (
 // buildInstances generates check config instances based on the Prometheus config and the object annotations
 // The second returned value is true if more than one instance is found
 func buildInstances(pc *types.PrometheusCheck, annotations map[string]string, namespacedName string) ([]integration.Data, bool) {
+	openmetricsVersion := config.Datadog.GetInt("prometheus_scrape.version")
+
 	instances := []integration.Data{}
 	for k, v := range pc.AD.KubeAnnotations.Incl {
 		if annotations[k] == v {
 			log.Debugf("'%s' matched the annotation '%s=%s' to schedule an openmetrics check", namespacedName, k, v)
 			for _, instance := range pc.Instances {
 				instanceValues := *instance
-				if instanceValues.URL == "" {
-					instanceValues.URL = types.BuildURL(annotations)
+				if instanceValues.URLv1 == "" && instanceValues.URLv2 == "" {
+					switch openmetricsVersion {
+					case 1:
+						instanceValues.URLv1 = types.BuildURL(annotations)
+						if len(instanceValues.Metrics) == 1 && instanceValues.Metrics[0] == "PLACEHOLDER" {
+							instanceValues.Metrics = types.OpenmetricsDefaultMetricsv1
+						}
+					case 2:
+						instanceValues.URLv2 = types.BuildURL(annotations)
+						if len(instanceValues.Metrics) == 1 && instanceValues.Metrics[0] == "PLACEHOLDER" {
+							instanceValues.Metrics = types.OpenmetricsDefaultMetricsv2
+						}
+					}
 				}
 				instanceJSON, err := json.Marshal(instanceValues)
 				if err != nil {
