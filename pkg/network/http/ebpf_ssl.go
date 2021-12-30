@@ -125,12 +125,14 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection: doSysOpen,
+					EBPFSection:  doSysOpen,
+					EBPFFuncName: "kprobe__do_sys_open",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection: doSysOpenRet,
+					EBPFSection:  doSysOpenRet,
+					EBPFFuncName: "kretprobe__do_sys_open",
 				},
 			},
 		)
@@ -181,10 +183,10 @@ func (o *sslProgram) Stop() {
 func addHooks(m *manager.Manager, probes map[string]string) func(string) error {
 	return func(libPath string) error {
 		uid := getUID(libPath)
-		for _, sec := range probes {
+		for sec, funcName := range probes {
 			p, found := m.GetProbe(manager.ProbeIdentificationPair{
 				EBPFSection:  sec,
-				EBPFFuncName: probes[sec],
+				EBPFFuncName: funcName,
 				UID:          uid,
 			})
 			if found {
@@ -201,7 +203,7 @@ func addHooks(m *manager.Manager, probes map[string]string) func(string) error {
 			newProbe := &manager.Probe{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  sec,
-					EBPFFuncName: probes[sec],
+					EBPFFuncName: funcName,
 					UID:          uid,
 				},
 				BinaryPath: libPath,
@@ -220,10 +222,10 @@ func addHooks(m *manager.Manager, probes map[string]string) func(string) error {
 func removeHooks(m *manager.Manager, probes map[string]string) func(string) error {
 	return func(libPath string) error {
 		uid := getUID(libPath)
-		for _, sec := range probes {
+		for sec, funcName := range probes {
 			p, found := m.GetProbe(manager.ProbeIdentificationPair{
 				EBPFSection:  sec,
-				EBPFFuncName: probes[sec],
+				EBPFFuncName: funcName,
 				UID:          uid,
 			})
 			if !found {
@@ -233,7 +235,7 @@ func removeHooks(m *manager.Manager, probes map[string]string) func(string) erro
 			program := p.Program()
 			m.DetachHook(manager.ProbeIdentificationPair{
 				EBPFSection:  sec,
-				EBPFFuncName: probes[sec],
+				EBPFFuncName: funcName,
 				UID:          uid,
 			})
 			if program != nil {
