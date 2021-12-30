@@ -514,8 +514,17 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 					default:
 						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
 					}
-				} else if err := mutable.Set(ctx, value); err != nil {
-					return err
+				} else {
+					switch value.(type) {
+					case string:
+						value = []string{value.(string)}
+					case int:
+						value = []int{value.(int)}
+					}
+
+					if err := mutable.Set(ctx, value); err != nil {
+						return err
+					}
 				}
 			}
 		}

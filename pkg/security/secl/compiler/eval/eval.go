@@ -206,6 +206,23 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 
 			evaluator := value.GetEvaluator()
 			switch evaluator := evaluator.(type) {
+			case *StringArrayEvaluator:
+				evaluators = append(evaluators, &StringEvaluator{
+					EvalFnc: func(ctx *Context) string {
+						return strings.Join(evaluator.EvalFnc(ctx), ",")
+					}})
+			case *IntArrayEvaluator:
+				evaluators = append(evaluators, &StringEvaluator{
+					EvalFnc: func(ctx *Context) string {
+						var result string
+						for i, number := range evaluator.EvalFnc(ctx) {
+							if i != 0 {
+								result += ","
+							}
+							result += strconv.FormatInt(int64(number), 10)
+						}
+						return result
+					}})
 			case *StringEvaluator:
 				evaluators = append(evaluators, evaluator)
 			case *IntEvaluator:

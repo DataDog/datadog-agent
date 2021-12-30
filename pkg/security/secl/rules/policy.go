@@ -223,6 +223,10 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 
 				if action.Set.Value != nil {
 					switch value := action.Set.Value.(type) {
+					case int:
+						action.Set.Value = []int{value}
+					case string:
+						action.Set.Value = []string{value}
 					case []interface{}:
 						if len(value) == 0 {
 							result = multierror.Append(result, fmt.Errorf("unable to infer item type for '%s'", action.Set.Name))
@@ -250,18 +254,9 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 
 					switch kind {
 					case reflect.String:
-						if action.Set.Append {
-							variableValue = []string{""}
-						} else {
-							variableValue = ""
-						}
+						variableValue = []string{}
 					case reflect.Int:
-						if action.Set.Append {
-							variableValue = []int{0}
-						} else {
-							variableValue = 0
-						}
-						variableValue = 0
+						variableValue = []int{}
 					case reflect.Bool:
 						variableValue = false
 					default:
