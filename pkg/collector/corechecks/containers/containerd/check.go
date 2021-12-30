@@ -19,11 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	ddContainers "github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,11 +34,11 @@ const (
 
 // ContainerdCheck grabs containerd metrics and events
 type ContainerdCheck struct {
-	core.CheckBase
+	corechecks.CheckBase
 	instance        *ContainerdConfig
 	processor       generic.Processor
 	subscriber      *subscriber
-	containerFilter *ddContainers.Filter
+	containerFilter *containers.Filter
 	client          cutil.ContainerdItf
 }
 
@@ -77,7 +76,7 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source 
 		return err
 	}
 
-	c.containerFilter, err = ddContainers.GetSharedMetricFilter()
+	c.containerFilter, err = containers.GetSharedMetricFilter()
 	if err != nil {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
 	}
