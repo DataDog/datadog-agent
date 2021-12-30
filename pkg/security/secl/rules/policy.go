@@ -250,8 +250,17 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 
 					switch kind {
 					case reflect.String:
-						variableValue = ""
+						if action.Set.Append {
+							variableValue = []string{""}
+						} else {
+							variableValue = ""
+						}
 					case reflect.Int:
+						if action.Set.Append {
+							variableValue = []int{0}
+						} else {
+							variableValue = 0
+						}
 						variableValue = 0
 					case reflect.Bool:
 						variableValue = false
