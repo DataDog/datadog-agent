@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	variableRegex      = regexp.MustCompile(`\${[^}]*}`)
-	appendNotSupported = errors.New("append is not supported")
+	variableRegex         = regexp.MustCompile(`\${[^}]*}`)
+	errAppendNotSupported = errors.New("append is not supported")
 )
 
 // VariableValue describes a SECL variable value
@@ -43,9 +43,9 @@ func (v *Variable) Set(ctx *Context, value interface{}) error {
 	return v.setFnc(ctx, value)
 }
 
-// Set the variable with the specified value
+// Append a value to the variable
 func (v *Variable) Append(ctx *Context, value interface{}) error {
-	return appendNotSupported
+	return errAppendNotSupported
 }
 
 // IntVariable describes an integer variable
@@ -207,12 +207,12 @@ func (m *MutableIntVariable) Set(ctx *Context, value interface{}) error {
 }
 
 // Append a value to the integer
-func (s *MutableIntVariable) Append(ctx *Context, value interface{}) error {
+func (m *MutableIntVariable) Append(ctx *Context, value interface{}) error {
 	switch value := value.(type) {
 	case int:
-		s.Value += value
+		m.Value += value
 	default:
-		return appendNotSupported
+		return errAppendNotSupported
 	}
 	return nil
 }
@@ -252,8 +252,8 @@ func (m *MutableBoolVariable) Set(ctx *Context, value interface{}) error {
 }
 
 // Append a value to the boolean
-func (s *MutableBoolVariable) Append(ctx *Context, value interface{}) error {
-	return appendNotSupported
+func (m *MutableBoolVariable) Append(ctx *Context, value interface{}) error {
+	return errAppendNotSupported
 }
 
 // NewMutableBoolVariable returns a new mutable boolean variable
@@ -276,12 +276,12 @@ func (m *MutableStringVariable) GetEvaluator() interface{} {
 }
 
 // Append a value to the string
-func (s *MutableStringVariable) Append(ctx *Context, value interface{}) error {
+func (m *MutableStringVariable) Append(ctx *Context, value interface{}) error {
 	switch value := value.(type) {
 	case string:
-		s.Value += value
+		m.Value += value
 	default:
-		return appendNotSupported
+		return errAppendNotSupported
 	}
 	return nil
 }
@@ -312,14 +312,14 @@ func (m *MutableStringArrayVariable) Set(ctx *Context, values interface{}) error
 }
 
 // Append a value to the array
-func (s *MutableStringArrayVariable) Append(ctx *Context, value interface{}) error {
+func (m *MutableStringArrayVariable) Append(ctx *Context, value interface{}) error {
 	switch value := value.(type) {
 	case string:
-		s.Values = append(s.Values, value)
+		m.Values = append(m.Values, value)
 	case []string:
-		s.Values = append(s.Values, value...)
+		m.Values = append(m.Values, value...)
 	default:
-		return appendNotSupported
+		return errAppendNotSupported
 	}
 	return nil
 }
@@ -353,14 +353,14 @@ func (m *MutableIntArrayVariable) Set(ctx *Context, values interface{}) error {
 }
 
 // Append a value to the array
-func (s *MutableIntArrayVariable) Append(ctx *Context, value interface{}) error {
+func (m *MutableIntArrayVariable) Append(ctx *Context, value interface{}) error {
 	switch value := value.(type) {
 	case int:
-		s.Values = append(s.Values, value)
+		m.Values = append(m.Values, value)
 	case []int:
-		s.Values = append(s.Values, value...)
+		m.Values = append(m.Values, value...)
 	default:
-		return appendNotSupported
+		return errAppendNotSupported
 	}
 	return nil
 }
