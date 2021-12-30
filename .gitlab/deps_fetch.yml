@@ -7,6 +7,10 @@
   - mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
   - rm -f modcache.tar.gz
 
+.retrieve_linux_go_tools_deps:
+  - mkdir -p $GOPATH/pkg/mod && tar xzf modcache_tools.tar.gz -C $GOPATH/pkg/mod
+  - rm -f modcache_tools.tar.gz
+
 go_deps:
   stage: deps_fetch
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
@@ -19,4 +23,18 @@ go_deps:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache.tar.gz
+  retry: 1
+
+go_tools_deps:
+  stage: deps_fetch
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: []
+  script:
+    - inv -e download-tools
+    - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache_tools.tar.gz .
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/modcache_tools.tar.gz
   retry: 1

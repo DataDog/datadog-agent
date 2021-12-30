@@ -51,6 +51,7 @@ from .go import (
 from .test import (
     e2e_tests,
     install_shellcheck,
+    download_tools,
     install_tools,
     integration_tests,
     junit_upload,
@@ -90,6 +91,7 @@ ns.add_task(audit_tag_impact)
 ns.add_task(e2e_tests)
 ns.add_task(generate)
 ns.add_task(install_shellcheck)
+ns.add_task(download_tools)
 ns.add_task(install_tools)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
