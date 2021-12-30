@@ -465,63 +465,10 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 				}
 
 				if action.Set.Append {
-					// TODO(lebauce): move to variables.go
-					switch value := value.(type) {
-					case string:
-						switch evaluator := variable.GetEvaluator().(type) {
-						case *eval.StringEvaluator:
-							if err := mutable.Set(ctx, evaluator.GetValue(ctx)+value); err != nil {
-								return err
-							}
-						case *eval.StringArrayEvaluator:
-							if err := mutable.Set(ctx, append(evaluator.EvalFnc(ctx), value)); err != nil {
-								return err
-							}
-						default:
-							return fmt.Errorf("cannot append string array to string variable %s", name)
-						}
-					case []string:
-						switch evaluator := variable.GetEvaluator().(type) {
-						case *eval.StringArrayEvaluator:
-							if err := mutable.Set(ctx, append(evaluator.EvalFnc(ctx), value...)); err != nil {
-								return err
-							}
-						default:
-							return fmt.Errorf("cannot append string array to string variable %s", name)
-						}
-					case int:
-						switch evaluator := variable.GetEvaluator().(type) {
-						case *eval.IntEvaluator:
-							if err := mutable.Set(ctx, evaluator.EvalFnc(ctx)+value); err != nil {
-								return err
-							}
-						case *eval.IntArrayEvaluator:
-							if err := mutable.Set(ctx, append(evaluator.EvalFnc(ctx), value)); err != nil {
-								return err
-							}
-						default:
-							return fmt.Errorf("cannot append '%s' to int variable %s", reflect.TypeOf(evaluator), name)
-						}
-					case []int:
-						switch evaluator := variable.GetEvaluator().(type) {
-						case *eval.IntArrayEvaluator:
-							if err := mutable.Set(ctx, append(evaluator.EvalFnc(ctx), value...)); err != nil {
-								return err
-							}
-						default:
-							return fmt.Errorf("cannot append '%s' to int array variable %s", reflect.TypeOf(evaluator), name)
-						}
-					default:
+					if err := mutable.Append(ctx, value); err != nil {
 						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
 					}
 				} else {
-					switch value.(type) {
-					case string:
-						value = []string{value.(string)}
-					case int:
-						value = []int{value.(int)}
-					}
-
 					if err := mutable.Set(ctx, value); err != nil {
 						return err
 					}

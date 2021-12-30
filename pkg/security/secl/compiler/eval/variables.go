@@ -14,7 +14,8 @@ import (
 )
 
 var (
-	variableRegex = regexp.MustCompile(`\${[^}]*}`)
+	variableRegex      = regexp.MustCompile(`\${[^}]*}`)
+	appendNotSupported = errors.New("append is not supported")
 )
 
 // VariableValue describes a SECL variable value
@@ -25,6 +26,7 @@ type VariableValue interface {
 // MutableVariable is the interface implemented by modifiable variables
 type MutableVariable interface {
 	Set(ctx *Context, value interface{}) error
+	Append(ctx *Context, value interface{}) error
 }
 
 // Variable describes a SECL variable
@@ -39,6 +41,11 @@ func (v *Variable) Set(ctx *Context, value interface{}) error {
 	}
 
 	return v.setFnc(ctx, value)
+}
+
+// Set the variable with the specified value
+func (v *Variable) Append(ctx *Context, value interface{}) error {
+	return appendNotSupported
 }
 
 // IntVariable describes an integer variable
@@ -129,6 +136,19 @@ func (s *StringArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
+// Set the array values
+func (s *StringArrayVariable) Set(ctx *Context, value interface{}) error {
+	if s, ok := value.(string); ok {
+		value = []string{s}
+	}
+	return s.Variable.Set(ctx, value)
+}
+
+// Append a value to the array
+func (s *StringArrayVariable) Append(ctx *Context, value interface{}) error {
+	return s.Set(ctx, append(s.strFnc(ctx), value.(string)))
+}
+
 // NewStringArrayVariable returns a new string array variable
 func NewStringArrayVariable(strFnc func(ctx *Context) []string, setFnc func(ctx *Context, value interface{}) error) *StringArrayVariable {
 	return &StringArrayVariable{
@@ -152,6 +172,19 @@ func (s *IntArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
+// Set the array values
+func (s *IntArrayVariable) Set(ctx *Context, value interface{}) error {
+	if i, ok := value.(int); ok {
+		value = []int{i}
+	}
+	return s.Variable.Set(ctx, value)
+}
+
+// Append a value to the array
+func (s *IntArrayVariable) Append(ctx *Context, value interface{}) error {
+	return s.Set(ctx, append(s.intFnc(ctx), value.(int)))
+}
+
 // NewIntArrayVariable returns a new integer array variable
 func NewIntArrayVariable(intFnc func(ctx *Context) []int, setFnc func(ctx *Context, value interface{}) error) *IntArrayVariable {
 	return &IntArrayVariable{
@@ -170,6 +203,17 @@ type MutableIntVariable struct {
 // Set the variable with the specified value
 func (m *MutableIntVariable) Set(ctx *Context, value interface{}) error {
 	m.Value = value.(int)
+	return nil
+}
+
+// Append a value to the integer
+func (s *MutableIntVariable) Append(ctx *Context, value interface{}) error {
+	switch value := value.(type) {
+	case int:
+		s.Value += value
+	default:
+		return appendNotSupported
+	}
 	return nil
 }
 
@@ -207,6 +251,11 @@ func (m *MutableBoolVariable) Set(ctx *Context, value interface{}) error {
 	return nil
 }
 
+// Append a value to the boolean
+func (s *MutableBoolVariable) Append(ctx *Context, value interface{}) error {
+	return appendNotSupported
+}
+
 // NewMutableBoolVariable returns a new mutable boolean variable
 func NewMutableBoolVariable() *MutableBoolVariable {
 	return &MutableBoolVariable{}
@@ -224,6 +273,17 @@ func (m *MutableStringVariable) GetEvaluator() interface{} {
 			return m.Value
 		},
 	}
+}
+
+// Append a value to the string
+func (s *MutableStringVariable) Append(ctx *Context, value interface{}) error {
+	switch value := value.(type) {
+	case string:
+		s.Value += value
+	default:
+		return appendNotSupported
+	}
+	return nil
 }
 
 // Set the variable with the specified value
@@ -244,7 +304,23 @@ type MutableStringArrayVariable struct {
 
 // Set the variable with the specified value
 func (m *MutableStringArrayVariable) Set(ctx *Context, values interface{}) error {
+	if s, ok := values.(string); ok {
+		values = []string{s}
+	}
 	m.Values = values.([]string)
+	return nil
+}
+
+// Append a value to the array
+func (s *MutableStringArrayVariable) Append(ctx *Context, value interface{}) error {
+	switch value := value.(type) {
+	case string:
+		s.Values = append(s.Values, value)
+	case []string:
+		s.Values = append(s.Values, value...)
+	default:
+		return appendNotSupported
+	}
 	return nil
 }
 
@@ -269,7 +345,23 @@ type MutableIntArrayVariable struct {
 
 // Set the variable with the specified value
 func (m *MutableIntArrayVariable) Set(ctx *Context, values interface{}) error {
+	if i, ok := values.(int); ok {
+		values = []int{i}
+	}
 	m.Values = values.([]int)
+	return nil
+}
+
+// Append a value to the array
+func (s *MutableIntArrayVariable) Append(ctx *Context, value interface{}) error {
+	switch value := value.(type) {
+	case int:
+		s.Values = append(s.Values, value)
+	case []int:
+		s.Values = append(s.Values, value...)
+	default:
+		return appendNotSupported
+	}
 	return nil
 }
 
