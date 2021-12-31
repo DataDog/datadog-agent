@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -41,18 +42,19 @@ func filter(file *modfile.File, filter string) []string {
 }
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Println(`Usage: modparser <path> <prefix>
+	var modPath string
+	var prefix string
 
-Reads a go.mod file in the provided path, and prints the list of requires from this go.mod file.
-that are prefixed with the given prefix.
+	flag.StringVar(&modPath, "path", "", "Path to the go module to inspect")
+	flag.StringVar(&prefix, "prefix", "", "Prefix used to filter requires")
 
-Example: modparser /go/src/github.com/DataDog/datadog-agent github.com/DataDog/datadog-agent`)
+	flag.Parse()
+
+	// Check that both flags have been set
+	if flag.NFlag() != 2 {
+		flag.Usage()
 		os.Exit(1)
 	}
-
-	modPath := os.Args[1]
-	prefix := os.Args[2]
 
 	parsedFile, err := parseMod(modPath)
 	if err != nil {

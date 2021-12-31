@@ -33,7 +33,7 @@ class GoModule:
         prefix = "github.com/DataDog/datadog-agent/"
         try:
             output = subprocess.check_output(
-                ["go", "run", ".", os.path.join(os.getcwd(), self.path), prefix],
+                ["go", "run", ".", "-path", os.path.join(os.getcwd(), self.path), "-prefix", prefix],
                 cwd=os.path.join(os.getcwd(), "internal", "tools", "modparser"),
             ).decode("utf-8")
         except subprocess.CalledProcessError as e:
