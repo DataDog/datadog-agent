@@ -8,11 +8,43 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
+func parseMod(module string) (*modfile.File, error) {
+	if !strings.HasSuffix(module, "/") {
+		module += "/"
+	}
+
+	modFilename := module + "go.mod"
+
+	data, err := os.ReadFile(modFilename)
+	if err != nil {
+		return nil, fmt.Errorf("could not read go.mod file in %s", module)
+	}
+
+	parsedFile, err := modfile.Parse(modFilename, data, nil)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse go.mod file in %s", module)
+	}
+
+	return parsedFile, nil
+}
+
+func filter(file *modfile.File, filter string) []string {
+	var matches []string
+	for _, req := range file.Require {
+		for _, token := range req.Syntax.Token {
+			if strings.HasPrefix(token, filter) {
+				matches = append(matches, token)
+			}
+		}
+	}
+	return matches
+}
+
 func main() {
 	if len(os.Args) != 3 {
 		fmt.Println(`Usage: modparser <path> <prefix>
 
-Reads a go.mod file in the provided path, and returns the list of requires from this go.mod file.
+Reads a go.mod file in the provided path, and prints the list of requires from this go.mod file.
 that are prefixed with the given prefix.
 
 Example: modparser /go/src/github.com/DataDog/datadog-agent github.com/DataDog/datadog-agent`)
@@ -20,31 +52,15 @@ Example: modparser /go/src/github.com/DataDog/datadog-agent github.com/DataDog/d
 	}
 
 	modPath := os.Args[1]
-	if !strings.HasSuffix(modPath, "/") {
-		modPath += "/"
-	}
-
 	prefix := os.Args[2]
 
-	modFilename := modPath + "go.mod"
-
-	data, err := os.ReadFile(modFilename)
+	parsedFile, err := parseMod(modPath)
 	if err != nil {
-		fmt.Printf("Couldn't read file %s\n", modFilename)
+		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	parsedFile, err := modfile.Parse(modFilename, data, nil)
-	if err != nil {
-		fmt.Printf("Couldn't parse mod file %s\n", modFilename)
-		os.Exit(1)
-	}
-
-	for _, req := range parsedFile.Require {
-		for _, token := range req.Syntax.Token {
-			if strings.Contains(token, prefix) {
-				fmt.Println(token)
-			}
-		}
+	for _, match := range filter(parsedFile, prefix) {
+		fmt.Println(match)
 	}
 }
