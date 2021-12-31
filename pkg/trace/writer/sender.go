@@ -30,7 +30,7 @@ import (
 // newSenders returns a list of senders based on the given agent configuration, using climit
 // as the maximum number of concurrent outgoing connections, writing to path.
 func newSenders(cfg *config.AgentConfig, r eventRecorder, path_ string, climit, qsize int) []*sender {
-	if e := cfg.Endpoints; len(e) == 0 || e[0].Host != nil || e[0].APIKey == "" {
+	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == nil || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
 	client := httputils.NewResetClient(cfg.ConnectionResetInterval, cfg.NewHTTPClient)

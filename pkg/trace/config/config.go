@@ -35,8 +35,8 @@ var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a con
 
 // Endpoint specifies an endpoint that the trace agent will write data (traces, stats & services) to.
 type Endpoint struct {
-	APIKey string   `json:"-"` // never marshal this
-	Host   *url.URL `json:",string"`
+	APIKey string `json:"-"` // never marshal this
+	Host   *url.URL
 
 	// NoProxy will be set to true when the proxy setting for the trace API endpoint
 	// needs to be ignored (e.g. it is part of the "no_proxy" list in the yaml settings).
@@ -103,7 +103,7 @@ type AgentConfig struct {
 	WatchdogInterval time.Duration // WatchdogInterval is the delay between 2 watchdog checks
 
 	// http/s proxying
-	ProxyURL          *url.URL `json:",string"`
+	ProxyURL          *url.URL
 	SkipSSLValidation bool
 
 	// filtering

@@ -149,7 +149,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 		}
 		rec := httptest.NewRecorder()
 		conf := newTestReceiverConfig()
-		conf.Endpoints[0].Host = &url.URL{}
+		conf.Endpoints[0].Host = nil
 		r := newTestReceiverFromConfig(conf)
 		r.pipelineStatsProxyHandler().ServeHTTP(rec, req)
 		res := rec.Result()

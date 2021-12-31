@@ -30,13 +30,13 @@ const (
 
 // pipelineStatsEndpoint returns the pipeline intake url and the corresponding API key.
 func pipelineStatsEndpoint(cfg *config.AgentConfig) (url *url.URL, apiKey string, err error) {
-	if e := cfg.Endpoints; len(e) == 0 || e[0].Host != nil || e[0].APIKey == "" {
+	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == nil || e[0].APIKey == "" {
 		return nil, "", errors.New("config was not properly validated")
 	}
 	u := *cfg.Endpoints[0].Host
 	u.Path = path.Join(u.Path, pipelineStatsURLSuffix)
 
-	return url, cfg.Endpoints[0].APIKey, nil
+	return &u, cfg.Endpoints[0].APIKey, nil
 }
 
 // pipelineStatsProxyHandler returns a new HTTP handler which will proxy requests to the pipeline stats intake.

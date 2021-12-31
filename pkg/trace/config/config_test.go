@@ -182,7 +182,7 @@ func TestSite(t *testing.T) {
 			defer cleanConfig()()
 			cfg, err := Load(tt.file)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.url, cfg.Endpoints[0].Host)
+			assert.Equal(t, tt.url, cfg.Endpoints[0].Host.String())
 		})
 	}
 }

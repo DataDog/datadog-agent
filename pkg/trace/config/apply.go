@@ -375,11 +375,18 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.TelemetryConfig.Enabled = true
 		u, _ := url.Parse(config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url"))
 		//TODO handle err
-		c.TelemetryConfig.Endpoints = []*Endpoint{{
+		endpoints := []*Endpoint{{
 			Host:   u,
 			APIKey: c.Endpoints[0].APIKey,
 		}}
-		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
+		endpoints = appendEndpoints(endpoints, "apm_config.telemetry.additional_endpoints")
+		c.TelemetryConfig.Endpoints = []*Endpoint{}
+		for _, e := range endpoints {
+			if e.Host == nil { // TODO: || e.APIKey == "" should also work
+				continue
+			}
+			c.TelemetryConfig.Endpoints = append(c.TelemetryConfig.Endpoints, e)
+		}
 	}
 	c.Obfuscation = new(ObfuscationConfig)
 	if config.Datadog.IsSet("apm_config.obfuscation") {

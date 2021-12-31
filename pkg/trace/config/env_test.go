@@ -71,7 +71,7 @@ func TestLoadEnv(t *testing.T) {
 		defer os.Unsetenv(env)
 		cfg, err := Load("./testdata/undocumented.yaml")
 		assert.NoError(err)
-		assert.Equal(apiEndpointPrefix+"my-site.com", cfg.Endpoints[0].Host)
+		assert.Equal(apiEndpointPrefix+"my-site.com", cfg.Endpoints[0].Host.String())
 	})
 
 	env = "DD_APM_ENABLED"
@@ -95,7 +95,7 @@ func TestLoadEnv(t *testing.T) {
 		defer os.Unsetenv(env)
 		cfg, err := Load("./testdata/full.yaml")
 		assert.NoError(err)
-		assert.Equal("my-site.com", cfg.Endpoints[0].Host)
+		assert.Equal("my-site.com", cfg.Endpoints[0].Host.String())
 	})
 
 	env = "HTTPS_PROXY"
