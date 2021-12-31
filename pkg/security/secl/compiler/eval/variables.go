@@ -396,3 +396,57 @@ func GetVariable(name string, value interface{}) (VariableValue, error) {
 		return nil, fmt.Errorf("unsupported value type: %s", reflect.TypeOf(value))
 	}
 }
+
+// Variables holds a set of variables
+type Variables struct {
+	vars map[string]interface{}
+}
+
+// GetBool returns the boolean value of the specified variable
+func (v *Variables) GetBool(name string) bool {
+	if _, found := v.vars[name]; !found {
+		return false
+	}
+	return v.vars[name].(bool)
+}
+
+// GetInt returns the integer value of the specified variable
+func (v *Variables) GetInt(name string) int {
+	if _, found := v.vars[name]; !found {
+		return 0
+	}
+	return v.vars[name].(int)
+}
+
+// GetString returns the string value of the specified variable
+func (v *Variables) GetString(name string) string {
+	if _, found := v.vars[name]; !found {
+		return ""
+	}
+	return v.vars[name].(string)
+}
+
+// GetStringArray returns the string array value of the specified variable
+func (v *Variables) GetStringArray(name string) []string {
+	if _, found := v.vars[name]; !found {
+		return nil
+	}
+	return v.vars[name].([]string)
+}
+
+// GetIntArray returns the integer array value of the specified variable
+func (v *Variables) GetIntArray(name string) []int {
+	if _, found := v.vars[name]; !found {
+		return nil
+	}
+	return v.vars[name].([]int)
+}
+
+// Set the value of the specified variable
+func (v *Variables) Set(name string, value interface{}) error {
+	if v.vars == nil {
+		v.vars = make(map[string]interface{})
+	}
+	v.vars[name] = value
+	return nil
+}

@@ -282,10 +282,10 @@ type Process struct {
 	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"`                                                                            // Indicator of environment variables truncation
 
 	// cache version
-	ScrubbedArgvResolved  bool                   `field:"-"`
-	ScrubbedArgv          []string               `field:"-"`
-	ScrubbedArgsTruncated bool                   `field:"-"`
-	Context               map[string]interface{} `field:"-"`
+	ScrubbedArgvResolved  bool           `field:"-"`
+	ScrubbedArgv          []string       `field:"-"`
+	ScrubbedArgsTruncated bool           `field:"-"`
+	Variables             eval.Variables `field:"-"`
 }
 
 // SpanContext describes a span context
@@ -471,7 +471,6 @@ type ProcessCacheEntry struct {
 // Reset the entry
 func (e *ProcessCacheEntry) Reset() {
 	e.ProcessContext = zeroProcessContext
-	e.ProcessContext.Process.Context = make(map[string]interface{})
 	e.refCount = 0
 }
 
@@ -494,14 +493,7 @@ func (e *ProcessCacheEntry) Release() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{
-		ProcessContext: ProcessContext{
-			Process: Process{
-				Context: make(map[string]interface{}),
-			},
-		},
-		onRelease: onRelease,
-	}
+	return &ProcessCacheEntry{onRelease: onRelease}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

@@ -979,57 +979,30 @@ func (p *ProcessResolver) SetState(state int64) {
 // GetVariable returns a new mutable variable with the type of the specified value
 func (p *ProcessResolver) GetVariable(name string, value interface{}) (eval.VariableValue, error) {
 	setVar := func(ctx *eval.Context, value interface{}) error {
-		process := &(*Event)(ctx.Object).ProcessContext.Process
-		process.Context[name] = value
-		return nil
+		return (*Event)(ctx.Object).ProcessContext.Process.Set(name, value)
 	}
 
 	switch value.(type) {
 	case int:
-		intVar := eval.NewIntVariable(func(ctx *eval.Context) int {
-			process := &(*Event)(ctx.Object).ProcessContext.Process
-			if _, found := process.Context[name]; !found {
-				return 0
-			}
-			return process.Context[name].(int)
-		}, setVar)
-		return intVar, nil
+		return eval.NewIntVariable(func(ctx *eval.Context) int {
+			return (*Event)(ctx.Object).ProcessContext.Process.GetInt()
+		}, setVar), nil
 	case bool:
-		boolVar := eval.NewBoolVariable(func(ctx *eval.Context) bool {
-			process := &(*Event)(ctx.Object).ProcessContext.Process
-			if _, found := process.Context[name]; !found {
-				return false
-			}
-			return process.Context[name].(bool)
-		}, setVar)
-		return boolVar, nil
+		return eval.NewBoolVariable(func(ctx *eval.Context) bool {
+			return (*Event)(ctx.Object).ProcessContext.Process.GetBool()
+		}, setVar), nil
 	case string:
-		strVar := eval.NewStringVariable(func(ctx *eval.Context) string {
-			process := &(*Event)(ctx.Object).ProcessContext.Process
-			if _, found := process.Context[name]; !found {
-				return ""
-			}
-			return process.Context[name].(string)
-		}, setVar)
-		return strVar, nil
+		return eval.NewStringVariable(func(ctx *eval.Context) string {
+			return (*Event)(ctx.Object).ProcessContext.Process.GetString()
+		}, setVar), nil
 	case []string:
-		strArrayVar := eval.NewStringArrayVariable(func(ctx *eval.Context) []string {
-			process := &(*Event)(ctx.Object).ProcessContext.Process
-			if _, found := process.Context[name]; !found {
-				return nil
-			}
-			return process.Context[name].([]string)
-		}, setVar)
-		return strArrayVar, nil
+		return eval.NewStringArrayVariable(func(ctx *eval.Context) []string {
+			return (*Event)(ctx.Object).ProcessContext.Process.GetStringArray()
+		}, setVar), nil
 	case []int:
-		intArrayVar := eval.NewIntArrayVariable(func(ctx *eval.Context) []int {
-			process := &(*Event)(ctx.Object).ProcessContext.Process
-			if _, found := process.Context[name]; !found {
-				return nil
-			}
-			return process.Context[name].([]int)
-		}, setVar)
-		return intArrayVar, nil
+		return eval.NewIntArrayVariable(func(ctx *eval.Context) []int {
+			return (*Event)(ctx.Object).ProcessContext.Process.GetIntArray()
+		}, setVar), nil
 	default:
 		return nil, fmt.Errorf("unsupported variable type %s for '%s'", reflect.TypeOf(value), name)
 	}

@@ -22,7 +22,7 @@ func (o *Opts) WithConstants(constants map[string]interface{}) *Opts {
 
 // WithVariables set variables
 func (o *Opts) WithVariables(variables map[string]VariableValue) *Opts {
-	optsVariables := make(map[string]eval.VariableValue, len(sprobe.SECLVariables))
+	optsVariables := make(map[string]VariableValue, len(variables))
 	for name, value := range variables {
 		optsVariables[name] = value
 	}
