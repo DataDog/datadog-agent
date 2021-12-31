@@ -6,6 +6,16 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+upgrade:
   - |
     Make the Prometheus auto-discovery schedule OpenMetrics V2 checks instead of legacy V1 ones.
+
+    Only users that have enabled the agent Prometheus scraping feature are affected.
+    For ex. by having set ``datadog.prometheusScrape.enabled: true`` in their Helm ``values.yaml`` file.
+    See https://docs.datadoghq.com/agent/kubernetes/prometheus/#metric-collection-with-prometheus-annotations
+
+    The changes between the two versions of the check are described in
+    https://datadoghq.dev/integrations-core/legacy/prometheus/#config-changes-between-versions
+
+    In order to fallback to the previous OpenMetrics V1 check, we can set the ``prometheus_scrape.version``
+    parameter to ``1``.
