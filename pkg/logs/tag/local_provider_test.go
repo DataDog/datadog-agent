@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 func TestLocalProviderShouldReturnEmptyList(t *testing.T) {
@@ -33,11 +33,12 @@ func TestLocalProviderShouldReturnEmptyList(t *testing.T) {
 
 func TestLocalProviderExpectedTags(t *testing.T) {
 	mockConfig := coreConfig.Mock()
+	clock := clock.NewMock()
 
-	startTime := coreConfig.StartTime
-	coreConfig.StartTime = time.Now()
+	oldStartTime := coreConfig.StartTime
+	coreConfig.StartTime = clock.Now()
 	defer func() {
-		coreConfig.StartTime = startTime
+		coreConfig.StartTime = oldStartTime
 	}()
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
@@ -45,16 +46,12 @@ func TestLocalProviderExpectedTags(t *testing.T) {
 	mockConfig.Set("tags", tags)
 	defer mockConfig.Set("tags", nil)
 
-	// Setting a test-friendly value for the deadline
+	expectedTagsDuration := 5 * time.Second
 	mockConfig.Set("logs_config.expected_tags_duration", "5s")
 	defer mockConfig.Set("logs_config.expected_tags_duration", "0")
 
-	p := NewLocalProvider([]string{})
+	p := newLocalProviderWithClock([]string{}, clock)
 	pp := p.(*localProvider)
-
-	// Is provider expected?
-	d := config.ExpectedTagsDuration()
-	assert.InDelta(t, coreConfig.StartTime.Add(d).Unix(), pp.expectedTagsDeadline.Unix(), 1)
 
 	tt := pp.GetTags()
 	sort.Strings(tags)
@@ -62,19 +59,8 @@ func TestLocalProviderExpectedTags(t *testing.T) {
 	assert.Equal(t, tags, tt)
 
 	// Wait until expected expiration time
-	<-time.After(time.Until(pp.expectedTagsDeadline))
+	clock.Add(expectedTagsDuration)
 
-	// Try for 10 seconds to get a valid tag result (on slow
-	// machines with low core counts this can be a signifficant
-	// duration).
-	for idx := 1; idx < 20; idx++ {
-		if len(pp.GetTags()) == 0 {
-			// Tags have been reset, so we have a passing test
-			return
-		}
-
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	assert.FailNowf(t, "pp.GetTags() was not empty", "pp.GetTags() = %v", pp.GetTags())
+	// tags should now be empty (the tags passed to newLocalProviderWithClock)
+	assert.Empty(t, pp.GetTags())
 }

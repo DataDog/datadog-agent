@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -27,6 +27,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -40,6 +41,7 @@ func processStatefulSetList(statefulSetList []*v1.StatefulSet, groupID int32, cf
 		if orchestrator.SkipKubernetesResource(statefulSet.UID, statefulSet.ResourceVersion, orchestrator.K8sStatefulSet) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(statefulSet.Annotations)
 
 		// extract statefulSet info
 		statefulSetModel := extractStatefulSet(statefulSet)
@@ -71,6 +73,8 @@ func processStatefulSetList(statefulSetList []*v1.StatefulSet, groupID int32, cf
 		})
 	}
 
+	orchestrator.SetCacheStats(len(statefulSetList), len(statefulSetMsgs), orchestrator.K8sStatefulSet)
+
 	log.Debugf("Collected & enriched %d out of %d StatefulSets in %s", len(statefulSetMsgs), len(statefulSetList), time.Since(start))
 	return messages, nil
 }
@@ -83,6 +87,7 @@ func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *con
 		if orchestrator.SkipKubernetesResource(daemonSet.UID, daemonSet.ResourceVersion, orchestrator.K8sDaemonSet) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(daemonSet.Annotations)
 
 		// extract daemonSet info
 		daemonSetModel := extractDaemonSet(daemonSet)
@@ -113,6 +118,8 @@ func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *con
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(daemonSetList), len(daemonSetMsgs), orchestrator.K8sDaemonSet)
 
 	log.Debugf("Collected & enriched %d out of %d DaemonSets in %s", len(daemonSetMsgs), len(daemonSetList), time.Since(start))
 	return messages, nil
@@ -165,6 +172,8 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(cronJobList), len(cronJobMsgs), orchestrator.K8sCronJob)
 
 	log.Debugf("Collected & enriched %d out of %d CronJobs in %s", len(cronJobMsgs), len(cronJobList), time.Since(start))
 	return messages, nil
@@ -231,6 +240,8 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		})
 	}
 
+	orchestrator.SetCacheStats(len(deploymentList), len(deployMsgs), orchestrator.K8sDeployment)
+
 	log.Debugf("Collected & enriched %d out of %d Deployments in %s", len(deployMsgs), len(deploymentList), time.Since(start))
 	return messages, nil
 }
@@ -294,6 +305,8 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(jobList), len(jobMsgs), orchestrator.K8sJob)
 
 	log.Debugf("Collected & enriched %d out of %d Jobs in %s", len(jobMsgs), len(jobList), time.Since(start))
 	return messages, nil
@@ -362,6 +375,8 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		})
 	}
 
+	orchestrator.SetCacheStats(len(rsList), len(rsMsgs), orchestrator.K8sReplicaSet)
+
 	log.Debugf("Collected & enriched %d out of %d ReplicaSets in %s", len(rsMsgs), len(rsList), time.Since(start))
 	return messages, nil
 }
@@ -388,6 +403,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		if orchestrator.SkipKubernetesResource(svc.UID, svc.ResourceVersion, orchestrator.K8sService) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(svc.Annotations)
 
 		serviceModel := extractService(svc)
 
@@ -418,6 +434,8 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(serviceList), len(serviceMsgs), orchestrator.K8sService)
 
 	log.Debugf("Collected & enriched %d out of %d Services in %s", len(serviceMsgs), len(serviceList), time.Since(start))
 	return messages, nil
@@ -492,6 +510,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		if orchestrator.SkipKubernetesResource(node.UID, node.ResourceVersion, orchestrator.K8sNode) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(node.Annotations)
 
 		nodeModel := extractNode(node)
 		// k8s objects only have json "omitempty" annotations
@@ -529,6 +548,8 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 			Tags:        cfg.ExtraTags,
 		})
 	}
+
+	orchestrator.SetCacheStats(len(nodesList), len(nodeMsgs), orchestrator.K8sNode)
 
 	log.Debugf("Collected & enriched %d out of %d Nodes in %s", len(nodeMsgs), len(nodesList), time.Since(start))
 	return nodeMessages, model.Cluster{
@@ -626,8 +647,8 @@ func chunkStatefulSets(statefulSets []*model.StatefulSet, chunkCount, chunkSize 
 	return chunks
 }
 
-// ProcessPersistentVolumeList process a PV list into process messages.
-func ProcessPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+// processPersistentVolumeList process a PV list into process messages.
+func processPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	pvMsgs := make([]*model.PersistentVolume, 0, len(pvList))
 
@@ -636,17 +657,18 @@ func ProcessPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int3
 		if orchestrator.SkipKubernetesResource(pv.UID, pv.ResourceVersion, orchestrator.K8sPersistentVolume) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(pv.Annotations)
 
 		pvModel := extractPersistentVolume(pv)
 
 		// k8s objects only have json "omitempty" annotations
 		// + marshalling is more performant than YAML
-		jsonSvc, err := jsoniter.Marshal(pv)
+		jsonPv, err := jsoniter.Marshal(pv)
 		if err != nil {
-			log.Warnf("Could not marshal Service to JSON: %s", err)
+			log.Warnf("Could not marshal PersistentVolume to JSON: %s", err)
 			continue
 		}
-		pvModel.Yaml = jsonSvc
+		pvModel.Yaml = jsonPv
 
 		addAdditionalPVTags(pvModel)
 
@@ -669,14 +691,16 @@ func ProcessPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int3
 		})
 	}
 
+	orchestrator.SetCacheStats(len(pvList), len(pvMsgs), orchestrator.K8sPersistentVolume)
+
 	log.Debugf("Collected & enriched %d out of %d Persistent volumes in %s", len(pvMsgs), len(pvList), time.Since(start))
 	return messages, nil
 }
 
 func addAdditionalPVTags(pvModel *model.PersistentVolume) {
 	// additional tags
-	pvPhaseTag := "pv_phase" + pvModel.Status.Phase
-	pvTypeTag := "pv_type" + pvModel.Spec.PersistentVolumeType
+	pvPhaseTag := "pv_phase:" + strings.ToLower(pvModel.Status.Phase)
+	pvTypeTag := "pv_type:" + strings.ToLower(pvModel.Spec.PersistentVolumeType)
 	pvModel.Tags = append(pvModel.Tags, pvPhaseTag)
 	pvModel.Tags = append(pvModel.Tags, pvTypeTag)
 }
@@ -694,8 +718,8 @@ func chunkPersistentVolumes(persistentVolumes []*model.PersistentVolume, chunkCo
 	return chunks
 }
 
-// ProcessPersistentVolumeClaimList process a PVC list into process messages.
-func ProcessPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+// processPersistentVolumeClaimList process a PVC list into process messages.
+func processPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	pvcMsgs := make([]*model.PersistentVolumeClaim, 0, len(pvcList))
 
@@ -704,17 +728,18 @@ func ProcessPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, g
 		if orchestrator.SkipKubernetesResource(pvc.UID, pvc.ResourceVersion, orchestrator.K8sPersistentVolumeClaim) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(pvc.Annotations)
 
 		pvModel := extractPersistentVolumeClaim(pvc)
 
 		// k8s objects only have json "omitempty" annotations
 		// + marshalling is more performant than YAML
-		jsonSvc, err := jsoniter.Marshal(pvc)
+		jsonPvc, err := jsoniter.Marshal(pvc)
 		if err != nil {
-			log.Warnf("Could not marshal Service to JSON: %s", err)
+			log.Warnf("Could not marshal PersistentVolumeClaim to JSON: %s", err)
 			continue
 		}
-		pvModel.Yaml = jsonSvc
+		pvModel.Yaml = jsonPvc
 
 		pvcMsgs = append(pvcMsgs, pvModel)
 	}
@@ -735,6 +760,8 @@ func ProcessPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, g
 		})
 	}
 
+	orchestrator.SetCacheStats(len(pvcList), len(pvcMsgs), orchestrator.K8sPersistentVolumeClaim)
+
 	log.Debugf("Collected & enriched %d out of %d Persistent volume claims in %s", len(pvcMsgs), len(pvcList), time.Since(start))
 	return messages, nil
 }
@@ -747,6 +774,301 @@ func chunkPersistentVolumeClaims(pvcs []*model.PersistentVolumeClaim, chunkCount
 	for counter := 1; counter <= chunkCount; counter++ {
 		chunkStart, chunkEnd := orchestrator.ChunkRange(len(pvcs), chunkCount, chunkSize, counter)
 		chunks = append(chunks, pvcs[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+func processRoleList(roleList []*rbacv1.Role, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	roleMsgs := make([]*model.Role, 0, len(roleList))
+
+	for _, role := range roleList {
+		if orchestrator.SkipKubernetesResource(role.UID, role.ResourceVersion, orchestrator.K8sRole) {
+			continue
+		}
+		redact.RemoveLastAppliedConfigurationAnnotation(role.Annotations)
+
+		roleModel := extractRole(role)
+
+		// k8s objects only have json "omitempty" annotations
+		// + marshalling is more performant than YAML
+		jsonRole, err := jsoniter.Marshal(role)
+		if err != nil {
+			log.Warnf("Could not marshal Role to JSON: %s", err)
+			continue
+		}
+		roleModel.Yaml = jsonRole
+
+		roleMsgs = append(roleMsgs, roleModel)
+	}
+
+	groupSize := orchestrator.GroupSize(len(roleMsgs), cfg.MaxPerMessage)
+
+	chunks := chunkRoles(roleMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorRole{
+			ClusterName: cfg.KubeClusterName,
+			ClusterId:   clusterID,
+			GroupId:     groupID,
+			GroupSize:   int32(groupSize),
+			Roles:       chunks[i],
+			Tags:        cfg.ExtraTags,
+		})
+	}
+
+	orchestrator.SetCacheStats(len(roleList), len(roleMsgs), orchestrator.K8sRole)
+
+	log.Debugf("Collected & enriched %d out of %d Roles in %s", len(roleMsgs), len(roleList), time.Since(start))
+	return messages, nil
+}
+
+// chunkRoles chunks the given list of roles, honoring the given chunk count and size.
+// The last chunk may be smaller than the others.
+func chunkRoles(roles []*model.Role, chunkCount, chunkSize int) [][]*model.Role {
+	chunks := make([][]*model.Role, 0, chunkCount)
+
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(roles), chunkCount, chunkSize, counter)
+		chunks = append(chunks, roles[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+func processRoleBindingList(roleBindingList []*rbacv1.RoleBinding, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	roleBindingMsgs := make([]*model.RoleBinding, 0, len(roleBindingList))
+
+	for _, roleBinding := range roleBindingList {
+		if orchestrator.SkipKubernetesResource(roleBinding.UID, roleBinding.ResourceVersion, orchestrator.K8sRoleBinding) {
+			continue
+		}
+		redact.RemoveLastAppliedConfigurationAnnotation(roleBinding.Annotations)
+
+		roleBindingModel := extractRoleBinding(roleBinding)
+
+		// k8s objects only have json "omitempty" annotations
+		// + marshalling is more performant than YAML
+		jsonRole, err := jsoniter.Marshal(roleBinding)
+		if err != nil {
+			log.Warnf("Could not marshal RoleBinding to JSON: %s", err)
+			continue
+		}
+		roleBindingModel.Yaml = jsonRole
+
+		roleBindingMsgs = append(roleBindingMsgs, roleBindingModel)
+	}
+
+	groupSize := orchestrator.GroupSize(len(roleBindingMsgs), cfg.MaxPerMessage)
+
+	chunks := chunkRoleBindings(roleBindingMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorRoleBinding{
+			ClusterName:  cfg.KubeClusterName,
+			ClusterId:    clusterID,
+			GroupId:      groupID,
+			GroupSize:    int32(groupSize),
+			RoleBindings: chunks[i],
+			Tags:         cfg.ExtraTags,
+		})
+	}
+
+	orchestrator.SetCacheStats(len(roleBindingList), len(roleBindingMsgs), orchestrator.K8sRoleBinding)
+
+	log.Debugf("Collected & enriched %d out of %d RoleBindings in %s", len(roleBindingMsgs), len(roleBindingList), time.Since(start))
+	return messages, nil
+}
+
+// chunkRoleBindings chunks the given list of role bindings, honoring the given
+// chunk count and size.  The last chunk may be smaller than the others.
+func chunkRoleBindings(roleBindings []*model.RoleBinding, chunkCount, chunkSize int) [][]*model.RoleBinding {
+	chunks := make([][]*model.RoleBinding, 0, chunkCount)
+
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(roleBindings), chunkCount, chunkSize, counter)
+		chunks = append(chunks, roleBindings[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+func processClusterRoleList(clusterRoleList []*rbacv1.ClusterRole, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	clusterRoleMsgs := make([]*model.ClusterRole, 0, len(clusterRoleList))
+
+	for _, clusterRole := range clusterRoleList {
+		if orchestrator.SkipKubernetesResource(clusterRole.UID, clusterRole.ResourceVersion, orchestrator.K8sClusterRole) {
+			continue
+		}
+		redact.RemoveLastAppliedConfigurationAnnotation(clusterRole.Annotations)
+
+		clusterRoleModel := extractClusterRole(clusterRole)
+
+		// k8s objects only have json "omitempty" annotations
+		// + marshalling is more performant than YAML
+		jsonRole, err := jsoniter.Marshal(clusterRole)
+		if err != nil {
+			log.Warnf("Could not marshal ClusterRole to JSON: %s", err)
+			continue
+		}
+		clusterRoleModel.Yaml = jsonRole
+
+		clusterRoleMsgs = append(clusterRoleMsgs, clusterRoleModel)
+	}
+
+	groupSize := orchestrator.GroupSize(len(clusterRoleMsgs), cfg.MaxPerMessage)
+
+	chunks := chunkClusterRoles(clusterRoleMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorClusterRole{
+			ClusterName:  cfg.KubeClusterName,
+			ClusterId:    clusterID,
+			GroupId:      groupID,
+			GroupSize:    int32(groupSize),
+			ClusterRoles: chunks[i],
+			Tags:         cfg.ExtraTags,
+		})
+	}
+
+	orchestrator.SetCacheStats(len(clusterRoleList), len(clusterRoleMsgs), orchestrator.K8sClusterRole)
+
+	log.Debugf("Collected & enriched %d out of %d ClusterRoles in %s", len(clusterRoleMsgs), len(clusterRoleList), time.Since(start))
+	return messages, nil
+}
+
+// chunkclusterRoles chunks the given list of cluster roles, honoring the given
+// chunk count and size.  The last chunk may be smaller than the others.
+func chunkClusterRoles(clusterRoles []*model.ClusterRole, chunkCount, chunkSize int) [][]*model.ClusterRole {
+	chunks := make([][]*model.ClusterRole, 0, chunkCount)
+
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(clusterRoles), chunkCount, chunkSize, counter)
+		chunks = append(chunks, clusterRoles[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+func processClusterRoleBindingList(clusterRoleBindingList []*rbacv1.ClusterRoleBinding, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	clusterRoleBindingMsgs := make([]*model.ClusterRoleBinding, 0, len(clusterRoleBindingList))
+
+	for _, clusterRoleBinding := range clusterRoleBindingList {
+		if orchestrator.SkipKubernetesResource(clusterRoleBinding.UID, clusterRoleBinding.ResourceVersion, orchestrator.K8sClusterRoleBinding) {
+			continue
+		}
+		redact.RemoveLastAppliedConfigurationAnnotation(clusterRoleBinding.Annotations)
+
+		clusterRoleBindingModel := extractClusterRoleBinding(clusterRoleBinding)
+
+		// k8s objects only have json "omitempty" annotations
+		// + marshalling is more performant than YAML
+		jsonRole, err := jsoniter.Marshal(clusterRoleBinding)
+		if err != nil {
+			log.Warnf("Could not marshal ClusterRoleBinding to JSON: %s", err)
+			continue
+		}
+		clusterRoleBindingModel.Yaml = jsonRole
+
+		clusterRoleBindingMsgs = append(clusterRoleBindingMsgs, clusterRoleBindingModel)
+	}
+
+	groupSize := orchestrator.GroupSize(len(clusterRoleBindingMsgs), cfg.MaxPerMessage)
+
+	chunks := chunkClusterRoleBindings(clusterRoleBindingMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorClusterRoleBinding{
+			ClusterName:         cfg.KubeClusterName,
+			ClusterId:           clusterID,
+			GroupId:             groupID,
+			GroupSize:           int32(groupSize),
+			ClusterRoleBindings: chunks[i],
+			Tags:                cfg.ExtraTags,
+		})
+	}
+
+	orchestrator.SetCacheStats(len(clusterRoleBindingList), len(clusterRoleBindingMsgs), orchestrator.K8sClusterRoleBinding)
+
+	log.Debugf("Collected & enriched %d out of %d ClusterRoleBindings in %s", len(clusterRoleBindingMsgs), len(clusterRoleBindingList), time.Since(start))
+	return messages, nil
+}
+
+// chunkClusterRoleBindings chunks the given list of cluster role bindings, honoring the given
+// chunk count and size.  The last chunk may be smaller than the others.
+func chunkClusterRoleBindings(clusterRoleBindings []*model.ClusterRoleBinding, chunkCount, chunkSize int) [][]*model.ClusterRoleBinding {
+	chunks := make([][]*model.ClusterRoleBinding, 0, chunkCount)
+
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(clusterRoleBindings), chunkCount, chunkSize, counter)
+		chunks = append(chunks, clusterRoleBindings[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+func processServiceAccountList(serviceAccountList []*corev1.ServiceAccount, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	serviceAccountMsgs := make([]*model.ServiceAccount, 0, len(serviceAccountList))
+
+	for _, serviceAcount := range serviceAccountList {
+		if orchestrator.SkipKubernetesResource(serviceAcount.UID, serviceAcount.ResourceVersion, orchestrator.K8sServiceAccount) {
+			continue
+		}
+		redact.RemoveLastAppliedConfigurationAnnotation(serviceAcount.Annotations)
+
+		clusterRoleBindingModel := extractServiceAccount(serviceAcount)
+
+		// k8s objects only have json "omitempty" annotations
+		// + marshalling is more performant than YAML
+		jsonRole, err := jsoniter.Marshal(serviceAcount)
+		if err != nil {
+			log.Warnf("Could not marshal ServiceAccount to JSON: %s", err)
+			continue
+		}
+		clusterRoleBindingModel.Yaml = jsonRole
+
+		serviceAccountMsgs = append(serviceAccountMsgs, clusterRoleBindingModel)
+	}
+
+	groupSize := orchestrator.GroupSize(len(serviceAccountMsgs), cfg.MaxPerMessage)
+
+	chunks := chunkServiceAccounts(serviceAccountMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorServiceAccount{
+			ClusterName:     cfg.KubeClusterName,
+			ClusterId:       clusterID,
+			GroupId:         groupID,
+			GroupSize:       int32(groupSize),
+			ServiceAccounts: chunks[i],
+			Tags:            cfg.ExtraTags,
+		})
+	}
+
+	orchestrator.SetCacheStats(len(serviceAccountList), len(serviceAccountMsgs), orchestrator.K8sServiceAccount)
+
+	log.Debugf("Collected & enriched %d out of %d ServiceAccounts in %s", len(serviceAccountMsgs), len(serviceAccountList), time.Since(start))
+	return messages, nil
+}
+
+// chunkServiceAccounts chunks the given list of cluster service accounts, honoring the given
+// chunk count and size.  The last chunk may be smaller than the others.
+func chunkServiceAccounts(serviceAccounts []*model.ServiceAccount, chunkCount, chunkSize int) [][]*model.ServiceAccount {
+	chunks := make([][]*model.ServiceAccount, 0, chunkCount)
+
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(serviceAccounts), chunkCount, chunkSize, counter)
+		chunks = append(chunks, serviceAccounts[chunkStart:chunkEnd])
 	}
 
 	return chunks

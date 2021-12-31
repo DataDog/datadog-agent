@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package procutil
 
 import (
@@ -21,6 +26,35 @@ type Process struct {
 	Stats *Stats
 }
 
+// DeepCopy creates a deep copy of Process
+func (p *Process) DeepCopy() *Process {
+	copy := &Process{
+		Pid:      p.Pid,
+		Ppid:     p.Ppid,
+		NsPid:    p.NsPid,
+		Name:     p.Name,
+		Cwd:      p.Cwd,
+		Exe:      p.Exe,
+		Username: p.Username,
+	}
+	copy.Cmdline = make([]string, len(p.Cmdline))
+	for i := range p.Cmdline {
+		copy.Cmdline[i] = p.Cmdline[i]
+	}
+	copy.Uids = make([]int32, len(p.Uids))
+	for i := range p.Uids {
+		copy.Uids[i] = p.Uids[i]
+	}
+	copy.Gids = make([]int32, len(p.Gids))
+	for i := range p.Gids {
+		copy.Gids[i] = p.Gids[i]
+	}
+	if p.Stats != nil {
+		copy.Stats = p.Stats.DeepCopy()
+	}
+	return copy
+}
+
 // Stats holds all relevant stats metrics of a process
 type Stats struct {
 	CreateTime int64
@@ -33,11 +67,53 @@ type Stats struct {
 	Nice        int32
 	OpenFdCount int32
 	NumThreads  int32
+	CPUPercent  *CPUPercentStat
 	CPUTime     *CPUTimesStat
 	MemInfo     *MemoryInfoStat
 	MemInfoEx   *MemoryInfoExStat
 	IOStat      *IOCountersStat
+	IORateStat  *IOCountersRateStat
 	CtxSwitches *NumCtxSwitchesStat
+}
+
+// DeepCopy creates a deep copy of Stats
+func (s *Stats) DeepCopy() *Stats {
+	copy := &Stats{
+		CreateTime:  s.CreateTime,
+		Status:      s.Status,
+		Nice:        s.Nice,
+		OpenFdCount: s.OpenFdCount,
+		NumThreads:  s.NumThreads,
+	}
+	if s.CPUTime != nil {
+		copy.CPUTime = &CPUTimesStat{}
+		*copy.CPUTime = *s.CPUTime
+	}
+	if s.CPUPercent != nil {
+		copy.CPUPercent = &CPUPercentStat{}
+		*copy.CPUPercent = *s.CPUPercent
+	}
+	if s.MemInfo != nil {
+		copy.MemInfo = &MemoryInfoStat{}
+		*copy.MemInfo = *s.MemInfo
+	}
+	if s.MemInfoEx != nil {
+		copy.MemInfoEx = &MemoryInfoExStat{}
+		*copy.MemInfoEx = *s.MemInfoEx
+	}
+	if s.IOStat != nil {
+		copy.IOStat = &IOCountersStat{}
+		*copy.IOStat = *s.IOStat
+	}
+	if s.IORateStat != nil {
+		copy.IORateStat = &IOCountersRateStat{}
+		*copy.IORateStat = *s.IORateStat
+	}
+	if s.CtxSwitches != nil {
+		copy.CtxSwitches = &NumCtxSwitchesStat{}
+		*copy.CtxSwitches = *s.CtxSwitches
+	}
+	return copy
 }
 
 // StatsWithPerm is a collection of stats that require elevated permission to collect in linux
@@ -66,6 +142,12 @@ type CPUTimesStat struct {
 func (c *CPUTimesStat) Total() float64 {
 	total := c.User + c.System + c.Nice + c.Iowait + c.Irq + c.Softirq + c.Steal + c.Guest + c.GuestNice + c.Idle + c.Stolen
 	return total
+}
+
+// CPUPercentStat holds CPU stat metrics of a process as CPU usage percent
+type CPUPercentStat struct {
+	UserPct   float64
+	SystemPct float64
 }
 
 // MemoryInfoStat holds commonly used memory metrics for a process
@@ -97,6 +179,14 @@ type IOCountersStat struct {
 // IsZeroValue checks whether all fields are 0 in value for IOCountersStat
 func (i *IOCountersStat) IsZeroValue() bool {
 	return i.ReadCount == 0 && i.WriteCount == 0 && i.ReadBytes == 0 && i.WriteBytes == 0
+}
+
+// IOCountersRateStat holds IO metrics for a process represented as rates (/sec)
+type IOCountersRateStat struct {
+	ReadRate       float64
+	WriteRate      float64
+	ReadBytesRate  float64
+	WriteBytesRate float64
 }
 
 // NumCtxSwitchesStat holds context switch metrics for a process

@@ -40,11 +40,11 @@ const (
 	// KeySamplingRateMaxEPSSampler is the key of the metric storing the max eps sampler rate on an APM event.
 	KeySamplingRateMaxEPSSampler = "_dd1.sr.eamax"
 
-	// KeySamplingPriority is the key of the sampling priority value in the metrics map of the root span
-	KeySamplingPriority = "_sampling_priority_v1"
-
 	// KeyErrorType is the key of the error type in the meta map
 	KeyErrorType = "error.type"
+
+	// KeyAnalyzedSpans is the metric key which specifies if a span is analyzed.
+	KeyAnalyzedSpans = "_dd.analyzed"
 
 	// KeyHTTPStatusCode is the key of the http status code in the meta map
 	KeyHTTPStatusCode = "http.status_code"
@@ -72,14 +72,11 @@ const (
 
 // GetSamplingPriority returns the value of the sampling priority metric set on this span and a boolean indicating if
 // such a metric was actually found or not.
-func GetSamplingPriority(s *pb.Span) (SamplingPriority, bool) {
-	p, ok := getMetric(s, KeySamplingPriority)
-	return SamplingPriority(p), ok
-}
-
-// SetSamplingPriority sets the sampling priority value on this span, overwriting any previously set value.
-func SetSamplingPriority(s *pb.Span, priority SamplingPriority) {
-	setMetric(s, KeySamplingPriority, float64(priority))
+func GetSamplingPriority(t *pb.TraceChunk) (SamplingPriority, bool) {
+	if t.Priority == int32(PriorityNone) {
+		return 0, false
+	}
+	return SamplingPriority(t.Priority), true
 }
 
 // GetGlobalRate gets the cumulative sample rate of the trace to which this span belongs to.
@@ -148,6 +145,17 @@ func SetMaxEPSRate(s *pb.Span, rate float64) {
 		// reduce bandwidth, default is assumed 1.0 in backend
 		delete(s.Metrics, KeySamplingRateMaxEPSSampler)
 	}
+}
+
+// SetAnalyzedSpan marks a span analyzed
+func SetAnalyzedSpan(s *pb.Span) {
+	setMetric(s, KeyAnalyzedSpans, 1)
+}
+
+// IsAnalyzedSpan checks if a span is analyzed
+func IsAnalyzedSpan(s *pb.Span) bool {
+	v, _ := getMetric(s, KeyAnalyzedSpans)
+	return v == 1
 }
 
 func getMetric(s *pb.Span, k string) (float64, bool) {

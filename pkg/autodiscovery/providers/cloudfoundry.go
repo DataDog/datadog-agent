@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/bhmj/jsonslice"
@@ -31,7 +31,7 @@ type CloudFoundryConfigProvider struct {
 }
 
 // NewCloudFoundryConfigProvider instantiates a new CloudFoundryConfigProvider from given config
-func NewCloudFoundryConfigProvider(conf config.ConfigurationProviders) (ConfigProvider, error) {
+func NewCloudFoundryConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	cfp := CloudFoundryConfigProvider{
 		lastCollected: time.Now(),
 	}

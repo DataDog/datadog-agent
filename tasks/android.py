@@ -91,7 +91,7 @@ def build(ctx, rebuild=False, race=False, major_version='7', python_runtimes='3'
     ctx.run(cmd)
     os.chdir(pwd)
     ver = get_version(ctx, include_git=True, git_sha_length=7, major_version=major_version, include_pipeline_id=True)
-    outfile = "bin/agent/ddagent-{}-unsigned.apk".format(ver)
+    outfile = f"bin/agent/ddagent-{ver}-unsigned.apk"
     shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", outfile)
 
 
@@ -145,13 +145,13 @@ def assetconfigs(_):
     files_list = []
     os.makedirs(CORECHECK_CONFS_DIR)
     for check in ANDROID_CORECHECKS:
-        srcfile = "cmd/agent/dist/conf.d/{}.d/conf.yaml.default".format(check)
-        tgtfile = "{}/{}.yaml".format(CORECHECK_CONFS_DIR, check)
+        srcfile = f"cmd/agent/dist/conf.d/{check}.d/conf.yaml.default"
+        tgtfile = f"{CORECHECK_CONFS_DIR}/{check}.yaml"
         shutil.copyfile(srcfile, tgtfile)
-        files_list.append("{}.yaml".format(check))
+        files_list.append(f"{check}.yaml")
     files["files"] = files_list
 
-    with open("{}/directory_manifest.yaml".format(CORECHECK_CONFS_DIR), 'w') as outfile:
+    with open(f"{CORECHECK_CONFS_DIR}/directory_manifest.yaml", 'w') as outfile:
         yaml.dump(files, outfile, default_flow_style=False)
 
 
@@ -169,9 +169,7 @@ def launchservice(ctx, api_key, hostname=None, tags=None):
         print("Setting tags to owner:db,env:local,role:windows")
         tags = "owner:db,env:local,role:windows"
 
-    cmd = "adb shell am startservice --es api_key {} --es hostname {} --es tags {} org.datadog.agent/.DDService".format(
-        api_key, hostname, tags
-    )
+    cmd = f"adb shell am startservice --es api_key {api_key} --es hostname {hostname} --es tags {tags} org.datadog.agent/.DDService"
     ctx.run(cmd)
 
 

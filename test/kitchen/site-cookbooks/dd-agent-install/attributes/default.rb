@@ -4,6 +4,7 @@
 
 default['datadog']['agent_start'] = true
 default['datadog']['agent_enable'] = true
+default['datadog']['agent_version'] = nil
 
 # On SUSE 11, skip system-probe management since it's not shipped with the Agent.
 if node['platform_family'] == 'suse' && node['platform_version'].to_i <= 11

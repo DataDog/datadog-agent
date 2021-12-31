@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package fetch
 
 import (
@@ -5,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -120,6 +126,8 @@ func doDoFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPa
 		log.Debugf("fetch scalar: error getting oids `%v`: %v", oids, err)
 		return nil, fmt.Errorf("fetch scalar: error getting oids `%v`: %v", oids, err)
 	}
-	log.Debugf("fetch scalar: results: Variables=%v, Error=%v, ErrorIndex=%v", results.Variables, results.Error, results.ErrorIndex)
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("fetch scalar: results: %s", gosnmplib.PacketAsString(results))
+	}
 	return results, nil
 }

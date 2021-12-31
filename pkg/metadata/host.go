@@ -21,7 +21,7 @@ import (
 type HostCollector struct{}
 
 // Send collects the data needed and submits the payload
-func (hp *HostCollector) Send(ctx context.Context, s *serializer.Serializer) error {
+func (hp *HostCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	hostnameData, _ := util.GetHostnameData(ctx)
 	payload := v5.GetPayload(ctx, hostnameData)
 	if err := s.SendHostMetadata(payload); err != nil {

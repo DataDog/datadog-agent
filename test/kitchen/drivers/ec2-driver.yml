@@ -24,8 +24,11 @@ driver:
   spot_price: <%= ENV['KITCHEN_EC2_SPOT_PRICE'] %>
   block_duration_minutes: <%= ENV['KITCHEN_EC2_SPOT_DURATION'] ||= '60' %>
   tags:
-    created-by: test-kitchen
-    creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "kitchen-user" %>
+    Name: ci-datadog-agent-kitchen
+    Team: agent-platform
+    PipelineId: <%= ENV['DD_PIPELINE_ID'] %>
+    CreatedBy: datadog-agent-kitchen-tests
+    Creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "datadog-agent-kitchen-user" %>
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,

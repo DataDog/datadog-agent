@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -500,8 +500,7 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
-	entry, exists := p.entryCache[pid]
-	if exists {
+	if entry := p.resolveFromCache(pid, tid); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.CacheTag], 1)
 		return entry
 	}
@@ -511,13 +510,13 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
-	if entry = p.resolveWithKernelMaps(pid, tid); entry != nil {
+	if entry := p.resolveWithKernelMaps(pid, tid); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.KernelMapsTag], 1)
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
-	if entry = p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
+	if entry := p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.ProcFSTag], 1)
 		return entry
 	}
@@ -557,7 +556,7 @@ func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 
 func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry, data []byte) (int, error) {
 	// unmarshal container ID first
-	id, err := model.UnmarshalString(data, 64)
+	id, err := model.UnmarshalPrintableString(data, 64)
 	if err != nil {
 		return 0, err
 	}
@@ -571,6 +570,18 @@ func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry
 	p.ApplyBootTime(entry)
 
 	return read + 64, err
+}
+
+func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
+	entry, exists := p.entryCache[pid]
+	if !exists {
+		return nil
+	}
+
+	// make to update the tid with the that triggers the resolution
+	entry.Tid = tid
+
+	return entry
 }
 
 func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
@@ -666,6 +677,33 @@ func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 	argv, truncated := pr.ArgsEntry.ToArray()
 
 	return argv, pr.ArgsTruncated || truncated
+}
+
+// GetScrubbedProcessArgv returns the scrubbed args of the event as an array
+func (p *ProcessResolver) GetScrubbedProcessArgv(pr *model.Process) ([]string, bool) {
+	if pr.ArgsEntry == nil {
+		return nil, false
+	}
+
+	if len(pr.ArgsCache) != 0 {
+		return pr.ArgsCache, pr.ArgsTruncated
+	}
+
+	argv, truncated := pr.ArgsEntry.ToArray()
+
+	pr.ArgsTruncated = pr.ArgsTruncated || truncated
+
+	if p.probe.scrubber != nil {
+		if newArgv, changed := p.probe.scrubber.ScrubCommand(argv); changed {
+			pr.ArgsCache = newArgv
+		} else {
+			pr.ArgsCache = argv
+		}
+	} else {
+		pr.ArgsCache = argv
+	}
+
+	return pr.ArgsCache, pr.ArgsTruncated
 }
 
 // SetProcessEnvs set envs to cache entry
@@ -802,7 +840,7 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 
 	for {
 		select {
-		case _ = <-ticker.C:
+		case <-ticker.C:
 			var pids []uint32
 
 			p.RLock()

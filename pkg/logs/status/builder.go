@@ -7,7 +7,6 @@ package status
 
 import (
 	"expvar"
-	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -62,47 +61,7 @@ func (b *Builder) getUseHTTP() bool {
 }
 
 func (b *Builder) getEndpoints() []string {
-	result := make([]string, 0)
-	result = append(result, b.formatEndpoint(b.endpoints.Main, ""))
-	for _, additional := range b.endpoints.Additionals {
-		result = append(result, b.formatEndpoint(additional, "Additional: "))
-	}
-	return result
-}
-
-func (b *Builder) formatEndpoint(endpoint config.Endpoint, prefix string) string {
-	compression := "uncompressed"
-	if endpoint.UseCompression {
-		compression = "compressed"
-	}
-
-	host := endpoint.Host
-	port := endpoint.Port
-
-	var protocol string
-	if b.endpoints.UseHTTP {
-		if endpoint.UseSSL {
-			protocol = "HTTPS"
-			if port == 0 {
-				port = 443 // use default port
-			}
-		} else {
-			protocol = "HTTP"
-			// this case technically can't happens. In order to
-			// disable SSL, user have to use a custom URL and
-			// specify the port manually.
-			if port == 0 {
-				port = 80 // use default port
-			}
-		}
-	} else {
-		if endpoint.UseSSL {
-			protocol = "SSL encrypted TCP"
-		} else {
-			protocol = "TCP"
-		}
-	}
-	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
+	return b.endpoints.GetStatus()
 }
 
 // getWarnings returns all the warning messages that
@@ -150,6 +109,9 @@ func (b *Builder) getIntegrations() []Integration {
 func (b *Builder) groupSourcesByName() map[string][]*config.LogSource {
 	sources := make(map[string][]*config.LogSource)
 	for _, source := range b.sources.GetSources() {
+		if source.IsHiddenFromStatus() {
+			continue
+		}
 		if _, exists := sources[source.Name]; !exists {
 			sources[source.Name] = []*config.LogSource{}
 		}

@@ -45,9 +45,15 @@ type Scheduler struct {
 	halted           chan bool                   // Used to internally communicate all queues are done
 	started          chan bool                   // Used to internally communicate the queues are up
 	jobQueues        map[time.Duration]*jobQueue // We have one scheduling queue for every interval
-	checkToQueue     map[check.ID]*jobQueue      // Keep track of what is the queue for any Check
 	tlmTrackedChecks map[check.ID]string         // Keep track of the checks that are tracked with telemetry
 	mu               sync.Mutex                  // To protect critical sections in struct's fields
+
+	checkToQueue map[check.ID]*jobQueue // Keep track of what is the queue for any Check
+	// To protect checkToQueue. Using mu would create a deadlock when stopping the Scheduler. 'jobQueue' is calling
+	// 'IsCheckScheduled' right when then 'Stop' function is called and mu is already lock. for this reason we have
+	// to lock: one for the Scheduler and a dedicated one for the 'IsCheckScheduled' method. This way 'jobQueue' and
+	// metadata provider can call 'IsCheckScheduled' without creating a deadlock.
+	checkToQueueMutex sync.RWMutex
 
 	cancelOneTime chan bool      // Used to internally communicate a cancel signal to one-time schedule goroutines
 	wgOneTime     sync.WaitGroup // WaitGroup to track the exit of one-time schedule goroutines
@@ -97,8 +103,11 @@ func (s *Scheduler) Enter(check check.Check) error {
 		schedulerQueuesCount.Add(1)
 	}
 	s.jobQueues[check.Interval()].addJob(check)
+
 	// map each check to the Job Queue it was assigned to
+	s.checkToQueueMutex.Lock()
 	s.checkToQueue[check.ID()] = s.jobQueues[check.Interval()]
+	s.checkToQueueMutex.Unlock()
 
 	schedulerChecksEntered.Add(1)
 	if check.IsTelemetryEnabled() {
@@ -114,7 +123,9 @@ func (s *Scheduler) Enter(check check.Check) error {
 // in the scheduler, this is a noop.
 func (s *Scheduler) Cancel(id check.ID) error {
 	s.mu.Lock()
+	s.checkToQueueMutex.Lock()
 	defer s.mu.Unlock()
+	defer s.checkToQueueMutex.Unlock()
 
 	log.Infof("Unscheduling check %s", string(id))
 
@@ -200,8 +211,8 @@ func (s *Scheduler) Stop() error {
 
 // IsCheckScheduled returns whether a check is in the schedule or not
 func (s *Scheduler) IsCheckScheduled(id check.ID) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.checkToQueueMutex.RLock()
+	defer s.checkToQueueMutex.RUnlock()
 
 	_, found := s.checkToQueue[id]
 	return found

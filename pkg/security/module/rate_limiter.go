@@ -15,7 +15,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 const (

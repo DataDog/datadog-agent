@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checks
 
 import (
@@ -9,15 +14,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,7 +60,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	net.SetSystemProbePath(cfg.SystemProbeAddress)
 	_, _ = net.GetRemoteSystemProbeUtil()
 
-	networkID, err := util.GetNetworkID(context.TODO())
+	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
@@ -97,7 +103,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -184,6 +190,87 @@ func getConnectionsByPID(conns *model.Connections) map[int32][]*model.Connection
 	return result
 }
 
+func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[string]int32, namedb *[]string, ip string, entry *model.DNSEntry) {
+	dbentry := &model.DNSDatabaseEntry{
+		NameOffsets: make([]int32, 0, len(entry.Names)),
+	}
+	for _, name := range entry.Names {
+		// at this point, the NameOffsets slice is actually a slice of indices into
+		// the name slice.  It will be converted prior to encoding.
+		if idx, ok := namemap[name]; ok {
+			dbentry.NameOffsets = append(dbentry.NameOffsets, idx)
+		} else {
+			dblen := int32(len(*namedb))
+			*namedb = append(*namedb, name)
+			namemap[name] = dblen
+			dbentry.NameOffsets = append(dbentry.NameOffsets, dblen)
+		}
+
+	}
+	dnstable[ip] = dbentry
+}
+
+func remapDNSStatsByDomain(c *model.Connection, namemap map[string]int32, namedb *[]string, dnslist []string) {
+	old := c.DnsStatsByDomain
+	if old == nil || len(old) == 0 {
+		return
+	}
+	c.DnsStatsByDomain = make(map[int32]*model.DNSStats)
+	for key, val := range old {
+		// key is the index into the old array (dnslist)
+		domainstr := dnslist[key]
+		if idx, ok := namemap[domainstr]; ok {
+			c.DnsStatsByDomain[idx] = val
+		} else {
+			dblen := int32(len(*namedb))
+			*namedb = append(*namedb, domainstr)
+			namemap[domainstr] = dblen
+			c.DnsStatsByDomain[dblen] = val
+		}
+	}
+}
+
+func remapDNSStatsByDomainByQueryType(c *model.Connection, namemap map[string]int32, namedb *[]string, dnslist []string) {
+	old := c.DnsStatsByDomainByQueryType
+	c.DnsStatsByDomainByQueryType = make(map[int32]*model.DNSStatsByQueryType)
+	for key, val := range old {
+		// key is the index into the old array (dnslist)
+		domainstr := dnslist[key]
+		if idx, ok := namemap[domainstr]; ok {
+			c.DnsStatsByDomainByQueryType[idx] = val
+		} else {
+			dblen := int32(len(*namedb))
+			*namedb = append(*namedb, domainstr)
+			namemap[domainstr] = dblen
+			c.DnsStatsByDomainByQueryType[dblen] = val
+		}
+	}
+
+}
+
+func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
+	oldByDomain := c.DnsStatsByDomain
+	oldByDomainByQueryType := c.DnsStatsByDomainByQueryType
+
+	c.DnsStatsByDomainOffsetByQueryType = make(map[int32]*model.DNSStatsByQueryType)
+
+	// first, walk the stats by domain.  Put them in by query type 'A`
+	for key, val := range oldByDomain {
+		off := indexToOffset[key]
+		if _, ok := c.DnsStatsByDomainOffsetByQueryType[off]; !ok {
+			c.DnsStatsByDomainOffsetByQueryType[off] = &model.DNSStatsByQueryType{}
+			c.DnsStatsByDomainOffsetByQueryType[off].DnsStatsByQueryType = make(map[int32]*model.DNSStats)
+		}
+		c.DnsStatsByDomainOffsetByQueryType[off].DnsStatsByQueryType[int32(dns.TypeA)] = val
+	}
+	for key, val := range oldByDomainByQueryType {
+		off := indexToOffset[key]
+		c.DnsStatsByDomainOffsetByQueryType[off] = val
+	}
+	c.DnsStatsByDomain = nil
+	c.DnsStatsByDomainByQueryType = nil
+}
+
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
 	cfg *config.AgentConfig,
@@ -195,11 +282,13 @@ func batchConnections(
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	domains []string,
 	routes []*model.Route,
+	tags []string,
+	agentCfg *model.AgentConfiguration,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
-	dnsEncoder := model.NewV1DNSEncoder()
+	dnsEncoder := model.NewV2DNSEncoder()
 
 	if len(cxs) > cfg.MaxConnsPerMessage {
 		// Sort connections by remote IP/PID for more efficient resolution
@@ -216,31 +305,42 @@ func batchConnections(
 		batchConns := cxs[:batchSize] // Connections for this particular batch
 
 		ctrIDForPID := make(map[int32]string)
-		batchDNS := make(map[string]*model.DNSEntry)
-		domainIndices := make(map[int32]struct{})
+		batchDNS := make(map[string]*model.DNSDatabaseEntry)
+		namemap := make(map[string]int32)
+		namedb := make([]string, 0)
+
+		tagsEncoder := model.NewV2TagEncoder()
+
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
-				batchDNS[c.Raddr.Ip] = entries
+				if _, present := batchDNS[c.Raddr.Ip]; !present {
+					// first, walks through and converts entries of type DNSEntry to DNSDatabaseEntry,
+					// so that we're always sending the same (newer) type.
+					convertDNSEntry(batchDNS, namemap, &namedb, c.Raddr.Ip, entries)
+				}
 			}
 
 			if c.Laddr.ContainerId != "" {
 				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
 			}
-			for d := range c.DnsStatsByDomain {
-				domainIndices[d] = struct{}{}
-			}
-			for d := range c.DnsStatsByDomainByQueryType {
-				domainIndices[d] = struct{}{}
-			}
-		}
 
-		// We want to keep the length of the domains array same so that the pointers in DnsStatsByDomain remain valid
-		// For absent entries, we simply use an empty string to cut down on storage.
-		batchDomains := make([]string, len(domains))
-		for i, domain := range domains {
-			if _, ok := domainIndices[int32(i)]; ok {
-				batchDomains[i] = domain
+			// remap functions create a new map; the map is by string _index_ (not offset)
+			// in the namedb.  Each unique string should only occur once.
+			remapDNSStatsByDomain(c, namemap, &namedb, domains)
+			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
+
+			// tags remap
+			if len(c.Tags) > 0 {
+				var tagsStr []string
+				for _, t := range c.Tags {
+					tagsStr = append(tagsStr, tags[t])
+				}
+				c.Tags = nil
+				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
+			} else {
+				c.TagsIdx = -1
 			}
+
 		}
 
 		// remap route indices
@@ -262,17 +362,46 @@ func batchConnections(
 			c.RouteIdx = new
 		}
 
+		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
+		// domain string) and convert it into a buffer of all of the strings.
+		// indexToOffset contains the map from the string index to where it occurs in the encodedNameDb
+		var mappedDNSLookups []byte
+		encodedNameDb, indexToOffset, err := dnsEncoder.EncodeDomainDatabase(namedb)
+		if err != nil {
+			encodedNameDb = nil
+			// since we were unable to properly encode the indexToOffet map, the
+			// rest of the maps will now be unreadable by the back-end.  Just clear them
+			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+				c.DnsStatsByDomain = nil
+				c.DnsStatsByDomainByQueryType = nil
+				c.DnsStatsByDomainOffsetByQueryType = nil
+			}
+		} else {
+
+			// Now we have all available information.  EncodeMapped with take the string indices
+			// that are used, and encode (using the indexToOffset array) the offset into the buffer
+			// this way individual strings can be directly accessed on decode.
+			mappedDNSLookups, err = dnsEncoder.EncodeMapped(batchDNS, indexToOffset)
+			if err != nil {
+				mappedDNSLookups = nil
+			}
+			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+				remapDNSStatsByOffset(c, indexToOffset)
+			}
+		}
 		cc := &model.CollectorConnections{
-			HostName:          cfg.HostName,
-			NetworkId:         networkID,
-			Connections:       batchConns,
-			GroupId:           groupID,
-			GroupSize:         groupSize,
-			ContainerForPid:   ctrIDForPID,
-			EncodedDNS:        dnsEncoder.Encode(batchDNS),
-			ContainerHostType: cfg.ContainerHostType,
-			Domains:           batchDomains,
-			Routes:            batchRoutes,
+			AgentConfiguration:     agentCfg,
+			HostName:               cfg.HostName,
+			NetworkId:              networkID,
+			Connections:            batchConns,
+			GroupId:                groupID,
+			GroupSize:              groupSize,
+			ContainerForPid:        ctrIDForPID,
+			EncodedDomainDatabase:  encodedNameDb,
+			EncodedDnsLookups:      mappedDNSLookups,
+			ContainerHostType:      cfg.ContainerHostType,
+			Routes:                 batchRoutes,
+			EncodedConnectionsTags: tagsEncoder.Buffer(),
 		}
 
 		// Add OS telemetry

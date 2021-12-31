@@ -16,7 +16,7 @@ Google Kubernetes Engine cluster using Google Cloud Marketplace.
 Prior to that:
 
 - Create a Datadog [account](https://www.datadoghq.com/)
-- [Get your Datadog API key](https://app.datadoghq.com/account/settings#api)
+- [Get your Datadog API key](https://app.datadoghq.com/organization-settings/api-keys)
 
 Then follow the [on-screen instructions](https://console.cloud.google.com/marketplace/details/datadog-saas/datadog).
 
@@ -38,7 +38,7 @@ Your development environment should contain the following tools:
 ##### Create a Datadog account
 
 - Create a Datadog [account](https://www.datadoghq.com/)
-- [Get your Datadog API key](https://app.datadoghq.com/account/settings#api)
+- [Get your Datadog API key](https://app.datadoghq.com/organization-settings/api-keys)
 
 ##### Create a Google Kubernetes Engine cluster
 

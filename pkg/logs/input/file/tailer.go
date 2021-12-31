@@ -22,8 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/tag"
@@ -75,21 +73,26 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 	var matcher decoder.EndLineMatcher
 	switch source.GetSourceType() {
 	case config.KubernetesSourceType:
-		lineParser = kubernetes.Parser
+		lineParser = parser.KubernetesFormat
 		matcher = &decoder.NewLineMatcher{}
 	case config.DockerSourceType:
-		lineParser = docker.JSONParser
+		if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+			// podman's on-disk logs are in kubernetes format
+			lineParser = parser.KubernetesFormat
+		} else {
+			lineParser = parser.DockerFileFormat
+		}
 		matcher = &decoder.NewLineMatcher{}
 	default:
 		switch source.Config.Encoding {
 		case config.UTF16BE:
-			lineParser = parser.NewDecodingParser(parser.UTF16BE)
-			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL)
+			lineParser = parser.NewEncodedText(parser.UTF16BE)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL, 2)
 		case config.UTF16LE:
-			lineParser = parser.NewDecodingParser(parser.UTF16LE)
-			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL)
+			lineParser = parser.NewEncodedText(parser.UTF16LE)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL, 2)
 		default:
-			lineParser = parser.NoopParser
+			lineParser = parser.Noop
 			matcher = &decoder.NewLineMatcher{}
 		}
 	}

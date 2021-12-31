@@ -6,6 +6,7 @@
 struct setxattr_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -83,8 +84,14 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 
         return 0;
     }
 
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
-    syscall->xattr.dentry = dentry;
+    syscall->xattr.dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+
+    if ((event_type == EVENT_SETXATTR && get_vfs_setxattr_dentry_position() == VFS_ARG_POSITION2) ||
+        (event_type == EVENT_REMOVEXATTR && get_vfs_removexattr_dentry_position() == VFS_ARG_POSITION2)) {
+        // prevent the verifier from whining
+        bpf_probe_read(&syscall->xattr.dentry, sizeof(syscall->xattr.dentry), &syscall->xattr.dentry);
+        syscall->xattr.dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    }
 
     set_file_inode(syscall->xattr.dentry, &syscall->xattr.file, 0);
 
@@ -146,6 +153,7 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_file_metadata(syscall->xattr.dentry, &event.file.metadata);
+    fill_span_context(&event.span);
 
     send_event(ctx, event_type, event);
 

@@ -7,8 +7,13 @@ package tags
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -16,6 +21,8 @@ const (
 	envEnvVar       = "DD_ENV"
 	versionEnvVar   = "DD_VERSION"
 	serviceEnvVar   = "DD_SERVICE"
+	runtimeVar      = "AWS_EXECUTION_ENV"
+	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
 
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
@@ -32,6 +39,9 @@ const (
 	envKey                   = "env"
 	versionKey               = "version"
 	serviceKey               = "service"
+	runtimeKey               = "runtime"
+	memorySizeKey            = "memorysize"
+	architectureKey          = "architecture"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -42,6 +52,13 @@ var currentExtensionVersion = "xxx"
 // BuildTagMap builds a map of tag based on the arn and user defined tags
 func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
+
+	architecture := ResolveRuntimeArch()
+	tags = setIfNotEmpty(tags, architectureKey, architecture)
+
+	tags = setIfNotEmpty(tags, runtimeKey, getRuntime("/proc", "/etc", runtimeVar))
+
+	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
 
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
 	tags = setIfNotEmpty(tags, versionKey, os.Getenv(versionEnvVar))
@@ -130,4 +147,47 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
 	}
 	return tagMap
+}
+
+func getRuntimeFromOsReleaseFile(osReleasePath string) string {
+	runtime := ""
+	bytesRead, err := ioutil.ReadFile(fmt.Sprintf("%s/os-release", osReleasePath))
+	if err != nil {
+		log.Debug("could not read os-release file")
+		return ""
+	}
+	regExp := regexp.MustCompile(`PRETTY_NAME="Amazon Linux 2"`)
+	result := regExp.FindAll(bytesRead, -1)
+	if len(result) == 1 {
+		runtime = "provided.al2"
+	}
+	return runtime
+}
+
+func getRuntime(procPath string, osReleasePath string, varName string) string {
+	foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
+	runtime := cleanRuntimes(foundRuntimes)
+	runtime = strings.Replace(runtime, "AWS_Lambda_", "", 1)
+	if len(runtime) == 0 {
+		runtime = getRuntimeFromOsReleaseFile(osReleasePath)
+	}
+	if len(runtime) == 0 {
+		log.Debug("could not find a valid runtime, defaulting to unknown")
+		runtime = "unknown"
+	}
+	return runtime
+}
+
+func cleanRuntimes(runtimes []string) string {
+	filtered := []string{}
+	for i := range runtimes {
+		if runtimes[i] != "AWS_Lambda_rapid" {
+			filtered = append(filtered, runtimes[i])
+		}
+	}
+	if len(filtered) != 1 {
+		log.Debug("could not find a unique value for runtime")
+		return ""
+	}
+	return filtered[0]
 }

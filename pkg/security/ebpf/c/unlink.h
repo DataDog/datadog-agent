@@ -7,6 +7,7 @@
 struct unlink_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -50,8 +51,15 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
         return 0;
     }
 
-    // we resolve all the information before the file is actually removed
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    // change the register based on the value of vfs_unlink_dentry_position
+    if (get_vfs_unlink_dentry_position() == VFS_ARG_POSITION3) {
+        // prevent the verifier from whining
+        bpf_probe_read(&dentry, sizeof(dentry), &dentry);
+        dentry = (struct dentry *) PT_REGS_PARM3(ctx);
+    }
+
+    // we resolve all the information before the file is actually removed
     syscall->unlink.dentry = dentry;
     set_file_inode(dentry, &syscall->unlink.file, 1);
     fill_file_metadata(dentry, &syscall->unlink.file.metadata);
@@ -111,6 +119,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_container_context(entry, &event.container);
+            fill_span_context(&event.span);
 
             send_event(ctx, EVENT_RMDIR, event);
         } else {
@@ -122,6 +131,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_container_context(entry, &event.container);
+            fill_span_context(&event.span);
 
             send_event(ctx, EVENT_UNLINK, event);
         }

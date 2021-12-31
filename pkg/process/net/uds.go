@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux || darwin
 // +build linux darwin
 
 package net
@@ -7,6 +13,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,8 +52,17 @@ func NewListener(socketAddr string) (*UDSListener, error) {
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	if err := os.Chmod(socketAddr, 0722); err != nil {
+	if err := os.Chmod(socketAddr, 0720); err != nil {
 		return nil, fmt.Errorf("can't set the socket at write only: %s", err)
+	}
+
+	perms, err := filesystem.NewPermission()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := perms.RestrictAccessToUser(socketAddr); err != nil {
+		return nil, err
 	}
 
 	listener := &UDSListener{

@@ -36,7 +36,9 @@ kitchen_test_security_agent_x64:
       - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "centos-77,rhel-81"
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-20-04-hwe,ubuntu-21-10"
+        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-18-04-3"
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-20-04,ubuntu-20-04-2,ubuntu-21-10"
       - KITCHEN_PLATFORM: "suse"
         KITCHEN_OSVERS: "sles-12,sles-15"
       - KITCHEN_PLATFORM: "debian"
@@ -52,7 +54,7 @@ kitchen_test_security_agent_arm64:
   needs: [ "tests_ebpf_arm64" ]
   variables:
     KITCHEN_ARCH: arm64
-    KITCHEN_EC2_INSTANCE_TYPE: "t4g.large"
+    KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
@@ -60,7 +62,7 @@ kitchen_test_security_agent_arm64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-20-04-hwe,ubuntu-21-04"
+        KITCHEN_OSVERS: "ubuntu-20-04-2,ubuntu-21-04"
 
 kitchen_stress_security_agent:
   extends:

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 import (
@@ -28,10 +33,10 @@ func StartServer(cfg *config.Config) error {
 	}
 
 	// Register stats endpoint
-	mux.HandleFunc("/debug/stats", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		stats := module.GetStats()
 		utils.WriteAsJSON(w, stats)
-	})
+	}))
 
 	setupConfigHandlers(mux)
 

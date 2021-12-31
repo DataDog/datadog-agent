@@ -26,7 +26,8 @@ type metricAggregator interface {
 const maxNumberOfAllowedLabels = 4
 
 type counterAggregator struct {
-	metricName    string
+	ddMetricName  string
+	ksmMetricName string
 	allowedLabels []string
 
 	accumulator map[[maxNumberOfAllowedLabels]string]float64
@@ -40,7 +41,7 @@ type countObjectsAggregator struct {
 	counterAggregator
 }
 
-func newSumValuesAggregator(metricName string, allowedLabels []string) metricAggregator {
+func newSumValuesAggregator(ddMetricName, ksmMetricName string, allowedLabels []string) metricAggregator {
 	if len(allowedLabels) > maxNumberOfAllowedLabels {
 		// `maxNumberOfAllowedLabels` is hardcoded to the maximum number of labels passed to this function from the metricsAggregators definition below.
 		// The only possibility to arrive here is to add a new aggregator in `metricAggregator` below and to forget to update `maxNumberOfAllowedLabels` accordingly.
@@ -50,14 +51,15 @@ func newSumValuesAggregator(metricName string, allowedLabels []string) metricAgg
 
 	return &sumValuesAggregator{
 		counterAggregator{
-			metricName:    metricName,
+			ddMetricName:  ddMetricName,
+			ksmMetricName: ksmMetricName,
 			allowedLabels: allowedLabels,
 			accumulator:   make(map[[maxNumberOfAllowedLabels]string]float64),
 		},
 	}
 }
 
-func newCountObjectsAggregator(metricName string, allowedLabels []string) metricAggregator {
+func newCountObjectsAggregator(ddMetricName, ksmMetricName string, allowedLabels []string) metricAggregator {
 	if len(allowedLabels) > maxNumberOfAllowedLabels {
 		// `maxNumberOfAllowedLabels` is hardcoded to the maximum number of labels passed to this function from the metricsAggregators definition below.
 		// The only possibility to arrive here is to add a new aggregator in `metricAggregator` below and to forget to update `maxNumberOfAllowedLabels` accordingly.
@@ -67,7 +69,8 @@ func newCountObjectsAggregator(metricName string, allowedLabels []string) metric
 
 	return &countObjectsAggregator{
 		counterAggregator{
-			metricName:    metricName,
+			ddMetricName:  ddMetricName,
+			ksmMetricName: ksmMetricName,
 			allowedLabels: allowedLabels,
 			accumulator:   make(map[[maxNumberOfAllowedLabels]string]float64),
 		},
@@ -114,9 +117,9 @@ func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJo
 			labels[allowedLabel] = labelValues[i]
 		}
 
-		hostname, tags := k.hostnameAndTags(labels, labelJoiner)
+		hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
 
-		sender.Gauge(ksmMetricPrefix+a.metricName, count, hostname, tags)
+		sender.Gauge(ksmMetricPrefix+a.ddMetricName, count, hostname, tags)
 	}
 
 	a.accumulator = make(map[[maxNumberOfAllowedLabels]string]float64)
@@ -125,58 +128,72 @@ func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJo
 var metricAggregators = map[string]metricAggregator{
 	"kube_persistentvolume_status_phase": newSumValuesAggregator(
 		"persistentvolumes.by_phase",
+		"kube_persistentvolume_status_phase",
 		[]string{"storageclass", "phase"},
 	),
 	"kube_service_spec_type": newCountObjectsAggregator(
 		"service.count",
+		"kube_service_spec_type",
 		[]string{"namespace", "type"},
 	),
 	"kube_namespace_status_phase": newSumValuesAggregator(
 		"namespace.count",
+		"kube_namespace_status_phase",
 		[]string{"phase"},
 	),
 	"kube_replicaset_owner": newCountObjectsAggregator(
 		"replicaset.count",
+		"kube_replicaset_owner",
 		[]string{"namespace", "owner_name", "owner_kind"},
 	),
 	"kube_job_owner": newCountObjectsAggregator(
 		"job.count",
+		"kube_job_owner",
 		[]string{"namespace", "owner_name", "owner_kind"},
 	),
 	"kube_deployment_labels": newCountObjectsAggregator(
 		"deployment.count",
+		"kube_deployment_labels",
 		[]string{"namespace"},
 	),
 	"kube_daemonset_labels": newCountObjectsAggregator(
 		"daemonset.count",
+		"kube_daemonset_labels",
 		[]string{"namespace"},
 	),
 	"kube_statefulset_labels": newCountObjectsAggregator(
 		"statefulset.count",
+		"kube_statefulset_labels",
 		[]string{"namespace"},
 	),
 	"kube_cronjob_labels": newCountObjectsAggregator(
 		"cronjob.count",
+		"kube_cronjob_labels",
 		[]string{"namespace"},
 	),
 	"kube_endpoint_labels": newCountObjectsAggregator(
 		"endpoint.count",
+		"kube_endpoint_labels",
 		[]string{"namespace"},
 	),
 	"kube_horizontalpodautoscaler_labels": newCountObjectsAggregator(
 		"hpa.count",
+		"kube_horizontalpodautoscaler_labels",
 		[]string{"namespace"},
 	),
 	"kube_verticalpodautoscaler_labels": newCountObjectsAggregator(
 		"vpa.count",
+		"kube_verticalpodautoscaler_labels",
 		[]string{"namespace"},
 	),
 	"kube_node_info": newCountObjectsAggregator(
 		"node.count",
+		"kube_node_info",
 		[]string{"kubelet_version", "container_runtime_version", "kernel_version", "os_image"},
 	),
 	"kube_pod_info": newCountObjectsAggregator(
 		"pod.count",
-		[]string{"namespace", "created_by_kind", "created_by_name"},
+		"kube_pod_info",
+		[]string{"node", "namespace", "created_by_kind", "created_by_name"},
 	),
 }

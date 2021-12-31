@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 // Unless explicitly stated otherwise all files in this repository are licensed
@@ -24,11 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	securityLogger "github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddgostatsd "github.com/DataDog/datadog-go/statsd"
@@ -70,6 +76,12 @@ var (
 		Short: "Run runtime self test",
 		RunE:  runRuntimeSelfTest,
 	}
+
+	reloadPoliciesCmd = &cobra.Command{
+		Use:   "reload",
+		Short: "Reload policies",
+		RunE:  reloadRuntimePolicies,
+	}
 )
 
 func init() {
@@ -80,6 +92,7 @@ func init() {
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	runtimeCmd.AddCommand(selfTestCmd)
+	runtimeCmd.AddCommand(reloadPoliciesCmd)
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
@@ -111,9 +124,18 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, enabled, sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, &securityLogger.PatternLogger{})
+	var opts rules.Opts
+	opts.
+		WithConstants(model.SECLConstants).
+		WithVariables(sprobe.SECLVariables).
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(enabled).
+		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithLegacyFields(model.SECLLegacyFields).
+		WithLogger(&seclog.PatternLogger{})
+
 	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts)
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
 
 	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err.ErrorOrNil() != nil {
 		return err
@@ -154,6 +176,21 @@ func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Printf("Runtime self test: error: %v\n", selfTestResult.Error)
 	}
+	return nil
+}
+
+func reloadRuntimePolicies(cmd *cobra.Command, args []string) error {
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	_, err = client.ReloadPolicies()
+	if err != nil {
+		return errors.Wrap(err, "unable to reload policies")
+	}
+
 	return nil
 }
 
@@ -204,7 +241,7 @@ func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient
 		return nil, err
 	}
 
-	agent, err := secagent.NewRuntimeSecurityAgent(hostname, reporter)
+	agent, err := secagent.NewRuntimeSecurityAgent(hostname, reporter, endpoints)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
 	}

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package gosnmplib
 
 import (
@@ -12,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
+var strippableSpecialChars = map[byte]bool{'\r': true, '\n': true, '\t': true}
+
 // GetValueFromPDU converts gosnmp.SnmpPDU to ResultValue
 // See possible types here: https://github.com/gosnmp/gosnmp/blob/master/helper.go#L59-L271
 //
@@ -25,13 +32,13 @@ func GetValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, valuestore.ResultValue
 	case gosnmp.OctetString, gosnmp.BitString:
 		bytesValue, ok := pduVariable.Value.([]byte)
 		if !ok {
-			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: OctetString/BitString should be []byte type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
+			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: OctetString/BitString should be []byte type but got type `%T` and value `%v`", pduVariable.Name, pduVariable.Value, pduVariable.Value)
 		}
-		if hasNonPrintableByte(bytesValue) {
+		if !isString(bytesValue) {
 			// We hexify like Python/pysnmp impl (keep compatibility) if the value contains non ascii letters:
 			// https://github.com/etingof/pyasn1/blob/db8f1a7930c6b5826357646746337dafc983f953/pyasn1/type/univ.py#L950-L953
 			// hexifying like pysnmp prettyPrint might lead to unpredictable results since `[]byte` might or might not have
-			// elements outside of 32-126 range
+			// elements outside of 32-126 range. New lines, tabs and carriage returns are also stripped from the string.
 			// An alternative solution is to explicitly force the conversion to specific type using profile config.
 			value = fmt.Sprintf("%#x", bytesValue)
 		} else {
@@ -42,25 +49,25 @@ func GetValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, valuestore.ResultValue
 	case gosnmp.OpaqueFloat:
 		floatValue, ok := pduVariable.Value.(float32)
 		if !ok {
-			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: OpaqueFloat should be float32 type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
+			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: OpaqueFloat should be float32 type but got type `%T` and value `%v`", pduVariable.Name, pduVariable.Value, pduVariable.Value)
 		}
 		value = float64(floatValue)
 	case gosnmp.OpaqueDouble:
 		floatValue, ok := pduVariable.Value.(float64)
 		if !ok {
-			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: OpaqueDouble should be float64 type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
+			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: OpaqueDouble should be float64 type but got type `%T` and value `%v`", pduVariable.Name, pduVariable.Value, pduVariable.Value)
 		}
 		value = floatValue
 	case gosnmp.IPAddress:
 		strValue, ok := pduVariable.Value.(string)
 		if !ok {
-			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: IPAddress should be string type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
+			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: IPAddress should be string type but got type `%T` and value `%v`", pduVariable.Name, pduVariable.Value, pduVariable.Value)
 		}
 		value = strValue
 	case gosnmp.ObjectIdentifier:
 		strValue, ok := pduVariable.Value.(string)
 		if !ok {
-			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: ObjectIdentifier should be string type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
+			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: ObjectIdentifier should be string type but got type `%T` and value `%v`", pduVariable.Name, pduVariable.Value, pduVariable.Value)
 		}
 		value = strings.TrimLeft(strValue, ".")
 	default:
@@ -70,14 +77,17 @@ func GetValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, valuestore.ResultValue
 	return name, valuestore.ResultValue{SubmissionType: submissionType, Value: value}, nil
 }
 
-func hasNonPrintableByte(bytesValue []byte) bool {
-	hasNonPrintable := false
+func isString(bytesValue []byte) bool {
 	for _, bit := range bytesValue {
 		if bit < 32 || bit > 126 {
-			hasNonPrintable = true
+			// The char is not a printable ASCII char but it might be a character that
+			// can be stripped like `\n`
+			if _, ok := strippableSpecialChars[bit]; !ok {
+				return false
+			}
 		}
 	}
-	return hasNonPrintable
+	return true
 }
 
 // ResultToScalarValues converts result to scalar values

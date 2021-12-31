@@ -1,4 +1,10 @@
-//+build linux_bpf
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
+// +build linux_bpf
 
 package tracer
 
@@ -8,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"net"
 	"os"
@@ -19,13 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -437,6 +443,50 @@ func TestConntrackExpiration(t *testing.T) {
 	_ = getConnections(t, tr)
 
 	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
+}
+
+// This test ensures that conntrack lookups are retried for short-lived
+// connections when the first lookup fails
+func TestConntrackDelays(t *testing.T) {
+	setupDNAT(t)
+	defer teardownDNAT(t)
+
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// This will ensure that the first lookup for every connection fails, while the following ones succeed
+	tr.conntracker = tracertest.NewDelayedConntracker(tr.conntracker, 1)
+
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
+
+	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
+	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
+	rand.Seed(time.Now().UnixNano())
+	port := 5430 + rand.Intn(100)
+	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+		io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	defer close(doneChan)
+
+	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
+	require.NoError(t, err)
+	defer c.Close()
+	_, err = c.Write([]byte("ping"))
+	require.NoError(t, err)
+
+	// Give enough time for conntrack cache to be populated
+	time.Sleep(100 * time.Millisecond)
+
+	connections := getConnections(t, tr)
+	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
+	require.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "missing translation for connection")
 }
 
 func TestTranslationBindingRegression(t *testing.T) {
@@ -905,55 +955,6 @@ func TestConnectionNotAssured(t *testing.T) {
 	require.False(t, conn.IsAssured)
 }
 
-func TestNewConntracker(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	cfg := testConfig()
-
-	mockCreator := func(_ *config.Config) (netlink.Conntracker, error) {
-		return netlink.NewMockConntracker(ctrl), nil
-	}
-
-	errCreator := func(_ *config.Config) (netlink.Conntracker, error) {
-		return nil, assert.AnError
-	}
-
-	mockConntracker := netlink.NewMockConntracker(ctrl)
-	noopConntracker := netlink.NewNoOpConntracker()
-
-	tests := []struct {
-		conntrackEnabled  bool
-		ignoreInitFailure bool
-		creator           func(*config.Config) (netlink.Conntracker, error)
-
-		conntracker netlink.Conntracker
-		err         error
-	}{
-		{false, false, mockCreator, noopConntracker, nil},
-		{true, true, mockCreator, mockConntracker, nil},
-		{true, true, errCreator, noopConntracker, nil},
-		{true, false, mockCreator, mockConntracker, nil},
-		{true, false, errCreator, nil, assert.AnError},
-	}
-
-	for _, te := range tests {
-		cfg.EnableConntrack = te.conntrackEnabled
-		cfg.IgnoreConntrackInitFailure = te.ignoreInitFailure
-		c, err := newConntracker(cfg, te.creator)
-		if te.conntracker != nil {
-			require.IsType(t, te.conntracker, c)
-		} else {
-			require.Nil(t, c)
-		}
-
-		if te.err != nil {
-			require.Error(t, err)
-		} else {
-			require.NoError(t, err)
-		}
-	}
-}
-
 func TestUDPConnExpiryTimeout(t *testing.T) {
 	streamTimeout, err := sysctl.NewInt("/proc", "net/netfilter/nf_conntrack_udp_timeout_stream", 0).Get()
 	require.NoError(t, err)
@@ -1305,8 +1306,15 @@ func TestSendfileRegression(t *testing.T) {
 	// Warm up state
 	_ = getConnections(t, tr)
 
+	// Grab file size
+	stat, err := tmpfile.Stat()
+	require.NoError(t, err)
+	fsize := int(stat.Size())
+
 	// Send file contents via SENDFILE(2)
-	sendFile(t, c, tmpfile)
+	n, err = sendFile(t, c, tmpfile, nil, fsize)
+	require.NoError(t, err)
+	require.Equal(t, fsize, n)
 
 	// Verify that our TCP server received the contents of the file
 	c.Close()
@@ -1326,19 +1334,65 @@ func TestSendfileRegression(t *testing.T) {
 	assert.Equalf(t, int64(clientMessageSize), int64(conn.MonotonicSentBytes), "sendfile data wasn't properly traced")
 }
 
-func sendFile(t *testing.T, c net.Conn, f *os.File) {
-	// Grab file size
-	stat, err := f.Stat()
+func TestSendfileError(t *testing.T) {
+	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
-	fsize := int(stat.Size())
+	t.Cleanup(tr.Stop)
 
+	tmpfile, err := ioutil.TempFile("", "sendfile_source")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.Remove(tmpfile.Name()) })
+
+	n, err := tmpfile.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+	require.Equal(t, clientMessageSize, n)
+	_, err = tmpfile.Seek(0, 0)
+	require.NoError(t, err)
+
+	server := NewTCPServer(func(c net.Conn) {
+		_, _ = io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	t.Cleanup(func() { close(doneChan) })
+
+	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	require.NoError(t, err)
+
+	// Warm up state
+	_ = getConnections(t, tr)
+
+	// Send file contents via SENDFILE(2)
+	offset := int64(math.MaxInt64 - 1)
+	_, err = sendFile(t, c, tmpfile, &offset, 10)
+	require.Error(t, err)
+
+	c.Close()
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
+
+	assert.Equalf(t, int64(0), int64(conn.MonotonicSentBytes), "sendfile data wasn't properly traced")
+}
+
+func sendFile(t *testing.T, c net.Conn, f *os.File, offset *int64, count int) (int, error) {
 	// Send payload using SENDFILE(2) syscall
 	rawConn, err := c.(*net.TCPConn).SyscallConn()
 	require.NoError(t, err)
 	var n int
+	var serr error
 	err = rawConn.Control(func(fd uintptr) {
-		n, _ = syscall.Sendfile(int(fd), int(f.Fd()), nil, fsize)
+		n, serr = syscall.Sendfile(int(fd), int(f.Fd()), offset, count)
 	})
-	require.NoError(t, err)
-	require.Equal(t, fsize, n)
+	if err != nil {
+		return 0, err
+	}
+	return n, serr
 }

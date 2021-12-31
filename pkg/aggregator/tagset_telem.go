@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package aggregator
 
 import (
@@ -93,6 +98,18 @@ func (t *tagsetTelemetry) updateHugeSeriesTelemetry(series *metrics.Series) {
 		tagsetSizes[i] = uint64(len(s.Tags))
 	}
 	t.updateTelemetry(tagsetSizes, t.hugeSeriesCount, t.tlmHugeSeries)
+}
+
+// updateHugeSerieTelemetry increments huge and almost-huge counters.
+// Same as updateHugeSeriesTelemetry but for a single serie.
+func (t *tagsetTelemetry) updateHugeSerieTelemetry(serie *metrics.Serie) {
+	tagsetSize := uint64(len(serie.Tags))
+	for i, thresh := range t.sizeThresholds {
+		if tagsetSize > thresh {
+			atomic.AddUint64(&t.hugeSeriesCount[i], 1)
+			t.tlmHugeSeries[i].Add(1)
+		}
+	}
 }
 
 func (t *tagsetTelemetry) exp() interface{} {

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package valuestore
 
 import (
@@ -25,22 +30,6 @@ var storeMock = &ResultValueStore{
 	},
 }
 
-func Test_resultValueStore_GetScalarValueAsString(t *testing.T) {
-	assert.Equal(t, "", storeMock.GetScalarValueAsString("0.0"))
-	assert.Equal(t, "10", storeMock.GetScalarValueAsString("1.1.1.1.0"))
-	assert.Equal(t, "a_str_value", storeMock.GetScalarValueAsString("1.1.1.2.0"))
-	assert.Equal(t, "", storeMock.GetScalarValueAsString("1.1.1.3.0"))
-}
-
-func Test_resultValueStore_getColumnValueAsString(t *testing.T) {
-	assert.Equal(t, "", storeMock.GetColumnValueAsString("0.0", "1"))              // wrong column
-	assert.Equal(t, "10", storeMock.GetColumnValueAsString("1.1.1", "1"))          // ok float value
-	assert.Equal(t, "a_str_value", storeMock.GetColumnValueAsString("1.1.1", "2")) // ok str value
-	assert.Equal(t, "", storeMock.GetColumnValueAsString("1.1.1", "3"))            // wrong type
-	assert.Equal(t, "", storeMock.GetColumnValueAsString("1.1.1", "99"))           // index not found
-	assert.Equal(t, "21", storeMock.GetColumnValueAsString("1.1.2", "1"))          // ok float value
-}
-
 func Test_resultValueStore_getColumnValueAsFloat(t *testing.T) {
 	assert.Equal(t, float64(0), storeMock.GetColumnValueAsFloat("0.0", "1"))    // wrong column
 	assert.Equal(t, float64(10), storeMock.GetColumnValueAsFloat("1.1.1", "1")) // ok float value
@@ -58,4 +47,23 @@ func Test_resultValueStore_GetColumnIndexes(t *testing.T) {
 	indexes, err = storeMock.GetColumnIndexes("1.1.1")
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"1", "2", "3"}, indexes)
+}
+
+func TestResultValueStoreAsString(t *testing.T) {
+	store := &ResultValueStore{
+		ScalarValues: ScalarResultValuesType{
+			"1.1.1.1.0": {Value: float64(10)}, // a float value
+		},
+		ColumnValues: ColumnResultValuesType{
+			"1.1.1": {
+				"1": ResultValue{Value: float64(10)}, // a float value
+			},
+		},
+	}
+	str := ResultValueStoreAsString(store)
+	assert.Equal(t, "{\"scalar_values\":{\"1.1.1.1.0\":{\"value\":10}},\"column_values\":{\"1.1.1\":{\"1\":{\"value\":10}}}}", str)
+
+	str = ResultValueStoreAsString(nil)
+	assert.Equal(t, "", str)
+
 }

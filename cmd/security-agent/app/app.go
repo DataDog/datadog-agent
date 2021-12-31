@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -132,6 +134,10 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, int
 
 	if err != nil {
 		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
+	}
+
+	for _, status := range endpoints.GetStatus() {
+		log.Info(status)
 	}
 
 	destinationsCtx := client.NewDestinationsContext()
@@ -249,12 +255,14 @@ func RunAgent(ctx context.Context) (err error) {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f, nil)
 
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname)
-	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
+	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts.UseEventPlatformForwarder = false
+	opts.UseOrchestratorForwarder = false
+	opts.UseContainerLifecycleForwarder = false
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
 	stopper = restart.NewSerialStopper()
 
@@ -272,10 +280,18 @@ func RunAgent(ctx context.Context) (err error) {
 	// Initialize the remote tagger
 	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
 		tagger.SetDefaultTagger(remote.NewTagger())
-		tagger.Init()
+		err := tagger.Init()
+		if err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
 	}
 
-	if err = startCompliance(hostname, stopper, statsdClient); err != nil {
+	complianceAgent, err := startCompliance(hostname, stopper, statsdClient)
+	if err != nil {
+		return err
+	}
+
+	if err = initRuntimeSettings(); err != nil {
 		return err
 	}
 
@@ -285,7 +301,7 @@ func RunAgent(ctx context.Context) (err error) {
 		return err
 	}
 
-	srv, err = api.NewServer(runtimeAgent)
+	srv, err = api.NewServer(runtimeAgent, complianceAgent)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}
@@ -297,6 +313,10 @@ func RunAgent(ctx context.Context) (err error) {
 	log.Infof("Datadog Security Agent is now running.")
 
 	return
+}
+
+func initRuntimeSettings() error {
+	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{})
 }
 
 // handleSignals handles OS signals, and sends a message on stopCh when an interrupt
@@ -315,6 +335,9 @@ func handleSignals(stopCh chan struct{}) {
 			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
+
+			_ = tagger.Stop()
+
 			stopCh <- struct{}{}
 			return
 		}

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package flare
 
 import (
@@ -58,7 +63,7 @@ func TestContainerExclusionRulesInfo(t *testing.T) {
 			config := newConfig(test.configType, test.excluded)
 
 			var result bytes.Buffer
-			PrintConfig(&result, config)
+			PrintConfig(&result, config, "")
 
 			if test.expectMsg {
 				assert.Contains(t, result.String(), outputMsgs[test.configType])

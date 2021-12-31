@@ -1,12 +1,12 @@
 #!/bin/bash
-# (C) Datadog, Inc. 2010-2016
+# (C) Datadog, Inc. 2010-present
 # All rights reserved
 # Licensed under Simplified BSD License (see LICENSE)
 # Datadog Agent installation script: install and set up the Agent on supported Linux distributions
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.6.0.post
+install_script_version=1.7.1.post
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -59,7 +59,6 @@ function report(){
    printf "A notification has been sent to Datadog with the contents of $logfile\n"
   else
     printf "Unable to send the notification (curl v7.18 or newer is required)"
-    fallback_msg
   fi
 }
 
@@ -98,7 +97,12 @@ Troubleshooting and basic usage information for the Agent are available at:
       fallback_msg
       exit 1;
     fi
-    
+
+    if [ "$site" == "ddog-gov.com" ]; then
+      fallback_msg
+      exit 1;
+    fi
+
     while true; do
         read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error
         case $yn in
@@ -106,9 +110,8 @@ Troubleshooting and basic usage information for the Agent are available at:
             get_email
             if [[ -n "$isEmailValid" ]]; then
               report
-            else
-              fallback_msg
             fi
+            fallback_msg
             break;;
           [Nn]*|"" )
             fallback_msg
@@ -249,6 +252,9 @@ else
 fi
 
 report_failure_url="https://api.datadoghq.com/agent_stats/report_failure"
+if [ -n "$DD_SITE" ]; then
+    report_failure_url="https://api.${DD_SITE}/agent_stats/report_failure"
+fi
 if [ -n "$TESTING_REPORT_URL" ]; then
   report_failure_url=$TESTING_REPORT_URL
 fi
@@ -262,13 +268,13 @@ if [ ! "$apikey" ]; then
 fi
 
 if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
-    printf "\033[31mThe full Datadog Agent isn't available for your architecture (armv7l).\nInstall the Datadog IoT Agent by setting DD_AGENT_FLAVOR='datadog-iot'agent'.\033[0m\n"
+    printf "\033[31mThe full Datadog Agent isn't available for your architecture (armv7l).\nInstall the Datadog IoT Agent by setting DD_AGENT_FLAVOR='datadog-iot-agent'.\033[0m\n"
     exit 1;
 fi
 
 # OS/Distro Detection
 # Try lsb_release, fallback with /etc/issue then uname command
-KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE|Rocky|AlmaLinux)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
 if [ "$DISTRIBUTION" = "Darwin" ]; then
@@ -279,7 +285,7 @@ Please use the 1-step script available at https://app.datadoghq.com/account/sett
 
 elif [ -f /etc/debian_version ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
     OS="Debian"
-elif [ -f /etc/redhat-release ] || [ "$DISTRIBUTION" == "RedHat" ] || [ "$DISTRIBUTION" == "CentOS" ] || [ "$DISTRIBUTION" == "Amazon" ]; then
+elif [ -f /etc/redhat-release ] || [ "$DISTRIBUTION" == "RedHat" ] || [ "$DISTRIBUTION" == "CentOS" ] || [ "$DISTRIBUTION" == "Amazon" ] || [ "$DISTRIBUTION" == "Rocky" ] || [ "$DISTRIBUTION" == "AlmaLinux" ]; then
     OS="RedHat"
 # Some newer distros like Amazon may not have a redhat-release file
 elif [ -f /etc/system-release ] || [ "$DISTRIBUTION" == "Amazon" ]; then
@@ -301,6 +307,10 @@ fi
 
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
+    if { [ "$DISTRIBUTION" == "Rocky" ] || [ "$DISTRIBUTION" == "AlmaLinux" ]; } && { [ -n "$agent_minor_version" ] && [ "$agent_minor_version" -lt 33 ]; } && ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+        echo -e "\033[33mA future version of Agent will support $DISTRIBUTION\n\033[0m"
+        exit;
+    fi
     echo -e "\033[34m\n* Installing YUM sources for Datadog\n\033[0m"
 
     UNAME_M=$(uname -m)
@@ -478,7 +488,7 @@ elif [ "$OS" = "SUSE" ]; then
   # See https://www.suse.com/releasenotes/x86_64/SUSE-SLES/15/#fate-324409
   SUSE_VER=$(cat /etc/os-release 2>/dev/null | grep VERSION_ID | tr -d '"' | tr . = | cut -d = -f 2 | xargs echo)
   gpgkeys="https://${keys_url}/DATADOG_RPM_KEY_CURRENT.public"
-  if [ -n "$SUSE_VER" ] && [ "$SUSE_VER" -ge 15 ]; then
+  if [ -n "$SUSE_VER" ] && [ "$SUSE_VER" -ge 15 ] && [ "$SUSE_VER" -ne 42 ]; then
     gpgkeys=''
     separator='\n       '
     for key_path in "${RPM_GPG_KEYS[@]}"; do
@@ -499,6 +509,37 @@ elif [ "$OS" = "SUSE" ]; then
   
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
 
+  # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
+  agent_minor_version_without_patch="${agent_minor_version%.*}"
+  # ".32" is the latest version supported for OpenSUSE < 15 and SLES < 12
+  # we explicitly test for SUSE11 = "yes", as some SUSE11 don't have /etc/os-release, thus SUSE_VER is empty
+  if [ "$DISTRIBUTION" == "openSUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 15 ]; }; then
+      if [ -n "$agent_minor_version_without_patch" ]; then
+          if [ "$agent_minor_version_without_patch" -ge "33" ]; then
+              printf "\033[31mopenSUSE < 15 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              exit;
+          fi
+      else
+          if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+              echo -e "  \033[33mAgent $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              agent_minor_version=32
+          fi
+      fi
+  fi
+  if [ "$DISTRIBUTION" == "SUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 12 ]; }; then
+      if [ -n "$agent_minor_version_without_patch" ]; then
+          if [ "$agent_minor_version_without_patch" -ge "33" ]; then
+              printf "\033[31mSLES < 12 only supports Agent %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              exit;
+          fi
+      else
+          if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+              echo -e "  \033[33mAgent $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              agent_minor_version=32
+          fi
+      fi
+  fi
+
   if [ -n "$agent_minor_version" ]; then
       # Example: datadog-agent-1:7.20.2-1
       pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
@@ -507,7 +548,11 @@ elif [ "$OS" = "SUSE" ]; then
   fi
   echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-  $sudo_cmd zypper --non-interactive install "$agent_flavor"
+  if [ -z "$sudo_cmd" ]; then
+    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  else
+    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+  fi
 
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.

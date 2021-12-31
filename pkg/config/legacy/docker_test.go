@@ -59,6 +59,7 @@ instances:
 - collect_container_size: true
   collect_container_size_frequency: 5
   collect_exit_codes: true
+  ok_exit_codes: []
   collect_images_stats: false
   collect_image_size: true
   collect_disk_stats: true

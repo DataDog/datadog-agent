@@ -8,7 +8,7 @@
 package probes
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	manager "github.com/DataDog/ebpf-manager"
 )
 

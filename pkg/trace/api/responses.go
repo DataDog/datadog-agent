@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -63,21 +64,44 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	http.Error(w, msg, status)
 }
 
-// httpOK is a dumb response for when things are a OK
-func httpOK(w http.ResponseWriter) {
-	io.WriteString(w, "OK\n")
+// httpOK is a dumb response for when things are a OK. It returns the number
+// of bytes written along with a boolean specifying if the response was successful.
+func httpOK(w http.ResponseWriter) (n uint64, ok bool) {
+	nn, err := io.WriteString(w, "OK\n")
+	return uint64(nn), err == nil
 }
 
+type writeCounter struct {
+	w io.Writer
+	n uint64
+}
+
+func newWriteCounter(w io.Writer) *writeCounter {
+	return &writeCounter{w: w}
+}
+
+func (wc *writeCounter) Write(p []byte) (n int, err error) {
+	atomic.AddUint64(&wc.n, uint64(len(p)))
+	return wc.w.Write(p)
+}
+
+func (wc *writeCounter) N() uint64 { return atomic.LoadUint64(&wc.n) }
+
 // httpRateByService outputs, as a JSON, the recommended sampling rates for all services.
-func httpRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) {
+// It returns the number of bytes written and a boolean specifying whether the write was
+// successful.
+func httpRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) (n uint64, ok bool) {
 	w.Header().Set("Content-Type", "application/json")
 	response := traceResponse{
 		Rates: dynConf.RateByService.GetAll(), // this is thread-safe
 	}
-	encoder := json.NewEncoder(w)
+	wc := newWriteCounter(w)
+	ok = true
+	encoder := json.NewEncoder(wc)
 	if err := encoder.Encode(response); err != nil {
 		tags := []string{"error:response-error"}
 		metrics.Count(receiverErrorKey, 1, tags, 1)
-		return
+		ok = false
 	}
+	return wc.N(), ok
 }

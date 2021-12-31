@@ -6,37 +6,35 @@
 package sender
 
 import (
-	"context"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-// Strategy should contain all logic to send logs to a remote destination
-// and forward them the next stage of the pipeline.
-type Strategy interface {
-	Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error)
-	Flush(ctx context.Context)
-}
-
-// Sender sends logs to different destinations.
+// Sender sends logs to different destinations. Destinations can be either
+// reliable or unreliable. The sender ensures that logs are sent to at least
+// one reliable destination and will block the pipeline if they are in an
+// error state. Unreliable destinations will only send logs when at least
+// one reliable destination is also sending logs. However they do not update
+// the auditor or block the pipeline if they fail. There will always be at
+// least 1 reliable destination (the main destination).
 type Sender struct {
-	inputChan    chan *message.Message
-	outputChan   chan *message.Message
+	inputChan    chan *message.Payload
+	outputChan   chan *message.Payload
 	destinations *client.Destinations
-	strategy     Strategy
 	done         chan struct{}
+	bufferSize   int
 }
 
 // NewSender returns a new sender.
-func NewSender(inputChan chan *message.Message, outputChan chan *message.Message, destinations *client.Destinations, strategy Strategy) *Sender {
+func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int) *Sender {
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
 		destinations: destinations,
-		strategy:     strategy,
 		done:         make(chan struct{}),
+		bufferSize:   bufferSize,
 	}
 }
 
@@ -52,47 +50,70 @@ func (s *Sender) Stop() {
 	<-s.done
 }
 
-// Flush sends synchronously the messages that this sender has to send.
-func (s *Sender) Flush(ctx context.Context) {
-	s.strategy.Flush(ctx)
-}
-
 func (s *Sender) run() {
-	defer func() {
-		s.done <- struct{}{}
-	}()
-	s.strategy.Send(s.inputChan, s.outputChan, s.send)
-}
+	reliableDestinations := buildDestinationSenders(s.destinations.Reliable, s.outputChan, s.bufferSize)
 
-// send sends a payload to multiple destinations,
-// it will forever retry for the main destination unless the error is not retryable
-// and only try once for additionnal destinations.
-func (s *Sender) send(payload []byte) error {
-	for {
-		err := s.destinations.Main.Send(payload)
-		if err != nil {
-			metrics.DestinationErrors.Add(1)
-			metrics.TlmDestinationErrors.Inc()
-			if _, ok := err.(*client.RetryableError); ok {
-				// could not send the payload because of a client issue,
-				// let's retry
-				continue
+	sink := additionalDestinationsSink(s.bufferSize)
+	unreliableDestinations := buildDestinationSenders(s.destinations.Unreliable, sink, s.bufferSize)
+
+	for payload := range s.inputChan {
+
+		sent := false
+		for !sent {
+			for _, destSender := range reliableDestinations {
+				if destSender.Send(payload) {
+					sent = true
+				}
 			}
-			return err
+
+			if !sent {
+				// Throttle the poll loop while waiting for a send to succeed
+				// This will only happen when all reliable destinations
+				// are blocked so logs have no where to go.
+				time.Sleep(100 * time.Millisecond)
+			}
 		}
-		break
+
+		for _, destSender := range reliableDestinations {
+			// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
+			// loss on intermittent failures.
+			if !destSender.lastSendSucceeded {
+				destSender.NonBlockingSend(payload)
+			}
+		}
+
+		// Attempt to send to unreliable destinations
+		for _, destSender := range unreliableDestinations {
+			destSender.NonBlockingSend(payload)
+		}
 	}
 
-	for _, destination := range s.destinations.Additionals {
-		// send in the background so that the agent does not fall behind
-		// for the main destination
-		destination.SendAsync(payload)
+	// Cleanup the destinations
+	for _, destSender := range reliableDestinations {
+		destSender.Stop()
 	}
-
-	return nil
+	for _, destSender := range unreliableDestinations {
+		destSender.Stop()
+	}
+	close(sink)
+	s.done <- struct{}{}
 }
 
-// shouldStopSending returns true if a component should stop sending logs.
-func shouldStopSending(err error) bool {
-	return err == context.Canceled
+// Drains the output channel from destinations that don't update the auditor.
+func additionalDestinationsSink(bufferSize int) chan *message.Payload {
+	sink := make(chan *message.Payload, bufferSize)
+	go func() {
+		for {
+			<-sink
+		}
+	}()
+	return sink
+}
+
+func buildDestinationSenders(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*DestinationSender {
+	destinationSenders := []*DestinationSender{}
+	for _, destination := range destinations {
+		destinationSenders = append(destinationSenders, NewDestinationSender(destination, output, bufferSize))
+	}
+	return destinationSenders
 }

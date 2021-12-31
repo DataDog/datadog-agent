@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -23,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -52,6 +53,8 @@ type DentryResolver struct {
 
 	hitsCounters map[string]map[string]*int64
 	missCounters map[string]map[string]*int64
+
+	pathEntryPool *sync.Pool
 }
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid
@@ -161,6 +164,11 @@ func allERPCRet() []eRPCRet {
 	return []eRPCRet{eRPCok, eRPCCacheMiss, eRPCBufferSize, eRPCWritePageFault, eRPCTailCallError, eRPCReadPageFault, eRPCUnknownError}
 }
 
+// IsFakeInode returns whether the given inode is a fake inode
+func IsFakeInode(inode uint64) bool {
+	return inode>>32 == fakeInodeMSW
+}
+
 // SendStats sends the dentry resolver metrics
 func (dr *DentryResolver) SendStats() error {
 	for resolution, hitsCounters := range dr.hitsCounters {
@@ -226,9 +234,10 @@ func (dr *DentryResolver) DelCacheEntry(mountID uint32, inode uint64) {
 			if !exists {
 				break
 			}
+			// this is also call the onEvict function of LRU thus releasing the entry from the pool
 			entries.Remove(key.Inode)
 
-			parent := path.(PathEntry).Parent
+			parent := path.(*PathEntry).Parent
 			if parent.Inode == 0 {
 				break
 			}
@@ -255,20 +264,22 @@ func (dr *DentryResolver) lookupInodeFromCache(mountID uint32, inode uint64) (*P
 		return nil, ErrEntryNotFound
 	}
 
-	cacheEntry := entry.(PathEntry)
+	cacheEntry := entry.(*PathEntry)
 	if cacheEntry.Generation < atomic.LoadUint64(&dr.cacheGeneration) {
 		return nil, ErrEntryNotFound
 	}
 
-	return &cacheEntry, nil
+	return cacheEntry, nil
 }
 
-func (dr *DentryResolver) cacheInode(key PathKey, path PathEntry) error {
+func (dr *DentryResolver) cacheInode(key PathKey, path *PathEntry) error {
 	entries, exists := dr.cache[key.MountID]
 	if !exists {
 		var err error
 
-		entries, err = lru.New(dr.dentryCacheSize)
+		entries, err = lru.NewWithEvict(dr.dentryCacheSize, func(_, value interface{}) {
+			dr.pathEntryPool.Put(value)
+		})
 		if err != nil {
 			return err
 		}
@@ -277,6 +288,11 @@ func (dr *DentryResolver) cacheInode(key PathKey, path PathEntry) error {
 	} else {
 		// lookup mount_id generation
 		path.Generation = atomic.LoadUint64(&dr.cacheGeneration)
+	}
+
+	// release before in case of override
+	if prev, exists := entries.Get(key.Inode); exists {
+		dr.pathEntryPool.Put(prev)
 	}
 
 	entries.Add(key.Inode, path)
@@ -304,6 +320,15 @@ func (dr *DentryResolver) lookupInodeFromMap(mountID uint32, inode uint64, pathI
 	return pathLeaf, nil
 }
 
+func (dr *DentryResolver) getPathEntryFromPool(parent PathKey, name string) *PathEntry {
+	entry := dr.pathEntryPool.Get().(*PathEntry)
+	entry.Parent = parent
+	entry.Name = name
+	entry.Generation = 0
+
+	return entry
+}
+
 // GetNameFromMap resolves the name of the provided inode
 func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID uint32) (string, error) {
 	pathLeaf, err := dr.lookupInodeFromMap(mountID, inode, pathID)
@@ -314,10 +339,17 @@ func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID ui
 
 	atomic.AddInt64(dr.hitsCounters[metrics.SegmentResolutionTag][metrics.KernelMapsTag], 1)
 
-	cacheKey := PathKey{MountID: mountID, Inode: inode}
-	cacheEntry := PathEntry{Parent: pathLeaf.Parent, Name: pathLeaf.GetName()}
-	_ = dr.cacheInode(cacheKey, cacheEntry)
-	return cacheEntry.Name, nil
+	name := pathLeaf.GetName()
+
+	if !IsFakeInode(inode) {
+		cacheKey := PathKey{MountID: mountID, Inode: inode}
+		cacheEntry := dr.getPathEntryFromPool(pathLeaf.Parent, name)
+		if err := dr.cacheInode(cacheKey, cacheEntry); err != nil {
+			dr.pathEntryPool.Put(cacheEntry)
+		}
+	}
+
+	return name, nil
 }
 
 // GetName resolves a couple of mountID/inode to a path
@@ -377,11 +409,12 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (string
 }
 
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
-func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32) (string, error) {
+func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
 	var cacheKey PathKey
-	var cacheEntry PathEntry
+	var cacheEntry *PathEntry
 	var err, resolutionErr error
 	var filename string
+	var name string
 	var path PathLeaf
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 
@@ -391,7 +424,9 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	}
 
 	depth := int64(0)
-	toAdd := make(map[PathKey]PathEntry)
+
+	var keys []PathKey
+	var entries []*PathEntry
 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
@@ -404,7 +439,6 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		depth++
 
 		cacheKey = PathKey{MountID: key.MountID, Inode: key.Inode}
-		cacheEntry = PathEntry{Parent: path.Parent, Name: ""}
 
 		if path.Name[0] == '\x00' {
 			if depth >= model.MaxPathDepth {
@@ -417,13 +451,19 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] == '/' {
-			cacheEntry.Name = "/"
+			name = "/"
 		} else {
-			cacheEntry.Name = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
-			filename = "/" + cacheEntry.Name + filename
+			name = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
+			filename = "/" + name + filename
 		}
 
-		toAdd[cacheKey] = cacheEntry
+		// do not cache fake path keys in the case of rename events
+		if !IsFakeInode(key.Inode) && cache {
+			cacheEntry = dr.getPathEntryFromPool(path.Parent, name)
+
+			keys = append(keys, cacheKey)
+			entries = append(entries, cacheEntry)
+		}
 
 		if path.Parent.Inode == 0 {
 			break
@@ -443,16 +483,17 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	}
 
 	if err == nil {
-		for k, v := range toAdd {
-			// do not cache fake path keys in the case of rename events
-			if k.Inode>>32 != fakeInodeMSW {
-				_ = dr.cacheInode(k, v)
-			}
-		}
+		dr.cacheEntries(keys, entries)
+
 		if depth > 0 {
 			atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], depth)
 		}
 	} else {
+		// nothing inserted in cache, release everything
+		for _, entry := range entries {
+			dr.pathEntryPool.Put(entry)
+		}
+
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], 1)
 	}
 
@@ -509,12 +550,30 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 	return seg, nil
 }
 
+func (dr *DentryResolver) cacheEntries(keys []PathKey, entries []*PathEntry) {
+	var cacheEntry *PathEntry
+
+	for i, k := range keys {
+		if i >= len(entries) {
+			break
+		}
+
+		cacheEntry = entries[i]
+		if len(keys) > i+1 {
+			cacheEntry.Parent = keys[i+1]
+		}
+
+		if err := dr.cacheInode(k, cacheEntry); err != nil {
+			dr.pathEntryPool.Put(cacheEntry)
+		}
+	}
+}
+
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
-func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID uint32) (string, error) {
+func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
 	var filename, segment string
 	var err, resolutionErr error
 	var cacheKey PathKey
-	var cacheEntry PathEntry
 	depth := int64(0)
 	challenge := rand.Uint32()
 
@@ -536,7 +595,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	}
 
 	var keys []PathKey
-	var entries []PathEntry
+	var entries []*PathEntry
 
 	i := 0
 	// make sure that we keep room for at least one pathID + character + \0 => (sizeof(pathID) + 1 = 17)
@@ -577,8 +636,12 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 			break
 		}
 
-		keys = append(keys, cacheKey)
-		entries = append(entries, PathEntry{Name: segment})
+		if !IsFakeInode(cacheKey.Inode) && cache {
+			keys = append(keys, cacheKey)
+
+			entry := dr.getPathEntryFromPool(PathKey{}, segment)
+			entries = append(entries, entry)
+		}
 	}
 
 	if len(filename) == 0 {
@@ -586,23 +649,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	}
 
 	if resolutionErr == nil {
-		for i, k := range keys {
-			if k.Inode>>32 == fakeInodeMSW {
-				continue
-			}
-
-			if len(entries) > i {
-				cacheEntry = entries[i]
-			} else {
-				continue
-			}
-
-			if len(keys) > i+1 {
-				cacheEntry.Parent = keys[i+1]
-			}
-
-			_ = dr.cacheInode(k, cacheEntry)
-		}
+		dr.cacheEntries(keys, entries)
 
 		if depth > 0 {
 			atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.ERPCTag], depth)
@@ -615,13 +662,13 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) (string, error) {
+func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
 	path, err := dr.ResolveFromCache(mountID, inode)
 	if err != nil && dr.erpcEnabled {
-		path, err = dr.ResolveFromERPC(mountID, inode, pathID)
+		path, err = dr.ResolveFromERPC(mountID, inode, pathID, cache)
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.mapEnabled {
-		path, err = dr.ResolveFromMap(mountID, inode, pathID)
+		path, err = dr.ResolveFromMap(mountID, inode, pathID, cache)
 	}
 	return path, err
 }
@@ -814,6 +861,11 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		return nil, errors.Wrapf(err, "couldn't fetch the host CPU count")
 	}
 
+	pathEntryPool := &sync.Pool{}
+	pathEntryPool.New = func() interface{} {
+		return &PathEntry{}
+	}
+
 	return &DentryResolver{
 		client:          probe.statsdClient,
 		cache:           make(map[uint32]*lru.Cache),
@@ -828,5 +880,6 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		hitsCounters:    hitsCounters,
 		missCounters:    missCounters,
 		numCPU:          numCPU,
+		pathEntryPool:   pathEntryPool,
 	}, nil
 }

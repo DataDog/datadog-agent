@@ -7,12 +7,36 @@
 
 package docker
 
-import "golang.org/x/sys/unix"
+import (
+	"fmt"
+	"path/filepath"
+
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+
+	"golang.org/x/sys/unix"
+)
 
 const (
-	basePath = "/var/lib/docker/containers"
+	basePath       = "/var/lib/docker/containers"
+	podmanBasePath = "/var/lib/containers/storage/overlay-containers"
 )
 
 func checkReadAccess() error {
-	return unix.Access(basePath, unix.X_OK)
+	path := basePath
+	if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		path = podmanBasePath
+	}
+	err := unix.Access(path, unix.X_OK)
+	if err != nil {
+		return fmt.Errorf("Error accessing %s: %w", path, err)
+	}
+	return nil
+}
+
+// getPath returns the file path of the container log to tail.
+func getPath(id string) string {
+	if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		return filepath.Join(podmanBasePath, fmt.Sprintf("%s/userdata/ctr.log", id))
+	}
+	return filepath.Join(basePath, id, fmt.Sprintf("%s-json.log", id))
 }

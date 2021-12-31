@@ -8,14 +8,54 @@ package compliance
 
 import "fmt"
 
-// Rule defines a rule in a compliance config
-type Rule struct {
+// Rule defines an interface for rego and condition-fallback rules
+type Rule interface {
+	ResourceCount() int
+	Common() *RuleCommon
+}
+
+// RuleCommon defines the base fields of a rule in a compliance config
+type RuleCommon struct {
 	ID           string        `yaml:"id"`
 	Description  string        `yaml:"description,omitempty"`
 	Scope        RuleScopeList `yaml:"scope,omitempty"`
 	HostSelector string        `yaml:"hostSelector,omitempty"`
-	ResourceType string        `yaml:"resourceType,omitempty"`
-	Resources    []Resource    `yaml:"resources,omitempty"`
+}
+
+// ConditionFallbackRule defines a rule in a compliance config
+type ConditionFallbackRule struct {
+	RuleCommon   `yaml:",inline"`
+	ResourceType string     `yaml:"resourceType,omitempty"`
+	Resources    []Resource `yaml:"resources,omitempty"`
+}
+
+// ResourceCount returns the count of resources
+func (r *ConditionFallbackRule) ResourceCount() int {
+	return len(r.Resources)
+}
+
+// Common returns the common field between all rules
+func (r *ConditionFallbackRule) Common() *RuleCommon {
+	return &r.RuleCommon
+}
+
+// RegoRule defines a rule in a compliance config
+type RegoRule struct {
+	RuleCommon `yaml:",inline"`
+	Inputs     []RegoInput `yaml:"input,omitempty"`
+	Module     string      `yaml:"module,omitempty"`
+	Imports    []string    `yaml:"imports,omitempty"`
+	Findings   string      `yaml:"findings,omitempty"`
+}
+
+// ResourceCount returns the count of resources
+func (r *RegoRule) ResourceCount() int {
+	return len(r.Inputs)
+}
+
+// Common returns the common field between all rules
+func (r *RegoRule) Common() *RuleCommon {
+	return &r.RuleCommon
 }
 
 // RuleScope defines scope for applicability of a rule

@@ -6,6 +6,7 @@
 struct rename_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t old;
@@ -51,8 +52,18 @@ int kprobe_vfs_rename(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-    struct dentry *target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
+    struct dentry *src_dentry;
+    struct dentry *target_dentry;
+
+    if (get_vfs_rename_input_type() == VFS_RENAME_REGISTER_INPUT) {
+        src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+        target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
+    } else {
+        struct renamedata *rename_data = (struct renamedata *)PT_REGS_PARM1(ctx);
+
+        bpf_probe_read(&src_dentry, sizeof(src_dentry), (void *) rename_data + get_vfs_rename_src_dentry_offset());
+        bpf_probe_read(&target_dentry, sizeof(target_dentry), (void *) rename_data + get_vfs_rename_target_dentry_offset());
+    }
 
     syscall->rename.src_dentry = src_dentry;
     syscall->rename.target_dentry = target_dentry;
@@ -114,12 +125,14 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
         invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, inode, 1);
     }
 
-    // invalidate user face inode, so no need to bump the discarder revision in the event
+    int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RENAME);
+
+    // invalidate user space inode, so no need to bump the discarder revision in the event
     if (retval >= 0) {
-        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, 1);
+        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, !pass_to_userspace);
     }
 
-    if (!syscall->discarded && is_event_enabled(EVENT_RENAME)) {
+    if (pass_to_userspace) {
         // for centos7, use src dentry for target resolution as the pointers have been swapped
         syscall->resolver.key = syscall->rename.target_file.path_key;
         syscall->resolver.dentry = syscall->rename.src_dentry;
@@ -189,6 +202,7 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_RENAME, event);
 

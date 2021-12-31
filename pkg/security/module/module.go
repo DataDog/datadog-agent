@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package module
@@ -29,10 +30,10 @@ import (
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -145,13 +146,13 @@ func (m *Module) Start() error {
 		return errors.Wrap(err, "failed to start probe")
 	}
 
-	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
-	// context is ready when we start the probes
-	if err := m.probe.Snapshot(); err != nil {
+	if err := m.Reload(); err != nil {
 		return err
 	}
 
-	if err := m.Reload(); err != nil {
+	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
+	// context is ready when we start the probes
+	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
 
@@ -172,7 +173,6 @@ func (m *Module) Start() error {
 			}
 		}
 	}()
-
 	return nil
 }
 
@@ -195,9 +195,16 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 	}
 
 	if m.config.RuntimeEnabled {
-		if eventTypes, exists := categories[model.RuntimeCategory]; exists {
-			for _, eventType := range eventTypes {
-				enabled[eventType] = true
+		// everything but FIM
+		for _, category := range model.GetAllCategories() {
+			if category == model.FIMCategory {
+				continue
+			}
+
+			if eventTypes, exists := categories[category]; exists {
+				for _, eventType := range eventTypes {
+					enabled[eventType] = true
+				}
 			}
 		}
 	}
@@ -250,23 +257,22 @@ func (m *Module) Reload() error {
 	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	newRuleSetOpts := func() *rules.Opts {
-		return rules.NewOptsWithParams(
-			model.SECLConstants,
-			sprobe.SupportedDiscarders,
-			m.getEventTypeEnabled(),
-			sprobe.AllCustomRuleIDs(),
-			model.SECLLegacyAttributes,
-			&seclog.PatternLogger{})
-	}
-
-	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
-
-	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
+	var opts rules.Opts
+	opts.
+		WithConstants(model.SECLConstants).
+		WithVariables(sprobe.SECLVariables).
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(m.getEventTypeEnabled()).
+		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithLegacyFields(model.SECLLegacyFields).
+		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
 	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
+
+	ruleSet := m.probe.NewRuleSet(&opts)
+	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
 
 	if loadErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies: %+v", loadErr)
@@ -421,6 +427,10 @@ func (m *Module) metricsSender() {
 	for {
 		select {
 		case <-statsTicker.C:
+			if os.Getenv("RUNTIME_SECURITY_TESTSUITE") == "true" {
+				continue
+			}
+
 			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}

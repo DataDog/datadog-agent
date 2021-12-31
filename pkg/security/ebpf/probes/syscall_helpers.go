@@ -138,8 +138,13 @@ func getFunctionNameFromSection(section string) string {
 		funcName = strings.ReplaceAll(funcName, "kprobe/", "kprobe__64_")
 		funcName = strings.ReplaceAll(funcName, "kretprobe/", "kretprobe__64_")
 	} else {
+		// amd64
 		funcName = strings.ReplaceAll(funcName, "__ia32_", "__32_")
 		funcName = strings.ReplaceAll(funcName, "__x64_", "__64_")
+		// arm
+		funcName = strings.ReplaceAll(funcName, "__arm64_", "__64_")
+		funcName = strings.ReplaceAll(funcName, "__arm32_", "__32_")
+		// utils
 		funcName = strings.ReplaceAll(funcName, "/_", "_")
 	}
 	funcName = strings.ReplaceAll(funcName, "tracepoint/syscalls/", "tracepoint_syscalls_")

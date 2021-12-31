@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from invoke.exceptions import Exit
 
-from .remote_api import RemoteAPI
+from .remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
 
@@ -19,11 +19,9 @@ class Gitlab(RemoteAPI):
     BASE_URL = "https://gitlab.ddbuild.io/api/v4"
 
     def __init__(self, project_name="", api_token=""):
-        super(Gitlab, self).__init__()
-
+        super(Gitlab, self).__init__("Gitlab")
         self.api_token = api_token
         self.project_name = project_name
-        self.api_name = "Gitlab"
         self.authorization_error_message = (
             "HTTP 401: Your GITLAB_TOKEN may have expired. You can "
             "check and refresh it at "
@@ -40,7 +38,7 @@ class Gitlab(RemoteAPI):
         if "name" in result:
             return
 
-        print("Cannot find GitLab project {}".format(self.project_name))
+        print(f"Cannot find GitLab project {self.project_name}")
         print("If you cannot see it in the GitLab WebUI, you likely need permission.")
         raise Exit(code=1)
 
@@ -48,7 +46,7 @@ class Gitlab(RemoteAPI):
         """
         Gets the project info.
         """
-        path = "/projects/{}".format(quote(self.project_name, safe=""))
+        path = f"/projects/{quote(self.project_name, safe='')}"
         return self.make_request(path, json_output=True)
 
     def create_pipeline(self, ref, variables=None):
@@ -59,7 +57,7 @@ class Gitlab(RemoteAPI):
         if variables is None:
             variables = {}
 
-        path = "/projects/{}/pipeline".format(quote(self.project_name, safe=""))
+        path = f"/projects/{quote(self.project_name, safe='')}/pipeline"
         headers = {"Content-Type": "application/json"}
         data = json.dumps({"ref": ref, "variables": [{"key": k, "value": v} for (k, v) in variables.items()]})
         return self.make_request(path, headers=headers, data=data, json_output=True)
@@ -81,11 +79,9 @@ class Gitlab(RemoteAPI):
         """
         Gets one page of pipelines for a given reference (+ optionally git sha).
         """
-        path = "/projects/{}/pipelines?ref={}&per_page={}&page={}".format(
-            quote(self.project_name, safe=""), quote(ref, safe=""), per_page, page
-        )
+        path = f"/projects/{quote(self.project_name, safe='')}/pipelines?ref={quote(ref, safe='')}&per_page={per_page}&page={page}"
         if sha:
-            path = "{}&sha={}".format(path, sha)
+            path = f"{path}&sha={sha}"
         return self.make_request(path, json_output=True)
 
     def last_pipeline_for_ref(self, ref, per_page=100):
@@ -105,7 +101,7 @@ class Gitlab(RemoteAPI):
         Trigger a pipeline on a project using the trigger endpoint.
         Requires a trigger token in the data object, in the 'token' field.
         """
-        path = "/projects/{}/trigger/pipeline".format(quote(self.project_name, safe=""))
+        path = f"/projects/{quote(self.project_name, safe='')}/trigger/pipeline"
 
         if 'token' not in data:
             raise Exit("Missing 'token' field in data object to trigger child pipelines", 1)
@@ -116,29 +112,32 @@ class Gitlab(RemoteAPI):
         """
         Gets info for a given pipeline.
         """
-        path = "/projects/{}/pipelines/{}".format(quote(self.project_name, safe=""), pipeline_id)
+        path = f"/projects/{quote(self.project_name, safe='')}/pipelines/{pipeline_id}"
         return self.make_request(path, json_output=True)
 
     def cancel_pipeline(self, pipeline_id):
         """
         Cancels a given pipeline.
         """
-        path = "/projects/{}/pipelines/{}/cancel".format(quote(self.project_name, safe=""), pipeline_id)
+        path = f"/projects/{quote(self.project_name, safe='')}/pipelines/{pipeline_id}/cancel"
         return self.make_request(path, json_output=True, method="POST")
 
     def commit(self, commit_sha):
         """
         Gets info for a given commit sha.
         """
-        path = "/projects/{}/repository/commits/{}".format(quote(self.project_name, safe=""), commit_sha)
+        path = f"/projects/{quote(self.project_name, safe='')}/repository/commits/{commit_sha}"
         return self.make_request(path, json_output=True)
 
-    def artifact(self, job_id, artifact_name):
-        path = "/projects/{}/jobs/{}/artifacts/{}".format(quote(self.project_name, safe=""), job_id, artifact_name)
-        response = self.make_request(path, stream_output=True)
-        if response.status_code != 200:
-            return None
-        return response
+    def artifact(self, job_id, artifact_name, ignore_not_found=False):
+        path = f"/projects/{quote(self.project_name, safe='')}/jobs/{job_id}/artifacts/{artifact_name}"
+        try:
+            response = self.make_request(path, stream_output=True)
+            return response
+        except APIError as e:
+            if e.status_code == 404 and ignore_not_found:
+                return None
+            raise e
 
     def all_jobs(self, pipeline_id):
         """
@@ -158,9 +157,7 @@ class Gitlab(RemoteAPI):
         Gets one page of the jobs for a pipeline.
         per_page cannot exceed 100.
         """
-        path = "/projects/{}/pipelines/{}/jobs?per_page={}&page={}".format(
-            quote(self.project_name, safe=""), pipeline_id, per_page, page
-        )
+        path = f"/projects/{quote(self.project_name, safe='')}/pipelines/{pipeline_id}/jobs?per_page={per_page}&page={page}"
         return self.make_request(path, json_output=True)
 
     def all_pipeline_schedules(self):
@@ -181,23 +178,21 @@ class Gitlab(RemoteAPI):
         Gets one page of the pipeline schedules for the given project.
         per_page cannot exceed 100
         """
-        path = "/projects/{}/pipeline_schedules?per_page={}&page={}".format(
-            quote(self.project_name, safe=""), per_page, page
-        )
+        path = f"/projects/{quote(self.project_name, safe='')}/pipeline_schedules?per_page={per_page}&page={page}"
         return self.make_request(path, json_output=True)
 
     def pipeline_schedule(self, schedule_id):
         """
         Gets a single pipeline schedule.
         """
-        path = "/projects/{}/pipeline_schedules/{}".format(quote(self.project_name, safe=""), schedule_id)
+        path = f"/projects/{quote(self.project_name, safe='')}/pipeline_schedules/{schedule_id}"
         return self.make_request(path, json_output=True)
 
     def create_pipeline_schedule(self, description, ref, cron, cron_timezone=None, active=None):
         """
         Create a new pipeline schedule with given attributes.
         """
-        path = "/projects/{}/pipeline_schedules".format(quote(self.project_name, safe=""))
+        path = f"/projects/{quote(self.project_name, safe='')}/pipeline_schedules"
         data = {
             "description": description,
             "ref": ref,
@@ -214,7 +209,7 @@ class Gitlab(RemoteAPI):
         """
         Edit an existing pipeline schedule with given attributes.
         """
-        path = "/projects/{}/pipeline_schedules/{}".format(quote(self.project_name, safe=""), schedule_id)
+        path = f"/projects/{quote(self.project_name, safe='')}/pipeline_schedules/{schedule_id}"
         data = {
             "description": description,
             "ref": ref,
@@ -229,17 +224,17 @@ class Gitlab(RemoteAPI):
         """
         Delete an existing pipeline schedule.
         """
-        path = "/projects/{}/pipeline_schedules/{}".format(quote(self.project_name, safe=""), schedule_id)
+        path = f"/projects/{quote(self.project_name, safe='')}/pipeline_schedules/{schedule_id}"
         # Gitlab API docs claim that this returns the JSON representation of the deleted schedule,
         # but it actually returns an empty string
         result = self.make_request(path, json_output=False, method="DELETE")
-        return "Pipeline schedule deleted; result: {}".format(result if result else "(empty)")
+        return f"Pipeline schedule deleted; result: {result if result else '(empty)'}"
 
     def create_pipeline_schedule_variable(self, schedule_id, key, value):
         """
         Create a variable for an existing pipeline schedule.
         """
-        path = "/projects/{}/pipeline_schedules/{}/variables".format(quote(self.project_name, safe=""), schedule_id)
+        path = f"/projects/{quote(self.project_name, safe='')}/pipeline_schedules/{schedule_id}/variables"
         data = {
             "key": key,
             "value": value,
@@ -250,25 +245,21 @@ class Gitlab(RemoteAPI):
         """
         Edit an existing variable for a pipeline schedule.
         """
-        path = "/projects/{}/pipeline_schedules/{}/variables/{}".format(
-            quote(self.project_name, safe=""), schedule_id, key
-        )
+        path = f"/projects/{quote(self.project_name, safe='')}/pipeline_schedules/{schedule_id}/variables/{key}"
         return self.make_request(path, json_input=True, data={"value": value}, json_output=True, method="PUT")
 
     def delete_pipeline_schedule_variable(self, schedule_id, key):
         """
         Delete an existing variable for a pipeline schedule.
         """
-        path = "/projects/{}/pipeline_schedules/{}/variables/{}".format(
-            quote(self.project_name, safe=""), schedule_id, key
-        )
+        path = f"/projects/{quote(self.project_name, safe='')}/pipeline_schedules/{schedule_id}/variables/{key}"
         return self.make_request(path, json_output=True, method="DELETE")
 
     def find_tag(self, tag_name):
         """
         Look up a tag by its name.
         """
-        path = "/projects/{}/repository/tags/{}".format(quote(self.project_name, safe=""), tag_name)
+        path = f"/projects/{quote(self.project_name, safe='')}/repository/tags/{tag_name}"
         return self.make_request(path, json_output=True)
 
     def make_request(

@@ -1,9 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package report
 
 import (
 	"bufio"
 	"bytes"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -24,19 +28,18 @@ func TestSendMetric(t *testing.T) {
 		count int
 	}
 	tests := []struct {
-		caseName            string
-		metricName          string
-		value               valuestore.ResultValue
-		tags                []string
-		forcedType          string
-		options             checkconfig.MetricsConfigOption
-		extractValuePattern *regexp.Regexp
-		expectedMethod      string
-		expectedMetricName  string
-		expectedValue       float64
-		expectedTags        []string
-		expectedSubMetrics  int
-		expectedLogs        []logCount
+		caseName           string
+		metricName         string
+		value              valuestore.ResultValue
+		tags               []string
+		forcedType         string
+		options            checkconfig.MetricsConfigOption
+		expectedMethod     string
+		expectedMetricName string
+		expectedValue      float64
+		expectedTags       []string
+		expectedSubMetrics int
+		expectedLogs       []logCount
 	}{
 		{
 			caseName:           "Gauge metric case",
@@ -224,33 +227,6 @@ func TestSendMetric(t *testing.T) {
 				{"[DEBUG] sendMetric: metric `snmp.gauge.metric`: unsupported forcedType: invalidForceType", 1},
 			},
 		},
-		{
-			caseName:            "Extract Value OK case",
-			metricName:          "gauge.metric",
-			value:               valuestore.ResultValue{SubmissionType: "gauge", Value: string("22C")},
-			tags:                []string{},
-			extractValuePattern: regexp.MustCompile(`(\d+)C`),
-			expectedMethod:      "Gauge",
-			expectedMetricName:  "snmp.gauge.metric",
-			expectedValue:       float64(22),
-			expectedTags:        []string{},
-			expectedSubMetrics:  1,
-		},
-		{
-			caseName:            "Extract Value not matched",
-			metricName:          "gauge.metric",
-			value:               valuestore.ResultValue{SubmissionType: "gauge", Value: string("NOMATCH")},
-			tags:                []string{},
-			extractValuePattern: regexp.MustCompile(`(\d+)C`),
-			expectedMethod:      "",
-			expectedMetricName:  "",
-			expectedValue:       0,
-			expectedTags:        []string{},
-			expectedSubMetrics:  0,
-			expectedLogs: []logCount{
-				{"[DEBUG] sendMetric: error extracting value from", 1},
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.caseName, func(t *testing.T) {
@@ -267,7 +243,7 @@ func TestSendMetric(t *testing.T) {
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			metricSender.sendMetric(tt.metricName, tt.value, tt.tags, tt.forcedType, tt.options, tt.extractValuePattern)
+			metricSender.sendMetric(tt.metricName, tt.value, tt.tags, tt.forcedType, tt.options)
 			assert.Equal(t, tt.expectedSubMetrics, metricSender.submittedMetrics)
 			if tt.expectedMethod != "" {
 				mockSender.AssertCalled(t, tt.expectedMethod, tt.expectedMetricName, tt.expectedValue, "", tt.expectedTags)
@@ -303,66 +279,6 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			values: &valuestore.ResultValueStore{},
 			expectedLogs: []logCount{
 				{"[DEBUG] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in results", 1},
-			},
-		},
-		{
-			name: "report column error",
-			metrics: []checkconfig.MetricsConfig{
-				{
-					ForcedType: "monotonic_count",
-					Symbols: []checkconfig.SymbolConfig{
-						{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
-						{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
-					},
-					MetricTags: []checkconfig.MetricTagConfig{
-						{Tag: "interface", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-						{Tag: "interface_alias", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-					},
-				},
-			},
-			values: &valuestore.ResultValueStore{},
-			expectedLogs: []logCount{
-				{"[DEBUG] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.13` not found in results", 1},
-				{"[DEBUG] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.14` not found in results", 1},
-			},
-		},
-		{
-			name: "report column cache",
-			metrics: []checkconfig.MetricsConfig{
-				{
-					ForcedType: "monotonic_count",
-					Symbols: []checkconfig.SymbolConfig{
-						{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
-						{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
-					},
-					MetricTags: []checkconfig.MetricTagConfig{
-						{Tag: "interface", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-					},
-				},
-			},
-			values: &valuestore.ResultValueStore{
-				ColumnValues: valuestore.ColumnResultValuesType{
-					"1.3.6.1.2.1.2.2.1.14": map[string]valuestore.ResultValue{
-						"10": {
-							SubmissionType: "gauge",
-							Value:          10,
-						},
-					},
-					"1.3.6.1.2.1.2.2.1.13": map[string]valuestore.ResultValue{
-						"10": {
-							SubmissionType: "gauge",
-							Value:          10,
-						},
-					},
-					"1.3.6.1.2.1.31.1.1.1.1": map[string]valuestore.ResultValue{
-						"10": {
-							Value: "myIfName",
-						},
-					},
-				},
-			},
-			expectedLogs: []logCount{
-				{"[DEBUG] reportColumnMetrics: report column: caching tags `[interface:myIfName]` for fullIndex `10`", 1},
 			},
 		},
 	}
@@ -405,16 +321,14 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		expectedLogs []logCount
 	}{
 		{
-			name: "report scalar error",
+			name: "no scalar oids found",
 			metricsTags: []checkconfig.MetricTagConfig{
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 				{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 			},
-			values: &valuestore.ResultValueStore{},
-			expectedLogs: []logCount{
-				{"[DEBUG] GetCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.2.3` not found in results", 1},
-				{"[DEBUG] GetCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.3.6.1.2.1.1.5.0` not found in results", 1},
-			},
+			values:       &valuestore.ResultValueStore{},
+			expectedTags: []string{},
+			expectedLogs: []logCount{},
 		},
 		{
 			name: "report scalar tags with regex",

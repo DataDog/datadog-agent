@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package procutil
@@ -26,9 +32,13 @@ var (
 	skipLocalTest = true
 )
 
-func getProbeWithPermission(options ...Option) *Probe {
+func getProbe(options ...Option) *probe {
+	return NewProcessProbe(options...).(*probe)
+}
+
+func getProbeWithPermission(options ...Option) *probe {
 	options = append(options, WithPermission(true))
-	return NewProcessProbe(options...)
+	return getProbe(options...)
 }
 
 func TestGetActivePIDs(t *testing.T) {
@@ -640,7 +650,7 @@ func testParseIO(t *testing.T) {
 
 func TestFetchFieldsWithoutPermission(t *testing.T) {
 	t.Skip("This test is not working in CI, but could be tested locally")
-	probe := NewProcessProbe()
+	probe := getProbe()
 	defer probe.Close()
 	// PID 1 should be owned by root so we would always get permission error
 	pid := int32(1)
@@ -903,7 +913,7 @@ func TestGetFDCountLocalFS(t *testing.T) {
 
 func TestGetFDCountLocalFSImproved(t *testing.T) {
 	maySkipLocalTest(t)
-	probe := NewProcessProbe()
+	probe := getProbe()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()

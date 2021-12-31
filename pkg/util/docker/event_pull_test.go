@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -32,9 +33,7 @@ func TestProcessContainerEvent(t *testing.T) {
 	assert.Nil(err)
 
 	dockerUtil := &DockerUtil{
-		cfg: &Config{
-			filter: filter,
-		},
+		cfg: &Config{},
 	}
 
 	for nb, tc := range []struct {
@@ -175,7 +174,7 @@ func TestProcessContainerEvent(t *testing.T) {
 		ctx := context.Background()
 
 		t.Logf("test case %d", nb)
-		event, err := dockerUtil.processContainerEvent(ctx, tc.source)
+		event, err := dockerUtil.processContainerEvent(ctx, tc.source, filter)
 		assert.Equal(tc.event, event)
 
 		if tc.err == nil {
@@ -194,5 +193,4 @@ func TestContainerEntityName(t *testing.T) {
 		ContainerID: "ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73",
 	}
 	assert.Equal(t, "container_id://ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73", ev.ContainerEntityName())
-
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,6 +24,12 @@ import (
 const (
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
+	// tagOrigin specifies the origin of the trace.
+	// DEPRECATED: Origin is now specified as a TraceChunk field.
+	tagOrigin = "_dd.origin"
+	// tagSamplingPriority specifies the sampling priority of the trace.
+	// DEPRECATED: Priority is now specified as a TraceChunk field.
+	tagSamplingPriority = "_sampling_priority_v1"
 )
 
 var (
@@ -134,6 +141,22 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		}
 	}
 	return nil
+}
+
+// normalizeChunk takes a trace chunk and
+// * populates Origin field if it wasn't populated
+// * populates Priority field if it wasn't populated
+func normalizeChunk(chunk *pb.TraceChunk, root *pb.Span) {
+	if chunk.Priority == int32(sampler.PriorityNone) && root.Metrics != nil {
+		// Older tracers set sampling priority in the root span.
+		if p, ok := root.Metrics[tagSamplingPriority]; ok {
+			chunk.Priority = int32(p)
+		}
+	}
+	if chunk.Origin == "" && root.Meta != nil {
+		// Older tracers set origin in the root span.
+		chunk.Origin = root.Meta[tagOrigin]
+	}
 }
 
 // normalizeTrace takes a trace and

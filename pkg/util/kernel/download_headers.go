@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
 // +build linux
 
 package kernel
@@ -50,7 +56,7 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 		return fmt.Errorf("unable create output directory %s: %s", headerDownloadDir, err)
 	}
 
-	if target, err = getHeaderDownloadTarget(); err != nil {
+	if target, err = types.NewTarget(); err != nil {
 		return fmt.Errorf("failed to retrieve target information: %s", err)
 	}
 
@@ -64,6 +70,7 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 	if backend, err = h.getHeaderDownloadBackend(&target); err != nil {
 		return fmt.Errorf("unable to get kernel header download backend: %s", err)
 	}
+	defer backend.Close()
 
 	if err = backend.GetKernelHeaders(outputDir); err != nil {
 		return fmt.Errorf("failed to download kernel headers: %s", err)
@@ -75,13 +82,15 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target) (backend types.Backend, err error) {
 	logger := customLogger{}
 	switch strings.ToLower(target.Distro.Display) {
-	case "fedora", "rhel":
+	case "fedora":
+		backend, err = rpm.NewFedoraBackend(target, h.yumReposDir, logger)
+	case "rhel", "redhat":
 		backend, err = rpm.NewRedHatBackend(target, h.yumReposDir, logger)
 	case "centos":
 		backend, err = rpm.NewCentOSBackend(target, h.yumReposDir, logger)
-	case "opensuse":
+	case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "opensuse-tumbleweed-kubic":
 		backend, err = rpm.NewOpenSUSEBackend(target, h.zypperReposDir, logger)
-	case "sle":
+	case "suse", "sles", "sled", "caasp":
 		backend, err = rpm.NewSLESBackend(target, h.zypperReposDir, logger)
 	case "debian", "ubuntu":
 		backend, err = apt.NewBackend(target, h.aptConfigDir, logger)
@@ -93,21 +102,6 @@ func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target) (backe
 		err = fmt.Errorf("Unsupported distribution '%s'", target.Distro.Display)
 	}
 	return
-}
-
-func getHeaderDownloadTarget() (types.Target, error) {
-	target, err := types.NewTarget()
-	if err != nil {
-		return types.Target{}, err
-	}
-
-	if _, err := os.Stat("/run/WSL"); err == nil {
-		target.Distro.Display = "wsl"
-	} else if id := target.OSRelease["ID"]; target.Distro.Display == "" && id != "" {
-		target.Distro.Display = id
-	}
-
-	return target, nil
 }
 
 func createOutputDir(path string) (string, error) {

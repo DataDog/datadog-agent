@@ -1,4 +1,10 @@
-//+build linux_bpf
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
+// +build linux_bpf
 
 package kprobe
 
@@ -36,7 +42,6 @@ type kprobeTracer struct {
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
-	closeHandler  *ddebpf.PerfHandler
 
 	pidCollisions int64
 	removeTuple   *netebpf.ConnTuple
@@ -101,6 +106,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := newManager(perfHandlerTCP, runtimeTracer)
+	setupDumpHandler(m)
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
@@ -122,11 +128,16 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
 
+	closeConsumer, err := newTCPCloseConsumer(m, perfHandlerTCP)
+	if err != nil {
+		return nil, fmt.Errorf("could not create tcpCloseConsumer: %s", err)
+	}
+
 	tr := &kprobeTracer{
-		m:            m,
-		config:       config,
-		closeHandler: perfHandlerTCP,
-		removeTuple:  &netebpf.ConnTuple{},
+		m:             m,
+		config:        config,
+		closeConsumer: closeConsumer,
+		removeTuple:   &netebpf.ConnTuple{},
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
@@ -144,40 +155,33 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	return tr, nil
 }
 
-func (t *kprobeTracer) Start(closeFilter func(*network.ConnectionStats) bool) (err error) {
-	// this is to ensure that it is safe to call Stop() on a kprobeTracer that fails to Start()
+func (t *kprobeTracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	defer func() {
 		if err != nil {
-			t = nil
+			t.Stop()
 		}
 	}()
 
-	closeConsumer, err := newTCPCloseConsumer(t.config, t.m, t.closeHandler, closeFilter)
-	if err != nil {
-		t.Stop()
-		return fmt.Errorf("could not create tcpCloseConsumer: %s", err)
-	}
-	t.closeConsumer = closeConsumer
-
 	err = initializePortBindingMaps(t.config, t.m)
 	if err != nil {
-		t.Stop()
 		return fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
 	if err := t.m.Start(); err != nil {
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
+
+	t.closeConsumer.Start(callback)
 	return nil
 }
 
-func (t *kprobeTracer) Stop() {
-	if t == nil {
-		return
-	}
+func (t *kprobeTracer) FlushPending() {
+	t.closeConsumer.FlushPending()
+}
 
-	t.closeConsumer.Stop()
+func (t *kprobeTracer) Stop() {
 	_ = t.m.Stop(manager.CleanAll)
+	t.closeConsumer.Stop()
 }
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
@@ -190,28 +194,31 @@ func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	}
 }
 
-func (t *kprobeTracer) GetConnections(active, closed *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
+func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
 	seen := make(map[netebpf.ConnTuple]struct{})
+
+	// Cached objects
+	conn := new(network.ConnectionStats)
+	tcp := new(netebpf.TCPStats)
+
 	entries := t.conns.IterateFrom(unsafe.Pointer(&netebpf.ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		conn := connStats(key, stats)
-		if filter != nil && !filter(&conn) {
+		populateConnStats(conn, key, stats)
+		if filter != nil && !filter(conn) {
 			continue
 		}
-		if tcpStats := t.getTCPStats(key, seen); tcpStats != nil {
-			updateTCPStats(&conn, tcpStats)
+		if t.getTCPStats(tcp, key, seen) {
+			updateTCPStats(conn, tcp)
 		}
-		*active.Next() = conn
+		*buffer.Next() = *conn
 	}
 
 	if err := entries.Err(); err != nil {
 		return fmt.Errorf("unable to iterate connection map: %s", err)
 	}
 
-	// Add all connections that were closed since the last `GetConnections` call
-	t.closeConsumer.GetClosedConnections(closed)
 	return nil
 }
 
@@ -271,8 +278,8 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
 
 	return map[string]int64{
-		"closed_conn_polling_lost":     closeStats["lost"],
-		"closed_conn_polling_received": closeStats["rcvd"],
+		"closed_conn_polling_lost":     closeStats[perfLostStat],
+		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
 		"tcp_sent_miscounts":         int64(telemetry.Tcp_sent_miscounts),
@@ -282,6 +289,11 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"udp_sends_missed":           int64(telemetry.Udp_sends_missed),
 		"conn_stats_max_entries_hit": int64(telemetry.Conn_stats_max_entries_hit),
 	}
+}
+
+// DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
+func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
+	return t.m.DumpMaps(maps...)
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
@@ -336,16 +348,16 @@ func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
-func (t *kprobeTracer) getTCPStats(tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) *netebpf.TCPStats {
+func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) bool {
 	if tuple.Type() != netebpf.TCP {
-		return nil
+		return false
 	}
 
 	// The PID isn't used as a key in the stats map, we will temporarily set it to 0 here and reset it when we're done
 	pid := tuple.Pid
 	tuple.Pid = 0
 
-	stats := new(netebpf.TCPStats)
+	*stats = netebpf.TCPStats{}
 	err := t.tcpStats.Lookup(unsafe.Pointer(tuple), unsafe.Pointer(stats))
 	if err == nil {
 		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
@@ -358,11 +370,11 @@ func (t *kprobeTracer) getTCPStats(tuple *netebpf.ConnTuple, seen map[netebpf.Co
 	}
 
 	tuple.Pid = pid
-	return stats
+	return true
 }
 
-func connStats(t *netebpf.ConnTuple, s *netebpf.ConnStats) network.ConnectionStats {
-	stats := network.ConnectionStats{
+func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
+	*stats = network.ConnectionStats{
 		Pid:                  t.Pid,
 		NetNS:                t.Netns,
 		Source:               t.SourceAddress(),
@@ -376,6 +388,7 @@ func connStats(t *netebpf.ConnTuple, s *netebpf.ConnStats) network.ConnectionSta
 		MonotonicRecvPackets: s.Recv_packets,
 		LastUpdateEpoch:      s.Timestamp,
 		IsAssured:            s.IsAssured(),
+		Tags:                 s.Tags,
 	}
 
 	if t.Type() == netebpf.TCP {
@@ -399,6 +412,4 @@ func connStats(t *netebpf.ConnTuple, s *netebpf.ConnStats) network.ConnectionSta
 	default:
 		stats.Direction = network.OUTGOING
 	}
-
-	return stats
 }

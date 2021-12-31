@@ -1,8 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package network
 
 import (
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -37,7 +41,7 @@ type State interface {
 	GetDelta(
 		clientID string,
 		latestTime uint64,
-		active, closed []ConnectionStats,
+		active []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
 		http map[http.Key]http.RequestStats,
 	) Delta
@@ -51,6 +55,9 @@ type State interface {
 	// RemoveConnections removes the given keys from the state
 	RemoveConnections(keys []string)
 
+	// StoreClosedConnections stores a batch of closed connections
+	StoreClosedConnections(connections []ConnectionStats)
+
 	// GetStats returns a map of statistics about the current network state
 	GetStats() map[string]interface{}
 
@@ -60,8 +67,9 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Connections []ConnectionStats
-	HTTP        map[http.Key]http.RequestStats
+	BufferedData
+	HTTP     map[http.Key]http.RequestStats
+	DNSStats dns.StatsByKeyByNameByType
 }
 
 type telemetry struct {
@@ -84,14 +92,40 @@ type stats struct {
 	totalTCPClosed      uint32
 }
 
+const minClosedCapacity = 1024
+
 type client struct {
 	lastFetch time.Time
 
-	closedConnections []ConnectionStats
-	stats             map[string]*stats
+	closedConnectionsKeys map[string]int
+	closedConnections     []ConnectionStats
+	stats                 map[string]*stats
 	// maps by dns key the domain (string) to stats structure
 	dnsStats       dns.StatsByKeyByNameByType
 	httpStatsDelta map[http.Key]http.RequestStats
+}
+
+func (c *client) Reset(active map[string]*ConnectionStats) {
+	half := cap(c.closedConnections) / 2
+	if closedLen := len(c.closedConnections); closedLen > minClosedCapacity && closedLen < half {
+		c.closedConnections = make([]ConnectionStats, half)
+	}
+
+	c.closedConnections = c.closedConnections[:0]
+	c.closedConnectionsKeys = make(map[string]int)
+	c.dnsStats = make(dns.StatsByKeyByNameByType)
+	c.httpStatsDelta = make(map[http.Key]http.RequestStats)
+
+	// XXX: we should change the way we clean this map once
+	// https://github.com/golang/go/issues/20135 is solved
+	newStats := make(map[string]*stats, len(c.stats))
+	for key, st := range c.stats {
+		// Only keep active connections stats
+		if _, isActive := active[key]; isActive {
+			newStats[key] = st
+		}
+	}
+	c.stats = newStats
 }
 
 type networkState struct {
@@ -105,26 +139,24 @@ type networkState struct {
 	latestTimeEpoch uint64
 
 	// Network state configuration
-	clientExpiry      time.Duration
-	maxClosedConns    int
-	maxClientStats    int
-	maxDNSStats       int
-	maxHTTPStats      int
-	collectDNSDomains bool
+	clientExpiry   time.Duration
+	maxClosedConns int
+	maxClientStats int
+	maxDNSStats    int
+	maxHTTPStats   int
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int, collectDNSDomains bool) State {
+func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int) State {
 	return &networkState{
-		clients:           map[string]*client{},
-		telemetry:         telemetry{},
-		clientExpiry:      clientExpiry,
-		maxClosedConns:    maxClosedConns,
-		maxClientStats:    maxClientStats,
-		maxDNSStats:       maxDNSStats,
-		maxHTTPStats:      maxHTTPStats,
-		collectDNSDomains: collectDNSDomains,
-		buf:               make([]byte, ConnectionByteKeyMaxLen),
+		clients:        map[string]*client{},
+		telemetry:      telemetry{},
+		clientExpiry:   clientExpiry,
+		maxClosedConns: maxClosedConns,
+		maxClientStats: maxClientStats,
+		maxDNSStats:    maxDNSStats,
+		maxHTTPStats:   maxHTTPStats,
+		buf:            make([]byte, ConnectionByteKeyMaxLen),
 	}
 }
 
@@ -147,21 +179,21 @@ func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
 	active []ConnectionStats,
-	closed []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
 	httpStats map[http.Key]http.RequestStats,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
 
-	ns.storeClosedConnections(closed)
-
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
 	connsByKey := getConnsByKey(active, ns.buf)
 
-	// If its the first time we've seen this client, use global state as connection set
-	if client, ok := ns.newClient(id); !ok {
+	clientBuffer := clientPool.Get(id)
+	client, ok := ns.getClient(id)
+	defer client.Reset(connsByKey)
+
+	if !ok {
 		for key, c := range connsByKey {
 			ns.createStatsForKey(client, key)
 			ns.updateConnWithStats(client, key, c)
@@ -175,126 +207,29 @@ func (ns *networkState) GetDelta(
 			c.LastTCPEstablished = 0
 			c.LastTCPClosed = 0
 		}
-
-		ns.determineConnectionIntraHost(active)
-		if len(dnsStats) > 0 {
-			ns.storeDNSStats(dnsStats)
-			ns.addDNSStats(id, active)
-		}
-		if len(httpStats) > 0 {
-			ns.storeHTTPStats(httpStats)
-		}
-
-		// copy to ensure return value doesn't get clobbered
-		conns := make([]ConnectionStats, len(active))
-		copy(conns, active)
-		return Delta{
-			Connections: conns,
-			HTTP:        ns.getHTTPDelta(id),
-		}
+		clientBuffer.Append(active)
+	} else {
+		// Update all connections with relevant up-to-date stats for client
+		ns.mergeConnections(id, connsByKey, clientBuffer)
 	}
 
-	// Update all connections with relevant up-to-date stats for client
-	conns := ns.mergeConnections(id, connsByKey)
-
-	// XXX: we should change the way we clean this map once
-	// https://github.com/golang/go/issues/20135 is solved
-	newStats := make(map[string]*stats, len(ns.clients[id].stats))
-	for key, st := range ns.clients[id].stats {
-		// Only keep active connections stats
-		if _, isActive := connsByKey[key]; isActive {
-			newStats[key] = st
-		}
-	}
-	ns.clients[id].stats = newStats
-
-	ns.clients[id].closedConnections = nil
+	conns := clientBuffer.Connections()
 	ns.determineConnectionIntraHost(conns)
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
-		ns.addDNSStats(id, conns)
 	}
 	if len(httpStats) > 0 {
 		ns.storeHTTPStats(httpStats)
 	}
 
 	return Delta{
-		Connections: conns,
-		HTTP:        ns.getHTTPDelta(id),
+		BufferedData: BufferedData{
+			Conns:  conns,
+			buffer: clientBuffer,
+		},
+		HTTP:     client.httpStatsDelta,
+		DNSStats: client.dnsStats,
 	}
-}
-
-func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
-	seen := make(map[dns.Key]struct{}, len(conns))
-	for i := range conns {
-		conn := &conns[i]
-		if conn.DPort != 53 {
-			continue
-		}
-
-		serverIP, _ := GetNATRemoteAddress(*conn)
-		clientIP, clientPort := GetNATLocalAddress(*conn)
-		key := dns.Key{
-			ServerIP:   serverIP,
-			ClientIP:   clientIP,
-			ClientPort: clientPort,
-		}
-		switch conn.Type {
-		case TCP:
-			key.Protocol = syscall.IPPROTO_TCP
-		case UDP:
-			key.Protocol = syscall.IPPROTO_UDP
-		}
-
-		if _, alreadySeen := seen[key]; alreadySeen {
-			ns.telemetry.dnsPidCollisions++
-			continue
-		}
-
-		if dnsStatsByDomain, ok := ns.clients[id].dnsStats[key]; ok {
-			if ns.collectDNSDomains {
-				conn.DNSStatsByDomainByQueryType = make(map[*intern.Value]map[dns.QueryType]dns.Stats)
-			} else {
-				conn.DNSCountByRcode = make(map[uint32]uint32)
-			}
-			var total uint32
-			for domain, byType := range dnsStatsByDomain {
-				if ns.collectDNSDomains {
-					conn.DNSStatsByDomainByQueryType[domain] = make(map[dns.QueryType]dns.Stats)
-				}
-				for qtype, dnsStats := range byType {
-					if ns.collectDNSDomains {
-						var ds dns.Stats
-
-						ds.Timeouts = dnsStats.Timeouts
-						ds.SuccessLatencySum = dnsStats.SuccessLatencySum
-						ds.FailureLatencySum = dnsStats.FailureLatencySum
-						ds.CountByRcode = make(map[uint32]uint32)
-						for rcode, count := range dnsStats.CountByRcode {
-							ds.CountByRcode[rcode] = count
-						}
-						conn.DNSStatsByDomainByQueryType[domain][qtype] = ds
-					} else {
-						conn.DNSSuccessfulResponses += dnsStats.CountByRcode[DNSResponseCodeNoError]
-						conn.DNSTimeouts += dnsStats.Timeouts
-						conn.DNSSuccessLatencySum += dnsStats.SuccessLatencySum
-						conn.DNSFailureLatencySum += dnsStats.FailureLatencySum
-						for rcode, count := range dnsStats.CountByRcode {
-							conn.DNSCountByRcode[rcode] += count
-							total += count
-						}
-					}
-				}
-			}
-			if !ns.collectDNSDomains {
-				conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
-			}
-		}
-		seen[key] = struct{}{}
-	}
-
-	// flush the DNS stats
-	ns.clients[id].dnsStats = make(dns.StatsByKeyByNameByType)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -311,26 +246,36 @@ func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionSt
 	return connsByKey
 }
 
+func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
+	ns.Lock()
+	defer ns.Unlock()
+
+	ns.storeClosedConnections(closed)
+}
+
 // StoreClosedConnection stores the given connection for every client
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
-	// fast-path for default case:
-	// if there is only one client registered we don't bother to copy the data
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			client.closedConnections = conns
-			return
-		}
-	}
-
 	for _, client := range ns.clients {
-		var (
-			allow    = ns.maxClosedConns - len(client.closedConnections)
-			cutoff   = min(len(conns), allow)
-			rejected = len(conns) - cutoff
-		)
+		for _, c := range conns {
+			key, err := c.ByteKey(ns.buf)
+			if err != nil {
+				continue
+			}
 
-		client.closedConnections = append(client.closedConnections, conns[:cutoff]...)
-		ns.telemetry.closedConnDropped += int64(rejected)
+			i, ok := client.closedConnectionsKeys[string(key)]
+			if ok {
+				addConnections(&client.closedConnections[i], &c)
+				continue
+			}
+
+			if len(client.closedConnections) >= ns.maxClosedConns {
+				ns.telemetry.closedConnDropped++
+				continue
+			}
+
+			client.closedConnections = append(client.closedConnections, c)
+			client.closedConnectionsKeys[string(key)] = len(client.closedConnections) - 1
+		}
 	}
 }
 
@@ -346,6 +291,16 @@ func getDeepDNSStatsCount(stats dns.StatsByKeyByNameByType) int {
 
 // storeDNSStats stores latest DNS stats for all clients
 func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
+	// Fast-path for common case (one client registered)
+	if len(ns.clients) == 1 {
+		for _, c := range ns.clients {
+			if len(c.dnsStats) == 0 {
+				c.dnsStats = stats
+			}
+			return
+		}
+	}
+
 	for _, client := range ns.clients {
 		dnsStatsThisClient := getDeepDNSStatsCount(client.dnsStats)
 		for key, statsByDomain := range stats {
@@ -406,14 +361,7 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]http.RequestStats) 
 	}
 }
 
-func (ns *networkState) getHTTPDelta(clientID string) map[http.Key]http.RequestStats {
-	delta := ns.clients[clientID].httpStatsDelta
-	ns.clients[clientID].httpStatsDelta = make(map[http.Key]http.RequestStats)
-	return delta
-}
-
-// newClient creates a new client and returns true if the given client already exists
-func (ns *networkState) newClient(clientID string) (*client, bool) {
+func (ns *networkState) getClient(clientID string) (*client, bool) {
 	if c, ok := ns.clients[clientID]; ok {
 		return c, true
 	}
@@ -421,7 +369,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 	c := &client{
 		lastFetch:         time.Now(),
 		stats:             map[string]*stats{},
-		closedConnections: make([]ConnectionStats, 0, 1000),
+		closedConnections: make([]ConnectionStats, 0, minClosedCapacity),
 		dnsStats:          dns.StatsByKeyByNameByType{},
 		httpStatsDelta:    map[http.Key]http.RequestStats{},
 	}
@@ -430,39 +378,13 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 }
 
 // mergeConnections return the connections and takes care of updating their last stat counters
-func (ns *networkState) mergeConnections(id string, active map[string]*ConnectionStats) []ConnectionStats {
+func (ns *networkState) mergeConnections(id string, active map[string]*ConnectionStats, buffer *clientBuffer) {
 	now := time.Now()
 
 	client := ns.clients[id]
 	client.lastFetch = now
 
-	// Merge closed connections that share the same key
 	closed := client.closedConnections
-	keyToID := make(map[string]int, len(client.closedConnections))
-	j := 0
-	for i := range closed {
-		c := &closed[i]
-		key, _ := c.ByteKey(ns.buf)
-		other, ok := keyToID[string(key)]
-		keyToID[string(key)] = i
-		if !ok {
-			// Happy path; nothing to do because there isn't another connection
-			continue
-		}
-
-		// If there is another one we add both
-		addConnections(&closed[i], &closed[other])
-		closed[other], closed[j] = closed[j], closed[other]
-		j++
-	}
-
-	// Remove the closed connections that were merged
-	closed = closed[j:]
-
-	// TODO: Pool this slice?
-	conns := make([]ConnectionStats, 0, len(active)+len(closed))
-
-	// Closed connections
 	for i := range closed {
 		closedConn := &closed[i]
 		byteKey, err := closedConn.ByteKey(ns.buf)
@@ -503,22 +425,20 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 			ns.updateConnWithStats(client, key, closedConn)
 		}
 	}
-	conns = append(conns, closed...)
+	buffer.Append(closed)
 
 	// Active connections
 	for key, c := range active {
 		// If the connection was closed, it has already been processed so skip it
-		if _, ok := keyToID[key]; ok {
+		if _, ok := client.closedConnectionsKeys[key]; ok {
 			continue
 		}
 
 		ns.createStatsForKey(client, key)
 		ns.updateConnWithStats(client, key, c)
 
-		conns = append(conns, *c)
+		*buffer.Next() = *c
 	}
-
-	return conns
 }
 
 // This is used to update the stats when we process a closed connection that became active again
@@ -615,6 +535,7 @@ func (ns *networkState) RemoveClient(clientID string) {
 	ns.Lock()
 	defer ns.Unlock()
 	delete(ns.clients, clientID)
+	clientPool.RemoveExpiredClient(clientID)
 }
 
 func (ns *networkState) RemoveExpiredClients(now time.Time) {
@@ -625,6 +546,7 @@ func (ns *networkState) RemoveExpiredClients(now time.Time) {
 		if c.lastFetch.Add(ns.clientExpiry).Before(now) {
 			log.Debugf("expiring client: %s, had %d stats and %d closed connections", id, len(c.stats), len(c.closedConnections))
 			delete(ns.clients, id)
+			clientPool.RemoveExpiredClient(id)
 		}
 	}
 }
@@ -780,12 +702,8 @@ func addConnections(a, b *ConnectionStats) {
 	if b.LastUpdateEpoch > a.LastUpdateEpoch {
 		a.LastUpdateEpoch = b.LastUpdateEpoch
 	}
-}
 
-func min(a, b int) int {
-	if a < b {
-		return a
+	if a.IPTranslation == nil {
+		a.IPTranslation = b.IPTranslation
 	}
-
-	return b
 }

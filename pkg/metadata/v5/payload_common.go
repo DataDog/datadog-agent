@@ -7,7 +7,6 @@ package v5
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -35,9 +34,4 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// Marshal not implemented
-func (p *Payload) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("V5 Payload serialization is not implemented")
 }

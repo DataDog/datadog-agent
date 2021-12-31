@@ -8,6 +8,7 @@ package forwarder
 import (
 	"expvar"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -16,27 +17,6 @@ import (
 
 var (
 	transactionsIntakeOrchestrator = map[orchestrator.NodeType]*expvar.Int{}
-
-	v1SeriesEndpoint       = transaction.Endpoint{Route: "/api/v1/series", Name: "series_v1"}
-	v1CheckRunsEndpoint    = transaction.Endpoint{Route: "/api/v1/check_run", Name: "check_run_v1"}
-	v1IntakeEndpoint       = transaction.Endpoint{Route: "/intake/", Name: "intake"}
-	v1SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/v1/sketches", Name: "sketches_v1"} // nolint unused for now
-	v1ValidateEndpoint     = transaction.Endpoint{Route: "/api/v1/validate", Name: "validate_v1"}
-
-	seriesEndpoint        = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"}
-	eventsEndpoint        = transaction.Endpoint{Route: "/api/v2/events", Name: "events_v2"}
-	serviceChecksEndpoint = transaction.Endpoint{Route: "/api/v2/service_checks", Name: "services_checks_v2"}
-	sketchSeriesEndpoint  = transaction.Endpoint{Route: "/api/beta/sketches", Name: "sketches_v2"}
-	hostMetadataEndpoint  = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
-	metadataEndpoint      = transaction.Endpoint{Route: "/api/v2/metadata", Name: "metadata_v2"}
-
-	processesEndpoint        = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
-	processDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process_discovery"}
-	rtProcessesEndpoint      = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
-	containerEndpoint        = transaction.Endpoint{Route: "/api/v1/container", Name: "container"}
-	rtContainerEndpoint      = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
-	connectionsEndpoint      = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
-	orchestratorEndpoint     = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
 
 	highPriorityQueueFull            = expvar.Int{}
 	transactionsInputBytesByEndpoint = expvar.Map{}
@@ -70,23 +50,22 @@ func init() {
 
 func initEndpointExpvars() {
 	endpoints := []transaction.Endpoint{
-		connectionsEndpoint,
-		containerEndpoint,
-		eventsEndpoint,
-		hostMetadataEndpoint,
-		metadataEndpoint,
-		orchestratorEndpoint,
-		processesEndpoint,
-		rtContainerEndpoint,
-		rtProcessesEndpoint,
-		seriesEndpoint,
-		serviceChecksEndpoint,
-		sketchSeriesEndpoint,
-		v1CheckRunsEndpoint,
-		v1IntakeEndpoint,
-		v1SeriesEndpoint,
-		v1SketchSeriesEndpoint,
-		v1ValidateEndpoint,
+		endpoints.ConnectionsEndpoint,
+		endpoints.ContainerEndpoint,
+		endpoints.EventsEndpoint,
+		endpoints.HostMetadataEndpoint,
+		endpoints.OrchestratorEndpoint,
+		endpoints.ProcessesEndpoint,
+		endpoints.RtContainerEndpoint,
+		endpoints.RtProcessesEndpoint,
+		endpoints.SeriesEndpoint,
+		endpoints.ServiceChecksEndpoint,
+		endpoints.SketchSeriesEndpoint,
+		endpoints.V1CheckRunsEndpoint,
+		endpoints.V1IntakeEndpoint,
+		endpoints.V1SeriesEndpoint,
+		endpoints.V1SketchSeriesEndpoint,
+		endpoints.V1ValidateEndpoint,
 	}
 
 	for _, endpoint := range endpoints {

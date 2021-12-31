@@ -10,12 +10,9 @@ package stream
 import (
 	"bytes"
 	"compress/zlib"
-	"errors"
-	"fmt"
 	"io/ioutil"
 	"testing"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -26,59 +23,8 @@ var (
 	maxPayloadSizeDefault = config.Datadog.GetInt("serializer_max_payload_size")
 )
 
-type dummyMarshaller struct {
-	items  []string
-	header string
-	footer string
-}
-
 func resetDefaults() {
 	config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSizeDefault)
-}
-
-func (d *dummyMarshaller) WriteHeader(stream *jsoniter.Stream) error {
-	_, err := stream.Write([]byte(d.header))
-	return err
-}
-
-func (d *dummyMarshaller) Len() int {
-	return len(d.items)
-}
-
-func (d *dummyMarshaller) WriteItem(stream *jsoniter.Stream, i int) error {
-	if i < 0 || i > d.Len()-1 {
-		return errors.New("out of range")
-	}
-	_, err := stream.Write([]byte(d.items[i]))
-	return err
-}
-
-func (d *dummyMarshaller) DescribeItem(i int) string {
-	if i < 0 || i > d.Len()-1 {
-		return "out of range"
-	}
-	return d.items[i]
-}
-
-func (d *dummyMarshaller) WriteFooter(stream *jsoniter.Stream) error {
-	_, err := stream.Write([]byte(d.footer))
-	return err
-}
-
-func (d *dummyMarshaller) MarshalJSON() ([]byte, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (d *dummyMarshaller) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (d *dummyMarshaller) SplitPayload(int) ([]marshaler.Marshaler, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (d *dummyMarshaller) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return nil, fmt.Errorf("not implemented")
 }
 
 func decompressPayload(payload []byte) ([]byte, error) {
@@ -117,10 +63,10 @@ func TestCompressorSimple(t *testing.T) {
 }
 
 func TestOnePayloadSimple(t *testing.T) {
-	m := &dummyMarshaller{
-		items:  []string{"A", "B", "C"},
-		header: "{[",
-		footer: "]}",
+	m := &marshaler.DummyMarshaller{
+		Items:  []string{"A", "B", "C"},
+		Header: "{[",
+		Footer: "]}",
 	}
 
 	builder := NewJSONPayloadBuilder(true)
@@ -132,10 +78,10 @@ func TestOnePayloadSimple(t *testing.T) {
 }
 
 func TestMaxCompressedSizePayload(t *testing.T) {
-	m := &dummyMarshaller{
-		items:  []string{"A", "B", "C"},
-		header: "{[",
-		footer: "]}",
+	m := &marshaler.DummyMarshaller{
+		Items:  []string{"A", "B", "C"},
+		Header: "{[",
+		Footer: "]}",
 	}
 	config.Datadog.SetDefault("serializer_max_payload_size", 22)
 	defer resetDefaults()
@@ -149,10 +95,10 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 }
 
 func TestTwoPayload(t *testing.T) {
-	m := &dummyMarshaller{
-		items:  []string{"A", "B", "C", "D", "E", "F"},
-		header: "{[",
-		footer: "]}",
+	m := &marshaler.DummyMarshaller{
+		Items:  []string{"A", "B", "C", "D", "E", "F"},
+		Header: "{[",
+		Footer: "]}",
 	}
 	config.Datadog.SetDefault("serializer_max_payload_size", 22)
 	defer resetDefaults()
@@ -167,10 +113,10 @@ func TestTwoPayload(t *testing.T) {
 }
 
 func TestLockedCompressorProducesSamePayloads(t *testing.T) {
-	m := &dummyMarshaller{
-		items:  []string{"A", "B", "C", "D", "E", "F"},
-		header: "{[",
-		footer: "]}",
+	m := &marshaler.DummyMarshaller{
+		Items:  []string{"A", "B", "C", "D", "E", "F"},
+		Header: "{[",
+		Footer: "]}",
 	}
 	defer resetDefaults()
 

@@ -54,7 +54,7 @@ IDS_DATADOG_ACL_KEY_DATADOG_BASE "MACHINE\\SOFTWARE\\"
 IDS_DATADOG_KEY_PATH "SOFTWARE\\Datadog\\Datadog Agent"
 
 IDS_DATADOG_SERVICE_NAME "Datadog Agent"
-IDS_DATADOG_AGENT_USER_NAME ".\\ddagentuser"
+IDS_DATADOG_AGENT_USER_NAME "ddagentuser"
 IDS_DATADOG_AGENT_USER_DESCRIPTION "User context under which the DatadogAgent service runs"
 
 IDS_TRACE_SERVICE_NAME "datadog-trace-agent"

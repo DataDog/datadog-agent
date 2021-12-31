@@ -8,10 +8,10 @@ package worker
 import (
 	"expvar"
 	"math/rand"
-	"runtime"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,18 +41,24 @@ func getWorkerUtilizationExpvar(t *testing.T, name string) float64 {
 	return workerStats.Utilization
 }
 
-func newTracker(t *testing.T) UtilizationTracker {
-	ut, err := NewUtilizationTracker("worker", 500*time.Millisecond, 100*time.Millisecond)
+func newTracker(t *testing.T) (UtilizationTracker, *clock.Mock) {
+	clk := clock.NewMock()
+	ut, err := newUtilizationTrackerWithClock(
+		"worker",
+		500*time.Millisecond,
+		100*time.Millisecond,
+		clk,
+	)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
-	return ut
+	return ut, clk
 }
 
 // Tests
 
 func TestUtilizationTracker(t *testing.T) {
-	ut := newTracker(t)
+	ut, clk := newTracker(t)
 
 	require.NoError(t, ut.Start())
 	defer func() {
@@ -66,32 +72,32 @@ func TestUtilizationTracker(t *testing.T) {
 	// should be a constant zero value
 	require.Equal(t, 0.0, getWorkerUtilizationExpvar(t, "worker"))
 
-	time.Sleep(300 * time.Millisecond)
+	clk.Add(300 * time.Millisecond)
 	require.Equal(t, 0.0, getWorkerUtilizationExpvar(t, "worker"))
 
 	// Ramp up the expected utilization
 	ut.CheckStarted(false)
 
-	time.Sleep(250 * time.Millisecond)
+	clk.Add(250 * time.Millisecond)
 	require.True(t, getWorkerUtilizationExpvar(t, "worker") > 0)
 	require.True(t, getWorkerUtilizationExpvar(t, "worker") < 1)
 
-	time.Sleep(550 * time.Millisecond)
+	clk.Add(550 * time.Millisecond)
 	require.Equal(t, 1.0, getWorkerUtilizationExpvar(t, "worker"))
 
 	// Ramp down the expected utilization
 	ut.CheckFinished()
 
-	time.Sleep(250 * time.Millisecond)
+	clk.Add(250 * time.Millisecond)
 	require.True(t, getWorkerUtilizationExpvar(t, "worker") > 0)
 	require.True(t, getWorkerUtilizationExpvar(t, "worker") < 1)
 
-	time.Sleep(550 * time.Millisecond)
+	clk.Add(550 * time.Millisecond)
 	require.Equal(t, 0.0, getWorkerUtilizationExpvar(t, "worker"))
 }
 
 func TestUtilizationTrackerIsRunningLongCheck(t *testing.T) {
-	ut := newTracker(t)
+	ut, _ := newTracker(t)
 
 	require.NoError(t, ut.Start())
 	defer func() {
@@ -113,7 +119,7 @@ func TestUtilizationTrackerIsRunningLongCheck(t *testing.T) {
 }
 
 func TestUtilizationTrackerStart(t *testing.T) {
-	ut := newTracker(t)
+	ut, _ := newTracker(t)
 
 	require.NoError(t, ut.Start())
 	defer func() {
@@ -132,7 +138,7 @@ func TestUtilizationTrackerStart(t *testing.T) {
 }
 
 func TestUtilizationTrackerStop(t *testing.T) {
-	ut := newTracker(t)
+	ut, _ := newTracker(t)
 
 	// If we haven't started yet, stopping should throw an error
 	require.Error(t, ut.Stop())
@@ -162,7 +168,8 @@ func TestUtilizationTrackerCheckLifecycle(t *testing.T) {
 	windowSize := 250 * time.Millisecond
 	pollingInterval := 50 * time.Millisecond
 
-	ut, err := NewUtilizationTracker("worker", windowSize, pollingInterval)
+	clk := clock.NewMock()
+	ut, err := newUtilizationTrackerWithClock("worker", windowSize, pollingInterval, clk)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
@@ -173,7 +180,7 @@ func TestUtilizationTrackerCheckLifecycle(t *testing.T) {
 	}()
 
 	// No tasks should equal no utilization
-	time.Sleep(windowSize)
+	clk.Add(windowSize)
 	AssertAsyncWorkerCount(t, 1)
 	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0, 0)
 
@@ -181,42 +188,35 @@ func TestUtilizationTrackerCheckLifecycle(t *testing.T) {
 		// Ramp up utilization
 		ut.CheckStarted(false)
 
-		time.Sleep(windowSize / 2)
+		clk.Add(windowSize / 2)
 		AssertAsyncWorkerCount(t, 1)
 		assert.True(t, getWorkerUtilizationExpvar(t, "worker") > 0.1)
 		assert.True(t, getWorkerUtilizationExpvar(t, "worker") < 0.9)
 
-		time.Sleep(windowSize)
+		clk.Add(windowSize)
 		AssertAsyncWorkerCount(t, 1)
 		assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 1, 0.05)
 
 		// Ramp down utilization
 		ut.CheckFinished()
 
-		time.Sleep(windowSize / 2)
+		clk.Add(windowSize / 2)
 		AssertAsyncWorkerCount(t, 1)
 		assert.True(t, getWorkerUtilizationExpvar(t, "worker") > 0.1)
 		assert.True(t, getWorkerUtilizationExpvar(t, "worker") < 0.9)
 
-		time.Sleep(windowSize)
+		clk.Add(windowSize)
 		AssertAsyncWorkerCount(t, 1)
 		assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0, 0.05)
 	}
 }
 
 func TestUtilizationTrackerAccuracy(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("Skipping flaky test on Darwin")
-	}
-
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping flaky test on Windows")
-	}
-
 	windowSize := 3000 * time.Millisecond
 	pollingInterval := 50 * time.Millisecond
 
-	ut, err := NewUtilizationTracker("worker", windowSize, pollingInterval)
+	clk := clock.NewMock()
+	ut, err := newUtilizationTrackerWithClock("worker", windowSize, pollingInterval, clk)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
@@ -228,31 +228,25 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 
 	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0, 0)
 
-	go func() {
+	for checkIdx := 1; checkIdx <= 100; checkIdx++ {
 		// This should provide about 30% utilization
-		for {
-			// Range for the full loop would be between 100-200ms
-			totalMs := rand.Int31n(100) + 100
-			runtimeMs := (totalMs * 30) / 100
+		// Range for the full loop would be between 100-200ms
+		totalMs := rand.Int31n(100) + 100
+		runtimeMs := (totalMs * 30) / 100
 
-			ut.CheckStarted(false)
-			runtimeDuration := time.Duration(runtimeMs) * time.Millisecond
-			time.Sleep(runtimeDuration)
+		ut.CheckStarted(false)
+		runtimeDuration := time.Duration(runtimeMs) * time.Millisecond
+		clk.Add(runtimeDuration)
 
-			ut.CheckFinished()
-			idleDuration := time.Duration(totalMs-runtimeMs) * time.Millisecond
-			time.Sleep(idleDuration)
+		ut.CheckFinished()
+		idleDuration := time.Duration(totalMs-runtimeMs) * time.Millisecond
+		clk.Add(idleDuration)
+
+		// Due to jitter in the aggregation of random data points, we wait a few
+		// collection intervals before comparing the values.
+		if checkIdx > 5 {
+			require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, 0.1)
 		}
-	}()
-
-	for checkIdx := 1; checkIdx <= 10; checkIdx++ {
-		// Every cycle, we should be getting closer and closer to 0.3. The
-		// function below goes from 0.5 initially to ~0.1 at the end of the
-		// iterator.
-		delta := 0.5 - (0.40 * float64(checkIdx) / 10.0)
-
-		time.Sleep(windowSize / 5)
-		assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, delta)
 	}
 
 	// Assert after many data points that we're really close to 0.3
@@ -262,7 +256,8 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 func TestUtilizationTrackerLongTaskAccuracy(t *testing.T) {
 	var previousUtilization, currentUtilization float64
 
-	ut, err := NewUtilizationTracker("worker", 1*time.Second, 25*time.Millisecond)
+	clk := clock.NewMock()
+	ut, err := newUtilizationTrackerWithClock("worker", 1*time.Second, 25*time.Millisecond, clk)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
@@ -277,7 +272,7 @@ func TestUtilizationTrackerLongTaskAccuracy(t *testing.T) {
 	go ut.CheckStarted(false)
 
 	for checkIdx := 0; checkIdx < 10; checkIdx++ {
-		time.Sleep(100 * time.Millisecond)
+		clk.Add(100 * time.Millisecond)
 
 		currentUtilization = getWorkerUtilizationExpvar(t, "worker")
 

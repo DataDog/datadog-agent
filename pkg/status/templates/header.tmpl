@@ -14,8 +14,8 @@ NOTE: Changes made to this template should be reflected on the following templat
   {{- end }}
   Build arch: {{.build_arch}}
   Agent flavor: {{.flavor}}
-  {{- if .runnerStats.Workers}}
-  Check Runners: {{.runnerStats.Workers}}
+  {{- if and (.runnerStats.Workers) (.runnerStats.Workers.Count) }}
+  Check Runners: {{.runnerStats.Workers.Count}}
   {{- end }}
   {{- if .config.log_file}}
   Log File: {{.config.log_file}}

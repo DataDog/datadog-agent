@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func TestCreateArchive(t *testing.T) {
@@ -280,6 +281,35 @@ func TestZipLogFiles(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestZipRegistryJSON(t *testing.T) {
+	srcDir, err := ioutil.TempDir("", "run")
+	require.NoError(t, err)
+	defer os.RemoveAll(srcDir)
+	dstDir, err := ioutil.TempDir("", "TestZipRegistryJSON")
+	require.NoError(t, err)
+	defer os.RemoveAll(dstDir)
+
+	// create non-empty registry.json file
+	file, err := os.Create(filepath.Join(srcDir, "registry.json"))
+	require.NoError(t, err)
+	_, err = file.WriteString("{\"key\":\"value\"}")
+	require.NoError(t, err)
+	err = file.Close()
+	require.NoError(t, err)
+
+	tempRunPath := config.Datadog.GetString("logs_config.run_path")
+	config.Datadog.Set("logs_config.run_path", srcDir)
+	defer config.Datadog.Set("logs_config.run_path", tempRunPath)
+
+	err = zipRegistryJSON(dstDir, "test")
+	assert.NoError(t, err)
+
+	// Check all the log files are in the destination path, at the right subdirectories
+	stat, err := os.Stat(filepath.Join(dstDir, "test", "registry.json"))
+	assert.NoError(t, err)
+	assert.Greater(t, stat.Size(), int64(0))
+}
+
 func TestZipTaggerList(t *testing.T) {
 	tagMap := make(map[string]response.TaggerListEntity)
 	tagMap["random_entity_name"] = response.TaggerListEntity{
@@ -314,6 +344,44 @@ func TestZipTaggerList(t *testing.T) {
 	assert.Contains(t, string(content), "docker_source_name")
 	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
 	assert.Contains(t, string(content), "image_name:custom-agent")
+}
+
+func TestZipWorkloadList(t *testing.T) {
+	workloadMap := make(map[string]workloadmeta.WorkloadEntity)
+	workloadMap["kind_id"] = workloadmeta.WorkloadEntity{
+		Infos: map[string]string{
+			"container_id_1": "Name: init-volume ID: e19e1ba787",
+			"container_id_2": "Name: init-config ID: 4e0ffee5d6",
+		},
+	}
+	resp := workloadmeta.WorkloadDumpResponse{
+		Entities: workloadMap,
+	}
+
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		out, _ := json.Marshal(resp)
+		w.Write(out)
+	}))
+	defer s.Close()
+
+	dir, err := ioutil.TempDir("", "TestZipWorkloadList")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	workloadListURL = s.URL
+	zipWorkloadList(dir, "")
+	content, err := ioutil.ReadFile(filepath.Join(dir, "workload-list.log"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	assert.Contains(t, string(content), "kind_id")
+	assert.Contains(t, string(content), "container_id_1")
+	assert.Contains(t, string(content), "Name: init-volume ID: e19e1ba787")
+	assert.Contains(t, string(content), "container_id_2")
+	assert.Contains(t, string(content), "Name: init-config ID: 4e0ffee5d6")
 }
 
 func TestPerformanceProfile(t *testing.T) {
@@ -351,4 +419,32 @@ func TestPerformanceProfile(t *testing.T) {
 	assert.True(t, firstHeap, "first-heap.profile should've been included")
 	assert.True(t, secondHeap, "second-heap.profile should've been included")
 	assert.True(t, cpu, "cpu.profile should've been included")
+}
+
+// Test that writeScrubbedFile actually scrubs third-party API keys.
+func TestRedactingOtherServicesApiKey(t *testing.T) {
+	dir := t.TempDir()
+	filename := path.Join(dir, "test.config")
+
+	clear := `init_config:
+instances:
+- host: 127.0.0.1
+  api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  port: 8082
+  api_key: dGhpc2++lzM+XBhc3N3b3JkW113aXRo/c29tZWN]oYXJzMTIzCg==
+  version: 4 # omit this line if you're running pdns_recursor version 3.x`
+	redacted := `init_config:
+instances:
+- host: 127.0.0.1
+  api_key: ***************************aaaaa
+  port: 8082
+  api_key: ********
+  version: 4 # omit this line if you're running pdns_recursor version 3.x`
+
+	err := writeScrubbedFile(filename, []byte(clear))
+	require.NoError(t, err)
+
+	got, err := ioutil.ReadFile(filename)
+	require.NoError(t, err)
+	assert.Equal(t, redacted, string(got))
 }

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package checkconfig
 
 import (
@@ -21,4 +26,26 @@ func SetConfdPathAndCleanProfiles() {
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
+}
+
+// copyProfileDefinition copies a profile, it's used for testing
+func copyProfileDefinition(profileDef profileDefinition) profileDefinition {
+	newDef := profileDefinition{}
+	newDef.Metrics = append(newDef.Metrics, profileDef.Metrics...)
+	newDef.MetricTags = append(newDef.MetricTags, profileDef.MetricTags...)
+	newDef.Metadata = make(MetadataConfig)
+	newDef.Device = profileDef.Device
+	newDef.Extends = append(newDef.Extends, profileDef.Extends...)
+	newDef.SysObjectIds = append(newDef.SysObjectIds, profileDef.SysObjectIds...)
+
+	for resName, resource := range profileDef.Metadata {
+		resConfig := MetadataResourceConfig{}
+		resConfig.Fields = make(map[string]MetadataField)
+		for fieldName, field := range resource.Fields {
+			resConfig.Fields[fieldName] = field
+		}
+		resConfig.IDTags = append(resConfig.IDTags, resource.IDTags...)
+		newDef.Metadata[resName] = resConfig
+	}
+	return newDef
 }

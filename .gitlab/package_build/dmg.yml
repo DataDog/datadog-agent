@@ -20,7 +20,7 @@
 agent_dmg-x64-a6:
   extends: .agent_build_common_dmg
   rules:
-    !reference [.on_all_builds_a6]
+    !reference [.on_a6]
   allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES

@@ -109,6 +109,9 @@ filtered_agent_requirements_in = 'agent_requirements-py3.in'
 agent_requirements_in = 'agent_requirements.in'
 
 build do
+  license "BSD-3-Clause"
+  license_file "./LICENSE"
+
   # The dir for confs
   if osx?
     conf_dir = "#{install_dir}/etc/conf.d"
@@ -133,7 +136,7 @@ build do
     # install the core integrations.
     #
     command "#{pip} install wheel==0.34.1"
-    command "#{pip} install pip-tools==5.4.0"
+    command "#{pip} install pip-tools==6.4.0"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       # Specify C99 standard explicitly to avoid issues while building some
@@ -240,6 +243,13 @@ build do
     # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
     command "#{pip} freeze > #{install_dir}/#{final_constraints_file}"
 
+    if windows?
+        cached_wheels_dir = "#{windows_safe_path(wheel_build_dir)}\\.cached"
+    else
+        cached_wheels_dir = "#{wheel_build_dir}/.cached"
+    end
+    checks_to_install = Array.new
+
     # Go through every integration package in `integrations-core`, build and install
     Dir.glob("#{project_dir}/*").each do |check_dir|
       check = check_dir.split('/').last
@@ -258,8 +268,6 @@ build do
       manifest = JSON.parse(File.read(manifest_file_path))
       manifest['supported_os'].include?(os) || next
 
-      check_conf_dir = "#{conf_dir}/#{check}.d"
-
       setup_file_path = "#{check_dir}/setup.py"
       File.file?(setup_file_path) || next
       # Check if it supports Python 3.
@@ -269,57 +277,142 @@ build do
         next
       end
 
-      # For each conf file, if it already exists, that means the `datadog-agent` software def
-      # wrote it first. In that case, since the agent's confs take precedence, skip the conf
+      checks_to_install.push(check)
+    end
 
-      # Copy the check config to the conf directories
-      conf_file_example = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.example"
-      if File.exist? conf_file_example
-        mkdir check_conf_dir
-        copy conf_file_example, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
-      end
+    tasks_dir_in = windows_safe_path(Dir.pwd)
+    cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
+    cache_branch = `cd .. && inv release.get-release-json-value base_branch`.strip
+    # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
+    awscli = if windows? then '"c:\program files\amazon\awscli\bin\aws"' else 'aws' end
+    if cache_bucket != ''
+      mkdir cached_wheels_dir
+      command "inv -e agent.get-integrations-from-cache " \
+        "--python 3 --bucket #{cache_bucket} " \
+        "--branch #{cache_branch || 'main'} " \
+        "--integrations-dir #{windows_safe_path(project_dir)} " \
+        "--target-dir #{cached_wheels_dir} " \
+        "--integrations #{checks_to_install.join(',')} " \
+        "--awscli #{awscli}",
+        :cwd => tasks_dir_in
 
-      # Copy the default config, if it exists
-      conf_file_default = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.default"
-      if File.exist? conf_file_default
-        mkdir check_conf_dir
-        copy conf_file_default, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.default"
-      end
-
-      # Copy the metric file, if it exists
-      metrics_yaml = "#{check_dir}/datadog_checks/#{check}/data/metrics.yaml"
-      if File.exist? metrics_yaml
-        mkdir check_conf_dir
-        copy metrics_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/metrics.yaml"
-      end
-
-      # We don't have auto_conf on windows yet
-      auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
-      if File.exist? auto_conf_yaml
-        mkdir check_conf_dir
-        copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
-      end
-
-      # Copy SNMP profiles
-      profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
-      if File.exist? profiles
-        copy profiles, "#{check_conf_dir}/"
-      end
-
+      # install all wheels from cache in one pip invocation to speed things up
       if windows?
-        command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
-        command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
+        command "#{python} -m pip install --no-deps --no-index " \
+          " --find-links #{windows_safe_path(cached_wheels_dir)} -r #{windows_safe_path(cached_wheels_dir)}\\found.txt"
       else
-        command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
-        command "#{pip} install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
+        command "#{pip} install --no-deps --no-index " \
+          "--find-links #{cached_wheels_dir} -r #{cached_wheels_dir}/found.txt"
       end
     end
 
-    # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
-    if windows?
-      command "#{python} -m pip check"
-    else
-      command "#{pip} check"
+    block do
+      # we have to do this operation in block, so that it can access files created by the
+      # inv agent.get-integrations-from-cache command
+
+      # get list of integration wheels already installed from cache
+      installed_list = Array.new
+      if cache_bucket != ''
+        if windows?
+          installed_out = `#{python} -m pip list --format json`
+        else
+          installed_out = `#{pip} list --format json`
+        end
+        if $?.exitstatus == 0
+          installed = JSON.parse(installed_out)
+          installed.each do |package|
+            package.each do |key, value|
+              if key == "name" && value.start_with?("datadog-")
+                installed_list.push(value["datadog-".length..-1])
+              end
+            end
+          end
+        else
+          raise "Failed to list pip installed packages"
+        end
+      end
+
+      checks_to_install.each do |check|
+        check_dir = File.join(project_dir, check)
+        check_conf_dir = "#{conf_dir}/#{check}.d"
+        # For each conf file, if it already exists, that means the `datadog-agent` software def
+        # wrote it first. In that case, since the agent's confs take precedence, skip the conf
+
+        # Copy the check config to the conf directories
+        conf_file_example = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.example"
+        if File.exist? conf_file_example
+          mkdir check_conf_dir
+          copy conf_file_example, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
+        end
+
+        # Copy the default config, if it exists
+        conf_file_default = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.default"
+        if File.exist? conf_file_default
+          mkdir check_conf_dir
+          copy conf_file_default, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.default"
+        end
+
+        # Copy the metric file, if it exists
+        metrics_yaml = "#{check_dir}/datadog_checks/#{check}/data/metrics.yaml"
+        if File.exist? metrics_yaml
+          mkdir check_conf_dir
+          copy metrics_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/metrics.yaml"
+        end
+
+        # We don't have auto_conf on windows yet
+        auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
+        if File.exist? auto_conf_yaml
+          mkdir check_conf_dir
+          copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
+        end
+
+        # Copy SNMP profiles
+        profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
+        if File.exist? profiles
+          copy profiles, "#{check_conf_dir}/"
+        end
+
+        # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
+        # whether or not this might switch back in the future is not guaranteed, so we check for both name
+        # with dashes and underscores
+        if installed_list.include?(check) || installed_list.include?(check.gsub('_', '-'))
+          next
+        end
+
+        if windows?
+          command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+          command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
+        else
+          command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
+          command "#{pip} install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
+        end
+        if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
+          command "inv -e agent.upload-integration-to-cache " \
+            "--python 3 --bucket #{cache_bucket} " \
+            "--branch #{cache_branch} " \
+            "--integrations-dir #{windows_safe_path(project_dir)} " \
+            "--build-dir #{wheel_build_dir} " \
+            "--integration #{check} " \
+            "--awscli #{awscli}",
+            :cwd => tasks_dir_in
+        end
+      end
+    end
+
+    block do
+      # We have to run these operations in block, so they get applied after operations
+      # from the last block
+
+      if linux?
+        patch :source => "psutil-pr2000.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/psutil/_pslinux.py"
+      end
+
+      # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
+      if windows?
+        command "#{python} -m pip check"
+      else
+        command "#{pip} check"
+      end
     end
   end
 

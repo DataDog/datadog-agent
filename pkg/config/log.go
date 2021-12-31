@@ -19,6 +19,7 @@ import (
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
 )
 
@@ -93,7 +94,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
-	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
+	scrubber.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
 	return nil
 }
 

@@ -63,10 +63,12 @@
 
 .kitchen_test_upgrade6:
   script:
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::6")
     - bash -l tasks/run-test-kitchen.sh upgrade6-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_upgrade7:
   script:
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7")
     - bash -l tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
 
 
@@ -83,6 +85,11 @@
   variables:
     AGENT_FLAVOR: "datadog-iot-agent"
     KITCHEN_PLATFORM_SUFFIX: "iot"
+
+.kitchen_datadog_heroku_agent_flavor:
+  variables:
+    AGENT_FLAVOR: "datadog-heroku-agent"
+    KITCHEN_PLATFORM_SUFFIX: "heroku"
 
 .kitchen_datadog_dogstatsd_flavor:
   variables:
@@ -150,6 +157,12 @@
   extends:
     - .kitchen_test_install_script
     - .kitchen_datadog_iot_agent_flavor
+    - .kitchen_azure_location_west_central_us
+
+.kitchen_test_install_script_heroku_agent:
+  extends:
+    - .kitchen_test_install_script
+    - .kitchen_datadog_heroku_agent_flavor
     - .kitchen_azure_location_west_central_us
 
 .kitchen_test_install_script_dogstatsd:

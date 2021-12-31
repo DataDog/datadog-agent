@@ -1,5 +1,10 @@
-// +build linux
-// +build !android
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && !android
+// +build linux,!android
 
 package netlink
 
@@ -39,6 +44,11 @@ const (
 	// netlinkBufferSize is size (in bytes) of the Netlink socket receive buffer
 	// We set it to a large enough size to support bursts of Conntrack events.
 	netlinkBufferSize = 1024 * 1024
+
+	// telemetry field name used to designate the rate at which conntrack events are sampled.
+	// a value of 100 means all events are processed, whereas 0 means that all events
+	// are rejected
+	samplingPct = "sampling_pct"
 )
 
 var errShortErrorMessage = errors.New("not enough data for netlink error code")
@@ -310,11 +320,11 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 // GetStats returns telemetry associated to the Consumer
 func (c *Consumer) GetStats() map[string]int64 {
 	return map[string]int64{
-		"enobufs":      atomic.LoadInt64(&c.enobufs),
-		"throttles":    atomic.LoadInt64(&c.throttles),
-		"sampling_pct": atomic.LoadInt64(&c.samplingPct),
-		"read_errors":  atomic.LoadInt64(&c.readErrors),
-		"msg_errors":   atomic.LoadInt64(&c.msgErrors),
+		"enobufs":     atomic.LoadInt64(&c.enobufs),
+		"throttles":   atomic.LoadInt64(&c.throttles),
+		samplingPct:   atomic.LoadInt64(&c.samplingPct),
+		"read_errors": atomic.LoadInt64(&c.readErrors),
+		"msg_errors":  atomic.LoadInt64(&c.msgErrors),
 	}
 }
 

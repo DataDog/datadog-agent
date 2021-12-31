@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -51,7 +51,7 @@ type CloudFoundryService struct {
 var _ Service = &CloudFoundryService{}
 
 // NewCloudFoundryListener creates a CloudFoundryListener
-func NewCloudFoundryListener() (ServiceListener, error) {
+func NewCloudFoundryListener(Config) (ServiceListener, error) {
 	bbsCache, err := cloudfoundry.GetGlobalBBSCache()
 	if err != nil {
 		return nil, err

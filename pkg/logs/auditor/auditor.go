@@ -39,9 +39,10 @@ type Registry interface {
 // A RegistryEntry represents an entry in the registry where we keep track
 // of current offsets
 type RegistryEntry struct {
-	LastUpdated time.Time
-	Offset      string
-	TailingMode string
+	LastUpdated        time.Time
+	Offset             string
+	TailingMode        string
+	IngestionTimestamp int64
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -55,14 +56,15 @@ type Auditor interface {
 	Registry
 	Start()
 	Stop()
-	Channel() chan *message.Message
+	// Channel returns the channel to which successful payloads should be sent.
+	Channel() chan *message.Payload
 }
 
 // A RegistryAuditor is storing the Auditor information using a registry.
 type RegistryAuditor struct {
 	health        *health.Handle
 	chansMutex    sync.Mutex
-	inputChan     chan *message.Message
+	inputChan     chan *message.Payload
 	registry      map[string]*RegistryEntry
 	registryPath  string
 	registryMutex sync.Mutex
@@ -99,7 +101,7 @@ func (a *RegistryAuditor) Stop() {
 func (a *RegistryAuditor) createChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()
-	a.inputChan = make(chan *message.Message, config.ChanSize)
+	a.inputChan = make(chan *message.Payload, config.ChanSize)
 	a.done = make(chan struct{})
 }
 
@@ -119,7 +121,9 @@ func (a *RegistryAuditor) closeChannels() {
 
 // Channel returns the channel to use to communicate with the auditor or nil
 // if the auditor is currently stopped.
-func (a *RegistryAuditor) Channel() chan *message.Message {
+func (a *RegistryAuditor) Channel() chan *message.Payload {
+	a.chansMutex.Lock()
+	defer a.chansMutex.Unlock()
 	return a.inputChan
 }
 
@@ -160,13 +164,15 @@ func (a *RegistryAuditor) run() {
 	for {
 		select {
 		case <-a.health.C:
-		case msg, isOpen := <-a.inputChan:
+		case payload, isOpen := <-a.inputChan:
 			if !isOpen {
 				// inputChan has been closed, no need to update the registry anymore
 				return
 			}
 			// update the registry with new entry
-			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode)
+			for _, msg := range payload.Messages {
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp)
+			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
 			a.cleanupRegistry()
@@ -218,7 +224,7 @@ func (a *RegistryAuditor) cleanupRegistry() {
 }
 
 // updateRegistry updates the registry entry matching identifier with new the offset and timestamp
-func (a *RegistryAuditor) updateRegistry(identifier string, offset string, tailingMode string) {
+func (a *RegistryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -227,10 +233,20 @@ func (a *RegistryAuditor) updateRegistry(identifier string, offset string, taili
 		// specially want to avoid storing the offset
 		return
 	}
+
+	// Don't update the registry with a value older than the current one
+	// This can happen when dual shipping and 2 destinations are sending the same payload successfully
+	if v, ok := a.registry[identifier]; ok {
+		if v.IngestionTimestamp > ingestionTimestamp {
+			return
+		}
+	}
+
 	a.registry[identifier] = &RegistryEntry{
-		LastUpdated: time.Now().UTC(),
-		Offset:      offset,
-		TailingMode: tailingMode,
+		LastUpdated:        time.Now().UTC(),
+		Offset:             offset,
+		TailingMode:        tailingMode,
+		IngestionTimestamp: ingestionTimestamp,
 	}
 }
 

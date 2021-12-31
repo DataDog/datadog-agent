@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package tracer
@@ -5,6 +11,7 @@ package tracer
 import (
 	"context"
 	"net"
+	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -89,10 +96,14 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 		ifi, err := net.InterfaceByIndex(r.IfIndex)
 		if err != nil {
 			log.Errorf("error getting interface for interface index %d: %s", r.IfIndex, err)
+			// negative cache for 1 minute
+			g.subnetCache.Add(r.IfIndex, time.Now().Add(1*time.Minute))
 			return nil
 		}
 
 		if ifi.Flags&net.FlagLoopback != 0 {
+			// negative cache loopback interfaces
+			g.subnetCache.Add(r.IfIndex, nil)
 			return nil
 		}
 
@@ -111,7 +122,17 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 		return nil
 	}
 
-	return &network.Via{Subnet: v.(network.Subnet)}
+	switch cv := v.(type) {
+	case time.Time:
+		if time.Now().After(cv) {
+			g.subnetCache.Remove(r.IfIndex)
+		}
+		return nil
+	case network.Subnet:
+		return &network.Via{Subnet: cv}
+	default:
+		return nil
+	}
 }
 
 func (g *gatewayLookup) purge() {

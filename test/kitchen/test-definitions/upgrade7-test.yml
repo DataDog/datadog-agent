@@ -9,7 +9,6 @@ suites:
     - "recipe[dd-agent-enable-fips::ensure]"
     <% end %>
     - "recipe[dd-agent-disable-system-repos]"
-    - "recipe[dd-agent-debian-workaround]"
     - "recipe[dd-agent-rhel-workaround]"
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-install]"
@@ -20,13 +19,11 @@ suites:
         enable: false
     datadog:
       agent_major_version: 7
+      agent_version: <%= ENV['LAST_STABLE_VERSION'] %>
       api_key: <%= api_key %>
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
       <% end %>
-    dd-agent-install:
-      windows_agent_url: https://ddagent-windows-stable.s3.amazonaws.com/
-      windows_agent_filename: datadog-agent-7-latest.amd64
     dd-agent-upgrade:
       add_new_repo: true
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>

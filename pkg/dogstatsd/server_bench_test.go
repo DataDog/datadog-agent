@@ -13,21 +13,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
-func mockAggregator() *aggregator.BufferedAggregator {
-	agg := aggregator.NewBufferedAggregator(
-		serializer.NewSerializer(nil, nil),
-		nil,
-		"hostname",
-		time.Millisecond*10,
-	)
-	return agg
+func mockDemultiplexer() aggregator.Demultiplexer {
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.FlushInterval = time.Millisecond * 10
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+	return demux
 }
 
 func buildPacketContent(numberOfMetrics int, nbValuePerMessage int) []byte {
@@ -47,13 +44,13 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	agg := mockAggregator()
-	s, _ := NewServer(agg, nil)
+	demux := mockDemultiplexer()
+	s, _ := NewServer(demux, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
 	go func() {
-		s, _, _ := agg.GetBufferedChannels()
+		s, _, _ := demux.Aggregator().GetBufferedChannels()
 		for {
 			select {
 			case <-s:
@@ -65,7 +62,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	defer close(done)
 
 	b.RunParallel(func(pb *testing.PB) {
-		batcher := newBatcher(agg)
+		batcher := newBatcher(demux)
 		parser := newParser(newFloat64ListPool())
 		packet := packets.Packet{
 			Contents: rawPacket,
@@ -97,13 +94,13 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	agg := mockAggregator()
-	s, _ := NewServer(agg, nil)
+	demux := mockDemultiplexer()
+	s, _ := NewServer(demux, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
 	go func() {
-		s, _, _ := agg.GetBufferedChannels()
+		s, _, _ := demux.Aggregator().GetBufferedChannels()
 		for {
 			select {
 			case <-s:
@@ -158,13 +155,13 @@ func BenchmarkMapperControl(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	agg := mockAggregator()
-	s, _ := NewServer(agg, nil)
+	demux := mockDemultiplexer()
+	s, _ := NewServer(demux, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
 	go func() {
-		s, _, _ := agg.GetBufferedChannels()
+		s, _, _ := demux.Aggregator().GetBufferedChannels()
 		for {
 			select {
 			case <-s:
@@ -175,7 +172,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	}()
 	defer close(done)
 
-	batcher := newBatcher(agg)
+	batcher := newBatcher(demux)
 	parser := newParser(newFloat64ListPool())
 
 	samples := make([]metrics.MetricSample, 0, 512)

@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -22,13 +21,14 @@ func TestReportExitCodes(t *testing.T) {
 	dockerCheck := &DockerCheck{
 		instance: &DockerConfig{},
 	}
+
+	dockerCheck.setOkExitCodes()
 	mockSender := mocksender.NewMockSender(dockerCheck.ID())
 
 	var events []*docker.ContainerEvent
 
 	// Don't fail on empty event array
-	err := dockerCheck.reportExitCodes(events, mockSender)
-	assert.Nil(t, err)
+	dockerCheck.reportExitCodes(events, mockSender)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
 
 	// Gracefully skip invalid events
@@ -40,8 +40,7 @@ func TestReportExitCodes(t *testing.T) {
 		Action:     "die",
 		Attributes: map[string]string{"exitCode": "nonNumeric"},
 	})
-	err = dockerCheck.reportExitCodes(events, mockSender)
-	assert.Nil(t, err)
+	dockerCheck.reportExitCodes(events, mockSender)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
 
 	// Reset event array
@@ -55,7 +54,17 @@ func TestReportExitCodes(t *testing.T) {
 		ContainerName: "goodOne",
 	})
 	mockSender.On("ServiceCheck", "docker.exit", metrics.ServiceCheckOK, "",
-		mock.AnythingOfType("[]string"), "Container goodOne exited with 0")
+		[]string{"exit_code:0"}, "Container goodOne exited with 0")
+
+	// Valid exit 143 event
+	events = append(events, &docker.ContainerEvent{
+		Action:        "die",
+		Attributes:    map[string]string{"exitCode": "143"},
+		ContainerID:   "fcc487ac70446287ae0dc79fb72368d824ff6198cd1166a405bc5a7fc111d3a8",
+		ContainerName: "goodOne",
+	})
+	mockSender.On("ServiceCheck", "docker.exit", metrics.ServiceCheckOK, "",
+		[]string{"exit_code:143"}, "Container goodOne exited with 143")
 
 	// Valid exit 1 event
 	events = append(events, &docker.ContainerEvent{
@@ -65,12 +74,47 @@ func TestReportExitCodes(t *testing.T) {
 		ContainerName: "badOne",
 	})
 	mockSender.On("ServiceCheck", "docker.exit", metrics.ServiceCheckCritical, "",
-		mock.AnythingOfType("[]string"), "Container badOne exited with 1")
+		[]string{"exit_code:1"}, "Container badOne exited with 1")
 
-	err = dockerCheck.reportExitCodes(events, mockSender)
-	assert.Nil(t, err)
+	dockerCheck.reportExitCodes(events, mockSender)
 	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 2)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 3)
+
+	// Custom ok exit codes
+	dockerCheck = &DockerCheck{
+		instance: &DockerConfig{
+			OkExitCodes: []int{0},
+		},
+	}
+
+	dockerCheck.setOkExitCodes()
+
+	// Reset event array
+	events = events[0:0]
+
+	// Valid exit 0 event
+	events = append(events, &docker.ContainerEvent{
+		Action:        "die",
+		Attributes:    map[string]string{"exitCode": "0"},
+		ContainerID:   "fcc487ac70446287ae0dc79fb72368d824ff6198cd1166a405bc5a7fc111d3a8",
+		ContainerName: "goodOne",
+	})
+	mockSender.On("ServiceCheck", "docker.exit", metrics.ServiceCheckOK, "",
+		[]string{"exit_code:0"}, "Container goodOne exited with 0")
+
+	// Valid exit 143 event
+	events = append(events, &docker.ContainerEvent{
+		Action:        "die",
+		Attributes:    map[string]string{"exitCode": "143"},
+		ContainerID:   "fcc487ac70446287ae0dc79fb72368d824ff6198cd1166a405bc5a7fc111d3a8",
+		ContainerName: "badOne",
+	})
+	mockSender.On("ServiceCheck", "docker.exit", metrics.ServiceCheckCritical, "",
+		[]string{"exit_code:143"}, "Container badOne exited with 143")
+
+	dockerCheck.reportExitCodes(events, mockSender)
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 5)
 }
 
 func TestAggregateEvents(t *testing.T) {

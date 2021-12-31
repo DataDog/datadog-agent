@@ -74,7 +74,7 @@ func (s *dummyService) IsReady(context.Context) bool {
 	return true
 }
 
-// GetCheckNames returns slice of check names defined in docker labels
+// GetCheckNames returns slice of check names defined in container labels
 func (s *dummyService) GetCheckNames(context.Context) []string {
 	return s.CheckNames
 }

@@ -42,4 +42,4 @@ check_if_build_only:
   tags: ["runner:main"]
   dependencies: []
   script:
-    - if [ "$DEB_RPM_BUCKET_BRANCH" == "none" ]; then echo "Stopping pipeline"; exit 1; fi
+    - if [ "$BUCKET_BRANCH" == "none" ]; then echo "Stopping pipeline"; exit 1; fi

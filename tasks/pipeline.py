@@ -48,9 +48,7 @@ def check_deploy_pipeline(gitlab, git_ref, release_version_6, release_version_7,
     # Check that the target repo branch is valid
     if not is_allowed_repo_branch(repo_branch):
         print(
-            "--repo-branch argument '{}' is not in the list of allowed repository branches: {}".format(
-                repo_branch, get_all_allowed_repo_branches()
-            )
+            f"--repo-branch argument '{repo_branch}' is not in the list of allowed repository branches: {get_all_allowed_repo_branches()}"
         )
         raise Exit(code=1)
 
@@ -70,10 +68,10 @@ def check_deploy_pipeline(gitlab, git_ref, release_version_6, release_version_7,
         gitlab_tag = gitlab.find_tag(tag_name)
 
         if ("name" not in gitlab_tag) or gitlab_tag["name"] != tag_name:
-            print("Cannot find GitLab v6 tag {} while trying to build git ref {}".format(tag_name, git_ref))
+            print(f"Cannot find GitLab v6 tag {tag_name} while trying to build git ref {git_ref}")
             raise Exit(code=1)
 
-        print("Successfully cross checked v6 tag {} and git ref {}".format(tag_name, git_ref))
+        print(f"Successfully cross checked v6 tag {tag_name} and git ref {git_ref}")
     else:
         match = re.match(v6_pattern, git_ref)
 
@@ -83,10 +81,10 @@ def check_deploy_pipeline(gitlab, git_ref, release_version_6, release_version_7,
             gitlab_tag = gitlab.find_tag(tag_name)
 
             if ("name" not in gitlab_tag) or gitlab_tag["name"] != tag_name:
-                print("Cannot find GitLab v7 tag {} while trying to build git ref {}".format(tag_name, git_ref))
+                print(f"Cannot find GitLab v7 tag {tag_name} while trying to build git ref {git_ref}")
                 raise Exit(code=1)
 
-            print("Successfully cross checked v7 tag {} and git ref {}".format(tag_name, git_ref))
+            print(f"Successfully cross checked v7 tag {tag_name} and git ref {git_ref}")
 
 
 @task
@@ -103,18 +101,18 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
 
-    print("Fetching running pipelines on {}".format(git_ref))
+    print(f"Fetching running pipelines on {git_ref}")
 
     if not sha and use_latest_sha:
-        sha = ctx.run("git rev-parse {}".format(git_ref), hide=True).stdout.strip()
-        print("Git sha not provided, using the one {} currently points to: {}".format(git_ref, sha))
+        sha = ctx.run(f"git rev-parse {git_ref}", hide=True).stdout.strip()
+        print(f"Git sha not provided, using the one {git_ref} currently points to: {sha}")
     elif not sha:
-        print("Git sha not provided, fetching all running pipelines on {}".format(git_ref))
+        print(f"Git sha not provided, fetching all running pipelines on {git_ref}")
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref, sha)
 
     print(
-        "Found {} running pipeline(s) matching the request.".format(len(pipelines)),
+        f"Found {len(pipelines)} running pipeline(s) matching the request.",
         "They are ordered from the newest one to the oldest one.\n",
         sep='\n',
     )
@@ -148,14 +146,9 @@ def trigger(
         major_versions.append("7")
 
     raise Exit(
-        """The pipeline.trigger task is obsolete. Use:
-    pipeline.run --git-ref {git_ref} --deploy --major-versions "{major_versions}" --repo-branch {repo_branch} {use_release_entries}
-instead.""".format(
-            git_ref=git_ref,
-            major_versions=",".join(major_versions),
-            repo_branch=repo_branch,
-            use_release_entries=use_release_entries,
-        ),
+        f"""The pipeline.trigger task is obsolete. Use:
+    pipeline.run --git-ref {git_ref} --deploy --major-versions "{','.join(major_versions)}" --repo-branch {repo_branch} {use_release_entries}
+instead.""",
         1,
     )
 
@@ -253,7 +246,7 @@ def run(
 
     if pipelines:
         print(
-            "There are already {} pipeline(s) running on the target git ref.".format(len(pipelines)),
+            f"There are already {len(pipelines)} pipeline(s) running on the target git ref.",
             "For each of them, you'll be asked whether you want to cancel them or not.",
             "If you don't need these pipelines, please cancel them to save CI resources.",
             "They are ordered from the newest one to the oldest one.\n",
@@ -273,23 +266,20 @@ def run(
             kitchen_tests=kitchen_tests,
         )
     except FilteredOutException:
-        print(
-            color_message(
-                "ERROR: pipeline does not match any workflow rule. Rules:\n{}".format(workflow_rules()), "red"
-            )
-        )
+        print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
         return
 
     wait_for_pipeline(gitlab, pipeline_id)
 
 
 @task
-def follow(ctx, id=None, git_ref=None, here=False):
+def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent"):
     """
     Follow a pipeline's progress in the CLI.
     Use --here to follow the latest pipeline on your current branch.
     Use --git-ref to follow the latest pipeline on a given tag or branch.
     Use --id to follow a specific pipeline.
+    Use --project-name to specify a repo other than DataDog/datadog-agent (default)
 
     Examples:
     inv pipeline.follow --git-ref my-branch
@@ -297,7 +287,6 @@ def follow(ctx, id=None, git_ref=None, here=False):
     inv pipeline.follow --id 1234567
     """
 
-    project_name = "DataDog/datadog-agent"
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
@@ -315,7 +304,7 @@ def wait_for_pipeline_from_ref(gitlab, ref):
     if pipeline is not None:
         wait_for_pipeline(gitlab, pipeline['id'])
     else:
-        print("No pipelines found for {ref}".format(ref=ref))
+        print(f"No pipelines found for {ref}")
         raise Exit(code=1)
 
 
@@ -332,8 +321,8 @@ GITHUB_SLACK_MAP = {
     "@DataDog/processes": "#processes",
     "@DataDog/agent-core": "#agent-core",
     "@DataDog/container-app": "#container-app",
-    "@Datadog/metrics-aggregation": "#metrics-aggregation",
-    "@Datadog/serverless": "#serverless-agent",
+    "@DataDog/metrics-aggregation": "#metrics-aggregation",
+    "@DataDog/serverless": "#serverless-agent",
     "@DataDog/agent-all": "#datadog-agent-pipelines",
 }
 
@@ -372,12 +361,14 @@ def generate_failure_messages(base):
 
 
 @task
-def trigger_child_pipeline(_, git_ref, project_name, variables=""):
+def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
     """
     Trigger a child pipeline on a target repository and git ref.
     Used in CI jobs only (requires CI_JOB_TOKEN).
 
     Use --variables to specify the environment variables that should be passed to the child pipeline, as a comma-separated list.
+
+    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
 
     Examples:
     inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "RELEASE_VERSION"
@@ -388,9 +379,13 @@ def trigger_child_pipeline(_, git_ref, project_name, variables=""):
     if not os.environ.get('CI_JOB_TOKEN'):
         raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
 
-    # The Gitlab lib requires `GITLAB_TOKEN` to be set, though
-    # we won't use it here
-    os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
+    if not os.environ.get('GITLAB_TOKEN'):
+        if follow:
+            raise Exit("GITLAB_TOKEN variable needed to follow child pipelines.", 1)
+        else:
+            # The Gitlab lib requires `GITLAB_TOKEN` to be
+            # set, but trigger_pipeline doesn't use it
+            os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
 
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
 
@@ -400,21 +395,30 @@ def trigger_child_pipeline(_, git_ref, project_name, variables=""):
     for v in variables.split(','):
         data['variables'][v] = os.environ[v]
 
-    print(
-        "Creating child pipeline in repo {}, on git ref {} with params: {}".format(
-            project_name, git_ref, data['variables']
-        )
-    )
+    print(f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}")
 
     res = gitlab.trigger_pipeline(data)
 
     if 'id' not in res:
-        raise Exit("Failed to create child pipeline: {}".format(res), 1)
+        raise Exit(f"Failed to create child pipeline: {res}", code=1)
 
-    print("Created a child pipeline with id={}, url={}".format(res['id'], res['web_url']))
+    pipeline_id = res['id']
+    pipeline_url = res['web_url']
+    print(f"Created a child pipeline with id={pipeline_id}, url={pipeline_url}")
 
-    # TODO: Add mode where we follow the pipeline, for jobs that need to depend on the child
-    # pipeline.
+    if follow:
+        print("Waiting for child pipeline to finish...")
+
+        wait_for_pipeline(gitlab, pipeline_id)
+
+        # Check pipeline status
+        pipeline = gitlab.pipeline(pipeline_id)
+        pipestatus = pipeline["status"].lower().strip()
+
+        if pipestatus != "success":
+            raise Exit(f"Error: child pipeline status {pipestatus.title()}", code=1)
+
+        print("Child pipeline finished successfully")
 
 
 @task
@@ -454,7 +458,7 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
             message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
         message.coda = "If there is something wrong with the notification please contact #agent-platform"
         if print_to_stdout:
-            print("Would send to {channel}:\n{message}".format(channel=channel, message=str(message)))
+            print(f"Would send to {channel}:\n{str(message)}")
         else:
             send_slack_message(channel, str(message))  # TODO: use channel variable
 

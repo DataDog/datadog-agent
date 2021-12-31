@@ -6,4 +6,3 @@
 include:
   - /.gitlab/image_deploy/docker_linux.yml
   - /.gitlab/image_deploy/docker_windows.yml
-  - /.gitlab/image_deploy/twistlock.yml

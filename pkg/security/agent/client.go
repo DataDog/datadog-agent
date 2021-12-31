@@ -54,6 +54,17 @@ func (c *RuntimeSecurityClient) RunSelfTest() (*api.SecuritySelfTestResultMessag
 	return response, nil
 }
 
+// ReloadPolicies instructs the system probe to reload its policies
+func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessage, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+
+	response, err := apiClient.ReloadPolicies(context.Background(), &api.ReloadPoliciesParams{})
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 // Close closes the connection
 func (c *RuntimeSecurityClient) Close() {
 	c.conn.Close()

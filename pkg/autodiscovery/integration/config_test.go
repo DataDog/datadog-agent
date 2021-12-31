@@ -262,6 +262,19 @@ func TestGetNameForInstance(t *testing.T) {
 	assert.Equal(t, config.Instances[0].GetNameForInstance(), "")
 }
 
+func TestSetNameForInstance(t *testing.T) {
+	config := &Config{}
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("name: foobar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "foobar")
+
+	err := config.Instances[0].SetNameForInstance("new-name")
+	assert.NoError(t, err)
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "new-name")
+}
+
 // this is here to prevent compiler optimization on the benchmarking code
 var result string
 

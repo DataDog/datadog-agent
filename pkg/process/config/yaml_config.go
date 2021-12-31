@@ -1,8 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package config
 
 import (
 	"fmt"
-	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -17,10 +21,13 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	ns = "process_config"
+	ns                   = "process_config"
+	discoveryMinInterval = 10 * time.Minute
 )
 
 func key(pieces ...string) string {
@@ -77,15 +84,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Whether or not the process-agent should output logs to console
-	if config.Datadog.GetBool("log_to_console") {
-		a.LogToConsole = true
-	}
-	// The full path to the file where process-agent logs will be written.
-	if logFile := config.Datadog.GetString(key(ns, "log_file")); logFile != "" {
-		a.LogFile = logFile
-	}
-
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
@@ -98,6 +96,20 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// We need another method to read in process discovery check configs because it is in its own object,
 	// and uses a different unit of time
 	a.initProcessDiscoveryCheck()
+
+	if a.CheckIntervals[ProcessCheckName] < a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
+		// Process check interval must be greater or equal to RTProcess check interval and the intervals must be divisible
+		// in order to be run on the same goroutine
+		log.Warnf(
+			"Invalid process check interval overrides [%s,%s], resetting to defaults [%s,%s]",
+			a.CheckIntervals[ProcessCheckName],
+			a.CheckIntervals[RTProcessCheckName],
+			ProcessCheckDefaultInterval,
+			RTProcessCheckDefaultInterval,
+		)
+		a.CheckIntervals[ProcessCheckName] = ProcessCheckDefaultInterval
+		a.CheckIntervals[RTProcessCheckName] = RTProcessCheckDefaultInterval
+	}
 
 	// A list of regex patterns that will exclude a process if matched.
 	if k := key(ns, "blacklist_patterns"); config.Datadog.IsSet(k) {
@@ -176,19 +188,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Overrides the path to the Agent bin used for getting the hostname. The default is usually fine.
-	a.DDAgentBin = defaultDDAgentBin
-	if k := key(ns, "dd_agent_bin"); config.Datadog.IsSet(k) {
-		if agentBin := config.Datadog.GetString(k); agentBin != "" {
-			a.DDAgentBin = agentBin
-		}
-	}
-
-	// Overrides the grpc connection timeout setting to the main agent.
-	if k := key(ns, "grpc_connection_timeout_secs"); config.Datadog.IsSet(k) {
-		a.grpcConnectionTimeout = config.Datadog.GetDuration(k) * time.Second
-	}
-
 	// Windows: Sets windows process table refresh rate (in number of check runs)
 	if argRefresh := config.Datadog.GetInt(key(ns, "windows", "args_refresh_interval")); argRefresh != 0 {
 		a.Windows.ArgsRefreshInterval = argRefresh
@@ -197,6 +196,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// Windows: Controls getting process arguments immediately when a new process is discovered
 	if addArgsKey := key(ns, "windows", "add_new_args"); config.Datadog.IsSet(addArgsKey) {
 		a.Windows.AddNewArgs = config.Datadog.GetBool(addArgsKey)
+	}
+
+	// Windows: Controls using the new check based on performance counters PDH APIs
+	if usePerfCountersKey := key(ns, "windows", "use_perf_counters"); config.Datadog.IsSet(usePerfCountersKey) {
+		a.Windows.UsePerfCounters = config.Datadog.GetBool(usePerfCountersKey)
 	}
 
 	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
@@ -221,15 +225,28 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
 	if config.Datadog.IsSet(key(ns, "internal_profiling.enabled")) {
-		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "internal_profiling.enabled"))
-		a.ProfilingSite = config.Datadog.GetString("site")
-		a.ProfilingURL = config.Datadog.GetString("internal_profiling.profile_dd_url")
-		a.ProfilingEnvironment = config.Datadog.GetString("env")
-		a.ProfilingPeriod = config.Datadog.GetDuration("internal_profiling.period")
-		a.ProfilingCPUDuration = config.Datadog.GetDuration("internal_profiling.cpu_duration")
-		a.ProfilingMutexFraction = config.Datadog.GetInt("internal_profiling.mutex_profile_fraction")
-		a.ProfilingBlockRate = config.Datadog.GetInt("internal_profiling.block_profile_rate")
-		a.ProfilingWithGoroutines = config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
+		// allow full url override for development use
+		site := config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if site == "" {
+			s := config.Datadog.GetString("site")
+			if s == "" {
+				s = config.DefaultSite
+			}
+			site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
+		}
+
+		v, _ := version.Agent()
+		a.ProfilingSettings = &profiling.Settings{
+			ProfilingURL:         site,
+			Env:                  config.Datadog.GetString("env"),
+			Service:              "process-agent",
+			Period:               config.Datadog.GetDuration("internal_profiling.period"),
+			CPUDuration:          config.Datadog.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     config.Datadog.GetInt("internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+		}
 	}
 
 	// Used to override container source auto-detection
@@ -242,19 +259,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		if sources := config.Datadog.GetStringSlice(containerSourceKey); len(sources) > 0 {
 			util.SetContainerSources(sources)
 		}
-	}
-
-	// Pull additional parameters from the global config file.
-	if level := config.Datadog.GetString("log_level"); level != "" {
-		a.LogLevel = level
-	}
-
-	if k := "dogstatsd_port"; config.Datadog.IsSet(k) {
-		a.StatsdPort = config.Datadog.GetInt(k)
-	}
-
-	if bindHost := config.GetBindHost(); bindHost != "" {
-		a.StatsdHost = bindHost
 	}
 
 	// Build transport (w/ proxy if needed)
@@ -271,7 +275,7 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 	}
 
 	if interval := config.Datadog.GetInt(k); interval != 0 {
-		log.Infof("Overriding container check interval to %ds", interval)
+		log.Infof("Overriding %s check interval to %ds", checkKey, interval)
 		a.CheckIntervals[checkKey] = time.Duration(interval) * time.Second
 	}
 }
@@ -282,17 +286,21 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 func (a *AgentConfig) initProcessDiscoveryCheck() {
 	root := key(ns, "process_discovery")
 
-	// We don't need to check if the key exists since we already bound it to a default in InitConfig.
-	// We use a minimum of 10 minutes for this value.
-	a.CheckIntervals[DiscoveryCheckName] =
-		time.Duration(math.Max(float64(config.Datadog.GetDuration(key(root, "interval"))), float64(10*time.Minute)))
-
-	// Discovery check should be only enabled when process_config.process_discovery.enabled = true and
-	// process_config.enabled is set to "false". This effectively makes sure the check only runs when the process check is
-	// disabled, while also respecting the users wishes when they want to disable either the check or the process agent completely.
+	// Discovery check can only be enabled when regular process collection is not enabled.
+	// (process_config.process_discovery.enabled = true and process_config.enabled is not set to "true")
 	processAgentEnabled := strings.ToLower(config.Datadog.GetString(key(ns, "enabled")))
 	checkEnabled := config.Datadog.GetBool(key(root, "enabled"))
-	if checkEnabled && processAgentEnabled == "false" {
+	if checkEnabled && processAgentEnabled != "true" {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
+		a.Enabled = true
+
+		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
+		// We use a minimum of 10 minutes for this value.
+		discoveryInterval := config.Datadog.GetDuration(key(root, "interval"))
+		if discoveryInterval < discoveryMinInterval {
+			discoveryInterval = discoveryMinInterval
+			_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
+		}
+		a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
 	}
 }

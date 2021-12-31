@@ -8,8 +8,10 @@ package checks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"strings"
 	"time"
 
@@ -155,7 +157,7 @@ func (c *kubeClient) ClusterID() (string, error) {
 }
 
 // WithKubernetesClient allows specific Kubernetes client
-func WithKubernetesClient(cli env.KubeClient, clusterID string) BuilderOption {
+func WithKubernetesClient(cli dynamic.Interface, clusterID string) BuilderOption {
 	return func(b *builder) error {
 		b.kubeClient = &kubeClient{Interface: cli, clusterID: clusterID}
 		return nil
@@ -182,7 +184,7 @@ func WithMatchSuite(matcher SuiteMatcher) BuilderOption {
 }
 
 // RuleMatcher checks if a compliance rule is included
-type RuleMatcher func(*compliance.Rule) bool
+type RuleMatcher func(*compliance.RuleCommon) bool
 
 // WithMatchRule configures builder to use a suite matcher
 func WithMatchRule(matcher RuleMatcher) BuilderOption {
@@ -214,6 +216,26 @@ func WithNodeLabels(nodeLabels map[string]string) BuilderOption {
 	}
 }
 
+// WithRegoInput configures a builder to provide rego input based on the content
+// of a file instead of the current environment
+func WithRegoInput(regoInputPath string) BuilderOption {
+	return func(b *builder) error {
+		content, err := ioutil.ReadFile(regoInputPath)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(content, &b.regoInputOverride)
+	}
+}
+
+// WithRegoInputDumpPath configures a builder to dump the rego input to the provided file path
+func WithRegoInputDumpPath(regoInputDumpPath string) BuilderOption {
+	return func(b *builder) error {
+		b.regoInputDumpPath = regoInputDumpPath
+		return nil
+	}
+}
+
 // IsFramework matches a compliance suite by the name of the framework
 func IsFramework(framework string) SuiteMatcher {
 	return func(s *compliance.SuiteMeta) bool {
@@ -223,7 +245,7 @@ func IsFramework(framework string) SuiteMatcher {
 
 // IsRuleID matches a compliance rule by ID
 func IsRuleID(ruleID string) RuleMatcher {
-	return func(r *compliance.Rule) bool {
+	return func(r *compliance.RuleCommon) bool {
 		return r.ID == ruleID
 	}
 }
@@ -272,6 +294,9 @@ type builder struct {
 	kubeClient   *kubeClient
 	isLeaderFunc func() bool
 
+	regoInputOverride map[string]eval.RegoInputMap
+	regoInputDumpPath string
+
 	status *status
 }
 
@@ -287,6 +312,45 @@ func (b *builder) Close() error {
 		}
 	}
 
+	return nil
+}
+
+func (b *builder) checkMatchingRule(file string, suite *compliance.Suite, rule compliance.Rule) bool {
+	ruleCommon := rule.Common()
+	if b.ruleMatcher != nil {
+		if b.ruleMatcher(ruleCommon) {
+			log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, ruleCommon.ID, file)
+		} else {
+			log.Tracef("%s/%s: skipped rule %s in %s", suite.Meta.Name, suite.Meta.Version, ruleCommon.ID, file)
+			return false
+		}
+	}
+
+	if rule.ResourceCount() == 0 {
+		log.Infof("%s/%s: skipped rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, ruleCommon.ID)
+		return false
+	}
+
+	return true
+}
+
+func (b *builder) addCheckAndRun(suite *compliance.Suite, r *compliance.RuleCommon, check compliance.Check, onCheck compliance.CheckVisitor, initErr error) error {
+	if b.status != nil {
+		b.status.addCheck(&compliance.CheckStatus{
+			RuleID:      r.ID,
+			Description: r.Description,
+			Name:        compliance.CheckName(r.ID, r.Description),
+			Framework:   suite.Meta.Framework,
+			Source:      suite.Meta.Source,
+			Version:     suite.Meta.Version,
+			InitError:   initErr,
+		})
+	}
+	ok := onCheck(r, check, initErr)
+	if !ok {
+		log.Infof("%s/%s: stopping rule enumeration", suite.Meta.Name, suite.Meta.Version)
+		return initErr
+	}
 	return nil
 }
 
@@ -309,24 +373,12 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 
 	matchedCount := 0
 	for _, r := range suite.Rules {
-		if b.ruleMatcher != nil {
-			if b.ruleMatcher(&r) {
-				log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
-			} else {
-				log.Tracef("%s/%s: skipped rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
-				continue
-			}
-		}
-		matchedCount++
-
-		if len(r.Resources) == 0 {
-			log.Infof("%s/%s: skipped rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, r.ID)
-			continue
+		if b.checkMatchingRule(file, suite, &r) {
+			matchedCount++
 		}
 
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 		check, err := b.checkFromRule(&suite.Meta, &r)
-
 		if err != nil {
 			if err != ErrRuleDoesNotApply {
 				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
@@ -334,20 +386,26 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
 		}
 
-		if b.status != nil {
-			b.status.addCheck(&compliance.CheckStatus{
-				RuleID:      r.ID,
-				Description: r.Description,
-				Name:        compliance.CheckName(r.ID, r.Description),
-				Framework:   suite.Meta.Framework,
-				Source:      suite.Meta.Source,
-				Version:     suite.Meta.Version,
-				InitError:   err,
-			})
+		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
+			return err
 		}
-		ok := onCheck(&r, check, err)
-		if !ok {
-			log.Infof("%s/%s: stopping rule enumeration", suite.Meta.Name, suite.Meta.Version)
+	}
+
+	for _, r := range suite.RegoRules {
+		if b.checkMatchingRule(file, suite, &r) {
+			matchedCount++
+		}
+
+		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
+		check, err := b.checkFromRegoRule(&suite.Meta, &r)
+		if err != nil {
+			if err != ErrRuleDoesNotApply {
+				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
+			}
+			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
+		}
+
+		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
 			return err
 		}
 	}
@@ -366,13 +424,13 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 	return compliance.CheckStatusList{}
 }
 
-func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.Check, error) {
-	ruleScope, err := getRuleScope(meta, rule)
+func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.ConditionFallbackRule) (compliance.Check, error) {
+	ruleScope, err := getRuleScope(meta, rule.Scope)
 	if err != nil {
 		return nil, err
 	}
 
-	eligible, err := b.hostMatcher(ruleScope, rule)
+	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -386,20 +444,46 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 	return b.newCheck(meta, ruleScope, rule, resourceReporter)
 }
 
-func getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.RuleScope, error) {
+func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
+	ruleScope, err := getRuleScope(meta, rule.Scope)
+	if err != nil {
+		return nil, err
+	}
+
+	// skip host match check if rego input is overridden
+	if b.regoInputOverride == nil {
+		eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
+		if err != nil {
+			return nil, err
+		}
+
+		if !eligible {
+			log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
+			return nil, ErrRuleDoesNotApply
+		}
+	}
+
+	return b.newRegoCheck(meta, ruleScope, rule, fallthroughReporter)
+}
+
+func fallthroughReporter(report *compliance.Report) compliance.ReportResource {
+	return report.Resource
+}
+
+func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList) (compliance.RuleScope, error) {
 	switch {
-	case rule.Scope.Includes(compliance.DockerScope):
+	case scopeList.Includes(compliance.DockerScope):
 		return compliance.DockerScope, nil
-	case rule.Scope.Includes(compliance.KubernetesNodeScope):
+	case scopeList.Includes(compliance.KubernetesNodeScope):
 		return compliance.KubernetesNodeScope, nil
-	case rule.Scope.Includes(compliance.KubernetesClusterScope):
+	case scopeList.Includes(compliance.KubernetesClusterScope):
 		return compliance.KubernetesClusterScope, nil
 	default:
 		return "", ErrRuleScopeNotSupported
 	}
 }
 
-func (b *builder) kubeResourceReporter(rule compliance.Rule, resourceType string) resourceReporter {
+func (b *builder) kubeResourceReporter(rule compliance.ConditionFallbackRule, resourceType string) resourceReporter {
 	return func(report *compliance.Report) compliance.ReportResource {
 		var clusterID string
 		var err error
@@ -433,7 +517,7 @@ func (b *builder) kubeResourceReporter(rule compliance.Rule, resourceType string
 	}
 }
 
-func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compliance.Rule) resourceReporter {
+func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compliance.ConditionFallbackRule) resourceReporter {
 	switch scope {
 	case compliance.DockerScope:
 		return func(report *compliance.Report) compliance.ReportResource {
@@ -471,23 +555,23 @@ func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compl
 	}
 }
 
-func (b *builder) hostMatcher(scope compliance.RuleScope, rule *compliance.Rule) (bool, error) {
+func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSelector string) (bool, error) {
 	switch scope {
 	case compliance.DockerScope:
 		if b.dockerClient == nil {
-			log.Infof("rule %s skipped - not running in a docker environment", rule.ID)
+			log.Infof("rule %s skipped - not running in a docker environment", ruleID)
 			return false, nil
 		}
 	case compliance.KubernetesClusterScope:
 		if b.kubeClient == nil {
-			log.Infof("rule %s skipped - not running as Cluster Agent", rule.ID)
+			log.Infof("rule %s skipped - not running as Cluster Agent", ruleID)
 			return false, nil
 		}
 	case compliance.KubernetesNodeScope:
 		if config.IsKubernetes() {
-			return b.isKubernetesNodeEligible(rule.HostSelector)
+			return b.isKubernetesNodeEligible(hostSelector)
 		}
-		log.Infof("rule %s skipped - not running on a Kubernetes node", rule.ID)
+		log.Infof("rule %s skipped - not running on a Kubernetes node", ruleID)
 		return false, nil
 	}
 
@@ -504,13 +588,17 @@ func (b *builder) isKubernetesNodeEligible(hostSelector string) (bool, error) {
 		return false, err
 	}
 
+	labelKeys := b.nodeLabelKeys()
 	nodeInstance := eval.NewInstance(
 		eval.VarMap{
-			"node.labels": b.nodeLabelKeys(),
+			"node.labels": labelKeys,
 		},
 		eval.FunctionMap{
 			"node.hasLabel": b.nodeHasLabel,
 			"node.label":    b.nodeLabel,
+		},
+		eval.RegoInputMap{
+			"labels": labelKeys,
 		},
 	)
 
@@ -560,9 +648,8 @@ func (b *builder) nodeLabelKeys() []string {
 	return keys
 }
 
-func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule, handler resourceReporter) (compliance.Check, error) {
+func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.ConditionFallbackRule, handler resourceReporter) (compliance.Check, error) {
 	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
-
 	if err != nil {
 		return nil, err
 	}
@@ -590,6 +677,39 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 	}, nil
 }
 
+func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
+	regoCheck := &regoCheck{
+		ruleID: rule.ID,
+		inputs: rule.Inputs,
+	}
+
+	if err := regoCheck.compileRule(rule, ruleScope, meta); err != nil {
+		return nil, err
+	}
+
+	var notify eventNotify
+	if b.status != nil {
+		notify = b.status.updateCheck
+	}
+
+	// We capture err as configuration error but do not prevent check creation
+	return &complianceCheck{
+		Env: b,
+
+		ruleID:      rule.ID,
+		description: rule.Description,
+		interval:    b.checkInterval,
+
+		suiteMeta: meta,
+
+		resourceHandler: handler,
+		scope:           ruleScope,
+		checkable:       regoCheck,
+
+		eventNotify: notify,
+	}, nil
+}
+
 func (b *builder) Reporter() event.Reporter {
 	return b.reporter
 }
@@ -604,6 +724,14 @@ func (b *builder) AuditClient() env.AuditClient {
 
 func (b *builder) KubeClient() env.KubeClient {
 	return b.kubeClient
+}
+
+func (b *builder) ProvidedInput(ruleID string) eval.RegoInputMap {
+	return b.regoInputOverride[ruleID]
+}
+
+func (b *builder) DumpInputPath() string {
+	return b.regoInputDumpPath
 }
 
 func (b *builder) Hostname() string {
@@ -639,6 +767,10 @@ func (b *builder) IsLeader() bool {
 	return true
 }
 
+func (b *builder) NodeLabels() map[string]string {
+	return b.nodeLabels
+}
+
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
 	instance := eval.NewInstance(
 		nil,
@@ -649,6 +781,7 @@ func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
 			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(jsonGetter)),
 			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(yamlGetter)),
 		},
+		nil,
 	)
 
 	return ev.Evaluate(instance)

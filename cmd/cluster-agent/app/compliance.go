@@ -57,6 +57,10 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*c
 		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
 	}
 
+	for _, status := range endpoints.GetStatus() {
+		log.Info(status)
+	}
+
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
@@ -65,7 +69,7 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*c
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
-	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.")
+	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
 func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
@@ -99,10 +103,11 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 		reporter,
 		scheduler,
 		configDir,
+		endpoints,
 		checks.WithInterval(checkInterval),
 		checks.WithMaxEvents(checkMaxEvents),
 		checks.WithHostname(hostname),
-		checks.WithMatchRule(func(rule *compliance.Rule) bool {
+		checks.WithMatchRule(func(rule *compliance.RuleCommon) bool {
 			return rule.Scope.Includes(compliance.KubernetesClusterScope)
 		}),
 		checks.WithKubernetesClient(apiCl.DynamicCl, ""),

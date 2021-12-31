@@ -10,8 +10,6 @@ package probe
 import (
 	"syscall"
 	"unsafe"
-
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -19,6 +17,23 @@ const (
 
 	// ERPCMaxDataSize maximum size of data of a request
 	ERPCMaxDataSize = 256
+)
+
+const (
+	// DiscardInodeOp discards an inode
+	DiscardInodeOp = iota + 1
+	// DiscardPidOp discards a pid
+	DiscardPidOp
+	// ResolveSegmentOp resolves the requested segment
+	ResolveSegmentOp
+	// ResolvePathOp resolves the requested path
+	ResolvePathOp
+	// ResolveParentOp resolves the parent of the provide path key
+	ResolveParentOp
+	// RegisterSpanTLSOP is used for span TLS registration
+	RegisterSpanTLSOP //nolint:deadcode,unused
+	// ExpireInodeDiscarderOp is used to expire an inode discarder
+	ExpireInodeDiscarderOp
 )
 
 // ERPC defines a krpc object
@@ -30,16 +45,6 @@ type ERPC struct {
 type ERPCRequest struct {
 	OP   uint8
 	Data [ERPCMaxDataSize]byte
-}
-
-// GetConstants returns the ebpf constants
-func (k *ERPC) GetConstants() []manager.ConstantEditor {
-	return []manager.ConstantEditor{
-		{
-			Name:  "erpc_fd",
-			Value: uint64(k.fd),
-		},
-	}
 }
 
 // Request generates an ioctl syscall with the required request

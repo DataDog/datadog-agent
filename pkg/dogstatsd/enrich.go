@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package dogstatsd
 
 import (
@@ -84,13 +89,26 @@ func isExcluded(metricName, namespace string, excludedNamespaces []string) bool 
 	return false
 }
 
+func isMetricBlocklisted(metricName string, metricBlocklist []string) bool {
+	for _, item := range metricBlocklist {
+		if metricName == item {
+			return true
+		}
+	}
+	return false
+}
+
 func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
-	defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
+	metricBlocklist []string, defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(ddSample.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
 
 	if !isExcluded(metricName, namespace, excludedNamespaces) {
 		metricName = namespace + metricName
+	}
+
+	if len(metricBlocklist) > 0 && isMetricBlocklisted(metricName, metricBlocklist) {
+		return []metrics.MetricSample{}
 	}
 
 	if serverlessMode { // we don't want to set the host while running in serverless mode

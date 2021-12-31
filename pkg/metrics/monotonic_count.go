@@ -71,3 +71,7 @@ func (mc *MonotonicCount) flush(timestamp float64) ([]*Serie, error) {
 		},
 	}, nil
 }
+
+func (mc *MonotonicCount) isStateful() bool {
+	return true
+}

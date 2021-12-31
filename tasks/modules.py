@@ -35,7 +35,7 @@ class GoModule:
         if self.path == ".":
             return ["6" + agent_version[1:], "7" + agent_version[1:]]
 
-        return ["{}/{}".format(self.path, self.__version(agent_version))]
+        return [f"{self.path}/{self.__version(agent_version)}"]
 
     def full_path(self):
         """Return the absolute path of the Go module."""
@@ -63,17 +63,35 @@ class GoModule:
         >>> [mod.dependency_path("7.27.0") for mod in mods]
         ["github.com/DataDog/datadog-agent@v7.27.0", "github.com/DataDog/datadog-agent/pkg/util/log@v0.27.0"]
         """
-        return "{import_path}@{version}".format(import_path=self.import_path, version=self.__version(agent_version))
+        return f"{self.import_path}@{self.__version(agent_version)}"
 
 
 DEFAULT_MODULES = {
-    ".": GoModule(".", targets=["./pkg", "./cmd"], dependencies=["pkg/util/log", "pkg/util/winutil", "pkg/quantile"]),
-    "pkg/util/log": GoModule("pkg/util/log"),
+    ".": GoModule(
+        ".",
+        targets=["./pkg", "./cmd"],
+        dependencies=[
+            "pkg/util/scrubber",
+            "pkg/util/log",
+            "pkg/util/winutil",
+            "pkg/quantile",
+            "pkg/otlp/model",
+            "pkg/obfuscate",
+            "pkg/security/secl",
+        ],
+    ),
+    "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
+    "pkg/util/log": GoModule("pkg/util/log", dependencies=["pkg/util/scrubber"]),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(
-        "pkg/util/winutil", condition=lambda: sys.platform == 'win32', dependencies=["pkg/util/log"]
+        "pkg/util/winutil",
+        condition=lambda: sys.platform == 'win32',
+        dependencies=["pkg/util/log"],
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
+    "pkg/obfuscate": GoModule("pkg/obfuscate"),
+    "pkg/otlp/model": GoModule("pkg/otlp/model", dependencies=["pkg/quantile"]),
+    "pkg/security/secl": GoModule("pkg/security/secl"),
 }
 
 MAIN_TEMPLATE = """package main
@@ -107,5 +125,5 @@ def generate_dummy_package(ctx, folder):
         ctx.run("go mod init example.com/testmodule")
         for mod in DEFAULT_MODULES.values():
             if mod.path != ".":
-                ctx.run("go mod edit -require={}".format(mod.dependency_path("0.0.0")))
-                ctx.run("go mod edit -replace {}=../{}".format(mod.import_path, mod.path))
+                ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
+                ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")

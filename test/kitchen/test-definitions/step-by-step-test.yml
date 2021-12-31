@@ -8,7 +8,6 @@ suites:
     - "recipe[dd-agent-enable-fips::ensure]"
     <% end %>
     - "recipe[dd-agent-disable-system-repos]"
-    - "recipe[dd-agent-debian-workaround]"
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-step-by-step]"
   attributes:
@@ -20,4 +19,5 @@ suites:
       <%= key %>: <%= value %>
       <% end %>
     dd-agent-rspec:
+      agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>

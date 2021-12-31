@@ -18,6 +18,7 @@ type instanceTest struct {
 	expression   string
 	vars         VarMap
 	functions    FunctionMap
+	regoInput    RegoInputMap
 	expectResult interface{}
 	expectError  error
 }
@@ -29,7 +30,7 @@ func (test instanceTest) Run(t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(expr)
 
-	instance := NewInstance(test.vars, test.functions)
+	instance := NewInstance(test.vars, test.functions, test.regoInput)
 	result, err := expr.Evaluate(instance)
 	if test.expectError != nil {
 		assert.Equal(test.expectError, err)
@@ -607,6 +608,7 @@ func TestEvalSubExpression(t *testing.T) {
 type iteratorFixture struct {
 	vars      VarMap
 	functions FunctionMap
+	regoInput RegoInputMap
 	err       error
 }
 
@@ -622,7 +624,7 @@ func (i *iteratorMock) Next() (Instance, error) {
 			return nil, current.err
 		}
 
-		result := NewInstance(current.vars, current.functions)
+		result := NewInstance(current.vars, current.functions, current.regoInput)
 
 		i.index++
 		return result, nil
@@ -672,7 +674,7 @@ func (tests iterableTests) Run(fixtures []iteratorFixture, t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.global == nil {
-				test.global = NewInstance(nil, nil)
+				test.global = NewInstance(nil, nil, nil)
 			}
 			test.Run(fixtures, t)
 		})
@@ -820,7 +822,8 @@ func TestEvalIterableError(t *testing.T) {
 
 func TestEvalPathExpression(t *testing.T) {
 	instance := NewInstance(
-		nil, map[string]Function{
+		nil,
+		map[string]Function{
 			"shell.command.stdout": func(instance Instance, args ...interface{}) (interface{}, error) {
 				return "/etc/path-from-command", nil
 			},
@@ -828,6 +831,7 @@ func TestEvalPathExpression(t *testing.T) {
 				return "/etc/path-from-process", nil
 			},
 		},
+		nil,
 	)
 
 	tests := []struct {

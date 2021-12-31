@@ -34,7 +34,7 @@ type Service interface {
 	GetHostname(context.Context) (string, error)         // hostname.domainname for the entity
 	GetCreationTime() integration.CreationTime           // created before or after the agent start
 	IsReady(context.Context) bool                        // is the service ready
-	GetCheckNames(context.Context) []string              // slice of check names defined in kubernetes annotations or docker labels
+	GetCheckNames(context.Context) []string              // slice of check names defined in kubernetes annotations or container labels
 	HasFilter(containers.FilterType) bool                // whether the service is excluded by metrics or logs exclusion config
 	GetExtraConfig([]byte) ([]byte, error)               // Extra configuration values
 }
@@ -48,8 +48,13 @@ type ServiceListener interface {
 	Stop()
 }
 
+// Config represents autodiscovery listener config
+type Config interface {
+	IsProviderEnabled(string) bool
+}
+
 // ServiceListenerFactory builds a service listener
-type ServiceListenerFactory func() (ServiceListener, error)
+type ServiceListenerFactory func(Config) (ServiceListener, error)
 
 // ServiceListenerFactories holds the registered factories
 var ServiceListenerFactories = make(map[string]ServiceListenerFactory)
@@ -58,10 +63,12 @@ var ServiceListenerFactories = make(map[string]ServiceListenerFactory)
 func Register(name string, factory ServiceListenerFactory) {
 	if factory == nil {
 		log.Warnf("Service listener factory %s does not exist.", name)
+		return
 	}
 	_, registered := ServiceListenerFactories[name]
 	if registered {
 		log.Errorf("Service listener factory %s already registered. Ignoring.", name)
+		return
 	}
 	ServiceListenerFactories[name] = factory
 }

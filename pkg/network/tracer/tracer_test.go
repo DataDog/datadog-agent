@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf || (windows && npm)
 // +build linux_bpf windows,npm
 
 package tracer
@@ -427,7 +433,6 @@ func TestTCPCollectionDisabled(t *testing.T) {
 
 func TestUDPSendAndReceive(t *testing.T) {
 	// incoming.MonotonicSentBytes is 0, when it should be 512
-	skipIfWindows(t)
 
 	// Enable BPF-based system probe
 	cfg := testConfig()
@@ -1040,10 +1045,31 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 
+	dnsKey, ok := network.DNSKey(conn)
+	require.True(t, ok)
+
+	dnsStats, ok := connections.DNSStats[dnsKey]
+	require.True(t, ok)
+
+	var total uint32
+	var successfulResponses uint32
+	var timeouts uint32
+	for _, byDomain := range dnsStats {
+		for _, byQueryType := range byDomain {
+			successfulResponses += byQueryType.CountByRcode[uint32(0)]
+			timeouts += byQueryType.Timeouts
+			for _, count := range byQueryType.CountByRcode {
+				total += count
+			}
+		}
+	}
+
+	failedResponses := total - successfulResponses
+
 	// DNS Stats
-	assert.Equal(t, uint32(success), conn.DNSSuccessfulResponses)
-	assert.Equal(t, uint32(failure), conn.DNSFailedResponses)
-	assert.Equal(t, uint32(timeout), conn.DNSTimeouts)
+	assert.Equal(t, uint32(success), successfulResponses)
+	assert.Equal(t, uint32(failure), failedResponses)
+	assert.Equal(t, uint32(timeout), timeouts)
 }
 
 func TestDNSStatsForValidDomain(t *testing.T) {
@@ -1196,10 +1222,20 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 }
 
 func TestConnectionClobber(t *testing.T) {
-	tr, err := NewTracer(testConfig())
-	if err != nil {
-		t.Fatal(err)
+	cfg := testConfig()
+	cfg.CollectUDPConns = false
+	cfg.ExcludedDestinationConnections = map[string][]string{
+		"0.0.0.0/2":   {"*"},
+		"64.0.0.0/3":  {"*"},
+		"96.0.0.0/4":  {"*"},
+		"112.0.0.0/5": {"*"},
+		"120.0.0.0/6": {"*"},
+		"124.0.0.0/7": {"*"},
+		"126.0.0.0/8": {"*"},
+		"128.0.0.0/1": {"*"},
 	}
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
 	defer tr.Stop()
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
@@ -1254,10 +1290,10 @@ func TestConnectionClobber(t *testing.T) {
 
 	// wait for tracer to pick up all connections
 	//
-	// there is not good way do this other than a sleep since we
-	// can't call getConnections in a require.Eventually call
+	// there is not a good way do this other than a sleep since we
+	// can't call getConnections in a `require.Eventually` call
 	// to the get the number of connections as that could
-	// affect the tr.buffer length
+	// affect the `activeBuffer` length
 	time.Sleep(2 * time.Second)
 
 	preCap := tr.activeBuffer.Capacity()
@@ -1267,7 +1303,7 @@ func TestConnectionClobber(t *testing.T) {
 	dst := connections.Conns[0].DPort
 	t.Logf("got %d connections", len(connections.Conns))
 	// ensure we didn't grow or shrink the buffer
-	require.Equal(t, preCap, tr.activeBuffer.Capacity())
+	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 
 	for _, c := range append(conns, serverConns...) {
 		c.Close()
@@ -1285,9 +1321,9 @@ func TestConnectionClobber(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	t.Logf("got %d connections", len(getConnections(t, tr).Conns))
-	require.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
-	require.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
-	require.Equal(t, preCap, tr.activeBuffer.Capacity())
+	assert.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
+	assert.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
+	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 }
 
 func TestTCPDirection(t *testing.T) {
@@ -1498,6 +1534,10 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
 	}
 
+	if strings.HasPrefix(runtime.GOARCH, "arm") {
+		t.Skip("this feature is not yet support on arm")
+	}
+
 	wget, err := exec.LookPath("wget")
 	if err != nil {
 		t.Skip("wget not found; skipping test.")
@@ -1514,8 +1554,6 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("libssl.so not found; skipping test.")
 	}
 
-	os.Setenv("SSL_LIB_PATHS", libSSLPath)
-
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -1525,20 +1563,22 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	defer tr.Stop()
 
 	// Spin-up HTTPS server
-	enableTLS := true
-	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", enableTLS)
+	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+		EnableTLS: true,
+	})
 	defer serverDoneFn()
+
+	// Run wget once to make sure the OpenSSL is detected and uprobes are attached
+	exec.Command(wget).Run()
+	time.Sleep(time.Second)
 
 	// Issue request using `wget`
 	// This is necessary (as opposed to using net/http) because we want to
 	// test a HTTP client linked to OpenSSL
 	const targetURL = "https://127.0.0.1:443/200/foobar"
 	requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
-	err1 := requestCmd.Start()
-	err2 := requestCmd.Wait()
-	if err1 != nil || err2 != nil {
-		t.Skip("failed to issue request command; skipping test.")
-	}
+	err = requestCmd.Run()
+	require.NoErrorf(t, err, "failed to issue request via wget: %s", err)
 
 	require.Eventuallyf(t, func() bool {
 		payload, err := tr.GetActiveConnections("1")

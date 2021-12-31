@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package epforwarder
 
 import (
@@ -61,7 +66,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:                     EventTypeNetworkDevicesMetadata,
 		endpointsConfigPrefix:         "network_devices.metadata.",
-		hostnameEndpointPrefix:        "network-devices.",
+		hostnameEndpointPrefix:        "ndm-intake.",
+		intakeTrackType:               "ndm",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
@@ -140,9 +146,10 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender  *sender.Sender
-	in      chan *message.Message
-	auditor auditor.Auditor
+	sender   *sender.Sender
+	strategy sender.Strategy
+	in       chan *message.Message
+	auditor  auditor.Auditor
 }
 
 type passthroughPipelineDesc struct {
@@ -158,7 +165,7 @@ type passthroughPipelineDesc struct {
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
-func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext) (p *passthroughPipeline, err error) {
+func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig.Datadog)
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
@@ -177,33 +184,56 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	if endpoints.BatchMaxSize <= pkgconfig.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
-	main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
-	additionals := []client.Destination{}
-	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+	reliable := []client.Destination{}
+	for i, endpoint := range endpoints.GetReliableEndpoints() {
+		telemetryName := fmt.Sprintf("%s_%d_reliable_%d", desc.eventType, pipelineID, i)
+		reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName))
 	}
-	destinations := client.NewDestinations(main, additionals)
+	additionals := []client.Destination{}
+	for i, endpoint := range endpoints.GetUnReliableEndpoints() {
+		telemetryName := fmt.Sprintf("%s_%d_unreliable_%d", desc.eventType, pipelineID, i)
+		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
+	}
+	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, 100)
-	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType)
+	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
+
+	encoder := sender.IdentityContentType
+	if endpoints.Main.UseCompression {
+		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+	}
+
+	strategy := sender.NewBatchStrategy(inputChan,
+		senderInput,
+		sender.ArraySerializer,
+		endpoints.BatchWait,
+		pkgconfig.DefaultBatchMaxSize,
+		endpoints.BatchMaxContentSize,
+		desc.eventType,
+		encoder)
+
 	a := auditor.NewNullAuditor()
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
-		desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
+	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
+		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
 	return &passthroughPipeline{
-		sender:  sender.NewSender(inputChan, a.Channel(), destinations, strategy),
-		in:      inputChan,
-		auditor: a,
+		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 10),
+		strategy: strategy,
+		in:       inputChan,
+		auditor:  a,
 	}, nil
 }
 
 func (p *passthroughPipeline) Start() {
 	p.auditor.Start()
-	if p.sender != nil {
+	if p.strategy != nil {
+		p.strategy.Start()
 		p.sender.Start()
 	}
 }
 
 func (p *passthroughPipeline) Stop() {
 	p.sender.Stop()
+	p.strategy.Stop()
 	p.auditor.Stop()
 }
 
@@ -219,8 +249,8 @@ func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
-	for _, desc := range passthroughPipelineDescs {
-		p, err := newHTTPPassthroughPipeline(desc, destinationsCtx)
+	for i, desc := range passthroughPipelineDescs {
+		p, err := newHTTPPassthroughPipeline(desc, destinationsCtx, i)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -244,7 +274,7 @@ func NewNoopEventPlatformForwarder() EventPlatformForwarder {
 	f := newDefaultEventPlatformForwarder()
 	// remove the senders
 	for _, p := range f.pipelines {
-		p.sender = nil
+		p.strategy = nil
 	}
 	return f
 }

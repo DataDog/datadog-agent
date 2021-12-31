@@ -13,7 +13,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 

@@ -20,7 +20,7 @@ import (
 type ResourcesCollector struct{}
 
 // Send collects the data needed and submits the payload
-func (rp *ResourcesCollector) Send(ctx context.Context, s *serializer.Serializer) error {
+func (rp *ResourcesCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	hostname, _ := util.GetHostname(ctx)
 
 	res := resources.GetPayload(hostname)

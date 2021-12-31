@@ -5,6 +5,7 @@
 #include <linux/sched.h>
 
 #include "container.h"
+#include "span.h"
 
 struct proc_cache_t {
     struct container_context_t container;

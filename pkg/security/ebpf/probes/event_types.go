@@ -10,7 +10,7 @@ package probes
 import (
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
@@ -214,6 +214,33 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_getattr", EBPFFuncName: "kprobe_security_inode_getattr"}},
 		}},
+
+		// Link
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_link", EBPFFuncName: "kprobe_vfs_link"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/filename_create", EBPFFuncName: "kprobe_filename_create"}},
+		}},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "link"}, EntryAndExit),
+		},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "linkat"}, EntryAndExit),
+		},
+
+		// selinux
+		// This needs to be best effort, as sel_write_disable is in the process to be removed
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_disable", EBPFFuncName: "kprobe_sel_write_disable"}},
+		}},
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_enforce", EBPFFuncName: "kprobe_sel_write_enforce"}},
+		}},
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_bool", EBPFFuncName: "kprobe_sel_write_bool"}},
+		}},
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_commit_bools_write", EBPFFuncName: "kprobe_sel_commit_bools_write"}},
+		}},
 	},
 
 	// List of probes to activate to capture chmod events
@@ -263,20 +290,6 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		},
 		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "lchown16"}, EntryAndExit),
-		},
-	},
-
-	// List of probes to activate to capture link events
-	"link": {
-		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_link", EBPFFuncName: "kprobe_vfs_link"}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/filename_create", EBPFFuncName: "kprobe_filename_create"}},
-		}},
-		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "link"}, EntryAndExit),
-		},
-		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "linkat"}, EntryAndExit),
 		},
 	},
 
@@ -368,19 +381,15 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		},
 	},
 
-	"selinux": {
-		// This needs to be best effort, as sel_write_disable is in the process to be removed
+	// List of probes to activate to capture bpf events
+	"bpf": {
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_disable", EBPFFuncName: "kprobe_sel_write_disable"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_bpf_map", EBPFFuncName: "kprobe_security_bpf_map"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_bpf_prog", EBPFFuncName: "kprobe_security_bpf_prog"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/check_helper_call", EBPFFuncName: "kprobe_check_helper_call"}},
 		}},
-		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_enforce", EBPFFuncName: "kprobe_sel_write_enforce"}},
-		}},
-		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_write_bool", EBPFFuncName: "kprobe_sel_write_bool"}},
-		}},
-		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_commit_bools_write", EBPFFuncName: "kprobe_sel_commit_bools_write"}},
-		}},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "bpf"}, EntryAndExit),
+		},
 	},
 }

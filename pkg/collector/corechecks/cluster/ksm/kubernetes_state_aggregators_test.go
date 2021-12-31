@@ -21,14 +21,14 @@ var _ metricAggregator = &countObjectsAggregator{}
 func Test_counterAggregator(t *testing.T) {
 	tests := []struct {
 		name          string
-		metricName    string
+		ddMetricName  string
 		allowedLabels []string
 		metrics       []ksmstore.DDMetric
 		expected      []metricsExpected
 	}{
 		{
 			name:          "One allowed label",
-			metricName:    "my.count",
+			ddMetricName:  "my.count",
 			allowedLabels: []string{"foo"},
 			metrics: []ksmstore.DDMetric{
 				{
@@ -75,7 +75,7 @@ func Test_counterAggregator(t *testing.T) {
 		},
 		{
 			name:          "Two allowed labels",
-			metricName:    "my.count",
+			ddMetricName:  "my.count",
 			allowedLabels: []string{"foo", "bar"},
 			metrics: []ksmstore.DDMetric{
 				{
@@ -175,7 +175,7 @@ func Test_counterAggregator(t *testing.T) {
 		s.SetupAcceptAll()
 
 		t.Run(tt.name, func(t *testing.T) {
-			agg := newSumValuesAggregator(tt.metricName, tt.allowedLabels)
+			agg := newSumValuesAggregator(tt.ddMetricName, "", tt.allowedLabels)
 			for _, metric := range tt.metrics {
 				agg.accumulate(metric)
 			}

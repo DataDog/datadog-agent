@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package valuestore
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -21,8 +27,8 @@ type ScalarResultValuesType map[string]ResultValue
 // ResultValueStore store OID values
 type ResultValueStore struct {
 	// TODO: make fields private + use a constructor instead
-	ScalarValues ScalarResultValuesType
-	ColumnValues ColumnResultValuesType
+	ScalarValues ScalarResultValuesType `json:"scalar_values"`
+	ColumnValues ColumnResultValuesType `json:"column_values"`
 }
 
 // GetScalarValue look for oid in ResultValueStore and returns the value and boolean
@@ -65,36 +71,6 @@ func (v *ResultValueStore) getColumnValue(oid string, index string) (ResultValue
 	return value, nil
 }
 
-// GetScalarValueAsString returns a scalar value as string
-func (v *ResultValueStore) GetScalarValueAsString(oid string) string {
-	value, err := v.GetScalarValue(oid)
-	if err != nil {
-		log.Tracef("failed to get value for OID %s: %s", oid, err)
-		return ""
-	}
-	str, err := value.ToString()
-	if err != nil {
-		log.Tracef("failed to convert to string for OID %s with value %v: %s", oid, value, err)
-		return ""
-	}
-	return str
-}
-
-// GetColumnValueAsString look for oid/index in ResultValueStore and returns a string
-func (v *ResultValueStore) GetColumnValueAsString(oid string, index string) string {
-	value, err := v.getColumnValue(oid, index)
-	if err != nil {
-		log.Tracef("failed to get value for OID %s with index %s: %s", oid, index, err)
-		return ""
-	}
-	str, err := value.ToString()
-	if err != nil {
-		log.Tracef("failed to convert to string for OID %s with value %v: %s", oid, value, err)
-		return ""
-	}
-	return str
-}
-
 // GetColumnValueAsFloat look for oid/index in ResultValueStore and returns a float64
 func (v *ResultValueStore) GetColumnValueAsFloat(oid string, index string) float64 {
 	value, err := v.getColumnValue(oid, index)
@@ -128,4 +104,17 @@ func (v *ResultValueStore) GetColumnIndexes(columnOid string) ([]string, error) 
 
 	sort.Strings(indexes) // sort indexes for better consistency
 	return indexes, nil
+}
+
+// ResultValueStoreAsString used to format ResultValueStore for debug/trace logging
+func ResultValueStoreAsString(values *ResultValueStore) string {
+	if values == nil {
+		return ""
+	}
+	jsonPayload, err := json.Marshal(values)
+	if err != nil {
+		log.Debugf("error marshaling debugVar: %s", err)
+		return ""
+	}
+	return string(jsonPayload)
 }

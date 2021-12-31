@@ -18,6 +18,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -346,6 +347,40 @@ func TestDescribeItem(t *testing.T) {
 	// Out of range
 	desc2 := series.DescribeItem(2)
 	assert.Equal(t, "out of range", desc2)
+}
+
+func TestMarshalSplitCompress(t *testing.T) {
+	const numItems = 10000
+	const numPoints = 50
+	var series Series
+	series = make([]*Serie, 0, numItems)
+	for i := 0; i < numItems; i++ {
+		series = append(series, &Serie{
+			Points: func() []Point {
+				ps := make([]Point, numPoints)
+				for p := 0; p < numPoints; p++ {
+					ps[p] = Point{Ts: float64(p * i), Value: float64(p + i)}
+				}
+				return ps
+			}(),
+			MType:    APIGaugeType,
+			Name:     "test.metrics",
+			Interval: 15,
+			Host:     "localHost",
+			Tags:     []string{"tag1", "tag2:yes"},
+		})
+	}
+
+	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	require.NoError(t, err)
+	// check that we got multiple payloads, so splitting occurred
+	require.Greater(t, len(payloads), 1)
+	for _, compressedPayload := range payloads {
+		_, err := decompressPayload(*compressedPayload)
+		require.NoError(t, err)
+
+		// TODO: unmarshal these when agent-payload has support
+	}
 }
 
 // test taken from the spliter
