@@ -20,7 +20,7 @@ api_key:
 #
 # site: datadoghq.com
 
-## @param dd_url - string - optional - default: https://app.datadoghq.com
+## @param dd_url - string - optional - default: https://app.datadoghq.com 
 ## @env DD_URL - string - optional - default: https://app.datadoghq.com
 ## The host of the Datadog intake server to send metrics to, only set this option
 ## if you need the Agent to send metrics to a custom URL, it overrides the site
