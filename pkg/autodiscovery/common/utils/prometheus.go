@@ -30,15 +30,15 @@ func buildInstances(pc *types.PrometheusCheck, annotations map[string]string, na
 			log.Debugf("'%s' matched the annotation '%s=%s' to schedule an openmetrics check", namespacedName, k, v)
 			for _, instance := range pc.Instances {
 				instanceValues := *instance
-				if instanceValues.URLv1 == "" && instanceValues.URLv2 == "" {
+				if instanceValues.PrometheusURL == "" && instanceValues.OpenMetricsEndpoint == "" {
 					switch openmetricsVersion {
 					case 1:
-						instanceValues.URLv1 = types.BuildURL(annotations)
+						instanceValues.PrometheusURL = types.BuildURL(annotations)
 						if len(instanceValues.Metrics) == 1 && instanceValues.Metrics[0] == "PLACEHOLDER" {
 							instanceValues.Metrics = types.OpenmetricsDefaultMetricsv1
 						}
 					case 2:
-						instanceValues.URLv2 = types.BuildURL(annotations)
+						instanceValues.OpenMetricsEndpoint = types.BuildURL(annotations)
 						if len(instanceValues.Metrics) == 1 && instanceValues.Metrics[0] == "PLACEHOLDER" {
 							instanceValues.Metrics = types.OpenmetricsDefaultMetricsv2
 						}
