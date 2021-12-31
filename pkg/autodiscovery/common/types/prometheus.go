@@ -37,7 +37,9 @@ var (
 		PrometheusPathAnnotation,
 		PrometheusPortAnnotation,
 	}
+	// OpenmetricsDefaultMetricsv1 containers the wildcard pattern to match all metrics
 	OpenmetricsDefaultMetricsv1 = []string{"*"}
+	// OpenmetricsDefaultMetricsv2 containers the match-all regular expression to match all metrics
 	OpenmetricsDefaultMetricsv2 = []string{".*"}
 )
 

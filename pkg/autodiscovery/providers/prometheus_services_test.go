@@ -170,7 +170,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Name:       "openmetrics",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"openmetrics_endpoint":"http://%%host%%:1234/mewtrix","namespace":"","metrics":[".*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
 					ADIdentifiers: []string{"kube_service://ns/svc"},
 					Provider:      "prometheus-services",
@@ -232,7 +232,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Name:       "openmetrics",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"openmetrics_endpoint":"http://%%host%%:1234/mewtrix","namespace":"","metrics":[".*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
 					ADIdentifiers: []string{"kube_service://ns/svc"},
 					Provider:      "prometheus-services",
@@ -244,7 +244,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Entity:     "kube_endpoint_uid://ns/svc/10.0.0.1",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"openmetrics_endpoint":"http://%%host%%:1234/mewtrix","namespace":"","metrics":[".*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
 					ADIdentifiers: []string{"kube_endpoint_uid://ns/svc/10.0.0.1", "kubernetes_pod://svc-pod-1"},
 					NodeName:      "node1",
@@ -257,7 +257,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Entity:     "kube_endpoint_uid://ns/svc/10.0.0.2",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"openmetrics_endpoint":"http://%%host%%:1234/mewtrix","namespace":"","metrics":[".*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
 					ADIdentifiers: []string{"kube_endpoint_uid://ns/svc/10.0.0.2", "kubernetes_pod://svc-pod-2"},
 					NodeName:      "node2",

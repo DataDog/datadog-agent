@@ -44,7 +44,7 @@ func TestConfigsForService(t *testing.T) {
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data(`{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics","namespace":"","metrics":[".*"]}`)},
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					ClusterCheck:  true,
 					Provider:      names.PrometheusServices,
 					Source:        "prometheus_services:kube_service://ns/svc-foo",
@@ -53,13 +53,13 @@ func TestConfigsForService(t *testing.T) {
 			},
 		},
 		{
-			name: "custom prometheus_url",
+			name: "custom openmetrics_endpoint",
 			check: &types.PrometheusCheck{
 				Instances: []*types.OpenmetricsInstance{
 					{
-						URL:       "foo/bar",
-						Metrics:   []string{".*"},
-						Namespace: "",
+						OpenMetricsEndpoint: "foo/bar",
+						Metrics:             []string{".*"},
+						Namespace:           "",
 					},
 				},
 			},
@@ -75,7 +75,38 @@ func TestConfigsForService(t *testing.T) {
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data(`{"openmetrics_endpoint":"foo/bar","namespace":"","metrics":[".*"]}`)},
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"foo/bar"}`)},
+					ClusterCheck:  true,
+					Provider:      names.PrometheusServices,
+					Source:        "prometheus_services:kube_service://ns/svc-foo",
+					ADIdentifiers: []string{"kube_service://ns/svc-foo"},
+				},
+			},
+		},
+		{
+			name: "custom prometheus_url",
+			check: &types.PrometheusCheck{
+				Instances: []*types.OpenmetricsInstance{
+					{
+						PrometheusURL: "foo/bar",
+						Metrics:       []string{"*"},
+						Namespace:     "",
+					},
+				},
+			},
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:         k8stypes.UID("foo-uid"),
+					Name:        "svc-foo",
+					Annotations: map[string]string{"prometheus.io/scrape": "true"},
+					Namespace:   "ns",
+				},
+			},
+			want: []integration.Config{
+				{
+					Name:          "openmetrics",
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data(`{"prometheus_url":"foo/bar","namespace":"","metrics":["*"]}`)},
 					ClusterCheck:  true,
 					Provider:      names.PrometheusServices,
 					Source:        "prometheus_services:kube_service://ns/svc-foo",

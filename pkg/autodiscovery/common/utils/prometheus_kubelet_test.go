@@ -53,7 +53,7 @@ func TestConfigsForPod(t *testing.T) {
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data(`{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics","namespace":"","metrics":[".*"]}`)},
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					Provider:      names.PrometheusPods,
 					Source:        "prometheus_pods:foo-ctr-id",
 					ADIdentifiers: []string{"foo-ctr-id"},
@@ -61,13 +61,13 @@ func TestConfigsForPod(t *testing.T) {
 			},
 		},
 		{
-			name: "custom prometheus_url",
+			name: "custom openmetrics_endpoint",
 			check: &types.PrometheusCheck{
 				Instances: []*types.OpenmetricsInstance{
 					{
-						URL:       "foo/bar",
-						Metrics:   []string{".*"},
-						Namespace: "",
+						OpenMetricsEndpoint: "foo/bar",
+						Metrics:             []string{".*"},
+						Namespace:           "",
 					},
 				},
 			},
@@ -95,7 +95,49 @@ func TestConfigsForPod(t *testing.T) {
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data(`{"openmetrics_endpoint":"foo/bar","namespace":"","metrics":[".*"]}`)},
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"foo/bar"}`)},
+					Provider:      names.PrometheusPods,
+					Source:        "prometheus_pods:foo-ctr-id",
+					ADIdentifiers: []string{"foo-ctr-id"},
+				},
+			},
+		},
+		{
+			name: "custom prometheus_url",
+			check: &types.PrometheusCheck{
+				Instances: []*types.OpenmetricsInstance{
+					{
+						PrometheusURL: "foo/bar",
+						Metrics:       []string{"*"},
+						Namespace:     "",
+					},
+				},
+			},
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:        "foo-pod",
+					Annotations: map[string]string{"prometheus.io/scrape": "true"},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr",
+							ID:   "foo-ctr-id",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr",
+							ID:   "foo-ctr-id",
+						},
+					},
+				},
+			},
+			want: []integration.Config{
+				{
+					Name:          "openmetrics",
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data(`{"prometheus_url":"foo/bar","namespace":"","metrics":["*"]}`)},
 					Provider:      names.PrometheusPods,
 					Source:        "prometheus_pods:foo-ctr-id",
 					ADIdentifiers: []string{"foo-ctr-id"},
@@ -187,7 +229,7 @@ func TestConfigsForPod(t *testing.T) {
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data(`{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics","namespace":"","metrics":[".*"]}`)},
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					Provider:      names.PrometheusPods,
 					Source:        "prometheus_pods:foo-ctr1-id",
 					ADIdentifiers: []string{"foo-ctr1-id"},
@@ -195,7 +237,7 @@ func TestConfigsForPod(t *testing.T) {
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data(`{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics","namespace":"","metrics":[".*"]}`)},
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					Provider:      names.PrometheusPods,
 					Source:        "prometheus_pods:foo-ctr2-id",
 					ADIdentifiers: []string{"foo-ctr2-id"},
@@ -241,7 +283,7 @@ func TestConfigsForPod(t *testing.T) {
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data(`{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics","namespace":"","metrics":[".*"]}`)},
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					Provider:      names.PrometheusPods,
 					Source:        "prometheus_pods:foo-ctr1-id",
 					ADIdentifiers: []string{"foo-ctr1-id"},
@@ -308,7 +350,7 @@ func TestConfigsForPod(t *testing.T) {
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data(`{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics","namespace":"","metrics":[".*"]}`)},
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					Provider:      names.PrometheusPods,
 					Source:        "prometheus_pods:foo-ctr-id",
 					ADIdentifiers: []string{"foo-ctr-id"},
