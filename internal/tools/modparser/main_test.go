@@ -8,53 +8,59 @@ import (
 )
 
 func TestParseMod(t *testing.T) {
-	modPath := "./testdata/match"
+	testInstances := []struct {
+		modPath     string
+		expectedErr error
+	}{
+		{
+			modPath:     "./testdata/match",
+			expectedErr: nil,
+		},
+		{
+			modPath:     "./testdata/match/",
+			expectedErr: nil,
+		},
+		{
+			modPath:     "./testdata/nonexistant/",
+			expectedErr: fmt.Errorf("could not read go.mod file in ./testdata/nonexistant/"),
+		},
+		{
+			modPath:     "./testdata/badformat/",
+			expectedErr: fmt.Errorf("could not parse go.mod file in ./testdata/badformat/"),
+		},
+	}
 
-	_, err := parseMod(modPath)
-	assert.NoError(t, err)
-}
-
-func TestParseModSlash(t *testing.T) {
-	modPath := "./testdata/match/"
-
-	_, err := parseMod(modPath)
-	assert.NoError(t, err)
-}
-
-func TestParseModMissing(t *testing.T) {
-	modPath := "./testdata/nonexistant/"
-
-	_, err := parseMod(modPath)
-	assert.Error(t, err)
-	assert.EqualError(t, err, fmt.Sprintf("could not read go.mod file in %s", modPath))
-}
-
-func TestParseModBadFormat(t *testing.T) {
-	modPath := "./testdata/badformat/"
-
-	_, err := parseMod(modPath)
-	assert.Error(t, err)
-	assert.EqualError(t, err, fmt.Sprintf("could not parse go.mod file in %s", modPath))
+	for _, testInstance := range testInstances {
+		_, err := parseMod(testInstance.modPath)
+		if testInstance.expectedErr != nil {
+			assert.Error(t, err)
+			assert.Equal(t, err, testInstance.expectedErr)
+		} else {
+			assert.NoError(t, err)
+		}
+	}
 }
 
 func TestFilterMatch(t *testing.T) {
-	modPath := "./testdata/match"
+	testInstances := []struct {
+		modPath         string
+		expectedMatches []string
+	}{
+		{
+			modPath:         "./testdata/match",
+			expectedMatches: []string{"github.com/DataDog/datadog-agent/pkg/test"},
+		},
+		{
+			modPath:         "./testdata/nomatch",
+			expectedMatches: []string{},
+		},
+	}
 
-	parsedFile, err := parseMod(modPath)
-	assert.NoError(t, err)
+	for _, testInstance := range testInstances {
+		parsedFile, err := parseMod(testInstance.modPath)
+		assert.NoError(t, err)
 
-	matches := filter(parsedFile, "github.com/DataDog/datadog-agent")
-	expectedMatches := []string{"github.com/DataDog/datadog-agent/pkg/test"}
-	assert.Equal(t, 1, len(matches))
-	assert.ElementsMatch(t, expectedMatches, matches)
-}
-
-func TestFilterNoMatch(t *testing.T) {
-	modPath := "./testdata/nomatch"
-
-	parsedFile, err := parseMod(modPath)
-	assert.NoError(t, err)
-
-	matches := filter(parsedFile, "github.com/DataDog/datadog-agent")
-	assert.Equal(t, 0, len(matches))
+		matches := filter(parsedFile, "github.com/DataDog/datadog-agent")
+		assert.ElementsMatch(t, matches, testInstance.expectedMatches)
+	}
 }
