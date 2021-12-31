@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 
 from invoke import task
@@ -7,10 +8,9 @@ from invoke import task
 class GoModule:
     """A Go module abstraction."""
 
-    def __init__(self, path, targets=None, condition=lambda: True, dependencies=None, should_tag=True):
+    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True):
         self.path = path
         self.targets = targets if targets else ["."]
-        self.dependencies = dependencies if dependencies else []
         self.condition = condition
         self.should_tag = should_tag
 
@@ -57,6 +57,25 @@ class GoModule:
             path += "/" + self.path
         return path
 
+    @property
+    def dependencies(self):
+        """
+        Return the list of github.com/DataDog/datadog-agent/ dependencies of the module.
+        """
+        prefix = "github.com/DataDog/datadog-agent/"
+        try:
+            output = subprocess.check_output(
+                ["go", "run", ".", os.path.join(os.getcwd(), self.path), prefix],
+                cwd=os.path.join(os.getcwd(), "internal", "tools", "modparser"),
+            ).decode("utf-8")
+        except subprocess.CalledProcessError as e:
+            print(f"Error while calling go.mod parser: {e.output}")
+            raise e
+
+        for line in output.strip().splitlines():
+            # Remove github.com/DataDog/datadog-agent/ from each line
+            yield line[len(prefix) :]
+
     def dependency_path(self, agent_version):
         """Return the versioned dependency path of the Go module
         >>> mods = [GoModule("."), GoModule("pkg/util/log")]
@@ -70,27 +89,17 @@ DEFAULT_MODULES = {
     ".": GoModule(
         ".",
         targets=["./pkg", "./cmd"],
-        dependencies=[
-            "pkg/util/scrubber",
-            "pkg/util/log",
-            "pkg/util/winutil",
-            "pkg/quantile",
-            "pkg/otlp/model",
-            "pkg/obfuscate",
-            "pkg/security/secl",
-        ],
     ),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
-    "pkg/util/log": GoModule("pkg/util/log", dependencies=["pkg/util/scrubber"]),
+    "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(
         "pkg/util/winutil",
         condition=lambda: sys.platform == 'win32',
-        dependencies=["pkg/util/log"],
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
     "pkg/obfuscate": GoModule("pkg/obfuscate"),
-    "pkg/otlp/model": GoModule("pkg/otlp/model", dependencies=["pkg/quantile"]),
+    "pkg/otlp/model": GoModule("pkg/otlp/model"),
     "pkg/security/secl": GoModule("pkg/security/secl"),
 }
 
