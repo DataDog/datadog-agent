@@ -364,9 +364,9 @@ func TestLoadEnv(t *testing.T) {
 		defer os.Unsetenv(env)
 		cfg, err := Load("./testdata/full.yaml")
 		assert.NoError(err)
-		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key1", Host: "url1"})
-		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key2", Host: "url1"})
-		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key3", Host: "url2"})
+		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key1", Host: urlMustParse("url1")})
+		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key2", Host: urlMustParse("url1")})
+		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key3", Host: urlMustParse("url2")})
 	})
 
 	env = "DD_APM_PROFILING_DD_URL"

@@ -111,13 +111,22 @@ func testServerError(t *testing.T) *httptest.Server {
 	return server
 }
 
+// Temporary solution for first step of refactoring
+func urlMustParse(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return u
+}
+
 // run this at the beginning of each test, this is because we *really*
 // need to have InitInfo be called before doing anything
 func testInit(t *testing.T) *config.AgentConfig {
 	assert := assert.New(t)
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "key1"
-	conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: "ABC", APIKey: "key2"})
+	conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: urlMustParse("ABC"), APIKey: "key2"})
 	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
 	assert.NotNil(conf)
 

@@ -18,6 +18,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Temporary solution for first step of refactoring
+func urlMustParse(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return u
+}
+
 // TestInfoHandler ensures that the keys returned by the /info handler do not
 // change from one release to another to ensure consistency. Tracing clients
 // depend on these keys to be the same. The chances of them changing are quite
@@ -55,7 +64,7 @@ func TestInfoHandler(t *testing.T) {
 		ConfigPath: "/path/to/config",
 		Endpoints: []*config.Endpoint{{
 			APIKey:  "123",
-			Host:    "https://target-intake.datadoghq.com",
+			Host:    urlMustParse("https://target-intake.datadoghq.com"),
 			NoProxy: true,
 		}},
 		BucketInterval:   time.Second,
@@ -100,7 +109,7 @@ func TestInfoHandler(t *testing.T) {
 			Endpoints: []*config.Endpoint{
 				{
 					APIKey:  "123",
-					Host:    "https://telemetry-intake.datadoghq.com",
+					Host:    urlMustParse("https://telemetry-intake.datadoghq.com"),
 					NoProxy: true,
 				},
 			},

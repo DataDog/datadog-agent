@@ -91,7 +91,7 @@ func TestProfileProxy(t *testing.T) {
 func printEndpoints(endpoints []*traceconfig.Endpoint) []string {
 	ss := []string{}
 	for _, e := range endpoints {
-		ss = append(ss, e.Host+"|"+e.APIKey)
+		ss = append(ss, e.Host.String()+"|"+e.APIKey)
 	}
 	return ss
 }

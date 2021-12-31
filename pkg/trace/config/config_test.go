@@ -257,12 +257,12 @@ func TestFullYamlConfig(t *testing.T) {
 		noProxy = false
 	}
 	assert.ElementsMatch([]*Endpoint{
-		{Host: "https://datadog.unittests", APIKey: "api_key_test"},
-		{Host: "https://my1.endpoint.com", APIKey: "apikey1"},
-		{Host: "https://my1.endpoint.com", APIKey: "apikey2"},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: noProxy},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: noProxy},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
+		{Host: urlMustParse("https://datadog.unittests"), APIKey: "api_key_test"},
+		{Host: urlMustParse("https://my1.endpoint.com"), APIKey: "apikey1"},
+		{Host: urlMustParse("https://my1.endpoint.com"), APIKey: "apikey2"},
+		{Host: urlMustParse("https://my2.endpoint.eu"), APIKey: "apikey3", NoProxy: noProxy},
+		{Host: urlMustParse("https://my2.endpoint.eu"), APIKey: "apikey4", NoProxy: noProxy},
+		{Host: urlMustParse("https://my2.endpoint.eu"), APIKey: "apikey5", NoProxy: noProxy},
 	}, c.Endpoints)
 
 	assert.ElementsMatch([]*Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, c.RequireTags)

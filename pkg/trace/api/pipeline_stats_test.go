@@ -62,7 +62,7 @@ func TestPipelineStatsProxy(t *testing.T) {
 
 func TestPipelineStatsEndpoint(t *testing.T) {
 	var cfg config.AgentConfig
-	cfg.Endpoints = []*config.Endpoint{{Host: "https://trace.agent.datadoghq.com", APIKey: "test_api_key"}}
+	cfg.Endpoints = []*config.Endpoint{{Host: urlMustParse("https://trace.agent.datadoghq.com"), APIKey: "test_api_key"}}
 	url, key, err := pipelineStatsEndpoint(&cfg)
 	assert.NoError(t, err)
 	assert.Equal(t, url.String(), "https://trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
@@ -95,7 +95,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 			t.Fatal(err)
 		}
 		conf := newTestReceiverConfig()
-		conf.Endpoints[0].Host = srv.URL
+		conf.Endpoints[0].Host = urlMustParse(srv.URL)
 		fmt.Println("srv url", srv.URL)
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.pipelineStatsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
@@ -109,7 +109,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 			w.WriteHeader(http.StatusAccepted)
 		}))
 		conf := newTestReceiverConfig()
-		conf.Endpoints[0].Host = srv.URL
+		conf.Endpoints[0].Host = urlMustParse(srv.URL)
 		req, _ := http.NewRequest("POST", "/some/path", nil)
 		receiver := newTestReceiverFromConfig(conf)
 		rec := httptest.NewRecorder()
@@ -132,7 +132,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 			t.Fatal(err)
 		}
 		conf := newTestReceiverConfig()
-		conf.Endpoints[0].Host = srv.URL
+		conf.Endpoints[0].Host = urlMustParse(srv.URL)
 		conf.FargateOrchestrator = "orchestrator"
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.pipelineStatsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
@@ -149,7 +149,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 		}
 		rec := httptest.NewRecorder()
 		conf := newTestReceiverConfig()
-		conf.Endpoints[0].Host = ""
+		conf.Endpoints[0].Host = &url.URL{}
 		r := newTestReceiverFromConfig(conf)
 		r.pipelineStatsProxyHandler().ServeHTTP(rec, req)
 		res := rec.Result()

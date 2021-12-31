@@ -8,7 +8,6 @@ import (
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -37,29 +36,15 @@ type telemetryMultiTransport struct {
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
-	// extract and validate Hostnames from configured endpoints
-	var endpoints []*config.Endpoint
-	for _, endpoint := range r.conf.TelemetryConfig.Endpoints {
-		u, err := url.Parse(endpoint.Host)
-		if err != nil {
-			log.Errorf("Error parsing apm_config.telemetry endpoint %q: %v", endpoint.Host, err)
-			continue
-		}
-		if u.Host != "" {
-			endpoint.Host = u.Host
-		}
-
-		endpoints = append(endpoints, endpoint)
-	}
-
-	if len(endpoints) == 0 {
+	// TODO: REMOVE?
+	if len(r.conf.TelemetryConfig.Endpoints) == 0 {
 		log.Error("None of the configured apm_config.telemetry endpoints are valid. Telemetry proxy is off")
 		return http.NotFoundHandler()
 	}
 
 	transport := telemetryMultiTransport{
 		Transport: r.conf.NewHTTPTransport(),
-		Endpoints: endpoints,
+		Endpoints: r.conf.TelemetryConfig.Endpoints,
 	}
 	limitedLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	logger := stdlog.New(limitedLogger, "telemetry.Proxy: ", 0)
@@ -121,9 +106,9 @@ func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.
 		metrics.Timing("datadog.trace_agent.telemetry_proxy.roundtrip_ms", time.Since(now), tags, 1)
 	}(time.Now())
 
-	req.Host = endpoint.Host
-	req.URL.Host = endpoint.Host
-	req.URL.Scheme = "https"
+	req.Host = endpoint.Host.Host
+	req.URL.Host = endpoint.Host.Host
+	req.URL.Scheme = endpoint.Host.Scheme
 	req.Header.Set("DD-API-KEY", endpoint.APIKey)
 
 	resp, err := m.Transport.RoundTrip(req)

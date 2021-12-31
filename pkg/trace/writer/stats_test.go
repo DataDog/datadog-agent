@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"math"
 	"math/rand"
+	"net/url"
 	"sort"
 	"strings"
 	"testing"
@@ -250,13 +251,22 @@ func TestStatsSyncWriter(t *testing.T) {
 	})
 }
 
+// Temporary solution for first step of refactoring
+func urlMustParse(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return u
+}
+
 func testStatsWriter() (*StatsWriter, chan pb.StatsPayload, *testServer) {
 	srv := newTestServer()
 	// We use a blocking channel to make sure that sends get received on the
 	// other end.
 	in := make(chan pb.StatsPayload)
 	cfg := &config.AgentConfig{
-		Endpoints:   []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
+		Endpoints:   []*config.Endpoint{{Host: urlMustParse(srv.URL), APIKey: "123"}},
 		StatsWriter: &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 	}
 	return NewStatsWriter(cfg, in), in, srv
@@ -268,7 +278,7 @@ func testStatsSyncWriter() (*StatsWriter, chan pb.StatsPayload, *testServer) {
 	// other end.
 	in := make(chan pb.StatsPayload)
 	cfg := &config.AgentConfig{
-		Endpoints:           []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
+		Endpoints:           []*config.Endpoint{{Host: urlMustParse(srv.URL), APIKey: "123"}},
 		StatsWriter:         &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		SynchronousFlushing: true,
 	}

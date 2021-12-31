@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -57,7 +58,7 @@ const (
   Receiver: {{.Status.Config.ReceiverHost}}:{{.Status.Config.ReceiverPort}}
   Endpoints:
     {{ range $i, $e := .Status.Config.Endpoints}}
-    {{ $e.Host }}
+    {{ urlString $e.Host }}
     {{end}}
 
   --- Receiver stats (1 min) ---
@@ -206,6 +207,12 @@ func InitInfo(conf *config.AgentConfig) error {
 		},
 		"percent": func(v float64) string {
 			return fmt.Sprintf("%02.1f", v*100)
+		},
+		"urlString": func(v *url.URL) string {
+			if v == nil {
+				return ""
+			}
+			return v.String()
 		},
 	}
 

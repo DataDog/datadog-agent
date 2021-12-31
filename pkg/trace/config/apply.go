@@ -215,13 +215,16 @@ func appendEndpoints(endpoints []*Endpoint, cfgKey string) []*Endpoint {
 	if !config.Datadog.IsSet(cfgKey) {
 		return endpoints
 	}
-	for url, keys := range config.Datadog.GetStringMapStringSlice(cfgKey) {
+	for urlRaw, keys := range config.Datadog.GetStringMapStringSlice(cfgKey) {
 		if len(keys) == 0 {
 			log.Errorf("'%s' entries must have at least one API key present", cfgKey)
 			continue
 		}
+		u, _ := url.Parse(urlRaw)
+		//TODO: handle err
+
 		for _, key := range keys {
-			endpoints = append(endpoints, &Endpoint{Host: url, APIKey: config.SanitizeAPIKey(key)})
+			endpoints = append(endpoints, &Endpoint{Host: u, APIKey: config.SanitizeAPIKey(key)})
 		}
 	}
 	return endpoints
@@ -243,8 +246,10 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("dogstatsd_port") {
 		c.StatsdPort = config.Datadog.GetInt("dogstatsd_port")
 	}
+	u, _ := url.Parse(config.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url"))
+	// TODO handle err
 
-	c.Endpoints[0].Host = config.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+	c.Endpoints[0].Host = u
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if config.Datadog.IsSet("proxy.no_proxy") {
@@ -255,7 +260,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			noProxy[host] = true
 		}
 		for _, e := range c.Endpoints {
-			e.NoProxy = noProxy[e.Host]
+			e.NoProxy = noProxy[e.Host.String()]
 		}
 	}
 	if addr := config.Datadog.GetString("proxy.https"); addr != "" {
@@ -368,8 +373,10 @@ func (c *AgentConfig) applyDatadogConfig() error {
 
 	if config.Datadog.GetBool("apm_config.telemetry.enabled") {
 		c.TelemetryConfig.Enabled = true
+		u, _ := url.Parse(config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url"))
+		//TODO handle err
 		c.TelemetryConfig.Endpoints = []*Endpoint{{
-			Host:   config.GetMainEndpoint(telemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
+			Host:   u,
 			APIKey: c.Endpoints[0].APIKey,
 		}}
 		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")

@@ -15,6 +15,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -22,15 +23,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // newSenders returns a list of senders based on the given agent configuration, using climit
 // as the maximum number of concurrent outgoing connections, writing to path.
-func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int) []*sender {
-	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
+func newSenders(cfg *config.AgentConfig, r eventRecorder, path_ string, climit, qsize int) []*sender {
+	if e := cfg.Endpoints; len(e) == 0 || e[0].Host != nil || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
 	client := httputils.NewResetClient(cfg.ConnectionResetInterval, cfg.NewHTTPClient)
@@ -38,15 +38,13 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	maxConns := math.Max(1, float64(climit/len(cfg.Endpoints)))
 	senders := make([]*sender, len(cfg.Endpoints))
 	for i, endpoint := range cfg.Endpoints {
-		url, err := url.Parse(endpoint.Host + path)
-		if err != nil {
-			osutil.Exitf("Invalid host endpoint: %q", endpoint.Host)
-		}
+		u := *endpoint.Host
+		u.Path = path.Join(u.Path, path_)
 		senders[i] = newSender(&senderConfig{
 			client:    client,
 			maxConns:  int(maxConns),
 			maxQueued: qsize,
-			url:       url,
+			url:       &u,
 			apiKey:    endpoint.APIKey,
 			recorder:  r,
 		})

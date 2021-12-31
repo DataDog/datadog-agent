@@ -26,7 +26,7 @@ func TestTraceWriter(t *testing.T) {
 		DefaultEnv: testEnv,
 		Endpoints: []*config.Endpoint{{
 			APIKey: "123",
-			Host:   srv.URL,
+			Host:   urlMustParse(srv.URL),
 		}},
 		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 	}
@@ -63,11 +63,11 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 			Endpoints: []*config.Endpoint{
 				{
 					APIKey: "123",
-					Host:   srv.URL,
+					Host:   urlMustParse(srv.URL),
 				},
 				{
 					APIKey: "123",
-					Host:   srv.URL,
+					Host:   urlMustParse(srv.URL),
 				},
 			},
 			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
@@ -163,7 +163,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 		DefaultEnv: testEnv,
 		Endpoints: []*config.Endpoint{{
 			APIKey: "123",
-			Host:   srv.URL,
+			Host:   urlMustParse(srv.URL),
 		}},
 		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 		SynchronousFlushing: true,
@@ -196,7 +196,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 		DefaultEnv: testEnv,
 		Endpoints: []*config.Endpoint{{
 			APIKey: "123",
-			Host:   srv.URL,
+			Host:   urlMustParse(srv.URL),
 		}},
 		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 		SynchronousFlushing: true,
@@ -229,7 +229,7 @@ func TestTraceWriterSyncNoop(t *testing.T) {
 		DefaultEnv: testEnv,
 		Endpoints: []*config.Endpoint{{
 			APIKey: "123",
-			Host:   srv.URL,
+			Host:   urlMustParse(srv.URL),
 		}},
 		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 		SynchronousFlushing: false,

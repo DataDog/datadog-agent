@@ -131,8 +131,8 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		assert.Len(cfg.TelemetryConfig.Endpoints, 3)
 
 		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
-			assert.NotNil(additionalEndpoints[endpoint.Host])
-			assert.Equal(endpoint.APIKey, additionalEndpoints[endpoint.Host])
+			assert.NotNil(additionalEndpoints[endpoint.Host.String()])
+			assert.Equal(endpoint.APIKey, additionalEndpoints[endpoint.Host.String()])
 		}
 	})
 
@@ -153,8 +153,8 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		assert.True(cfg.TelemetryConfig.Enabled)
 		assert.Len(cfg.TelemetryConfig.Endpoints, 3)
 		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
-			assert.NotNil(additionalEndpoints[endpoint.Host])
-			assert.Equal(endpoint.APIKey, additionalEndpoints[endpoint.Host])
+			assert.NotNil(additionalEndpoints[endpoint.Host.String()])
+			assert.Equal(endpoint.APIKey, additionalEndpoints[endpoint.Host.String()])
 		}
 	})
 

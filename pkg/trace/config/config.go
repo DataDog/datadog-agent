@@ -35,8 +35,8 @@ var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a con
 
 // Endpoint specifies an endpoint that the trace agent will write data (traces, stats & services) to.
 type Endpoint struct {
-	APIKey string `json:"-"` // never marshal this
-	Host   string
+	APIKey string   `json:"-"` // never marshal this
+	Host   *url.URL `json:",string"`
 
 	// NoProxy will be set to true when the proxy setting for the trace API endpoint
 	// needs to be ignored (e.g. it is part of the "no_proxy" list in the yaml settings).
@@ -103,7 +103,7 @@ type AgentConfig struct {
 	WatchdogInterval time.Duration // WatchdogInterval is the delay between 2 watchdog checks
 
 	// http/s proxying
-	ProxyURL          *url.URL
+	ProxyURL          *url.URL `json:",string"`
 	SkipSSLValidation bool
 
 	// filtering
@@ -147,6 +147,15 @@ type Tag struct {
 	K, V string
 }
 
+// Temporary solution for first step of refactoring
+func urlMustParse(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return u
+}
+
 // New returns a configuration with the default values.
 func New() *AgentConfig {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -159,7 +168,7 @@ func New() *AgentConfig {
 		Enabled:             true,
 		FargateOrchestrator: orch,
 		DefaultEnv:          "none",
-		Endpoints:           []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
+		Endpoints:           []*Endpoint{{Host: urlMustParse("https://trace.agent.datadoghq.com")}},
 
 		BucketInterval: time.Duration(10) * time.Second,
 
@@ -197,7 +206,7 @@ func New() *AgentConfig {
 		DDAgentBin:   defaultDDAgentBin,
 		OTLPReceiver: &OTLP{},
 		TelemetryConfig: &TelemetryConfig{
-			Endpoints: []*Endpoint{{Host: telemetryEndpointPrefix + coreconfig.DefaultSite}},
+			Endpoints: []*Endpoint{{Host: urlMustParse(telemetryEndpointPrefix + coreconfig.DefaultSite)}},
 		},
 	}
 }
