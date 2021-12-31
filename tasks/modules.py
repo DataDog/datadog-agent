@@ -11,6 +11,7 @@ class GoModule:
     def __init__(self, path, targets=None, condition=lambda: True, should_tag=True):
         self.path = path
         self.targets = targets if targets else ["."]
+        self.dependencies = self.__compute_dependencies()
         self.condition = condition
         self.should_tag = should_tag
 
@@ -24,6 +25,23 @@ class GoModule:
             return "v" + agent_version
 
         return "v0" + agent_version[1:]
+
+    def __compute_dependencies(self):
+        """
+        Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
+        """
+        prefix = "github.com/DataDog/datadog-agent/"
+        try:
+            output = subprocess.check_output(
+                ["go", "run", ".", os.path.join(os.getcwd(), self.path), prefix],
+                cwd=os.path.join(os.getcwd(), "internal", "tools", "modparser"),
+            ).decode("utf-8")
+        except subprocess.CalledProcessError as e:
+            print(f"Error while calling go.mod parser: {e.output}")
+            raise e
+
+        # Remove github.com/DataDog/datadog-agent/ from each line
+        return [line[len(prefix) :] for line in output.strip().splitlines()]
 
     # FIXME: Change when Agent 6 and Agent 7 releases are decoupled
     def tag(self, agent_version):
@@ -56,25 +74,6 @@ class GoModule:
         if self.path != ".":
             path += "/" + self.path
         return path
-
-    @property
-    def dependencies(self):
-        """
-        Return the list of github.com/DataDog/datadog-agent/ dependencies of the module.
-        """
-        prefix = "github.com/DataDog/datadog-agent/"
-        try:
-            output = subprocess.check_output(
-                ["go", "run", ".", os.path.join(os.getcwd(), self.path), prefix],
-                cwd=os.path.join(os.getcwd(), "internal", "tools", "modparser"),
-            ).decode("utf-8")
-        except subprocess.CalledProcessError as e:
-            print(f"Error while calling go.mod parser: {e.output}")
-            raise e
-
-        for line in output.strip().splitlines():
-            # Remove github.com/DataDog/datadog-agent/ from each line
-            yield line[len(prefix) :]
 
     def dependency_path(self, agent_version):
         """Return the versioned dependency path of the Go module
