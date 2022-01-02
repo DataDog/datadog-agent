@@ -150,7 +150,8 @@ func GetProcesses() ([]*process.Process, error) {
 
 	var processes []*process.Process
 	for _, pid := range pids {
-		proc, err := process.NewProcess(pid)
+		var proc *process.Process
+		proc, err = process.NewProcess(pid)
 		if err != nil {
 			// the process does not exist anymore, continue
 			continue

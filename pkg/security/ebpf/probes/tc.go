@@ -7,7 +7,10 @@
 
 package probes
 
-import manager "github.com/DataDog/ebpf-manager"
+import (
+	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
+)
 
 // tcProbes holds the list of probes used to track network flows
 var tcProbes = []*manager.Probe{
@@ -18,6 +21,8 @@ var tcProbes = []*manager.Probe{
 			EBPFFuncName: "classifier_ingress",
 		},
 		NetworkDirection: manager.Ingress,
+		TCFilterProtocol: unix.ETH_P_ALL,
+		TCFilterPrio:     1,
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -26,6 +31,8 @@ var tcProbes = []*manager.Probe{
 			EBPFFuncName: "classifier_egress",
 		},
 		NetworkDirection: manager.Egress,
+		TCFilterProtocol: unix.ETH_P_ALL,
+		TCFilterPrio:     1,
 	},
 }
 

@@ -382,6 +382,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	}
 	offset += read
 
+	// save netns handle if applicable
+	_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.ProcessContext.NetNS, event.ProcessContext.Tid)
+
 	switch eventType {
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
@@ -613,9 +616,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		log.Errorf("unsupported event type %d", eventType)
 		return
 	}
-
-	// save netns handle if applicable
-	p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.ProcessContext.NetNS, event.ProcessContext.Tid)
 
 	// resolve event context
 	if eventType != model.ExitEventType {
@@ -943,15 +943,19 @@ func (err QueuedNetworkDeviceError) Error() string {
 
 func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	// select netns handle
-	netnsHandle := p.resolvers.NamespaceResolver.ResolveNetworkNamespaceHandle(device.NetNS)
-	if netnsHandle == nil {
+	var handle *os.File
+	var err error
+	netns := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(device.NetNS)
+	if netns != nil {
+		handle, err = netns.GetNamespaceHandleDup()
+	}
+	if netns == nil || err != nil || handle == nil {
 		// queue network device so that a TC classifier can be added later
 		p.resolvers.NamespaceResolver.QueueNetworkDevice(device)
-		return QueuedNetworkDeviceError{msg: fmt.Sprintf("%s device was queued until %d is resolved", device.Name, device.NetNS)}
+		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
-	defer netnsHandle.Close()
 
-	return p.setupNewTCClassifierWithNetNSHandle(device, netnsHandle)
+	return p.setupNewTCClassifierWithNetNSHandle(device, handle)
 }
 
 func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netnsHandle *os.File) error {
@@ -970,8 +974,9 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 		newProbe := tcProbe.Copy()
 		newProbe.CopyProgram = true
 		newProbe.UID = probes.SecurityAgentUID + device.GetKey()
-		newProbe.Ifindex = int32(device.IfIndex)
-		newProbe.IfindexNetns = uint64(netnsHandle.Fd())
+		newProbe.IfIndex = int(device.IfIndex)
+		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
+		newProbe.IfIndexNetnsID = device.NetNS
 
 		netnsEditor := []manager.ConstantEditor{
 			{
@@ -989,38 +994,25 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 	return combinedErr.ErrorOrNil()
 }
 
-func (p *Probe) flushInactiveTCPrograms() {
+// flushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of probes
+// on non-loopback devices indexed by network namespace ID.
+func (p *Probe) flushInactiveProbes() map[uint32]int {
 	p.tcProgramsLock.Lock()
 	defer p.tcProgramsLock.Unlock()
-	var isProbeActive, isNSActive bool
 
-	netnsCache := make(map[uint32]bool)
+	probesCountNoLoopback := make(map[uint32]int)
+
 	for tcKey, tcProbe := range p.tcPrograms {
-		isProbeActive = tcProbe.IsTCCLSActive()
-		// a network namespace is active if it contains an active interface that is not the local interface
-		netnsCache[tcKey.NetNS] = netnsCache[tcKey.NetNS] || isProbeActive && tcProbe.Ifindex != 1
-
-		if !isProbeActive {
-			_ = p.manager.DetachHook(tcProbe.ProbeIdentificationPair)
+		if !tcProbe.IsTCFilterActive() {
+			_ = p.manager.DetachAndDeleteHook(tcProbe.ProbeIdentificationPair)
 			delete(p.tcPrograms, tcKey)
-		}
-	}
-
-	// remove handle for inactive namespaces
-	var netns uint32
-	for netns, isNSActive = range netnsCache {
-		if !isNSActive {
-			if !p.resolvers.NamespaceResolver.flushNetworkNamespace(netns) {
-				// this namespace is inactive, and we don't have any handle in cache, delete all interfaces in it
-				for tcKey, tcProbe := range p.tcPrograms {
-					if tcKey.NetNS == netns {
-						_ = p.manager.DetachHook(tcProbe.ProbeIdentificationPair)
-						delete(p.tcPrograms, tcKey)
-					}
-				}
+		} else {
+			if tcKey.IfIndex > 1 {
+				probesCountNoLoopback[tcKey.NetNS] += 1
 			}
 		}
 	}
+	return probesCountNoLoopback
 }
 
 // NewProbe instantiates a new runtime security agent probe

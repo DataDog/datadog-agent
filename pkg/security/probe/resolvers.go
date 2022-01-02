@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -256,9 +257,9 @@ func (r *Resolvers) snapshot() error {
 		}
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err := r.MountResolver.SyncCache(proc); err != nil {
+		if err = r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {
-				log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't sync mount points", proc.Pid))
+				log.Debug(fmt.Errorf("snapshot failed for %d: couldn't sync mount points: %w", proc.Pid, err))
 			}
 		}
 
@@ -275,7 +276,7 @@ func (r *Resolvers) snapshot() error {
 	// and before we inserted the cache entry of its parent. Call Snapshot again until we do not modify the
 	// process cache anymore
 	if cacheModified {
-		return errors.New("cache modified")
+		return fmt.Errorf("cache modified")
 	}
 
 	return nil
