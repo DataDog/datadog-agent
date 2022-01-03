@@ -13,9 +13,9 @@ import (
 // BufferedChan behaves like a `chan []interface{}` (See thread safety for restrictions), but is
 // most efficient as it uses internally a channel of []interface{}.
 // Thread safety:
-// 	- BufferedChan.Put cannot be called concurrently.
-// 	- BufferedChan.Get cannot be called concurrently.
-//  - BufferedChan.Put can be called while another gouroutine call BufferedChan.Get.
+// 	- `BufferedChan.Put` cannot be called concurrently.
+// 	- `BufferedChan.Get` cannot be called concurrently.
+//  - `BufferedChan.Put` can be called while another goroutine calls `BufferedChan.Get`.
 type BufferedChan struct {
 	c        chan []interface{}
 	pool     *sync.Pool
