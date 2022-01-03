@@ -31,10 +31,26 @@ class GoModule:
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
         prefix = "github.com/DataDog/datadog-agent/"
+
+        # Find correct directory to use: it needs to be a directory that contains internal/tools/modparser,
+        # either in the current directory or one of its parent directories.
+        # This is needed because __compute_dependencies is run when any invoke task is run,
+        # and some invoke tasks in our build process are not run at the root of the repository.
+        base_path = os.getcwd()
+        while not os.path.isdir(
+            os.path.join(base_path, "internal", "tools", "modparser")
+        ) and base_path != os.path.dirname(os.path.abspath(base_path)):
+            base_path = os.path.dirname(os.path.abspath(base_path))
+
+        if not os.path.isdir(os.path.join(base_path, "internal", "tools", "modparser")):
+            raise Exception(
+                "Cannot find go.mod parser in internal/tools/modparser in this directory or any parent directory."
+            )
+
         try:
             output = subprocess.check_output(
-                ["go", "run", ".", "-path", os.path.join(os.getcwd(), self.path), "-prefix", prefix],
-                cwd=os.path.join(os.getcwd(), "internal", "tools", "modparser"),
+                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", prefix],
+                cwd=os.path.join(base_path, "internal", "tools", "modparser"),
             ).decode("utf-8")
         except subprocess.CalledProcessError as e:
             print(f"Error while calling go.mod parser: {e.output}")
