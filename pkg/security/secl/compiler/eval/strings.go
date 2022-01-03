@@ -19,6 +19,8 @@ type StringValues struct {
 	// caches
 	scalarCache map[string]bool
 	fieldValues []FieldValue
+
+	exists map[interface{}]bool
 }
 
 // AppendFieldValue append a FieldValue
@@ -26,6 +28,14 @@ func (s *StringValues) AppendFieldValue(value FieldValue) error {
 	if s.scalarCache == nil {
 		s.scalarCache = make(map[string]bool)
 	}
+
+	if s.exists[value.Value] {
+		return nil
+	}
+	if s.exists == nil {
+		s.exists = make(map[interface{}]bool)
+	}
+	s.exists[value.Value] = true
 
 	switch value.Type {
 	case PatternValueType, RegexpValueType:
@@ -58,6 +68,7 @@ func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	// reset internal caches
 	s.regexps = []*regexp.Regexp{}
 	s.scalarCache = nil
+	s.exists = nil
 
 	for _, value := range values {
 		if err := s.AppendFieldValue(value); err != nil {
@@ -73,6 +84,14 @@ func (s *StringValues) AppendScalarValue(value string) {
 	if s.scalarCache == nil {
 		s.scalarCache = make(map[string]bool)
 	}
+
+	if s.exists[value] {
+		return
+	}
+	if s.exists == nil {
+		s.exists = make(map[interface{}]bool)
+	}
+	s.exists[value] = true
 
 	s.scalars = append(s.scalars, value)
 	s.scalarCache[value] = true
