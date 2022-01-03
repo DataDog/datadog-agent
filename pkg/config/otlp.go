@@ -7,16 +7,16 @@ package config
 
 // Experimental OTLP configuration paths.
 const (
-	ExperimentalOTLPSection         = "experimental.otlp"
-	ExperimentalOTLPHTTPPort        = ExperimentalOTLPSection + ".http_port"
-	ExperimentalOTLPgRPCPort        = ExperimentalOTLPSection + ".grpc_port"
-	ExperimentalOTLPTracePort       = ExperimentalOTLPSection + ".internal_traces_port"
-	ExperimentalOTLPMetricsEnabled  = ExperimentalOTLPSection + ".metrics_enabled"
-	ExperimentalOTLPTracesEnabled   = ExperimentalOTLPSection + ".traces_enabled"
-	ReceiverSubSectionKey           = "receiver"
-	ExperimentalOTLPReceiverSection = ExperimentalOTLPSection + "." + ReceiverSubSectionKey
-	ExperimentalOTLPMetrics         = ExperimentalOTLPSection + ".metrics"
-	tagCardinalityKey               = "otlp_tag_cardinality"
+	ExperimentalOTLPSection           = "experimental.otlp"
+	ExperimentalOTLPHTTPPort          = ExperimentalOTLPSection + ".http_port"
+	ExperimentalOTLPgRPCPort          = ExperimentalOTLPSection + ".grpc_port"
+	ExperimentalOTLPTracePort         = ExperimentalOTLPSection + ".internal_traces_port"
+	ExperimentalOTLPMetricsEnabled    = ExperimentalOTLPSection + ".metrics_enabled"
+	ExperimentalOTLPTracesEnabled     = ExperimentalOTLPSection + ".traces_enabled"
+	ReceiverSubSectionKey             = "receiver"
+	ExperimentalOTLPReceiverSection   = ExperimentalOTLPSection + "." + ReceiverSubSectionKey
+	ExperimentalOTLPMetrics           = ExperimentalOTLPSection + ".metrics"
+	ExperimentalOTLPTagCardinalityKey = ExperimentalOTLPMetrics + ".tag_cardinality"
 )
 
 // SetupOTLP related configuration.
@@ -28,9 +28,8 @@ func SetupOTLP(config Config) {
 	config.BindEnv(ExperimentalOTLPgRPCPort, "DD_OTLP_GRPC_PORT")
 
 	// NOTE: This only partially works.
-	// The environment variable is also manually checked
-	// in pkg/otlp/internal/serializerexporter/exporter.go
-	config.BindEnv(tagCardinalityKey, "DD_OTLP_TAG_CARDINALITY")
+	// The environment variable is also manually checked in pkg/otlp/config.go
+	config.BindEnv(ExperimentalOTLPTagCardinalityKey, "DD_OTLP_TAG_CARDINALITY")
 
 	config.SetKnown(ExperimentalOTLPMetrics)
 	// Set all subkeys of experimental.otlp.metrics as known
