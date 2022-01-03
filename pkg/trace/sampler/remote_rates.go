@@ -30,6 +30,7 @@ const (
 // from remote configurations. RemoteRates listens for new remote configurations
 // with a grpc subscriber. On reception, new tps targets replace the previous ones.
 type RemoteRates struct {
+	maxSigTPS float64
 	// samplers contains active sampler adjusting rates to match latest tps targets
 	// available. A sampler is added only if a span matching the signature is seen.
 	samplers map[Signature]*Sampler
@@ -44,14 +45,15 @@ type RemoteRates struct {
 	stopped        chan struct{}
 }
 
-func newRemoteRates() *RemoteRates {
+func newRemoteRates(maxTPS float64) *RemoteRates {
 	if !features.Has("remote_rates") {
 		return nil
 	}
 	remoteRates := &RemoteRates{
-		samplers: make(map[Signature]*Sampler),
-		exit:     make(chan struct{}),
-		stopped:  make(chan struct{}),
+		maxSigTPS: maxTPS,
+		samplers:  make(map[Signature]*Sampler),
+		exit:      make(chan struct{}),
+		stopped:   make(chan struct{}),
 	}
 	close, err := service.NewGRPCSubscriber(pbgo.Product_APM_SAMPLING, remoteRates.loadNewConfig)
 	if err != nil {
@@ -72,6 +74,12 @@ func (r *RemoteRates) loadNewConfig(new *pbgo.ConfigResponse) error {
 			return err
 		}
 		for _, targetTPS := range new.TargetTps {
+			if targetTPS.Value > r.maxSigTPS {
+				targetTPS.Value = r.maxSigTPS
+			}
+			if targetTPS.Value == 0 {
+				continue
+			}
 			sig := ServiceSignature{Name: targetTPS.Service, Env: targetTPS.Env}.Hash()
 			tpsTargets[sig] = targetTPS.Value
 		}
