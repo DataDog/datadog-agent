@@ -239,7 +239,7 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 						case string:
 							action.Set.Value = cast.ToStringSlice(value)
 						default:
-							result = multierror.Append(result, fmt.Errorf("unsupported array item type '%s' for array '%s'", reflect.TypeOf(arrayType), action.Set.Name))
+							result = multierror.Append(result, fmt.Errorf("unsupported item type '%s' for array '%s'", reflect.TypeOf(arrayType), action.Set.Name))
 							continue
 						}
 					}
@@ -272,7 +272,7 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 				}
 
 				if existingVariable, found := ruleSet.opts.Variables[varName]; found && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
-					result = multierror.Append(result, fmt.Errorf("variable '%s' conflicts with variable (%s != %s)", varName, reflect.TypeOf(variable), reflect.TypeOf(existingVariable)))
+					result = multierror.Append(result, fmt.Errorf("conflicting types for variable '%s'", varName))
 					continue
 				}
 
