@@ -49,12 +49,13 @@
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: [ "runner:main" ]
-  needs: [ "go_deps" ]
+  tags: ["runner:main"]
+  needs: ["go_deps", "go_tools_deps"]
   variables:
     ARCH: amd64
   before_script:
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     - cd $SRC_PATH
     - !reference [.retrieve_sysprobe_deps]
@@ -71,11 +72,12 @@ tests_ebpf_arm64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "go_deps" ]
+  needs: ["go_deps", "go_tools_deps"]
   variables:
     ARCH: arm64
   before_script:
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     # Hack to work around the cloning issue with arm runners
     - mkdir -p $GOPATH/src/github.com/DataDog
