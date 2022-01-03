@@ -73,7 +73,7 @@ type AgentConfig struct {
 	ErrorTPS           float64
 	DisableRareSampler bool
 	MaxEPS             float64
-	RemoteMaxTPS       float64
+	MaxRemoteTPS       float64
 
 	// Receiver
 	ReceiverHost    string
@@ -168,7 +168,7 @@ func New() *AgentConfig {
 		TargetTPS:       10,
 		ErrorTPS:        10,
 		MaxEPS:          200,
-		RemoteMaxTPS:    100,
+		MaxRemoteTPS:    100,
 
 		ReceiverHost:    "localhost",
 		ReceiverPort:    8126,

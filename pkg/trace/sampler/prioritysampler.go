@@ -58,7 +58,7 @@ type PrioritySampler struct {
 func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *PrioritySampler {
 	s := &PrioritySampler{
 		localRates:    newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
-		remoteRates:   newRemoteRates(conf.RemoteMaxTPS),
+		remoteRates:   newRemoteRates(conf.MaxRemoteTPS),
 		rateByService: &dynConf.RateByService,
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),

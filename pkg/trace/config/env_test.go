@@ -355,7 +355,7 @@ func TestLoadEnv(t *testing.T) {
 		})
 	}
 
-	env = "DD_APM_REMOTE_MAX_TPS"
+	env = "DD_APM_MAX_REMOTE_TPS"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
@@ -364,7 +364,7 @@ func TestLoadEnv(t *testing.T) {
 		defer os.Unsetenv(env)
 		cfg, err := Load("./testdata/full.yaml")
 		assert.NoError(err)
-		assert.Equal(337.41, cfg.RemoteMaxTPS)
+		assert.Equal(337.41, cfg.MaxRemoteTPS)
 	})
 
 	env = "DD_APM_ADDITIONAL_ENDPOINTS"

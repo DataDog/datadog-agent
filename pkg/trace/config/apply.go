@@ -321,8 +321,8 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.DisableRareSampler = config.Datadog.GetBool("apm_config.disable_rare_sampler")
 	}
 
-	if config.Datadog.IsSet("apm_config.remote_max_traces_per_second") {
-		c.RemoteMaxTPS = config.Datadog.GetFloat64("apm_config.remote_max_traces_per_second")
+	if config.Datadog.IsSet("apm_config.max_remote_traces_per_second") {
+		c.MaxRemoteTPS = config.Datadog.GetFloat64("apm_config.max_remote_traces_per_second")
 	}
 
 	if k := "apm_config.ignore_resources"; config.Datadog.IsSet(k) {
