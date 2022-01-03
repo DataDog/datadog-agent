@@ -34,13 +34,15 @@ func buildInstances(pc *types.PrometheusCheck, annotations map[string]string, na
 					switch openmetricsVersion {
 					case 1:
 						instanceValues.PrometheusURL = types.BuildURL(annotations)
-						if len(instanceValues.Metrics) == 1 && instanceValues.Metrics[0] == "PLACEHOLDER" {
-							instanceValues.Metrics = types.OpenmetricsDefaultMetricsv1
+						if len(instanceValues.Metrics) == len(types.DefaultPrometheusCheck.Instances[0].Metrics) &&
+							&instanceValues.Metrics[0] == &types.DefaultPrometheusCheck.Instances[0].Metrics[0] {
+							instanceValues.Metrics = types.OpenmetricsDefaultMetricsV1
 						}
 					case 2:
 						instanceValues.OpenMetricsEndpoint = types.BuildURL(annotations)
-						if len(instanceValues.Metrics) == 1 && instanceValues.Metrics[0] == "PLACEHOLDER" {
-							instanceValues.Metrics = types.OpenmetricsDefaultMetricsv2
+						if len(instanceValues.Metrics) == len(types.DefaultPrometheusCheck.Instances[0].Metrics) &&
+							&instanceValues.Metrics[0] == &types.DefaultPrometheusCheck.Instances[0].Metrics[0] {
+							instanceValues.Metrics = types.OpenmetricsDefaultMetricsV2
 						}
 					}
 				}

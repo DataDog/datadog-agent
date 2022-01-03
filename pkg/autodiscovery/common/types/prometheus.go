@@ -37,10 +37,10 @@ var (
 		PrometheusPathAnnotation,
 		PrometheusPortAnnotation,
 	}
-	// OpenmetricsDefaultMetricsv1 containers the wildcard pattern to match all metrics
-	OpenmetricsDefaultMetricsv1 = []string{"*"}
-	// OpenmetricsDefaultMetricsv2 containers the match-all regular expression to match all metrics
-	OpenmetricsDefaultMetricsv2 = []string{".*"}
+	// OpenmetricsDefaultMetricsV1 containers the wildcard pattern to match all metrics
+	OpenmetricsDefaultMetricsV1 = []string{"*"}
+	// OpenmetricsDefaultMetricsV2 containers the match-all regular expression to match all metrics
+	OpenmetricsDefaultMetricsV2 = []string{".*"}
 )
 
 func configPrometheusScrapeChecksTransformer(in string) interface{} {
@@ -152,9 +152,9 @@ func (pc *PrometheusCheck) initInstances() {
 	var openmetricsDefaultMetrics []string
 	switch config.Datadog.GetInt("prometheus_scrape.version") {
 	case 1:
-		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsv1
+		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsV1
 	case 2:
-		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsv2
+		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsV2
 	default:
 		log.Errorf("Invalid value for `prometheus_scrape.version`. Can only be 1 or 2.")
 		return
