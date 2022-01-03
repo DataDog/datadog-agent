@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -230,7 +231,7 @@ func getParent(filename string, depth int) string {
 	return filename
 }
 
-func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, depth int) (func(dirname string) (bool, error), error) {
+func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field eval.Field, depth int) (func(dirname string) (bool, error), error) {
 	fnc, exists := id.parentDiscarderFncs[depth-1][field]
 	if exists {
 		return fnc, nil
@@ -332,14 +333,6 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 			}
 		}
 
-		if err := discarderEvent.SetFieldValue(field, dirname); err != nil {
-			return false, err
-		}
-
-		if isDiscarder, _ := rs.IsDiscarder(discarderEvent, field); !isDiscarder {
-			return false, nil
-		}
-
 		return true, nil
 	}
 	id.parentDiscarderFncs[depth-1][field] = fnc
@@ -364,7 +357,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 		id.onRuleSetChanged(rs)
 	}
 
-	fnc, err := id.getParentDiscarderFnc(rs, eventType, field, filename, depth)
+	fnc, err := id.getParentDiscarderFnc(rs, eventType, field, depth)
 	if fnc == nil || err != nil {
 		return false, err
 	}

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -285,6 +286,34 @@ func TestIsGrandParentDiscarder(t *testing.T) {
 	addRuleExpr(t, rs, `open.file.path =~ "/tmp/dir/*"`)
 
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/dir/a/test", 2); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts)
+	addRuleExpr(t, rs, `unlink.file.name == "dir"`) // + variants
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/tmp/dir/a/test", 2); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts)
+	addRuleExpr(t, rs, `unlink.file.path == "/tmp/dir/a"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/tmp", 2); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts)
+	addRuleExpr(t, rs, `unlink.file.path == "/tmp"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/tmp/dir/a", 2); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts)
+	addRuleExpr(t, rs, `unlink.file.path == "/tmp"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/tmp", 2); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 }
