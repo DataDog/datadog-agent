@@ -589,6 +589,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
+	config.BindEnvAndSetDefault("kube_cache_sync_max_retry_delay_seconds", 60)
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)

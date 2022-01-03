@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add exponential backoff to syncinformer.
+    Add exponential wait for syncing with the kubernetes informers.
