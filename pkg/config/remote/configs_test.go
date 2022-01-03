@@ -43,7 +43,7 @@ func TestConfigsAPMSamplingUpdates(t *testing.T) {
 			ID:      "config_id1",
 			Version: 1,
 		},
-		APMSampling: samplingFile1,
+		Rates: []pb.APMSampling{samplingFile1},
 	}
 	assert.Equal(t, update{apmSamplingUpdate: &APMSamplingUpdate{Config: expectedConfig1}}, update1)
 
@@ -79,7 +79,7 @@ func TestConfigsAPMSamplingUpdates(t *testing.T) {
 			ID:      "config_id2",
 			Version: 2,
 		},
-		APMSampling: samplingFile2,
+		Rates: []pb.APMSampling{samplingFile2},
 	}
 	assert.Equal(t, update{apmSamplingUpdate: &APMSamplingUpdate{Config: expectedConfig2}}, update2)
 }

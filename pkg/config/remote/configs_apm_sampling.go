@@ -9,7 +9,7 @@ import (
 // APMSamplingConfig is an apm sampling config
 type APMSamplingConfig struct {
 	Config
-	pb.APMSampling
+	Rates []pb.APMSampling
 }
 
 // APMSamplingUpdate is an apm sampling config update
@@ -29,29 +29,27 @@ func (c *apmSamplingConfigs) update(configFiles map[string]configFiles) (*APMSam
 	if len(configFiles) > 1 {
 		return nil, fmt.Errorf("apm sampling expects one config max. %d received", len(configFiles))
 	}
-	var update *APMSamplingUpdate
 	for configID, files := range configFiles {
-		if len(files) != 1 {
-			return nil, fmt.Errorf("apm sampling expects one file per config max. %d received", len(files))
-		}
-		file := files[0]
 		if c.config != nil && c.config.ID == configID && c.config.Version >= files.version() {
 			return nil, nil
 		}
-		var mpconfig pb.APMSampling
-		_, err := mpconfig.UnmarshalMsg(file.raw)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse apm sampling config: %v", err)
-		}
-		update = &APMSamplingUpdate{
+		update := &APMSamplingUpdate{
 			Config: &APMSamplingConfig{
 				Config: Config{
-					ID:      file.pathMeta.ConfigID,
-					Version: file.version,
+					ID:      configID,
+					Version: files.version(),
 				},
-				APMSampling: mpconfig,
 			},
 		}
+		for _, file := range files {
+			var mpconfig pb.APMSampling
+			_, err := mpconfig.UnmarshalMsg(file.raw)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse apm sampling config: %v", err)
+			}
+			update.Config.Rates = append(update.Config.Rates, mpconfig)
+		}
+		return update, nil
 	}
-	return update, nil
+	return nil, nil
 }

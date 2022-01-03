@@ -155,7 +155,7 @@ func TestClientValidResponse(t *testing.T) {
 				ID:      "id",
 				Version: 5,
 			},
-			APMSampling: apmConfig,
+			Rates: []pb.APMSampling{apmConfig},
 		},
 	}, apmUpdate)
 }
