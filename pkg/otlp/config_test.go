@@ -147,9 +147,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 							},
 						},
 						"http": map[string]interface{}{
-							"endpoint":             "localhost:1234",
-							"cors_allowed_origins": []interface{}{"http://test.com"},
-							"cors_allowed_headers": []interface{}{"ExampleHeader"},
+							"endpoint": "localhost:1234",
+							"cors": map[string]interface{}{
+								"allowed_origins": []interface{}{"http://test.com"},
+								"allowed_headers": []interface{}{"ExampleHeader"},
+							},
 						},
 					},
 				},
