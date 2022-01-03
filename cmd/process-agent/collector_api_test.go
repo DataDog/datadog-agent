@@ -8,6 +8,7 @@ package main
 import (
 	"fmt"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/cihub/seelog"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -348,6 +349,7 @@ func TestMultipleAPIKeys(t *testing.T) {
 		ddconfig.Datadog.GetBool("log_format_json"),
 	)
 	require.NoError(t, err)
+	defer seelog.ReplaceLogger(seelog.Default)
 
 	m := &process.CollectorConnections{
 		HostName: testHostName,
