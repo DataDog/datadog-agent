@@ -78,7 +78,7 @@ def download_tools(ctx):
     with environ({'GO111MODULE': 'on'}):
         for path, _ in TOOLS.items():
             with ctx.cd(path):
-                ctx.run(f"go mod download")
+                ctx.run("go mod download")
 
 @task
 def install_tools(ctx):
