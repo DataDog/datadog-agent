@@ -405,7 +405,6 @@ A mmap command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `mmap.addr` | int |  |
 | `mmap.file.change_time` | int | Change time of the file |
 | `mmap.file.filesystem` | string | File's filesystem |
 | `mmap.file.gid` | int | GID of the file's owner |
@@ -421,7 +420,6 @@ A mmap command was executed
 | `mmap.file.uid` | int | UID of the file's owner |
 | `mmap.file.user` | string | User of the file's owner |
 | `mmap.flags` | int |  |
-| `mmap.len` | int |  |
 | `mmap.protection` | int |  |
 | `mmap.retval` | int | Return value of the syscall |
 

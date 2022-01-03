@@ -528,15 +528,19 @@ CWS logs have the following JSON schema:
 {
     "required": [
         "address",
+        "offset",
         "length",
         "protection",
-        "flags",
-        "file"
+        "flags"
     ],
     "properties": {
         "address": {
             "type": "string",
             "description": "memory segment address"
+        },
+        "offset": {
+            "type": "integer",
+            "description": "file offset"
         },
         "length": {
             "type": "integer",
@@ -564,6 +568,7 @@ CWS logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `address` | memory segment address |
+| `offset` | file offset |
 | `length` | memory segment length |
 | `protection` | memory segment protection |
 | `flags` | memory segment flags |
@@ -623,8 +628,7 @@ CWS logs have the following JSON schema:
 {
     "required": [
         "request",
-        "address",
-        "tracee"
+        "address"
     ],
     "properties": {
         "request": {
