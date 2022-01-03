@@ -1,6 +1,9 @@
 #ifndef _NETWORK_PARSER_H_
 #define _NETWORK_PARSER_H_
 
+#define ACT_OK   TC_ACT_UNSPEC
+#define ACT_SHOT TC_ACT_SHOT
+
 static __attribute__((always_inline)) u32 get_netns() {
     u64 netns;
     LOAD_CONSTANT("netns", netns);

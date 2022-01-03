@@ -140,13 +140,13 @@ __attribute__((always_inline)) int is_dns_request_parsing_done(struct __sk_buff 
 __attribute__((always_inline)) int handle_dns_req(struct __sk_buff *skb, struct packet_t *pkt) {
     struct dnshdr header = {};
     if (bpf_skb_load_bytes(skb, pkt->offset, &header, sizeof(header)) < 0) {
-        return TC_ACT_OK;
+        return ACT_OK;
     }
     pkt->offset += sizeof(header);
 
     struct dns_event_t *evt = reset_dns_event(skb, pkt);
     if (evt == NULL) {
-        return TC_ACT_OK;
+        return ACT_OK;
     }
     evt->qdcount = htons(header.qdcount);
     evt->id = htons(header.id);
@@ -162,7 +162,7 @@ __attribute__((always_inline)) int handle_dns_req(struct __sk_buff *skb, struct 
     tail_call_to_classifier(skb, DNS_REQUEST_PARSER);
 
     // tail call failed, ignore packet
-    return TC_ACT_OK;
+    return ACT_OK;
 }
 
 SEC("classifier/dns_request_parser")
@@ -170,19 +170,19 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen
-        return TC_ACT_OK;
+        return ACT_OK;
     }
 
     struct dns_event_t *evt = get_dns_event();
     if (evt == NULL) {
         // should never happen
-        return TC_ACT_OK;
+        return ACT_OK;
     }
 
     int qname_length = parse_dns_request(skb, pkt, evt);
     if (qname_length < 0) {
         // couldn't parse DNS request
-        return TC_ACT_OK;
+        return ACT_OK;
     }
 
     // send DNS event
@@ -192,7 +192,7 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
         tail_call_to_classifier(skb, DNS_REQUEST_PARSER);
     }
 
-    return TC_ACT_OK;
+    return ACT_OK;
 }
 
 // => add DNS server IP
