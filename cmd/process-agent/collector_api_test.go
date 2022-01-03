@@ -7,6 +7,7 @@ package main
 
 import (
 	"fmt"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -337,6 +338,17 @@ func TestQueueSpaceReleased(t *testing.T) {
 }
 
 func TestMultipleAPIKeys(t *testing.T) {
+	err := ddconfig.SetupLogger(
+		"test",
+		"debug",
+		ddconfig.Datadog.GetString("process_config.log_file"),
+		ddconfig.GetSyslogURI(),
+		ddconfig.Datadog.GetBool("syslog_rfc"),
+		ddconfig.Datadog.GetBool("log_to_console"),
+		ddconfig.Datadog.GetBool("log_format_json"),
+	)
+	require.NoError(t, err)
+
 	m := &process.CollectorConnections{
 		HostName: testHostName,
 		GroupId:  1,
