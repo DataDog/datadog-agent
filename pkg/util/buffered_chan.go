@@ -86,6 +86,7 @@ func (c *BufferedChan) Get() (interface{}, bool) {
 		}
 	}
 	value := c.getSlice[c.getIndex]
+	c.getSlice[c.getIndex] = nil // do not keep a reference on the object.
 	c.getIndex++
 	return value, true
 }

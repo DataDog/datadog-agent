@@ -17,7 +17,7 @@ func TestBufferedChan(t *testing.T) {
 	defer cancel()
 	c := NewBufferedChan(ctx, 10, 3)
 	go func() {
-		for n := 0; n < 100; n++ {
+		for n := 0; n < 10000; n++ {
 			c.Put(n)
 		}
 		c.Close()
@@ -29,7 +29,7 @@ func TestBufferedChan(t *testing.T) {
 		r.Equal(n, v)
 		n++
 	}
-	r.Equal(100, n)
+	r.Equal(10000, n)
 }
 
 func TestBufferedChanContext(t *testing.T) {
