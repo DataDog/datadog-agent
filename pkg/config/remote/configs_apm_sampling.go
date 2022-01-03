@@ -49,6 +49,7 @@ func (c *apmSamplingConfigs) update(configFiles map[string]configFiles) (*APMSam
 			}
 			update.Config.Rates = append(update.Config.Rates, mpconfig)
 		}
+		c.config = update.Config
 		return update, nil
 	}
 	return nil, nil
