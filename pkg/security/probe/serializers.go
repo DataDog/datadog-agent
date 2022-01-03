@@ -530,7 +530,7 @@ func newBPFEventSerializer(e *Event) *BPFEventSerializer {
 
 func newMMapEventSerializer(e *Event) *MMapEventSerializer {
 	var fileSerializer *FileSerializer
-	if e.MMap.Flags&unix.MAP_ANONYMOUS == unix.MAP_ANONYMOUS {
+	if e.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
 		fileSerializer = newFileSerializer(&e.MMap.File, e)
 	}
 
