@@ -72,6 +72,7 @@ TOOLS = {
     'internal/tools/proto': TOOL_LIST_PROTO,
 }
 
+
 @task
 def download_tools(ctx):
     """Download all Go tools for testing."""
@@ -79,6 +80,7 @@ def download_tools(ctx):
         for path, _ in TOOLS.items():
             with ctx.cd(path):
                 ctx.run("go mod download")
+
 
 @task
 def install_tools(ctx):
