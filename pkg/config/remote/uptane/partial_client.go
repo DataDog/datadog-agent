@@ -7,8 +7,6 @@ package uptane
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/theupdateframework/go-tuf/client"
 	"github.com/theupdateframework/go-tuf/data"
+	"github.com/theupdateframework/go-tuf/util"
 	"github.com/theupdateframework/go-tuf/verify"
 )
 
@@ -231,22 +230,13 @@ func (c *PartialClient) targetFile(path string) ([]byte, error) {
 	if len(targetMeta.HashAlgorithms()) == 0 {
 		return nil, fmt.Errorf("target file %s has no hash", path)
 	}
-	for _, algorithm := range targetMeta.HashAlgorithms() {
-		var checksum []byte
-		switch algorithm {
-		case "sha256":
-			sha256Checksum := sha256.Sum256(targetFile.Raw)
-			checksum = sha256Checksum[:]
-		case "sha512":
-			sha512Checksum := sha512.Sum512(targetFile.Raw)
-			checksum = sha512Checksum[:]
-		default:
-			return nil, fmt.Errorf("unsupported checksum %s", algorithm)
-		}
-
-		if !bytes.Equal(checksum, targetMeta.Hashes[algorithm]) {
-			return nil, fmt.Errorf("target file %s has invalid checksum %x", path, checksum)
-		}
+	generatedMeta, err := util.GenerateFileMeta(bytes.NewBuffer(targetFile.Raw), targetMeta.HashAlgorithms()...)
+	if err != nil {
+		return nil, err
+	}
+	err = util.FileMetaEqual(targetMeta.FileMeta, generatedMeta)
+	if err != nil {
+		return nil, err
 	}
 	return targetFile.Raw, nil
 }
