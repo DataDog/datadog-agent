@@ -1,8 +1,10 @@
-if exist c:\mnt\modcache.tar (
+if exist c:\mnt\modcache.tar.gz (
     @echo Extracting modcache
-    Powershell -C "7z x c:\mnt\modcache.tar -oc:\\"
+    Powershell -C "7z x c:\mnt\modcache.tar.gz -oc:\mnt"
+    Powershell -C "7z x c:\mnt\modcache.tar -oc:\modcache"
+    del /f c:\mnt\modcache.tar.gz
     del /f c:\mnt\modcache.tar
-    @echo Modchache extracted
+    @echo Modcache extracted
 ) else (
-    @echo modcache.tar not found, dependencies will be downloaded
+    @echo modcache.tar.gz not found, dependencies will be downloaded
 )

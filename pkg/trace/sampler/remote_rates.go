@@ -30,6 +30,7 @@ const (
 // from remote configurations. RemoteRates listens for new remote configurations
 // with a grpc subscriber. On reception, new tps targets replace the previous ones.
 type RemoteRates struct {
+	maxSigTPS float64
 	// samplers contains active sampler adjusting rates to match latest tps targets
 	// available. A sampler is added only if a span matching the signature is seen.
 	samplers map[Signature]*Sampler
@@ -44,7 +45,7 @@ type RemoteRates struct {
 	stopped chan struct{}
 }
 
-func newRemoteRates() *RemoteRates {
+func newRemoteRates(maxTPS float64) *RemoteRates {
 	if !features.Has("remote_rates") {
 		return nil
 	}
@@ -54,10 +55,11 @@ func newRemoteRates() *RemoteRates {
 		return nil
 	}
 	return &RemoteRates{
-		client:   client,
-		samplers: make(map[Signature]*Sampler),
-		exit:     make(chan struct{}),
-		stopped:  make(chan struct{}),
+		client:    client,
+		maxSigTPS: maxTPS,
+		samplers:  make(map[Signature]*Sampler),
+		exit:      make(chan struct{}),
+		stopped:   make(chan struct{}),
 	}
 }
 
@@ -65,6 +67,12 @@ func (r *RemoteRates) onUpdate(update remote.APMSamplingUpdate) error {
 	log.Debugf("fetched config version %d from remote config management", update.Config.Version)
 	tpsTargets := make(map[Signature]float64, len(r.tpsTargets))
 	for _, targetTPS := range update.Config.TargetTps {
+		if targetTPS.Value > r.maxSigTPS {
+			targetTPS.Value = r.maxSigTPS
+		}
+		if targetTPS.Value == 0 {
+			continue
+		}
 		sig := ServiceSignature{Name: targetTPS.Service, Env: targetTPS.Env}.Hash()
 		tpsTargets[sig] = targetTPS.Value
 	}
