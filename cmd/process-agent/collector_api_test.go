@@ -8,6 +8,7 @@ package main
 import (
 	"fmt"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"io/ioutil"
 	"net"
@@ -497,6 +498,7 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL) {
 
 		addrC <- listener.Addr()
 
+		log.Debug("Starting listener for mock collectorServer")
 		_ = m.collectorServer.Serve(listener)
 	}()
 
@@ -511,6 +513,7 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL) {
 
 		addrC <- listener.Addr()
 
+		log.Debug("Starting listener for mock orchestratorServer")
 		_ = m.orchestratorServer.Serve(listener)
 	}()
 
