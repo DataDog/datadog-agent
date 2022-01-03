@@ -49,9 +49,9 @@ from .go import (
     vet,
 )
 from .test import (
+    download_tools,
     e2e_tests,
     install_shellcheck,
-    download_tools,
     install_tools,
     integration_tests,
     junit_upload,
