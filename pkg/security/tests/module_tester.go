@@ -108,10 +108,11 @@ rules:
 `
 
 var (
-	testEnvironment string
-	useReload       bool
-	logLevelStr     string
-	logPatterns     stringSlice
+	testEnvironment  string
+	useReload        bool
+	logLevelStr      string
+	logPatterns      stringSlice
+	logStatusMetrics bool
 )
 
 const (
@@ -470,7 +471,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 				return testMod, err
 			}
 
-			if ruleDefs != nil {
+			if ruleDefs != nil && logStatusMetrics {
 				t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
 			}
 			return testMod, nil
@@ -529,7 +530,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.Wrap(err, "failed to start module")
 	}
 
-	t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
+	if logStatusMetrics {
+		t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
+	}
+
 	return testMod, nil
 }
 
@@ -992,7 +996,9 @@ func (tm *testModule) cleanup() {
 }
 
 func (tm *testModule) Close() {
-	tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetStatusMetrics(tm.probe))
+	if logStatusMetrics {
+		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetStatusMetrics(tm.probe))
+	}
 
 	if useReload {
 		if _, err := newTestModule(tm.t, nil, nil, tm.opts); err != nil {
@@ -1185,6 +1191,7 @@ func init() {
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
+	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
 	rand.Seed(time.Now().UnixNano())
 
 	testSuitePid = uint32(utils.Getpid())
