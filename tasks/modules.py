@@ -11,9 +11,10 @@ class GoModule:
     def __init__(self, path, targets=None, condition=lambda: True, should_tag=True):
         self.path = path
         self.targets = targets if targets else ["."]
-        self.dependencies = self.__compute_dependencies()
         self.condition = condition
         self.should_tag = should_tag
+
+        self._dependencies = None
 
     def __version(self, agent_version):
         """Return the module version for a given Agent version.
@@ -31,26 +32,16 @@ class GoModule:
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
         prefix = "github.com/DataDog/datadog-agent/"
-
-        # Find correct directory to use: it needs to be a directory that contains internal/tools/modparser,
-        # either in the current directory or one of its parent directories.
-        # This is needed because __compute_dependencies is run when any invoke task is run,
-        # and some invoke tasks in our build process are not run at the root of the repository.
         base_path = os.getcwd()
-        while not os.path.isdir(
-            os.path.join(base_path, "internal", "tools", "modparser")
-        ) and base_path != os.path.dirname(os.path.abspath(base_path)):
-            base_path = os.path.dirname(os.path.abspath(base_path))
+        mod_parser_path = os.path.join(base_path, "internal", "tools", "modparser")
 
-        if not os.path.isdir(os.path.join(base_path, "internal", "tools", "modparser")):
-            raise Exception(
-                "Cannot find go.mod parser in internal/tools/modparser in this directory or any parent directory."
-            )
+        if not os.path.isdir(mod_parser_path):
+            raise Exception(f"Cannot find go.mod parser in {mod_parser_path}")
 
         try:
             output = subprocess.check_output(
                 ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", prefix],
-                cwd=os.path.join(base_path, "internal", "tools", "modparser"),
+                cwd=mod_parser_path,
             ).decode("utf-8")
         except subprocess.CalledProcessError as e:
             print(f"Error while calling go.mod parser: {e.output}")
@@ -78,6 +69,12 @@ class GoModule:
     def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""
         return self.full_path() + "/go.mod"
+
+    @property
+    def dependencies(self):
+        if not self._dependencies:
+            self._dependencies = self.__compute_dependencies()
+        return self._dependencies
 
     @property
     def import_path(self):
