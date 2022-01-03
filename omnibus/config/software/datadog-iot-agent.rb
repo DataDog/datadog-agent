@@ -17,7 +17,7 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
-  gomodcache = Pathname.new("/gomodcache")
+  gomodcache = Pathname.new("/modcache")
   env = {
     'GOPATH' => gopath.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",

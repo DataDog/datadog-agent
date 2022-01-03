@@ -16,7 +16,7 @@ import (
 func TestNewDynamicConfig(t *testing.T) {
 	assert := assert.New(t)
 
-	dc := NewDynamicConfig("none")
+	dc := NewDynamicConfig()
 	assert.NotNil(dc)
 
 	rates := map[ServiceSignature]float64{
@@ -93,7 +93,7 @@ func TestRateByServiceLimits(t *testing.T) {
 }
 
 func TestRateByServiceDefaults(t *testing.T) {
-	rbc := RateByService{defaultEnv: "test"}
+	rbc := RateByService{}
 	rbc.SetAll(map[ServiceSignature]float64{
 		{"one", "prod"}: 0.5,
 		{"two", "test"}: 0.4,
@@ -101,7 +101,6 @@ func TestRateByServiceDefaults(t *testing.T) {
 	assert.Equal(t, map[string]float64{
 		"service:one,env:prod": 0.5,
 		"service:two,env:test": 0.4,
-		"service:two,env:":     0.4,
 	}, rbc.GetAll())
 }
 
@@ -134,7 +133,7 @@ func TestRateByServiceConcurrency(t *testing.T) {
 
 func benchRBSGetAll(sigs map[ServiceSignature]float64) func(*testing.B) {
 	return func(b *testing.B) {
-		rbs := &RateByService{defaultEnv: "test"}
+		rbs := &RateByService{}
 		rbs.SetAll(sigs)
 
 		b.ResetTimer()
@@ -148,7 +147,7 @@ func benchRBSGetAll(sigs map[ServiceSignature]float64) func(*testing.B) {
 
 func benchRBSSetAll(sigs map[ServiceSignature]float64) func(*testing.B) {
 	return func(b *testing.B) {
-		rbs := &RateByService{defaultEnv: "test"}
+		rbs := &RateByService{}
 
 		b.ResetTimer()
 		b.ReportAllocs()
