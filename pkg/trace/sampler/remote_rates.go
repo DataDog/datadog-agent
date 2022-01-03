@@ -66,15 +66,17 @@ func newRemoteRates(maxTPS float64) *RemoteRates {
 func (r *RemoteRates) onUpdate(update remote.APMSamplingUpdate) error {
 	log.Debugf("fetched config version %d from remote config management", update.Config.Version)
 	tpsTargets := make(map[Signature]float64, len(r.tpsTargets))
-	for _, targetTPS := range update.Config.TargetTps {
-		if targetTPS.Value > r.maxSigTPS {
-			targetTPS.Value = r.maxSigTPS
+	for _, rates := range update.Config.Rates {
+		for _, targetTPS := range rates.TargetTps {
+			if targetTPS.Value > r.maxSigTPS {
+				targetTPS.Value = r.maxSigTPS
+			}
+			if targetTPS.Value == 0 {
+				continue
+			}
+			sig := ServiceSignature{Name: targetTPS.Service, Env: targetTPS.Env}.Hash()
+			tpsTargets[sig] = targetTPS.Value
 		}
-		if targetTPS.Value == 0 {
-			continue
-		}
-		sig := ServiceSignature{Name: targetTPS.Service, Env: targetTPS.Env}.Hash()
-		tpsTargets[sig] = targetTPS.Value
 	}
 	r.updateTPS(tpsTargets)
 	atomic.StoreUint64(&r.tpsVersion, update.Config.Version)

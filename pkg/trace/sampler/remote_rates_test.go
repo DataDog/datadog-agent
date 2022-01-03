@@ -46,7 +46,7 @@ func configGenerator(version uint64, rates pb.APMSampling) remote.APMSamplingUpd
 				ID:      "testid",
 				Version: version,
 			},
-			APMSampling: rates,
+			Rates: []pb.APMSampling{rates},
 		},
 	}
 }
