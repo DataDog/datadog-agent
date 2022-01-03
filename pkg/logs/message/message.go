@@ -13,6 +13,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
+// Payload represents an encoded collection of messages ready to be sent to the intake
+type Payload struct {
+	// The slice of sources messages encoded in the payload
+	Messages []*Message
+	// The encoded bytes to be sent to the intake (sometimes compressed)
+	Encoded []byte
+	// The content encoding. A header for HTTP, empty for TCP
+	Encoding string
+	// The size of the unencoded payload
+	UnencodedSize int
+}
+
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
 	Content            []byte

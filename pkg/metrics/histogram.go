@@ -194,3 +194,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 
 	return series, nil
 }
+
+func (h *Histogram) isStateful() bool {
+	return false
+}

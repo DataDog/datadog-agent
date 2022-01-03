@@ -22,6 +22,7 @@ static cb_write_persistent_cache_t cb_write_persistent_cache = NULL;
 static cb_read_persistent_cache_t cb_read_persistent_cache = NULL;
 static cb_obfuscate_sql_t cb_obfuscate_sql = NULL;
 static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
+static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -37,6 +38,7 @@ static PyObject *write_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *read_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -52,6 +54,7 @@ static PyMethodDef methods[] = {
     { "read_persistent_cache", read_persistent_cache, METH_VARARGS, "Retrieve the value associated with a key." },
     { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL string." },
     { "obfuscate_sql_exec_plan", (PyCFunction)obfuscate_sql_exec_plan, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL Execution Plan." },
+    { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
     { NULL, NULL } // guards
 };
 
@@ -130,6 +133,10 @@ void _set_obfuscate_sql_cb(cb_obfuscate_sql_t cb)
 void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t cb)
 {
     cb_obfuscate_sql_exec_plan = cb;
+}
+
+void _set_get_process_start_time_cb(cb_get_process_start_time_t cb) {
+    cb_get_process_start_time = cb;
 }
 
 
@@ -754,5 +761,33 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
     cgo_free(error_message);
     cgo_free(obfPlan);
     PyGILState_Release(gstate);
+    return retval;
+}
+
+/*! \fn PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief This function implements the `datadog_agent.get_process_start_time` method, returning
+    the agent process start time, in seconds since the epoch.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to the arguments tuple.
+    \param kwargs A PyObject* pointer to a map of key value pairs.
+    \return A PyObject* pointer to the value.
+
+    This function is callable as the `datadog_agent.get_process_start_time` Python method and
+    uses the `cb_get_process_start_time()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    if (cb_get_process_start_time == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    double time = cb_get_process_start_time();
+    PyObject *retval = PyFloat_FromDouble(time);
+
+    PyGILState_Release(gstate);
+
     return retval;
 }

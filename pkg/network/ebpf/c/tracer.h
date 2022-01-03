@@ -31,6 +31,7 @@ typedef struct {
     __u8 direction;
     __u64 sent_packets;
     __u64 recv_packets;
+    __u64 tags;
 } conn_stats_ts_t;
 
 // Connection flags
@@ -140,5 +141,15 @@ typedef struct {
     __u32 netns;
     __u16 port;
 } port_binding_t;
+
+typedef struct {
+    struct sock *sk;
+    struct msghdr *msg;
+} udp_recv_sock_t;
+
+typedef struct {
+    __u32 pid;
+    __u32 fd;
+} pid_fd_t;
 
 #endif

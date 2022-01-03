@@ -369,7 +369,7 @@ func (s *Scanner) stopTailer(tailer *Tailer) {
 func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) bool {
 	log.Info("Log rotation happened to ", file.Path)
 	tailer.StopAfterFileRotation()
-	tailer = s.createTailer(file, tailer.outputChan)
+	tailer = s.createRotatedTailer(file, tailer.outputChan, tailer.GetDetectedPattern())
 	// force reading file from beginning since it has been log-rotated
 	err := tailer.StartFromBeginning()
 	if err != nil {
@@ -382,5 +382,9 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) boo
 
 // createTailer returns a new initialized tailer
 func (s *Scanner) createTailer(file *File, outputChan chan *message.Message) *Tailer {
-	return NewTailer(outputChan, file, s.tailerSleepDuration)
+	return NewTailer(outputChan, file, s.tailerSleepDuration, NewDecoderFromSource(file.Source))
+}
+
+func (s *Scanner) createRotatedTailer(file *File, outputChan chan *message.Message, pattern *regexp.Regexp) *Tailer {
+	return NewTailer(outputChan, file, s.tailerSleepDuration, NewDecoderFromSourceWithPattern(file.Source, pattern))
 }

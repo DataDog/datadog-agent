@@ -7,6 +7,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -16,9 +17,12 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,11 +37,12 @@ type RuntimeSecurityAgent struct {
 	connected     atomic.Value
 	eventReceived uint64
 	telemetry     *telemetry
+	endpoints     *config.Endpoints
 	cancel        context.CancelFunc
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter, endpoints *config.Endpoints) (*RuntimeSecurityAgent, error) {
 	socketPath := coreconfig.Datadog.GetString("runtime_security_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set")
@@ -60,6 +65,7 @@ func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter) (*Runtime
 		reporter:  reporter,
 		hostname:  hostname,
 		telemetry: tel,
+		endpoints: endpoints,
 	}, nil
 }
 
@@ -100,7 +106,15 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 			select {
 			case <-logTicker.C:
-				log.Warnf("Error while connecting to the runtime security module: %v", err)
+				msg := fmt.Sprintf("error while connecting to the runtime security module: %v", err)
+
+				if e, ok := status.FromError(err); ok {
+					switch e.Code() {
+					case codes.Unavailable:
+						msg += ", please check that the runtime security module is enabled in the system-probe.yaml config file"
+					}
+				}
+				log.Error(msg)
 			default:
 				// do nothing
 			}
@@ -143,6 +157,7 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 	return map[string]interface{}{
 		"connected":     rsa.connected.Load(),
 		"eventReceived": atomic.LoadUint64(&rsa.eventReceived),
+		"endpoints":     rsa.endpoints.GetStatus(),
 	}
 }
 

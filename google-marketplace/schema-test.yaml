@@ -6,7 +6,7 @@ properties:
     default: false
   datadog.credentials.apiKey:
     title: Datadog API key
-    description: Get your Datadog API key at https://app.datadoghq.com/account/settings#api
+    description: Get your Datadog API key at https://app.datadoghq.com/organization-settings/api-keys
     type: string
     default: "00000000000000000000000000000000"
     maxLength: 45

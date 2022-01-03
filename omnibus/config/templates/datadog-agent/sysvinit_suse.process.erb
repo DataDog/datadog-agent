@@ -56,7 +56,7 @@ DESC="Datadog Process Agent"
 rc_reset
 
 if [ ! -x $AGENTPATH ]; then
-  echo "$AGENTPATH not found. Exiting."
+  echo "$AGENTPATH not found. Exiting $NAME"
   exit 1
 fi
 

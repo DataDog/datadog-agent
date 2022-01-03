@@ -18,6 +18,7 @@ from . import (
     dogstatsd,
     github,
     installcmd,
+    package,
     pipeline,
     process_agent,
     pylauncher,
@@ -48,18 +49,17 @@ from .go import (
     vet,
 )
 from .test import (
-    check_gitlab_broken_dependencies,
     e2e_tests,
     install_shellcheck,
     install_tools,
     integration_tests,
+    junit_upload,
+    lint_copyrights,
     lint_filenames,
     lint_milestone,
     lint_python,
     lint_releasenote,
     lint_teamassignment,
-    make_kitchen_gitlab_yml,
-    make_simple_gitlab_yml,
     test,
 )
 
@@ -80,6 +80,7 @@ ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
+ns.add_task(lint_copyrights),
 ns.add_task(lint_teamassignment)
 ns.add_task(lint_releasenote)
 ns.add_task(lint_milestone)
@@ -87,15 +88,13 @@ ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(audit_tag_impact)
 ns.add_task(e2e_tests)
-ns.add_task(make_kitchen_gitlab_yml)
-ns.add_task(make_simple_gitlab_yml)
-ns.add_task(check_gitlab_broken_dependencies)
 ns.add_task(generate)
 ns.add_task(install_shellcheck)
 ns.add_task(install_tools)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
 ns.add_task(generate_config)
+ns.add_task(junit_upload)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
@@ -109,6 +108,7 @@ ns.add_collection(trace_agent)
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
 ns.add_collection(github)
+ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(pylauncher)
 ns.add_collection(selinux)

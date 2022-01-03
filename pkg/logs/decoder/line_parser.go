@@ -28,7 +28,7 @@ type SingleLineParser struct {
 	lineHandler LineHandler
 }
 
-// NewSingleLineParser returns a new MultiLineHandler.
+// NewSingleLineParser returns a new SingleLineParser.
 func NewSingleLineParser(parser parser.Parser, lineHandler LineHandler) *SingleLineParser {
 	return &SingleLineParser{
 		parser:      parser,
@@ -83,7 +83,7 @@ type MultiLineParser struct {
 	timestamp    string
 }
 
-// NewMultiLineParser returns a new MultiLineHandler.
+// NewMultiLineParser returns a new MultiLineParser.
 func NewMultiLineParser(flushTimeout time.Duration, parser parser.Parser, lineHandler LineHandler, lineLimit int) *MultiLineParser {
 	return &MultiLineParser{
 		inputChan:    make(chan *DecodedInput),

@@ -8,25 +8,30 @@ package tag
 import (
 	"context"
 	"sync"
-	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+
+	"github.com/benbjohnson/clock"
 )
 
 // NOTE: to avoid races, do not modify the contents of the `expectedTags`
 // slice, as those contents are referenced without holding the lock.
 
 type localProvider struct {
-	tags                 []string
-	expectedTags         []string
-	expectedTagsDeadline time.Time
+	tags         []string
+	expectedTags []string
 	sync.RWMutex
 }
 
 // NewLocalProvider returns a new local Provider.
 func NewLocalProvider(t []string) Provider {
+	return newLocalProviderWithClock(t, clock.New())
+}
+
+// newLocalProviderWithClock returns a provider using the given clock.
+func newLocalProviderWithClock(t []string, clock clock.Clock) Provider {
 	p := &localProvider{
 		tags:         t,
 		expectedTags: t,
@@ -34,16 +39,17 @@ func NewLocalProvider(t []string) Provider {
 
 	if config.IsExpectedTagsSet() {
 		p.expectedTags = append(p.tags, host.GetHostTags(context.TODO(), false).System...)
-		p.expectedTagsDeadline = coreConfig.StartTime.Add(coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration"))
+
+		// expected tags deadline is based on the agent start time, which may have been earlier
+		// than the current time.
+		expectedTagsDeadline := coreConfig.StartTime.Add(coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration"))
 
 		// reset submitExpectedTags after deadline elapsed
-		go func() {
-			<-time.After(time.Until(p.expectedTagsDeadline))
-
+		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {
 			p.Lock()
 			defer p.Unlock()
 			p.expectedTags = nil
-		}()
+		})
 	}
 
 	return p

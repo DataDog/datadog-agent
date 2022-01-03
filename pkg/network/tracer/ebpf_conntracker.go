@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package tracer
@@ -23,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/cihub/seelog"
 	ct "github.com/florianl/go-conntrack"
 	"golang.org/x/sys/unix"
 )
@@ -37,6 +44,7 @@ type ebpfConntracker struct {
 	m            *manager.Manager
 	ctMap        *ebpf.Map
 	telemetryMap *ebpf.Map
+	rootNS       uint32
 	// only kept around for stats purposes from initial dump
 	consumer *netlink.Consumer
 	decoder  *netlink.Decoder
@@ -79,10 +87,16 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		return nil, fmt.Errorf("unable to get telemetry map: %w", err)
 	}
 
+	rootNS, err := util.GetNetNsInoFromPid(cfg.ProcRoot, 1)
+	if err != nil {
+		return nil, fmt.Errorf("could not find network root namespace: %w", err)
+	}
+
 	e := &ebpfConntracker{
 		m:            m,
 		ctMap:        ctMap,
 		telemetryMap: telemetryMap,
+		rootNS:       rootNS,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -195,7 +209,6 @@ func formatKey(netns uint32, tuple *ct.IPTuple) *netebpf.ConntrackTuple {
 }
 
 func toConntrackTupleFromStats(src *netebpf.ConntrackTuple, stats *network.ConnectionStats) {
-	src.Netns = stats.NetNS
 	src.Sport = stats.SPort
 	src.Dport = stats.DPort
 	src.Saddr_l, src.Saddr_h = util.ToLowHigh(stats.Source)
@@ -221,10 +234,26 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	defer tuplePool.Put(src)
 
 	toConntrackTupleFromStats(src, &stats)
-	log.Tracef("looking up in conntrack (stats): %s", stats)
-	log.Tracef("looking up in conntrack (tuple): %s", src)
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("looking up in conntrack (stats): %s", stats)
+	}
 
+	// Try the lookup in the root namespace first
+	src.Netns = e.rootNS
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("looking up in conntrack (tuple): %s", src)
+	}
 	dst := e.get(src)
+
+	if dst == nil && stats.NetNS != e.rootNS {
+		// Perform another lookup, this time using the connection namespace
+		src.Netns = stats.NetNS
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("looking up in conntrack (tuple): %s", src)
+		}
+		dst = e.get(src)
+	}
+
 	if dst == nil {
 		return nil
 	}
@@ -238,6 +267,10 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 		ReplSrcPort: dst.Sport,
 		ReplDstPort: dst.Dport,
 	}
+}
+
+func (*ebpfConntracker) IsSampling() bool {
+	return false
 }
 
 func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTuple {

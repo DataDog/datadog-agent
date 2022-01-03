@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
@@ -78,7 +77,7 @@ func (o *OTLPReceiver) Start() {
 				}
 			}
 		}()
-		log.Infof("OpenTelemetry HTTP receiver running on http://%s:%d", o.cfg.BindHost, o.cfg.HTTPPort)
+		log.Debugf("OpenTelemetry HTTP receiver running on http://%s:%d (internal use only)", o.cfg.BindHost, o.cfg.HTTPPort)
 	}
 	if o.cfg.GRPCPort != 0 {
 		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", o.cfg.BindHost, o.cfg.GRPCPort))
@@ -94,7 +93,7 @@ func (o *OTLPReceiver) Start() {
 					log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 				}
 			}()
-			log.Infof("OpenTelemetry gRPC receiver running on %s:%d", o.cfg.BindHost, o.cfg.GRPCPort)
+			log.Debugf("OpenTelemetry gRPC receiver running on %s:%d (internal use only)", o.cfg.BindHost, o.cfg.GRPCPort)
 		}
 	}
 }
@@ -235,13 +234,29 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 		tags := tagstats.AsTags()
 		metrics.Count("datadog.trace_agent.otlp.spans", int64(len(rspans.InstrumentationLibrarySpans)), tags, 1)
 		metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
+		traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 		p := Payload{
-			Source:        tagstats,
-			ContainerTags: getContainerTags(fastHeaderGet(header, headerContainerID)),
-			Traces:        make(pb.Traces, 0, len(tracesByID)),
+			Source: tagstats,
 		}
-		for _, trace := range tracesByID {
-			p.Traces = append(p.Traces, trace)
+		for _, spans := range tracesByID {
+			traceChunks = append(traceChunks, &pb.TraceChunk{
+				// auto-keep all incoming traces; it was already chosen as a keeper on
+				// the client side.
+				Priority: int32(sampler.PriorityAutoKeep),
+				Spans:    spans,
+			})
+		}
+		p.TracerPayload = &pb.TracerPayload{
+			Chunks:          traceChunks,
+			ContainerID:     fastHeaderGet(header, headerContainerID),
+			LanguageName:    tagstats.Lang,
+			LanguageVersion: tagstats.LangVersion,
+			TracerVersion:   tagstats.TracerVersion,
+		}
+		if ctags := getContainerTags(p.TracerPayload.ContainerID); ctags != "" {
+			p.TracerPayload.Tags = map[string]string{
+				tagContainersTags: ctags,
+			}
 		}
 		o.out <- &p
 	}
@@ -321,18 +336,9 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 		Service:  rattr[string(semconv.AttributeServiceName)],
 		Resource: in.Name,
 		Meta:     rattr,
-		Metrics: map[string]float64{
-			// auto-keep all incoming traces; it was already chosen as a keeper on
-			// the client side.
-			sampler.KeySamplingPriority: float64(sampler.PriorityAutoKeep),
-		},
+		Metrics:  map[string]float64{},
 	}
-	if features.Has("otlp_original_ids") {
-		// keep original IDs
-		span.Meta["otlp_ids.trace"] = hex.EncodeToString(in.TraceId)
-		span.Meta["otlp_ids.span"] = hex.EncodeToString(in.SpanId)
-		span.Meta["otlp_ids.parent"] = hex.EncodeToString(in.ParentSpanId)
-	}
+	span.Meta["otel.trace_id"] = hex.EncodeToString(in.TraceId)
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			span.Meta["version"] = ver

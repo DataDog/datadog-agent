@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package auditor
 
 import (
@@ -8,7 +13,7 @@ import (
 // It has been introduced for the Serverless Agent which doesn't need
 // to maintain a registry.
 type NullAuditor struct {
-	channel     chan *message.Message
+	channel     chan *message.Payload
 	stopChannel chan struct{}
 }
 
@@ -16,7 +21,7 @@ type NullAuditor struct {
 // that should be used on this NullAuditor.
 func NewNullAuditor() *NullAuditor {
 	return &NullAuditor{
-		channel:     make(chan *message.Message),
+		channel:     make(chan *message.Payload),
 		stopChannel: make(chan struct{}),
 	}
 }
@@ -38,7 +43,7 @@ func (a *NullAuditor) Stop() {
 }
 
 // Channel returns the channel on which should be sent the messages.
-func (a *NullAuditor) Channel() chan *message.Message {
+func (a *NullAuditor) Channel() chan *message.Payload {
 	return a.channel
 }
 

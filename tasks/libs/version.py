@@ -16,13 +16,13 @@ class Version:
         return getattr(self, part) if getattr(self, part) is not None else 0
 
     def __str__(self):
-        version = "{}{}.{}".format(self.prefix, self.major, self.minor)
+        version = f"{self.prefix}{self.major}.{self.minor}"
         if self.patch is not None:
-            version = "{}.{}".format(version, self.patch)
+            version = f"{version}.{self.patch}"
         if self.devel:
-            version = "{}-devel".format(version)
+            version = f"{version}-devel"
         if self.rc is not None and self.rc != 0:
-            version = "{}-rc.{}".format(version, self.rc)
+            version = f"{version}-rc.{self.rc}"
         return version
 
     def __eq__(self, other):
@@ -30,7 +30,7 @@ class Version:
             return False
 
         if not isinstance(other, Version):
-            raise TypeError("Cannot compare Version object with {}".format(type(other)))
+            raise TypeError(f"Cannot compare Version object with {type(other)}")
 
         res = True
         # If one value is None, it is equivalent to 0
@@ -44,7 +44,7 @@ class Version:
             return True
 
         if not isinstance(other, Version):
-            raise TypeError("Cannot compare Version object with {}".format(type(other)))
+            raise TypeError(f"Cannot compare Version object with {type(other)}")
 
         for part in ["major", "minor", "patch"]:
             self_part = self._safe_value(part)
@@ -58,10 +58,13 @@ class Version:
         if self.devel != other.devel:
             return not self.devel and other.devel
 
-        if self.rc is None or other.rc is None:
-            # Everything else being equal, self can only be higher than other if other is not a released version
-            return other.rc is not None
+        if self._safe_value("rc") == 0 or other._safe_value("rc") == 0:
+            # Everything else being equal, self can only be higher than other if other is an rc
+            return other.is_rc()
         return self.rc > other.rc
+
+    def clone(self):
+        return deepcopy(self)
 
     def is_rc(self):
         return self._safe_value("rc") != 0
@@ -69,13 +72,19 @@ class Version:
     def is_devel(self):
         return self.devel
 
+    def branch(self):
+        """
+        Returns the name of the release branch associated to this version.
+        """
+        return f"{self._safe_value('major')}.{self._safe_value('minor')}.x"
+
     def non_devel_version(self):
-        new_version = deepcopy(self)
+        new_version = self.clone()
         new_version.devel = False
         return new_version
 
     def next_version(self, bump_major=False, bump_minor=False, bump_patch=False, rc=False):
-        new_version = deepcopy(self)
+        new_version = self.clone()
 
         if bump_patch:
             new_version.patch = self._safe_value("patch") + 1

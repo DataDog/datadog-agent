@@ -13,7 +13,9 @@ class TestVersionComparison(unittest.TestCase):
             random.randint(0, 99),
             random.randint(0, 99),
             random.randint(0, 99),
-            random.randint(0, 99),
+            # For tests, rc must be non-0, as 0 signifies a release version, which would
+            # break some tests like test_rc_higher and test_rc_lower
+            random.randint(1, 99),
             random.choice([True, False]),
         )
 

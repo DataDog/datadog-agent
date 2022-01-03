@@ -70,19 +70,22 @@ func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 
 // ratesByService returns a map of service signatures mapping to the rates identified using
 // the signatures.
-func (cat *serviceKeyCatalog) ratesByService(rates map[Signature]float64, totalScore float64) map[ServiceSignature]float64 {
-	rbs := make(map[ServiceSignature]float64, len(rates)+1)
+func (cat *serviceKeyCatalog) ratesByService(localRates, remoteRates map[Signature]float64, defaultRate float64) map[ServiceSignature]float64 {
+	rbs := make(map[ServiceSignature]float64, len(localRates)+1)
 	cat.mu.Lock()
 	defer cat.mu.Unlock()
 	for key, el := range cat.items {
 		sig := el.Value.(catalogEntry).sig
-		if rate, ok := rates[sig]; ok {
+		// todo:raphael distinguish remote rates from local rates with a separate priority value
+		if rate, ok := remoteRates[sig]; ok {
+			rbs[key] = rate
+		} else if rate, ok := localRates[sig]; ok {
 			rbs[key] = rate
 		} else {
 			cat.ll.Remove(el)
 			delete(cat.items, key)
 		}
 	}
-	rbs[ServiceSignature{}] = totalScore
+	rbs[ServiceSignature{}] = defaultRate
 	return rbs
 }

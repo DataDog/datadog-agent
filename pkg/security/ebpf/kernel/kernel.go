@@ -3,16 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package kernel
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/cobaugh/osrelease"
+	"github.com/acobaugh/osrelease"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -31,10 +33,18 @@ var (
 	Kernel4_15 = kernel.VersionCode(4, 15, 0) //nolint:deadcode,unused
 	// Kernel4_16 is the KernelVersion representation of kernel version 4.16
 	Kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
+	// Kernel5_0 is the KernelVersion representation of kernel version 5.0
+	Kernel5_0 = kernel.VersionCode(5, 0, 0) //nolint:deadcode,unused
+	// Kernel5_1 is the KernelVersion representation of kernel version 5.1
+	Kernel5_1 = kernel.VersionCode(5, 1, 0) //nolint:deadcode,unused
 	// Kernel5_3 is the KernelVersion representation of kernel version 5.3
 	Kernel5_3 = kernel.VersionCode(5, 3, 0) //nolint:deadcode,unused
 	// Kernel5_4 is the KernelVersion representation of kernel version 5.4
 	Kernel5_4 = kernel.VersionCode(5, 4, 0) //nolint:deadcode,unused
+	// Kernel5_12 is the KernelVersion representation of kernel version 5.12
+	Kernel5_12 = kernel.VersionCode(5, 12, 0) //nolint:deadcode,unused
+	// Kernel5_13 is the KernelVersion representation of kernel version 5.13
+	Kernel5_13 = kernel.VersionCode(5, 13, 0) //nolint:deadcode,unused
 )
 
 // Version defines a kernel version helper
@@ -58,6 +68,13 @@ func NewKernelVersion() (*Version, error) {
 		osReleasePaths = append([]string{
 			filepath.Join("/host", osrelease.EtcOsRelease),
 			filepath.Join("/host", osrelease.UsrLibOsRelease),
+		}, osReleasePaths...)
+	}
+
+	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
+		osReleasePaths = append([]string{
+			filepath.Join(hostRoot, osrelease.EtcOsRelease),
+			filepath.Join(hostRoot, osrelease.UsrLibOsRelease),
 		}, osReleasePaths...)
 	}
 

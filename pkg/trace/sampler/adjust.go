@@ -16,7 +16,7 @@ func (s *Sampler) AdjustScoring() {
 	offset := s.signatureScoreOffset.Load()
 	cardinality := float64(s.Backend.GetCardinality())
 
-	newOffset, newSlope := adjustCoefficients(currentTPS, totalTPS, s.targetTPS, offset, cardinality)
+	newOffset, newSlope := adjustCoefficients(currentTPS, totalTPS, s.targetTPS.Load(), offset, cardinality)
 
 	s.SetSignatureCoefficients(newOffset, newSlope)
 }

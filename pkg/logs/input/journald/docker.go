@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build systemd
 // +build systemd
 
 package journald
@@ -42,5 +43,8 @@ func (t *Tailer) getContainerTags(containerID string) []string {
 
 // initializeTagger initializes the tag collector.
 func (t *Tailer) initializeTagger() {
-	tagger.Init()
+	err := tagger.Init()
+	if err != nil {
+		log.Errorf("failed to start the tagger: %s", err)
+	}
 }

@@ -25,6 +25,14 @@ type kubeApiserverFixture struct {
 	expectError  error
 }
 
+type fakeKubeClient struct {
+	*fake.FakeDynamicClient
+}
+
+func (f *fakeKubeClient) ClusterID() (string, error) {
+	return "fake-k8s-cluster", nil
+}
+
 func (f *kubeApiserverFixture) run(t *testing.T) {
 	t.Helper()
 
@@ -33,13 +41,17 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	kubeClient := fake.NewSimpleDynamicClient(scheme.Scheme, f.objects...)
+	kubeClient := &fakeKubeClient{
+		FakeDynamicClient: fake.NewSimpleDynamicClient(scheme.Scheme, f.objects...),
+	}
 	env.On("KubeClient").Return(kubeClient)
 
 	resource := compliance.Resource{
 		Condition: "_",
-		Custom: &compliance.Custom{
-			Name: "customFunc",
+		ResourceCommon: compliance.ResourceCommon{
+			Custom: &compliance.Custom{
+				Name: "customFunc",
+			},
 		},
 	}
 	expr, err := eval.ParseIterable(resource.Condition)

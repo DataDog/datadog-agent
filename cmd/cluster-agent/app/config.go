@@ -18,6 +18,7 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 
 	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 )
 
 func init() {
@@ -45,7 +46,7 @@ func setupConfig() error {
 	return util.SetAuthToken()
 }
 
-func getSettingsClient() (commonsettings.Client, error) {
+func getSettingsClient(_ *cobra.Command, _ []string) (commonsettings.Client, error) {
 	err := setupConfig()
 	if err != nil {
 		return nil, err

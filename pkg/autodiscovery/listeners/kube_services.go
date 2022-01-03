@@ -22,6 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,16 +31,18 @@ import (
 
 const (
 	kubeServiceAnnotationFormat = "ad.datadoghq.com/service.instances"
+	kubeServicesName            = "kube_services"
 )
 
 // KubeServiceListener listens to kubernetes service creation
 type KubeServiceListener struct {
-	informer      infov1.ServiceInformer
-	services      map[k8stypes.UID]Service
-	promInclAnnot types.PrometheusAnnotations
-	newService    chan<- Service
-	delService    chan<- Service
-	m             sync.RWMutex
+	informer          infov1.ServiceInformer
+	services          map[k8stypes.UID]Service
+	promInclAnnot     types.PrometheusAnnotations
+	newService        chan<- Service
+	delService        chan<- Service
+	targetAllServices bool
+	m                 sync.RWMutex
 }
 
 // KubeServiceService represents a Kubernetes Service
@@ -54,10 +58,10 @@ type KubeServiceService struct {
 var _ Service = &KubeServiceService{}
 
 func init() {
-	Register("kube_services", NewKubeServiceListener)
+	Register(kubeServicesName, NewKubeServiceListener)
 }
 
-func NewKubeServiceListener() (ServiceListener, error) {
+func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -70,9 +74,10 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	}
 
 	return &KubeServiceListener{
-		services:      make(map[k8stypes.UID]Service),
-		informer:      servicesInformer,
-		promInclAnnot: getPrometheusIncludeAnnotations(),
+		services:          make(map[k8stypes.UID]Service),
+		informer:          servicesInformer,
+		promInclAnnot:     getPrometheusIncludeAnnotations(),
+		targetAllServices: conf.IsProviderEnabled(names.KubeServicesFileRegisterName),
 	}, nil
 }
 
@@ -176,13 +181,21 @@ func servicesDiffer(first, second *v1.Service) bool {
 	return false
 }
 
+func (l *KubeServiceListener) shouldIgnore(ksvc *v1.Service) bool {
+	if l.targetAllServices {
+		return false
+	}
+
+	// Ignore services with no AD or Prometheus AD include annotation
+	return !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
+}
+
 func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	if ksvc == nil {
 		return
 	}
 
-	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations()) {
-		// Ignore services with no AD or Prometheus AD include annotation
+	if l.shouldIgnore(ksvc) {
 		return
 	}
 
@@ -193,6 +206,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	l.m.Unlock()
 
 	l.newService <- svc
+	telemetry.WatchedResources.Inc(kubeServicesName, telemetry.ResourceKubeService)
 }
 
 func processService(ksvc *v1.Service, firstRun bool) *KubeServiceService {
@@ -247,6 +261,7 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 		l.m.Unlock()
 
 		l.delService <- svc
+		telemetry.WatchedResources.Dec(kubeServicesName, telemetry.ResourceKubeService)
 	} else {
 		log.Debugf("Entity %s not found, not removing", ksvc.UID)
 	}
@@ -303,7 +318,7 @@ func (s *KubeServiceService) IsReady(context.Context) bool {
 	return true
 }
 
-// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
+// GetCheckNames returns slice of check names defined in kubernetes annotations or container labels
 // KubeServiceService doesn't implement this method
 func (s *KubeServiceService) GetCheckNames(context.Context) []string {
 	return nil

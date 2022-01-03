@@ -9,6 +9,6 @@ package util
 
 import "context"
 
-func getContainerHostname(ctx context.Context) (bool, string) {
-	return false, ""
+func getContainerHostname(ctx context.Context) string {
+	return ""
 }

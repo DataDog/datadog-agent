@@ -13,11 +13,12 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	compagent "github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -28,13 +29,15 @@ import (
 
 // Agent handles REST API calls
 type Agent struct {
-	runtimeAgent *secagent.RuntimeSecurityAgent
+	runtimeAgent    *secagent.RuntimeSecurityAgent
+	complianceAgent *compagent.Agent
 }
 
 // NewAgent returns a new Agent
-func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent) *Agent {
+func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compagent.Agent) *Agent {
 	return &Agent{
-		runtimeAgent: runtimeAgent,
+		runtimeAgent:    runtimeAgent,
+		complianceAgent: complianceAgent,
 	}
 }
 
@@ -46,7 +49,10 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
 	r.HandleFunc("/status", a.getStatus).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
-	r.HandleFunc("/config", a.getRuntimeConfig).Methods("GET")
+	r.HandleFunc("/config", settingshttp.Server.GetFull("")).Methods("GET")
+	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 }
 
 func (a *Agent) stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -91,6 +97,10 @@ func (a *Agent) getStatus(w http.ResponseWriter, r *http.Request) {
 		s["runtimeSecurityStatus"] = a.runtimeAgent.GetStatus()
 	}
 
+	if a.complianceAgent != nil {
+		s["complianceStatus"] = a.complianceAgent.GetStatus()
+	}
+
 	jsonStats, err := json.Marshal(s)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
@@ -125,12 +135,16 @@ func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	logFile := config.Datadog.GetString("security_agent.log_file")
 
-	var runtimeAgentStatus map[string]interface{}
+	var runtimeAgentStatus, complianceStatus map[string]interface{}
 	if a.runtimeAgent != nil {
 		runtimeAgentStatus = a.runtimeAgent.GetStatus()
 	}
 
-	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus)
+	if a.complianceAgent != nil {
+		complianceStatus = a.complianceAgent.GetStatus()
+	}
+
+	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus, complianceStatus)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -140,23 +154,4 @@ func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
-}
-
-func (a *Agent) getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
-	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
-	if err != nil {
-		log.Errorf("Unable to marshal runtime config response: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
-		return
-	}
-
-	scrubbed, err := log.CredentialsCleanerBytes(runtimeConfig)
-	if err != nil {
-		log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
-		return
-	}
-	w.Write(scrubbed)
 }

@@ -4,10 +4,10 @@
     "type": "object",
     "anyOf": [
         {
-            "$ref": "file:///container_event.json"
+            "$ref": "/schemas/container_event.json"
         },
         {
-            "$ref": "file:///host_event.json"
+            "$ref": "/schemas/host_event.json"
         }
     ],
     "allOf": [

@@ -58,6 +58,12 @@ if node['platform_family'] != 'windows'
       service 'docker' do
         action [ :enable, :start ]
       end
+    elsif ['ubuntu'].include?(node[:platform])
+      docker_installation_package 'default' do
+        action :create
+        setup_docker_repo false
+        package_name 'docker.io'
+      end
     else
       docker_service 'default' do
         action [:create, :start]
@@ -74,10 +80,20 @@ if node['platform_family'] != 'windows'
       tag '7'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
       command "sleep 7200"
-      volumes ['/tmp/security-agent:/tmp/security-agent', '/proc:/host/proc', '/etc/os-release:/host/etc/os-release']
-      env ['HOST_PROC=/host/proc', 'DOCKER_DD_AGENT=yes']
+      volumes [
+        '/tmp/security-agent:/tmp/security-agent',
+        '/proc:/host/proc',
+        '/etc/os-release:/host/etc/os-release',
+        '/:/host/root',
+        '/etc:/host/etc'
+      ]
+      env [
+        'HOST_PROC=/host/proc',
+        'HOST_ROOT=/host/root',
+        'HOST_ETC=/host/etc',
+        'DOCKER_DD_AGENT=yes'
+      ]
       privileged true
-      pid_mode 'host'
     end
 
     docker_exec 'debug_fs' do

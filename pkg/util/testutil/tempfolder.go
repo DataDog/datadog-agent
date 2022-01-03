@@ -48,7 +48,8 @@ func (f *TempFolder) Add(fileName string, contents string) error {
 	return err
 }
 
-func (f *TempFolder) delete(fileName string) error {
+// Delete removes a specific file
+func (f *TempFolder) Delete(fileName string) error {
 	return os.Remove(filepath.Join(f.RootPath, fileName))
 }
 

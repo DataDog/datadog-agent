@@ -1,11 +1,11 @@
 #include "stdafx.h"
+#include "customactiondata.h"
 #include "PropertyReplacer.h"
 #include <utility>
 
 CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine)
 : _hInstall(NULL)
 , _domainUser(false)
-, _userParamMismatch(false)
 , _doInstallSysprobe(true)
 , _ddnpmPresent(false)
 , _ddUserExists(false)
@@ -98,17 +98,17 @@ bool CustomActionData::DoesUserExist() const
 
 const std::wstring &CustomActionData::UnqualifiedUsername() const
 {
-    return _unqualifiedUsername;
+    return _user.Name;
 }
 
-const std::wstring &CustomActionData::Username() const
+const std::wstring &CustomActionData::FullyQualifiedUsername() const
 {
-    return _fqUsername;
+    return _fullyQualifiedUsername;
 }
 
 const std::wstring &CustomActionData::Domain() const
 {
-    return _domain;
+    return _user.Domain;
 }
 
 PSID CustomActionData::Sid() const
@@ -124,11 +124,6 @@ void CustomActionData::Sid(sid_ptr &sid)
 bool CustomActionData::installSysprobe() const
 {
     return _doInstallSysprobe;
-}
-
-bool CustomActionData::UserParamMismatch() const
-{
-    return _userParamMismatch;
 }
 
 bool CustomActionData::npmPresent() const
@@ -200,100 +195,83 @@ bool CustomActionData::parseSysprobeData()
     return true;
 }
 
-bool CustomActionData::findPreviousUserInfo()
+std::optional<CustomActionData::User> CustomActionData::findPreviousUserInfo()
 {
     ddRegKey regkeybase;
-    bool previousInstall = false;
-    if (!regkeybase.getStringValue(keyInstalledUser.c_str(), pvsUser) ||
-        !regkeybase.getStringValue(keyInstalledDomain.c_str(), pvsDomain) || pvsUser.length() == 0 ||
-        pvsDomain.length() == 0)
+    User user;
+    if (!regkeybase.getStringValue(keyInstalledUser.c_str(), user.Name) ||
+        !regkeybase.getStringValue(keyInstalledDomain.c_str(), user.Domain) || user.Name.length() == 0 ||
+        user.Domain.length() == 0)
     {
-        WcaLog(LOGMSG_STANDARD, "previous user registration not found in registry");
-        previousInstall = false;
+        WcaLog(LOGMSG_STANDARD, "previous user information not found in registry");
+        return std::nullopt;
     }
-    else
-    {
-        WcaLog(LOGMSG_STANDARD, "found previous user (%S) registration in registry", pvsUser.c_str());
-        previousInstall = true;
-    }
-    return previousInstall;
+    WcaLog(LOGMSG_STANDARD, "found previous user \"%S\\%S\" information in registry", user.Domain.c_str(), user.Name.c_str());
+    return std::optional<User>(user);
 }
 
-void CustomActionData::checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring &computed_domain,
-                                            std::wstring &computed_user)
+std::optional<CustomActionData::User> CustomActionData::findSuppliedUserInfo()
 {
-    if (!previousInstall && userSupplied)
+    User user;
+    std::wstring tmpName;
+    if (!value(propertyDDAgentUserName, tmpName) || tmpName.length() == 0)
     {
-        WcaLog(LOGMSG_STANDARD, "using supplied username");
+        WcaLog(LOGMSG_STANDARD, "no username information detected from command line");
+        return std::nullopt;
     }
-    if (previousInstall && userSupplied)
-    {
-        WcaLog(LOGMSG_STANDARD, "user info supplied on command line and by previous install, checking");
-        if (_wcsicmp(pvsDomain.c_str(), computed_domain.c_str()) != 0)
-        {
-            WcaLog(LOGMSG_STANDARD, "supplied domain and computed domain don't match");
-            this->_userParamMismatch = true;
-        }
-        if (_wcsicmp(pvsUser.c_str(), computed_user.c_str()) != 0)
-        {
-            WcaLog(LOGMSG_STANDARD, "supplied user and computed user don't match");
-            this->_userParamMismatch = true;
-        }
-    }
-    if (previousInstall)
-    {
-        // this is a bit obtuse, but there's no way of passing the failure up
-        // from here, so even if we set `_userParamMismatch` above, we'll hit this
-        // code.  That's ok, the install will be failed in `canInstall()`.
-        computed_domain = pvsDomain;
-        computed_user = pvsUser;
-        WcaLog(LOGMSG_STANDARD, "Using previously installed user");
-    }
-}
 
-void CustomActionData::findSuppliedUserInfo(std::wstring &input, std::wstring &computed_domain,
-                                            std::wstring &computed_user)
-{
-    std::wistringstream asStream(input);
+    if (std::wstring::npos == tmpName.find(L'\\'))
+    {
+        WcaLog(LOGMSG_STANDARD, "supplied username \"%S\" doesn't have domain specifier, assuming local", tmpName.c_str());
+        tmpName = L".\\" + tmpName;
+    }
+
+    std::wistringstream asStream(tmpName);
     // username is going to be of the form <domain>\<username>
     // if the <domain> is ".", then just do local machine
-    getline(asStream, computed_domain, L'\\');
-    getline(asStream, computed_user, L'\\');
+    getline(asStream, user.Domain, L'\\');
+    getline(asStream, user.Name, L'\\');
+    WcaLog(LOGMSG_STANDARD, "detected user \"%S\\%S\" information from command line", user.Domain.c_str(),
+           user.Name.c_str());
+    return std::optional<User>(user);
+}
 
-    if (computed_domain == L".")
+void CustomActionData::ensureDomainHasCorrectFormat()
+{
+    if (_user.Domain == L".")
     {
         if (_targetMachine->IsDomainController())
         {
             // User didn't specify a domain OR didn't specify a user, but we're on a domain controller
             // let's use the joined domain.
-            computed_domain = _targetMachine->JoinedDomainName();
+            _user.Domain = _targetMachine->JoinedDomainName();
             _domainUser = true;
             WcaLog(LOGMSG_STANDARD,
                    "No domain name supplied for installation on a Domain Controller, using joined domain \"%S\"",
-                   computed_domain.c_str());
+                   _user.Domain.c_str());
         }
         else
         {
             WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
-            computed_domain = _targetMachine->GetMachineName();
+            _user.Domain = _targetMachine->GetMachineName();
             _domainUser = false;
         }
     }
     else
     {
-        if (0 == _wcsicmp(computed_domain.c_str(), _targetMachine->GetMachineName().c_str()))
+        if (0 == _wcsicmp(_user.Domain.c_str(), _targetMachine->GetMachineName().c_str()))
         {
             WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
             _domainUser = false;
         }
-        else if (0 == _wcsicmp(computed_domain.c_str(), _targetMachine->DnsDomainName().c_str()))
+        else if (0 == _wcsicmp(_user.Domain.c_str(), _targetMachine->DnsDomainName().c_str()))
         {
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S", computed_domain.c_str());
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name \"%S\"", _user.Domain.c_str());
             _domainUser = true;
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(),
+            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")", _user.Domain.c_str(),
                    _targetMachine->DnsDomainName().c_str());
             _domainUser = true;
         }
@@ -302,73 +280,55 @@ void CustomActionData::findSuppliedUserInfo(std::wstring &input, std::wstring &c
 
 bool CustomActionData::parseUsernameData()
 {
-    std::wstring tmpName = ddAgentUserName;
-    bool previousInstall = findPreviousUserInfo();
-    bool userSupplied = false;
-
-    if (this->value(propertyDDAgentUserName, tmpName))
-    {
-        if (tmpName.length() == 0)
-        {
-            tmpName = ddAgentUserName;
-        }
-        else
-        {
-            userSupplied = true;
-        }
-    }
-    if (std::wstring::npos == tmpName.find(L'\\'))
-    {
-        WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
-        tmpName = L".\\" + tmpName;
-    }
-    // now create the splits between the domain and user for all to use, too
-    std::wstring computed_domain, computed_user;
+    std::optional<User> userFromPreviousInstall = findPreviousUserInfo();
+    std::optional<User> userFromCommandLine = findSuppliedUserInfo();
 
     // if this is an upgrade (we found a previously recorded username in the registry)
     // and nothing was supplied on the command line, don't bother computing that.  Just use
     // the existing
-    if (previousInstall && !userSupplied)
+    if (userFromCommandLine)
     {
-        computed_domain = pvsDomain;
-        computed_user = pvsUser;
+        WcaLog(LOGMSG_STANDARD, "Using username from command line");
+        _user = userFromCommandLine.value();
+    }
+    else if (userFromPreviousInstall)
+    {
         WcaLog(LOGMSG_STANDARD, "Using username from previous install");
+        _user = userFromPreviousInstall.value();
     }
     else
     {
-        findSuppliedUserInfo(tmpName, computed_domain, computed_user);
-        checkForUserMismatch(previousInstall, userSupplied, computed_domain, computed_user);
+        WcaLog(LOGMSG_STANDARD, "Using default username");
+        // Didn't find a user in the registry nor from the command line
+        // use default value. Order of construction is Domain then Name
+        _user = {L".", ddAgentUserName };
     }
 
-    _domain = computed_domain;
-    _fqUsername = computed_domain + L"\\" + computed_user;
-    _unqualifiedUsername = computed_user;
+    ensureDomainHasCorrectFormat();
 
-    auto sidResult = GetSidForUser(nullptr, _fqUsername.c_str());
+    _fullyQualifiedUsername = _user.Domain + L"\\" + _user.Name;
+    auto sidResult = GetSidForUser(nullptr, FullyQualifiedUsername().c_str());
 
     if (sidResult.Result == ERROR_NONE_MAPPED)
     {
-        WcaLog(LOGMSG_STANDARD, "No account \"%S\" found.", _fqUsername.c_str());
+        WcaLog(LOGMSG_STANDARD, "No account \"%S\" found.", FullyQualifiedUsername().c_str());
         _ddUserExists = false;
     }
     else
     {
         if (sidResult.Result == ERROR_SUCCESS && sidResult.Sid != nullptr)
         {
-            WcaLog(LOGMSG_STANDARD, "Found SID for \"%S\" in \"%S\"", _fqUsername.c_str(), sidResult.Domain.c_str());
+            WcaLog(LOGMSG_STANDARD, R"(Found SID for "%S" in "%S")", FullyQualifiedUsername().c_str(), sidResult.Domain.c_str());
             _ddUserExists = true;
             _sid = std::move(sidResult.Sid);
 
-            // The domain can be the local computer
-            _domain = sidResult.Domain;
-
             // Use the domain returned by <see cref="LookupAccountName" /> because
             // it might be != from the one the user passed in.
-            _fqUsername = _domain + L"\\" + _unqualifiedUsername;
+            _user.Domain = sidResult.Domain;
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Looking up SID for \"%S\": %S", tmpName.c_str(),
+            WcaLog(LOGMSG_STANDARD, "Looking up SID for \"%S\": %S", FullyQualifiedUsername().c_str(),
                    FormatErrorMessage(sidResult.Result).c_str());
             return false;
         }

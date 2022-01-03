@@ -2,7 +2,7 @@
 # Preparation stage: layout and chmods #
 ########################################
 
-FROM ubuntu:21.04 as builder
+FROM ubuntu:21.10 as builder
 
 WORKDIR /output
 
@@ -12,11 +12,11 @@ COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
 COPY ./security-agent-policies/compliance/containers/ etc/datadog-agent/compliance.d
 COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
-COPY readsecret.sh .
+COPY readsecret.sh readsecret_multiple_providers.sh ./
 
 RUN chmod 755 entrypoint.sh \
-    && chown root:root readsecret.sh \
-    && chmod 550 readsecret.sh \
+    && chown root:root readsecret.sh readsecret_multiple_providers.sh \
+    && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent
@@ -25,7 +25,7 @@ RUN chmod 755 entrypoint.sh \
 # Actual docker image construction #
 ####################################
 
-FROM ubuntu:21.04
+FROM ubuntu:21.10
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 

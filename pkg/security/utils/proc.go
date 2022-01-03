@@ -18,7 +18,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/gopsutil/process"
-	"github.com/moby/sys/mountinfo"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -27,21 +26,11 @@ import (
 func Getpid() int32 {
 	p, err := os.Readlink(filepath.Join(util.HostProc(), "/self"))
 	if err == nil {
-		if pid, err := strconv.Atoi(p); err == nil {
+		if pid, err := strconv.ParseInt(p, 10, 32); err == nil {
 			return int32(pid)
 		}
 	}
 	return int32(os.Getpid())
-}
-
-// MountInfoPath returns the path to the mountinfo file of the current pid in /proc
-func MountInfoPath() string {
-	return filepath.Join(util.HostProc(), "/self/mountinfo")
-}
-
-// MountInfoPidPath returns the path to the mountinfo file of a pid in /proc
-func MountInfoPidPath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("/%d/mountinfo", pid))
 }
 
 // CgroupTaskPath returns the path to the cgroup file of a pid in /proc
@@ -111,17 +100,6 @@ func PidTTY(pid int32) string {
 	}
 
 	return ""
-}
-
-// ParseMountInfoFile collects the mounts for a specific process ID.
-func ParseMountInfoFile(pid int32) ([]*mountinfo.Info, error) {
-	f, err := os.Open(MountInfoPidPath(pid))
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	return mountinfo.GetMountsFromReader(f, nil)
 }
 
 // GetProcesses returns list of active processes

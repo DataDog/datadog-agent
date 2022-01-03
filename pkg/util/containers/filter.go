@@ -144,6 +144,32 @@ func GetSharedMetricFilter() (*Filter, error) {
 	return f, nil
 }
 
+// GetPauseContainerFilter returns a filter only excluding pause containers
+func GetPauseContainerFilter() (*Filter, error) {
+	var excludeList []string
+	if config.Datadog.GetBool("exclude_pause_container") {
+		excludeList = append(excludeList,
+			pauseContainerGCR,
+			pauseContainerOpenshift,
+			pauseContainerOpenshift3,
+			pauseContainerKubernetes,
+			pauseContainerGoogle,
+			pauseContainerAzure,
+			pauseContainerECS,
+			pauseContainerEKS,
+			pauseContainerRancher,
+			pauseContainerMCR,
+			pauseContainerWin,
+			pauseContainerAKS,
+			pauseContainerECR,
+			pauseContainerUpstream,
+			pauseContainerCDK,
+		)
+	}
+
+	return NewFilter(nil, excludeList)
+}
+
 // ResetSharedFilter is only to be used in unit tests: it resets the global
 // filter instance to force re-parsing of the configuration.
 func ResetSharedFilter() {

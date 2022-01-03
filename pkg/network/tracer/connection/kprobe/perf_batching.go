@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package kprobe
@@ -58,9 +64,9 @@ func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*perfBatchManager, er
 }
 
 // Extract from the given batch all connections that haven't been processed yet.
-func (p *perfBatchManager) Extract(b *netebpf.Batch, cpu int) []network.ConnectionStats {
+func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, cpu int) {
 	if cpu >= len(p.stateByCPU) {
-		return nil
+		return
 	}
 
 	batchId := b.Id
@@ -70,23 +76,18 @@ func (p *perfBatchManager) Extract(b *netebpf.Batch, cpu int) []network.Connecti
 		start = bState.offset
 	}
 
-	buffer := make([]network.ConnectionStats, 0, netebpf.BatchSize-start)
-	conns := p.extractBatchInto(buffer, b, start, netebpf.BatchSize)
+	p.extractBatchInto(buffer, b, start, netebpf.BatchSize)
 	delete(cpuState.processed, batchId)
-
-	return conns
 }
 
 // GetPendingConns return all connections that are in batches that are not yet full.
 // It tracks which connections have been processed by this call, by batch id.
 // This prevents double-processing of connections between GetPendingConns and Extract.
-func (p *perfBatchManager) GetPendingConns() []network.ConnectionStats {
-	var idle []network.ConnectionStats
+func (p *perfBatchManager) GetPendingConns(buffer *network.ConnectionBuffer) {
 	b := new(netebpf.Batch)
 	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
 		cpuState := &p.stateByCPU[cpu]
 
-		// we have an idle batch, so let's retrieve its data from eBPF
 		err := p.batchMap.Lookup(unsafe.Pointer(&cpu), unsafe.Pointer(b))
 		if err != nil {
 			continue
@@ -96,6 +97,7 @@ func (p *perfBatchManager) GetPendingConns() []network.ConnectionStats {
 		if batchLen == 0 {
 			continue
 		}
+
 		// have we already processed these messages?
 		start := uint16(0)
 		batchId := b.Id
@@ -103,13 +105,12 @@ func (p *perfBatchManager) GetPendingConns() []network.ConnectionStats {
 			start = bState.offset
 		}
 
-		idle = p.extractBatchInto(idle, b, start, batchLen)
+		p.extractBatchInto(buffer, b, start, batchLen)
 		// update timestamp regardless since this partial batch still exists
 		cpuState.processed[batchId] = batchState{offset: batchLen, updated: time.Now()}
 	}
 
 	p.cleanupExpiredState(time.Now())
-	return idle
 }
 
 type percpuState struct {
@@ -124,13 +125,13 @@ type batchState struct {
 
 // ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
 // The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
-func (p *perfBatchManager) extractBatchInto(buffer []network.ConnectionStats, b *netebpf.Batch, start, end uint16) []network.ConnectionStats {
+func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, start, end uint16) {
 	if start >= end || end > netebpf.BatchSize {
-		return buffer
+		return
 	}
 
+	var ct netebpf.Conn
 	for i := start; i < end; i++ {
-		var ct netebpf.Conn
 		switch i {
 		case 0:
 			ct = b.C0
@@ -148,9 +149,10 @@ func (p *perfBatchManager) extractBatchInto(buffer []network.ConnectionStats, b 
 			panic("batch size is out of sync")
 		}
 
-		buffer = append(buffer, connStats(&ct.Tup, &ct.Conn_stats, &ct.Tcp_stats))
+		conn := buffer.Next()
+		populateConnStats(conn, &ct.Tup, &ct.Conn_stats)
+		updateTCPStats(conn, &ct.Tcp_stats)
 	}
-	return buffer
 }
 
 func (p *perfBatchManager) cleanupExpiredState(now time.Time) {

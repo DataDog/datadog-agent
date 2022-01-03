@@ -3,6 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package log implements logging for the datadog agent.  It wraps seelog, and
+// supports logging to multiple destinations, buffering messages logged before
+// setup, and scrubbing secrets from log messages.
+//
+// Compatibility
+//
+// This module is exported and can be used outside of the datadog-agent
+// repository, but is not designed as a general-purpose logging system.  Its
+// API may change incompatibly.
 package log
 
 import (
@@ -13,6 +22,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
 )
 
@@ -151,7 +161,7 @@ func (sw *DatadogLogger) unregisterAdditionalLogger(n string) error {
 }
 
 func (sw *DatadogLogger) scrub(s string) string {
-	if scrubbed, err := CredentialsCleanerBytes([]byte(s)); err == nil {
+	if scrubbed, err := scrubber.ScrubBytes([]byte(s)); err == nil {
 		return string(scrubbed)
 	}
 
@@ -441,7 +451,7 @@ func buildLogEntry(v ...interface{}) string {
 }
 
 func scrubMessage(message string) string {
-	msgScrubbed, err := CredentialsCleanerBytes([]byte(message))
+	msgScrubbed, err := scrubber.ScrubBytes([]byte(message))
 	if err == nil {
 		return string(msgScrubbed)
 	}

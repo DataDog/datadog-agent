@@ -20,14 +20,18 @@ import (
 var maxPayloadSizeCompressed = 2 * 1024 * 1024
 var maxPayloadSizeUnCompressed = 64 * 1024 * 1024
 
-// MarshalType is the type of marshaler to use
-type MarshalType int
+// MarshalFct marshal m. Must be either JSONMarshalFct or ProtoMarshalFct.
+type MarshalFct func(m marshaler.AbstractMarshaler) ([]byte, error)
 
-// Enumeration of the existing marshal types
-const (
-	MarshalJSON MarshalType = iota
-	Marshal
-)
+// JSONMarshalFct marshal with MarshalJSON method.
+func JSONMarshalFct(m marshaler.AbstractMarshaler) ([]byte, error) {
+	return (m.(marshaler.JSONMarshaler)).MarshalJSON()
+}
+
+// ProtoMarshalFct marshal with Marshal method.
+func ProtoMarshalFct(m marshaler.AbstractMarshaler) ([]byte, error) {
+	return (m.(marshaler.ProtoMarshaler)).Marshal()
+}
 
 var (
 	// TODO(remy): could probably be removed as not used in the status page
@@ -57,8 +61,8 @@ func init() {
 
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)
 // The dual role makes sense as you will never serialize without checking the size of the payload
-func CheckSizeAndSerialize(m marshaler.Marshaler, compress bool, mType MarshalType) (bool, []byte, []byte, error) {
-	compressedPayload, payload, err := serializeMarshaller(m, compress, mType)
+func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) (bool, []byte, []byte, error) {
+	compressedPayload, payload, err := serializeMarshaller(m, compress, marshalFct)
 	if err != nil {
 		return false, nil, nil, err
 	}
@@ -69,10 +73,10 @@ func CheckSizeAndSerialize(m marshaler.Marshaler, compress bool, mType MarshalTy
 }
 
 // Payloads serializes a metadata payload and sends it to the forwarder
-func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarder.Payloads, error) {
-	marshallers := []marshaler.Marshaler{m}
+func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) (forwarder.Payloads, error) {
+	marshallers := []marshaler.AbstractMarshaler{m}
 	smallEnoughPayloads := forwarder.Payloads{}
-	tooBig, compressedPayload, _, err := CheckSizeAndSerialize(m, compress, mType)
+	tooBig, compressedPayload, _, err := CheckSizeAndSerialize(m, compress, marshalFct)
 	if err != nil {
 		return smallEnoughPayloads, err
 	}
@@ -93,13 +97,13 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 		splitterTotalLoops.Add(1)
 		tlmSplitterTotalLoops.Inc()
 		// create a temporary slice, the other array will be reused to keep track of the payloads that have yet to be split
-		tempSlice := make([]marshaler.Marshaler, len(marshallers))
+		tempSlice := make([]marshaler.AbstractMarshaler, len(marshallers))
 		copy(tempSlice, marshallers)
-		marshallers = []marshaler.Marshaler{}
+		marshallers = []marshaler.AbstractMarshaler{}
 		for _, toSplit := range tempSlice {
 			var e error
 			// we have to do this every time to get the proper payload
-			compressedPayload, payload, e := serializeMarshaller(toSplit, compress, mType)
+			compressedPayload, payload, e := serializeMarshaller(toSplit, compress, marshalFct)
 			if e != nil {
 				return smallEnoughPayloads, e
 			}
@@ -121,7 +125,7 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 			// after the payload has been split, loop through the chunks
 			for _, chunk := range chunks {
 				// serialize the payload
-				tooBigChunk, compressedPayload, _, err := CheckSizeAndSerialize(chunk, compress, mType)
+				tooBigChunk, compressedPayload, _, err := CheckSizeAndSerialize(chunk, compress, marshalFct)
 				if err != nil {
 					log.Debugf("Error serializing a chunk: %s", err)
 					continue
@@ -155,11 +159,11 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 }
 
 // serializeMarshaller serializes the marshaller and returns both the compressed and uncompressed payloads
-func serializeMarshaller(m marshaler.Marshaler, compress bool, mType MarshalType) ([]byte, []byte, error) {
+func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) ([]byte, []byte, error) {
 	var payload []byte
 	var compressedPayload []byte
 	var err error
-	payload, err = marshal(m, mType)
+	payload, err = marshalFct(m)
 	compressedPayload = payload
 	if err != nil {
 		return nil, nil, err
@@ -181,17 +185,6 @@ func tooBigCompressed(payload []byte) bool {
 // returns true if the payload is above the max unCompressed size limit
 func tooBigUnCompressed(payload []byte) bool {
 	return len(payload) > maxPayloadSizeUnCompressed
-}
-
-func marshal(m marshaler.Marshaler, mType MarshalType) ([]byte, error) {
-	switch mType {
-	case MarshalJSON:
-		return m.MarshalJSON()
-	case Marshal:
-		return m.Marshal()
-	default:
-		return m.MarshalJSON()
-	}
 }
 
 // GetPayloadDrops returns the number of times we dropped some payloads because we couldn't split them.

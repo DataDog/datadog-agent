@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux || windows
 // +build linux windows
 
 package modules
@@ -9,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -63,7 +70,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 func (nt *networkTracer) Register(httpMux *module.Router) error {
 	var runCounter uint64
 
-	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
@@ -81,7 +88,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		count := atomic.AddUint64(&runCounter, 1)
 		logRequests(id, count, len(cs.Conns), start)
-	})
+	}))
 
 	httpMux.HandleFunc("/debug/net_maps", func(w http.ResponseWriter, req *http.Request) {
 		cs, err := nt.tracer.DebugNetworkMaps()
@@ -117,6 +124,24 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.DNS))
+	})
+
+	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
+	// an optional ?maps= argument could be pass with a list of map name : ?maps=map1,map2,map3
+	httpMux.HandleFunc("/debug/ebpf_maps", func(w http.ResponseWriter, req *http.Request) {
+		maps := []string{}
+		if listMaps := req.URL.Query().Get("maps"); listMaps != "" {
+			maps = strings.Split(listMaps, ",")
+		}
+
+		ebpfMaps, err := nt.tracer.DebugEBPFMaps(maps...)
+		if err != nil {
+			log.Errorf("unable to retrieve eBPF maps: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, ebpfMaps)
 	})
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
@@ -164,6 +189,8 @@ func getClientID(req *http.Request) string {
 }
 
 func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
+	defer network.Reclaim(cs)
+
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)

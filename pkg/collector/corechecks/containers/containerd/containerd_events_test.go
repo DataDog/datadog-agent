@@ -15,89 +15,14 @@ import (
 
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/api/types"
-	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/events"
-	"github.com/containerd/containerd/oci"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 )
-
-type mockItf struct {
-	mockEvents            func() containerd.EventService
-	mockContainers        func() ([]containerd.Container, error)
-	mockContainer         func(id string) (containerd.Container, error)
-	mockContainerWithCtx  func(ctx context.Context, id string) (containerd.Container, error)
-	mockMetadata          func() (containerd.Version, error)
-	mockImageSize         func(ctn containerd.Container) (int64, error)
-	mockTaskMetrics       func(ctn containerd.Container) (*types.Metric, error)
-	mockTaskPids          func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
-	mockInfo              func(ctn containerd.Container) (containers.Container, error)
-	mockLabels            func(ctn containerd.Container) (map[string]string, error)
-	mockLabelsWithContext func(ctx context.Context, ctn containerd.Container) (map[string]string, error)
-	mockNamespace         func() string
-	mockSpec              func(ctn containerd.Container) (*oci.Spec, error)
-	mockSpecWithContext   func(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
-}
-
-func (m *mockItf) ImageSize(ctn containerd.Container) (int64, error) {
-	return m.mockImageSize(ctn)
-}
-
-func (m *mockItf) Labels(ctn containerd.Container) (map[string]string, error) {
-	return m.mockLabels(ctn)
-}
-
-func (m *mockItf) LabelsWithContext(ctx context.Context, ctn containerd.Container) (map[string]string, error) {
-	return m.mockLabelsWithContext(ctx, ctn)
-}
-
-func (m *mockItf) Info(ctn containerd.Container) (containers.Container, error) {
-	return m.mockInfo(ctn)
-}
-
-func (m *mockItf) TaskMetrics(ctn containerd.Container) (*types.Metric, error) {
-	return m.mockTaskMetrics(ctn)
-}
-
-func (m *mockItf) TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
-	return m.mockTaskPids(ctn)
-}
-
-func (m *mockItf) Metadata() (containerd.Version, error) {
-	return m.mockMetadata()
-}
-
-func (m *mockItf) Namespace() string {
-	return m.mockNamespace()
-}
-
-func (m *mockItf) Containers() ([]containerd.Container, error) {
-	return m.mockContainers()
-}
-
-func (m *mockItf) Container(id string) (containerd.Container, error) {
-	return m.mockContainer(id)
-}
-
-func (m *mockItf) ContainerWithContext(ctx context.Context, id string) (containerd.Container, error) {
-	return m.mockContainerWithCtx(ctx, id)
-}
-
-func (m *mockItf) GetEvents() containerd.EventService {
-	return m.mockEvents()
-}
-
-func (m *mockItf) Spec(ctn containerd.Container) (*oci.Spec, error) {
-	return m.mockSpec(ctn)
-}
-
-func (m *mockItf) SpecWithContext(ctx context.Context, ctn containerd.Container) (*oci.Spec, error) {
-	return m.mockSpecWithContext(ctx, ctn)
-}
 
 type mockEvt struct {
 	events.Publisher
@@ -118,13 +43,13 @@ func TestCheckEvents(t *testing.T) {
 			return cha, errorsCh
 		},
 	}
-	itf := &mockItf{
-		mockEvents: func() containerd.EventService {
+	itf := &fake.MockedContainerdClient{
+		MockEvents: func() containerd.EventService {
 			return containerd.EventService(me)
 		},
 	}
 	// Test the basic listener
-	sub := CreateEventSubscriber("subscriberTest1", "k9s.io", nil)
+	sub := CreateEventSubscriber("subscriberTest1", nil)
 	sub.CheckEvents(containerdutil.ContainerdItf(itf))
 
 	tp := containerdevents.TaskPaused{
@@ -181,7 +106,7 @@ func TestCheckEvents(t *testing.T) {
 	}
 
 	// Test the multiple events one unsupported
-	sub = CreateEventSubscriber("subscriberTest2", "k9s.io", nil)
+	sub = CreateEventSubscriber("subscriberTest2", nil)
 	sub.CheckEvents(containerdutil.ContainerdItf(itf))
 
 	tk := containerdevents.TaskOOM{

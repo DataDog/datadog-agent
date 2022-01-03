@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package kprobe
@@ -7,6 +13,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +34,9 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		batch.C2.Tup.Pid = 3
 		batch.C3.Tup.Pid = 4
 
-		conns := manager.Extract(batch, 0)
+		buffer := network.NewConnectionBuffer(256, 256)
+		manager.ExtractBatchInto(buffer, batch, 0)
+		conns := buffer.Connections()
 		assert.Len(t, conns, 4)
 		assert.Equal(t, uint32(1), conns[0].Pid)
 		assert.Equal(t, uint32(2), conns[1].Pid)
@@ -50,7 +59,9 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 			0: {offset: 3},
 		}
 
-		conns := manager.Extract(batch, 0)
+		buffer := network.NewConnectionBuffer(256, 256)
+		manager.ExtractBatchInto(buffer, batch, 0)
+		conns := buffer.Connections()
 		assert.Len(t, conns, 1)
 		assert.Equal(t, uint32(4), conns[0].Pid)
 	})
@@ -73,7 +84,9 @@ func TestGetPendingConns(t *testing.T) {
 	}
 	updateBatch()
 
-	pendingConns := manager.GetPendingConns()
+	buffer := network.NewConnectionBuffer(256, 256)
+	manager.GetPendingConns(buffer)
+	pendingConns := buffer.Connections()
 	assert.Len(t, pendingConns, 2)
 	assert.Equal(t, uint32(1), pendingConns[0].Pid)
 	assert.Equal(t, uint32(2), pendingConns[1].Pid)
@@ -84,7 +97,9 @@ func TestGetPendingConns(t *testing.T) {
 	updateBatch()
 
 	// We should now get only the connection that hasn't been processed before
-	pendingConns = manager.GetPendingConns()
+	buffer.Reset()
+	manager.GetPendingConns(buffer)
+	pendingConns = buffer.Connections()
 	assert.Len(t, pendingConns, 1)
 	assert.Equal(t, uint32(3), pendingConns[0].Pid)
 }
@@ -104,13 +119,14 @@ func TestPerfBatchStateCleanup(t *testing.T) {
 	err := manager.batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(batch))
 	require.NoError(t, err)
 
-	manager.GetPendingConns()
+	buffer := network.NewConnectionBuffer(256, 256)
+	manager.GetPendingConns(buffer)
 	_, ok := manager.stateByCPU[cpu].processed[batch.Id]
 	require.True(t, ok)
 	assert.Equal(t, uint16(2), manager.stateByCPU[cpu].processed[batch.Id].offset)
 
 	manager.cleanupExpiredState(time.Now().Add(manager.expiredStateInterval))
-	manager.GetPendingConns()
+	manager.GetPendingConns(buffer)
 
 	// state should not have been cleaned up, since no more connections have happened
 	_, ok = manager.stateByCPU[cpu].processed[batch.Id]
@@ -131,7 +147,8 @@ func newTestBatchManager(t *testing.T) (*perfBatchManager, func()) {
 	require.NoError(t, err)
 
 	tr := ctr.(*kprobeTracer)
-	manager := tr.batchManager
+	tr.Start(func(_ []network.ConnectionStats) {})
+	manager := tr.closeConsumer.batchManager
 	doneFn := func() { tr.Stop() }
 	return manager, doneFn
 }

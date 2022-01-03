@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestChmod(t *testing.T) {
@@ -48,9 +48,9 @@ func TestChmod(t *testing.T) {
 			expectedMode = 0o707
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscall.SYS_FCHMOD, f.Fd(), uintptr(0o707), 0); errno != 0 {
-				return errno
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -58,7 +58,6 @@ func TestChmod(t *testing.T) {
 			assertRights(t, uint16(event.Chmod.Mode), 0o707)
 			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
-
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
@@ -66,17 +65,14 @@ func TestChmod(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fchmodat", func(t *testing.T) {
 		defer func() { expectedMode = 0o757 }()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_FCHMODAT, 0, uintptr(testFilePtr), uintptr(0o757), 0, 0, 0); errno != 0 {
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -84,7 +80,6 @@ func TestChmod(t *testing.T) {
 			assertRights(t, uint16(event.Chmod.Mode), 0o757)
 			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
 			assertRights(t, event.Chmod.File.Mode, expectedMode)
-
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
@@ -92,15 +87,12 @@ func TestChmod(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("chmod", ifSyscallSupported("SYS_CHMOD", func(t *testing.T, syscallNB uintptr) {
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(0o717), 0); errno != 0 {
-				t.Fatal(errno)
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -108,7 +100,6 @@ func TestChmod(t *testing.T) {
 			assertRights(t, uint16(event.Chmod.Mode), 0o717, "wrong mode")
 			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
-
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
@@ -116,9 +107,5 @@ func TestChmod(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 }

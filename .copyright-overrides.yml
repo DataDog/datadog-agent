@@ -2,7 +2,8 @@
 # implemented in tasks/licenses.py.  The table keys are the golang package name
 # or pattern, and the value is either a copyright owner or a list of owners.
 #
-# Package patterns may end with a `*`.
+# Package patterns may end with a `*`.  When multiple patterns match, the longer
+# is preferred.
 
 # NOTE: in general, we prefer to pull data from the repository so that it will
 # be updated automatically, so prefer to make such a change in
@@ -15,7 +16,6 @@ code.cloudfoundry.org/*: CloudFoundry.org Foundation, Inc
 github.com/aws/aws-sdk-go: ["Amazon.com, Inc. or its affiliates", "Stripe, Inc."]
 github.com/containerd/*: The containerd Authors
 github.com/coreos/*: CoreOS Project
-github.com/DataDog/*: Datadog, Inc.
 github.com/docker/*: Docker, Inc
 github.com/elastic/*: Elasticsearch B.V.
 github.com/golang/*: The Go Authors
@@ -24,6 +24,7 @@ github.com/google/go-cmp/*: The Go Authors
 github.com/grpc-ecosystem/*: Gengo, Inc
 github.com/hashicorp/*: HashiCorp Inc.
 github.com/prometheus/*: The Prometheus Authors
+github.com/open-telemetry/*: Open Telemetry Maintainers
 go.etcd.io/*: the etcd maintainers
 google.golang.org/appengine: the Go App Engine Maintainers
 google.golang.org/appengine/*: the Go App Engine Maintainers
@@ -31,9 +32,19 @@ google.golang.org/genproto: The Go Generated Proto Package Maintainers
 google.golang.org/genproto/*: The Go Generated Proto Package Maintainers
 go.opentelemetry.io/*: Open Telemetry Maintainers
 gopkg.in/DataDog/*: Datadog, Inc.
-k8s.io/*: Cloud Native Computing Foundation (CNCF)
+k8s.io/*: ["Cloud Native Computing Foundation (CNCF)", "The Kubernetes Authors"]
 sigs.k8s.io/*: The Kubernetes Authors
 contrib.go.opencensus.io/exporter/prometheus: OpenCensus Authors
+go.opencensus.io: OpenCensus Authors
+go.opencensus.io/*: OpenCensus Authors
+github.com/grpc-ecosystem/*: gRPC Ecosystem
+google.golang.org/genproto/*: Google LLC
+google.golang.org/grpc: gRPC authors
+google.golang.org/grpc/*: gRPC authors
+
+# NOTE: We cannot use
+#   github.com/DataDog/*: Datadog, Inc.
+# because many of those repos are forks # where DD does not own the copyright.
 
 # https://raw.githubusercontent.com/golang/go/master/LICENSE
 golang/go: The Go Authors
@@ -50,6 +61,9 @@ google.golang.org/api/*: ["Google Inc.", "LightStep Inc."]
 
 # See https://github.com/openshift/api/blob/master/quota/OWNERS
 github.com/openshift/api/quota: ["David Eads", "Michal Fojtik"]
+
+# https://datadoghq.atlassian.net/browse/AC-1296
+github.com/DataDog/mmh3: DataDog, Inc.
 
 # For Apache projects, copyright is typically in individual source files and
 # not scanned automatically.
@@ -68,6 +82,8 @@ github.com/spf13/cobra: Steve Francia <spf@spf13.com>
 github.com/xeipuuv/gojsonpointer: xeipuuv ( https://github.com/xeipuuv )
 github.com/xeipuuv/gojsonreference: xeipuuv ( https://github.com/xeipuuv )
 github.com/xeipuuv/gojsonschema: xeipuuv ( https://github.com/xeipuuv )
+github.com/open-policy-agent/opa: The OPA Authors
+github.com/containernetworking/cni: CNI authors
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: aptly authors
@@ -78,6 +94,7 @@ github.com/shuLhan/go-bindata: The go-bindata authors
 github.com/lxn/walk: The walk authors
 github.com/lxn/win: The win authors
 github.com/klauspost/compress/snappy: The Snappy-Go Authors
+github.com/golang/snappy: The Snappy-Go Authors
 github.com/shirou/w32: The w32 Authors
 github.com/gogo/protobuf: ["The Go Authors", "The GoGo Authors"]
 
@@ -88,5 +105,7 @@ github.com/modern-go/reflect2: taowen
 github.com/opencontainers/selinux/*: OpenContainers Authors
 github.com/spf13/afero: The Authors
 github.com/vito/go-sse/sse: The Authors
-github.com/wille/osutil: wille
 gomodules.xyz/jsonpatch: The Authors
+github.com/bytecodealliance/wasmtime-go: Bytecode Alliance
+github.com/OneOfOne/xxhash: OneOfOne (https://github.com/OneOfOne)
+github.com/yashtewari/glob-intersection: yashtewari (https://github.com/yashtewari)

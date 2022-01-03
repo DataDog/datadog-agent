@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package devicecheck
 
 import (
@@ -6,12 +11,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/fetch"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
@@ -19,8 +29,11 @@ import (
 )
 
 const (
-	snmpLoaderTag    = "loader:core"
-	serviceCheckName = "snmp.can_check"
+	snmpLoaderTag        = "loader:core"
+	serviceCheckName     = "snmp.can_check"
+	deviceHostnamePrefix = "device:"
+	// 1.3 (iso.org) is the OID used for getNext call to check if the device is reachable
+	deviceReachableGetNextOid = "1.3"
 )
 
 // DeviceCheck hold info necessary to collect info for a single device
@@ -31,10 +44,10 @@ type DeviceCheck struct {
 }
 
 // NewDeviceCheck returns a new DeviceCheck
-func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) (*DeviceCheck, error) {
+func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
 	newConfig := config.CopyWithNewIP(ipAddress)
 
-	sess, err := session.NewSession(newConfig)
+	sess, err := sessionFactory(newConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure session: %s", err)
 	}
@@ -60,6 +73,14 @@ func (d *DeviceCheck) GetIDTags() []string {
 	return d.config.DeviceIDTags
 }
 
+// GetDeviceHostname returns DeviceID as hostname if UseDeviceIDAsHostname is true
+func (d *DeviceCheck) GetDeviceHostname() string {
+	if d.config.UseDeviceIDAsHostname {
+		return deviceHostnamePrefix + d.config.DeviceID
+	}
+	return ""
+}
+
 // Run executes the check
 func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
@@ -68,18 +89,18 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
-	tags, values, checkErr := d.getValuesAndTags(staticTags)
+	deviceReachable, tags, values, checkErr := d.getValuesAndTags(staticTags)
 	if checkErr != nil {
-		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, checkErr.Error())
+		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckCritical, tags, checkErr.Error())
 	} else {
-		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
+		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, tags, "")
 	}
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
 	}
 
 	if d.config.CollectDeviceMetadata {
-		if values != nil {
+		if deviceReachable {
 			deviceStatus = metadata.DeviceStatusReachable
 		} else {
 			deviceStatus = metadata.DeviceStatusUnreachable
@@ -94,17 +115,29 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	}
 
 	d.submitTelemetryMetrics(startTime, tags)
+	d.setDeviceHostExternalTags()
 	return checkErr
 }
 
-func (d *DeviceCheck) getValuesAndTags(staticTags []string) ([]string, *valuestore.ResultValueStore, error) {
+func (d *DeviceCheck) setDeviceHostExternalTags() {
+	deviceHostname := d.GetDeviceHostname()
+	if deviceHostname == "" {
+		return
+	}
+	agentTags := config.GetConfiguredTags(false)
+	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
+	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
+}
+
+func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *valuestore.ResultValueStore, error) {
+	var deviceReachable bool
 	var checkErrors []string
 	tags := common.CopyStrings(staticTags)
 
 	// Create connection
 	connErr := d.session.Connect()
 	if connErr != nil {
-		return tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
+		return false, tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
 	defer func() {
 		err := d.session.Close()
@@ -113,7 +146,19 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) ([]string, *valuesto
 		}
 	}()
 
-	err := d.doAutodetectProfile(d.session)
+	// Check if the device is reachable
+	getNextValue, err := d.session.GetNext([]string{deviceReachableGetNextOid})
+	if err != nil {
+		deviceReachable = false
+		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
+	} else {
+		deviceReachable = true
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("check device reachable: success: %v", gosnmplib.PacketAsString(getNextValue))
+		}
+	}
+
+	err = d.doAutodetectProfile(d.session)
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
@@ -121,7 +166,9 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) ([]string, *valuesto
 	tags = append(tags, d.config.ProfileTags...)
 
 	valuesStore, err := fetch.Fetch(d.session, d.config)
-	log.Debugf("fetched values: %v", valuesStore)
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
+	}
 
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to fetch values: %s", err))
@@ -133,7 +180,7 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) ([]string, *valuesto
 	if len(checkErrors) > 0 {
 		joinedError = errors.New(strings.Join(checkErrors, "; "))
 	}
-	return tags, valuesStore, joinedError
+	return deviceReachable, tags, valuesStore, joinedError
 }
 
 func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
@@ -161,10 +208,10 @@ func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
 	newTags := append(common.CopyStrings(tags), snmpLoaderTag)
 
-	d.sender.Gauge("snmp.devices_monitored", float64(1), "", newTags)
+	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
 
 	// SNMP Performance metrics
-	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
-	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
-	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), "", newTags)
+	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), newTags)
+	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), newTags)
+	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
 }

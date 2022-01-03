@@ -16,7 +16,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
 
-	agentpayload "github.com/DataDog/agent-payload/gogen"
+	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -167,7 +167,7 @@ func (events Events) MarshalJSON() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into times number of pieces
-func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (events Events) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	eventExpvar.Add("TimesSplit", 1)
 	tlmEvent.Inc("times_split")
 	// An individual event cannot be split,
@@ -179,7 +179,7 @@ func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 		tlmEvent.Inc("shorter")
 		times = len(events)
 	}
-	splitPayloads := make([]marshaler.Marshaler, times)
+	splitPayloads := make([]marshaler.AbstractMarshaler, times)
 
 	batchSize := len(events) / times
 	n := 0

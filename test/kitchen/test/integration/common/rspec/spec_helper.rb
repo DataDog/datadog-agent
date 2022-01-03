@@ -30,7 +30,7 @@ def get_service_name(flavor)
   # Return the service name of the given flavor depending on the OS
   if os == :windows
     case flavor
-    when "datadog-agent", "datadog-iot-agent"
+    when "datadog-agent", "datadog-heroku-agent", "datadog-iot-agent"
       "datadogagent"
     when "datadog-dogstatsd"
       # Placeholder, not used yet
@@ -38,7 +38,7 @@ def get_service_name(flavor)
     end
   else
     case flavor
-    when "datadog-agent", "datadog-iot-agent"
+    when "datadog-agent", "datadog-heroku-agent", "datadog-iot-agent"
       "datadog-agent"
     when "datadog-dogstatsd"
       "datadog-dogstatsd"
@@ -109,21 +109,6 @@ def wait_until_service_stopped(service, timeout = 60)
     end
     sleep 1
   end
-  # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
-  # Agent start and the moment when the status command starts working
-  # has dramatically increased.
-  # Before (on ubuntu/debian):
-  # - during the first ~0.05s: connection refused
-  # - after: works correctly
-  # Now:
-  # - during the first ~0.05s: connection refused
-  # - between ~0.05s and ~1s: EOF
-  # - after: works correctly
-  # Until we understand and fix the problem, we're adding this sleep
-  # so that we don't get flakes in the kitchen tests.
-  # sleep 2
-  # ^ Sleep removed in lieu of extra port bound check. Keeping the
-  # comment for now in case kitchen tests still flakes.
 end
 
 def wait_until_service_started(service, timeout = 30)
@@ -142,21 +127,6 @@ def wait_until_service_started(service, timeout = 30)
     end
     sleep 1
   end
-  # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
-  # Agent start and the moment when the status command starts working
-  # has dramatically increased.
-  # Before (on ubuntu/debian):
-  # - during the first ~0.05s: connection refused
-  # - after: works correctly
-  # Now:
-  # - during the first ~0.05s: connection refused
-  # - between ~0.05s and ~1s: EOF
-  # - after: works correctly
-  # Until we understand and fix the problem, we're adding this sleep
-  # so that we don't get flakes in the kitchen tests.
-  # sleep 5
-  # ^ Sleep removed in lieu of extra port bound check. Keeping the
-  # comment for now in case kitchen tests still flakes.
 end
 
 def stop(flavor)
@@ -766,11 +736,11 @@ shared_examples_for 'an Agent that is removed' do
       expect(system(uninstallcmd)).to be_truthy
     else
       if system('which apt-get &> /dev/null')
-        expect(system("sudo apt-get -q -y remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo apt-get -q -y remove #{get_agent_flavor} > /dev/null")).to be_truthy
       elsif system('which yum &> /dev/null')
-        expect(system("sudo yum -y remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo yum -y remove #{get_agent_flavor} > /dev/null")).to be_truthy
       elsif system('which zypper &> /dev/null')
-        expect(system("sudo zypper --non-interactive remove datadog-agent > /dev/null")).to be_truthy
+        expect(system("sudo zypper --non-interactive remove #{get_agent_flavor} > /dev/null")).to be_truthy
       else
         raise 'Unknown package manager'
       end
@@ -787,6 +757,7 @@ shared_examples_for 'an Agent that is removed' do
       exclude = [
             'C:/Windows/Assembly/Temp/',
             'C:/Windows/Assembly/Tmp/',
+            'C:/windows/AppReadiness/',
             'C:/Windows/Temp/',
             'C:/Windows/Prefetch/',
             'C:/Windows/Installer/',

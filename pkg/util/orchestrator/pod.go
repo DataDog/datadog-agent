@@ -15,21 +15,22 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	kubetypes "github.com/DataDog/datadog-agent/third_party/kubernetes/pkg/kubelet/types"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/kubelet/pod"
 )
 
 const (
@@ -50,7 +51,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 
 		// static pods "uid" are actually not unique across nodes.
 		// we differ from the k8 uuid format in purpose to differentiate those static pods.
-		if pod.IsStaticPod(p) {
+		if kubetypes.IsStaticPod(p) {
 			newUID := generateUniqueStaticPodHash(hostName, p.Name, p.Namespace, cfg.KubeClusterName)
 			// modify it in the original pod for the YAML and in our model
 			p.UID = types.UID(newUID)
@@ -66,6 +67,10 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 
 		// additional tags
 		podModel.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
+
+		if len(tags) == 0 {
+			podModel.Tags = extractTags(p)
+		}
 
 		// The resource version field collected from the Kubelet can't be
 		// trusted because it's not updated, therefore not reflecting changes in
@@ -122,8 +127,22 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		})
 	}
 
+	orchestrator.SetCacheStats(len(podList), len(podMsgs), orchestrator.K8sPod)
+
 	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
+}
+
+// extractTags extract tags which should be on the tagger
+func extractTags(p *v1.Pod) []string {
+	var extraTags []string
+	for _, volume := range p.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {
+			tag := fmt.Sprintf("%s:%s", kubernetes.PersistentVolumeClaimTagName, strings.ToLower(volume.PersistentVolumeClaim.ClaimName))
+			extraTags = append(extraTags, tag)
+		}
+	}
+	return extraTags
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.
@@ -151,6 +170,7 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.IP = p.Status.PodIP
 	podModel.RestartCount = 0
 	podModel.QOSClass = string(p.Status.QOSClass)
+	podModel.PriorityClass = p.Spec.PriorityClassName
 	for _, cs := range p.Status.ContainerStatuses {
 		podModel.RestartCount += cs.RestartCount
 		cStatus := convertContainerStatus(cs)

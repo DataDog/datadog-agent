@@ -243,15 +243,14 @@ func (f *domainForwarder) State() uint32 {
 	return f.internalState
 }
 
-func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) error {
+func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
 	// We don't want to block the collector if the highPrio queue is full
 	select {
 	case f.highPrio <- t:
 	default:
 		f.addToTransactionRetryQueue(t)
-		transactionsDroppedOnInput.Add(1)
-		tlmTxDroppedOnInput.Inc(f.domain, t.GetEndpointName())
-		return fmt.Errorf("dropping transaction because the forwarder input queue for %s is full; consider increasing forwarder_num_workers", f.domain)
+		highPriorityQueueFull.Add(1)
+		tlmTxHighPriorityQueueFull.Inc(f.domain, t.GetEndpointName())
+		log.Debugf("Adding the transaction to the retry queue because the forwarder input queue for %s is full; consider increasing forwarder_num_workers", f.domain)
 	}
-	return nil
 }

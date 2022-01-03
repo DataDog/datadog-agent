@@ -79,12 +79,8 @@ build_omnibus-nikos_x64:
 
 build_omnibus-nikos_arm64:
   extends: .build_omnibus-nikos_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_x64:$DATADOG_AGENT_NIKOS_BUILDIMAGES
-  tags: ["runner:main"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_arm64:$DATADOG_AGENT_NIKOS_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
-  script:
-    # for now, upload a dummy artifact in order to fix the system-probe arm build
-    - tar czf nikos.tar.gz --files-from /dev/null
-    - $S3_CP_CMD nikos.tar.gz $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz
   

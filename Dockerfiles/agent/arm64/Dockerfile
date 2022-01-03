@@ -1,4 +1,4 @@
-FROM ubuntu:21.04 AS baseimage
+FROM ubuntu:21.10 AS baseimage
 ARG CIBUILD
 RUN if [ "$CIBUILD" = "true" ]; then \
   sed -i 's#http://archive.ubuntu.com#http://us-east-1.ec2.archive.ubuntu.com#g' /etc/apt/sources.list; \
@@ -138,7 +138,7 @@ COPY --from=extract /output/ /
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
 COPY cont-init.d /etc/cont-init.d/
-COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh /
+COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
 
 # Extract s6-overlay
 #
@@ -160,10 +160,8 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod 755 /probe.sh /initlog.sh \
- && chown root:root /readsecret.py \
- && chmod 500 /readsecret.py \
- && chown root:root /readsecret.sh \
- && chmod 500 /readsecret.sh
+ && chown root:root /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
+ && chmod 500 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
 
 # Update links to python binaries
 

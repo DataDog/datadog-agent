@@ -5,14 +5,15 @@
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
-    - TARGET_TAG=$IMAGE:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
+    - ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
+    - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
     # Pull base image(s) with content trust enabled
     - python3 -m pip install -r requirements.txt
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Pull base images
-    - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/$ARCH/Dockerfile
+    - inv -e docker.pull-base-images $BUILD_CONTEXT/$ARCH/Dockerfile --no-signed-pull # FIXME: currently --no-signed-pull as ubuntu:21.10 is not properly signed on DockerHub
     # Build testing stage if provided
     - test "$TESTING_ARG" && docker build --build-arg CIBUILD=true --file $BUILD_CONTEXT/$ARCH/Dockerfile $TESTING_ARG $BUILD_CONTEXT
     # Build release stage and push to ECR

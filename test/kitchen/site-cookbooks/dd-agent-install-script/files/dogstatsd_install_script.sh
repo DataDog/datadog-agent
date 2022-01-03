@@ -12,6 +12,18 @@ logfile="ddagent-install.log"
 ETCDIR="/etc/datadog-dogstatsd"
 CONF="$ETCDIR/dogstatsd.yaml"
 
+# DATADOG_APT_KEY_CURRENT.public always contains key used to sign current
+# repodata and newly released packages
+# DATADOG_APT_KEY_382E94DE.public expires in 2022
+# DATADOG_APT_KEY_F14F620E.public expires in 2032
+APT_GPG_KEYS=("DATADOG_APT_KEY_CURRENT.public" "DATADOG_APT_KEY_F14F620E.public" "DATADOG_APT_KEY_382E94DE.public")
+
+# DATADOG_RPM_KEY_CURRENT.public always contains key used to sign current
+# repodata and newly released packages
+# DATADOG_RPM_KEY_E09422B3.public expires in 2022
+# DATADOG_RPM_KEY_FD4BF915.public expires in 2024
+RPM_GPG_KEYS=("DATADOG_RPM_KEY_CURRENT.public" "DATADOG_RPM_KEY_E09422B3.public" "DATADOG_RPM_KEY_FD4BF915.public")
+
 # Set up a named pipe for logging
 npipe=/tmp/$$.tmp
 mknod $npipe p
@@ -64,10 +76,28 @@ else
     repository_url="datadoghq.com"
 fi
 
+if [ -n "$TESTING_KEYS_URL" ]; then
+  keys_url=$TESTING_KEYS_URL
+else
+  keys_url="keys.datadoghq.com"
+fi
+
 if [ -n "$TESTING_YUM_URL" ]; then
   yum_url=$TESTING_YUM_URL
 else
   yum_url="yum.${repository_url}"
+fi
+
+# We turn off `repo_gpgcheck` for custom REPO_URL, unless explicitly turned
+# on via DD_RPM_REPO_GPGCHECK.
+# There is more logic for redhat/suse in their specific code branches below
+rpm_repo_gpgcheck=
+if [ -n "$DD_RPM_REPO_GPGCHECK" ]; then
+    rpm_repo_gpgcheck=$DD_RPM_REPO_GPGCHECK
+else
+    if [ -n "$REPO_URL" ]; then
+        rpm_repo_gpgcheck=0
+    fi
 fi
 
 if [ -n "$TESTING_APT_URL" ]; then
@@ -81,7 +111,6 @@ if [ -n "$DD_UPGRADE" ]; then
   upgrade=$DD_UPGRADE
 fi
 
-gpgkeys_yum_repo="https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
 agent_major_version=7
 # if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
 #   if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
@@ -117,13 +146,6 @@ if [ -n "$TESTING_APT_REPO_VERSION" ]; then
   apt_repo_version=$TESTING_APT_REPO_VERSION
 else
   apt_repo_version="${agent_dist_channel} ${agent_major_version}"
-fi
-
-keyserver="hkp://keyserver.ubuntu.com:80"
-# use this env var to specify another key server, such as
-# hkp://p80.pool.sks-keyservers.net:80 for example.
-if [ -n "$DD_KEYSERVER" ]; then
-  keyserver="$DD_KEYSERVER"
 fi
 
 if [ ! "$apikey" ]; then
@@ -180,7 +202,28 @@ if [ "$OS" = "RedHat" ]; then
         ARCHI="x86_64"
     fi
 
-    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=0\npriority=1\ngpgkey=${gpgkeys_yum_repo}' > /etc/yum.repos.d/datadog.repo"
+    # Because of https://bugzilla.redhat.com/show_bug.cgi?id=1792506, we disable
+    # repo_gpgcheck on RHEL/CentOS 8.1
+    if [ -z "$rpm_repo_gpgcheck" ]; then
+        if grep -q "8\.1\(\b\|\.\)" /etc/redhat-release 2>/dev/null; then
+            rpm_repo_gpgcheck=0
+        else
+            rpm_repo_gpgcheck=1
+        fi
+    fi
+
+    gpgkeys=''
+    separator='\n       '
+    for key_path in "${RPM_GPG_KEYS[@]}"; do
+      gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${keys_url}/${key_path}"
+    done
+    if [ "$agent_major_version" -eq 6 ]; then
+      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
+        gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${keys_url}/${key_path}"
+      done
+    fi
+
+    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
 
     printf "\033[34m* Installing the Datadog Dogstatsd package\n\033[0m\n"
     $sudo_cmd yum -y clean metadata
@@ -196,19 +239,42 @@ if [ "$OS" = "RedHat" ]; then
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
 
 elif [ "$OS" = "Debian" ]; then
+    apt_trusted_d_keyring="/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
+    apt_usr_share_keyring="/usr/share/keyrings/datadog-archive-keyring.gpg"
 
-    printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
+    printf "\033[34m\n* Installing apt-transport-https, curl and gnupg\n\033[0m\n"
     $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
-    $sudo_cmd apt-get install -y apt-transport-https
-    # Only install dirmngr if it's available in the cache
-    # it may not be available on Ubuntu <= 14.04 but it's not required there
-    cache_output=`apt-cache search dirmngr`
-    if [ ! -z "$cache_output" ]; then
-      $sudo_cmd apt-get install -y dirmngr
+    # installing curl might trigger install of additional version of libssl; this will fail the installation process,
+    # see https://unix.stackexchange.com/q/146283 for reference - we use DEBIAN_FRONTEND=noninteractive to fix that
+    if [ -z "$sudo_cmd" ]; then
+        # if $sudo_cmd is empty, doing `$sudo_cmd X=Y command` fails with
+        # `X=Y: command not found`; therefore we don't prefix the command with
+        # $sudo_cmd at all in this case
+        DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg
+    else
+        $sudo_cmd DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
-    $sudo_cmd sh -c "echo 'deb https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
-    $sudo_cmd apt-key adv --recv-keys --keyserver "${keyserver}" A2923DFF56EDA6E76E55E492D3A80E30382E94DE
+    $sudo_cmd sh -c "echo 'deb [signed-by=${apt_usr_share_keyring}] https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
+
+    if [ ! -f $apt_usr_share_keyring ]; then
+        $sudo_cmd touch $apt_usr_share_keyring
+    fi
+    # ensure that the _apt user used on Ubuntu/Debian systems to read GPG keyrings
+    # can read our keyring
+    $sudo_cmd chmod a+r $apt_usr_share_keyring
+
+    for key in "${APT_GPG_KEYS[@]}"; do
+        $sudo_cmd curl --retry 5 -o "/tmp/${key}" "https://${keys_url}/${key}"
+        $sudo_cmd cat "/tmp/${key}" | $sudo_cmd gpg --import --batch --no-default-keyring --keyring "$apt_usr_share_keyring"
+    done
+
+    release_version="$(grep VERSION_ID /etc/os-release | cut -d = -f 2 | xargs echo | cut -d "." -f 1)"
+    if { [ "$DISTRIBUTION" == "Debian" ] && [ "$release_version" -lt 9 ]; } || \
+       { [ "$DISTRIBUTION" == "Ubuntu" ] && [ "$release_version" -lt 16 ]; }; then
+        # copy with -a to preserve file permissions
+        $sudo_cmd cp -a $apt_usr_share_keyring $apt_trusted_d_keyring
+    fi
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
@@ -239,7 +305,12 @@ elif [ "$OS" = "SUSE" ]; then
       ARCHI="x86_64"
   fi
 
+  if [ -z "$rpm_repo_gpgcheck" ]; then
+      rpm_repo_gpgcheck=1
+  fi
+
   # Try to guess if we're installing on SUSE 11, as it needs a different flow to work
+  # Note that SUSE11 doesn't have /etc/os-release file, so we have to use /etc/SuSE-release
   if cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
     SUSE11="yes"
   fi
@@ -247,14 +318,37 @@ elif [ "$OS" = "SUSE" ]; then
   echo -e "\033[34m\n* Importing the Datadog GPG Keys\n\033[0m"
   if [ "$SUSE11" == "yes" ]; then
     # SUSE 11 special case
-    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public "${gpgkeys_yum_repo}"
-    $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY.public
+    for key_path in "${RPM_GPG_KEYS[@]}"; do
+      $sudo_cmd curl -o "/tmp/${key_path}" "https://${keys_url}/${key_path}"
+      $sudo_cmd rpm --import "/tmp/${key_path}"
+    done
   else
-    $sudo_cmd rpm --import "${gpgkeys_yum_repo}"
+    for key_path in "${RPM_GPG_KEYS[@]}"; do
+      $sudo_cmd rpm --import "https://${keys_url}/${key_path}"
+    done
   fi
 
+  # Parse the major version number out of the distro release info file. xargs is used to trim whitespace.
+  # NOTE: We use this to find out whether or not release version is >= 15, so we have to use /etc/os-release,
+  # as /etc/SuSE-release has been deprecated and is no longer present everywhere, e.g. in AWS AMI.
+  # See https://www.suse.com/releasenotes/x86_64/SUSE-SLES/15/#fate-324409
+  SUSE_VER=$(cat /etc/os-release 2>/dev/null | grep VERSION_ID | tr -d '"' | tr . = | cut -d = -f 2 | xargs echo)
+  gpgkeys="https://${keys_url}/DATADOG_RPM_KEY_CURRENT.public"
+  if [ -n "$SUSE_VER" ] && [ "$SUSE_VER" -ge 15 ] && [ "$SUSE_VER" -ne 42 ]; then
+    gpgkeys=''
+    separator='\n       '
+    for key_path in "${RPM_GPG_KEYS[@]}"; do
+      gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${keys_url}/${key_path}"
+    done
+    if [ "$agent_major_version" -eq 6 ]; then
+      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
+        gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${keys_url}/${key_path}"
+      done
+    fi
+  fi  
+
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
-  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=${gpgkeys_yum_repo}' > /etc/zypp/repos.d/datadog.repo"
+  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\ngpgkey=${gpgkeys}' > /etc/zypp/repos.d/datadog.repo"
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
@@ -317,7 +411,7 @@ $sudo_cmd sh -c "echo '$install_info_content' > $ETCDIR/install_info"
 
 service_cmd="service"
 if [ "$SUSE11" == "yes" ]; then
-  service_cmd=`$sudo_cmd which service`
+  service_cmd=$($sudo_cmd which service)
 fi
 
 # Use /usr/sbin/service by default.

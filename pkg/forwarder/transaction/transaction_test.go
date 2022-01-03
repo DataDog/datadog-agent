@@ -9,6 +9,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,4 +127,45 @@ func TestProcessCancel(t *testing.T) {
 
 	err := transaction.Process(ctx, client)
 	assert.Nil(t, err)
+}
+
+func Test_truncateBodyForLog(t *testing.T) {
+	tests := []struct {
+		name string
+		body []byte
+		want []byte
+	}{
+		{
+			name: "body is datadog",
+			body: []byte("datadog"),
+			want: []byte("datadog"),
+		},
+		{
+			name: "body is 1000 bytes",
+			body: []byte(strings.Repeat("a", 1000)),
+			want: append([]byte(strings.Repeat("a", 1000)), []byte("...")...),
+		},
+		{
+			name: "body is 1001 bytes",
+			body: []byte(strings.Repeat("a", 1001)),
+			want: append([]byte(strings.Repeat("a", 1000)), []byte("...")...),
+		},
+		{
+			name: "body is empty",
+			body: []byte{},
+			want: []byte{},
+		},
+		{
+			name: "body is nil",
+			body: nil,
+			want: []byte{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := truncateBodyForLog(tt.body); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("truncateBodyForLog() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

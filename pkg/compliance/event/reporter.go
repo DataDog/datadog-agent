@@ -39,12 +39,13 @@ func NewLogReporter(stopper restart.Stopper, sourceName, sourceType, runPath str
 	// setup the auditor
 	auditor := auditor.New(runPath, sourceType+"-registry.json", coreconfig.DefaultAuditorTTL, health)
 	auditor.Start()
-	stopper.Add(auditor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context)
 	pipelineProvider.Start()
+
 	stopper.Add(pipelineProvider)
+	stopper.Add(auditor)
 
 	logSource := config.NewLogSource(
 		sourceName,

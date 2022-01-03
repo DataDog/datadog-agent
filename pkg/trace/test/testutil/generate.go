@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testutil
 
 import (
@@ -5,7 +10,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
 // SpanConfig defines the configuration for generating spans.
@@ -71,7 +75,7 @@ func GenerateTrace(tc *TraceConfig, sc *SpanConfig) pb.Trace {
 		t = append(t, s)
 	}
 	if tc.Keep {
-		root.Metrics[sampler.KeySamplingPriority] = 2
+		root.Metrics["_sampling_priority_v1"] = 2
 	}
 	for _, span := range t {
 		if span == root {

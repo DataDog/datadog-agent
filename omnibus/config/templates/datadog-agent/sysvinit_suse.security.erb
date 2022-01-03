@@ -56,12 +56,12 @@ DESC="Datadog Security Agent"
 rc_reset
 
 if [ ! -x $AGENTPATH ]; then
-  echo "$AGENTPATH not found. Exiting."
+  echo "$AGENTPATH not found. Exiting $NAME"
   exit 1
 fi
 
 if [ ! -x $SECURITY_AGENT_CONFIG_FILE ]; then
-	echo "$SECURITY_AGENT_CONFIG_FILE not found. Exiting."
+	echo "$SECURITY_AGENT_CONFIG_FILE not found. Exiting $NAME"
 	exit 1
 fi
 

@@ -130,6 +130,9 @@ pkg/ebpf/bytecode/build/
 pkg/ebpf/bytecode/bindata/
 *.bc
 
+# CGo generated object files
+pkg/network/**/_obj/
+
 # windows container build output
 build.out/
 
@@ -141,7 +144,6 @@ packer.json
 devenv/iso
 devenv/output-virtualbox-iso/
 devenv/packer_cache
-pkg/network/driver/_obj/
 test_output.json
 
 # doxygen doc & error log

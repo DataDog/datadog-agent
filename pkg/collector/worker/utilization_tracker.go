@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -27,6 +29,7 @@ type utilizationTracker struct {
 	pollingFunc      util.PollingFunc
 	statsUpdateFunc  util.StatsUpdateFunc
 
+	clock              clock.Clock
 	busyDuration       time.Duration
 	checkStart         time.Time
 	windowStart        time.Time
@@ -62,8 +65,23 @@ func NewUtilizationTracker(
 	windowSize time.Duration,
 	pollingInterval time.Duration,
 ) (UtilizationTracker, error) {
+	return newUtilizationTrackerWithClock(
+		workerName,
+		windowSize,
+		pollingInterval,
+		clock.New(),
+	)
+}
 
-	sw, err := util.NewSlidingWindow(windowSize, pollingInterval)
+// newUtilizationTrackerWithClock is primarely used for testing
+func newUtilizationTrackerWithClock(
+	workerName string,
+	windowSize time.Duration,
+	pollingInterval time.Duration,
+	clk clock.Clock,
+) (UtilizationTracker, error) {
+
+	sw, err := util.NewSlidingWindowWithClock(windowSize, pollingInterval, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -72,16 +90,17 @@ func NewUtilizationTracker(
 		workerName:       workerName,
 		utilizationStats: sw,
 
+		clock:        clk,
 		busyDuration: time.Duration(0),
 		checkStart:   time.Time{},
-		windowStart:  time.Now(),
+		windowStart:  clk.Now(),
 	}
 
 	ut.pollingFunc = func() float64 {
 		ut.Lock()
 		defer ut.Unlock()
 
-		currentTime := time.Now()
+		currentTime := clk.Now()
 
 		if !ut.checkStart.IsZero() {
 			duration := currentTime.Sub(ut.checkStart)
@@ -171,7 +190,7 @@ func (ut *utilizationTracker) CheckStarted(longRunning bool) {
 	ut.Lock()
 
 	ut.isRunningLongCheck = longRunning
-	ut.checkStart = time.Now()
+	ut.checkStart = ut.clock.Now()
 
 	ut.Unlock()
 }
@@ -181,7 +200,7 @@ func (ut *utilizationTracker) CheckStarted(longRunning bool) {
 func (ut *utilizationTracker) CheckFinished() {
 	ut.Lock()
 
-	duration := time.Now().Sub(ut.checkStart)
+	duration := ut.clock.Now().Sub(ut.checkStart)
 	ut.busyDuration += duration
 
 	ut.isRunningLongCheck = false

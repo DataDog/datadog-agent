@@ -6,6 +6,7 @@ agent_android_apk:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
   dependencies: []
+  needs: ["go_mod_tidy_check"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:

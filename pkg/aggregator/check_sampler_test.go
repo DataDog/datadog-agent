@@ -9,7 +9,8 @@ package aggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	// stdlib
 	"math"
@@ -26,13 +27,13 @@ import (
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	k := ckey.NewKeyGenerator()
-	tb := util.NewTagsBuilder()
+	tb := tagset.NewHashingTagsAccumulator()
 	sample.GetTags(tb)
 	return k.Generate(sample.GetName(), sample.GetHost(), tb)
 }
 
-func TestCheckGaugeSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -89,9 +90,12 @@ func TestCheckGaugeSampling(t *testing.T) {
 	expectedSeries := []*metrics.Serie{expectedSerie1, expectedSerie2}
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
 }
+func TestCheckGaugeSampling(t *testing.T) {
+	testWithTagsStore(t, testCheckGaugeSampling)
+}
 
-func TestCheckRateSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testCheckRateSampling(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -138,9 +142,12 @@ func TestCheckRateSampling(t *testing.T) {
 		metrics.AssertSerieEqual(t, expectedSerie, series[0])
 	}
 }
+func TestCheckRateSampling(t *testing.T) {
+	testWithTagsStore(t, testCheckRateSampling)
+}
 
-func TestHistogramCountSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testHistogramCountSampling(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -199,9 +206,12 @@ func TestHistogramCountSampling(t *testing.T) {
 	checkSampler.commit(12349.0)
 	require.Len(t, checkSampler.contextResolver.expireCountByKey, 0)
 }
+func TestHistogramCountSampling(t *testing.T) {
+	testWithTagsStore(t, testHistogramCountSampling)
+}
 
-func TestCheckHistogramBucketSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -272,9 +282,12 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	checkSampler.flush()
 	assert.Equal(t, len(checkSampler.lastBucketValue), 0)
 }
+func TestCheckHistogramBucketSampling(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketSampling)
+}
 
-func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -324,9 +337,12 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 	}, flushed[0], .03)
 
 }
+func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketDontFlushFirstValue)
+}
 
-func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -354,4 +370,7 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 		},
 		ContextKey: generateContextKey(bucket1),
 	}, flushed[0], .03)
+}
+func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketInfinityBucket)
 }

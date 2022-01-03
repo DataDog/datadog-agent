@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -54,7 +55,7 @@ func (suite *TailerTestSuite) SetupTest() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, false), sleepDuration)
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, false), sleepDuration, NewDecoderFromSource(suite.source))
 	suite.tailer.closeTimeout = closeTimeout
 }
 
@@ -98,7 +99,7 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	suite.tailer.StartFromBeginning()
 
 	coreConfig.Datadog.Set("logs_config.close_timeout", 42)
-	tailer := NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, false), 10*time.Millisecond)
+	tailer := NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, false), 10*time.Millisecond, NewDecoderFromSource(suite.source))
 	tailer.StartFromBeginning()
 
 	suite.Equal(tailer.closeTimeout, time.Duration(42)*time.Second)
@@ -251,7 +252,7 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration)
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration, NewDecoderFromSource(suite.source))
 	suite.tailer.StartFromBeginning()
 
 	_, err := suite.testFile.WriteString("foo\n")
@@ -270,7 +271,7 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, false), sleepDuration)
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, false), sleepDuration, NewDecoderFromSource(suite.source))
 
 	suite.tailer.StartFromBeginning()
 
@@ -285,13 +286,43 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration)
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration, NewDecoderFromSource(suite.source))
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
 	suite.Equal(2, len(tags))
 	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
 	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+}
+
+func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
+	lines := "Jul 12, 2021 12:55:15 PM test message 1\n"
+	lines += "Jul 12, 2021 12:55:15 PM test message 2\n"
+
+	var err error
+
+	aml := true
+	suite.source.Config.AutoMultiLine = &aml
+	suite.source.Config.AutoMultiLineSampleSize = 3
+
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, true), 10*time.Millisecond, NewDecoderFromSource(suite.source))
+
+	_, err = suite.testFile.WriteString(lines)
+	suite.Nil(err)
+
+	suite.tailer.Start(0, io.SeekStart)
+	<-suite.outputChan
+	<-suite.outputChan
+
+	suite.Nil(suite.tailer.GetDetectedPattern())
+	_, err = suite.testFile.WriteString(lines)
+	suite.Nil(err)
+
+	<-suite.outputChan
+	<-suite.outputChan
+
+	expectedRegex := regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`)
+	suite.Equal(suite.tailer.GetDetectedPattern(), expectedRegex)
 }
 
 func toInt(str string) int {

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -11,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -116,6 +121,41 @@ func TestSendProcMessage(t *testing.T) {
 	})
 }
 
+func TestSendProcessDiscoveryMessage(t *testing.T) {
+	m := &process.CollectorProcDiscovery{
+		HostName:  testHostName,
+		GroupId:   1,
+		GroupSize: 1,
+		ProcessDiscoveries: []*process.ProcessDiscovery{
+			{Pid: 1, NsPid: 2, CreateTime: time.Now().Unix()},
+		},
+	}
+
+	check := &testCheck{
+		name: checks.ProcessDiscovery.Name(),
+		data: [][]process.MessageBody{{m}},
+	}
+
+	runCollectorTest(t, check, config.NewDefaultAgentConfig(false), &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+		req := <-ep.Requests
+
+		assert.Equal(t, "/api/v1/discovery", req.uri)
+
+		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
+		assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
+		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
+		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
+		assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
+
+		reqBody, err := process.DecodeMessage(req.body)
+		require.NoError(t, err)
+
+		b, ok := reqBody.Body.(*process.CollectorProcDiscovery)
+		require.True(t, ok)
+		assert.Equal(t, m, b)
+	})
+}
+
 func TestSendProcMessageWithRetry(t *testing.T) {
 	m := &process.CollectorProc{
 		HostName: testHostName,
@@ -163,7 +203,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.RTProcess.Name(),
+		name: checks.Process.RealTimeName(),
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -236,7 +276,7 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.RTProcess.Name(),
+		name: checks.Process.RealTimeName(),
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -266,7 +306,7 @@ func TestQueueSpaceReleased(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.RTProcess.Name(),
+		name: checks.Process.RealTimeName(),
 		data: [][]process.MessageBody{{m1}, {m2}},
 	}
 
@@ -418,6 +458,7 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	collectorMux.HandleFunc("/api/v1/validate", m.handleValidate)
 	collectorMux.HandleFunc("/api/v1/collector", m.handle)
 	collectorMux.HandleFunc("/api/v1/container", m.handle)
+	collectorMux.HandleFunc("/api/v1/discovery", m.handle)
 
 	orchestratorMux := http.NewServeMux()
 	orchestratorMux.HandleFunc("/api/v1/validate", m.handleValidate)

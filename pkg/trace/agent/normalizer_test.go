@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/stretchr/testify/assert"
@@ -450,6 +451,46 @@ func TestIsValidStatusCode(t *testing.T) {
 	assert.False(isValidStatusCode("99"))
 	assert.False(isValidStatusCode("600"))
 	assert.False(isValidStatusCode("Invalid status code"))
+}
+
+func TestNormalizeChunkPopulatingOrigin(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	traceutil.SetMeta(root, "_dd.origin", "rum")
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Origin = ""
+	normalizeChunk(chunk, root)
+	assert.Equal("rum", chunk.Origin)
+}
+
+func TestNormalizeChunkNotPopulatingOrigin(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	traceutil.SetMeta(root, "_dd.origin", "rum")
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Origin = "lambda"
+	normalizeChunk(chunk, root)
+	assert.Equal("lambda", chunk.Origin)
+}
+
+func TestNormalizeChunkPopulatingSamplingPriority(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	traceutil.SetMetric(root, "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Priority = int32(sampler.PriorityNone)
+	normalizeChunk(chunk, root)
+	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
+}
+
+func TestNormalizeChunkNotPopulatingSamplingPriority(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	traceutil.SetMetric(root, "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Priority = int32(sampler.PriorityAutoDrop)
+	normalizeChunk(chunk, root)
+	assert.EqualValues(sampler.PriorityAutoDrop, chunk.Priority)
 }
 
 func BenchmarkNormalization(b *testing.B) {

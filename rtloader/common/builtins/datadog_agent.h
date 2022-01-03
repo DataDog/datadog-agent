@@ -148,6 +148,7 @@ void _set_write_persistent_cache_cb(cb_write_persistent_cache_t);
 void _set_read_persistent_cache_cb(cb_read_persistent_cache_t);
 void _set_obfuscate_sql_cb(cb_obfuscate_sql_t);
 void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t);
+void _set_get_process_start_time_cb(cb_get_process_start_time_t);
 
 PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs);
 

@@ -9,21 +9,36 @@ package secrets
 
 import (
 	"bytes"
+	"fmt"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestReadSecrets(t *testing.T) {
+	newKubeClientFunc := func(timeout time.Duration) (kubernetes.Interface, error) {
+		return fake.NewSimpleClientset(&v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "some_name",
+				Namespace: "some_namespace",
+			},
+			Data: map[string][]byte{"some_key": []byte("some_value")},
+		}), nil
+	}
+
 	tests := []struct {
 		name        string
 		in          string
 		out         string
+		usePrefixes bool
 		err         string
-		skipWindows bool
 	}{
 		{
 			name: "invalid input",
@@ -52,14 +67,13 @@ func TestReadSecrets(t *testing.T) {
 			err: `no secrets listed in input`,
 		},
 		{
-			name: "valid",
+			name: "valid input, reading from file",
 			in: `
 			{
 				"version": "1.0",
 				"secrets": [
 					"secret1",
-					"secret2",
-					"secret3"
+					"secret2"
 				]
 			}
 			`,
@@ -70,55 +84,87 @@ func TestReadSecrets(t *testing.T) {
 				},
 				"secret2": {
 					"error": "secret does not exist"
-				},
-				"secret3": {
-					"error": "secret exceeds max allowed size"
 				}
-			}
-			`,
+			}`,
 		},
 		{
-			name:        "symlinks",
-			skipWindows: true,
+			name: "valid input, reading from file and k8s providers",
+			in: fmt.Sprintf(`
+			{
+				"version": "1.0",
+				"secrets": [
+					"file@%s",
+					"k8s_secret@some_namespace/some_name/some_key",
+					"file@%s",
+					"k8s_secret@another_namespace/another_name/another_key"
+				]
+			}`, secretAbsPath("secret1"), secretAbsPath("secret2")),
+			out: fmt.Sprintf(`
+			{
+				"file@%s": {
+					"value": "secret1-value"
+				},
+				"k8s_secret@some_namespace/some_name/some_key": {
+					"value": "some_value"
+				},
+				"file@%s": {
+					"error": "secret does not exist"
+				},
+				"k8s_secret@another_namespace/another_name/another_key": {
+					"error": "secrets \"another_name\" not found"
+				}
+			}`, secretAbsPath("secret1"), secretAbsPath("secret2")),
+			usePrefixes: true,
+		},
+		{
+			name: "prefixes option enabled, but using old format",
 			in: `
 			{
 				"version": "1.0",
 				"secrets": [
-					"secret4",
-					"secret5",
-					"secret6"
+					"secret1"
 				]
 			}
 			`,
 			out: `
 			{
-				"secret4": {
+				"secret1": {
 					"value": "secret1-value"
-				},
-				"secret5": {
-					"error": "not following symlink \"$TESTDATA/secret5-target\" outside of \"testdata/read-secrets\""
-				},
-				"secret6": {
-					"error": "secret exceeds max allowed size"
 				}
 			}
 			`,
+			usePrefixes: true,
+		},
+		{
+			name: "prefixes option enabled, provider not supported",
+			in: `
+			{
+				"version": "1.0",
+				"secrets": [
+					"invalid_provider@some/id"
+				]
+			}
+			`,
+			out: `
+			{
+				"invalid_provider@some/id": {
+					"error": "provider not supported: invalid_provider"
+				}
+			}
+			`,
+			usePrefixes: true,
 		},
 	}
 
 	path := filepath.Join("testdata", "read-secrets")
-	testdata, _ := filepath.Abs("testdata")
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if test.skipWindows && runtime.GOOS == "windows" {
-				t.Skip("skipped on windows")
-			}
 			var w bytes.Buffer
-			err := readSecrets(strings.NewReader(test.in), &w, path)
+			err := readSecrets(strings.NewReader(test.in), &w, path, test.usePrefixes, newKubeClientFunc)
 			out := string(w.Bytes())
 
 			if test.out != "" {
-				assert.JSONEq(t, strings.ReplaceAll(test.out, "$TESTDATA", testdata), out)
+				assert.JSONEq(t, test.out, out)
 			} else {
 				assert.Empty(t, out)
 			}
@@ -130,4 +176,13 @@ func TestReadSecrets(t *testing.T) {
 			}
 		})
 	}
+}
+
+func secretAbsPath(secretName string) string {
+	testdataPath := filepath.Join("testdata", "read-secrets", secretName)
+	absPath, _ := filepath.Abs(testdataPath)
+
+	// Windows uses "\" as the directory separator. "\" is the escape char in
+	// JSON, so we need to escape them.
+	return strings.ReplaceAll(absPath, "\\", "\\\\")
 }

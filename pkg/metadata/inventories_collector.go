@@ -1,10 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package metadata
 
 import (
 	"context"
 	"expvar"
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -30,7 +34,7 @@ func createPayload(ctx context.Context, ac inventories.AutoConfigInterface, coll
 }
 
 // Send collects the data needed and submits the payload
-func (c inventoriesCollector) Send(ctx context.Context, s *serializer.Serializer) error {
+func (c inventoriesCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	if s == nil {
 		return nil
 	}
@@ -46,9 +50,11 @@ func (c inventoriesCollector) Send(ctx context.Context, s *serializer.Serializer
 	return nil
 }
 
-// Init initializes the inventory metadata collection
+// Init initializes the inventory metadata collection. This should be called in
+// all agents that wish to track inventory, after configuration is initialized.
 func (c inventoriesCollector) Init() error {
-	return inventories.StartMetadataUpdatedGoroutine(c.sc, config.Datadog.GetDuration("inventories_min_interval")*time.Second)
+	inventories.InitializeData()
+	return inventories.StartMetadataUpdatedGoroutine(c.sc, config.GetInventoriesMinInterval())
 }
 
 // SetupInventoriesExpvar init the expvar function for inventories
@@ -73,10 +79,11 @@ func SetupInventories(sc *Scheduler, ac inventories.AutoConfigInterface, coll in
 	}
 	RegisterCollector("inventories", ic)
 
-	if err := sc.AddCollector("inventories", config.Datadog.GetDuration("inventories_max_interval")*time.Second); err != nil {
+	if err := sc.AddCollector("inventories", config.GetInventoriesMaxInterval()); err != nil {
 		return err
 	}
 
 	SetupInventoriesExpvar(ac, coll)
+
 	return nil
 }

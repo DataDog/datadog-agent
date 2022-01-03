@@ -11,20 +11,19 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"sync/atomic"
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 )
 
@@ -61,31 +60,48 @@ type Tailer struct {
 	stopForward    context.CancelFunc
 }
 
-// NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration) *Tailer {
+// NewDecoderFromSource creates a new decoder from a log source
+func NewDecoderFromSource(source *config.LogSource) *decoder.Decoder {
+	return NewDecoderFromSourceWithPattern(source, nil)
+}
+
+// NewDecoderFromSourceWithPattern creates a new decoder from a log source with a multiline pattern
+func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern *regexp.Regexp) *decoder.Decoder {
+
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
-	var parser lineParser.Parser
+	var lineParser parser.Parser
 	var matcher decoder.EndLineMatcher
-	switch file.Source.GetSourceType() {
+	switch source.GetSourceType() {
 	case config.KubernetesSourceType:
-		parser = kubernetes.Parser
+		lineParser = parser.KubernetesFormat
 		matcher = &decoder.NewLineMatcher{}
 	case config.DockerSourceType:
-		parser = docker.JSONParser
+		if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+			// podman's on-disk logs are in kubernetes format
+			lineParser = parser.KubernetesFormat
+		} else {
+			lineParser = parser.DockerFileFormat
+		}
 		matcher = &decoder.NewLineMatcher{}
 	default:
-		switch file.Source.Config.Encoding {
+		switch source.Config.Encoding {
 		case config.UTF16BE:
-			parser = lineParser.NewDecodingParser(lineParser.UTF16BE)
-			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL)
+			lineParser = parser.NewEncodedText(parser.UTF16BE)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL, 2)
 		case config.UTF16LE:
-			parser = lineParser.NewDecodingParser(lineParser.UTF16LE)
-			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL)
+			lineParser = parser.NewEncodedText(parser.UTF16LE)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL, 2)
 		default:
-			parser = lineParser.NoopParser
+			lineParser = parser.Noop
 			matcher = &decoder.NewLineMatcher{}
 		}
 	}
+
+	return decoder.NewDecoderWithEndLineMatcher(source, lineParser, matcher, multiLinePattern)
+}
+
+// NewTailer returns an initialized Tailer
+func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder) *Tailer {
 
 	var tagProvider tag.Provider
 	if file.Source.Config.Identifier != "" {
@@ -100,7 +116,7 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	return &Tailer{
 		file:           file,
 		outputChan:     outputChan,
-		decoder:        decoder.NewDecoderWithEndLineMatcher(file.Source, parser, matcher),
+		decoder:        decoder,
 		tagProvider:    tagProvider,
 		readOffset:     0,
 		sleepDuration:  sleepDuration,
@@ -198,7 +214,7 @@ func (t *Tailer) StopAfterFileRotation() {
 	t.file.Source.RemoveInput(t.file.Path)
 }
 
-// startStopTimer initialises and starts a timer to stop the tailor after the timeout
+// startStopTimer initializes and starts a timer to stop the tailor after the timeout
 func (t *Tailer) startStopTimer() {
 	stopTimer := time.NewTimer(t.closeTimeout)
 	<-stopTimer.C
@@ -266,6 +282,11 @@ func (t *Tailer) GetReadOffset() int64 {
 // file
 func (t *Tailer) SetDecodedOffset(off int64) {
 	atomic.StoreInt64(&t.decodedOffset, off)
+}
+
+// GetDetectedPattern returns a regexp if a pattern was detected
+func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
+	return t.decoder.GetDetectedPattern()
 }
 
 // shouldTrackOffset returns whether the tailer should track the file offset or not

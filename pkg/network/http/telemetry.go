@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
 // +build linux_bpf
 
 package http
@@ -16,6 +22,7 @@ type telemetry struct {
 	hits         [5]int64
 	misses       int64 // this happens when we can't cope with the rate of events
 	dropped      int64 // this happens when httpStatKeeper reaches capacity
+	rejected     int64 // this happens when an user-defined reject-filter matches a request
 	aggregations int64
 }
 
@@ -44,6 +51,7 @@ func (t *telemetry) reset() telemetry {
 	delta := telemetry{
 		misses:       atomic.SwapInt64(&t.misses, 0),
 		dropped:      atomic.SwapInt64(&t.dropped, 0),
+		rejected:     atomic.SwapInt64(&t.rejected, 0),
 		aggregations: atomic.SwapInt64(&t.aggregations, 0),
 		elapsed:      now.Unix() - then,
 	}
@@ -62,12 +70,14 @@ func (t *telemetry) report() {
 	}
 
 	log.Debugf(
-		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) aggregations=%d",
+		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) aggregations=%d",
 		totalRequests,
 		float64(totalRequests)/float64(t.elapsed),
 		t.misses,
 		float64(t.misses)/float64(t.elapsed),
 		t.dropped,
+		float64(t.rejected)/float64(t.elapsed),
+		t.rejected,
 		float64(t.dropped)/float64(t.elapsed),
 		t.aggregations,
 	)

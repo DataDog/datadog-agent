@@ -29,6 +29,7 @@ type ConnStats struct {
 	Direction    uint8
 	Sent_packets uint64
 	Recv_packets uint64
+	Tags         uint64
 }
 type Conn struct {
 	Tup        ConnTuple
@@ -56,6 +57,20 @@ type PortBinding struct {
 	Port      uint16
 	Pad_cgo_0 [2]byte
 }
+type PIDFD struct {
+	Pid uint32
+	Fd  uint32
+}
+type UDPRecvSock struct {
+	Sk  *_Ctype_struct_sock
+	Msg *_Ctype_struct_msghdr
+}
+type BindSyscallArgs struct {
+	Port uint16
+}
+
+type _Ctype_struct_sock uint64
+type _Ctype_struct_msghdr uint64
 
 type TCPState uint8
 
@@ -80,3 +95,17 @@ const (
 )
 
 const BatchSize = 0x4
+
+type ConnTag = uint64
+
+const (
+	GnuTLS  ConnTag = 0x1
+	OpenSSL ConnTag = 0x2
+)
+
+var (
+	StaticTags = map[ConnTag]string{
+		GnuTLS:  "tls.library:gnutls",
+		OpenSSL: "tls.library:openssl",
+	}
+)

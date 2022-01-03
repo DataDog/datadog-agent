@@ -194,13 +194,13 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
     }                                                                                                                  \
 
 SEC("kprobe/dentry_resolver_kern")
-int kprobe__dentry_resolver_kern(struct pt_regs *ctx) {
+int kprobe_dentry_resolver_kern(struct pt_regs *ctx) {
     dentry_resolver_kern(ctx, &dentry_resolver_kprobe_progs, &dentry_resolver_kprobe_callbacks, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
 SEC("tracepoint/dentry_resolver_kern")
-int tracepoint__dentry_resolver_kern(void *ctx) {
+int tracepoint_dentry_resolver_kern(void *ctx) {
     dentry_resolver_kern(ctx, &dentry_resolver_tracepoint_progs, &dentry_resolver_tracepoint_callbacks, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
@@ -302,7 +302,7 @@ exit:
 }
 
 SEC("kprobe/dentry_resolver_erpc")
-int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
+int kprobe_dentry_resolver_erpc(struct pt_regs *ctx) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;
@@ -375,7 +375,7 @@ exit:
 }
 
 SEC("kprobe/dentry_resolver_segment_erpc")
-int kprobe__dentry_resolver_segment_erpc(struct pt_regs *ctx) {
+int kprobe_dentry_resolver_segment_erpc(struct pt_regs *ctx) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
@@ -384,7 +384,8 @@ int kprobe__dentry_resolver_segment_erpc(struct pt_regs *ctx) {
     }
 
     // resolve segment and write in buffer
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &state->key);
+    struct path_key_t path_key = state->key;
+    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
     if (map_value == NULL) {
         resolution_err = DR_ERPC_CACHE_MISS;
         goto exit;
@@ -419,7 +420,7 @@ exit:
 }
 
 SEC("kprobe/dentry_resolver_parent_erpc")
-int kprobe__dentry_resolver_parent_erpc(struct pt_regs *ctx) {
+int kprobe_dentry_resolver_parent_erpc(struct pt_regs *ctx) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
@@ -428,7 +429,8 @@ int kprobe__dentry_resolver_parent_erpc(struct pt_regs *ctx) {
     }
 
     // resolve segment and write in buffer
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &state->key);
+    struct path_key_t path_key = state->key;
+    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
     if (map_value == NULL) {
         resolution_err = DR_ERPC_CACHE_MISS;
         goto exit;

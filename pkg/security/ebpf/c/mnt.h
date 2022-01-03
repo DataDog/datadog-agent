@@ -4,12 +4,12 @@
 #include "syscalls.h"
 
 int __attribute__((always_inline)) mnt_want_write_predicate(u64 type) {
-    return type == EVENT_UTIME || type == EVENT_CHMOD || type == EVENT_CHOWN || type == EVENT_RENAME || 
+    return type == EVENT_UTIME || type == EVENT_CHMOD || type == EVENT_CHOWN || type == EVENT_RENAME ||
         type == EVENT_RMDIR || type == EVENT_UNLINK || type == EVENT_SETXATTR || type == EVENT_REMOVEXATTR;
 }
 
 SEC("kprobe/mnt_want_write")
-int kprobe__mnt_want_write(struct pt_regs *ctx) {
+int kprobe_mnt_want_write(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(mnt_want_write_predicate);
     if (!syscall)
         return 0;
@@ -96,13 +96,13 @@ int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ct
 }
 
 SEC("kprobe/mnt_want_write_file")
-int kprobe__mnt_want_write_file(struct pt_regs *ctx) {
+int kprobe_mnt_want_write_file(struct pt_regs *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
 
 // mnt_want_write_file_path was used on old kernels (RHEL 7)
 SEC("kprobe/mnt_want_write_file_path")
-int kprobe__mnt_want_write_file_path(struct pt_regs *ctx) {
+int kprobe_mnt_want_write_file_path(struct pt_regs *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
 

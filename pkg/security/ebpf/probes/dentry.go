@@ -7,7 +7,7 @@
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // getDentryResolverTailCallRoutes is the list of routes used during the dentry resolution process
 func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
@@ -17,14 +17,16 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager
 			ProgArrayName: "dentry_resolver_kprobe_progs",
 			Key:           DentryResolverKernKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dentry_resolver_kern",
+				EBPFSection:  "kprobe/dentry_resolver_kern",
+				EBPFFuncName: "kprobe_dentry_resolver_kern",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_progs",
 			Key:           DentryResolverKernTracepointKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "tracepoint/dentry_resolver_kern",
+				EBPFSection:  "tracepoint/dentry_resolver_kern",
+				EBPFFuncName: "tracepoint_dentry_resolver_kern",
 			},
 		},
 
@@ -33,77 +35,88 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverOpenCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_open_callback",
+				EBPFSection:  "kprobe/dr_open_callback",
+				EBPFFuncName: "kprobe_dr_open_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverSetAttrCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_setattr_callback",
+				EBPFSection:  "kprobe/dr_setattr_callback",
+				EBPFFuncName: "kprobe_dr_setattr_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverMkdirCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_mkdir_callback",
+				EBPFSection:  "kprobe/dr_mkdir_callback",
+				EBPFFuncName: "kprobe_dr_mkdir_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverMountCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_mount_callback",
+				EBPFSection:  "kprobe/dr_mount_callback",
+				EBPFFuncName: "kprobe_dr_mount_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverSecurityInodeRmdirCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_security_inode_rmdir_callback",
+				EBPFSection:  "kprobe/dr_security_inode_rmdir_callback",
+				EBPFFuncName: "kprobe_dr_security_inode_rmdir_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverSetXAttrCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_setxattr_callback",
+				EBPFSection:  "kprobe/dr_setxattr_callback",
+				EBPFFuncName: "kprobe_dr_setxattr_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverUnlinkCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_unlink_callback",
+				EBPFSection:  "kprobe/dr_unlink_callback",
+				EBPFFuncName: "kprobe_dr_unlink_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverLinkSrcCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_link_src_callback",
+				EBPFSection:  "kprobe/dr_link_src_callback",
+				EBPFFuncName: "kprobe_dr_link_src_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverLinkDstCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_link_dst_callback",
+				EBPFSection:  "kprobe/dr_link_dst_callback",
+				EBPFFuncName: "kprobe_dr_link_dst_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverRenameCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_rename_callback",
+				EBPFSection:  "kprobe/dr_rename_callback",
+				EBPFFuncName: "kprobe_dr_rename_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
 			Key:           DentryResolverSELinuxCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dr_selinux_callback",
+				EBPFSection:  "kprobe/dr_selinux_callback",
+				EBPFFuncName: "kprobe_dr_selinux_callback",
 			},
 		},
 
@@ -112,35 +125,40 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager
 			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
 			Key:           DentryResolverOpenCallbackTracepointKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "tracepoint/dr_open_callback",
+				EBPFSection:  "tracepoint/dr_open_callback",
+				EBPFFuncName: "tracepoint_dr_open_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
 			Key:           DentryResolverMkdirCallbackTracepointKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "tracepoint/dr_mkdir_callback",
+				EBPFSection:  "tracepoint/dr_mkdir_callback",
+				EBPFFuncName: "tracepoint_dr_mkdir_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
 			Key:           DentryResolverMountCallbackTracepointKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "tracepoint/dr_mount_callback",
+				EBPFSection:  "tracepoint/dr_mount_callback",
+				EBPFFuncName: "tracepoint_dr_mount_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
 			Key:           DentryResolverLinkDstCallbackTracepointKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "tracepoint/dr_link_dst_callback",
+				EBPFSection:  "tracepoint/dr_link_dst_callback",
+				EBPFFuncName: "tracepoint_dr_link_dst_callback",
 			},
 		},
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
 			Key:           DentryResolverRenameCallbackTracepointKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "tracepoint/dr_rename_callback",
+				EBPFSection:  "tracepoint/dr_rename_callback",
+				EBPFFuncName: "tracepoint_dr_rename_callback",
 			},
 		},
 	}
@@ -152,21 +170,24 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager
 				ProgArrayName: "dentry_resolver_kprobe_progs",
 				Key:           DentryResolverERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: "kprobe/dentry_resolver_erpc",
+					EBPFSection:  "kprobe/dentry_resolver_erpc",
+					EBPFFuncName: "kprobe_dentry_resolver_erpc",
 				},
 			},
 			{
 				ProgArrayName: "dentry_resolver_kprobe_progs",
 				Key:           DentryResolverParentERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: "kprobe/dentry_resolver_parent_erpc",
+					EBPFSection:  "kprobe/dentry_resolver_parent_erpc",
+					EBPFFuncName: "kprobe_dentry_resolver_parent_erpc",
 				},
 			},
 			{
 				ProgArrayName: "dentry_resolver_kprobe_progs",
 				Key:           DentryResolverSegmentERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: "kprobe/dentry_resolver_segment_erpc",
+					EBPFSection:  "kprobe/dentry_resolver_segment_erpc",
+					EBPFFuncName: "kprobe_dentry_resolver_segment_erpc",
 				},
 			},
 		}...)

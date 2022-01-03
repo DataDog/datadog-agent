@@ -23,7 +23,6 @@ var (
 		"job_name":                            "kube_job",
 		"cronjob":                             "kube_cronjob",
 		"pod":                                 "pod_name",
-		"phase":                               "pod_phase",
 		"priority_class":                      "kube_priority_class",
 		"daemonset":                           "kube_daemon_set",
 		"replicationcontroller":               "kube_replication_controller",
@@ -209,6 +208,10 @@ var (
 				"label_failure_domain_beta_kubernetes_io_region", // k8s < v1.17
 				"label_failure_domain_beta_kubernetes_io_zone",   // k8s < v1.17
 			},
+		},
+		"kube_node_info": {
+			LabelsToMatch: []string{"node"},
+			LabelsToGet:   []string{"container_runtime_version", "kernel_version", "kubelet_version", "os_image"},
 		},
 	}
 )

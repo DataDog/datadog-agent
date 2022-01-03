@@ -41,18 +41,14 @@ func newStore() *store {
 	return &s
 }
 
-// getConfigsForService gets config for a specified service
-func (s *store) getConfigsForService(serviceEntity string) []integration.Config {
-	s.m.RLock()
-	defer s.m.RUnlock()
-	return s.serviceToConfigs[serviceEntity]
-}
-
-// removeConfigsForService removes a config for a specified service
-func (s *store) removeConfigsForService(serviceEntity string) {
+// removeConfigsForService removes a config for a specified service, returning
+// the configs that were removed
+func (s *store) removeConfigsForService(serviceEntity string) []integration.Config {
 	s.m.Lock()
 	defer s.m.Unlock()
+	removed := s.serviceToConfigs[serviceEntity]
 	delete(s.serviceToConfigs, serviceEntity)
+	return removed
 }
 
 // addConfigForService adds a config for a specified service
@@ -67,18 +63,14 @@ func (s *store) addConfigForService(serviceEntity string, config integration.Con
 	}
 }
 
-// getConfigsForTemplate gets config for a specified template
-func (s *store) getConfigsForTemplate(templateDigest string) []integration.Config {
-	s.m.RLock()
-	defer s.m.RUnlock()
-	return s.templateToConfigs[templateDigest]
-}
-
-// removeConfigsForTemplate removes a config for a specified template
-func (s *store) removeConfigsForTemplate(templateDigest string) {
+// removeConfigsForTemplate removes all configs for a specified template, returning
+// those configs
+func (s *store) removeConfigsForTemplate(templateDigest string) []integration.Config {
 	s.m.Lock()
 	defer s.m.Unlock()
+	removed := s.templateToConfigs[templateDigest]
 	delete(s.templateToConfigs, templateDigest)
+	return removed
 }
 
 // addConfigForTemplate adds a config for a specified template
@@ -123,11 +115,13 @@ func (s *store) removeLoadedConfig(config integration.Config) {
 	delete(s.loadedConfigs, config.Digest())
 }
 
-// getLoadedConfigs returns all loaded and resolved configs
-func (s *store) getLoadedConfigs() map[string]integration.Config {
+// mapOverLoadedConfigs calls the given function with the map of all
+// loaded configs.  This is done with the config store locked, so
+// callers should perform minimal work within f.
+func (s *store) mapOverLoadedConfigs(f func(map[string]integration.Config)) {
 	s.m.RLock()
 	defer s.m.RUnlock()
-	return s.loadedConfigs
+	f(s.loadedConfigs)
 }
 
 // setJMXMetricsForConfigName stores the jmx metrics config for a config name

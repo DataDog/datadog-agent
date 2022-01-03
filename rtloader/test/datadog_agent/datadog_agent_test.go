@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package testdatadogagent
 
 import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -576,5 +582,36 @@ func TestObfuscateSqlExecPlanErrors(t *testing.T) {
 		}
 	}
 
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestProcessStartTime(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	exp := processStartTime // copy the value before anything touches it
+
+	code := fmt.Sprintf(`
+	with open(r'%s', 'w') as f:
+		pst = datadog_agent.get_process_start_time()
+		assert type(pst) == type(0.0)
+		f.write(pst.hex())
+	`, tmpfile.Name())
+
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	val, err := strconv.ParseFloat(out, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if val != exp {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }

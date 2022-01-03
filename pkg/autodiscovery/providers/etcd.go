@@ -35,16 +35,20 @@ type EtcdConfigProvider struct {
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
-func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewEtcdConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+	if providerConfig == nil {
+		providerConfig = &config.ConfigurationProviders{}
+	}
+
 	clientCfg := client.Config{
-		Endpoints:               []string{config.TemplateURL},
+		Endpoints:               []string{providerConfig.TemplateURL},
 		Transport:               client.DefaultTransport,
 		HeaderTimeoutPerRequest: time.Second,
 	}
-	if len(config.Username) > 0 && len(config.Password) > 0 {
-		log.Info("Using provided etcd credentials: username ", config.Username)
-		clientCfg.Username = config.Username
-		clientCfg.Password = config.Password
+	if len(providerConfig.Username) > 0 && len(providerConfig.Password) > 0 {
+		log.Info("Using provided etcd credentials: username ", providerConfig.Username)
+		clientCfg.Username = providerConfig.Username
+		clientCfg.Password = providerConfig.Password
 	}
 
 	cl, err := client.New(clientCfg)
@@ -53,7 +57,7 @@ func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider
 	}
 	cache := NewCPCache()
 	c := client.NewKeysAPI(cl)
-	return &EtcdConfigProvider{Client: c, templateDir: config.TemplateDir, cache: cache}, nil
+	return &EtcdConfigProvider{Client: c, templateDir: providerConfig.TemplateDir, cache: cache}, nil
 }
 
 // Collect retrieves templates from etcd, builds Config objects and returns them
@@ -220,7 +224,7 @@ func hasTemplateFields(nodes client.Nodes) bool {
 }
 
 func init() {
-	RegisterProvider("etcd", NewEtcdConfigProvider)
+	RegisterProvider(names.EtcdRegisterName, NewEtcdConfigProvider)
 }
 
 // GetConfigErrors is not implemented for the EtcdConfigProvider

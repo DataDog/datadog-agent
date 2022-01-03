@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -99,6 +100,9 @@ type APIClient struct {
 
 	// DiscoveryCl holds kubernetes discovery client
 	DiscoveryCl discovery.DiscoveryInterface
+
+	// VPAClient holds kubernetes VerticalPodAutoscalers client
+	VPAClient vpa.Interface
 
 	// timeoutSeconds defines the kubernetes client timeout
 	timeoutSeconds int64
@@ -191,7 +195,7 @@ func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 	return clientConfig, nil
 }
 
-func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
 	rest.SetDefaultWarningHandler(CustomWarningLogger{})
 	clientConfig, err := getClientConfig(timeout)
@@ -218,6 +222,15 @@ func getKubeDiscoveryClient(timeout time.Duration) (discovery.DiscoveryInterface
 	}
 
 	return discovery.NewDiscoveryClientForConfig(clientConfig)
+}
+
+func getKubeVPAClient(timeout time.Duration) (vpa.Interface, error) {
+	clientConfig, err := getClientConfig(timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return vpa.NewForConfig(clientConfig)
 }
 
 func getWPAInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error) {
@@ -253,7 +266,7 @@ func getDDInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
+	client, err := GetKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Errorf("Could not get apiserver client: %v", err)
 		return nil, err
@@ -263,7 +276,7 @@ func getInformerFactory() (informers.SharedInformerFactory, error) {
 
 func getInformerFactoryWithOption(options ...informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
+	client, err := GetKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Errorf("Could not get apiserver client: %v", err)
 		return nil, err
@@ -273,9 +286,15 @@ func getInformerFactoryWithOption(options ...informers.SharedInformerOption) (in
 
 func (c *APIClient) connect() error {
 	var err error
-	c.Cl, err = getKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
+	c.Cl, err = GetKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
+		return err
+	}
+
+	c.VPAClient, err = getKubeVPAClient(time.Duration(c.timeoutSeconds) * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver vpa client: %w", err)
 		return err
 	}
 
@@ -527,6 +546,15 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 		return nil, err
 	}
 	return node.Labels, nil
+}
+
+// NodeAnnotations is used to fetch the annotations attached to a given node.
+func (c *APIClient) NodeAnnotations(nodeName string) (map[string]string, error) {
+	node, err := c.Cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return node.Annotations, nil
 }
 
 // GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on

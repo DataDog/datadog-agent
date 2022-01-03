@@ -8,8 +8,11 @@
 package probe
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"path"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 // allCapabilities hold all the supported filtering capabilities
@@ -19,6 +22,7 @@ var allCapabilities = make(map[eval.EventType]Capabilities)
 type Capability struct {
 	PolicyFlags     PolicyFlag
 	FieldValueTypes eval.FieldValueType
+	ValidateFnc     func(value rules.FilterValue) bool
 }
 
 // Capabilities represents the filtering capabilities for a set of fields
@@ -50,19 +54,35 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 
 	for field, cap := range caps {
 		fcs = append(fcs, rules.FieldCapability{
-			Field: field,
-			Types: cap.FieldValueTypes,
+			Field:       field,
+			Types:       cap.FieldValueTypes,
+			ValidateFnc: cap.ValidateFnc,
 		})
 	}
 
 	return fcs
 }
 
+func validateBasenameFilter(value rules.FilterValue) bool {
+	switch value.Type {
+	case eval.ScalarValueType:
+		return true
+	case eval.PatternValueType:
+		basename := path.Base(value.Value.(string))
+		if !strings.Contains(basename, "*") {
+			return true
+		}
+	}
+
+	return false
+}
+
 func oneBasenameCapabilities(event string) Capabilities {
 	return Capabilities{
 		event + ".file.path": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			ValidateFnc:     validateBasenameFilter,
 		},
 		event + ".file.name": {
 			PolicyFlags:     PolicyFlagBasename,
@@ -75,7 +95,8 @@ func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 	return Capabilities{
 		event + "." + field1 + ".path": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			ValidateFnc:     validateBasenameFilter,
 		},
 		event + "." + field1 + ".name": {
 			PolicyFlags:     PolicyFlagBasename,
@@ -83,7 +104,8 @@ func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 		},
 		event + "." + field2 + ".path": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			ValidateFnc:     validateBasenameFilter,
 		},
 		event + "." + field2 + ".name": {
 			PolicyFlags:     PolicyFlagBasename,

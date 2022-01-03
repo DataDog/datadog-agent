@@ -157,10 +157,6 @@ func (c *Controller) run() {
 // of the Secret when new item is added to the work queue.
 // Always returns true unless the work queue was shutdown.
 func (c *Controller) processNextWorkItem() bool {
-	if !c.isLeaderFunc() {
-		return true
-	}
-
 	key, shutdown := c.queue.Get()
 	if shutdown {
 		return false

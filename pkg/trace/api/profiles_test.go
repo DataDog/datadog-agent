@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 import (
@@ -93,30 +98,31 @@ func printEndpoints(endpoints []*traceconfig.Endpoint) []string {
 
 func TestProfilingEndpoints(t *testing.T) {
 	t.Run("single", func(t *testing.T) {
-		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/v1/input")()
+		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/api/v2/profile")()
 		urls, keys, err := profilingEndpoints("test_api_key")
 		assert.NoError(t, err)
-		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.fr/v1/input"))
+		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.fr/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
 	})
+
 	t.Run("site", func(t *testing.T) {
 		defer mockConfig("site", "datadoghq.eu")()
 		urls, keys, err := profilingEndpoints("test_api_key")
 		assert.NoError(t, err)
-		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.eu/v1/input"))
+		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.eu/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 
 	t.Run("default", func(t *testing.T) {
 		urls, keys, err := profilingEndpoints("test_api_key")
 		assert.NoError(t, err)
-		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.com/v1/input"))
+		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.com/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 
 	t.Run("multiple", func(t *testing.T) {
 		defer mockConfigMap(map[string]interface{}{
-			"apm_config.profiling_dd_url": "https://intake.profile.datadoghq.jp/v1/input",
+			"apm_config.profiling_dd_url": "https://intake.profile.datadoghq.jp/api/v2/profile",
 			"apm_config.profiling_additional_endpoints": map[string][]string{
 				"https://ddstaging.datadoghq.com": {"api_key_1", "api_key_2"},
 				"https://dd.datad0g.com":          {"api_key_3"},
@@ -125,7 +131,7 @@ func TestProfilingEndpoints(t *testing.T) {
 		urls, keys, err := profilingEndpoints("api_key_0")
 		assert.NoError(t, err)
 		expectedURLs := makeURLs(t,
-			"https://intake.profile.datadoghq.jp/v1/input",
+			"https://intake.profile.datadoghq.jp/api/v2/profile",
 			"https://ddstaging.datadoghq.com",
 			"https://ddstaging.datadoghq.com",
 			"https://dd.datad0g.com",
@@ -184,6 +190,19 @@ func TestProfileProxyHandler(t *testing.T) {
 		if !called {
 			t.Fatal("request not proxied")
 		}
+	})
+
+	t.Run("proxy_code", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+		}))
+		defer mockConfig("apm_config.profiling_dd_url", srv.URL)()
+		req, _ := http.NewRequest("POST", "/some/path", nil)
+		receiver := newTestReceiverFromConfig(newTestReceiverConfig())
+		rec := httptest.NewRecorder()
+		receiver.profileProxyHandler().ServeHTTP(rec, req)
+		resp := rec.Result()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 
 	t.Run("ok_fargate", func(t *testing.T) {

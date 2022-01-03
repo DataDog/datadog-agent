@@ -65,7 +65,7 @@ func Fqdn(hostname string) string {
 
 func setHostnameProvider(name string) {
 	hostnameProvider.Set(name)
-	inventories.SetAgentMetadata(inventories.HostnameSourceMetadataName, name)
+	inventories.SetAgentMetadata(inventories.AgentHostnameSource, name)
 }
 
 // isOSHostnameUsable returns `false` if it has the certainty that the agent is running
@@ -179,7 +179,7 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	configHostnameFilepath := config.Datadog.GetString("hostname_file")
 	if configHostnameFilepath != "" {
 		log.Debug("GetHostname trying `hostname_file` config option...")
-		if fileHostnameProvider, found := hostname.ProviderCatalog["file"]; found {
+		if fileHostnameProvider := hostname.GetProvider("file"); fileHostnameProvider != nil {
 			if hostname, err := fileHostnameProvider(
 				ctx,
 				map[string]interface{}{
@@ -206,7 +206,7 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 
 	// GCE metadata
 	log.Debug("GetHostname trying GCE metadata...")
-	if getGCEHostname, found := hostname.ProviderCatalog["gce"]; found {
+	if getGCEHostname := hostname.GetProvider("gce"); getGCEHostname != nil {
 		gceName, err := getGCEHostname(ctx, nil)
 		if err == nil {
 			hostnameData := saveHostnameData(cacheHostnameKey, gceName, "gce")
@@ -269,7 +269,7 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 
 	// We use the instance id if we're on an ECS cluster or we're on EC2
 	// and the hostname is one of the default ones
-	if getEC2Hostname, found := hostname.ProviderCatalog["ec2"]; found {
+	if getEC2Hostname := hostname.GetProvider("ec2"); getEC2Hostname != nil {
 		log.Debug("GetHostname trying EC2 metadata...")
 
 		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) {
@@ -307,7 +307,7 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 		}
 	}
 
-	if getAzureHostname, found := hostname.ProviderCatalog["azure"]; found {
+	if getAzureHostname := hostname.GetProvider("azure"); getAzureHostname != nil {
 		log.Debug("GetHostname trying Azure metadata...")
 
 		azureHostname, err := getAzureHostname(ctx, nil)

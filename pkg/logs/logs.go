@@ -16,6 +16,7 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -31,7 +32,9 @@ const (
 	invalidProcessingRules = "invalid_global_processing_rules"
 	invalidEndpoints       = "invalid_endpoints"
 	intakeTrackType        = "logs"
-	intakeProtocol         = "agent-json"
+
+	// AgentJSONIntakeProtocol agent json protocol
+	AgentJSONIntakeProtocol = "agent-json"
 )
 
 var (
@@ -62,10 +65,10 @@ func buildEndpoints(serverless bool) (*config.Endpoints, error) {
 		return config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
 	}
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, config.DefaultIntakeOrigin); err == nil {
+	if endpoints, err := config.BuildHTTPEndpoints(intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
 	}
-	return config.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpoints(httpConnectivity, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
 func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string) error {
@@ -92,6 +95,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	if endpoints.UseHTTP {
 		status.CurrentTransport = status.TransportHTTP
 	}
+	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
 
 	// setup the status
 	status.Init(&isRunning, endpoints, sources, metrics.LogsExpvars)

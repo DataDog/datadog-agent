@@ -64,7 +64,7 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	}
 
 	for _, c := range cr.Configs {
-		PrintConfig(w, c)
+		PrintConfig(w, c, "")
 	}
 
 	if withDebug {
@@ -99,7 +99,10 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 }
 
 // PrintConfig prints a human-readable representation of a configuration
-func PrintConfig(w io.Writer, c integration.Config) {
+func PrintConfig(w io.Writer, c integration.Config, checkName string) {
+	if checkName != "" && c.Name != checkName {
+		return
+	}
 	if !c.ClusterCheck {
 		fmt.Fprintln(w, fmt.Sprintf("\n=== %s check ===", color.GreenString(c.Name)))
 	} else {

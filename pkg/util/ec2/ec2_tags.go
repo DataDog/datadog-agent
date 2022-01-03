@@ -11,8 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -131,18 +129,12 @@ type ec2Identity struct {
 func getInstanceIdentity(ctx context.Context) (*ec2Identity, error) {
 	instanceIdentity := &ec2Identity{}
 
-	res, err := doHTTPRequest(ctx, instanceIdentityURL, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
+	res, err := doHTTPRequest(ctx, instanceIdentityURL)
 	if err != nil {
-		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API, %s", err)
+		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API to get identity: %s", err)
 	}
 
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return instanceIdentity, fmt.Errorf("unable to read identity body, %s", err)
-	}
-
-	err = json.Unmarshal(all, &instanceIdentity)
+	err = json.Unmarshal([]byte(res), &instanceIdentity)
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to unmarshall json, %s", err)
 	}
@@ -164,18 +156,12 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
+	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole)
 	if err != nil {
-		return iamParams, fmt.Errorf("unable to fetch EC2 API, %s", err)
+		return iamParams, fmt.Errorf("unable to fetch EC2 API to get iam role: %s", err)
 	}
 
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return iamParams, fmt.Errorf("unable to read iam role body, %s", err)
-	}
-
-	err = json.Unmarshal(all, &iamParams)
+	err = json.Unmarshal([]byte(res), &iamParams)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to unmarshall json, %s", err)
 	}
@@ -183,15 +169,10 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 }
 
 func getIAMRole(ctx context.Context) (string, error) {
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/", http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
+	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/")
 	if err != nil {
-		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
+		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %s", err)
 	}
 
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("unable to read security credentials body, %s", err)
-	}
-	return string(all), nil
+	return res, nil
 }

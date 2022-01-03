@@ -1,8 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package retry
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/stretchr/testify/assert"
@@ -13,7 +19,7 @@ func TestTransactionRetryQueueAdd(t *testing.T) {
 	q, clean := newOnDiskRetryQueueTest(a)
 	defer clean()
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 100, 0.6, TransactionRetryQueueTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 100, 0.6, NewTransactionRetryQueueTelemetry("domain"))
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
 	// transactions are flushed to the disk as 10 + 20 + 30 >= 100 * 0.6
@@ -41,7 +47,7 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	q, clean := newOnDiskRetryQueueTest(a)
 	defer clean()
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, TransactionRetryQueueTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"))
 
 	// Flush to disk when adding `40`
 	for _, payloadSize := range []int{9, 10, 11, 40} {
@@ -60,7 +66,7 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 
 func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 	a := assert.New(t)
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 50, 0.1, TransactionRetryQueueTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"))
 
 	for _, payloadSize := range []int{9, 10, 11} {
 		dropCount, err := container.Add(createTransactionWithPayloadSize(payloadSize))
@@ -84,7 +90,7 @@ func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 	defer clean()
 
 	maxMemSizeInBytes := 0
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, maxMemSizeInBytes, 0.1, TransactionRetryQueueTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, maxMemSizeInBytes, 0.1, NewTransactionRetryQueueTelemetry("domain"))
 
 	inMemTrDropped, err := container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
@@ -131,7 +137,7 @@ func newOnDiskRetryQueueTest(a *assert.Assertions) (*onDiskRetryQueue, func()) {
 			Total:     10000,
 		}}
 	diskUsageLimit := newDiskUsageLimit("", disk, 1000, 1)
-	q, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer("", nil), path, diskUsageLimit, onDiskRetryQueueTelemetry{})
+	q, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver("", nil)), path, diskUsageLimit, newOnDiskRetryQueueTelemetry("domain"))
 	a.NoError(err)
 	return q, clean
 }
