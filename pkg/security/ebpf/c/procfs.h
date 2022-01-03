@@ -56,7 +56,7 @@ int kprobe_security_inode_getattr(struct pt_regs *ctx) {
 
     fill_file_metadata(dentry, &entry.metadata);
 
-    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_ANY);
+    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_NOEXIST);
 
     return 0;
 }

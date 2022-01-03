@@ -35,16 +35,17 @@ const (
 	priorityLocalRateThresholdTo1 = 0.3
 )
 
-// PrioritySampler computes priority rates per env, service to apply in a feedback loop with trace-agent clients.
+// PrioritySampler computes priority rates per tracerEnv, service to apply in a feedback loop with trace-agent clients.
 // Computed rates are sent in http responses to trace-agent. The rates are continuously adjusted in function
 // of the received traffic to match a targetTPS (target traces per second).
 // In order of priority, the sampler will match a targetTPS set remotely (remoteRates) and then the local targetTPS.
 type PrioritySampler struct {
+	agentEnv string
 	// localRates targetTPS is defined locally on the agent
 	// This sampler tries to get the received number of sampled trace chunks/s to match its targetTPS.
 	localRates *Sampler
 	// remoteRates targetTPS is set remotely and distributed by remote configurations.
-	// One target is defined per combination of env, service and it applies only to root spans.
+	// One target is defined per combination of tracerEnv, service and it applies only to root spans.
 	remoteRates *RemoteRates
 
 	// rateByService contains the sampling rates in % to communicate with trace-agent clients.
@@ -57,8 +58,9 @@ type PrioritySampler struct {
 // NewPrioritySampler returns an initialized Sampler
 func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *PrioritySampler {
 	s := &PrioritySampler{
+		agentEnv:      conf.DefaultEnv,
 		localRates:    newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
-		remoteRates:   newRemoteRates(),
+		remoteRates:   newRemoteRates(conf.MaxRemoteTPS),
 		rateByService: &dynConf.RateByService,
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),
@@ -98,7 +100,7 @@ func (s *PrioritySampler) Stop() {
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
-func (s *PrioritySampler) Sample(trace *pb.TraceChunk, root *pb.Span, env string, clientDroppedP0s bool) bool {
+func (s *PrioritySampler) Sample(trace *pb.TraceChunk, root *pb.Span, tracerEnv string, clientDroppedP0s bool) bool {
 	// Extra safety, just in case one trace is empty
 	if len(trace.Spans) == 0 {
 		return false
@@ -125,7 +127,7 @@ func (s *PrioritySampler) Sample(trace *pb.TraceChunk, root *pb.Span, env string
 		return sampled
 	}
 
-	signature := s.catalog.register(ServiceSignature{Name: root.Service, Env: env})
+	signature := s.catalog.register(ServiceSignature{Name: root.Service, Env: toSamplerEnv(tracerEnv, s.agentEnv)})
 
 	// Update sampler state by counting this trace
 	s.CountSignature(root, signature)
@@ -220,5 +222,5 @@ func (s *PrioritySampler) ratesByService() map[ServiceSignature]float64 {
 		remoteRates = s.remoteRates.GetAllSignatureSampleRates()
 	}
 	localRates := s.localRates.GetAllSignatureSampleRates()
-	return s.catalog.ratesByService(localRates, remoteRates, s.localRates.GetDefaultSampleRate())
+	return s.catalog.ratesByService(s.agentEnv, localRates, remoteRates, s.localRates.GetDefaultSampleRate())
 }

@@ -32,6 +32,7 @@ apm_config:
   extra_sample_rate: 0.5
   max_traces_per_second: 5
   max_events_per_second: 50
+  max_remote_traces_per_second: 9999
   ignore_resources:
     - /health
     - /500
