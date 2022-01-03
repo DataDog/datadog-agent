@@ -10,10 +10,16 @@ import (
 
 // GetAvailableConstantFetchers returns available constant fetchers
 func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient *statsd.Client) []ConstantFetcher {
-	rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config, statsdClient)
 	fallbackConstantFetcher := NewFallbackConstantFetcher(kv)
+	if config.EnableRuntimeCompiledConstants {
+		rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config, statsdClient)
+		return []ConstantFetcher{
+			rcConstantFetcher,
+			fallbackConstantFetcher,
+		}
+	}
+
 	return []ConstantFetcher{
-		rcConstantFetcher,
 		fallbackConstantFetcher,
 	}
 }
