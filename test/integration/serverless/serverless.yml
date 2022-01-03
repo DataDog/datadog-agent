@@ -108,7 +108,7 @@ functions:
       DD_LOGS_ENABLED: true
       DD_LOG_LEVEL: DEBUG
       DD_TRACE_ENABLED: true
-      DD_API_KEY: 9d4a910d07e6639646006bb4437f756a
+      DD_API_KEY: -
 
   #   metric-csharp:
   #     runtime: dotnetcore3.1
