@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    OTLP metrics tags are enriched when ```experimental.otlp.metrics.tag_cardinality`` is set to ``orchestrator``.
+    OTLP metrics tags are enriched when ``experimental.otlp.metrics.tag_cardinality`` is set to ``orchestrator``.
     This can also be controlled via the ``DD_OTLP_TAG_CARDINALITY`` environment variable.
