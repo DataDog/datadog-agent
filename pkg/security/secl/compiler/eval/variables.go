@@ -299,7 +299,7 @@ func NewMutableStringVariable() *MutableStringVariable {
 
 // MutableStringArrayVariable describes a mutable string array variable
 type MutableStringArrayVariable struct {
-	Values []string
+	StringValues
 }
 
 // Set the variable with the specified value
@@ -307,7 +307,11 @@ func (m *MutableStringArrayVariable) Set(ctx *Context, values interface{}) error
 	if s, ok := values.(string); ok {
 		values = []string{s}
 	}
-	m.Values = values.([]string)
+
+	m.StringValues = StringValues{}
+	for _, v := range values.([]string) {
+		m.AppendScalarValue(v)
+	}
 	return nil
 }
 
@@ -315,9 +319,11 @@ func (m *MutableStringArrayVariable) Set(ctx *Context, values interface{}) error
 func (m *MutableStringArrayVariable) Append(ctx *Context, value interface{}) error {
 	switch value := value.(type) {
 	case string:
-		m.Values = append(m.Values, value)
+		m.AppendScalarValue(value)
 	case []string:
-		m.Values = append(m.Values, value...)
+		for _, v := range value {
+			m.AppendScalarValue(v)
+		}
 	default:
 		return errAppendNotSupported
 	}
@@ -328,7 +334,7 @@ func (m *MutableStringArrayVariable) Append(ctx *Context, value interface{}) err
 func (m *MutableStringArrayVariable) GetEvaluator() interface{} {
 	return &StringArrayEvaluator{
 		EvalFnc: func(ctx *Context) []string {
-			return m.Values
+			return m.GetScalarValues()
 		},
 	}
 }
