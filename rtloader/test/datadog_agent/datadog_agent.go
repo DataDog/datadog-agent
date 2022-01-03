@@ -15,7 +15,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/mailru/easyjson/jlexer"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -247,16 +246,30 @@ func readPersistentCache(key *C.char) *C.char {
 	return (*C.char)(helpers.TrackedCString("somevalue"))
 }
 
+// sqlConfig holds the config for the python SQL obfuscator.
+type sqlConfig struct {
+	// TableNames specifies whether the obfuscator should extract and return table names as SQL metadata when obfuscating.
+	TableNames bool `json:"table_names"`
+	// CollectCommands specifies whether the obfuscator should extract and return commands as SQL metadata when obfuscating.
+	CollectCommands bool `json:"collect_commands"`
+	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
+	CollectComments bool `json:"collect_comments"`
+	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
+	ReplaceDigits bool `json:"replace_digits"`
+	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
+	ReturnJSONMetadata bool `json:"return_json_metadata"`
+}
+
 //export obfuscateSQL
 func obfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
-	var sqlOpts obfuscate.SQLConfig
-	if opts != nil {
-		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
-		sqlOpts.UnmarshalEasyJSON(jl)
-		if jl.Error() != nil {
-			*errResult = (*C.char)(helpers.TrackedCString("failed to unmarshal options"))
-			return nil
-		}
+	var sqlOpts sqlConfig
+	optStr := C.GoString(opts)
+	if optStr == "" {
+		optStr = "{}"
+	}
+	if err := json.Unmarshal([]byte(optStr), &sqlOpts); err != nil {
+		*errResult = (*C.char)(helpers.TrackedCString(err.Error()))
+		return nil
 	}
 	s := C.GoString(rawQuery)
 	switch s {
