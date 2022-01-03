@@ -61,11 +61,12 @@ message LatestConfigsResponse {
 
 message Client {
   ClientState state = 1;
-  repeated string products = 2;
-  string name = 3;
-  string version = 4;
-  bool is_tracer = 5;
-  TracerClient tracer_client = 6;
+  string id = 2;
+  repeated string products = 3;
+  string name = 4;
+  string version = 5;
+  bool is_tracer = 6;
+  TracerClient tracer_client = 7;
 }
 
 message TracerClient {
