@@ -26,7 +26,7 @@ type BufferedChan struct {
 }
 
 // NewBufferedChan creates a new instance of `BufferedChan`.
-// `ctx`` cancels all Put and Get operations.
+// `ctx` can be used to cancel all Put and Get operations.
 func NewBufferedChan(ctx context.Context, chanSize int, bufferSize int) *BufferedChan {
 	pool := &sync.Pool{
 		New: func() interface{} {
