@@ -6,6 +6,8 @@
 package tagset
 
 import (
+	"errors"
+
 	"github.com/twmb/murmur3"
 )
 
@@ -41,10 +43,10 @@ var _ Factory = (*cachingFactory)(nil)
 // thread safety is required.
 func NewCachingFactory(cacheSize, cacheWidth int) (Factory, error) {
 	if cacheSize < 1 {
-		panic("cacheSize must be at least 1")
+		return nil, errors.New("cacheSize must be at least 1")
 	}
 	if cacheWidth < 1 {
-		panic("cacheWidth must be at least 1")
+		return nil, errors.New("cacheWidth must be at least 1")
 	}
 
 	// approximate the tagsCache parameters, rounding up
