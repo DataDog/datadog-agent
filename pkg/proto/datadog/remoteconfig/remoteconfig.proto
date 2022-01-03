@@ -70,9 +70,11 @@ message Client {
 }
 
 message TracerClient {
-  string service = 1;
-  string env = 2;
-  string version = 3;
+  string runtime_id = 1;
+  string language = 2;
+  string service = 3;
+  string env = 4;
+  string app_version = 5;
 }
 
 message Config {
