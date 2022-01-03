@@ -62,19 +62,19 @@ message LatestConfigsResponse {
 message Client {
   ClientState state = 1;
   repeated string products = 2;
-  string id = 3;
-  string name = 4;
-  string version = 5;
-  bool is_tracer = 6;
-  TracerClient tracer_client = 7;
+  string name = 3;
+  string version = 4;
+  bool is_tracer = 5;
+  TracerClient tracer_client = 6;
 }
 
 message TracerClient {
   string runtime_id = 1;
   string language = 2;
-  string service = 3;
-  string env = 4;
-  string app_version = 5;
+  string tracer_version = 3;
+  string service = 4;
+  string env = 5;
+  string app_version = 6;
 }
 
 message Config {
