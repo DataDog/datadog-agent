@@ -9,7 +9,16 @@ import (
 	"github.com/twmb/murmur3"
 )
 
-// SliceBuilder is used to build tagsets tag-by-tag, before "freezing" into a Tags instance. SliceBuilders are not threadsafe.
+// SliceBuilder is used to build tagsets tag-by-tag, before "freezing" into a
+// Tags instance.
+//
+// SliceBuilder is different from Builder because it associates a "level" with
+// each tag, and allows the creation of Tags instances that include tags with
+// specific levels, and those Tags instances can share storage.  For example,
+// this is useful when generating tags of different cardinalities (mapping
+// cardinalities to levels).  Then the low-cardinality tags can be sliced off
+// separately from the low-and-medium cardinality tags, sharing storage for
+// those low-cardinality tags.
 //
 // A SliceBuilder goes through three stages in its lifecycle:
 //
@@ -23,6 +32,8 @@ import (
 // In general, the easiest way to ensure these stages are followed (and allow reviewers
 // to verify this) is to use a builder in a single method, as shown in the example.  Avoid
 // storing builders in structs.
+//
+// SliceBuilders are not threadsafe.
 type SliceBuilder struct {
 	factory Factory
 
