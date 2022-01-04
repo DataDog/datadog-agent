@@ -8,10 +8,9 @@
 ---
 upgrade:
   - |
-    CWS makes use of `**` pattern for subfolder matching instead of `*`.
-    Before `*` could be used in order to match files and subfolders. With this
-    release `*` will match only files and folders and the same level. `**` can
-    be used at the end of a path in order to match files and subfolders. `**` is
-    only supported at the end of a path. In order to keep the same behaviors the
-    rules like `open.file.path == "/etc/*"` as to be converted to
-    `open.file.path == "/etc/**"`.
+    CWS uses `**` for subfolder matching instead of `*`.
+    Previously, `*` was used to match files and subfolders. With this
+    release, `*` will match only files and folders at the same level. Use`**`
+    at the end of a path to match files and subfolders. `**` must be
+    used at the end of the path. For example, the rule `open.file.path == "/etc/*"`
+    has to be converted to `open.file.path == "/etc/**"`.
