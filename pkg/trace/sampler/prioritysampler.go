@@ -103,7 +103,7 @@ func (s *PrioritySampler) updateRates() {
 // Stop stops the sampler main loop
 func (s *PrioritySampler) Stop() {
 	if s.remoteRates != nil {
-		s.Stop()
+		s.remoteRates.Stop()
 	}
 	close(s.exit)
 }
