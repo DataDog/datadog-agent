@@ -96,7 +96,7 @@ func (c *WorkloadMetaCollector) Stream() error {
 	const name = "tagger-workloadmeta"
 	health := health.RegisterLiveness(name)
 
-	ch := c.store.Subscribe(name, nil)
+	ch := c.store.Subscribe(name, workloadmeta.TaggerPriority, nil)
 
 	for {
 		select {

@@ -23,7 +23,7 @@ import (
 // a kubernetes pod, or a task in any cloud provider.
 type Store interface {
 	Start(ctx context.Context)
-	Subscribe(name string, filter *Filter) chan EventBundle
+	Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle
 	Unsubscribe(ch chan EventBundle)
 	GetContainer(id string) (*Container, error)
 	ListContainers() ([]*Container, error)
@@ -553,6 +553,26 @@ type Event struct {
 	Sources []Source
 	Entity  Entity
 }
+
+// SubscriberPriority is a priority for subscribers to the store.  Subscribers
+// are notified in order by their priority, with each notification blocking the
+// next, so this allows control of which compoents are informed of changes in
+// the store first.
+type SubscriberPriority int
+
+const (
+	// TaggerPriority is the priority for the Tagger.  The Tagger must always
+	// come first.
+	TaggerPriority SubscriberPriority = iota
+
+	// ADPriority is the priority for autodiscovery.  This must come after
+	// Tagger, but before other components.
+	ADPriority SubscriberPriority = iota
+
+	// NormalPriority should be used by subscribers on which other components
+	// do not depend.
+	NormalPriority SubscriberPriority = iota
+)
 
 // EventBundle is a collection of events, and a channel that needs to be closed
 // when the receiving subscriber wants to unblock the notifier.

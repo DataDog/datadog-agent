@@ -385,7 +385,7 @@ func TestSubscribe(t *testing.T) {
 
 			s.handleEvents(tt.preEvents)
 
-			ch := s.Subscribe(dummySubscriber, tt.filter)
+			ch := s.Subscribe(dummySubscriber, NormalPriority, tt.filter)
 			doneCh := make(chan struct{})
 
 			var actual []EventBundle

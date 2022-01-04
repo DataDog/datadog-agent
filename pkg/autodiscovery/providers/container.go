@@ -78,7 +78,7 @@ func (d *ContainerConfigProvider) listen() {
 	health := health.RegisterLiveness("ad-containerprovider")
 	d.Unlock()
 
-	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.NewFilter(
+	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.ADPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
 		[]workloadmeta.Source{
 			workloadmeta.SourceDocker,

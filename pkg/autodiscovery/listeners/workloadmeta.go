@@ -128,7 +128,7 @@ func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- S
 	l.newService = newSvc
 	l.delService = delSvc
 
-	ch := l.store.Subscribe(l.name, l.workloadFilters)
+	ch := l.store.Subscribe(l.name, workloadmeta.ADPriority, l.workloadFilters)
 	health := health.RegisterLiveness(l.name)
 	creationTime := integration.Before
 
