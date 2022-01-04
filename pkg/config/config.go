@@ -589,7 +589,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 	config.BindEnv("prometheus_scrape.checks")                                // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
 	config.SetEnvKeyTransformer("prometheus_scrape.checks", PrometheusScrapeChecksTransformer)
-	config.BindEnvAndSetDefault("prometheus_scrape.version", 2) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
+	config.BindEnvAndSetDefault("prometheus_scrape.version", 1) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
