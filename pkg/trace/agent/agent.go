@@ -30,6 +30,11 @@ import (
 )
 
 const (
+	// inferredSpanTagSourceKey is the key to the meta tag that lets us know whether this span should inherit its tags.
+	// Expected options are "lambda" and "self"
+	inferredSpanTagSourceKey = "_inferred_span.tag_source"
+	// inferredSpanTagSourceSelf
+	inferredSpanTagSourceSelf = "self"
 	// tagHostname specifies the hostname of the tracer.
 	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
 	tagHostname = "_dd.hostname"
@@ -242,13 +247,9 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Extra sanitization steps of the trace.
 		for _, span := range chunk.Spans {
-			for k, v := range a.conf.GlobalTags {
-				if k == tagOrigin {
-					chunk.Origin = v
-				} else {
-					traceutil.SetMeta(span, k, v)
-				}
-			}
+			globalTags := a.conf.GlobalTags
+			spanMeta := span.GetMeta()
+			a.setGlobalTags(spanMeta, globalTags, chunk, span)
 			if a.ModifySpan != nil {
 				a.ModifySpan(span)
 			}
@@ -333,6 +334,19 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.In <- statsInput
+	}
+}
+
+// setGlobalTags sets the global tags on every span, unless that span is an inferred span with tag_source = self
+func (a *Agent) setGlobalTags(spanMeta map[string]string, globalTags map[string]string, chunk *pb.TraceChunk, span *pb.Span) {
+	if tagSource, ok := spanMeta[inferredSpanTagSourceKey]; !ok || tagSource != inferredSpanTagSourceSelf {
+		for k, v := range globalTags {
+			if k == tagOrigin {
+				chunk.Origin = v
+			} else {
+				traceutil.SetMeta(span, k, v)
+			}
+		}
 	}
 }
 
