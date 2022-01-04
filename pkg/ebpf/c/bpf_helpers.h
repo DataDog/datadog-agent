@@ -60,13 +60,9 @@ static int (*bpf_l4_csum_replace)(void* ctx, int off, int from, int to, int flag
 /* at some point in kernel < 4.15, a duplicate bpf_tail_call symbol got included in the kernel headers.
    This breaks eBPF builds with a symbol redefinition error.
    It is fixed in 4.15 with commit https://github.com/torvalds/linux/commit/035226b964c820f65e201cdf123705a8f1d7c670
-   Using bpf_tail_call_compat as a symbol name avoids this issue. We are keeping bpf_tail_call in 4.15 to avoid
-   code changes in existing code that already requires 4.15+.
+   Using bpf_tail_call_compat as a symbol name avoids this issue.
  */
 static int (*bpf_tail_call_compat)(void* ctx, void* map, int key) = (void*)BPF_FUNC_tail_call;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
-static int (*bpf_tail_call)(void* ctx, void* map, int key) = (void*)BPF_FUNC_tail_call;
-#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
 static u64 (*bpf_get_current_task)(void) = (void*)BPF_FUNC_get_current_task;

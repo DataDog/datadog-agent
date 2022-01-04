@@ -90,7 +90,7 @@ int __attribute__((always_inline)) handle_sys_exit(struct tracepoint_raw_syscall
     if (!syscall)
         return 0;
 
-    bpf_tail_call(args, &sys_exit_progs, syscall->type);
+    bpf_tail_call_compat(args, &sys_exit_progs, syscall->type);
     return 0;
 }
 
