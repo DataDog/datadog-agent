@@ -123,6 +123,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 {% else %}
 ### Event `{{ event_type.name }}`
 
+{% if event_type.experimental %}
+_This event type is experimental and may change in the future._
+
+{% endif %}
 {{ event_type.definition }}
 {% endif %}
 
