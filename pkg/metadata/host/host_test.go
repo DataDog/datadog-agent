@@ -186,3 +186,13 @@ func TestGetProxyMeta(t *testing.T) {
 	meta = getProxyMeta()
 	assert.Equal(t, meta.ProxyBehaviorChanged, true)
 }
+
+func TestGetOtlpMeta(t *testing.T) {
+	config.Datadog.Set("experimental.otlp.receiver.protocols.grpc.endpoint", "localhost:9999")
+	meta := getOtlpMeta()
+	assert.Equal(t, meta.Enabled, true)
+
+	config.Datadog.Set("experimental", nil)
+	meta = getOtlpMeta()
+	assert.Equal(t, meta.Enabled, false)
+}

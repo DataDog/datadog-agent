@@ -60,6 +60,7 @@ type ProxyMeta struct {
 	ProxyBehaviorChanged bool `json:"proxy-behavior-changed"`
 }
 
+// OtlpMeta is metadata about the otlp pipeline
 type OtlpMeta struct {
 	Enabled bool `json:"enabled"`
 }
