@@ -64,7 +64,7 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 
 func newTestReceiverFromConfigWithGRPC(conf *config.AgentConfig, grpcClient pbgo.AgentSecureClient) *HTTPReceiver {
 	receiver := newTestReceiverFromConfig(conf)
-	receiver.grpc = grpcClient
+	receiver.coreClient = grpcClient
 	return receiver
 }
 
@@ -915,7 +915,7 @@ func TestConfigEndpoint(t *testing.T) {
 				assert.NoError(err)
 				grpc.On("ClientGetConfigs", mock.Anything, &request, mock.Anything).Return(&pbgo.ClientGetConfigsResponse{Targets: &pbgo.TopMeta{Version: 1, Raw: []byte("test")}}, nil)
 			}
-			req, _ := http.NewRequest("POST", server.URL+"/v0.6/get_config", strings.NewReader(tc.reqBody))
+			req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(tc.reqBody))
 			req.Header.Set("Content-Type", "application/msgpack")
 			resp, err := http.DefaultClient.Do(req)
 			assert.Nil(err)

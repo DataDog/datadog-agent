@@ -113,7 +113,7 @@ var endpoints = []endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
 	},
 	{
-		Pattern:   "/v0.6/get_config",
+		Pattern:   "/v0.7/config",
 		Handler:   func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleGetConfig) },
 		IsEnabled: func(_ *config.AgentConfig) bool { return features.Has("config_endpoint") },
 	},

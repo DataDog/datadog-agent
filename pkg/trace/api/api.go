@@ -78,7 +78,7 @@ type HTTPReceiver struct {
 	server         *http.Server
 	statsProcessor StatsProcessor
 	appsecHandler  http.Handler
-	grpc           pbgo.AgentSecureClient
+	coreClient     pbgo.AgentSecureClient
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -110,7 +110,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 
 		out:            out,
 		statsProcessor: statsProcessor,
-		grpc:           grpcClient,
+		coreClient:     grpcClient,
 		conf:           conf,
 		dynConf:        dynConf,
 		appsecHandler:  appsecHandler,
@@ -527,7 +527,7 @@ func (r *HTTPReceiver) handleGetConfig(w http.ResponseWriter, req *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	cfg, err := r.grpc.ClientGetConfigs(req.Context(), &configsRequest)
+	cfg, err := r.coreClient.ClientGetConfigs(req.Context(), &configsRequest)
 	if err != nil {
 		statusCode = http.StatusInternalServerError
 		http.Error(w, err.Error(), statusCode)
