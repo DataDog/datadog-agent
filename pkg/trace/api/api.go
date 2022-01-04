@@ -78,7 +78,7 @@ type HTTPReceiver struct {
 	server         *http.Server
 	statsProcessor StatsProcessor
 	appsecHandler  http.Handler
-	coreClient     pbgo.AgentSecureClient
+	coreClient     pbgo.AgentSecureClient // gRPC client to core agent process
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
