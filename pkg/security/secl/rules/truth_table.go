@@ -33,7 +33,7 @@ func (tt *truthTable) getApprovers(fields ...string) map[eval.Field]FilterValues
 		allFalse := true
 		for _, field := range fields {
 			for _, value := range entry.Values {
-				if value.Field == field && !value.Not {
+				if value.Field == field && !value.not {
 					allFalse = false
 					break
 				}
@@ -47,7 +47,7 @@ func (tt *truthTable) getApprovers(fields ...string) map[eval.Field]FilterValues
 		for _, field := range fields {
 		LOOP:
 			for _, value := range entry.Values {
-				if !value.ignore && !value.Not && field == value.Field {
+				if !value.ignore && !value.not && field == value.Field {
 					fvs := filterValues[value.Field]
 					for _, fv := range fvs {
 						// do not append twice the same value
@@ -138,7 +138,7 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 					Field: field,
 					Value: notValue,
 					Type:  fValue.Type,
-					Not:   true,
+					not:   true,
 				})
 			case eval.BitmaskValueType:
 				bitmasks = append(bitmasks, fValue.Value.(int))
@@ -152,7 +152,7 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 					Field: field,
 					Value: mask,
 					Type:  eval.BitmaskValueType,
-					Not:   mask == 0,
+					not:   mask == 0,
 				})
 			}
 		}
@@ -215,7 +215,7 @@ func newTruthTable(rule *eval.Rule, event eval.Event) (*truthTable, error) {
 				Field:  filterValue.Field,
 				Value:  filterValue.Value,
 				Type:   filterValue.Type,
-				Not:    filterValue.Not,
+				not:    filterValue.not,
 				ignore: filterValue.ignore,
 			})
 		}

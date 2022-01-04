@@ -46,11 +46,11 @@ func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 	}
 
 	if err := rule.Parse(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parsing error: %v", err)
 	}
 
 	if err := rule.GenEvaluator(model, opts); err != nil {
-		return rule, err
+		return rule, fmt.Errorf("compilation error: %v", err)
 	}
 
 	return rule, nil
@@ -1018,6 +1018,120 @@ func TestDuration(t *testing.T) {
 	}
 }
 
+func TestOpOverrides(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			orName: "abc",
+		},
+	}
+
+	// values that will be returned by the operator override
+	event.process.orNameValues = func() *StringValues {
+		var values StringValues
+		values.AppendScalarValue("abc")
+		return &values
+	}
+
+	event.process.orArray = []*testItem{
+		{key: 1000, value: "abc", flag: true},
+	}
+
+	// values that will be returned by the operator override
+	event.process.orArrayValues = func() *StringValues {
+		var values StringValues
+		values.AppendScalarValue("abc")
+		return &values
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.or_name == "not"`, Expected: true},
+		{Expr: `process.or_name != "not"`, Expected: false},
+		{Expr: `process.or_name in ["not"]`, Expected: true},
+		{Expr: `process.or_array.value == "not"`, Expected: true},
+		{Expr: `process.or_array.value in ["not"]`, Expected: true},
+		{Expr: `process.or_array.value not in ["not"]`, Expected: false},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
+func TestOpOverridePartials(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			orName: "abc",
+		},
+	}
+
+	// values that will be returned by the operator override
+	event.process.orNameValues = func() *StringValues {
+		var values StringValues
+		values.AppendScalarValue("abc")
+		return &values
+	}
+
+	event.process.orArray = []*testItem{
+		{key: 1000, value: "abc", flag: true},
+	}
+
+	// values that will be returned by the operator override
+	event.process.orArrayValues = func() *StringValues {
+		var values StringValues
+		values.AppendScalarValue("abc")
+		return &values
+	}
+
+	tests := []struct {
+		Expr        string
+		Field       string
+		IsDiscarder bool
+	}{
+		{Expr: `process.or_name == "not"`, Field: "process.or_name", IsDiscarder: false},
+		{Expr: `process.or_name != "not"`, Field: "process.or_name", IsDiscarder: true},
+		{Expr: `process.or_name != "not" || true`, Field: "process.or_name", IsDiscarder: false},
+		{Expr: `process.or_name in ["not"]`, Field: "process.or_name", IsDiscarder: false},
+		{Expr: `process.or_array.value == "not"`, Field: "process.or_array.value", IsDiscarder: false},
+		{Expr: `process.or_array.value in ["not"]`, Field: "process.or_array.value", IsDiscarder: false},
+		{Expr: `process.or_array.value not in ["not"]`, Field: "process.or_array.value", IsDiscarder: true},
+		{Expr: `process.or_array.value not in ["not"] || true`, Field: "process.or_array.value", IsDiscarder: false},
+	}
+
+	ctx := NewContext(unsafe.Pointer(event))
+
+	for _, test := range tests {
+		model := &testModel{}
+		opts := &Opts{Constants: testConstants}
+
+		rule, err := parseRule(test.Expr, model, opts)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+		if err := rule.GenPartials(); err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		result, err := rule.PartialEval(ctx, test.Field)
+		if err != nil {
+			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
+		}
+
+		if !result != test.IsDiscarder {
+			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
+		}
+	}
+}
+
 func BenchmarkArray(b *testing.B) {
 	event := &testEvent{
 		process: testProcess{
@@ -1046,7 +1160,7 @@ func BenchmarkArray(b *testing.B) {
 
 	rule, err := parseRule(expr, &testModel{}, &Opts{})
 	if err != nil {
-		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+		b.Fatalf("%s\n%s", err, expr)
 	}
 
 	evaluator := rule.GetEvaluator()
@@ -1079,7 +1193,7 @@ func BenchmarkComplex(b *testing.B) {
 
 	rule, err := parseRule(expr, &testModel{}, &Opts{})
 	if err != nil {
-		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+		b.Fatalf("%s\n%s", err, expr)
 	}
 
 	evaluator := rule.GetEvaluator()
@@ -1158,7 +1272,7 @@ func BenchmarkPool(b *testing.B) {
 
 	rule, err := parseRule(expr, &testModel{}, &Opts{})
 	if err != nil {
-		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+		b.Fatalf("%s\n%s", err, expr)
 	}
 
 	evaluator := rule.GetEvaluator()
