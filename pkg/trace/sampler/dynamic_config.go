@@ -6,7 +6,10 @@
 package sampler
 
 import (
+	"math"
+	"strconv"
 	"sync"
+	"time"
 )
 
 // DynamicConfig contains configuration items which may change
@@ -24,44 +27,79 @@ func NewDynamicConfig() *DynamicConfig {
 	return &DynamicConfig{RateByService: RateByService{}}
 }
 
+// State specifies the current state of DynamicConfig
+type State struct {
+	Rates      map[string]float64
+	Mechanisms map[string]uint32
+	Version    string
+}
+
 // RateByService stores the sampling rate per service. It is thread-safe, so
 // one can read/write on it concurrently, using getters and setters.
 type RateByService struct {
-	mu    sync.RWMutex // guards rates
-	rates map[string]float64
+	mu            sync.RWMutex // guards rates
+	rates         *map[string]rm
+	incomingRates *map[string]rm
+	version       string
 }
 
 // SetAll the sampling rate for all services. If a service/env is not
 // in the map, then the entry is removed.
-func (rbs *RateByService) SetAll(rates map[ServiceSignature]float64) {
+func (rbs *RateByService) SetAll(rates map[ServiceSignature]rm) {
 	rbs.mu.Lock()
 	defer rbs.mu.Unlock()
 
-	if rbs.rates == nil {
-		rbs.rates = make(map[string]float64, len(rates))
+	changed := false
+	if rbs.incomingRates == nil {
+		m := make(map[string]rm, len(rates))
+		rbs.incomingRates = &m
 	}
-	for k := range rbs.rates {
-		delete(rbs.rates, k)
+	for k := range *rbs.incomingRates {
+		delete(*rbs.incomingRates, k)
+	}
+	if rbs.rates == nil {
+		changed = true
 	}
 	for k, v := range rates {
-		if v < 0 {
-			v = 0
+		ks := k.String()
+		if !changed {
+			r, ok := (*rbs.rates)[ks]
+			if !ok || r != v {
+				changed = true
+			}
 		}
-		if v > 1 {
-			v = 1
-		}
-		rbs.rates[k.String()] = v
+		v.r = math.Min(math.Max(v.r, 0), 1)
+		(*rbs.incomingRates)[ks] = v
+	}
+	if !changed && len(*rbs.rates) != len(*rbs.incomingRates) {
+		changed = true
+	}
+	if changed {
+		rbs.rates, rbs.incomingRates = rbs.incomingRates, rbs.rates
+		rbs.version = strconv.FormatInt(time.Now().UnixNano(), 16)
 	}
 }
 
-// GetAll returns all sampling rates for all services.
-func (rbs *RateByService) GetAll() map[string]float64 {
+// GetNewState returns the current state if the given version is different from the local version.
+func (rbs *RateByService) GetNewState(version string) State {
 	rbs.mu.RLock()
 	defer rbs.mu.RUnlock()
 
-	ret := make(map[string]float64, len(rbs.rates))
-	for k, v := range rbs.rates {
-		ret[k] = v
+	if rbs.version == version {
+		return State{
+			Version: version,
+		}
+	}
+	ret := State{
+		Rates:      make(map[string]float64, len(*rbs.rates)),
+		Mechanisms: make(map[string]uint32, len(*rbs.rates)),
+		Version:    rbs.version,
+	}
+	for k, v := range *rbs.rates {
+		ret.Rates[k] = v.r
+		if v.m != 0 {
+			ret.Mechanisms[k] = v.m
+		}
 	}
 
 	return ret

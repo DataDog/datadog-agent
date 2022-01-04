@@ -47,8 +47,8 @@ func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (
 	key := ServiceSignature{spans[0].Service, defaultEnv}
 	var rate float64
 	if serviceRate, ok := rates[key]; ok {
-		rate = serviceRate
-		spans[0].Metrics[agentRateKey] = serviceRate
+		rate = serviceRate.r
+		spans[0].Metrics[agentRateKey] = serviceRate.r
 	} else {
 		rate = 1
 	}
