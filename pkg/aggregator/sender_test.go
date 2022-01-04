@@ -26,6 +26,7 @@ type senderWithChans struct {
 	bucketChan             chan senderHistogramBucket
 	orchestratorChan       chan senderOrchestratorMetadata
 	eventPlatformEventChan chan senderEventPlatformEvent
+	contlcycleOut          chan senderContainerLifecycleEvent
 	sender                 *checkSender
 }
 
@@ -36,7 +37,8 @@ func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
 	s.bucketChan = make(chan senderHistogramBucket, 10)
 	s.orchestratorChan = make(chan senderOrchestratorMetadata, 10)
 	s.eventPlatformEventChan = make(chan senderEventPlatformEvent, 10)
-	s.sender = newCheckSender(id, defaultHostname, s.senderMetricSampleChan, s.serviceCheckChan, s.eventChan, s.bucketChan, s.orchestratorChan, s.eventPlatformEventChan)
+	s.contlcycleOut = make(chan senderContainerLifecycleEvent, 10)
+	s.sender = newCheckSender(id, defaultHostname, s.senderMetricSampleChan, s.serviceCheckChan, s.eventChan, s.bucketChan, s.orchestratorChan, s.eventPlatformEventChan, s.contlcycleOut)
 	return s
 }
 
@@ -143,7 +145,8 @@ func TestGetAndSetSender(t *testing.T) {
 	bucketChan := make(chan senderHistogramBucket, 10)
 	orchestratorChan := make(chan senderOrchestratorMetadata, 10)
 	eventPlatformChan := make(chan senderEventPlatformEvent, 10)
-	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan, orchestratorChan, eventPlatformChan)
+	contlcycleChan := make(chan senderContainerLifecycleEvent, 10)
+	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan, orchestratorChan, eventPlatformChan, contlcycleChan)
 
 	err := demux.SetSender(testCheckSender, checkID1)
 	assert.Nil(t, err)

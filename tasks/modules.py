@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 
 from invoke import task
@@ -7,12 +8,13 @@ from invoke import task
 class GoModule:
     """A Go module abstraction."""
 
-    def __init__(self, path, targets=None, condition=lambda: True, dependencies=None, should_tag=True):
+    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True):
         self.path = path
         self.targets = targets if targets else ["."]
-        self.dependencies = dependencies if dependencies else []
         self.condition = condition
         self.should_tag = should_tag
+
+        self._dependencies = None
 
     def __version(self, agent_version):
         """Return the module version for a given Agent version.
@@ -24,6 +26,29 @@ class GoModule:
             return "v" + agent_version
 
         return "v0" + agent_version[1:]
+
+    def __compute_dependencies(self):
+        """
+        Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
+        """
+        prefix = "github.com/DataDog/datadog-agent/"
+        base_path = os.getcwd()
+        mod_parser_path = os.path.join(base_path, "internal", "tools", "modparser")
+
+        if not os.path.isdir(mod_parser_path):
+            raise Exception(f"Cannot find go.mod parser in {mod_parser_path}")
+
+        try:
+            output = subprocess.check_output(
+                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", prefix],
+                cwd=mod_parser_path,
+            ).decode("utf-8")
+        except subprocess.CalledProcessError as e:
+            print(f"Error while calling go.mod parser: {e.output}")
+            raise e
+
+        # Remove github.com/DataDog/datadog-agent/ from each line
+        return [line[len(prefix) :] for line in output.strip().splitlines()]
 
     # FIXME: Change when Agent 6 and Agent 7 releases are decoupled
     def tag(self, agent_version):
@@ -44,6 +69,12 @@ class GoModule:
     def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""
         return self.full_path() + "/go.mod"
+
+    @property
+    def dependencies(self):
+        if not self._dependencies:
+            self._dependencies = self.__compute_dependencies()
+        return self._dependencies
 
     @property
     def import_path(self):
@@ -70,27 +101,17 @@ DEFAULT_MODULES = {
     ".": GoModule(
         ".",
         targets=["./pkg", "./cmd"],
-        dependencies=[
-            "pkg/util/scrubber",
-            "pkg/util/log",
-            "pkg/util/winutil",
-            "pkg/quantile",
-            "pkg/otlp/model",
-            "pkg/obfuscate",
-            "pkg/security/secl",
-        ],
     ),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
-    "pkg/util/log": GoModule("pkg/util/log", dependencies=["pkg/util/scrubber"]),
+    "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(
         "pkg/util/winutil",
         condition=lambda: sys.platform == 'win32',
-        dependencies=["pkg/util/log"],
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
     "pkg/obfuscate": GoModule("pkg/obfuscate"),
-    "pkg/otlp/model": GoModule("pkg/otlp/model", dependencies=["pkg/quantile"]),
+    "pkg/otlp/model": GoModule("pkg/otlp/model"),
     "pkg/security/secl": GoModule("pkg/security/secl"),
 }
 

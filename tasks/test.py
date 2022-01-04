@@ -74,6 +74,15 @@ TOOLS = {
 
 
 @task
+def download_tools(ctx):
+    """Download all Go tools for testing."""
+    with environ({'GO111MODULE': 'on'}):
+        for path, _ in TOOLS.items():
+            with ctx.cd(path):
+                ctx.run("go mod download")
+
+
+@task
 def install_tools(ctx):
     """Install all Go tools for testing."""
     with environ({'GO111MODULE': 'on'}):

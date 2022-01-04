@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -83,19 +84,21 @@ type AgentDemultiplexer struct {
 
 // DemultiplexerOptions are the options used to initialize a Demultiplexer.
 type DemultiplexerOptions struct {
-	SharedForwarderOptions        *forwarder.Options
-	UseNoopEventPlatformForwarder bool
-	UseEventPlatformForwarder     bool
-	UseOrchestratorForwarder      bool
-	FlushInterval                 time.Duration
+	SharedForwarderOptions         *forwarder.Options
+	UseNoopEventPlatformForwarder  bool
+	UseEventPlatformForwarder      bool
+	UseOrchestratorForwarder       bool
+	UseContainerLifecycleForwarder bool
+	FlushInterval                  time.Duration
 
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 }
 
 type forwarders struct {
-	shared        *forwarder.DefaultForwarder
-	orchestrator  *forwarder.DefaultForwarder
-	eventPlatform epforwarder.EventPlatformForwarder
+	shared             *forwarder.DefaultForwarder
+	orchestrator       *forwarder.DefaultForwarder
+	eventPlatform      epforwarder.EventPlatformForwarder
+	containerLifecycle *forwarder.DefaultForwarder
 }
 
 type dataOutputs struct {
@@ -110,10 +113,11 @@ func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOption
 	}
 
 	return DemultiplexerOptions{
-		SharedForwarderOptions:    options,
-		FlushInterval:             DefaultFlushInterval,
-		UseEventPlatformForwarder: true,
-		UseOrchestratorForwarder:  true,
+		SharedForwarderOptions:         options,
+		FlushInterval:                  DefaultFlushInterval,
+		UseEventPlatformForwarder:      true,
+		UseOrchestratorForwarder:       true,
+		UseContainerLifecycleForwarder: false,
 	}
 }
 
@@ -155,12 +159,18 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
 	}
 
+	// setup the container lifecycle events forwarder
+	var containerLifecycleForwarder *forwarder.DefaultForwarder
+	if options.UseContainerLifecycleForwarder {
+		containerLifecycleForwarder = containerlifecycle.NewForwarder()
+	}
+
 	sharedForwarder := forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
 
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder)
 
 	// prepare the embedded aggregator
 	// --
@@ -179,9 +189,10 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 		dataOutputs: dataOutputs{
 
 			forwarders: forwarders{
-				shared:        sharedForwarder,
-				orchestrator:  orchestratorForwarder,
-				eventPlatform: eventPlatformForwarder,
+				shared:             sharedForwarder,
+				orchestrator:       orchestratorForwarder,
+				eventPlatform:      eventPlatformForwarder,
+				containerLifecycle: containerLifecycleForwarder,
 			},
 
 			sharedSerializer: sharedSerializer,
@@ -197,22 +208,41 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 func (d *AgentDemultiplexer) Run() {
 	if !d.options.DontStartForwarders {
 		log.Debugf("Starting forwarders")
+
+		// orchestrator forwarder
 		if d.forwarders.orchestrator != nil {
 			d.forwarders.orchestrator.Start() //nolint:errcheck
 		} else {
 			log.Debug("not starting the orchestrator forwarder")
 		}
+
+		// event platform forwarder
 		if d.forwarders.eventPlatform != nil {
 			d.forwarders.eventPlatform.Start()
 		} else {
 			log.Debug("not starting the event platform forwarder")
 		}
+
+		// container lifecycle forwarder
+		if d.forwarders.containerLifecycle != nil {
+			if err := d.forwarders.containerLifecycle.Start(); err != nil {
+				log.Errorf("error starting container lifecycle forwarder: %w", err)
+			}
+		} else {
+			log.Debug("not starting the container lifecycle forwarder")
+		}
+
+		// shared forwarder
 		if d.forwarders.shared != nil {
 			d.forwarders.shared.Start() //nolint:errcheck
 		} else {
 			log.Debug("not starting the shared forwarder")
 		}
 		log.Debug("Forwarders started")
+	}
+
+	if d.options.UseContainerLifecycleForwarder {
+		d.aggregator.contLcycleDequeueOnce.Do(func() { go d.aggregator.dequeueContainerLifecycleEvents() })
 	}
 
 	d.aggregator.run() // this is the blocking call
@@ -244,6 +274,10 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 		if d.dataOutputs.forwarders.eventPlatform != nil {
 			d.dataOutputs.forwarders.eventPlatform.Stop()
 			d.dataOutputs.forwarders.eventPlatform = nil
+		}
+		if d.dataOutputs.forwarders.containerLifecycle != nil {
+			d.dataOutputs.forwarders.containerLifecycle.Stop()
+			d.dataOutputs.forwarders.containerLifecycle = nil
 		}
 		if d.dataOutputs.forwarders.shared != nil {
 			d.dataOutputs.forwarders.shared.Stop()
@@ -309,7 +343,7 @@ type ServerlessDemultiplexer struct {
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
 func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, hostname string, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
 	forwarder := forwarder.NewSyncForwarder(domainResolvers, forwarderTimeout)
-	serializer := serializer.NewSerializer(forwarder, nil)
+	serializer := serializer.NewSerializer(forwarder, nil, nil)
 	aggregator := InitAggregator(serializer, nil, hostname)
 
 	demux := &ServerlessDemultiplexer{

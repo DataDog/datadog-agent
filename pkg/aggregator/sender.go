@@ -38,6 +38,7 @@ type Sender interface {
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
 	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
+	ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage)
 }
 
 // RawSender interface to submit samples to aggregator directly
@@ -60,6 +61,7 @@ type checkSender struct {
 	eventOut                chan<- metrics.Event
 	histogramBucketOut      chan<- senderHistogramBucket
 	orchestratorOut         chan<- senderOrchestratorMetadata
+	contlcycleOut           chan<- senderContainerLifecycleEvent
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	service                 string
@@ -88,13 +90,27 @@ type senderOrchestratorMetadata struct {
 	payloadType int
 }
 
+type senderContainerLifecycleEvent struct {
+	msgs []serializer.ContainerLifecycleMessage
+}
+
 type checkSenderPool struct {
 	agg     *BufferedAggregator
 	senders map[check.ID]Sender
 	m       sync.Mutex
 }
 
-func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event, bucketOut chan<- senderHistogramBucket, orchestratorOut chan<- senderOrchestratorMetadata, eventPlatformOut chan<- senderEventPlatformEvent) *checkSender {
+func newCheckSender(
+	id check.ID,
+	defaultHostname string,
+	smsOut chan<- senderMetricSample,
+	serviceCheckOut chan<- metrics.ServiceCheck,
+	eventOut chan<- metrics.Event,
+	bucketOut chan<- senderHistogramBucket,
+	orchestratorOut chan<- senderOrchestratorMetadata,
+	eventPlatformOut chan<- senderEventPlatformEvent,
+	contlcycleOut chan<- senderContainerLifecycleEvent,
+) *checkSender {
 	return &checkSender{
 		id:                 id,
 		defaultHostname:    defaultHostname,
@@ -106,6 +122,7 @@ func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMet
 		histogramBucketOut: bucketOut,
 		orchestratorOut:    orchestratorOut,
 		eventPlatformOut:   eventPlatformOut,
+		contlcycleOut:      contlcycleOut,
 	}
 }
 
@@ -386,6 +403,10 @@ func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody,
 	s.orchestratorOut <- om
 }
 
+func (s *checkSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
+	s.contlcycleOut <- senderContainerLifecycleEvent{msgs: msgs}
+}
+
 // changeAllSendersDefaultHostname u
 func (sp *checkSenderPool) changeAllSendersDefaultHostname(hostname string) {
 	sp.m.Lock()
@@ -414,7 +435,17 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 	defer sp.m.Unlock()
 
 	err := sp.agg.registerSender(id)
-	sender := newCheckSender(id, sp.agg.hostname, sp.agg.checkMetricIn, sp.agg.serviceCheckIn, sp.agg.eventIn, sp.agg.checkHistogramBucketIn, sp.agg.orchestratorMetadataIn, sp.agg.eventPlatformIn)
+	sender := newCheckSender(
+		id,
+		sp.agg.hostname,
+		sp.agg.checkMetricIn,
+		sp.agg.serviceCheckIn,
+		sp.agg.eventIn,
+		sp.agg.checkHistogramBucketIn,
+		sp.agg.orchestratorMetadataIn,
+		sp.agg.eventPlatformIn,
+		sp.agg.contLcycleIn,
+	)
 	sp.senders[id] = sender
 	return sender, err
 }

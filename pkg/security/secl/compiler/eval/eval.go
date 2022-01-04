@@ -513,7 +513,7 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 		}
 		last = loc[1]
 	}
-	if last < len(str)-1 {
+	if last < len(str) {
 		if err := doLoc(str[last:]); err != nil {
 			return nil, pos, err
 		}

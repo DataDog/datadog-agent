@@ -189,7 +189,7 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.1/pipeline_stats",
 		"/appsec/proxy/",
 		"/debugger/v1/input",
-		"/v0.6/config"
+		"/v0.7/config"
 	],
 	"feature_flags": [
 		"config_endpoint"

@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const defaultEnv = "none"
+const defaultEnv = "testEnv"
 
 func getTestErrorsSampler(tps float64) *ErrorsSampler {
 	// Disable debug logs in these tests

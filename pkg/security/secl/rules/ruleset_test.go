@@ -195,12 +195,14 @@ func TestRuleSetFilters1(t *testing.T) {
 
 	caps := FieldCapabilities{
 		{
-			Field: "process.uid",
-			Types: eval.ScalarValueType,
+			Field:        "process.uid",
+			Types:        eval.ScalarValueType,
+			FilterWeight: 1,
 		},
 		{
-			Field: "process.gid",
-			Types: eval.ScalarValueType,
+			Field:        "process.gid",
+			Types:        eval.ScalarValueType,
+			FilterWeight: 2,
 		},
 	}
 
@@ -209,8 +211,8 @@ func TestRuleSetFilters1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, exists := approvers["process.uid"]; !exists {
-		t.Fatal("expected approver not found")
+	if _, exists := approvers["process.uid"]; exists {
+		t.Fatal("Shouldn't get an approver for uid")
 	}
 
 	if _, exists := approvers["process.gid"]; !exists {
@@ -278,16 +280,19 @@ func TestRuleSetFilters2(t *testing.T) {
 
 	caps = FieldCapabilities{
 		{
-			Field: "open.filename",
-			Types: eval.ScalarValueType,
+			Field:        "open.filename",
+			Types:        eval.ScalarValueType,
+			FilterWeight: 3,
 		},
 		{
-			Field: "process.uid",
-			Types: eval.ScalarValueType,
+			Field:        "process.uid",
+			Types:        eval.ScalarValueType,
+			FilterWeight: 2,
 		},
 		{
-			Field: "process.gid",
-			Types: eval.ScalarValueType,
+			Field:        "process.gid",
+			Types:        eval.ScalarValueType,
+			FilterWeight: 1,
 		},
 	}
 
@@ -300,8 +305,8 @@ func TestRuleSetFilters2(t *testing.T) {
 		t.Fatal("expected approver not found")
 	}
 
-	if _, exists := approvers["process.uid"]; !exists {
-		t.Fatal("expected approver not found")
+	if _, exists := approvers["process.uid"]; exists {
+		t.Fatal("shouldn't an approver for uid")
 	}
 
 	if _, exists := approvers["process.gid"]; !exists {

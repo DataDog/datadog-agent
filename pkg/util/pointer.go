@@ -10,6 +10,12 @@ func UInt64Ptr(v uint64) *uint64 {
 	return &v
 }
 
+// UInt32Ptr returns a pointer from a value. It will allocate a new heap object for it.
+func UInt32Ptr(v int64) *uint32 {
+	vUInt32 := uint32(v)
+	return &vUInt32
+}
+
 // Float64Ptr returns a pointer from a value. It will allocate a new heap object for it.
 func Float64Ptr(v float64) *float64 {
 	return &v

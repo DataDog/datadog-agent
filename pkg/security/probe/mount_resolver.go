@@ -300,7 +300,7 @@ func (mr *MountResolver) getAncestor(mount *model.MountEvent) *model.MountEvent 
 
 // getOverlayPath uses deviceID to find overlay path
 func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
-	if entry, found := mr.parentPathCache.Get(mount.MountID); found {
+	if entry, found := mr.overlayPathCache.Get(mount.MountID); found {
 		return entry.(string)
 	}
 
@@ -311,7 +311,7 @@ func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
 	for _, deviceMount := range mr.devices[mount.Device] {
 		if mount.MountID != deviceMount.MountID && deviceMount.IsOverlayFS() {
 			if p := mr.getParentPath(deviceMount.MountID); p != "" {
-				mr.parentPathCache.Add(mount.MountID, p)
+				mr.overlayPathCache.Add(mount.MountID, p)
 				return p
 			}
 		}
@@ -339,7 +339,7 @@ func (mr *MountResolver) dequeue(now time.Time) {
 
 		// clear cache anyway
 		mr.parentPathCache.Remove(req.mount.MountID)
-		mr.overlayPathCache.Remove(req.mount)
+		mr.overlayPathCache.Remove(req.mount.MountID)
 
 		i++
 	}

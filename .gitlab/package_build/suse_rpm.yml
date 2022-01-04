@@ -52,7 +52,7 @@ agent_suse-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "linux_x64_go_deps"]
+  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
@@ -70,7 +70,7 @@ agent_suse-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "linux_x64_go_deps"]
+  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
@@ -86,7 +86,7 @@ iot_agent_suse-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "linux_x64_go_deps"]
+  needs: ["go_mod_tidy_check", "go_deps"]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
   script:
@@ -120,7 +120,7 @@ dogstatsd_suse-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "build_dogstatsd-deb_x64", "linux_x64_go_deps"]
+  needs: ["go_mod_tidy_check", "build_dogstatsd-deb_x64", "go_deps"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
