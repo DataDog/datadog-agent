@@ -176,8 +176,8 @@ github.com/Microsoft/hcsshim v0.8.15/go.mod h1:x38A4YbHbdxJtc0sF6oIz+RG0npwSCAvn
 github.com/Microsoft/hcsshim v0.8.16/go.mod h1:o5/SZqmR7x9JNKsW3pu+nqHm0MF8vbA+VxGOoXdC600=
 github.com/Microsoft/hcsshim v0.8.21/go.mod h1:+w2gRZ5ReXQhFOrvSQeNfhrYB/dg3oDwTOcER2fw4I4=
 github.com/Microsoft/hcsshim v0.8.23/go.mod h1:4zegtUJth7lAvFyc6cH2gGQ5B3OFQim01nnU2M8jKDg=
-github.com/Microsoft/hcsshim v0.9.0 h1:BBgYMxl5YZDZVIijz02AlDINpYZOzQqRNCl9CZM13vk=
-github.com/Microsoft/hcsshim v0.9.0/go.mod h1:VBJWdC71NSWPlEo7lwde1aL21748J8B6Sdgno7NqEGE=
+github.com/Microsoft/hcsshim v0.9.1 h1:VfDCj+QnY19ktX5TsH22JHcjaZ05RWQiwDbOyEg5ziM=
+github.com/Microsoft/hcsshim v0.9.1/go.mod h1:Y/0uV2jUab5kBI7SQgl62at0AVX7uaruzADAVmxm3eM=
 github.com/Microsoft/hcsshim/test v0.0.0-20210227013316-43a75bb4edd3/go.mod h1:mw7qgWloBUl75W/gVH3cQszUg1+gUITj7D6NY7ywVnY=
 github.com/NYTimes/gziphandler v0.0.0-20170623195520-56545f4a5d46/go.mod h1:3wb06e3pkSAbeQ52E9H9iFoQsEEwGN64994WTCIhntQ=
 github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I=
