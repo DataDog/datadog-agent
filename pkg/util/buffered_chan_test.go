@@ -7,7 +7,9 @@ package util
 
 import (
 	"context"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -48,4 +50,28 @@ func TestBufferedChanContext(t *testing.T) {
 	// `Put`` must return false as the channel is canceled.
 	for ok := c.Put(0); ok == true; ok = c.Put(0) {
 	}
+}
+
+func TestBufferedChanThreadSafety(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewBufferedChan(ctx, 10, 3)
+	go func() {
+		random := rand.New(rand.NewSource(42))
+		for n := 0; n < 3000; n++ {
+			require.True(t, c.Put(n))
+			time.Sleep(time.Microsecond * time.Duration(random.Int31n(1000)))
+		}
+		c.Close()
+	}()
+
+	r := require.New(t)
+	n := 0
+	random := rand.New(rand.NewSource(42))
+	for v, ok := c.Get(); ok; v, ok = c.Get() {
+		r.Equal(n, v)
+		time.Sleep(time.Microsecond * time.Duration(random.Int31n(1000)))
+		n++
+	}
+	r.Equal(3000, n)
 }
