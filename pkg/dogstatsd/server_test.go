@@ -554,7 +554,9 @@ func TestExtraTags(t *testing.T) {
 func TestDebugStatsSpike(t *testing.T) {
 	assert := assert.New(t)
 	demux := mockDemultiplexerWithFlushInterval(400 * time.Millisecond)
+	defer demux.Stop(false)
 	s, err := NewServer(demux, nil)
+	defer s.Stop()
 	require.NoError(t, err, "cannot start DSD")
 
 	s.EnableMetricsStats()
@@ -590,9 +592,6 @@ func TestDebugStatsSpike(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	// it is no more considered a spike because we had another second with 500 metrics
 	assert.False(s.hasSpike())
-
-	s.Stop()
-	demux.Stop(false)
 }
 
 func TestDebugStats(t *testing.T) {
