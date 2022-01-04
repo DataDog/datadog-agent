@@ -247,9 +247,8 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Extra sanitization steps of the trace.
 		for _, span := range chunk.Spans {
-			globalTags := a.conf.GlobalTags
 			spanMeta := span.GetMeta()
-			a.setGlobalTags(spanMeta, globalTags, chunk, span)
+			a.setGlobalTags(spanMeta, chunk, span)
 			if a.ModifySpan != nil {
 				a.ModifySpan(span)
 			}
@@ -338,9 +337,9 @@ func (a *Agent) Process(p *api.Payload) {
 }
 
 // setGlobalTags sets the global tags on every span, unless that span is an inferred span with tag_source = self
-func (a *Agent) setGlobalTags(spanMeta map[string]string, globalTags map[string]string, chunk *pb.TraceChunk, span *pb.Span) {
+func (a *Agent) setGlobalTags(spanMeta map[string]string, chunk *pb.TraceChunk, span *pb.Span) {
 	if tagSource, ok := spanMeta[inferredSpanTagSourceKey]; !ok || tagSource != inferredSpanTagSourceSelf {
-		for k, v := range globalTags {
+		for k, v := range a.conf.GlobalTags {
 			if k == tagOrigin {
 				chunk.Origin = v
 			} else {
