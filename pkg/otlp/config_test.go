@@ -57,7 +57,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
-				Metrics:            map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -67,7 +69,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
-				Metrics:            map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -89,7 +93,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
-				Metrics:            map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -103,7 +109,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
-				Metrics:            map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -113,7 +121,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
-				Metrics:            map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -128,7 +138,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
-				Metrics:        map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -156,7 +168,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
-				Metrics:        map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 	}
