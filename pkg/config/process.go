@@ -68,7 +68,7 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.remote_tagger", true)
 
 	// Process Discovery Check
-	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false,
+	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", true,
 		"DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED",
 		"DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED",
 		"DD_PROCESS_CONFIG_DISCOVERY_ENABLED", // Also bind old environment variables

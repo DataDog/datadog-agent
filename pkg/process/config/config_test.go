@@ -126,9 +126,17 @@ func TestOnlyEnvConfig(t *testing.T) {
 	assert.True(t, agentConfig.Enabled)
 
 	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
+	os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "false")
 	agentConfig, _ = NewAgentConfig("test", "", "", true)
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
 	assert.False(t, agentConfig.Enabled)
+
+	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
+	os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "true")
+	agentConfig, _ = NewAgentConfig("test", "", "", true)
+	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
+	// Process discovery enabled by default enables the process agent
+	assert.True(t, agentConfig.Enabled)
 
 	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
 	agentConfig, _ = NewAgentConfig("test", "", "", true)
@@ -291,7 +299,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(config.DefaultDDAgentBin, config.Datadog.GetString("process_config.dd_agent_bin"))
 	assert.Equal(config.DefaultGRPCConnectionTimeoutSecs, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
 	assert.True(config.Datadog.GetBool("process_config.remote_tagger"))
-	assert.False(config.Datadog.GetBool("process_config.process_discovery.enabled"))
+	assert.True(config.Datadog.GetBool("process_config.process_discovery.enabled"))
 	assert.Equal(4*time.Hour, config.Datadog.GetDuration("process_config.process_discovery.interval"))
 
 }
@@ -534,7 +542,7 @@ func TestNetworkConfig(t *testing.T) {
 
 		assert.True(t, agentConfig.EnableSystemProbe)
 		assert.True(t, agentConfig.Enabled)
-		assert.ElementsMatch(t, []string{ConnectionsCheckName, NetworkCheckName, ContainerCheckName, RTContainerCheckName}, agentConfig.EnabledChecks)
+		assert.ElementsMatch(t, []string{ConnectionsCheckName, NetworkCheckName, ContainerCheckName, RTContainerCheckName, DiscoveryCheckName}, agentConfig.EnabledChecks)
 	})
 }
 
