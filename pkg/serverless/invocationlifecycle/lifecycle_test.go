@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
-	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +26,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	endInvocationTime := time.Now()
-	endDetails := proxy.InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
 
 	testProcessor := ProxyProcessor{
 		ExtraTags:           extraTags,
@@ -58,7 +57,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	startInvocationTime := time.Now()
-	startDetails := proxy.InvocationStartDetails{StartTime: startInvocationTime}
+	startDetails := InvocationStartDetails{StartTime: startInvocationTime}
 
 	testProcessor := ProxyProcessor{
 		ExtraTags:           extraTags,
@@ -84,7 +83,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	startInvocationTime := time.Now()
-	startDetails := proxy.InvocationStartDetails{StartTime: startInvocationTime}
+	startDetails := InvocationStartDetails{StartTime: startInvocationTime}
 
 	testProcessor := ProxyProcessor{
 		ExtraTags:           extraTags,
@@ -116,7 +115,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	startInvocationTime := time.Now()
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
-	endDetails := proxy.InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
 
 	currentExecutionInfo = executionStartInfo{
 		startTime: startInvocationTime,
@@ -157,7 +156,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	startInvocationTime := time.Now()
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
-	endDetails := proxy.InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
 
 	currentExecutionInfo = executionStartInfo{
 		startTime: startInvocationTime,

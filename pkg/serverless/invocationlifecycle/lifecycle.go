@@ -9,7 +9,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,7 +23,7 @@ type ProxyProcessor struct {
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
-func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetails) {
+func (pp *ProxyProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
 	log.Debug("[proxy] onInvokeStart ------")
 	log.Debug("[proxy] Invocation has started at :", startDetails.StartTime)
 	log.Debug("[proxy] Invocation invokeHeaders are :", startDetails.InvokeHeaders)
@@ -37,7 +36,7 @@ func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetai
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
-func (pp *ProxyProcessor) OnInvokeEnd(endDetails *proxy.InvocationEndDetails) {
+func (pp *ProxyProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debug("[proxy] onInvokeEnd ------")
 	log.Debug("[proxy] Invocation has finished at :", endDetails.EndTime)
 	log.Debug("[proxy] Invocation isError is :", endDetails.IsError)
