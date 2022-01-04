@@ -19,12 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
-func mockDemultiplexer() aggregator.Demultiplexer {
+func mockDemultiplexerWithFlushInterval(interval time.Duration) aggregator.Demultiplexer {
 	opts := aggregator.DefaultDemultiplexerOptions(nil)
-	opts.FlushInterval = time.Millisecond * 10
+	opts.FlushInterval = interval
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
 	return demux
+}
+
+func mockDemultiplexer() aggregator.Demultiplexer {
+	return mockDemultiplexerWithFlushInterval(time.Second)
 }
 
 func buildPacketContent(numberOfMetrics int, nbValuePerMessage int) []byte {
