@@ -26,19 +26,26 @@ func (g *Glob) contains(filename string, strict bool) bool {
 		filename = filename[1:]
 	}
 
-	elsFilename := strings.Split(filename, "/")
+	var elp, elf string
+	for start, end, i := 0, 0, 0; end != len(filename); end++ {
+		if filename[end] == '/' {
+			elf, elp = filename[start:end], g.elements[i]
+			if !PatternMatches(elp, elf) && elp != "**" {
+				return false
+			}
+			start = end + 1
+			i++
+		}
 
-	valueLen := len(g.elements)
-
-	var elp string
-	for i, elf := range elsFilename {
-		if i+1 > valueLen {
+		if i+1 > len(g.elements) {
 			return !strict || elp == "**"
 		}
 
-		elp = g.elements[i]
-		if !PatternMatches(elp, elf) && elp != "**" {
-			return false
+		if end+1 >= len(filename) {
+			elf, elp = filename[start:end+1], g.elements[i]
+			if !PatternMatches(elp, elf) && elp != "**" {
+				return false
+			}
 		}
 	}
 

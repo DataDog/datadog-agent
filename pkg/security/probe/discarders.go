@@ -223,9 +223,19 @@ var (
 	discarderEvent = NewEvent(nil, nil)
 )
 
+// use a faster version of path.Dir which adds some sanity checks not required here
+func dirname(filename string) string {
+	i := len(filename) - 1
+	for i >= 0 && filename[i] != '/' {
+		i--
+	}
+
+	return filename[:i+1]
+}
+
 func getParent(filename string, depth int) string {
 	for ; depth > 0; depth-- {
-		filename = path.Dir(filename)
+		filename = dirname(filename)
 	}
 
 	return filename
