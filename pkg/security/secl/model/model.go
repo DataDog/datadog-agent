@@ -142,9 +142,9 @@ type Event struct {
 
 	SELinux  SELinuxEvent  `field:"selinux" event:"selinux"`   // [7.30] [Kernel] An SELinux operation was run
 	BPF      BPFEvent      `field:"bpf" event:"bpf"`           // [7.33] [Kernel] A BPF command was executed
-	PTrace   PTraceEvent   `field:"ptrace" event:"ptrace"`     // [7.34] [Kernel] A ptrace command was executed
-	MMap     MMapEvent     `field:"mmap" event:"mmap"`         // [7.34] [Kernel] A mmap command was executed
-	MProtect MProtectEvent `field:"mprotect" event:"mprotect"` // [7.34] [Kernel] A mprotect command was executed
+	PTrace   PTraceEvent   `field:"ptrace" event:"ptrace"`     // [7.34] [Kernel] [Experimental] A ptrace command was executed
+	MMap     MMapEvent     `field:"mmap" event:"mmap"`         // [7.34] [Kernel] [Experimental] A mmap command was executed
+	MProtect MProtectEvent `field:"mprotect" event:"mprotect"` // [7.34] [Kernel] [Experimental] A mprotect command was executed
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`

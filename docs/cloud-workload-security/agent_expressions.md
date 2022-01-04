@@ -39,10 +39,10 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `mkdir` | File | A directory was created | 7.27 |
-| `mmap` | Kernel | A mmap command was executed | 7.34 |
-| `mprotect` | Kernel | A mprotect command was executed | 7.34 |
+| `mmap` | Kernel | [Experimental] A mmap command was executed | 7.34 |
+| `mprotect` | Kernel | [Experimental] A mprotect command was executed | 7.34 |
 | `open` | File | A file was opened | 7.27 |
-| `ptrace` | Kernel | A ptrace command was executed | 7.34 |
+| `ptrace` | Kernel | [Experimental] A ptrace command was executed | 7.34 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
 | `rmdir` | File | A directory was removed | 7.27 |
@@ -401,7 +401,7 @@ A directory was created
 
 ### Event `mmap`
 
-A mmap command was executed
+[Experimental] A mmap command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
@@ -425,7 +425,7 @@ A mmap command was executed
 
 ### Event `mprotect`
 
-A mprotect command was executed
+[Experimental] A mprotect command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
@@ -459,12 +459,17 @@ A file was opened
 
 ### Event `ptrace`
 
-A ptrace command was executed
+[Experimental] A ptrace command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
 | `ptrace.request` | int |  |
 | `ptrace.retval` | int | Return value of the syscall |
+| `ptrace.tracee.ancestors.args` | string | Arguments of the process (as a string) |
+| `ptrace.tracee.ancestors.args_flags` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.ancestors.args_options` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.ancestors.args_truncated` | bool | Indicator of arguments truncation |
+| `ptrace.tracee.ancestors.argv` | string | Arguments of the process (as an array) |
 | `ptrace.tracee.ancestors.cap_effective` | int | Effective capability set of the process |
 | `ptrace.tracee.ancestors.cap_permitted` | int | Permitted capability set of the process |
 | `ptrace.tracee.ancestors.comm` | string | Comm attribute of the process |
@@ -473,6 +478,8 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.created_at` | int | Timestamp of the creation of the process |
 | `ptrace.tracee.ancestors.egid` | int | Effective GID of the process |
 | `ptrace.tracee.ancestors.egroup` | string | Effective group of the process |
+| `ptrace.tracee.ancestors.envs` | string | Environment variables of the process |
+| `ptrace.tracee.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
 | `ptrace.tracee.ancestors.euid` | int | Effective UID of the process |
 | `ptrace.tracee.ancestors.euser` | string | Effective user of the process |
 | `ptrace.tracee.ancestors.file.change_time` | int | Change time of the file |
@@ -501,6 +508,11 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.tty_name` | string | Name of the TTY associated with the process |
 | `ptrace.tracee.ancestors.uid` | int | UID of the process |
 | `ptrace.tracee.ancestors.user` | string | User of the process |
+| `ptrace.tracee.args` | string | Arguments of the process (as a string) |
+| `ptrace.tracee.args_flags` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.args_options` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.args_truncated` | bool | Indicator of arguments truncation |
+| `ptrace.tracee.argv` | string | Arguments of the process (as an array) |
 | `ptrace.tracee.cap_effective` | int | Effective capability set of the process |
 | `ptrace.tracee.cap_permitted` | int | Permitted capability set of the process |
 | `ptrace.tracee.comm` | string | Comm attribute of the process |
@@ -509,6 +521,8 @@ A ptrace command was executed
 | `ptrace.tracee.created_at` | int | Timestamp of the creation of the process |
 | `ptrace.tracee.egid` | int | Effective GID of the process |
 | `ptrace.tracee.egroup` | string | Effective group of the process |
+| `ptrace.tracee.envs` | string | Environment variables of the process |
+| `ptrace.tracee.envs_truncated` | bool | Indicator of environment variables truncation |
 | `ptrace.tracee.euid` | int | Effective UID of the process |
 | `ptrace.tracee.euser` | string | Effective user of the process |
 | `ptrace.tracee.file.change_time` | int | Change time of the file |
