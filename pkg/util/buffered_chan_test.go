@@ -18,7 +18,7 @@ func TestBufferedChan(t *testing.T) {
 	c := NewBufferedChan(ctx, 10, 3)
 	go func() {
 		for n := 0; n < 10000; n++ {
-			c.Put(n)
+			require.NoError(t, c.Put(n))
 		}
 		c.Close()
 	}()
@@ -34,7 +34,7 @@ func TestBufferedChan(t *testing.T) {
 
 func TestBufferedChanContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	c := NewBufferedChan(ctx, 100, 3)
+	c := NewBufferedChan(ctx, 1, 1)
 	go func() {
 		cancel()
 	}()
@@ -45,6 +45,7 @@ func TestBufferedChanContext(t *testing.T) {
 	r.False(found)
 	r.Nil(v)
 
-	// no timeout
-	c.Put(0)
+	// `Put`` must return an error as the channel is canceled.
+	for err := c.Put(0); err == nil; err = c.Put(0) {
+	}
 }

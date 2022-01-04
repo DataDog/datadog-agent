@@ -13,6 +13,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // IterableSeries represents an iterable collection of Serie.
@@ -41,7 +42,9 @@ func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *Ite
 func (series *IterableSeries) Append(serie *Serie) {
 	series.callback(serie)
 	atomic.AddUint64(&series.count, 1)
-	series.ch.Put(serie)
+	if err := series.ch.Put(serie); err != nil {
+		log.Errorf("Error when addding a serie %v", err)
+	}
 }
 
 // SeriesCount returns the number of series appended with `IterableSeries.Append`.
