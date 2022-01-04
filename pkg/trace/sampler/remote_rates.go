@@ -61,7 +61,6 @@ func newRemoteRates(maxTPS float64) *RemoteRates {
 		client:    client,
 		maxSigTPS: maxTPS,
 		samplers:  make(map[Signature]*remoteSampler),
-		exit:      make(chan struct{}),
 		stopped:   make(chan struct{}),
 	}
 }
