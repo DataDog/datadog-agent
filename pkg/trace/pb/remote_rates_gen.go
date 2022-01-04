@@ -194,6 +194,12 @@ func (z *TargetTPS) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Rank")
 				return
 			}
+		case "4":
+			z.Mechanism, err = dc.ReadUint32()
+			if err != nil {
+				err = msgp.WrapError(err, "Mechanism")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -207,9 +213,9 @@ func (z *TargetTPS) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *TargetTPS) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 4
+	// map header, size 5
 	// write "0"
-	err = en.Append(0x84, 0xa1, 0x30)
+	err = en.Append(0x85, 0xa1, 0x30)
 	if err != nil {
 		return
 	}
@@ -248,15 +254,25 @@ func (z *TargetTPS) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Rank")
 		return
 	}
+	// write "4"
+	err = en.Append(0xa1, 0x34)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint32(z.Mechanism)
+	if err != nil {
+		err = msgp.WrapError(err, "Mechanism")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *TargetTPS) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 4
+	// map header, size 5
 	// string "0"
-	o = append(o, 0x84, 0xa1, 0x30)
+	o = append(o, 0x85, 0xa1, 0x30)
 	o = msgp.AppendString(o, z.Service)
 	// string "1"
 	o = append(o, 0xa1, 0x31)
@@ -267,6 +283,9 @@ func (z *TargetTPS) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "3"
 	o = append(o, 0xa1, 0x33)
 	o = msgp.AppendUint32(o, z.Rank)
+	// string "4"
+	o = append(o, 0xa1, 0x34)
+	o = msgp.AppendUint32(o, z.Mechanism)
 	return
 }
 
@@ -312,6 +331,12 @@ func (z *TargetTPS) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Rank")
 				return
 			}
+		case "4":
+			z.Mechanism, bts, err = msgp.ReadUint32Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Mechanism")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -326,6 +351,6 @@ func (z *TargetTPS) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *TargetTPS) Msgsize() (s int) {
-	s = 1 + 2 + msgp.StringPrefixSize + len(z.Service) + 2 + msgp.StringPrefixSize + len(z.Env) + 2 + msgp.Float64Size + 2 + msgp.Uint32Size
+	s = 1 + 2 + msgp.StringPrefixSize + len(z.Service) + 2 + msgp.StringPrefixSize + len(z.Env) + 2 + msgp.Float64Size + 2 + msgp.Uint32Size + 2 + msgp.Uint32Size
 	return
 }

@@ -257,12 +257,12 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		}
 
 		var backendSampler *Sampler
-		var ok bool
 		if tc.localRate {
 			backendSampler = s.localRates
 		} else {
-			backendSampler, ok = s.remoteRates.getSampler(ServiceSignature{Name: tc.service, Env: defaultEnv}.Hash())
+			remoteSampler, ok := s.remoteRates.getSampler(ServiceSignature{Name: tc.service, Env: defaultEnv}.Hash())
 			assert.True(ok)
+			backendSampler = &remoteSampler.Sampler
 		}
 
 		assert.InEpsilon(tc.expectedTPS, backendSampler.Backend.GetSampledScore(), tc.relativeError)

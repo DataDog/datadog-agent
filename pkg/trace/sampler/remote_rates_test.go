@@ -32,7 +32,7 @@ func TestRemoteConfInit(t *testing.T) {
 func newTestRemoteRates() *RemoteRates {
 	return &RemoteRates{
 		maxSigTPS: maxRemoteTPS,
-		samplers:  make(map[Signature]*Sampler),
+		samplers:  make(map[Signature]*remoteSampler),
 
 		stopped: make(chan struct{}),
 	}
@@ -57,6 +57,8 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		service   string
 		env       string
 		targetTPS float64
+		mechanism uint32
+		rank      uint32
 	}
 
 	var testSteps = []struct {
@@ -184,6 +186,64 @@ func TestRemoteTPSUpdate(t *testing.T) {
 			},
 			version: 35,
 		},
+		{
+			name: "keep highest rank",
+			ratesToApply: pb.APMSampling{
+				TargetTps: []pb.TargetTPS{
+					{
+						Service:   "keep",
+						Value:     10,
+						Mechanism: 5,
+						Rank:      3,
+					},
+					{
+						Service:   "keep",
+						Value:     10,
+						Mechanism: 10,
+						Rank:      10,
+					},
+					{
+						Service:   "keep",
+						Value:     10,
+						Mechanism: 6,
+						Rank:      6,
+					},
+				},
+			},
+			countServices: []ServiceSignature{{"keep", ""}},
+			expectedSamplers: []sampler{
+				{
+					service:   "keep",
+					targetTPS: 10,
+					mechanism: 10,
+					rank:      10,
+				},
+			},
+		},
+		{
+			name: "duplicate",
+			ratesToApply: pb.APMSampling{
+				TargetTps: []pb.TargetTPS{
+					{
+						Service: "keep",
+						Value:   10,
+						Rank:    3,
+					},
+					{
+						Service: "keep",
+						Value:   10,
+						Rank:    3,
+					},
+				},
+			},
+			expectedSamplers: []sampler{
+				{
+					service:   "keep",
+					targetTPS: 10,
+					rank:      3,
+				},
+			},
+		},
 	}
 	r := newTestRemoteRates()
 	for _, step := range testSteps {
@@ -203,6 +263,8 @@ func TestRemoteTPSUpdate(t *testing.T) {
 			require.True(t, ok)
 			root := &pb.Span{Metrics: map[string]float64{}}
 			assert.Equal(expectedS.targetTPS, s.targetTPS.Load())
+			assert.Equal(expectedS.mechanism, s.target.Mechanism)
+			assert.Equal(expectedS.rank, s.target.Rank)
 			r.CountSample(root, sig)
 
 			tpsTag, ok := root.Metrics[tagRemoteTPS]
