@@ -18,7 +18,7 @@ func TestBufferedChan(t *testing.T) {
 	c := NewBufferedChan(ctx, 10, 3)
 	go func() {
 		for n := 0; n < 10000; n++ {
-			require.NoError(t, c.Put(n))
+			require.True(t, c.Put(n))
 		}
 		c.Close()
 	}()
@@ -45,7 +45,7 @@ func TestBufferedChanContext(t *testing.T) {
 	r.False(found)
 	r.Nil(v)
 
-	// `Put`` must return an error as the channel is canceled.
-	for err := c.Put(0); err == nil; err = c.Put(0) {
+	// `Put`` must return false as the channel is canceled.
+	for ok := c.Put(0); ok == true; ok = c.Put(0) {
 	}
 }

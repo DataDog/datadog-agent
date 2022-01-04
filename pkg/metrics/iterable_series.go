@@ -19,11 +19,12 @@ import (
 // IterableSeries represents an iterable collection of Serie.
 // Serie can be appended to IterableSeries while IterableSeries is serialized
 type IterableSeries struct {
-	ch       *util.BufferedChan
-	cancel   context.CancelFunc
-	callback func(*Serie)
-	current  *Serie
-	count    uint64
+	ch                 *util.BufferedChan
+	bufferedChanClosed bool
+	cancel             context.CancelFunc
+	callback           func(*Serie)
+	current            *Serie
+	count              uint64
 }
 
 // NewIterableSeries creates a new instance of *IterableSeries
@@ -42,8 +43,9 @@ func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *Ite
 func (series *IterableSeries) Append(serie *Serie) {
 	series.callback(serie)
 	atomic.AddUint64(&series.count, 1)
-	if err := series.ch.Put(serie); err != nil {
-		log.Errorf("Error when addding a serie %v", err)
+	if !series.ch.Put(serie) && !series.bufferedChanClosed {
+		series.bufferedChanClosed = true
+		log.Errorf("Cannot append a serie in a closed buffered channel")
 	}
 }
 

@@ -7,7 +7,6 @@ package util
 
 import (
 	"context"
-	"errors"
 	"sync"
 )
 
@@ -46,17 +45,18 @@ func NewBufferedChan(ctx context.Context, chanSize int, bufferSize int) *Buffere
 
 // Put puts a new value into c.
 // Cannot be called concurrently.
-func (c *BufferedChan) Put(value interface{}) error {
+// Returns false when BufferedChan is cancelled.
+func (c *BufferedChan) Put(value interface{}) bool {
 	if cap(c.putSlice) <= len(c.putSlice) {
 		select {
 		case c.c <- c.putSlice:
 		case <-c.ctx.Done():
-			return errors.New("BufferedChan is cancelled")
+			return false
 		}
 		c.putSlice = c.pool.Get().([]interface{})[:0]
 	}
 	c.putSlice = append(c.putSlice, value)
-	return nil
+	return true
 }
 
 // Close flushes and closes the channel
