@@ -313,7 +313,7 @@ func TestProcess(t *testing.T) {
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
 		agnt := NewAgent(ctx, cfg)
-		agnt.conf.GlobalTags = map[string]string{"some":"tag", "function_arn":"arn:aws:foo:bar:baz"}
+		agnt.conf.GlobalTags = map[string]string{"some": "tag", "function_arn": "arn:aws:foo:bar:baz"}
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(2, 1))
