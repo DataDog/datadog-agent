@@ -153,7 +153,7 @@ func (w *KMemCheck) Run() error {
 		}
 	}
 	sender.Commit()
-	log.Infof("Logged %v entries", len(tagmap))
+	log.Debugf("Logged %v entries", len(tagmap))
 	return nil
 
 }

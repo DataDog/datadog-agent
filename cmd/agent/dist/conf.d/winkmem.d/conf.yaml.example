@@ -26,3 +26,4 @@ init_config:
 
 # There is only one instance of the check; there is no instance configuration
 instances:
+  - {}
