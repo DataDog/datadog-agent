@@ -8,14 +8,12 @@ package sampler
 import (
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -41,7 +39,6 @@ type RemoteRates struct {
 	tpsVersion uint64       // version of the loaded tpsTargets
 
 	client  *remote.Client
-	exit    chan struct{}
 	stopped chan struct{}
 }
 
@@ -58,7 +55,6 @@ func newRemoteRates(maxTPS float64) *RemoteRates {
 		client:    client,
 		maxSigTPS: maxTPS,
 		samplers:  make(map[Signature]*Sampler),
-		exit:      make(chan struct{}),
 		stopped:   make(chan struct{}),
 	}
 }
@@ -108,55 +104,27 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]float64) {
 	r.mu.Unlock()
 }
 
+// update all samplers
+func (r *RemoteRates) update() {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, s := range r.samplers {
+		s.update()
+	}
+}
+
 // Start runs and adjust rates per signature following remote TPS targets
 func (r *RemoteRates) Start() {
 	go func() {
-		defer watchdog.LogOnPanic()
-		decayTicker := time.NewTicker(defaultDecayPeriod)
-		adjustTicker := time.NewTicker(adjustPeriod)
-		statsTicker := time.NewTicker(10 * time.Second)
-		defer decayTicker.Stop()
-		defer adjustTicker.Stop()
-		defer statsTicker.Stop()
-		for {
-			select {
-			case update := <-r.client.APMSamplingUpdates():
-				r.onUpdate(update)
-			case <-decayTicker.C:
-				r.DecayScores()
-			case <-adjustTicker.C:
-				r.AdjustScoring()
-			case <-statsTicker.C:
-				r.report()
-			case <-r.exit:
-				close(r.stopped)
-				return
-			}
+		for update := range r.client.APMSamplingUpdates() {
+			r.onUpdate(update)
 		}
+		close(r.stopped)
 	}()
-}
-
-// DecayScores decays scores of all samplers
-func (r *RemoteRates) DecayScores() {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	for _, s := range r.samplers {
-		s.Backend.DecayScore()
-	}
-}
-
-// AdjustScoring adjust scores of all samplers
-func (r *RemoteRates) AdjustScoring() {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	for _, s := range r.samplers {
-		s.AdjustScoring()
-	}
 }
 
 // Stop stops RemoteRates main loop
 func (r *RemoteRates) Stop() {
-	close(r.exit)
 	r.client.Close()
 	<-r.stopped
 }

@@ -34,7 +34,6 @@ func newTestRemoteRates() *RemoteRates {
 		maxSigTPS: maxRemoteTPS,
 		samplers:  make(map[Signature]*Sampler),
 
-		exit:    make(chan struct{}),
 		stopped: make(chan struct{}),
 	}
 }
