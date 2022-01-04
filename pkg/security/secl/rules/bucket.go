@@ -97,9 +97,23 @@ func (rb *RuleBucket) GetApprovers(event eval.Event, fieldCaps FieldCapabilities
 		if len(ruleApprovers) == 0 || !fieldCaps.Validate(ruleApprovers) {
 			return nil, &ErrNoApprover{Fields: fieldCaps.GetFields()}
 		}
-		for field, values := range ruleApprovers {
-			approvers[field] = approvers[field].Merge(values)
+
+		// keep the best approver field
+		var approverField eval.Field
+		var approverWeight int
+		for field := range ruleApprovers {
+			for _, fc := range fieldCaps {
+				if field != fc.Field {
+					continue
+				}
+				if fc.FilterWeight >= approverWeight {
+					approverField = field
+				}
+			}
 		}
+
+		values := ruleApprovers[approverField]
+		approvers[approverField] = approvers[approverField].Merge(values)
 	}
 
 	return approvers, nil
