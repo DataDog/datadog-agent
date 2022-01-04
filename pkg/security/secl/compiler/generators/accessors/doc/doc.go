@@ -94,7 +94,7 @@ func GenerateDocJSON(module *common.Module, outputPath string) error {
 }
 
 var (
-	minVersionRE      = regexp.MustCompile(`^\[(?P<version>[0-9.]+)\]\s*\[(?P<type>\w+)\](?P<def>.*)`)
+	minVersionRE      = regexp.MustCompile(`^\[(?P<version>(\w|\.|\s)*)\]\s*\[(?P<type>\w+)\](?P<def>.*)`)
 	minVersionREIndex = minVersionRE.SubexpIndex("version")
 	typeREIndex       = minVersionRE.SubexpIndex("type")
 	definitionREIndex = minVersionRE.SubexpIndex("def")
