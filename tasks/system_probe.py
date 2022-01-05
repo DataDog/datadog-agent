@@ -431,7 +431,7 @@ def get_ebpf_build_flags(target=None):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
     if not target:
-        target=['-emit-llvm']
+        target = ['-emit-llvm']
 
     flags = [
         '-D__KERNEL__',
@@ -443,20 +443,22 @@ def get_ebpf_build_flags(target=None):
         '-Wno-compare-distinct-pointer-types',
         '-Wunused',
         '-Wall',
-        '-Werror'
-        ]
+        '-Werror',
+    ]
     flags.extend(target)
-    flags.extend([
-        f"-include {os.path.join(c_dir, 'asm_goto_workaround.h')}",
-        '-O2',
-        # Some linux distributions enable stack protector by default which is not available on eBPF
-        '-fno-stack-protector',
-        '-fno-color-diagnostics',
-        '-fno-unwind-tables',
-        '-fno-asynchronous-unwind-tables',
-        '-fno-jump-tables',
-        f"-I{c_dir}",
-    ])
+    flags.extend(
+        [
+            f"-include {os.path.join(c_dir, 'asm_goto_workaround.h')}",
+            '-O2',
+            # Some linux distributions enable stack protector by default which is not available on eBPF
+            '-fno-stack-protector',
+            '-fno-color-diagnostics',
+            '-fno-unwind-tables',
+            '-fno-asynchronous-unwind-tables',
+            '-fno-jump-tables',
+            f"-I{c_dir}",
+        ]
+    )
 
     header_dirs = get_linux_header_dirs()
     for d in header_dirs:
@@ -465,7 +467,9 @@ def get_ebpf_build_flags(target=None):
     return flags
 
 
-def build_network_ebpf_compile_file(ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags, extension=".bc"):
+def build_network_ebpf_compile_file(
+    ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags, extension=".bc"
+):
     src_file = os.path.join(network_prebuilt_dir, f"{p}.c")
     if not debug:
         bc_file = os.path.join(build_dir, f"{p}{extension}")
@@ -496,6 +500,7 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
             LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file),
             asynchronous=parallel_build,
         )
+
 
 def build_http_ebpf_files(ctx, build_dir):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
