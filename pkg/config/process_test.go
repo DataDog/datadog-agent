@@ -153,8 +153,8 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: time.Hour,
 		},
 		{
-			key:      "process_config.disable_realtime",
-			env:      "DD_PROCESS_CONFIG_DISABLE_REALTIME",
+			key:      "process_config.disable_realtime_checks",
+			env:      "DD_PROCESS_CONFIG_DISABLE_REALTIME_CHECKS",
 			value:    "true",
 			expected: true,
 		},

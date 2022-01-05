@@ -85,7 +85,7 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 	}
 
 	enabledChecks := make([]checks.Check, 0)
-	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime")
+	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 	for _, c := range checks.All {
 		if !runRealTime && isRealTimeCheck(c.Name()) {
 			log.Infof("Skip enabling check '%s': realtime disabled", c.Name())

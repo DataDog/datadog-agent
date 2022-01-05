@@ -132,7 +132,7 @@ func TestDisableRealTime(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock()
-			mockConfig.Set("process_config.disable_realtime", tc.disableRealtime)
+			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 
 			c, err := NewCollector(cfg)
 			assert.NoError(err)

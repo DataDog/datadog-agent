@@ -1,5 +1,5 @@
 ---
 enhancements:
   - |
-    Adds process_config.disable_realtime config setting in the process agent
-    allowing users to disable realtime process and container checks.
+    Adds process_config.disable_realtime_checks config setting in the process
+    agent allowing users to disable realtime process and container checks.
