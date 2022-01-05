@@ -46,6 +46,8 @@ type PrioritySampler struct {
 	localRates *Sampler
 	// remoteRates targetTPS is set remotely and distributed by remote configurations.
 	// One target is defined per combination of tracerEnv, service and it applies only to root spans.
+	// remoteRates can be nil if the remote feature is not enabled in the trace-agent with feature flag "remote_rates"
+	// or in the core-agent remote client.
 	remoteRates *RemoteRates
 
 	// rateByService contains the sampling rates in % to communicate with trace-agent clients.
@@ -84,8 +86,7 @@ func (s *PrioritySampler) Start() {
 			case <-updateRates.C:
 				s.updateRates()
 			case <-statsTicker.C:
-				s.localRates.report()
-				s.remoteRates.report()
+				s.reportStats()
 			case <-s.exit:
 				return
 			}
@@ -93,10 +94,20 @@ func (s *PrioritySampler) Start() {
 	}()
 }
 
+// report sampler stats
+func (s *PrioritySampler) reportStats() {
+	s.localRates.report()
+	if s.remoteRates != nil {
+		s.remoteRates.report()
+	}
+}
+
 // update sampling rates
 func (s *PrioritySampler) updateRates() {
 	s.localRates.update()
-	s.remoteRates.update()
+	if s.remoteRates != nil {
+		s.remoteRates.update()
+	}
 	s.rateByService.SetAll(s.ratesByService())
 }
 
