@@ -30,6 +30,11 @@ func NewUniqueTags(tags ...string) *Tags {
 	return DefaultFactory.NewUniqueTags(tags...)
 }
 
+// NewTag calls DefaultFactory.NewTag
+func NewTag(tag string) *Tags {
+	return DefaultFactory.NewTag(tag)
+}
+
 // NewTagsFromMap calls DefaultFactory.NewTagsFromMap
 func NewTagsFromMap(tags map[string]struct{}) *Tags {
 	return DefaultFactory.NewTagsFromMap(tags)
