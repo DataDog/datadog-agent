@@ -5,17 +5,14 @@
 
 package eval
 
-import (
-	"sort"
-)
-
 type registerInfo struct {
 	iterator  Iterator
 	field     Field
 	subFields map[Field]bool
 }
 
-type state struct {
+// State defines the current state of the rule compilation
+type State struct {
 	model         Model
 	field         Field
 	events        map[EventType]bool
@@ -24,13 +21,15 @@ type state struct {
 	registersInfo map[RegisterID]*registerInfo
 }
 
-func (s *state) UpdateFields(field Field) {
+// UpdateFields updates the fields used in the rule
+func (s *State) UpdateFields(field Field) {
 	if _, ok := s.fieldValues[field]; !ok {
 		s.fieldValues[field] = []FieldValue{}
 	}
 }
 
-func (s *state) UpdateFieldValues(field Field, value FieldValue) error {
+// UpdateFieldValues updates the field values
+func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 	values, ok := s.fieldValues[field]
 	if !ok {
 		values = []FieldValue{}
@@ -40,22 +39,11 @@ func (s *state) UpdateFieldValues(field Field, value FieldValue) error {
 	return s.model.ValidateField(field, value)
 }
 
-func (s *state) Events() []EventType {
-	var events []EventType
-
-	for event := range s.events {
-		events = append(events, event)
-	}
-	sort.Strings(events)
-
-	return events
-}
-
-func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *state {
+func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
 	if macros == nil {
 		macros = make(map[MacroID]*MacroEvaluator)
 	}
-	return &state{
+	return &State{
 		field:         field,
 		macros:        macros,
 		model:         model,

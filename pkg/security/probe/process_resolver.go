@@ -685,8 +685,8 @@ func (p *ProcessResolver) GetScrubbedProcessArgv(pr *model.Process) ([]string, b
 		return nil, false
 	}
 
-	if len(pr.ArgsCache) != 0 {
-		return pr.ArgsCache, pr.ArgsTruncated
+	if len(pr.Args) != 0 {
+		return pr.Argv, pr.ArgsTruncated
 	}
 
 	argv, truncated := pr.ArgsEntry.ToArray()
@@ -695,15 +695,15 @@ func (p *ProcessResolver) GetScrubbedProcessArgv(pr *model.Process) ([]string, b
 
 	if p.probe.scrubber != nil {
 		if newArgv, changed := p.probe.scrubber.ScrubCommand(argv); changed {
-			pr.ArgsCache = newArgv
+			pr.Argv = newArgv
 		} else {
-			pr.ArgsCache = argv
+			pr.Argv = argv
 		}
 	} else {
-		pr.ArgsCache = argv
+		pr.Argv = argv
 	}
 
-	return pr.ArgsCache, pr.ArgsTruncated
+	return pr.Argv, pr.ArgsTruncated
 }
 
 // SetProcessEnvs set envs to cache entry

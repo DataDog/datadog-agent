@@ -285,12 +285,12 @@ func TestRuleSetFilters2(t *testing.T) {
 			FilterWeight: 3,
 		},
 		{
-			Field:        "process.uid",
+			Field:        "process.gid",
 			Types:        eval.ScalarValueType,
 			FilterWeight: 2,
 		},
 		{
-			Field:        "process.gid",
+			Field:        "process.uid",
 			Types:        eval.ScalarValueType,
 			FilterWeight: 1,
 		},
@@ -369,8 +369,8 @@ func TestRuleSetFilters4(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetEventApprovers("open", caps); err == nil {
-		t.Fatal("shouldn't get any approver")
+	if approvers, err := rs.GetEventApprovers("open", caps); err == nil {
+		t.Fatalf("shouldn't get any approver, got: %+v", approvers)
 	}
 
 	caps = FieldCapabilities{
