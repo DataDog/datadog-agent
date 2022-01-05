@@ -20,7 +20,11 @@ func IsEnabled(cfg config.Config) bool {
 	return false
 }
 
+// Pipeline is an OTLP pipeline.
 type Pipeline struct {}
+
+// Stop the OTLP pipeline.
+func (p *Pipeline) Stop() {}
 
 // BuildAndStart builds and starts an OTLP pipeline
 func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
