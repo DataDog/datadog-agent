@@ -565,10 +565,6 @@ const (
 	// come first.
 	TaggerPriority SubscriberPriority = iota
 
-	// ADPriority is the priority for autodiscovery.  This must come after
-	// Tagger, but before other components.
-	ADPriority SubscriberPriority = iota
-
 	// NormalPriority should be used by subscribers on which other components
 	// do not depend.
 	NormalPriority SubscriberPriority = iota
