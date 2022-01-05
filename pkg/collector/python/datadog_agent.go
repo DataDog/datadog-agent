@@ -253,7 +253,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	}
 	s := C.GoString(rawQuery)
 	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
-		EngineType:      sqlOpts.EngineType,
+		DBMS:            sqlOpts.DBMS,
 		TableNames:      sqlOpts.TableNames,
 		CollectCommands: sqlOpts.CollectCommands,
 		CollectComments: sqlOpts.CollectComments,
