@@ -84,7 +84,7 @@ struct bpf_map_def SEC("maps/classifier_router") classifier_router = {
 };
 
 __attribute__((always_inline)) void tail_call_to_classifier(struct __sk_buff *skb, int classifier_id) {
-    bpf_tail_call(skb, &classifier_router, classifier_id);
+    bpf_tail_call_compat(skb, &classifier_router, classifier_id);
 }
 
 struct network_device_context_t {
