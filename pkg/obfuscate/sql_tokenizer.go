@@ -150,6 +150,11 @@ func (k TokenKind) String() string {
 	return str
 }
 
+const (
+	// DBMSSqlserver is a MS SQL Server
+	DBMSSqlserver = "sqlserver"
+)
+
 const escapeCharacter = '\\'
 
 // SQLTokenizer is the struct used to generate SQL
@@ -306,7 +311,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return TokenKind(ch), tkn.bytes()
 			}
 		case '#':
-			if tkn.cfg.DBMS == "sqlserver" {
+			if tkn.cfg.DBMS == DBMSSqlserver {
 				return tkn.scanIdentifier()
 			}
 			tkn.advance()
