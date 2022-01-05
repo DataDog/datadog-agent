@@ -2,7 +2,7 @@ package tagset
 
 // DefaultFactory is a global thread-safe factory, used by calls to
 // package-level functions. This is suitable for non-performance-critical tags
-// manipulation
+// manipulation.  It performs no caching.
 var DefaultFactory Factory
 
 // EmptyTags is a ready-to-use Tags instance that contains no tags. Use this
@@ -10,8 +10,8 @@ var DefaultFactory Factory
 var EmptyTags *Tags
 
 func init() {
-	cf, _ := NewCachingFactory(1000, 5)
-	DefaultFactory = NewThreadsafeFactory(cf)
+	f := NewNullFactory()
+	DefaultFactory = NewThreadsafeFactory(f)
 	EmptyTags = NewTags([]string{})
 }
 

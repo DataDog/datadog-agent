@@ -9,7 +9,7 @@ import (
 )
 
 func testBuilder() *Builder {
-	bldr := newBuilder(newNullFactory())
+	bldr := newBuilder(NewNullFactory())
 	bldr.reset(10)
 	return bldr
 }

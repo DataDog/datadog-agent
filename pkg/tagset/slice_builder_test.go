@@ -10,7 +10,7 @@ import (
 )
 
 func TestSliceBuilder_Fuzz(t *testing.T) {
-	f := newNullFactory()
+	f := NewNullFactory()
 	var lastSb *SliceBuilder
 	fuzz(t, func(seed int64) {
 		r := rand.New(rand.NewSource(seed))
@@ -66,7 +66,7 @@ func TestSliceBuilder_Fuzz(t *testing.T) {
 }
 
 func TestSliceBuilder_AddKV(t *testing.T) {
-	f := newNullFactory()
+	f := NewNullFactory()
 	sb := f.NewSliceBuilder(3, 4)
 
 	sb.AddKV(0, "host", "123")

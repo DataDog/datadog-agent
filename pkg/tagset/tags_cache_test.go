@@ -9,7 +9,7 @@ import (
 )
 
 func TestTagsCacheCaching(t *testing.T) {
-	f := newNullFactory()
+	f := NewNullFactory()
 	tc, _ := newTagsCache(100, 1)
 	missCalls := 0
 
@@ -36,7 +36,7 @@ func TestTagsCacheCaching(t *testing.T) {
 }
 
 func TestTagsCacheCachingErr(t *testing.T) {
-	f := newNullFactory()
+	f := NewNullFactory()
 	tc, _ := newTagsCache(100, 1)
 	missCalls := 0
 	missErrs := 0
@@ -92,7 +92,7 @@ func TestTagsCacheCachingErr(t *testing.T) {
 }
 
 func TestTagsCacheBasicRotation(t *testing.T) {
-	f := newNullFactory()
+	f := NewNullFactory()
 	checkCached := func(insertsPerRotation, cacheCount, numTagsets int, shouldBe bool) func(*testing.T) {
 		return func(t *testing.T) {
 			t.Run("getCachedTags", func(t *testing.T) {
@@ -142,7 +142,7 @@ func TestTagsCacheBasicRotation(t *testing.T) {
 }
 
 func TestTagsCacheRecaching(t *testing.T) {
-	f := newNullFactory()
+	f := NewNullFactory()
 	tc, _ := newTagsCache(10, 3)
 
 	v := tc.getCachedTags(0x9999, func() *Tags { return f.NewTags([]string{"expected"}) })
@@ -164,7 +164,7 @@ func TestTagsCacheRecaching(t *testing.T) {
 }
 
 func TestTagsCacheMinimal(t *testing.T) {
-	f := newNullFactory()
+	f := NewNullFactory()
 
 	// use the smallest allowed cache, in case this causes any infinite
 	// rotation loops or other bugs. Note that this configuration caches nothing!
