@@ -6,18 +6,16 @@
 package sampler
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -30,6 +28,7 @@ const (
 // from remote configurations. RemoteRates listens for new remote configurations
 // with a grpc subscriber. On reception, new tps targets replace the previous ones.
 type RemoteRates struct {
+	maxSigTPS float64
 	// samplers contains active sampler adjusting rates to match latest tps targets
 	// available. A sampler is added only if a span matching the signature is seen.
 	samplers map[Signature]*Sampler
@@ -39,45 +38,44 @@ type RemoteRates struct {
 	mu         sync.RWMutex // protects concurrent access to samplers and tpsTargets
 	tpsVersion uint64       // version of the loaded tpsTargets
 
-	stopSubscriber context.CancelFunc
-	exit           chan struct{}
-	stopped        chan struct{}
+	client  *remote.Client
+	stopped chan struct{}
 }
 
-func newRemoteRates() *RemoteRates {
+func newRemoteRates(maxTPS float64) *RemoteRates {
 	if !features.Has("remote_rates") {
 		return nil
 	}
-	remoteRates := &RemoteRates{
-		samplers: make(map[Signature]*Sampler),
-		exit:     make(chan struct{}),
-		stopped:  make(chan struct{}),
-	}
-	close, err := service.NewGRPCSubscriber(pbgo.Product_APM_SAMPLING, remoteRates.loadNewConfig)
+	client, err := remote.NewClient(remote.Facts{ID: "trace-agent", Name: "trace-agent", Version: version.AgentVersion}, []data.Product{data.ProductAPMSampling})
 	if err != nil {
 		log.Errorf("Error when subscribing to remote config management %v", err)
 		return nil
 	}
-	remoteRates.stopSubscriber = close
-	return remoteRates
+	return &RemoteRates{
+		client:    client,
+		maxSigTPS: maxTPS,
+		samplers:  make(map[Signature]*Sampler),
+		stopped:   make(chan struct{}),
+	}
 }
 
-func (r *RemoteRates) loadNewConfig(new *pbgo.ConfigResponse) error {
-	log.Debugf("fetched config version %d from remote config management", new.ConfigDelegatedTargetVersion)
+func (r *RemoteRates) onUpdate(update remote.APMSamplingUpdate) error {
+	log.Debugf("fetched config version %d from remote config management", update.Config.Version)
 	tpsTargets := make(map[Signature]float64, len(r.tpsTargets))
-	for _, targetFile := range new.TargetFiles {
-		var new pb.APMSampling
-		_, err := new.UnmarshalMsg(targetFile.Raw)
-		if err != nil {
-			return err
-		}
-		for _, targetTPS := range new.TargetTps {
+	for _, rates := range update.Config.Rates {
+		for _, targetTPS := range rates.TargetTps {
+			if targetTPS.Value > r.maxSigTPS {
+				targetTPS.Value = r.maxSigTPS
+			}
+			if targetTPS.Value == 0 {
+				continue
+			}
 			sig := ServiceSignature{Name: targetTPS.Service, Env: targetTPS.Env}.Hash()
 			tpsTargets[sig] = targetTPS.Value
 		}
 	}
 	r.updateTPS(tpsTargets)
-	atomic.StoreUint64(&r.tpsVersion, new.ConfigDelegatedTargetVersion)
+	atomic.StoreUint64(&r.tpsVersion, update.Config.Version)
 	return nil
 }
 
@@ -106,54 +104,28 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]float64) {
 	r.mu.Unlock()
 }
 
+// update all samplers
+func (r *RemoteRates) update() {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, s := range r.samplers {
+		s.update()
+	}
+}
+
 // Start runs and adjust rates per signature following remote TPS targets
 func (r *RemoteRates) Start() {
 	go func() {
-		defer watchdog.LogOnPanic()
-		decayTicker := time.NewTicker(defaultDecayPeriod)
-		adjustTicker := time.NewTicker(adjustPeriod)
-		statsTicker := time.NewTicker(10 * time.Second)
-		defer decayTicker.Stop()
-		defer adjustTicker.Stop()
-		defer statsTicker.Stop()
-		for {
-			select {
-			case <-decayTicker.C:
-				r.DecayScores()
-			case <-adjustTicker.C:
-				r.AdjustScoring()
-			case <-statsTicker.C:
-				r.report()
-			case <-r.exit:
-				close(r.stopped)
-				return
-			}
+		for update := range r.client.APMSamplingUpdates() {
+			r.onUpdate(update)
 		}
+		close(r.stopped)
 	}()
-}
-
-// DecayScores decays scores of all samplers
-func (r *RemoteRates) DecayScores() {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	for _, s := range r.samplers {
-		s.Backend.DecayScore()
-	}
-}
-
-// AdjustScoring adjust scores of all samplers
-func (r *RemoteRates) AdjustScoring() {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	for _, s := range r.samplers {
-		s.AdjustScoring()
-	}
 }
 
 // Stop stops RemoteRates main loop
 func (r *RemoteRates) Stop() {
-	close(r.exit)
-	r.stopSubscriber()
+	r.client.Close()
 	<-r.stopped
 }
 

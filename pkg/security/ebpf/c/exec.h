@@ -171,7 +171,7 @@ int kprobe_parse_args_envs(struct pt_regs *ctx) {
 
     syscall->exec.next_tail++;
 
-    bpf_tail_call(ctx, &args_envs_progs, syscall->exec.next_tail);
+    bpf_tail_call_compat(ctx, &args_envs_progs, syscall->exec.next_tail);
 
     return 0;
 }
@@ -437,7 +437,7 @@ int __attribute__((always_inline)) parse_args_and_env(struct pt_regs *ctx) {
     // call it here before the memory get replaced
     fill_span_context(&syscall->exec.span_context);
 
-    bpf_tail_call(ctx, &args_envs_progs, syscall->exec.next_tail);
+    bpf_tail_call_compat(ctx, &args_envs_progs, syscall->exec.next_tail);
     return 0;
 }
 

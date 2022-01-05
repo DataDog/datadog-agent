@@ -20,15 +20,13 @@ type DynamicConfig struct {
 // NewDynamicConfig creates a new dynamic config object which maps service signatures
 // to their corresponding sampling rates. Each service will have a default assigned
 // matching the service rate of the specified env.
-func NewDynamicConfig(env string) *DynamicConfig {
-	return &DynamicConfig{RateByService: RateByService{defaultEnv: env}}
+func NewDynamicConfig() *DynamicConfig {
+	return &DynamicConfig{RateByService: RateByService{}}
 }
 
 // RateByService stores the sampling rate per service. It is thread-safe, so
 // one can read/write on it concurrently, using getters and setters.
 type RateByService struct {
-	defaultEnv string // env. to use for service defaults
-
 	mu    sync.RWMutex // guards rates
 	rates map[string]float64
 }
@@ -53,11 +51,6 @@ func (rbs *RateByService) SetAll(rates map[ServiceSignature]float64) {
 			v = 1
 		}
 		rbs.rates[k.String()] = v
-		if k.Env == rbs.defaultEnv {
-			// if this is the default env, then this is also the
-			// service's default rate unbound to any env.
-			rbs.rates[ServiceSignature{Name: k.Name}.String()] = v
-		}
 	}
 }
 

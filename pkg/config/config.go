@@ -258,8 +258,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
-	config.BindEnvAndSetDefault("remote_configuration.tracer_cache.size", 1000)
-	config.BindEnvAndSetDefault("remote_configuration.tracer_cache.ttl_seconds", 30*time.Second)
+	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -403,7 +402,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel", true)
-	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 500*1000) // This default value ensures the aggregator dont' wait for the serializer.
+	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
+	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
 
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)

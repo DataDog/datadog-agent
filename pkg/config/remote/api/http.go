@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package client
+package api
 
 import (
 	"bytes"
@@ -12,34 +12,30 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"github.com/tinylib/msgp/msgp"
+	"github.com/gogo/protobuf/proto"
 )
 
-// Client is the interface to implement for a configuration fetcher
-type Client interface {
-	Fetch(context.Context, *pbgo.ClientLatestConfigsRequest) (*pbgo.LatestConfigsResponse, error)
+// API is the interface to implement for a configuration fetcher
+type API interface {
+	Fetch(context.Context, *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error)
 }
 
 // HTTPClient fetches configurations using HTTP requests
 type HTTPClient struct {
-	baseURL  string
-	client   *http.Client
-	header   http.Header
-	hostname string
+	baseURL string
+	client  *http.Client
+	header  http.Header
 }
 
 // NewHTTPClient returns a new HTTP configuration client
-func NewHTTPClient(baseURL, apiKey, appKey, hostname string) *HTTPClient {
+func NewHTTPClient(baseURL, apiKey, appKey string) *HTTPClient {
 	header := http.Header{
 		"DD-Api-Key":         []string{apiKey},
 		"DD-Application-Key": []string{appKey},
-		"Content-Type":       []string{"application/msgpack"},
+		"Content-Type":       []string{"application/x-protobuf"},
 	}
 
 	httpClient := &http.Client{
@@ -47,40 +43,15 @@ func NewHTTPClient(baseURL, apiKey, appKey, hostname string) *HTTPClient {
 	}
 
 	return &HTTPClient{
-		client:   httpClient,
-		header:   header,
-		baseURL:  baseURL,
-		hostname: hostname,
+		client:  httpClient,
+		header:  header,
+		baseURL: baseURL,
 	}
 }
 
 // Fetch remote configuration
-func (c *HTTPClient) Fetch(ctx context.Context, state uptane.State, connectedTracers []*pbgo.TracerInfo, products map[pbgo.Product]struct{}, newProducts map[pbgo.Product]struct{}) (*pbgo.LatestConfigsResponse, error) {
-	productsList := make([]pbgo.Product, len(products))
-	i := 0
-	for k := range products {
-		productsList[i] = k
-		i++
-	}
-	newProductsList := make([]pbgo.Product, len(newProducts))
-	i = 0
-	for k := range newProducts {
-		newProductsList[i] = k
-		i++
-	}
-
-	request := &pbgo.ClientLatestConfigsRequest{
-		Hostname:                     c.hostname,
-		AgentVersion:                 version.AgentVersion,
-		Products:                     productsList,
-		NewProducts:                  newProductsList,
-		CurrentConfigSnapshotVersion: state.ConfigSnapshotVersion,
-		CurrentConfigRootVersion:     state.ConfigRootVersion,
-		CurrentDirectorRootVersion:   state.DirectorRootVersion,
-		ConnectedTracers:             connectedTracers,
-	}
-
-	body, err := request.MarshalMsg([]byte{})
+func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error) {
+	body, err := proto.Marshal(request)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +85,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, state uptane.State, connectedTra
 	}
 
 	response := &pbgo.LatestConfigsResponse{}
-	err = msgp.Decode(bytes.NewBuffer(body), response)
+	err = proto.Unmarshal(body, response)
 	if err != nil {
 		log.Debugf("Error decoding response, %w, response body: %s", err, string(body))
 		return nil, fmt.Errorf("failed to decode response: %w", err)

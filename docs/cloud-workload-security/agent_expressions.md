@@ -128,6 +128,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | -------- | ---- | ---------- |
 | `container.id` | string | ID of the container |
 | `container.tags` | string | Tags of the container |
+| `process.ancestors.args` | string | Arguments of the process (as a string) |
+| `process.ancestors.args_flags` | string | Arguments of the process (as an array) |
+| `process.ancestors.args_options` | string | Arguments of the process (as an array) |
+| `process.ancestors.args_truncated` | bool | Indicator of arguments truncation |
+| `process.ancestors.argv` | string | Arguments of the process (as an array) |
 | `process.ancestors.cap_effective` | int | Effective capability set of the process |
 | `process.ancestors.cap_permitted` | int | Permitted capability set of the process |
 | `process.ancestors.comm` | string | Comm attribute of the process |
@@ -136,6 +141,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.created_at` | int | Timestamp of the creation of the process |
 | `process.ancestors.egid` | int | Effective GID of the process |
 | `process.ancestors.egroup` | string | Effective group of the process |
+| `process.ancestors.envs` | string | Environment variables of the process |
+| `process.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
 | `process.ancestors.euid` | int | Effective UID of the process |
 | `process.ancestors.euser` | string | Effective user of the process |
 | `process.ancestors.file.change_time` | int | Change time of the file |
@@ -164,6 +171,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.tty_name` | string | Name of the TTY associated with the process |
 | `process.ancestors.uid` | int | UID of the process |
 | `process.ancestors.user` | string | User of the process |
+| `process.args` | string | Arguments of the process (as a string) |
+| `process.args_flags` | string | Arguments of the process (as an array) |
+| `process.args_options` | string | Arguments of the process (as an array) |
+| `process.args_truncated` | bool | Indicator of arguments truncation |
+| `process.argv` | string | Arguments of the process (as an array) |
 | `process.cap_effective` | int | Effective capability set of the process |
 | `process.cap_permitted` | int | Permitted capability set of the process |
 | `process.comm` | string | Comm attribute of the process |
@@ -172,6 +184,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.created_at` | int | Timestamp of the creation of the process |
 | `process.egid` | int | Effective GID of the process |
 | `process.egroup` | string | Effective group of the process |
+| `process.envs` | string | Environment variables of the process |
+| `process.envs_truncated` | bool | Indicator of environment variables truncation |
 | `process.euid` | int | Effective UID of the process |
 | `process.euser` | string | Effective user of the process |
 | `process.file.change_time` | int | Change time of the file |

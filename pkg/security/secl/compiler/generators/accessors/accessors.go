@@ -63,7 +63,7 @@ func origTypeToBasicType(kind string) string {
 	return kind
 }
 
-func handleBasic(name, alias, kind, event string, iterator *common.StructField, isArray bool, commentText string) {
+func handleBasic(name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string) {
 	fmt.Printf("handleBasic %s %s\n", name, kind)
 
 	basicType := origTypeToBasicType(kind)
@@ -76,12 +76,13 @@ func handleBasic(name, alias, kind, event string, iterator *common.StructField, 
 		OrigType:    kind,
 		Iterator:    iterator,
 		CommentText: commentText,
+		OpOverrides: opOverrides,
 	}
 
 	module.EventTypes[event] = true
 }
 
-func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, commentText string) error {
+func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
 	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 
 	switch fieldType.Name {
@@ -90,7 +91,7 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(name, alias, fieldType.Name, event, iterator, isArray, commentText)
+		handleBasic(name, alias, fieldType.Name, event, iterator, isArray, opOverride, commentText)
 
 	default:
 		symbol, err := resolveSymbol(pkgName, fieldType.Name)
@@ -185,14 +186,16 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						continue
 					}
 
+					var opOverrides string
 					var fields []seclField
 					fieldType, isPointer, isArray := getFieldIdent(field)
 
 					var weight int64
 					if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
-						for _, fieldTag := range tags.Tags() {
-							if fieldTag.Key == "field" {
-								splitted := strings.SplitN(fieldTag.Value(), ",", 3)
+						for _, tag := range tags.Tags() {
+							switch tag.Key {
+							case "field":
+								splitted := strings.SplitN(tag.Value(), ",", 3)
 								alias := splitted[0]
 								if alias == "-" {
 									continue FIELD
@@ -206,6 +209,8 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								}
 
 								fields = append(fields, field)
+							case "op_override":
+								opOverrides = tag.Value()
 							}
 						}
 					} else {
@@ -238,6 +243,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								IsArray:       isArray,
 								Weight:        weight,
 								CommentText:   fieldCommentText,
+								OpOverrides:   opOverrides,
 							}
 
 							fieldIterator = module.Iterators[alias]
@@ -261,6 +267,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								IsArray:     isArray,
 								Weight:      weight,
 								CommentText: fieldCommentText,
+								OpOverrides: opOverrides,
 							}
 
 							module.EventTypes[event] = true
@@ -272,7 +279,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						dejavu[fieldName] = true
 
 						if fieldType != nil {
-							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, fieldCommentText); err != nil {
+							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, fieldCommentText); err != nil {
 								log.Print(err)
 							}
 
@@ -463,7 +470,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "{{$Name}}":
 		return &{{$EvaluatorType}}{
+			{{- if and $Field.OpOverrides (not $Mock)}}
+			OpOverrides: {{$Field.OpOverrides}},
+			{{- end}}
 			{{- if $Field.Iterator}}
+				{{- $ArrayPrefix := ""}}
+				{{- if $Field.IsArray}}
+					{{$ArrayPrefix = "[]"}}
+				{{end}}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
 					{{- if not $Mock }}
 					if ptr := ctx.Cache[field]; ptr != nil {
@@ -479,7 +493,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value := iterator.Front(ctx)
 					for value != nil {
-						var result {{$Field.ReturnType}}
+						var result {{$ArrayPrefix}}{{$Field.ReturnType}}
 
 						{{if $Field.Iterator.IsOrigTypePtr}}
 							element := (*{{$Field.Iterator.OrigType}})(value)
@@ -502,7 +516,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 							result = {{$Return}}
 						{{end}}
 
+						{{if eq $ArrayPrefix ""}}
 						results = append(results, result)
+						{{else}}
+						results = append(results, result...)
+						{{end}}
 
 						value = iterator.Next()
 					}
@@ -515,16 +533,17 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				},
 			{{- else}}
 				{{- $ArrayPrefix := ""}}
+				{{- $ReturnType := $Field.ReturnType}}
 				{{- if $Field.IsArray}}
 					{{$ArrayPrefix = "[]"}}
 				{{end}}
-				EvalFnc: func(ctx *eval.Context) {{$ArrayPrefix}}{{$Field.ReturnType}} {
+				EvalFnc: func(ctx *eval.Context) {{$ArrayPrefix}}{{$ReturnType}} {
 					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
 					{{- if and (ne $Field.Handler "") (not $Mock)}}
 						{{$Return = print "(*Event)(ctx.Object)." $Field.Handler "(&(*Event)(ctx.Object)." $Field.Prefix ")"}}
 					{{end}}
 
-					{{- if eq $Field.ReturnType "int"}}
+					{{- if eq $ReturnType "int"}}
 						{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
 							result := make([]int, len({{$Return}}))
 							for i, v := range {{$Return}} {
@@ -545,10 +564,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			{{end -}}
 			Field: field,
 			{{- if $Field.Iterator}}
+				{{- if gt $Field.Weight 0}}
+				Weight: {{$Field.Weight}} * eval.IteratorWeight,
+				{{else}}
 				Weight: eval.IteratorWeight,
+				{{end}}
 			{{else if $Field.Handler}}
 				{{- if gt $Field.Weight 0}}
-					Weight: {{$Field.Weight}},
+					Weight: {{$Field.Weight}} * eval.HandlerWeight,
 				{{else}}
 					Weight: eval.HandlerWeight,
 				{{end -}}
@@ -576,6 +599,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{range $Name, $Field := .Fields}}
 		case "{{$Name}}":
 		{{if $Field.Iterator}}
+			{{- $ArrayPrefix := ""}}
+			{{- if $Field.IsArray}}
+				{{$ArrayPrefix = "[]"}}
+			{{end}}
+
 			var values []{{$Field.ReturnType}}
 
 			ctx := eval.NewContext(unsafe.Pointer(e))
@@ -605,7 +633,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 					result := {{$Return}}
 				{{end}}
 
+				{{if eq $ArrayPrefix ""}}
 				values = append(values, result)
+				{{else}}
+				values = append(values, result...)
+				{{end}}
 
 				ptr = iterator.Next()
 			}

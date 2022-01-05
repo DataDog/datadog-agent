@@ -6,6 +6,7 @@
 package uptane
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"path"
@@ -71,4 +72,12 @@ func trimHashTargetPath(targetPath string) string {
 		basename = split[1]
 	}
 	return path.Join(path.Dir(targetPath), basename)
+}
+
+type bufferDestination struct {
+	bytes.Buffer
+}
+
+func (b *bufferDestination) Delete() error {
+	return nil
 }
