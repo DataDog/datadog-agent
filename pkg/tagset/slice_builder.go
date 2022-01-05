@@ -102,52 +102,18 @@ func (bldr *SliceBuilder) reset(levels, capacity int) {
 // tag's level).
 func (bldr *SliceBuilder) Add(level int, tag string) {
 	h := murmur3.StringSum64(tag)
-	if _, seen := bldr.seen[h]; seen {
+	if bldr.alreadySeen(h) {
 		return
 	}
-	bldr.seen[h] = struct{}{}
 
-	newLen := len(bldr.tags) + 1
+	// insert this element into tags/hashes
 	insertAt := bldr.offsets[level+1]
+	bldr.allocate(level, insertAt)
+	bldr.tags[insertAt] = tag
+	bldr.hashes[insertAt] = h
 
-	var newTags []string
-	var newHashes []uint64
-
-	// reallocate the storage if there is not enough room in the existing
-	// array, and copy the existing data into the new array
-	if cap(bldr.tags) < newLen {
-		newTags = make([]string, newLen, newLen*2)
-		newHashes = make([]uint64, newLen, newLen*2)
-
-		copy(newTags[:insertAt], bldr.tags[:insertAt])
-		copy(newTags[insertAt+1:], bldr.tags[insertAt:])
-
-		copy(newHashes[:insertAt], bldr.hashes[:insertAt])
-		copy(newHashes[insertAt+1:], bldr.hashes[insertAt:])
-	} else {
-		newTags = bldr.tags[:newLen]
-		newHashes = bldr.hashes[:newLen]
-
-		// make space for the new element with the minimum number of copies,
-		// moving the first element of each level's slice to the end of that
-		// slice
-		for l := bldr.levels - 1; l > level; l-- {
-			s := bldr.offsets[l]
-			d := bldr.offsets[l+1]
-			newTags[d], newHashes[d] = newTags[s], newHashes[s]
-		}
-	}
-
-	newTags[insertAt] = tag
-	newHashes[insertAt] = h
-
-	bldr.tags = newTags
-	bldr.hashes = newHashes
-
+	// update the hash for this level
 	bldr.levelHashes[level] ^= h
-	for l := level + 1; l < bldr.levels+1; l++ {
-		bldr.offsets[l]++
-	}
 }
 
 // AddKV adds the tag "k:v" to the builder at the given level. If the tag is
@@ -193,4 +159,69 @@ func (bldr *SliceBuilder) Close() {
 	bldr.hashes = nil
 	bldr.tags = nil
 	bldr.factory.sliceBuilderClosed(bldr)
+}
+
+// alreadySeen checks if a tag has already been seen; if not, it records it as seen.
+func (bldr *SliceBuilder) alreadySeen(h uint64) bool {
+	if _, seen := bldr.seen[h]; seen {
+		return true
+	}
+	bldr.seen[h] = struct{}{}
+	return false
+}
+
+// allocate allocates space to insert a new tag in bldr.tags and bldr.hashes at
+// position insertAt
+func (bldr *SliceBuilder) allocate(level, insertAt int) {
+	var newTags []string
+	var newHashes []uint64
+
+	newLen := len(bldr.tags) + 1
+
+	// reallocate the storage if there is not enough room in the existing
+	// array, and copy the existing data into the new array
+	if cap(bldr.tags) < newLen {
+		newTags = make([]string, newLen, newLen*2)
+		newHashes = make([]uint64, newLen, newLen*2)
+
+		// copy tags to newly-allocated newTags[:insertAt] and [insertAt+1:],
+		// leaving space at insertAt.  For example:
+		//       ↓ insertAt
+		// 0a 0b 1a 1b 1c 2a 2b 2c 3a 3b
+		// || ||  \\ \\ \\ \\ \\ \\ \\ \\
+		// 0a 0b    1a 1b 1c 2a 2b 2c 3a 3b
+		copy(newTags[:insertAt], bldr.tags[:insertAt])
+		copy(newTags[insertAt+1:], bldr.tags[insertAt:])
+
+		// same for hashes
+		copy(newHashes[:insertAt], bldr.hashes[:insertAt])
+		copy(newHashes[insertAt+1:], bldr.hashes[insertAt:])
+	} else {
+		newTags = bldr.tags[:newLen]
+		newHashes = bldr.hashes[:newLen]
+
+		// make space for the new element with the minimum number of copies,
+		// moving the first element of each level's slice to the end of that
+		// slice.  For example:
+		//       ↓ insertAt
+		// 0a 0b 1a 1b 1c 2a 2b 2c 3a 3b
+		// || ||  ↓ || || ↓  || ||  ↓ ||
+		// || ||   →→→→→→→  →→→→→→→  →→→→
+		// || ||    || || ↓  || || ↓  || ↓
+		// 0a 0b    1b 1c 1a 2b 2c 2a 3b 3a
+		for l := bldr.levels - 1; l > level; l-- {
+			s := bldr.offsets[l]
+			d := bldr.offsets[l+1]
+			newTags[d], newHashes[d] = newTags[s], newHashes[s]
+		}
+	}
+
+	bldr.tags = newTags
+	bldr.hashes = newHashes
+
+	// update the offsets to correspond to the new positions (every
+	// level after this level has shifted right one position)
+	for l := level + 1; l < bldr.levels+1; l++ {
+		bldr.offsets[l]++
+	}
 }
