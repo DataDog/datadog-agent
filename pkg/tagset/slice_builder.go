@@ -14,7 +14,7 @@ import (
 //
 // SliceBuilder is different from Builder because it associates a "level" with
 // each tag, and allows the creation of Tags instances that include tags with
-// specific levels, and those Tags instances can share storage.  For example,
+// specific levels, and those Tags instances can share storage. For example,
 // this is useful when generating tags of different cardinalities (mapping
 // cardinalities to levels).  Then the low-cardinality tags can be sliced off
 // separately from the low-and-medium cardinality tags, sharing storage for
@@ -30,7 +30,7 @@ import (
 // may be called in the "closed" stage.
 //
 // In general, the easiest way to ensure these stages are followed (and allow reviewers
-// to verify this) is to use a builder in a single method, as shown in the example.  Avoid
+// to verify this) is to use a builder in a single method, as shown in the example. Avoid
 // storing builders in structs.
 //
 // SliceBuilders are not threadsafe.

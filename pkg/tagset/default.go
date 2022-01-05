@@ -7,7 +7,7 @@ package tagset
 
 // DefaultFactory is a global thread-safe factory, used by calls to
 // package-level functions. This is suitable for non-performance-critical tags
-// manipulation.  It performs no caching.
+// manipulation. It performs no caching.
 var DefaultFactory Factory
 
 // EmptyTags is a ready-to-use Tags instance that contains no tags. Use this

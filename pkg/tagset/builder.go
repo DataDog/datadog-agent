@@ -12,7 +12,7 @@ import "github.com/twmb/murmur3"
 //
 // It is invalid to use a Builder after Close, as it may be re-used by other goroutines.
 //
-// In general, Builders are intended to be used in a single method.  Avoid
+// In general, Builders are intended to be used in a single method. Avoid
 // storing builders in structs.
 type Builder struct {
 	factory Factory

@@ -19,7 +19,7 @@ import (
 //
 // Tags are always handled by pointer (`*tagset.Tags`).  Avoid using the nil
 // form of this pointer; in cases where no tags are necessary, use
-// `tagset.EmptyTags` instead.  This avoids many unnecessary nil checks.
+// `tagset.EmptyTags` instead. This avoids many unnecessary nil checks.
 //
 // The constructor functions associated with this type use the default factory.
 type Tags struct {
