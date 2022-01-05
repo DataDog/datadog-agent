@@ -42,35 +42,35 @@ func TestPatternNextSegment(t *testing.T) {
 }
 
 func TestPatternMatches(t *testing.T) {
-	if !PatternMatches("*test123", "aaatest123") {
+	if !patternExprMatches("*test123", "aaatest123") {
 		t.Error("should match")
 	}
 
-	if PatternMatches("*test456", "aaatest123") {
+	if patternExprMatches("*test456", "aaatest123") {
 		t.Error("shouldn't match")
 	}
 
-	if !PatternMatches("*", "test123") {
+	if !patternExprMatches("*", "test123") {
 		t.Error("should match")
 	}
 
-	if !PatternMatches("test*", "test123") {
+	if !patternExprMatches("test*", "test123") {
 		t.Error("should match")
 	}
 
-	if !PatternMatches("t*123", "test123") {
+	if !patternExprMatches("t*123", "test123") {
 		t.Error("should match")
 	}
 
-	if !PatternMatches("t*1*3", "test123") {
+	if !patternExprMatches("t*1*3", "test123") {
 		t.Error("should match")
 	}
 
-	if !PatternMatches("*t*1*3", "atest123") {
+	if !patternExprMatches("*t*1*3", "atest123") {
 		t.Error("should match")
 	}
 
-	if PatternMatches("*t*9*3", "atest123") {
+	if patternExprMatches("*t*9*3", "atest123") {
 		t.Error("shouldn't match")
 	}
 }

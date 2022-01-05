@@ -6,15 +6,13 @@
 package eval
 
 import (
-	"regexp"
-
 	"github.com/pkg/errors"
 )
 
 // StringValues describes a set of string values, either regex or scalar
 type StringValues struct {
-	scalars []string
-	regexps []*regexp.Regexp
+	scalars         []string
+	patternMatchers []PatternMatcher
 
 	// caches
 	scalarCache map[string]bool
@@ -42,7 +40,7 @@ func (s *StringValues) AppendFieldValue(value FieldValue) error {
 		if err := value.Compile(); err != nil {
 			return err
 		}
-		s.regexps = append(s.regexps, value.Regexp)
+		s.patternMatchers = append(s.patternMatchers, value.PatternMatcher)
 	default:
 		str := value.Value.(string)
 		s.scalars = append(s.scalars, str)
@@ -58,15 +56,15 @@ func (s *StringValues) GetScalarValues() []string {
 	return s.scalars
 }
 
-// GetRegexValues return the regex values
-func (s *StringValues) GetRegexValues() []*regexp.Regexp {
-	return s.regexps
+// GetPatternMatchers return the pattern matchers
+func (s *StringValues) GetPatternMatchers() []PatternMatcher {
+	return s.patternMatchers
 }
 
 // SetFieldValues apply field values
 func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	// reset internal caches
-	s.regexps = []*regexp.Regexp{}
+	s.patternMatchers = s.patternMatchers[:0]
 	s.scalarCache = nil
 	s.exists = nil
 
@@ -110,13 +108,13 @@ func (s *StringValues) AppendStringEvaluator(evaluator *StringEvaluator) error {
 	})
 }
 
-// Match returns whether the value matches the string values
-func (s *StringValues) Match(value string) bool {
+// Matches returns whether the value matches the string values
+func (s *StringValues) Matches(value string) bool {
 	if s.scalarCache != nil && s.scalarCache[value] {
 		return true
 	}
-	for _, re := range s.regexps {
-		if re.MatchString(value) {
+	for _, pm := range s.patternMatchers {
+		if pm.Matches(value) {
 			return true
 		}
 	}

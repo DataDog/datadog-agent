@@ -7,7 +7,6 @@ package eval
 
 import (
 	"fmt"
-	"regexp"
 )
 
 // Field name
@@ -30,7 +29,7 @@ type FieldValue struct {
 	Value interface{}
 	Type  FieldValueType
 
-	Regexp *regexp.Regexp
+	PatternMatcher PatternMatcher
 }
 
 // Compile the regular expression or the pattern
@@ -42,25 +41,22 @@ func (f *FieldValue) Compile() error {
 			return fmt.Errorf("invalid pattern `%v`", f.Value)
 		}
 
-		reg, err := PatternToRegexp(value)
-		if err != nil {
+		var matcher SimplePatternMatcher
+		if err := matcher.Compile(value); err != nil {
 			return fmt.Errorf("invalid pattern `%s`: %s", value, err)
 		}
-
-		f.Regexp = reg
-
+		f.PatternMatcher = &matcher
 	case RegexpValueType:
 		value, ok := f.Value.(string)
 		if !ok {
 			return fmt.Errorf("invalid regexp `%v`", f.Value)
 		}
 
-		reg, err := regexp.Compile(value)
-		if err != nil {
-			return fmt.Errorf("invalid regexp `%s`: %s", value, err)
+		var matcher RegexpPatternMatcher
+		if err := matcher.Compile(value); err != nil {
+			return fmt.Errorf("invalid pattern `%s`: %s", value, err)
 		}
-
-		f.Regexp = reg
+		f.PatternMatcher = &matcher
 	}
 
 	return nil
