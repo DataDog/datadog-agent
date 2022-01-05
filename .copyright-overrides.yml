@@ -77,6 +77,8 @@ github.com/go-openapi/spec: go-swagger maintainers
 github.com/go-openapi/swag: go-swagger maintainers
 github.com/google/gofuzz: Google, Inc.
 github.com/kubernetes-sigs/custom-metrics-apiserver: The Kubernetes Authors
+github.com/mostynb/go-grpc-compression/snappy: gRPC authors
+github.com/mostynb/go-grpc-compression/zstd: Mostyn Bramley-Moore
 github.com/sassoftware/go-rpmutils: SAS Institute, Inc.
 github.com/spf13/cobra: Steve Francia <spf@spf13.com>
 github.com/xeipuuv/gojsonpointer: xeipuuv ( https://github.com/xeipuuv )

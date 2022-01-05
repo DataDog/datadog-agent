@@ -10,3 +10,7 @@ package hostinfo
 func apiserverNodeLabels(nodeName string) (map[string]string, error) {
 	return nil, nil
 }
+
+func apiserverNodeAnnotations(nodeName string) (map[string]string, error) {
+	return nil, nil
+}

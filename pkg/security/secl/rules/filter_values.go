@@ -19,8 +19,8 @@ type FilterValue struct {
 	Field eval.Field
 	Value interface{}
 	Type  eval.FieldValueType
-	Not   bool
 
+	not    bool
 	ignore bool
 }
 

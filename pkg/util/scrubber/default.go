@@ -71,6 +71,11 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key"},
 		Repl:  []byte(`$1 ********`),
 	}
+	snmpMultilineReplacer := Replacer{
+		Regex: matchYAMLKeyWithListValue("(community_strings)"),
+		Hints: []string{"community_strings"},
+		Repl:  []byte(`$1 ********`),
+	}
 	certReplacer := Replacer{
 		Regex: matchCert(),
 		Hints: []string{"BEGIN"},
@@ -84,6 +89,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, passwordReplacer)
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
+	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
 }
 
@@ -107,6 +113,34 @@ func matchCert() *regexp.Regexp {
 	*/
 	return regexp.MustCompile(
 		`-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`,
+	)
+}
+
+func matchYAMLKeyWithListValue(key string) *regexp.Regexp {
+	/* Match yaml keys with list values.
+
+	Example 1:
+	snmp_traps_config:
+	  community_strings:
+	    - 'pass1'
+	    - 'pass2'
+	Example 2:
+	snmp_traps_config:
+	  community_strings: ['pass1', 'pass2']
+	Example 3:
+	snmp_traps_config:
+	  community_strings: [
+	    'pass1',
+	    'pass2']
+	*/
+	return regexp.MustCompile(
+		fmt.Sprintf(`(\s*%s\s*:)\s*(?:\n(?:\s+-\s+.*)*|\[(?:\n?.*)*\])`, key),
+		/*           -----------      ---------------  -------------
+		             match key(s)     |                |
+		                              match multiple   match anything
+		                              lines starting   enclosed between `[` and `]`
+		                              with `-`
+		*/
 	)
 }
 

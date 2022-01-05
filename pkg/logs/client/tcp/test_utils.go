@@ -26,10 +26,10 @@ func AddrToHostPort(remoteAddr net.Addr) (string, int) {
 // AddrToEndPoint creates an EndPoint from an Addr.
 func AddrToEndPoint(addr net.Addr) config.Endpoint {
 	host, port := AddrToHostPort(addr)
-	return config.Endpoint{Host: host, Port: port}
+	return config.Endpoint{Host: host, Port: port, IsReliable: true}
 }
 
 // AddrToDestination creates a Destination from an Addr
 func AddrToDestination(addr net.Addr, ctx *client.DestinationsContext) *Destination {
-	return NewDestination(AddrToEndPoint(addr), true, ctx)
+	return NewDestination(AddrToEndPoint(addr), true, ctx, true)
 }

@@ -43,7 +43,7 @@ func TestSetFieldValue(t *testing.T) {
 	}
 }
 
-func TestExecArgsFlags(t *testing.T) {
+func TestProcessArgsFlags(t *testing.T) {
 	e := Event{
 		Event: model.Event{
 			Exec: model.ExecEvent{
@@ -65,7 +65,7 @@ func TestExecArgsFlags(t *testing.T) {
 		ProcessResolver: resolver,
 	}
 
-	flags := e.ResolveExecArgsFlags(&e.Exec)
+	flags := e.ResolveProcessArgsFlags(&e.Exec.Process)
 	sort.Strings(flags)
 
 	hasFlag := func(flags []string, flag string) bool {
@@ -102,7 +102,7 @@ func TestExecArgsFlags(t *testing.T) {
 	}
 }
 
-func TestExecArgsOptions(t *testing.T) {
+func TestProcessArgsOptions(t *testing.T) {
 	e := Event{
 		Event: model.Event{
 			Exec: model.ExecEvent{
@@ -124,7 +124,7 @@ func TestExecArgsOptions(t *testing.T) {
 		ProcessResolver: resolver,
 	}
 
-	options := e.ResolveExecArgsOptions(&e.Exec)
+	options := e.ResolveProcessArgsOptions(&e.Exec.Process)
 	sort.Strings(options)
 
 	hasOption := func(options []string, option string) bool {

@@ -440,9 +440,6 @@ def generate_protobuf(ctx):
 
         ctx.run(f"mockgen -source={pbgo_dir}/api.pb.go -destination={mockgen_out}/api_mockgen.pb.go")
 
-    # generate messagepack marshallers
-    ctx.run("msgp -file pkg/proto/pbgo/config.pb.go -o=pkg/proto/pbgo/config_gen.go")
-
 
 @task
 def reset(ctx):

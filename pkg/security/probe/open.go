@@ -20,10 +20,12 @@ var openCapabilities = Capabilities{
 		PolicyFlags:     PolicyFlagBasename,
 		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
 		ValidateFnc:     validateBasenameFilter,
+		FilterWeight:    15,
 	},
 	"open.file.name": {
 		PolicyFlags:     PolicyFlagBasename,
 		FieldValueTypes: eval.ScalarValueType,
+		FilterWeight:    10,
 	},
 	"open.flags": {
 		PolicyFlags:     PolicyFlagFlags,

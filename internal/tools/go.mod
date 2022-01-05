@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/client9/misspell v0.3.4
 	github.com/frapposelli/wwhrd v0.4.0
-	github.com/fzipp/gocyclo v0.3.1
+	github.com/fzipp/gocyclo v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.0
 	github.com/golangci/golangci-lint v1.43.0
 	github.com/gordonklaus/ineffassign v0.0.0-20210225214923-2e10b2664254

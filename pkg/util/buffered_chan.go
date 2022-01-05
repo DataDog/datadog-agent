@@ -11,11 +11,13 @@ import (
 )
 
 // BufferedChan behaves like a `chan []interface{}` (See thread safety for restrictions), but is
-// most efficient as it uses internally a channel of []interface{}.
+// most efficient as it uses internally a channel of []interface{}. This reduces the number of reads
+// and writes to the channel. Instead of having one write and one read for each value for a regular channel,
+// there are one write and one read for each `bufferSize` value.
 // Thread safety:
-// 	- BufferedChan.Put cannot be called concurrently.
-// 	- BufferedChan.Get cannot be called concurrently.
-//  - BufferedChan.Put can be called while another gouroutine call BufferedChan.Get.
+// 	- `BufferedChan.Put` cannot be called concurrently.
+// 	- `BufferedChan.Get` cannot be called concurrently.
+//  - `BufferedChan.Put` can be called while another goroutine calls `BufferedChan.Get`.
 type BufferedChan struct {
 	c        chan []interface{}
 	pool     *sync.Pool
@@ -26,7 +28,7 @@ type BufferedChan struct {
 }
 
 // NewBufferedChan creates a new instance of `BufferedChan`.
-// `ctx`` cancels all Put and Get operations.
+// `ctx` can be used to cancel all Put and Get operations.
 func NewBufferedChan(ctx context.Context, chanSize int, bufferSize int) *BufferedChan {
 	pool := &sync.Pool{
 		New: func() interface{} {
@@ -43,15 +45,18 @@ func NewBufferedChan(ctx context.Context, chanSize int, bufferSize int) *Buffere
 
 // Put puts a new value into c.
 // Cannot be called concurrently.
-func (c *BufferedChan) Put(value interface{}) {
+// Returns false when BufferedChan is cancelled.
+func (c *BufferedChan) Put(value interface{}) bool {
 	if cap(c.putSlice) <= len(c.putSlice) {
 		select {
 		case c.c <- c.putSlice:
 		case <-c.ctx.Done():
+			return false
 		}
 		c.putSlice = c.pool.Get().([]interface{})[:0]
 	}
 	c.putSlice = append(c.putSlice, value)
+	return true
 }
 
 // Close flushes and closes the channel
@@ -68,7 +73,7 @@ func (c *BufferedChan) Close() {
 func (c *BufferedChan) Get() (interface{}, bool) {
 	if c.getIndex >= len(c.getSlice) {
 		if c.getSlice != nil {
-			c.pool.Put(c.getSlice)
+			c.pool.Put(c.getSlice[:0])
 		}
 
 		var ok bool
@@ -86,6 +91,7 @@ func (c *BufferedChan) Get() (interface{}, bool) {
 		}
 	}
 	value := c.getSlice[c.getIndex]
+	c.getSlice[c.getIndex] = nil // do not keep a reference on the object.
 	c.getIndex++
 	return value, true
 }

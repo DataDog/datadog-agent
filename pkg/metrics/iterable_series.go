@@ -10,19 +10,22 @@ import (
 	"errors"
 	"sync/atomic"
 
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	jsoniter "github.com/json-iterator/go"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // IterableSeries represents an iterable collection of Serie.
 // Serie can be appended to IterableSeries while IterableSeries is serialized
 type IterableSeries struct {
-	c        *util.BufferedChan
-	cancel   context.CancelFunc
-	callback func(*Serie)
-	current  *Serie
-	count    uint64
+	ch                 *util.BufferedChan
+	bufferedChanClosed bool
+	cancel             context.CancelFunc
+	callback           func(*Serie)
+	current            *Serie
+	count              uint64
 }
 
 // NewIterableSeries creates a new instance of *IterableSeries
@@ -30,7 +33,7 @@ type IterableSeries struct {
 func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *IterableSeries {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &IterableSeries{
-		c:        util.NewBufferedChan(ctx, chanSize, bufferSize),
+		ch:       util.NewBufferedChan(ctx, chanSize, bufferSize),
 		cancel:   cancel,
 		callback: callback,
 		current:  nil,
@@ -41,7 +44,10 @@ func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *Ite
 func (series *IterableSeries) Append(serie *Serie) {
 	series.callback(serie)
 	atomic.AddUint64(&series.count, 1)
-	series.c.Put(serie)
+	if !series.ch.Put(serie) && !series.bufferedChanClosed {
+		series.bufferedChanClosed = true
+		log.Errorf("Cannot append a serie in a closed buffered channel")
+	}
 }
 
 // SeriesCount returns the number of series appended with `IterableSeries.Append`.
@@ -51,7 +57,7 @@ func (series *IterableSeries) SeriesCount() uint64 {
 
 // SenderStopped must be called when sender stop calling Append.
 func (series *IterableSeries) SenderStopped() {
-	series.c.Close()
+	series.ch.Close()
 }
 
 // IterationStopped must be called when the receiver stops calling `MoveNext`.
@@ -93,7 +99,7 @@ func (series *IterableSeries) DescribeCurrentItem() string {
 // MoveNext advances to the next element.
 // Returns false for the end of the iteration.
 func (series *IterableSeries) MoveNext() bool {
-	v, ok := series.c.Get()
+	v, ok := series.ch.Get()
 	if v != nil {
 		series.current = v.(*Serie)
 	} else {
