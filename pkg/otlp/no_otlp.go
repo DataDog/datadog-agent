@@ -21,7 +21,7 @@ func IsEnabled(cfg config.Config) bool {
 }
 
 // Pipeline is an OTLP pipeline.
-type Pipeline struct {}
+type Pipeline struct{}
 
 // Stop the OTLP pipeline.
 func (p *Pipeline) Stop() {}
