@@ -917,7 +917,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	constants, err := getOffsetConstants(config, p)
+	constants, err := GetOffsetConstants(config, p)
 	if err != nil {
 		log.Warnf("constant fetcher failed: %v", err)
 		return nil, err
@@ -1029,7 +1029,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	return p, nil
 }
 
-func getOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
+// GetOffsetConstants returns the offsets and struct sizes constants
+func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
 
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")

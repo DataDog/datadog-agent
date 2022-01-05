@@ -150,6 +150,11 @@ func CreateConstantEditors(constants map[string]uint64) []manager.ConstantEditor
 
 var constantsCache *cachedConstants
 
+// ClearConstantsCache clears the constants cache
+func ClearConstantsCache() {
+	constantsCache = nil
+}
+
 type cachedConstants struct {
 	constants map[string]uint64
 	hash      []byte
