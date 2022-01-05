@@ -116,14 +116,6 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
 		nameOffset = 312
-	case kv.IsRH8Kernel():
-		nameOffset = 368
-	case kv.IsSLES12Kernel():
-		nameOffset = 368
-	case kv.IsSLES15Kernel():
-		nameOffset = 368
-	case kv.Code != 0 && kv.Code < kernel.Kernel5_3:
-		nameOffset = 368
 	}
 
 	return nameOffset
