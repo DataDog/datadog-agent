@@ -88,7 +88,7 @@ func (t *Tailer) read() (int, error) {
 	if err == io.EOF || os.IsNotExist(err) {
 		return n, nil
 	} else if err != nil {
-		t.file.Source.Status.Error(err)
+		t.file.Source.Status().Error(err)
 		return n, log.Error("Err: ", err)
 	}
 	return n, nil
