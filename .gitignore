@@ -127,7 +127,6 @@ tools/windows/install-help/cal/packages/
 
 # ebpf object files
 pkg/ebpf/bytecode/build/
-pkg/ebpf/bytecode/bindata/
 *.bc
 
 # CGo generated object files

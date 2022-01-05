@@ -11,7 +11,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .utils import REPO_PATH, bin_name, bundle_files, get_build_flags, get_version_numeric_only
+from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
@@ -624,8 +624,6 @@ def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
         for p in promises:
             p.join()
 
-    return [security_agent_obj_file, security_agent_syscall_wrapper_obj_file]
-
 
 def build_object_files(ctx, parallel_build):
     """build_object_files builds only the eBPF object"""
@@ -641,15 +639,11 @@ def build_object_files(ctx, parallel_build):
     ctx.run(f"mkdir -p {build_dir}")
     ctx.run(f"mkdir -p {build_runtime_dir}")
 
-    bindata_files = []
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
     build_http_ebpf_files(ctx, build_dir=build_dir)
-    bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build))
+    build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
 
     generate_runtime_files(ctx)
-
-    go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
-    bundle_files(ctx, bindata_files, "pkg/.*/", go_dir, "bindata", BUNDLE_TAG)
 
 
 @task
