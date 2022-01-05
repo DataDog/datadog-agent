@@ -10,7 +10,7 @@
 #include "http.h"
 #include "https.h"
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4, 6, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
 #error "http runtime compilation is only supported for kernel >= 4.6"
 #endif
 
