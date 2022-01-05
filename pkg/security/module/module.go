@@ -22,6 +22,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"github.com/skydive-project/go-debouncer"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -61,6 +62,7 @@ type Module struct {
 	policiesVersions []string
 
 	selfTester *SelfTester
+	reloader   *debouncer.Debouncer
 }
 
 // Register the runtime security agent module
@@ -151,6 +153,8 @@ func (m *Module) Start() error {
 		return errors.Wrap(err, "failed to start probe")
 	}
 
+	m.reloader.Start()
+
 	if err := m.Reload(); err != nil {
 		return err
 	}
@@ -171,11 +175,7 @@ func (m *Module) Start() error {
 		defer m.wg.Done()
 
 		for range m.sigupChan {
-			log.Info("Reload configuration")
-
-			if err := m.Reload(); err != nil {
-				log.Errorf("failed to reload configuration: %s", err)
-			}
+			m.triggerReload()
 		}
 	}()
 	return nil
@@ -251,6 +251,13 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 	return versions
 }
 
+func (m *Module) triggerReload() {
+	log.Info("Reload configuration")
+	if err := m.Reload(); err != nil {
+		log.Errorf("failed to reload configuration: %s", err)
+	}
+}
+
 // Reload the rule set
 func (m *Module) Reload() error {
 	m.Lock()
@@ -310,6 +317,7 @@ func (m *Module) Reload() error {
 	currentRuleSet := 1 - atomic.LoadUint64(&m.currentRuleSet)
 	m.ruleSets[currentRuleSet] = ruleSet
 	atomic.StoreUint64(&m.currentRuleSet, currentRuleSet)
+	m.ruleSets[1-currentRuleSet] = nil
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
@@ -335,6 +343,8 @@ func (m *Module) Reload() error {
 
 // Close the module
 func (m *Module) Close() {
+	m.reloader.Stop()
+
 	close(m.sigupChan)
 	m.cancelFnc()
 
@@ -539,6 +549,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 		selfTester:     selfTester,
 	}
 	m.apiServer.module = m
+	m.reloader = debouncer.New(3*time.Second, m.triggerReload)
 
 	seclog.SetPatterns(cfg.LogPatterns)
 

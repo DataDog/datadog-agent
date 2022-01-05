@@ -41,6 +41,7 @@ github.com/grpc-ecosystem/*: gRPC Ecosystem
 google.golang.org/genproto/*: Google LLC
 google.golang.org/grpc: gRPC authors
 google.golang.org/grpc/*: gRPC authors
+github.com/skydive-project/go-debouncer: Red Hat, Inc
 
 # NOTE: We cannot use
 #   github.com/DataDog/*: Datadog, Inc.
