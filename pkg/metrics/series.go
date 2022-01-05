@@ -229,6 +229,8 @@ type serieIterator interface {
 	Current() *Serie
 }
 
+var _ serieIterator = (*serieSliceIterator)(nil)
+
 // serieSliceIterator implements serieIterator interface for `[]*Serie`.
 type serieSliceIterator struct {
 	series []*Serie
