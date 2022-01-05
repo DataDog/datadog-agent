@@ -443,6 +443,7 @@ def generate_protobuf(ctx):
     # generate messagepack marshallers
     ctx.run("msgp -file pkg/proto/msgpgo/key.go -o=pkg/proto/msgpgo/key_gen.go")
 
+
 @task
 def reset(ctx):
     """
