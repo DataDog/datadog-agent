@@ -431,9 +431,11 @@ def get_linux_header_dirs():
     return dirs
 
 
-def get_ebpf_build_flags(target=['-emit-llvm']):
+def get_ebpf_build_flags(target=None):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
+    if not target:
+        target=['-emit-llvm']
 
     flags = [
         '-D__KERNEL__',
@@ -506,20 +508,18 @@ def build_http_ebpf_files(ctx, build_dir):
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
+    uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
     network_flags = get_ebpf_build_flags(target=["-target", "bpf"])
     network_flags.append(f"-I{network_c_dir}")
+    network_flags.append(f"-D__{uname_m}__")
 
-    # Temporary: figuring out how to get builds passing both on X86 and ARM64
-    if os.getenv("ARCH") == "arm64":
-        network_flags.append("-D__aarch64__")
+    if uname_m == "aarch64":
         network_flags.append("-isystem /usr/include/aarch64-linux-gnu")
         for base_dir in header_base_dirs():
             ptrace_path = os.path.join(base_dir, 'arch/arm64/include/asm/ptrace.h')
             if os.path.exists(ptrace_path):
                 network_flags.append(f"-include {ptrace_path}")
                 break
-    else:
-        network_flags.append("-D__x86_64__")
 
     build_network_ebpf_compile_file(
         ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
