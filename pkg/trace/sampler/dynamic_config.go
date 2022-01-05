@@ -9,6 +9,7 @@ import (
 	"math"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -76,7 +77,7 @@ func (rbs *RateByService) SetAll(rates map[ServiceSignature]rm) {
 	}
 	if changed {
 		rbs.rates, rbs.incomingRates = rbs.incomingRates, rbs.rates
-		rbs.version = strconv.FormatInt(time.Now().UnixNano(), 16)
+		rbs.version = newVersion()
 	}
 }
 
@@ -103,4 +104,11 @@ func (rbs *RateByService) GetNewState(version string) State {
 	}
 
 	return ret
+}
+
+var localVersion int64 = 0
+
+func newVersion() string {
+	atomic.AddInt64(&localVersion, 1)
+	return strconv.FormatInt(time.Now().Unix(), 16) + "-" + strconv.FormatInt(localVersion, 16)
 }
