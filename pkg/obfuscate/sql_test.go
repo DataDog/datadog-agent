@@ -688,6 +688,14 @@ func TestSQLQuantizer(t *testing.T) {
 			"select * from users where id = ?",
 		},
 		{
+			"select * from ##ThisIsAGlobalTempTable where id = 1",
+			"select * from ##ThisIsAGlobalTempTable where id = ?",
+		},
+		{
+			"select * from dbo.#ThisIsATempTable where id = 1",
+			"select * from dbo.#ThisIsATempTable where id = ?",
+		},
+		{
 			"select * from users where id = 214325346     -- This comment continues to the end of line",
 			"select * from users where id = ?",
 		},

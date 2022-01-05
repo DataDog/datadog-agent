@@ -276,8 +276,18 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return TokenKind(ch), tkn.bytes()
 			}
 		case '#':
-			tkn.advance()
-			return tkn.scanCommentType1("#")
+			// hack: SQL Server supports the "#" syntax for temp tables, but MySQL treats
+			// it as a comment. To work around this difference in behavior, a whitespace
+			// after the pound sign indicates a comment while no whitespace indicates a
+			// single identifier. Note that this is not syntactically correct in MySQL
+			// (comments do not require whitespace), but is closer to real-world usage.
+			switch tkn.lastChar {
+			case ' ':
+				return tkn.scanCommentType1("#")
+			default:
+				return tkn.scanIdentifier()
+			}
+
 		case '<':
 			switch tkn.lastChar {
 			case '>':
