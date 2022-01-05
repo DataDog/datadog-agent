@@ -37,6 +37,9 @@ func GetAuthProtocol(authProtocolStr string) (gosnmp.SnmpV3AuthProtocol, error) 
 }
 
 // GetPrivProtocol converts priv protocol from string to type
+// Related resource: https://github.com/gosnmp/gosnmp/blob/f6fb3f74afc3fb0e5b44b3f60751b988bc960019/v3_usm.go#L458-L461
+// Reeder AES192/256: Used by many vendors, including Cisco.
+// Blumenthal AES192/256: Not many vendors use this algorithm.
 func GetPrivProtocol(privProtocolStr string) (gosnmp.SnmpV3PrivProtocol, error) {
 	var privProtocol gosnmp.SnmpV3PrivProtocol
 	lowerPrivProtocol := strings.ToLower(privProtocolStr)
@@ -47,13 +50,13 @@ func GetPrivProtocol(privProtocolStr string) (gosnmp.SnmpV3PrivProtocol, error) 
 	} else if lowerPrivProtocol == "aes" {
 		privProtocol = gosnmp.AES
 	} else if lowerPrivProtocol == "aes192" {
-		privProtocol = gosnmp.AES192
-	} else if lowerPrivProtocol == "aes192c" {
-		privProtocol = gosnmp.AES192C
+		privProtocol = gosnmp.AES192 // Blumenthal-AES192
 	} else if lowerPrivProtocol == "aes256" {
-		privProtocol = gosnmp.AES256
+		privProtocol = gosnmp.AES256 // Blumenthal-AES256
+	} else if lowerPrivProtocol == "aes192c" {
+		privProtocol = gosnmp.AES192C // Reeder-AES192
 	} else if lowerPrivProtocol == "aes256c" {
-		privProtocol = gosnmp.AES256C
+		privProtocol = gosnmp.AES256C // Reeder-AES256
 	} else {
 		return gosnmp.NoPriv, fmt.Errorf("unsupported privacy protocol: %s", privProtocolStr)
 	}
