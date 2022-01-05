@@ -72,7 +72,7 @@ func (k *KubeletConfigProvider) listen() {
 	health := health.RegisterLiveness(name)
 	k.Unlock()
 
-	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.NewFilter(
+	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 		[]workloadmeta.Source{workloadmeta.SourceKubelet},
 	))
