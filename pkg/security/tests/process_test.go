@@ -380,35 +380,7 @@ func TestProcessContext(t *testing.T) {
 		executable := which("tail")
 
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				time.Sleep(2 * time.Second)
-				cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
-				if err := cmd.Start(); err != nil {
-					errChan <- err
-					return
-				}
-				time.Sleep(2 * time.Second)
-
-				cmd.Process.Kill()
-				cmd.Wait()
-			}()
-
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
-
+			return ttyTrigger(executable, testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
@@ -426,6 +398,41 @@ func TestProcessContext(t *testing.T) {
 				t.Error("tty not serialized")
 			}
 		})
+	})
+
+	t.Run("tty-raw", func(t *testing.T) {
+		testFile, _, err := test.Path("test-process-tty")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.Create(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		executable := which("tail")
+
+		err = test.GetProbeEvent(func() error {
+			return ttyTrigger(executable, testFile)
+		}, func(event *sprobe.Event) bool {
+			filePath, _ := event.GetFieldValue("exec.file.path")
+			if filePath.(string) != executable {
+				return false
+			}
+
+			name, _ := event.GetFieldValue("process.tty_name")
+			return assert.True(t, strings.HasPrefix(name.(string), "pts"))
+		}, 5*time.Second, model.ExecEventType)
+
+		if err != nil {
+			t.Fatal(err)
+		}
 	})
 
 	test.Run(t, "ancestors", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -569,6 +576,20 @@ func TestProcessExecCTime(t *testing.T) {
 			t.Error(event.String())
 		}
 	})
+}
+
+func ttyTrigger(executable, testFile string) error {
+	time.Sleep(2 * time.Second)
+	cmd := exec.Command("script", "/dev/null", "-c", fmt.Sprintf("%s -f %s", executable, testFile))
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	time.Sleep(2 * time.Second)
+
+	cmd.Process.Kill()
+	cmd.Wait()
+
+	return nil
 }
 
 func TestProcessPIDVariable(t *testing.T) {
