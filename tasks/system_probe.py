@@ -363,7 +363,8 @@ def get_ebpf_targets():
     files.extend(glob.glob("pkg/security/ebpf/c/*.[c,h]"))
     return files
 
-def header_base_dirs():
+
+def get_linux_header_dirs():
     os_info = os.uname()
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
@@ -392,11 +393,6 @@ def header_base_dirs():
         build_dir = f"/lib/modules/{uname_r}/build"
         if os.path.isdir(build_dir):
             linux_headers = [build_dir]
-
-    return linux_headers
-
-def get_linux_header_dirs():
-    linux_headers = header_base_dirs()
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     arch = (
@@ -449,9 +445,7 @@ def get_ebpf_build_flags(target=None):
         '-Wall',
         '-Werror'
         ]
-
     flags.extend(target)
-
     flags.extend([
         f"-include {os.path.join(c_dir, 'asm_goto_workaround.h')}",
         '-O2',
@@ -515,11 +509,6 @@ def build_http_ebpf_files(ctx, build_dir):
 
     if uname_m == "aarch64":
         network_flags.append("-isystem /usr/include/aarch64-linux-gnu")
-        for base_dir in header_base_dirs():
-            ptrace_path = os.path.join(base_dir, 'arch/arm64/include/asm/ptrace.h')
-            if os.path.exists(ptrace_path):
-                network_flags.append(f"-include {ptrace_path}")
-                break
 
     build_network_ebpf_compile_file(
         ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
