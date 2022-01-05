@@ -42,6 +42,22 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getTTYNameOffset(f.kernelVersion)
 	case "creds_uid_offset":
 		value = getCredsUIDOffset(f.kernelVersion)
+	case "bpf_map_id_offset":
+		value = getBpfMapIDOffset(f.kernelVersion)
+	case "bpf_map_name_offset":
+		value = getBpfMapNameOffset(f.kernelVersion)
+	case "bpf_map_type_offset":
+		value = getBpfMapTypeOffset(f.kernelVersion)
+	case "bpf_prog_aux_offset":
+		value = getBpfProgAuxOffset(f.kernelVersion)
+	case "bpf_prog_type_offset":
+		value = getBpfProgTypeOffset(f.kernelVersion)
+	case "bpf_prog_attach_type_offset":
+		value = getBpfProgAttachTypeOffset(f.kernelVersion)
+	case "bpf_prog_aux_id_offset":
+		value = getBpfProgAuxIDOffset(f.kernelVersion)
+	case "bpf_prog_aux_name_offset":
+		value = getBpfProgAuxNameOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -185,4 +201,36 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 	}
 
 	return size
+}
+
+func getBpfMapIDOffset(kv *kernel.Version) uint64 {
+	return uint64(48)
+}
+
+func getBpfMapNameOffset(kv *kernel.Version) uint64 {
+	return uint64(168)
+}
+
+func getBpfMapTypeOffset(kv *kernel.Version) uint64 {
+	return uint64(24)
+}
+
+func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
+	return uint64(32)
+}
+
+func getBpfProgTypeOffset(kv *kernel.Version) uint64 {
+	return uint64(4)
+}
+
+func getBpfProgAttachTypeOffset(kv *kernel.Version) uint64 {
+	return uint64(8)
+}
+
+func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
+	return uint64(24)
+}
+
+func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
+	return uint64(176)
 }

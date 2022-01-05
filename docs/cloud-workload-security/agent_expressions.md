@@ -241,8 +241,11 @@ A BPF command was executed
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
 | `bpf.cmd` | int | BPF command name |
+| `bpf.map.name` | string | Name of the eBPF map (added in 7.34) |
 | `bpf.map.type` | int | Type of the eBPF map |
 | `bpf.prog.attach_type` | int | Attach type of the eBPF program |
+| `bpf.prog.helpers` | int | eBPF helpers used by the eBPF program (added in 7.34) |
+| `bpf.prog.name` | string | Name of the eBPF program (added in 7.34) |
 | `bpf.prog.type` | int | Type of the eBPF program |
 | `bpf.retval` | int | Return value of the syscall |
 

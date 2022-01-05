@@ -472,6 +472,11 @@
           "definition": "BPF command name"
         },
         {
+          "name": "bpf.map.name",
+          "type": "string",
+          "definition": "Name of the eBPF map (added in 7.34)"
+        },
+        {
           "name": "bpf.map.type",
           "type": "int",
           "definition": "Type of the eBPF map"
@@ -480,6 +485,16 @@
           "name": "bpf.prog.attach_type",
           "type": "int",
           "definition": "Attach type of the eBPF program"
+        },
+        {
+          "name": "bpf.prog.helpers",
+          "type": "int",
+          "definition": "eBPF helpers used by the eBPF program (added in 7.34)"
+        },
+        {
+          "name": "bpf.prog.name",
+          "type": "string",
+          "definition": "Name of the eBPF program (added in 7.34)"
         },
         {
           "name": "bpf.prog.type",

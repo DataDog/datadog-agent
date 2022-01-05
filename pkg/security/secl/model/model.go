@@ -594,16 +594,16 @@ type BPFEvent struct {
 type BPFMap struct {
 	ID   uint32 `field:"-"`    // ID of the eBPF map
 	Type uint32 `field:"type"` // Type of the eBPF map
-	Name string `field:"-"`    // Name of the eBPF map
+	Name string `field:"name"` // Name of the eBPF map (added in 7.34)
 }
 
 // BPFProgram represents a BPF program
 type BPFProgram struct {
-	ID         uint32   `field:"-"`                // ID of the eBPF program
-	Type       uint32   `field:"type"`             // Type of the eBPF program
-	AttachType uint32   `field:"attach_type"`      // Attach type of the eBPF program
-	Helpers    []uint32 `field:"-,ResolveHelpers"` // eBPF helpers used by the eBPF program
-	Name       string   `field:"-"`                // Name of the eBPF program
+	ID         uint32   `field:"-"`                      // ID of the eBPF program
+	Type       uint32   `field:"type"`                   // Type of the eBPF program
+	AttachType uint32   `field:"attach_type"`            // Attach type of the eBPF program
+	Helpers    []uint32 `field:"helpers,ResolveHelpers"` // eBPF helpers used by the eBPF program (added in 7.34)
+	Name       string   `field:"name"`                   // Name of the eBPF program (added in 7.34)
 }
 
 // PTraceEvent represents a ptrace event

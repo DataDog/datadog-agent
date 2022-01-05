@@ -10,6 +10,54 @@ u64 __attribute__((always_inline)) get_check_helper_call_input(void) {
     return input;
 }
 
+u64 __attribute__((always_inline)) get_bpf_map_id_offset(void) {
+    u64 bpf_map_id_offset;
+    LOAD_CONSTANT("bpf_map_id_offset", bpf_map_id_offset);
+    return bpf_map_id_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_map_name_offset(void) {
+    u64 bpf_map_name_offset;
+    LOAD_CONSTANT("bpf_map_name_offset", bpf_map_name_offset);
+    return bpf_map_name_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_map_type_offset(void) {
+    u64 bpf_map_type_offset;
+    LOAD_CONSTANT("bpf_map_type_offset", bpf_map_type_offset);
+    return bpf_map_type_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_aux_offset(void) {
+    u64 bpf_prog_aux_offset;
+    LOAD_CONSTANT("bpf_prog_aux_offset", bpf_prog_aux_offset);
+    return bpf_prog_aux_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_aux_id_offset(void) {
+    u64 bpf_prog_aux_id_offset;
+    LOAD_CONSTANT("bpf_prog_aux_id_offset", bpf_prog_aux_id_offset);
+    return bpf_prog_aux_id_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_type_offset(void) {
+    u64 bpf_prog_type_offset;
+    LOAD_CONSTANT("bpf_prog_type_offset", bpf_prog_type_offset);
+    return bpf_prog_type_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_attach_type_offset(void) {
+    u64 bpf_prog_attach_type_offset;
+    LOAD_CONSTANT("bpf_prog_attach_type_offset", bpf_prog_attach_type_offset);
+    return bpf_prog_attach_type_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_aux_name_offset(void) {
+    u64 bpf_prog_aux_name_offset;
+    LOAD_CONSTANT("bpf_prog_aux_name_offset", bpf_prog_aux_name_offset);
+    return bpf_prog_aux_name_offset;
+}
+
 struct bpf_map_t {
     u32 id;
     enum bpf_map_type map_type;
@@ -316,9 +364,9 @@ int kprobe_security_bpf_map(struct pt_regs *ctx) {
 
     // collect relevant map metadata
     struct bpf_map_t m = {};
-    bpf_probe_read(&m.id, sizeof(m.id), &map->id);
-    bpf_probe_read(&m.name, sizeof(m.name), &map->name);
-    bpf_probe_read(&m.map_type, sizeof(m.map_type), &map->map_type);
+    bpf_probe_read(&m.id, sizeof(m.id), (void *)map + get_bpf_map_id_offset());
+    bpf_probe_read(&m.name, sizeof(m.name), (void *)map + get_bpf_map_name_offset());
+    bpf_probe_read(&m.map_type, sizeof(m.map_type), (void *)map + get_bpf_map_type_offset());
 
     // save map metadata
     bpf_map_update_elem(&bpf_maps, &m.id, &m, BPF_ANY);
@@ -336,14 +384,14 @@ int kprobe_security_bpf_prog(struct pt_regs *ctx) {
 
     struct bpf_prog *prog = (struct bpf_prog *)PT_REGS_PARM1(ctx);
     struct bpf_prog_aux *prog_aux = 0;
-    bpf_probe_read(&prog_aux, sizeof(prog_aux), &prog->aux);
+    bpf_probe_read(&prog_aux, sizeof(prog_aux), (void *)prog + get_bpf_prog_aux_offset());
 
     // collect relevant prog metadata
     struct bpf_prog_t p = {};
-    bpf_probe_read(&p.id, sizeof(p.id), &prog_aux->id);
-    bpf_probe_read(&p.prog_type, sizeof(p.prog_type), &prog->type);
-    bpf_probe_read(&p.attach_type, sizeof(p.attach_type), &prog->expected_attach_type);
-    bpf_probe_read(&p.name, sizeof(p.name), &prog_aux->name);
+    bpf_probe_read(&p.id, sizeof(p.id), (void *)prog_aux + get_bpf_prog_aux_id_offset());
+    bpf_probe_read(&p.prog_type, sizeof(p.prog_type), (void *)prog + get_bpf_prog_type_offset());
+    bpf_probe_read(&p.attach_type, sizeof(p.attach_type), (void *)prog + get_bpf_prog_attach_type_offset());
+    bpf_probe_read(&p.name, sizeof(p.name), (void *)prog_aux + get_bpf_prog_aux_name_offset());
 
     // update context
     syscall->bpf.prog_id = p.id;
