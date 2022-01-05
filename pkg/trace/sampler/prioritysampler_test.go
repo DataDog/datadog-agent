@@ -149,6 +149,20 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 	}
 }
 
+func TestPrioritySamplerWithNilRemote(t *testing.T) {
+	conf := &config.AgentConfig{
+		ExtraSampleRate: 1.0,
+		TargetTPS:       0.0,
+	}
+	s := NewPrioritySampler(conf, NewDynamicConfig())
+	s.Start()
+	s.updateRates()
+	s.reportStats()
+	chunk, root := getTestTraceWithService(t, "my-service", s)
+	assert.True(t, s.Sample(chunk, root, "", false))
+	s.Stop()
+}
+
 func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	assert := assert.New(t)
 	rand.Seed(1)

@@ -38,7 +38,6 @@ from .go import (
     deps,
     deps_vendored,
     fmt,
-    generate,
     generate_licenses,
     generate_protobuf,
     golangci_lint,
@@ -89,7 +88,6 @@ ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(audit_tag_impact)
 ns.add_task(e2e_tests)
-ns.add_task(generate)
 ns.add_task(install_shellcheck)
 ns.add_task(download_tools)
 ns.add_task(install_tools)
