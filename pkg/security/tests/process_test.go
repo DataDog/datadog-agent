@@ -421,6 +421,70 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
+	t.Run("tty-raw", func(t *testing.T) {
+		testFile, _, err := test.Path("test-process-tty")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.Create(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		executable := which("tail")
+
+		err = test.GetProbeEvent(func() error {
+			var wg sync.WaitGroup
+
+			errChan := make(chan error, 1)
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				time.Sleep(2 * time.Second)
+				cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
+				if err := cmd.Start(); err != nil {
+					errChan <- err
+					return
+				}
+				time.Sleep(2 * time.Second)
+
+				cmd.Process.Kill()
+				cmd.Wait()
+			}()
+
+			wg.Wait()
+
+			select {
+			case err = <-errChan:
+				return err
+			default:
+			}
+			return nil
+
+		}, func(event *sprobe.Event) bool {
+			filePath, _ := event.GetFieldValue("exec.file.path")
+			t.Logf("filePath = %s", filePath.(string))
+			if filePath.(string) != executable {
+				return false
+			}
+
+			name, _ := event.GetFieldValue("process.tty_name")
+			return assert.True(t, strings.HasPrefix(name.(string), "pts"))
+		}, 5*time.Second, model.ExecEventType)
+
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	test.Run(t, "ancestors", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-process-ancestors")
 		if err != nil {
