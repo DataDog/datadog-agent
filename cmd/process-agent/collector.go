@@ -15,6 +15,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -71,6 +72,9 @@ type Collector struct {
 	processResults   *api.WeightedQueue
 	rtProcessResults *api.WeightedQueue
 	podResults       *api.WeightedQueue
+
+	// Enables running realtime checks
+	runRealTime bool
 }
 
 // NewCollector creates a new Collector
@@ -81,18 +85,27 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 	}
 
 	enabledChecks := make([]checks.Check, 0)
+	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime")
 	for _, c := range checks.All {
+		if !runRealTime && isRealTimeCheck(c.Name()) {
+			log.Infof("Skip enabling check '%s': realtime disabled", c.Name())
+			continue
+		}
 		if cfg.CheckIsEnabled(c.Name()) {
 			c.Init(cfg, sysInfo)
 			enabledChecks = append(enabledChecks, c)
 		}
 	}
 
-	return NewCollectorWithChecks(cfg, enabledChecks), nil
+	return NewCollectorWithChecks(cfg, enabledChecks, runRealTime), nil
+}
+
+func isRealTimeCheck(checkName string) bool {
+	return checkName == config.RTContainerCheckName
 }
 
 // NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check) Collector {
+func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runRealTime bool) Collector {
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
@@ -102,6 +115,8 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check) Coll
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  0,
+
+		runRealTime: runRealTime,
 	}
 }
 
@@ -355,26 +370,28 @@ func (l *Collector) resultsQueueForCheck(name string) *api.WeightedQueue {
 func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), error) {
 	results := l.resultsQueueForCheck(c.Name())
 
-	if withRealTime, ok := c.(checks.CheckWithRealTime); ok {
-		rtResults := l.resultsQueueForCheck(withRealTime.RealTimeName())
-
-		return checks.NewRunnerWithRealTime(
-			checks.RunnerConfig{
-				CheckInterval: l.cfg.CheckInterval(withRealTime.Name()),
-				RtInterval:    l.cfg.CheckInterval(withRealTime.RealTimeName()),
-
-				ExitChan:       exit,
-				RtIntervalChan: l.rtIntervalCh,
-				RtEnabled: func() bool {
-					return atomic.LoadInt32(&l.realTimeEnabled) == 1
-				},
-				RunCheck: func(options checks.RunOptions) {
-					l.runCheckWithRealTime(withRealTime, results, rtResults, options)
-				},
-			},
-		)
+	withRealTime, ok := c.(checks.CheckWithRealTime)
+	if !l.runRealTime || !ok {
+		return l.basicRunner(c, results, exit), nil
 	}
-	return l.basicRunner(c, results, exit), nil
+
+	rtResults := l.resultsQueueForCheck(withRealTime.RealTimeName())
+
+	return checks.NewRunnerWithRealTime(
+		checks.RunnerConfig{
+			CheckInterval: l.cfg.CheckInterval(withRealTime.Name()),
+			RtInterval:    l.cfg.CheckInterval(withRealTime.RealTimeName()),
+
+			ExitChan:       exit,
+			RtIntervalChan: l.rtIntervalCh,
+			RtEnabled: func() bool {
+				return atomic.LoadInt32(&l.realTimeEnabled) == 1
+			},
+			RunCheck: func(options checks.RunOptions) {
+				l.runCheckWithRealTime(withRealTime, results, rtResults, options)
+			},
+		},
+	)
 }
 
 func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit chan struct{}) func() {
@@ -388,11 +405,12 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 		for {
 			select {
 			case <-ticker.C:
-				realTimeEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
+				realTimeEnabled := l.runRealTime && atomic.LoadInt32(&l.realTimeEnabled) == 1
 				if !c.RealTime() || realTimeEnabled {
 					l.runCheck(c, results)
 				}
 			case d := <-l.rtIntervalCh:
+
 				// Live-update the ticker.
 				if c.RealTime() {
 					ticker.Stop()
@@ -420,7 +438,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				forwarderPayload = forwarder.Payloads{&payload.body}
 				responses        chan forwarder.Response
 				err              error
-				updateRTStatus   = true
+				updateRTStatus   = l.runRealTime
 			)
 
 			switch result.name {

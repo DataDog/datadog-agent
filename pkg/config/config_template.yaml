@@ -1272,6 +1272,12 @@ api_key:
   #   - 'sql*'
   #   - '*pass*d*'
 
+  ## @param disable_realtime - boolean - optional - default: false
+  ## @env DD_PROCESS_CONFIG_DISABLE_REALTIME - boolean - optional - default: false
+  ## Disable realtime process and container checks
+  #
+  # disable_realtime: false
+
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.

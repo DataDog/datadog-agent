@@ -11,6 +11,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -97,4 +99,46 @@ func TestHasContainers(t *testing.T) {
 	assert.Equal(1, getContainerCount(&collectorContainer))
 	assert.Equal(2, getContainerCount(&collectorRealTime))
 	assert.Equal(1, getContainerCount(&collectorContainerRealTime))
+}
+
+func TestDisableRealTime(t *testing.T) {
+
+	tests := []struct {
+		name            string
+		disableRealtime bool
+		expectedChecks  []checks.Check
+	}{
+		{
+			name:            "true",
+			disableRealtime: true,
+			expectedChecks:  []checks.Check{checks.Process, checks.Container},
+		},
+		{
+			name:            "false",
+			disableRealtime: false,
+			expectedChecks:  []checks.Check{checks.Process, checks.Container, checks.RTContainer},
+		},
+	}
+
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.EnabledChecks = []string{
+		config.ProcessCheckName,
+		config.RTProcessCheckName,
+		config.ContainerCheckName,
+		config.RTContainerCheckName,
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock()
+			mockConfig.Set("process_config.disable_realtime", tc.disableRealtime)
+
+			c, err := NewCollector(cfg)
+			assert.NoError(err)
+			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
+			assert.Equal(!tc.disableRealtime, c.runRealTime)
+		})
+	}
+
 }
