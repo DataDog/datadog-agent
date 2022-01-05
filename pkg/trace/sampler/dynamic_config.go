@@ -106,7 +106,7 @@ func (rbs *RateByService) GetNewState(version string) State {
 	return ret
 }
 
-var localVersion int64 = 0
+var localVersion int64
 
 func newVersion() string {
 	atomic.AddInt64(&localVersion, 1)
