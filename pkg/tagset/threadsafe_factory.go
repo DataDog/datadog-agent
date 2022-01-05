@@ -7,9 +7,9 @@ package tagset
 
 import "sync"
 
-// threadsafeFactory wraps another factory and uses a mutex to control
+// threadSafeFactory wraps another factory and uses a mutex to control
 // access.
-type threadsafeFactory struct {
+type threadSafeFactory struct {
 	// baseFactory implements newBuilder/builderClosed,
 	// newSliceBuilder/sliceBuilderClosed for us
 	baseFactory
@@ -21,16 +21,16 @@ type threadsafeFactory struct {
 	inner Factory
 }
 
-var _ Factory = (*threadsafeFactory)(nil)
+var _ Factory = (*threadSafeFactory)(nil)
 
-// NewThreadsafeFactory wraps the given factory with a mutex, ensuring
+// NewThreadSafeFactory wraps the given factory with a mutex, ensuring
 // thread-safe operation.
-func NewThreadsafeFactory(inner Factory) Factory {
-	return &threadsafeFactory{inner: inner}
+func NewThreadSafeFactory(inner Factory) Factory {
+	return &threadSafeFactory{inner: inner}
 }
 
 // NewTags implements Factory.NewTags
-func (f *threadsafeFactory) NewTags(src []string) *Tags {
+func (f *threadSafeFactory) NewTags(src []string) *Tags {
 	f.mu.Lock()
 	tags := f.inner.NewTags(src)
 	f.mu.Unlock()
@@ -38,7 +38,7 @@ func (f *threadsafeFactory) NewTags(src []string) *Tags {
 }
 
 // NewUniqueTags implements Factory.NewUniqueTags
-func (f *threadsafeFactory) NewUniqueTags(src ...string) *Tags {
+func (f *threadSafeFactory) NewUniqueTags(src ...string) *Tags {
 	f.mu.Lock()
 	tags := f.inner.NewUniqueTags(src...)
 	f.mu.Unlock()
@@ -46,7 +46,7 @@ func (f *threadsafeFactory) NewUniqueTags(src ...string) *Tags {
 }
 
 // NewTagsFromMap implements Factory.NewTagsFromMap
-func (f *threadsafeFactory) NewTagsFromMap(src map[string]struct{}) *Tags {
+func (f *threadSafeFactory) NewTagsFromMap(src map[string]struct{}) *Tags {
 	f.mu.Lock()
 	tags := f.inner.NewTagsFromMap(src)
 	f.mu.Unlock()
@@ -54,7 +54,7 @@ func (f *threadsafeFactory) NewTagsFromMap(src map[string]struct{}) *Tags {
 }
 
 // NewTag implements Factory.NewTag
-func (f *threadsafeFactory) NewTag(tag string) *Tags {
+func (f *threadSafeFactory) NewTag(tag string) *Tags {
 	f.mu.Lock()
 	tags := f.inner.NewTag(tag)
 	f.mu.Unlock()
@@ -62,7 +62,7 @@ func (f *threadsafeFactory) NewTag(tag string) *Tags {
 }
 
 // NewBuilder implements Factory.NewBuilder
-func (f *threadsafeFactory) NewBuilder(capacity int) *Builder {
+func (f *threadSafeFactory) NewBuilder(capacity int) *Builder {
 	f.mu.Lock()
 	bldr := f.baseFactory.newBuilder(f, capacity)
 	f.mu.Unlock()
@@ -70,7 +70,7 @@ func (f *threadsafeFactory) NewBuilder(capacity int) *Builder {
 }
 
 // NewSliceBuilder implements Factory.NewSliceBuilder
-func (f *threadsafeFactory) NewSliceBuilder(levels, capacity int) *SliceBuilder {
+func (f *threadSafeFactory) NewSliceBuilder(levels, capacity int) *SliceBuilder {
 	f.mu.Lock()
 	bldr := f.baseFactory.newSliceBuilder(f, levels, capacity)
 	f.mu.Unlock()
@@ -78,7 +78,7 @@ func (f *threadsafeFactory) NewSliceBuilder(levels, capacity int) *SliceBuilder 
 }
 
 // Union implements Factory.Union
-func (f *threadsafeFactory) Union(a, b *Tags) *Tags {
+func (f *threadSafeFactory) Union(a, b *Tags) *Tags {
 	f.mu.Lock()
 	tags := f.inner.Union(a, b)
 	f.mu.Unlock()
@@ -86,7 +86,7 @@ func (f *threadsafeFactory) Union(a, b *Tags) *Tags {
 }
 
 // getCachedTags implements Factory.getCachedTags
-func (f *threadsafeFactory) getCachedTags(cacheID cacheID, key uint64, miss func() *Tags) *Tags {
+func (f *threadSafeFactory) getCachedTags(cacheID cacheID, key uint64, miss func() *Tags) *Tags {
 	f.mu.Lock()
 	tags := f.inner.getCachedTags(cacheID, key, miss)
 	f.mu.Unlock()
@@ -94,20 +94,20 @@ func (f *threadsafeFactory) getCachedTags(cacheID cacheID, key uint64, miss func
 }
 
 // getCachedTags implements Factory.getCachedTags
-func (f *threadsafeFactory) getCachedTagsErr(cacheID cacheID, key uint64, miss func() (*Tags, error)) (*Tags, error) {
+func (f *threadSafeFactory) getCachedTagsErr(cacheID cacheID, key uint64, miss func() (*Tags, error)) (*Tags, error) {
 	f.mu.Lock()
 	tags, err := f.inner.getCachedTagsErr(cacheID, key, miss)
 	f.mu.Unlock()
 	return tags, err
 }
 
-func (f *threadsafeFactory) builderClosed(builder *Builder) {
+func (f *threadSafeFactory) builderClosed(builder *Builder) {
 	f.mu.Lock()
 	f.baseFactory.builderClosed(builder)
 	f.mu.Unlock()
 }
 
-func (f *threadsafeFactory) sliceBuilderClosed(builder *SliceBuilder) {
+func (f *threadSafeFactory) sliceBuilderClosed(builder *SliceBuilder) {
 	f.mu.Lock()
 	f.baseFactory.sliceBuilderClosed(builder)
 	f.mu.Unlock()

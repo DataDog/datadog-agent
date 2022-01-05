@@ -9,7 +9,7 @@ import "errors"
 
 // tagsCache caches Tags instances using purpose-specific cache keys.
 //
-// Note that tagsCache instances are not threadsafe
+// Note that tagsCache instances are not thread-safe
 type tagsCache struct {
 	// number of inserts between rotations
 	insertsPerRotation int

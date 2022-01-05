@@ -39,7 +39,7 @@ var _ Factory = (*cachingFactory)(nil)
 // searching for cached instances. A value of 5 is a nice starting point. The
 // cache width must be at least 1.
 //
-// Caching factories are not threadsafe. Wrap with a ThreadsafeFactory if
+// Caching factories are not thread-safe. Wrap with a ThreadSafeFactory if
 // thread safety is required.
 func NewCachingFactory(cacheSize, cacheWidth int) (Factory, error) {
 	if cacheSize < 1 {

@@ -8,7 +8,7 @@ package tagset
 import "github.com/twmb/murmur3"
 
 // Builder is used to build tagsets tag-by-tag, before producing Tags instance
-// when it is closed. Builders are not threadsafe.
+// when it is closed. Builders are not thread-safe.
 //
 // It is invalid to use a Builder after Close, as it may be re-used by other goroutines.
 //

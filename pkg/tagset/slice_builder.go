@@ -33,7 +33,7 @@ import (
 // to verify this) is to use a builder in a single method, as shown in the example. Avoid
 // storing builders in structs.
 //
-// SliceBuilders are not threadsafe.
+// SliceBuilders are not thread-safe.
 type SliceBuilder struct {
 	factory Factory
 

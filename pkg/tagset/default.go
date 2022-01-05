@@ -16,7 +16,7 @@ var EmptyTags *Tags
 
 func init() {
 	f := NewNullFactory()
-	DefaultFactory = NewThreadsafeFactory(f)
+	DefaultFactory = NewThreadSafeFactory(f)
 	EmptyTags = NewTags([]string{})
 }
 

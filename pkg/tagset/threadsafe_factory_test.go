@@ -9,13 +9,13 @@ import (
 	"testing"
 )
 
-func TestThreadsafeFactory(t *testing.T) {
+func TestThreadSafeFactory(t *testing.T) {
 	testFactory(t, func() Factory {
 		cf, _ := NewCachingFactory(10, 5)
-		return NewThreadsafeFactory(cf)
+		return NewThreadSafeFactory(cf)
 	})
 	testFactoryCaching(t, func() Factory {
 		cf, _ := NewCachingFactory(10, 5)
-		return NewThreadsafeFactory(cf)
+		return NewThreadSafeFactory(cf)
 	})
 }
