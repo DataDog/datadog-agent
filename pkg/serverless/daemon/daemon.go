@@ -75,7 +75,7 @@ type Daemon struct {
 
 	// TellDaemonRuntimeDoneOnce asserts that TellDaemonRuntimeDone will be called at most once per invocation (at the end of the function OR after a timeout)
 	// this should be reset before each invocation
-	TellDaemonRuntimeDoneOnce sync.Once
+	TellDaemonRuntimeDoneOnce *sync.Once
 
 	// metricsFlushMutex ensures that only one metrics flush can be underway at a given time
 	metricsFlushMutex sync.Mutex
@@ -328,7 +328,7 @@ func (d *Daemon) TellDaemonRuntimeStarted() {
 	// Reset the RuntimeWg on every new invocation.
 	// We might receive a new invocation before we learn that the previous invocation has finished.
 	d.RuntimeWg = &sync.WaitGroup{}
-	d.TellDaemonRuntimeDoneOnce = sync.Once{}
+	d.TellDaemonRuntimeDoneOnce = &sync.Once{}
 	d.RuntimeWg.Add(1)
 }
 
