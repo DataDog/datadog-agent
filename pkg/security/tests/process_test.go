@@ -373,35 +373,7 @@ func TestProcessContext(t *testing.T) {
 		executable := which("tail")
 
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				time.Sleep(2 * time.Second)
-				cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
-				if err := cmd.Start(); err != nil {
-					errChan <- err
-					return
-				}
-				time.Sleep(2 * time.Second)
-
-				cmd.Process.Kill()
-				cmd.Wait()
-			}()
-
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
-
+			return ttyTrigger(executable, testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
@@ -440,35 +412,7 @@ func TestProcessContext(t *testing.T) {
 		executable := which("tail")
 
 		err = test.GetProbeEvent(func() error {
-			var wg sync.WaitGroup
-
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				time.Sleep(2 * time.Second)
-				cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
-				if err := cmd.Start(); err != nil {
-					errChan <- err
-					return
-				}
-				time.Sleep(2 * time.Second)
-
-				cmd.Process.Kill()
-				cmd.Wait()
-			}()
-
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
-
+			return ttyTrigger(executable, testFile)
 		}, func(event *sprobe.Event) bool {
 			filePath, _ := event.GetFieldValue("exec.file.path")
 			t.Logf("filePath = %s", filePath.(string))
@@ -626,6 +570,37 @@ func TestProcessExecCTime(t *testing.T) {
 			t.Error(event.String())
 		}
 	})
+}
+
+func ttyTrigger(executable, testFile string) error {
+	var wg sync.WaitGroup
+
+	errChan := make(chan error, 1)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		time.Sleep(2 * time.Second)
+		cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
+		if err := cmd.Start(); err != nil {
+			errChan <- err
+			return
+		}
+		time.Sleep(2 * time.Second)
+
+		cmd.Process.Kill()
+		cmd.Wait()
+	}()
+
+	wg.Wait()
+
+	select {
+	case err := <-errChan:
+		return err
+	default:
+	}
+	return nil
 }
 
 func TestProcessPIDVariable(t *testing.T) {
