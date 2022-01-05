@@ -377,6 +377,10 @@ func (d *DockerCheck) reportCPUMetrics(cpu *cmetrics.ContainerCPUStats, limits *
 		availableCPUTimeHz := 100 * float64(timeDiff) // Converted to Hz to be consistent with UsageTotal
 		sender.Rate("docker.cpu.limit", limits.CPULimit/100*availableCPUTimeHz, "", tags)
 	}
+
+	if limits.CPUsAllowed > 0 {
+		sender.Rate("docker.cpu.cpus_allowed", float64(limits.CPUsAllowed), "", tags)
+	}
 }
 
 func (d *DockerCheck) reportIOMetrics(io *cmetrics.ContainerIOStats, tags []string, sender aggregator.Sender) {

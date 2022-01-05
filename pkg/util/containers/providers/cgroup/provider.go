@@ -127,6 +127,10 @@ func (mp *provider) GetContainerLimits(containerID string) (*metrics.ContainerLi
 	if err != nil {
 		return nil, fmt.Errorf("thread limit: %s", err)
 	}
+	limits.CPUsAllowed, err = cg.CPUsAllowed()
+	if err != nil {
+		return nil, fmt.Errorf("cpus allowed: %s", err)
+	}
 
 	return &limits, nil
 }

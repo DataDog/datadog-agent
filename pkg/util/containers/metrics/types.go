@@ -147,6 +147,7 @@ type ContainerLimits struct {
 	CPULimit    float64
 	MemLimit    uint64
 	ThreadLimit uint64
+	CPUsAllowed int
 }
 
 // ContainerMetricsProvider defines the API for any implementation that could provide container metrics

@@ -296,38 +296,27 @@ func (c ContainerCgroup) CPUPeriods() (throttledNr uint64, throttledTime float64
 // If the limits files aren't available (on older version) then
 // we'll return the default value of numCPU * 100.
 func (c ContainerCgroup) CPULimit() (float64, error) {
-	defaultLimit := float64(system.HostCPUCount()) * 100.0
-	limitFromCPUSet := float64(-1)
-	limitFromQuota := float64(-1)
-
-	cpusetFile := c.cgroupFilePath("cpuset", "cpuset.cpus")
-	cpuLines, err := readLines(cpusetFile)
+	numCPUs, err := c.CPUsAllowed()
 	if err != nil {
-		if os.IsNotExist(err) {
-			log.Debugf("Missing cgroup file: %s", cpusetFile)
-		} else {
-			return 0, err
-		}
-	} else {
-		numCPUs := parseCPUSetFile(cpuLines)
-		if numCPUs > 0 {
-			limitFromCPUSet = float64(numCPUs) * 100.0
-		}
+		return 0, err
 	}
+
+	limitFromCPUSet := float64(numCPUs) * 100.0
+	limitFromQuota := float64(-1)
 
 	periodFile := c.cgroupFilePath("cpu", "cpu.cfs_period_us")
 	quotaFile := c.cgroupFilePath("cpu", "cpu.cfs_quota_us")
 	plines, err := readLines(periodFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", periodFile)
-		return defaultLimit, nil
+		return limitFromCPUSet, nil
 	} else if err != nil {
 		return 0, err
 	}
 	qlines, err := readLines(quotaFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", quotaFile)
-		return defaultLimit, nil
+		return limitFromCPUSet, nil
 	} else if err != nil {
 		return 0, err
 	}
@@ -369,20 +358,33 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 		limitFromQuota = quota / period * 100.0
 	}
 
-	// Return min of limitFromCPUSet and limitFromQuota. If they are both -1, return default
-	if limitFromCPUSet == -1 && limitFromQuota == -1 {
-		return defaultLimit, nil
-	}
-
-	if limitFromCPUSet == -1 {
-		return limitFromQuota, nil
-	}
-
+	// Return min of limitFromCPUSet and limitFromQuota
 	if limitFromQuota == -1 {
 		return limitFromCPUSet, nil
 	}
 
 	return math.Min(limitFromQuota, limitFromCPUSet), nil
+}
+
+func (c ContainerCgroup) CPUsAllowed() (int, error) {
+	defaultCpusAllowed := system.HostCPUCount()
+
+	cpusetFile := c.cgroupFilePath("cpuset", "cpuset.cpus")
+	cpuLines, err := readLines(cpusetFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Debugf("Missing cgroup file: %s", cpusetFile)
+		} else {
+			return 0, err
+		}
+	} else {
+		numCPUs := parseCPUSetFile(cpuLines)
+		if numCPUs > 0 {
+			return numCPUs, nil
+		}
+	}
+
+	return defaultCpusAllowed, nil
 }
 
 // IO returns the disk read and write bytes stats for this cgroup.
