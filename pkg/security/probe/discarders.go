@@ -230,7 +230,15 @@ func dirname(filename string) string {
 		i--
 	}
 
-	return filename[:i+1]
+	if filename == "/" {
+		return filename
+	}
+
+	if i == 0 {
+		return "/"
+	}
+
+	return filename[:i]
 }
 
 func getParent(filename string, depth int) string {

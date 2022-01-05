@@ -30,7 +30,10 @@ func (g *Glob) contains(filename string, strict bool) bool {
 	for start, end, i := 0, 0, 0; end != len(filename); end++ {
 		if filename[end] == '/' {
 			elf, elp = filename[start:end], g.elements[i]
-			if !PatternMatches(elp, elf) && elp != "**" {
+			if len(elf) == 0 {
+				return !strict
+			}
+			if !patternExprMatches(elp, elf) && elp != "**" {
 				return false
 			}
 			start = end + 1
@@ -43,7 +46,10 @@ func (g *Glob) contains(filename string, strict bool) bool {
 
 		if end+1 >= len(filename) {
 			elf, elp = filename[start:end+1], g.elements[i]
-			if !PatternMatches(elp, elf) && elp != "**" {
+			if len(elf) == 0 {
+				return !strict
+			}
+			if !patternExprMatches(elp, elf) && elp != "**" {
 				return false
 			}
 		}
