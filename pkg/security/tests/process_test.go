@@ -572,33 +572,16 @@ func TestProcessExecCTime(t *testing.T) {
 }
 
 func ttyTrigger(executable, testFile string) error {
-	var wg sync.WaitGroup
-
-	errChan := make(chan error, 1)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		time.Sleep(2 * time.Second)
-		cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
-		if err := cmd.Start(); err != nil {
-			errChan <- err
-			return
-		}
-		time.Sleep(2 * time.Second)
-
-		cmd.Process.Kill()
-		cmd.Wait()
-	}()
-
-	wg.Wait()
-
-	select {
-	case err := <-errChan:
+	time.Sleep(2 * time.Second)
+	cmd := exec.Command("script", "/dev/null", "-c", fmt.Sprintf("%s -f %s", executable, testFile))
+	if err := cmd.Start(); err != nil {
 		return err
-	default:
 	}
+	time.Sleep(2 * time.Second)
+
+	cmd.Process.Kill()
+	cmd.Wait()
+
 	return nil
 }
 
