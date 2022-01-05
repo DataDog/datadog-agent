@@ -94,6 +94,11 @@ func (m *Module) sanityChecks() error {
 		m.config.ERPCDentryResolutionEnabled = false
 	}
 
+	// enable runtime compiled constants on COS by default
+	if !m.config.RuntimeCompiledConstantsIsSet && version.IsCOSKernel() {
+		m.config.EnableRuntimeCompiledConstants = true
+	}
+
 	return nil
 }
 
