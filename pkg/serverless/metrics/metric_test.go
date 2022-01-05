@@ -70,10 +70,12 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 }
 
 func TestStartWithProxy(t *testing.T) {
-	t.Skip() // TODO: FIX ME - config is shared across tests
+	originalValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
+	defer config.Datadog.Set(statsDMetricBlocklistKey, originalValues)
+	config.Datadog.Set(statsDMetricBlocklistKey, []string{})
 
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
+	os.Setenv(proxyEnabledEnvVar, "true")
+	defer os.Unsetenv(proxyEnabledEnvVar)
 
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
@@ -84,7 +86,7 @@ func TestStartWithProxy(t *testing.T) {
 		errorsMetric,
 	}
 
-	setValues := config.Datadog.GetStringSlice("statsd_metric_blocklist")
+	setValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
 	assert.Equal(t, expected, setValues)
 }
 func TestRaceFlushVersusAddSample(t *testing.T) {
