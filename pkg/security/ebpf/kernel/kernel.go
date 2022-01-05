@@ -126,3 +126,8 @@ func (k *Version) IsSLES15Kernel() bool {
 func (k *Version) IsOracleUEKKernel() bool {
 	return k.osRelease["ID"] == "ol" && k.Code >= Kernel5_4
 }
+
+// IsCOSKernel returns whether the kernel is a suse kernel
+func (k *Version) IsCOSKernel() bool {
+	return k.osRelease["ID"] == "cos"
+}

@@ -89,7 +89,7 @@ type Config struct {
 	// EnableRemoteConfig defines if configuration should be fetched from the backend
 	EnableRemoteConfig bool
 	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
-	EnableRuntimeCompiledConstants bool
+	EnableRuntimeCompiledConstants *bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -99,6 +99,12 @@ func (c *Config) IsEnabled() bool {
 
 // NewConfig returns a new Config object
 func NewConfig(cfg *config.Config) (*Config, error) {
+	var runtimeCompiledConstants *bool
+	if aconfig.Datadog.IsSet("runtime_security_config.enable_runtime_compiled_constants") {
+		value := aconfig.Datadog.GetBool("runtime_security_config.enable_runtime_compiled_constants")
+		runtimeCompiledConstants = &value
+	}
+
 	c := &Config{
 		Config:                             *ebpf.NewConfig(),
 		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
@@ -130,7 +136,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
 		EnableRemoteConfig:                 aconfig.Datadog.GetBool("runtime_security_config.enable_remote_configuration"),
-		EnableRuntimeCompiledConstants:     aconfig.Datadog.GetBool("runtime_security_config.enable_runtime_compiled_constants"),
+		EnableRuntimeCompiledConstants:     runtimeCompiledConstants,
 	}
 
 	// if runtime is enabled then we force fim

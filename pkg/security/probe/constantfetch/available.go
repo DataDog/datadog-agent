@@ -11,7 +11,17 @@ import (
 // GetAvailableConstantFetchers returns available constant fetchers
 func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient *statsd.Client) []ConstantFetcher {
 	fallbackConstantFetcher := NewFallbackConstantFetcher(kv)
-	if config.EnableRuntimeCompiledConstants {
+
+	runtimeCompiledConstants := false
+	if config.EnableRuntimeCompiledConstants != nil {
+		runtimeCompiledConstants = *config.EnableRuntimeCompiledConstants
+	} else if kv.IsCOSKernel() {
+		runtimeCompiledConstants = true
+	} else {
+		runtimeCompiledConstants = false
+	}
+
+	if runtimeCompiledConstants {
 		rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config, statsdClient)
 		return []ConstantFetcher{
 			rcConstantFetcher,
