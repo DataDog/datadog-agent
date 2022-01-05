@@ -17,7 +17,7 @@ type tagsCache struct {
 	// number of inserts remaining before next rotation
 	untilRotate int
 
-	// tagests contains the constitutent tagset maps. This is a slice of length
+	// tagsets contains the constitutent tagset maps. This is a slice of length
 	// cacheCount. The first map is the newest, into which new values will be
 	// inserted.
 	maps []map[uint64]*Tags
