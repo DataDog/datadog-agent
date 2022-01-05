@@ -27,14 +27,14 @@ type File struct {
 	// IsWildcardPath is set to true when the File has been discovered
 	// in a directory with wildcard(s) in the configuration.
 	IsWildcardPath bool
-	Source         *config.LogSource
+	Source         *config.ReplaceableSource
 }
 
 // NewFile returns a new File
 func NewFile(path string, source *config.LogSource, isWildcardPath bool) *File {
 	return &File{
 		Path:           path,
-		Source:         source,
+		Source:         config.NewReplaceableSource(source),
 		IsWildcardPath: isWildcardPath,
 	}
 }
@@ -43,8 +43,8 @@ func NewFile(path string, source *config.LogSource, isWildcardPath bool) *File {
 // If it is a file scanned for a container, it will use the format: <filepath>/<container_id>
 // Otherwise, it will simply use the format: <filepath>
 func (t *File) GetScanKey() string {
-	if t.Source != nil && t.Source.Config != nil && t.Source.Config.Identifier != "" {
-		return fmt.Sprintf("%s/%s", t.Path, t.Source.Config.Identifier)
+	if t.Source != nil && t.Source.Config() != nil && t.Source.Identifier() != "" {
+		return fmt.Sprintf("%s/%s", t.Path, t.Source.Identifier())
 	}
 	return t.Path
 }

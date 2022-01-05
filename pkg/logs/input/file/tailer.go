@@ -109,8 +109,9 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder) *Tailer {
 
 	var tagProvider tag.Provider
-	if file.Source.Config.Identifier != "" {
-		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.Source.Config.Identifier))
+	identifier := file.Source.Identifier()
+	if identifier != "" {
+		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(identifier))
 	} else {
 		tagProvider = tag.NewLocalProvider([]string{})
 	}
@@ -147,10 +148,10 @@ func (t *Tailer) Identifier() string {
 func (t *Tailer) Start(offset int64, whence int) error {
 	err := t.setup(offset, whence)
 	if err != nil {
-		t.file.Source.Status.Error(err)
+		t.file.Source.Status().Error(err)
 		return err
 	}
-	t.file.Source.Status.Success()
+	t.file.Source.Status().Success()
 	t.file.Source.AddInput(t.file.Path)
 
 	go t.forwardMessages()
@@ -169,7 +170,8 @@ func (t *Tailer) readForever() {
 		if err != nil {
 			return
 		}
-		t.recordBytes(int64(n))
+		t.bytesRead += int64(n)
+		t.file.Source.RecordBytes(int64(n))
 
 		select {
 		case <-t.stop:
@@ -249,7 +251,7 @@ func (t *Tailer) forwardMessages() {
 			identifier = ""
 		}
 		t.decodedOffset = offset
-		origin := message.NewOrigin(t.file.Source)
+		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
@@ -307,10 +309,12 @@ func (t *Tailer) wait() {
 	time.Sleep(t.sleepDuration)
 }
 
-func (t *Tailer) recordBytes(n int64) {
-	t.bytesRead += n
-	t.file.Source.BytesRead.Add(n)
-	if t.file.Source.ParentSource != nil {
-		t.file.Source.ParentSource.BytesRead.Add(n)
+// ReplaceSource replaces an existing source with a new one
+func (t *Tailer) ReplaceSource(source *config.LogSource) {
+	originalSource := t.file.Source.UnderlyingSource()
+	source.Status = originalSource.Status
+	if source.Status.IsSuccess() {
+		source.AddInput(t.file.Path)
 	}
+	t.file.Source.Replace(source)
 }

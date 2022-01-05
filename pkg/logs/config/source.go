@@ -148,3 +148,14 @@ func (s *LogSource) IsHiddenFromStatus() bool {
 	defer s.lock.Unlock()
 	return s.hiddenFromStatus
 }
+
+// RecordBytes reports bytes to the source expvars
+func (s *LogSource) RecordBytes(n int64) {
+	s.BytesRead.Add(n)
+
+	// In some cases like `container_collect_all` we need to report the byte count to the parent source
+	// used to populate the status page.
+	if s.ParentSource != nil {
+		s.ParentSource.BytesRead.Add(n)
+	}
+}

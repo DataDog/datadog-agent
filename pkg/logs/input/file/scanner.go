@@ -209,7 +209,11 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 		if len(s.tailers) >= s.tailingLimit {
 			return
 		}
-		if _, isTailed := s.tailers[file.GetScanKey()]; isTailed {
+
+		if tailer, isTailed := s.tailers[file.GetScanKey()]; isTailed {
+			// the file is already tailed, update the existing tailer's source so that the tailer
+			// uses this new source going forward
+			tailer.ReplaceSource(source)
 			continue
 		}
 
@@ -277,7 +281,7 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 // to validate that we will be reading a file for the correct container.
 func (s *Scanner) shouldIgnore(file *File) bool {
 	// this method needs a source config to detect whether we should ignore that file or not
-	if file == nil || file.Source == nil || file.Source.Config == nil {
+	if file == nil || file.Source.UnderlyingSource() == nil || file.Source.Config() == nil {
 		return false
 	}
 
@@ -324,10 +328,10 @@ func (s *Scanner) shouldIgnore(file *File) bool {
 		return false
 	}
 
-	if file.Source.Config.Identifier != "" && containerIDFromFilename != "" {
-		if strings.TrimSpace(strings.ToLower(containerIDFromFilename)) != strings.TrimSpace(strings.ToLower(file.Source.Config.Identifier)) {
+	if file.Source.Identifier() != "" && containerIDFromFilename != "" {
+		if strings.TrimSpace(strings.ToLower(containerIDFromFilename)) != strings.TrimSpace(strings.ToLower(file.Source.Identifier())) {
 			log.Debugf("We were about to tail a file attached to the wrong container (%s != %s), probably due to short-lived containers.",
-				containerIDFromFilename, file.Source.Config.Identifier)
+				containerIDFromFilename, file.Source.Identifier())
 			// ignore this file, it is not concerning the container stored in file.Source
 			return true
 		}
@@ -382,9 +386,9 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) boo
 
 // createTailer returns a new initialized tailer
 func (s *Scanner) createTailer(file *File, outputChan chan *message.Message) *Tailer {
-	return NewTailer(outputChan, file, s.tailerSleepDuration, NewDecoderFromSource(file.Source))
+	return NewTailer(outputChan, file, s.tailerSleepDuration, NewDecoderFromSource(file.Source.UnderlyingSource()))
 }
 
 func (s *Scanner) createRotatedTailer(file *File, outputChan chan *message.Message, pattern *regexp.Regexp) *Tailer {
-	return NewTailer(outputChan, file, s.tailerSleepDuration, NewDecoderFromSourceWithPattern(file.Source, pattern))
+	return NewTailer(outputChan, file, s.tailerSleepDuration, NewDecoderFromSourceWithPattern(file.Source.UnderlyingSource(), pattern))
 }
