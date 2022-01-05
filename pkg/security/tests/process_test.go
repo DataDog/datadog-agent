@@ -657,6 +657,7 @@ func TestProcessMutableVariable(t *testing.T) {
 		Expression: `open.file.path == "{{.Root}}/test-open-3"` +
 			`&& ${process.var1} == true` +
 			`&& ${process.var2} == "on"` +
+			`&& "aaa" in ${process.var3}` +
 			`&& "bbb" in ${process.var3}` +
 			`&& process.file.name == "${var4}"` +
 			`&& open.file.path == "${var5}-3"`,

@@ -130,7 +130,7 @@ type SetDefinition struct {
 	Name   string      `yaml:"name"`
 	Value  interface{} `yaml:"value"`
 	Field  string      `yaml:"field"`
-	Append bool        `yaml:"bool"`
+	Append bool        `yaml:"append"`
 	Scope  Scope       `yaml:"scope"`
 }
 
@@ -159,6 +159,8 @@ type RuleSet struct {
 	model            eval.Model
 	eventCtor        func() eval.Event
 	listeners        []RuleSetListener
+	globalVariables  eval.GlobalVariables
+	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
 	logger Logger
@@ -491,11 +493,6 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 	return nil
 }
 
-// GetVariable returns a new mutable variable with the type of the specified value
-func (rs *RuleSet) GetVariable(name string, value interface{}) (eval.VariableValue, error) {
-	return eval.GetVariable(name, value)
-}
-
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	ctx := rs.pool.Get(event.GetPointer())
@@ -612,5 +609,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		logger:           logger,
 		pool:             eval.NewContextPool(),
 		fieldEvaluators:  make(map[string]eval.Evaluator),
+		scopedVariables:  make(map[Scope]VariableProvider),
 	}
 }

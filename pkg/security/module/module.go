@@ -280,8 +280,8 @@ func (m *Module) Reload() error {
 		WithEventTypeEnabled(m.getEventTypeEnabled()).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
 		WithLegacyFields(model.SECLLegacyFields).
-		WithStateScopes(map[rules.Scope]rules.StateScope{
-			"process": m.probe.GetResolvers().ProcessResolver,
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
 		}).
 		WithLogger(&seclog.PatternLogger{})
 

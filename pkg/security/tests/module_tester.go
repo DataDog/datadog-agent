@@ -116,6 +116,7 @@ rules:
           field: {{$Action.Set.Field}}
           {{- end}}
           scope: {{$Action.Set.Scope}}
+          append: {{$Action.Set.Append}}
 {{- end}}
 {{- end}}
 {{end}}

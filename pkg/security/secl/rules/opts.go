@@ -9,10 +9,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-// StateScope is the interface implemented by SECL variable providers
-type StateScope interface {
+// VariableProvider is the interface implemented by SECL variable providers
+type VariableProvider interface {
 	GetVariable(name string, value interface{}) (eval.VariableValue, error)
 }
+
+// VariableProviderFactory describes a function called to instantiate a variable provider
+type VariableProviderFactory func() VariableProvider
 
 // Opts defines rules set options
 type Opts struct {
@@ -20,7 +23,7 @@ type Opts struct {
 	SupportedDiscarders map[eval.Field]bool
 	ReservedRuleIDs     []RuleID
 	EventTypeEnabled    map[eval.EventType]bool
-	StateScopes         map[Scope]StateScope
+	StateScopes         map[Scope]VariableProviderFactory
 	Logger              Logger
 }
 
@@ -79,7 +82,7 @@ func (o *Opts) WithLogger(logger Logger) *Opts {
 }
 
 // WithStateScopes set state scopes
-func (o *Opts) WithStateScopes(stateScopes map[Scope]StateScope) *Opts {
+func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *Opts {
 	o.StateScopes = stateScopes
 	return o
 }

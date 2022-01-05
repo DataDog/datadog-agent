@@ -14,12 +14,12 @@ import (
 	"io"
 	"os"
 	"path"
-	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-go/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -976,36 +977,20 @@ func (p *ProcessResolver) SetState(state int64) {
 	atomic.StoreInt64(&p.state, state)
 }
 
-// GetVariable returns a new mutable variable with the type of the specified value
-func (p *ProcessResolver) GetVariable(name string, value interface{}) (eval.VariableValue, error) {
-	setVar := func(ctx *eval.Context, value interface{}) error {
-		return (*Event)(ctx.Object).ProcessContext.Process.Set(name, value)
+// NewProcessVariables returns a provider for variables attached to a process cache entry
+func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
+	scoper := func(ctx *eval.Context) unsafe.Pointer {
+		return unsafe.Pointer((*Event)(ctx.Object).processCacheEntry)
 	}
 
-	switch value.(type) {
-	case int:
-		return eval.NewIntVariable(func(ctx *eval.Context) int {
-			return (*Event)(ctx.Object).ProcessContext.Process.GetInt()
-		}, setVar), nil
-	case bool:
-		return eval.NewBoolVariable(func(ctx *eval.Context) bool {
-			return (*Event)(ctx.Object).ProcessContext.Process.GetBool()
-		}, setVar), nil
-	case string:
-		return eval.NewStringVariable(func(ctx *eval.Context) string {
-			return (*Event)(ctx.Object).ProcessContext.Process.GetString()
-		}, setVar), nil
-	case []string:
-		return eval.NewStringArrayVariable(func(ctx *eval.Context) []string {
-			return (*Event)(ctx.Object).ProcessContext.Process.GetStringArray()
-		}, setVar), nil
-	case []int:
-		return eval.NewIntArrayVariable(func(ctx *eval.Context) []int {
-			return (*Event)(ctx.Object).ProcessContext.Process.GetIntArray()
-		}, setVar), nil
-	default:
-		return nil, fmt.Errorf("unsupported variable type %s for '%s'", reflect.TypeOf(value), name)
-	}
+	var variables *eval.ScopedVariables
+	variables = eval.NewScopedVariables(scoper, func(key unsafe.Pointer) {
+		(*model.ProcessCacheEntry)(key).SetReleaseCallback(func() {
+			variables.ReleaseVariable(key)
+		})
+	})
+
+	return variables
 }
 
 // NewProcessResolver returns a new process resolver

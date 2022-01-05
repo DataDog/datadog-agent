@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"unsafe"
 
 	"github.com/pkg/errors"
 )
@@ -146,7 +147,7 @@ func (s *StringArrayVariable) Set(ctx *Context, value interface{}) error {
 
 // Append a value to the array
 func (s *StringArrayVariable) Append(ctx *Context, value interface{}) error {
-	return s.Set(ctx, append(s.strFnc(ctx), value.(string)))
+	return s.Set(ctx, append(s.strFnc(ctx), value.([]string)...))
 }
 
 // NewStringArrayVariable returns a new string array variable
@@ -182,7 +183,7 @@ func (s *IntArrayVariable) Set(ctx *Context, value interface{}) error {
 
 // Append a value to the array
 func (s *IntArrayVariable) Append(ctx *Context, value interface{}) error {
-	return s.Set(ctx, append(s.intFnc(ctx), value.(int)))
+	return s.Set(ctx, append(s.intFnc(ctx), value.([]int)...))
 }
 
 // NewIntArrayVariable returns a new integer array variable
@@ -385,8 +386,14 @@ func NewMutableIntArrayVariable() *MutableIntArrayVariable {
 	return &MutableIntArrayVariable{}
 }
 
+// Scoper maps a variable to the entity its scoped to
+type Scoper func(ctx *Context) unsafe.Pointer
+
+// GlobalVariables holds a set of global variables
+type GlobalVariables struct{}
+
 // GetVariable returns new variable of the type of the specified value
-func GetVariable(name string, value interface{}) (VariableValue, error) {
+func (v *GlobalVariables) GetVariable(name string, value interface{}) (VariableValue, error) {
 	switch value := value.(type) {
 	case bool:
 		return NewMutableBoolVariable(), nil
@@ -449,10 +456,97 @@ func (v *Variables) GetIntArray(name string) []int {
 }
 
 // Set the value of the specified variable
-func (v *Variables) Set(name string, value interface{}) error {
+func (v *Variables) Set(name string, value interface{}) bool {
+	existed := false
 	if v.vars == nil {
 		v.vars = make(map[string]interface{})
+	} else {
+		_, existed = v.vars[name]
 	}
+
 	v.vars[name] = value
-	return nil
+	return !existed
+}
+
+// ScopedVariables holds a set of scoped variables
+type ScopedVariables struct {
+	scoper         Scoper
+	onNewVariables func(_ unsafe.Pointer)
+	vars           map[unsafe.Pointer]*Variables
+}
+
+// GetVariable returns new variable of the type of the specified value
+func (v *ScopedVariables) GetVariable(name string, value interface{}) (VariableValue, error) {
+	getVariables := func(ctx *Context) *Variables {
+		return v.vars[v.scoper(ctx)]
+	}
+
+	setVariable := func(ctx *Context, value interface{}) error {
+		key := v.scoper(ctx)
+		vars := v.vars[key]
+		if vars == nil {
+			vars = &Variables{}
+			v.vars[key] = vars
+			if v.onNewVariables != nil {
+				v.onNewVariables(key)
+			}
+		}
+		vars.Set(name, value)
+		return nil
+	}
+
+	switch value.(type) {
+	case int:
+		return NewIntVariable(func(ctx *Context) int {
+			if vars := getVariables(ctx); vars != nil {
+				return vars.GetInt(name)
+			}
+			return 0
+		}, setVariable), nil
+	case bool:
+		return NewBoolVariable(func(ctx *Context) bool {
+			if vars := getVariables(ctx); vars != nil {
+				return vars.GetBool(name)
+			}
+			return false
+		}, setVariable), nil
+	case string:
+		return NewStringVariable(func(ctx *Context) string {
+			if vars := getVariables(ctx); vars != nil {
+				return vars.GetString(name)
+			}
+			return ""
+		}, setVariable), nil
+	case []string:
+		return NewStringArrayVariable(func(ctx *Context) []string {
+			if vars := getVariables(ctx); vars != nil {
+				return vars.GetStringArray(name)
+			}
+			return nil
+		}, setVariable), nil
+	case []int:
+		return NewIntArrayVariable(func(ctx *Context) []int {
+			if vars := getVariables(ctx); vars != nil {
+				return vars.GetIntArray(name)
+			}
+			return nil
+
+		}, setVariable), nil
+	default:
+		return nil, fmt.Errorf("unsupported variable type %s for '%s'", reflect.TypeOf(value), name)
+	}
+}
+
+// ReleaseVariable releases a scoped variable
+func (v *ScopedVariables) ReleaseVariable(key unsafe.Pointer) {
+	delete(v.vars, key)
+}
+
+// NewScopedVariables returns a new set of scope variables
+func NewScopedVariables(scoper Scoper, onNewVariables func(unsafe.Pointer)) *ScopedVariables {
+	return &ScopedVariables{
+		scoper:         scoper,
+		onNewVariables: onNewVariables,
+		vars:           make(map[unsafe.Pointer]*Variables),
+	}
 }

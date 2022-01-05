@@ -207,18 +207,6 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 					continue
 				}
 
-				var scope StateScope
-
-				if action.Set.Scope != "" {
-					if scope = ruleSet.opts.StateScopes[action.Set.Scope]; scope == nil {
-						result = multierror.Append(result, fmt.Errorf("invalid scope '%s'", action.Set.Scope))
-						continue
-					}
-				} else {
-					scope = ruleSet
-				}
-
-				var variable eval.VariableValue
 				var variableValue interface{}
 
 				if action.Set.Value != nil {
@@ -265,7 +253,26 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 					}
 				}
 
-				variable, err = scope.GetVariable(action.Set.Name, variableValue)
+				var variable eval.VariableValue
+				var variableProvider VariableProvider
+
+				if action.Set.Scope != "" {
+					stateScopeBuilder := ruleSet.opts.StateScopes[action.Set.Scope]
+					if stateScopeBuilder == nil {
+						result = multierror.Append(result, fmt.Errorf("invalid scope '%s'", action.Set.Scope))
+						continue
+					}
+
+					if _, found := ruleSet.scopedVariables[action.Set.Scope]; !found {
+						ruleSet.scopedVariables[action.Set.Scope] = stateScopeBuilder()
+					}
+
+					variableProvider = ruleSet.scopedVariables[action.Set.Scope]
+				} else {
+					variableProvider = &ruleSet.globalVariables
+				}
+
+				variable, err = variableProvider.GetVariable(action.Set.Name, variableValue)
 				if err != nil {
 					result = multierror.Append(result, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(action.Set.Value), action.Set.Name, err))
 					continue
