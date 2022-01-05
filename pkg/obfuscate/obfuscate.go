@@ -103,6 +103,9 @@ type StatsClient interface {
 // SQLConfig holds the config for obfuscating SQL.
 // easyjson:json
 type SQLConfig struct {
+	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
+	DBMS string `json:"dbms"`
+
 	// TableNames specifies whether the obfuscator should also extract the table names that a query addresses,
 	// in addition to obfuscating.
 	TableNames bool `json:"table_names"`

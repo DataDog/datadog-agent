@@ -306,6 +306,9 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return TokenKind(ch), tkn.bytes()
 			}
 		case '#':
+			if tkn.cfg.DBMS == "sqlserver" {
+				return tkn.scanIdentifier()
+			}
 			tkn.advance()
 			return tkn.scanCommentType1("#")
 		case '<':
