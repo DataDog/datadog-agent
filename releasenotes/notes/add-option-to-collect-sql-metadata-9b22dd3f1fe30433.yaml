@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add the option to collect SQL comments and commands during obfuscation.
+    APM: Add the option to collect SQL comments and commands during obfuscation.
