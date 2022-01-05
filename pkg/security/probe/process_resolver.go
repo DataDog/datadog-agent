@@ -77,35 +77,6 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 	}
 }
 
-// TTYConstants returns the tty constants
-func TTYConstants(probe *Probe) []manager.ConstantEditor {
-	ttyOffset, nameOffset := uint64(400), uint64(368)
-
-	switch {
-	case probe.kernelVersion.IsRH7Kernel():
-		ttyOffset, nameOffset = 416, 312
-	case probe.kernelVersion.IsRH8Kernel():
-		ttyOffset, nameOffset = 392, 368
-	case probe.kernelVersion.IsSLES12Kernel():
-		ttyOffset, nameOffset = 376, 368
-	case probe.kernelVersion.IsSLES15Kernel():
-		ttyOffset, nameOffset = 408, 368
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel5_3:
-		ttyOffset, nameOffset = 368, 368
-	}
-
-	return []manager.ConstantEditor{
-		{
-			Name:  "tty_offset",
-			Value: ttyOffset,
-		},
-		{
-			Name:  "tty_name_offset",
-			Value: nameOffset,
-		},
-	}
-}
-
 // ProcessResolverOpts options of resolver
 type ProcessResolverOpts struct{}
 
