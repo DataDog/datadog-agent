@@ -75,6 +75,18 @@ func TestGlobContains(t *testing.T) {
 	if glob, _ := NewGlob("/etc/conf.d/ab*"); !glob.Contains("/etc/conf.d/") {
 		t.Error("should contain the filename")
 	}
+
+	if glob, _ := NewGlob("/var/*"); glob.Matches("/var/log/nginx") {
+		t.Error("shouldn't contain the filename")
+	}
+
+	if glob, _ := NewGlob("/var/log"); !glob.Matches("/var/log") {
+		t.Error("should contain the filename")
+	}
+
+	if glob, _ := NewGlob("/etc/conf.d/*"); glob.Matches("/etc/sys.d/nginx.conf") {
+		t.Error("shouldn't contain the filename")
+	}
 }
 
 func TestGlobMatches(t *testing.T) {
@@ -88,5 +100,9 @@ func TestGlobMatches(t *testing.T) {
 
 	if glob, _ := NewGlob("/var/*"); glob.Matches("/var/log/nginx") {
 		t.Error("shouldn't contain the filename")
+	}
+
+	if glob, _ := NewGlob("/var/log"); !glob.Matches("/var/log") {
+		t.Error("should contain the filename")
 	}
 }
