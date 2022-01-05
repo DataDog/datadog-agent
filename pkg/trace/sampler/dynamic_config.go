@@ -109,6 +109,5 @@ func (rbs *RateByService) GetNewState(version string) State {
 var localVersion int64
 
 func newVersion() string {
-	atomic.AddInt64(&localVersion, 1)
-	return strconv.FormatInt(time.Now().Unix(), 16) + "-" + strconv.FormatInt(localVersion, 16)
+	return strconv.FormatInt(time.Now().Unix(), 16) + "-" + strconv.FormatInt(atomic.AddInt64(&localVersion, 1), 16)
 }
