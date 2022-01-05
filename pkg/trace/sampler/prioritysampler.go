@@ -84,8 +84,7 @@ func (s *PrioritySampler) Start() {
 			case <-updateRates.C:
 				s.updateRates()
 			case <-statsTicker.C:
-				s.localRates.report()
-				s.remoteRates.report()
+				s.reportStats()
 			case <-s.exit:
 				return
 			}
@@ -93,10 +92,20 @@ func (s *PrioritySampler) Start() {
 	}()
 }
 
+// report sampler stats
+func (s *PrioritySampler) reportStats() {
+	s.localRates.report()
+	if s.remoteRates != nil {
+		s.remoteRates.report()
+	}
+}
+
 // update sampling rates
 func (s *PrioritySampler) updateRates() {
 	s.localRates.update()
-	s.remoteRates.update()
+	if s.remoteRates != nil {
+		s.remoteRates.update()
+	}
 	s.rateByService.SetAll(s.ratesByService())
 }
 
