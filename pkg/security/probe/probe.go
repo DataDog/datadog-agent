@@ -106,6 +106,14 @@ func (p *Probe) detectKernelVersion() error {
 	return nil
 }
 
+// GetKernelVersion computes and returns the running kernel version
+func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
+	if err := p.detectKernelVersion(); err != nil {
+		return nil, err
+	}
+	return p.kernelVersion, nil
+}
+
 // VerifyOSVersion returns an error if the current kernel version is not supported
 func (p *Probe) VerifyOSVersion() error {
 	if !p.kernelVersion.IsRH7Kernel() && !p.kernelVersion.IsRH8Kernel() && p.kernelVersion.Code < kernel.Kernel4_15 {

@@ -415,7 +415,6 @@ func TestProcessContext(t *testing.T) {
 			return ttyTrigger(executable, testFile)
 		}, func(event *sprobe.Event) bool {
 			filePath, _ := event.GetFieldValue("exec.file.path")
-			t.Logf("filePath = %s", filePath.(string))
 			if filePath.(string) != executable {
 				return false
 			}

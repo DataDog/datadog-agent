@@ -40,5 +40,12 @@ func TestFallbackConstants(t *testing.T) {
 		t.Error(err)
 	}
 
-	assert.Equal(t, withoutRC, withRC)
+	if !assert.Equal(t, withoutRC, withRC) {
+		kernelVersion, err := test.probe.GetKernelVersion()
+		if err != nil {
+			t.Error("failed to get probe kernel version")
+		} else {
+			t.Logf("kernel version: %v", kernelVersion)
+		}
+	}
 }
