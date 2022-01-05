@@ -71,14 +71,6 @@ if suse?
 end
 
 if osx?
-  # Blacklist lxml as it fails MacOS notarization: the etree.cpython-37m-darwin.so and objectify.cpython-37m-darwin.so
-  # binaries were built with a MacOS SDK lower than 10.9.
-  # This can be removed once a new lxml version with binaries built with a newer SDK is available.
-  blacklist_packages.push(/^lxml==/)
-
-  # Blacklist ibm_was, which depends on lxml
-  blacklist_folders.push('ibm_was')
-
   # Blacklist aerospike, new version 3.10 is not supported on MacOS yet
   blacklist_folders.push('aerospike')
 
