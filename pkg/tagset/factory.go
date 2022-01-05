@@ -81,5 +81,8 @@ const (
 	byTagsetHashCache cacheID = iota
 	// byUnionCache indexes Union(a,b) by uint64(a.Hash() + b.Hash())
 	byUnionHashCache cacheID = iota
-	numCacheIDs
+
+	// numCacheIDs is the count of cache IDs (and must always be the last item
+	// in this block)
+	numCacheIDs = iota
 )

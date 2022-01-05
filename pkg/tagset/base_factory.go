@@ -25,10 +25,10 @@ func (f *baseFactory) newBuilder(ff Factory, capacity int) *Builder {
 	if len(f.builders) > 0 {
 		l := len(f.builders)
 		bldr, f.builders = f.builders[l-1], f.builders[:l-1]
+		bldr.reset(capacity)
 	} else {
-		bldr = newBuilder(ff)
+		bldr = newBuilder(ff, capacity)
 	}
-	bldr.reset(capacity)
 	return bldr
 }
 
@@ -38,10 +38,10 @@ func (f *baseFactory) newSliceBuilder(ff Factory, levels, capacity int) *SliceBu
 	if len(f.sliceBuilders) > 0 {
 		l := len(f.sliceBuilders)
 		bldr, f.sliceBuilders = f.sliceBuilders[l-1], f.sliceBuilders[:l-1]
+		bldr.reset(levels, capacity)
 	} else {
-		bldr = newSliceBuilder(ff)
+		bldr = newSliceBuilder(ff, levels, capacity)
 	}
-	bldr.reset(levels, capacity)
 	return bldr
 }
 

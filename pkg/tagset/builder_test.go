@@ -14,8 +14,7 @@ import (
 )
 
 func testBuilder() *Builder {
-	bldr := newBuilder(NewNullFactory())
-	bldr.reset(10)
+	bldr := newBuilder(NewNullFactory(), 10)
 	return bldr
 }
 

@@ -22,13 +22,11 @@ type Builder struct {
 	seen    map[uint64]struct{}
 }
 
-// newBuilder creates a new builder. This must be reset()
-// before use.
-func newBuilder(factory Factory) *Builder {
-	return &Builder{
-		factory: factory,
-		tags:    nil,
-	}
+// newBuilder creates a new builder.
+func newBuilder(factory Factory, capacity int) *Builder {
+	bldr := &Builder{factory: factory}
+	bldr.reset(capacity)
+	return bldr
 }
 
 // reset the builder, preparing it for re-use

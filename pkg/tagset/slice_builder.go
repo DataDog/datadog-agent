@@ -59,12 +59,11 @@ type SliceBuilder struct {
 	seen map[uint64]struct{}
 }
 
-// newSliceBuilder creates a new builder. This must be reset()
-// before use.
-func newSliceBuilder(factory Factory) *SliceBuilder {
-	return &SliceBuilder{
-		factory: factory,
-	}
+// newSliceBuilder creates a new builder.
+func newSliceBuilder(factory Factory, levels, capacity int) *SliceBuilder {
+	f := &SliceBuilder{factory: factory}
+	f.reset(levels, capacity)
+	return f
 }
 
 // reset the builder, preparing it for re-use
