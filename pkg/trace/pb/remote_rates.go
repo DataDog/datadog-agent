@@ -2,9 +2,10 @@ package pb
 
 // TargetTPS contains the targeted traces per second the agent should try to sample for a particular service and env
 type TargetTPS struct {
-	Service string  `msgpack:"0"`
-	Env     string  `msgpack:"1"`
-	Value   float64 `msgpack:"2"`
+	Service string `msgpack:"0"`
+	Env     string `msgpack:"1"`
+	// Value contains the targetTPS value to apply (target traces per second).
+	Value float64 `msgpack:"2"`
 	// Rank is the rank associated to this TargetTPS. Lower ranks of a same (env, service) are discarded
 	// in favor of the highest rank.
 	Rank uint32 `msgpack:"3"`
