@@ -35,6 +35,11 @@ func demuxTestOptions() DemultiplexerOptions {
 	return opts
 }
 
+// Check whether we are built with the +orchestrator build tag
+func orchestratorEnabled() bool {
+	return buildOrchestratorForwarder() != nil
+}
+
 func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 	require := require.New(t)
 
@@ -109,7 +114,11 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = InitAndStartAgentDemultiplexer(opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.NotNil(demux.forwarders.orchestrator)
+	if orchestratorEnabled() {
+		require.NotNil(demux.forwarders.orchestrator)
+	} else {
+		require.Nil(demux.forwarders.orchestrator)
+	}
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 

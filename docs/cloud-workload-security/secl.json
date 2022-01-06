@@ -17,6 +17,31 @@
           "definition": "Tags of the container"
         },
         {
+          "name": "process.ancestors.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)"
+        },
+        {
+          "name": "process.ancestors.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "process.ancestors.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "process.ancestors.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation"
+        },
+        {
+          "name": "process.ancestors.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
           "name": "process.ancestors.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process"
@@ -55,6 +80,16 @@
           "name": "process.ancestors.egroup",
           "type": "string",
           "definition": "Effective group of the process"
+        },
+        {
+          "name": "process.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variables of the process"
+        },
+        {
+          "name": "process.ancestors.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation"
         },
         {
           "name": "process.ancestors.euid",
@@ -197,6 +232,31 @@
           "definition": "User of the process"
         },
         {
+          "name": "process.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)"
+        },
+        {
+          "name": "process.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "process.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "process.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation"
+        },
+        {
+          "name": "process.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
           "name": "process.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process"
@@ -235,6 +295,16 @@
           "name": "process.egroup",
           "type": "string",
           "definition": "Effective group of the process"
+        },
+        {
+          "name": "process.envs",
+          "type": "string",
+          "definition": "Environment variables of the process"
+        },
+        {
+          "name": "process.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation"
         },
         {
           "name": "process.euid",

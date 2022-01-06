@@ -106,8 +106,10 @@ func (rb *RuleBucket) GetApprovers(event eval.Event, fieldCaps FieldCapabilities
 				if field != fc.Field {
 					continue
 				}
+
 				if fc.FilterWeight >= approverWeight {
 					approverField = field
+					approverWeight = fc.FilterWeight
 				}
 			}
 		}

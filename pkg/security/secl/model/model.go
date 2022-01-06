@@ -268,11 +268,12 @@ type Process struct {
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
 
-	EnvsTruncated bool `field:"-"`
-	ArgsTruncated bool `field:"-"`
-
-	EnvsCache []string `field:"-"` // used as cache
-	ArgsCache []string `field:"-"` // used as cache
+	// defined to generate accessors
+	Args          string   `field:"args,ResolveProcessArgs:100"`                                                                                           // Arguments of the process (as a string)
+	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags" field:"args_options,ResolveProcessArgsOptions"` // Arguments of the process (as an array)
+	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated"`                                                                            // Indicator of arguments truncation
+	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                                                                                           // Environment variables of the process
+	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"`                                                                            // Indicator of environment variables truncation
 }
 
 // SpanContext describes a span context
@@ -284,13 +285,6 @@ type SpanContext struct {
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	Process
-
-	// defined to generate accessors
-	Args          string   `field:"args,ResolveExecArgs"`                                                                                     // Arguments of the process (as a string)
-	Argv          []string `field:"argv,ResolveExecArgv" field:"args_flags,ResolveExecArgsFlags" field:"args_options,ResolveExecArgsOptions"` // Arguments of the process (as an array)
-	ArgsTruncated bool     `field:"args_truncated,ResolveExecArgsTruncated"`                                                                  // Indicator of arguments truncation
-	Envs          []string `field:"envs,ResolveExecEnvs"`                                                                                     // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,ResolveExecEnvsTruncated"`                                                                  // Indicator of environment variables truncation
 }
 
 // FileFields holds the information required to identify a file

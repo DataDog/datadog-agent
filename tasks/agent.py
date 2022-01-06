@@ -19,7 +19,7 @@ from invoke.exceptions import Exit, ParseError
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .docker import pull_base_images
 from .flavor import AgentFlavor
-from .go import deps, generate
+from .go import deps
 from .rtloader import clean as rtloader_clean
 from .rtloader import install as rtloader_install
 from .rtloader import make as rtloader_make
@@ -164,9 +164,6 @@ def build(
         )
         build_exclude = [] if build_exclude is None else build_exclude.split(",")
         build_tags = get_build_tags(build_include, build_exclude)
-
-    # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx)
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 

@@ -285,12 +285,12 @@ func TestRuleSetFilters2(t *testing.T) {
 			FilterWeight: 3,
 		},
 		{
-			Field:        "process.uid",
+			Field:        "process.gid",
 			Types:        eval.ScalarValueType,
 			FilterWeight: 2,
 		},
 		{
-			Field:        "process.gid",
+			Field:        "process.uid",
 			Types:        eval.ScalarValueType,
 			FilterWeight: 1,
 		},

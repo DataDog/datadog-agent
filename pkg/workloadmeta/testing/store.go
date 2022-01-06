@@ -127,7 +127,7 @@ func (s *Store) Start(ctx context.Context) {
 }
 
 // Subscribe is not implemented in the testing store.
-func (s *Store) Subscribe(name string, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
+func (s *Store) Subscribe(name string, _ workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
 	panic("not implemented")
 }
 
