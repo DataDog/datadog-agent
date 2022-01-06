@@ -51,7 +51,7 @@ const (
 	downloadFailure
 )
 
-var linuxTypesHMissingErr = errors.New("correctly versioned kernel headers found, but linux/types.h missing")
+var errLinuxTypesHMissing = errors.New("correctly versioned kernel headers found, but linux/types.h missing")
 
 // GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
 // to  download them to headerDownloadDir
@@ -90,7 +90,7 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumR
 	}
 	log.Debugf("unable to find downloaded kernel headers: %s", err)
 
-	if errors.Is(err, linuxTypesHMissingErr) {
+	if errors.Is(err, errLinuxTypesHMissing) {
 		// If this happens, it means we've previously downloaded kernel headers containing broken
 		// symlinks. We'll delete these to prevent them from affecting the next download
 		log.Infof("deleting previously downloaded kernel headers")
@@ -148,7 +148,7 @@ func validateHeaderDirs(hv Version, dirs []string) error {
 	}
 
 	if !linuxTypesHFound {
-		return linuxTypesHMissingErr
+		return errLinuxTypesHMissing
 	}
 
 	log.Debugf("valid kernel headers found in %v", dirs)
