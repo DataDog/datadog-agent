@@ -32,9 +32,9 @@ func (s *Sampler) GetSignatureSampleRate(signature Signature) float64 {
 	return s.loadRate(s.GetCountScore(signature))
 }
 
-// GetAllSignatureSampleRates gives the sample rate to apply to all signatures.
+// getAllSignatureSampleRates gives the sample rate to apply to all signatures.
 // For now, only based on count score.
-func (s *Sampler) GetAllSignatureSampleRates() map[Signature]float64 {
+func (s *Sampler) getAllSignatureSampleRates() map[Signature]float64 {
 	m := s.GetAllCountScores()
 	for k, v := range m {
 		m[k] = s.loadRate(v)
