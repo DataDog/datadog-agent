@@ -50,9 +50,6 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("pkg", "network", "event_windows_test.go"),
 ]
 
-# Packages that need go:generate
-GO_GENERATE_TARGETS = ["./pkg/status", "./cmd/agent/gui"]
-
 
 @task
 def fmt(ctx, targets, fail_on_fmt=False):
@@ -440,9 +437,6 @@ def generate_protobuf(ctx):
 
         ctx.run(f"mockgen -source={pbgo_dir}/api.pb.go -destination={mockgen_out}/api_mockgen.pb.go")
 
-    # generate messagepack marshallers
-    ctx.run("msgp -file pkg/proto/pbgo/config.pb.go -o=pkg/proto/pbgo/config_gen.go")
-
 
 @task
 def reset(ctx):
@@ -460,15 +454,6 @@ def reset(ctx):
     # remove vendor folder
     print("Remove vendor folder")
     ctx.run("rm -rf ./vendor")
-
-
-@task
-def generate(ctx, mod="mod"):
-    """
-    Run go generate required package
-    """
-    ctx.run(f"go generate -mod={mod} " + " ".join(GO_GENERATE_TARGETS))
-    print("go generate ran successfully")
 
 
 @task

@@ -51,8 +51,8 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 
 		span.Resource = oq.Query
 
-		if len(oq.TablesCSV) > 0 {
-			traceutil.SetMeta(span, "sql.tables", oq.TablesCSV)
+		if len(oq.Metadata.TablesCSV) > 0 {
+			traceutil.SetMeta(span, "sql.tables", oq.Metadata.TablesCSV)
 		}
 		if span.Meta != nil && span.Meta[tagSQLQuery] != "" {
 			// "sql.query" tag already set by user, do not change it.

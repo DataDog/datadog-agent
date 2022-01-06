@@ -93,6 +93,7 @@ func (c *Check) Run() error {
 
 	contEventsCh := c.workloadmetaStore.Subscribe(
 		checkName+"-cont",
+		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{workloadmeta.KindContainer},
 			[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd},
@@ -101,6 +102,7 @@ func (c *Check) Run() error {
 
 	podEventsCh := c.workloadmetaStore.Subscribe(
 		checkName+"-pod",
+		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 			[]workloadmeta.Source{workloadmeta.SourceKubelet},

@@ -11,7 +11,6 @@ import yaml
 from invoke import task
 
 from .build_tags import get_default_build_tags
-from .go import generate
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 # constants
@@ -47,9 +46,6 @@ def build(ctx, rebuild=False, race=False, major_version='7', python_runtimes='3'
     assetconfigs(ctx)
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
-
-    # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx, mod="vendor")
 
     build_tags = get_default_build_tags(build="android")
 

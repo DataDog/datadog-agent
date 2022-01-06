@@ -470,7 +470,7 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 	maxInterval := 0 * time.Second
 	activeClients := int32(0)
 	for _, s := range statuses {
-		shouldEnableRT = shouldEnableRT || (s.ActiveClients > 0 && l.cfg.AllowRealTime)
+		shouldEnableRT = shouldEnableRT || s.ActiveClients > 0
 		if s.ActiveClients > 0 {
 			activeClients += s.ActiveClients
 		}

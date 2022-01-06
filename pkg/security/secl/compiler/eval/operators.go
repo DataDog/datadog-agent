@@ -6,10 +6,18 @@
 package eval
 
 import (
-	"github.com/pkg/errors"
+	"regexp"
 )
 
-func isPartialLeaf(a Evaluator, b Evaluator, state *state) bool {
+// OpOverrides defines operator override functions
+type OpOverrides struct {
+	StringEquals         func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
+	StringValuesContains func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
+	StringArrayContains  func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
+	StringArrayMatches   func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
+}
+
+func isPartialLeaf(a Evaluator, b Evaluator, state *State) bool {
 	partialA, partialB := a.IsPartial(), b.IsPartial()
 
 	if a.IsScalar() || (a.GetField() != "" && a.GetField() != state.field) {
@@ -28,7 +36,7 @@ func isPartialLeaf(a Evaluator, b Evaluator, state *state) bool {
 }
 
 // IntNot - ^int operator
-func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
+func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
@@ -56,7 +64,7 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 }
 
 // StringEquals evaluates string
-func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -115,7 +123,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 		ea, eb := a.EvalFnc, b.Value
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.valueType, Regexp: b.regexp}); err != nil {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.ValueType, Regexp: b.regexp}); err != nil {
 				return nil, err
 			}
 		}
@@ -134,7 +142,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.valueType, Regexp: a.regexp}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, Regexp: a.regexp}); err != nil {
 			return nil, err
 		}
 	}
@@ -151,7 +159,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 }
 
 // Not - !true operator
-func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
+func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
@@ -185,7 +193,7 @@ func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 }
 
 // Minus - -int operator
-func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
+func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
@@ -212,8 +220,8 @@ func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	}
 }
 
-// ArrayStringContains evaluates array of strings against a value
-func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+// StringArrayContains evaluates array of strings against a value
+func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -228,40 +236,24 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 		isPartialLeaf = true
 	}
 
-	var arrayOp func(a string, b []string) bool
-
-	if a.regexp != nil {
-		arrayOp = func(as string, bs []string) bool {
-			for _, v := range bs {
-				if a.regexp.MatchString(v) {
-					return true
-				}
-			}
-			return false
-		}
-	} else if b.regexps != nil || b.scalars != nil {
-		arrayOp = func(as string, bs []string) bool {
-			if b.scalars != nil && b.scalars[as] {
+	arrayOp := func(a string, b []string) bool {
+		for _, bs := range b {
+			if a == bs {
 				return true
 			}
-			if b.regexps != nil {
-				for _, re := range b.regexps {
-					if re.MatchString(as) {
-						return true
-					}
-				}
-			}
-			return false
 		}
-	} else {
-		arrayOp = func(as string, bs []string) bool {
-			for _, v := range bs {
-				if as == v {
-					return true
-				}
+
+		return false
+	}
+
+	reArrayOp := func(re *regexp.Regexp, b []string) bool {
+		for _, bs := range b {
+			if re.MatchString(bs) {
+				return true
 			}
-			return false
 		}
+
+		return false
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -279,6 +271,15 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
+		if a.regexp != nil {
+			ea, eb := a.regexp, b.Values
+
+			return &BoolEvaluator{
+				Value:     reArrayOp(ea, eb),
+				Weight:    a.Weight + InArrayWeight*len(eb),
+				isPartial: isPartialLeaf,
+			}, nil
+		}
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
@@ -292,8 +293,8 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			for _, value := range b.fieldValues {
-				if err := state.UpdateFieldValues(a.Field, value); err != nil {
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
 					return nil, err
 				}
 			}
@@ -313,13 +314,18 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.valueType, Regexp: a.regexp}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, Regexp: a.regexp}); err != nil {
 			return nil, err
 		}
 	}
 
 	evalFnc := func(ctx *Context) bool {
 		return arrayOp(ea, eb(ctx))
+	}
+	if a.regexp != nil {
+		evalFnc = func(ctx *Context) bool {
+			return reArrayOp(a.regexp, eb(ctx))
+		}
 	}
 
 	return &BoolEvaluator{
@@ -329,50 +335,98 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	}, nil
 }
 
-// ArrayStringMatches weak comparison, a least one element of a should be in b. a can't contain regexp
-func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+// StringValuesContains evaluates a string against values
+func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
+	if b.EvalFnc == nil {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
 
-	if a.Field != "" && b.Field != "" {
-		isPartialLeaf = true
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			values := eb(ctx)
+			return values.Match(ea(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
 	}
 
-	if a.regexps != nil {
-		return nil, errors.New("pattern not supported on left list")
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Values
+
+		return &BoolEvaluator{
+			Value:     eb.Match(ea),
+			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
+			isPartial: isPartialLeaf,
+		}, nil
 	}
 
-	var arrayOp func(a []string, b []string) bool
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Values
 
-	if b.regexps != nil {
-		arrayOp = func(as []string, bs []string) bool {
-			for _, va := range as {
-				for _, re := range b.regexps {
-					if re.MatchString(va) {
-						return true
-					}
+		if a.Field != "" {
+			for _, value := range eb.fieldValues {
+				if err := state.UpdateFieldValues(a.Field, value); err != nil {
+					return nil, err
 				}
 			}
-			return false
 		}
-	} else {
-		arrayOp = func(as []string, bs []string) bool {
-			for _, va := range as {
-				for _, vb := range bs {
-					if va == vb {
-						return true
-					}
-				}
+
+		evalFnc := func(ctx *Context) bool {
+			return eb.Match(ea(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) bool {
+		values := eb(ctx)
+		return values.Match(ea)
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
+		isPartial: isPartialLeaf,
+	}, nil
+}
+
+// StringArrayMatches weak comparison, a least one element of a should be in b. a can't contain regexp
+func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+	partialA, partialB := a.isPartial, b.isPartial
+
+	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
+		partialA = true
+	}
+	if b.EvalFnc == nil {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	arrayOp := func(a []string, b *StringValues) bool {
+		for _, as := range a {
+			if b.Match(as) {
+				return true
 			}
-			return false
 		}
+		return false
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -393,8 +447,8 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 		ea, eb := a.Values, b.Values
 
 		return &BoolEvaluator{
-			Value:     arrayOp(ea, eb),
-			Weight:    a.Weight + InArrayWeight*len(eb),
+			Value:     arrayOp(ea, &eb),
+			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -403,7 +457,7 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			for _, value := range b.fieldValues {
+			for _, value := range eb.fieldValues {
 				if err := state.UpdateFieldValues(a.Field, value); err != nil {
 					return nil, err
 				}
@@ -411,25 +465,17 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb)
+			return arrayOp(ea(ctx), &eb)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
+			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Values, b.EvalFnc
-
-	if b.Field != "" {
-		for _, value := range a.fieldValues {
-			if err := state.UpdateFieldValues(b.Field, value); err != nil {
-				return nil, err
-			}
-		}
-	}
 
 	evalFnc := func(ctx *Context) bool {
 		return arrayOp(ea, eb(ctx))
@@ -442,8 +488,8 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 	}, nil
 }
 
-// ArrayIntMatches weak comparison, a least one element of a should be in b
-func ArrayIntMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+// IntArrayMatches weak comparison, a least one element of a should be in b
+func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -498,7 +544,7 @@ func ArrayIntMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, sta
 
 		if a.Field != "" {
 			for _, value := range b.Values {
-				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value}); err != nil {
 					return nil, err
 				}
 			}
@@ -517,14 +563,6 @@ func ArrayIntMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, sta
 
 	ea, eb := a.Values, b.EvalFnc
 
-	if b.Field != "" {
-		for _, value := range a.Values {
-			if err := state.UpdateFieldValues(b.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
-				return nil, err
-			}
-		}
-	}
-
 	evalFnc := func(ctx *Context) bool {
 		return arrayOp(ea, eb(ctx))
 	}
@@ -537,7 +575,7 @@ func ArrayIntMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, sta
 }
 
 // ArrayBoolContains evaluates array of bool against a value
-func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -589,7 +627,7 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, stat
 
 		if a.Field != "" {
 			for _, value := range eb {
-				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value}); err != nil {
 					return nil, err
 				}
 			}
@@ -609,7 +647,7 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, stat
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea}); err != nil {
 			return nil, err
 		}
 	}

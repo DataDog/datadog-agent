@@ -6,6 +6,7 @@ apm_config:
   max_traces_per_second: 100.0
   errors_per_second: 37.0
   disable_rare_sampler: true
+  max_remote_traces_per_second: 127
   max_events_per_second: 1000.0
   connection_reset_interval: 120
   receiver_port: 25

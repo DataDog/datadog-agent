@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -300,7 +301,7 @@ func (mr *MountResolver) getAncestor(mount *model.MountEvent) *model.MountEvent 
 
 // getOverlayPath uses deviceID to find overlay path
 func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
-	if entry, found := mr.parentPathCache.Get(mount.MountID); found {
+	if entry, found := mr.overlayPathCache.Get(mount.MountID); found {
 		return entry.(string)
 	}
 
@@ -311,7 +312,7 @@ func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
 	for _, deviceMount := range mr.devices[mount.Device] {
 		if mount.MountID != deviceMount.MountID && deviceMount.IsOverlayFS() {
 			if p := mr.getParentPath(deviceMount.MountID); p != "" {
-				mr.parentPathCache.Add(mount.MountID, p)
+				mr.overlayPathCache.Add(mount.MountID, p)
 				return p
 			}
 		}
@@ -339,7 +340,7 @@ func (mr *MountResolver) dequeue(now time.Time) {
 
 		// clear cache anyway
 		mr.parentPathCache.Remove(req.mount.MountID)
-		mr.overlayPathCache.Remove(req.mount)
+		mr.overlayPathCache.Remove(req.mount.MountID)
 
 		i++
 	}
@@ -398,41 +399,6 @@ func getMountIDOffset(probe *Probe) uint64 {
 	}
 
 	return offset
-}
-
-func getSizeOfStructInode(probe *Probe) uint64 {
-	sizeOf := uint64(600)
-
-	switch {
-	case probe.kernelVersion.IsRH7Kernel():
-		sizeOf = 584
-	case probe.kernelVersion.IsRH8Kernel():
-		sizeOf = 648
-	case probe.kernelVersion.IsSLES12Kernel():
-		sizeOf = 560
-	case probe.kernelVersion.IsSLES15Kernel():
-		sizeOf = 592
-	case probe.kernelVersion.IsOracleUEKKernel():
-		sizeOf = 632
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < skernel.Kernel4_16:
-		sizeOf = 608
-	case skernel.Kernel5_0 <= probe.kernelVersion.Code && probe.kernelVersion.Code < skernel.Kernel5_1:
-		sizeOf = 584
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_13:
-		sizeOf = 592
-	}
-
-	return sizeOf
-}
-
-func getSuperBlockMagicOffset(probe *Probe) uint64 {
-	sizeOf := uint64(96)
-
-	if probe.kernelVersion.IsRH7Kernel() {
-		sizeOf = 88
-	}
-
-	return sizeOf
 }
 
 func getVFSLinkDentryPosition(probe *Probe) uint64 {
