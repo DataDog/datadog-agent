@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -152,11 +153,26 @@ func fargateStaticTags(ctx context.Context) map[string]string {
 
 	// EKS Fargate specific tags
 	if fargate.IsEKSFargateInstance() {
+		// eks_fargate_node
 		node, err := fargate.GetEKSFargateNodename()
 		if err != nil {
 			log.Infof("Couldn't build the 'eks_fargate_node' tag: %w", err)
 		} else {
 			tags["eks_fargate_node"] = node
+		}
+
+		// kube_cluster_name
+		clusterTagName := "kube_cluster_name"
+		tag, found := tags[clusterTagName]
+		if found {
+			log.Infof("'%s:%s' was set manually via DD_TAGS, not changing it", clusterTagName, tag)
+		} else {
+			cluster := clustername.GetClusterName(ctx, "")
+			if cluster == "" {
+				log.Infof("Couldn't build the %q tag, DD_CLUSTER_NAME can be used to set it", clusterTagName)
+			} else {
+				tags[clusterTagName] = cluster
+			}
 		}
 	}
 
