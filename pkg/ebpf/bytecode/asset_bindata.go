@@ -10,14 +10,19 @@ package bytecode
 
 import (
 	"bytes"
+	"embed"
 	"io"
-
-	bindata "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/bindata"
+	"path"
 )
+
+//go:embed build/runtime-security.o
+//go:embed build/runtime-security-syscall-wrapper.o
+var bindata embed.FS
 
 // GetReader returns a new AssetReader for the specified bundled asset
 func GetReader(dir, name string) (AssetReader, error) {
-	content, err := bindata.Asset(name)
+	dir = "build"
+	content, err := bindata.ReadFile(path.Join(dir, name))
 	if err != nil {
 		return nil, err
 	}

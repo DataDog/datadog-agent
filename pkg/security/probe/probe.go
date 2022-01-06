@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -895,6 +896,14 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
+	constants, err := getOffsetConstants(config, p)
+	if err != nil {
+		log.Warnf("constant fetcher failed: %v", err)
+		return nil, err
+	}
+
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(constants)...)
+
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 		manager.ConstantEditor{
@@ -908,14 +917,6 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "mount_id_offset",
 			Value: getMountIDOffset(p),
-		},
-		manager.ConstantEditor{
-			Name:  "sizeof_inode",
-			Value: getSizeOfStructInode(p),
-		},
-		manager.ConstantEditor{
-			Name:  "sb_magic_offset",
-			Value: getSuperBlockMagicOffset(p),
 		},
 		manager.ConstantEditor{
 			Name:  "getattr2",
@@ -950,7 +951,6 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Value: getCheckHelperCallInputType(p),
 		},
 	)
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
 
@@ -978,7 +978,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled)
 	if !p.config.ERPCDentryResolutionEnabled {
 		// exclude the programs that use the bpf_probe_write_user helper
-		p.managerOptions.ExcludedSections = probes.AllBPFProbeWriteUserSections()
+		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
 	}
 
 	resolvers, err := NewResolvers(config, p)
@@ -1006,4 +1006,14 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	eventZero.scrubber = p.scrubber
 
 	return p, nil
+}
+
+func getOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
+
+	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
+	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
+	return constantFetcher.FinishAndGetResults()
 }

@@ -60,6 +60,11 @@ func NewTypeError(pos lexer.Position, kind reflect.Kind) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("%s expected", kind))
 }
 
+// NewArrayTypeError returns a new ErrAstToEval error when an invalid type was used
+func NewArrayTypeError(pos lexer.Position, arrayKind reflect.Kind, kind reflect.Kind) *ErrAstToEval {
+	return NewError(pos, fmt.Sprintf("%s of %s expected", arrayKind, kind))
+}
+
 // NewOpUnknownError returns a new ErrAstToEval error when an unknown operator was used
 func NewOpUnknownError(pos lexer.Position, op string) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("operator `%s` unknown", op))

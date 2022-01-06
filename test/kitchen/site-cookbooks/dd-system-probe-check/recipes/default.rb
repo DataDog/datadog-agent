@@ -16,6 +16,7 @@ remote_directory testdir do
   source 'tests'
   mode '755'
   files_mode '755'
+  sensitive true
   case
   when !platform?('windows')
     files_owner 'root'

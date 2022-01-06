@@ -39,14 +39,17 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 		require.NoError(t, p.Run(ctx))
 	}()
 
-	assert.Equal(t, service.Starting, <-p.col.GetStateChannel())
-	assert.Equal(t, service.Running, <-p.col.GetStateChannel())
+	assert.Eventually(t, func() bool {
+		return service.Running == p.col.GetState()
+	}, time.Second*2, time.Millisecond*200)
 
 	p.Stop()
 	p.Stop()
 	<-colDone
-	assert.Equal(t, service.Closing, <-p.col.GetStateChannel())
-	assert.Equal(t, service.Closed, <-p.col.GetStateChannel())
+
+	assert.Eventually(t, func() bool {
+		return service.Closed == p.col.GetState()
+	}, time.Second*2, time.Millisecond*200)
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
@@ -77,15 +80,13 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		{path: "port/nonlocal.yaml"},
 		{
 			path: "receiver/noprotocols.yaml",
-			err:  "cannot load configuration: error reading receivers configuration for otlp: empty config for OTLP receiver",
+			err:  "cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": empty config for OTLP receiver",
 		},
 		{path: "receiver/simple.yaml"},
 		{path: "receiver/advanced.yaml"},
 		{
 			path: "receiver/typo.yaml",
-			err: `cannot load configuration: error reading receivers configuration for otlp: 1 error(s) decoding:
-
-* 'protocols' has invalid keys: htttp`,
+			err:  "cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
 		},
 	}
 

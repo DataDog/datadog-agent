@@ -40,7 +40,6 @@ platforms:
     ec2_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
     windows_platforms = []
-    sles11_platforms = []
     sles15_platforms = []
 
     idx = 0
@@ -51,7 +50,6 @@ platforms:
       platform_name = platform[0] + "-#{host}"
 
       windows = platform_name.include?("win")
-      sles11 = platform_name.include?("sles-11")
       sles15 = platform_name.include?("sles-15")
       windows2008 = windows && platform_name.include?("2008")
 
@@ -60,9 +58,6 @@ platforms:
       else
         if sles15
           sles15_platforms << platform_name
-        end
-        if sles11
-          sles11_platforms << platform_name
         end
       end
 
