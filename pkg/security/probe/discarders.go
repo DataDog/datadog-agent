@@ -37,6 +37,7 @@ const (
 	DiscardRetention = 5 * time.Second
 
 	// maxParentDiscarderDepth defines the maximum parent depth to find parent discarders
+	// the eBPF part need to be adapted accordingly
 	maxParentDiscarderDepth = 2
 )
 
@@ -47,10 +48,10 @@ var (
 			Name:  "discarder_retention",
 			Value: uint64(DiscardRetention.Nanoseconds()),
 		},
-		{
+		/*{
 			Name:  "max_discarder_depth",
 			Value: uint64(maxParentDiscarderDepth),
-		},
+		},*/
 	}
 )
 
