@@ -735,7 +735,7 @@ func checkReady(checkName string, minInstances uint, configs []integration.Confi
 }
 
 // waitForConfigs retries the collection of Autodiscovery configs until a minimum number of config instances
-// are discovered or the timeout is reached.
+// for the check are discovered or the timeout is reached.
 // Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
 // depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
 // This function improves the resiliency of the check command.
