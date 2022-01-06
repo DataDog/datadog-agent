@@ -90,17 +90,22 @@ func (b *incompleteBuffer) Flush() []*httpTX {
 		sort.Sort(byRequestTime(parts.requests))
 		sort.Sort(byResponseTime(parts.responses))
 
-		for i := 0; i < len(parts.requests) && i < len(parts.responses); i++ {
+		i := 0
+		j := 0
+		for i < len(parts.requests) && j < len(parts.responses) {
 			request := &parts.requests[i]
-			response := &parts.responses[i]
+			response := &parts.responses[j]
 			if request.request_started > response.response_last_seen {
-				break
+				j++
+				continue
 			}
 
 			// Merge response into request
 			request.response_status_code = response.response_status_code
 			request.response_last_seen = response.response_last_seen
 			joined = append(joined, request)
+			i++
+			j++
 		}
 	}
 
