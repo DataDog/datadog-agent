@@ -108,20 +108,6 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info
     return 1;
 }
 
-static __always_inline void flip_tuple(conn_tuple_t *t) {
-    __u16 tmp_port = t->sport;
-    t->sport = t->dport;
-    t->dport = tmp_port;
-
-    __u64 tmp_ip_part = t->saddr_l;
-    t->saddr_l = t->daddr_l;
-    t->daddr_l = tmp_ip_part;
-
-    tmp_ip_part = t->saddr_h;
-    t->saddr_h = t->daddr_h;
-    t->daddr_h = tmp_ip_part;
-}
-
 static __always_inline void print_ip(u64 ip_h, u64 ip_l, u16 port, u32 metadata) {
     if (metadata & CONN_V6) {
         log_debug("v6 %llx%llx:%u\n", bpf_ntohll(ip_h), bpf_ntohll(ip_l), port);
