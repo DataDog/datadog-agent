@@ -57,8 +57,9 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return false }
 
+	EventPayload := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startInvocationTime := time.Now()
-	startDetails := proxy.InvocationStartDetails{StartTime: startInvocationTime}
+	startDetails := proxy.InvocationStartDetails{StartTime: startInvocationTime, InvokeEventPayload: EventPayload}
 
 	testProcessor := ProxyProcessor{
 		ExtraTags:           extraTags,
@@ -69,7 +70,8 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	testProcessor.OnInvokeStart(&startDetails)
 
 	assert.NotEqual(t, uint64(0), currentExecutionInfo.spanID)
-	assert.NotEqual(t, uint64(0), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentId)
 	assert.Equal(t, startInvocationTime, currentExecutionInfo.startTime)
 }
 
@@ -120,6 +122,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 		startTime: startInvocationTime,
 		traceID:   123,
 		spanID:    1,
+		parentId:  3,
 	}
 
 	testProcessor := ProxyProcessor{
@@ -137,6 +140,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	assert.Equal(t, "serverless", executionSpan.Type)
 	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
+	assert.Equal(t, currentExecutionInfo.parentId, executionSpan.ParentID)
 	assert.Equal(t, startInvocationTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }

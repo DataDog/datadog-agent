@@ -32,7 +32,7 @@ func (pp *ProxyProcessor) OnInvokeStart(startDetails *proxy.InvocationStartDetai
 	log.Debug("[proxy] ---------------------------------------")
 
 	if !pp.DetectLambdaLibrary() {
-		startExecutionSpan(startDetails.StartTime)
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventPayload)
 	}
 }
 

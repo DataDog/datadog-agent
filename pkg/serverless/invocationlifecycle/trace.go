@@ -6,12 +6,16 @@
 package invocationlifecycle
 
 import (
+	"encoding/json"
 	"os"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -23,6 +27,10 @@ type executionStartInfo struct {
 	startTime time.Time
 	traceID   uint64
 	spanID    uint64
+	parentId  uint64
+}
+type invocationPayload struct {
+	Headers map[string]string `json:"headers"`
 }
 
 // currentExecutionInfo represents information from the start of the current execution span
@@ -30,10 +38,20 @@ var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time) {
+func startExecutionSpan(startTime time.Time, rawPayload string) {
 	currentExecutionInfo.startTime = startTime
 	currentExecutionInfo.traceID = random.Uint64()
 	currentExecutionInfo.spanID = random.Uint64()
+
+	payload, hasPayload := convertRawPayload(rawPayload)
+
+	if hasPayload {
+		traceID := convertStrToUnit64(payload.Headers[traceIDHeader])
+		parentId := convertStrToUnit64(payload.Headers[parentIDHeader])
+
+		currentExecutionInfo.traceID = traceID
+		currentExecutionInfo.parentId = parentId
+	}
 }
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
@@ -48,6 +66,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time) {
 		Type:     "serverless",
 		TraceID:  currentExecutionInfo.traceID,
 		SpanID:   currentExecutionInfo.spanID,
+		ParentID: currentExecutionInfo.parentId,
 		Start:    currentExecutionInfo.startTime.UnixNano(),
 		Duration: duration,
 	}
@@ -64,4 +83,28 @@ func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time) {
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})
+}
+
+func convertRawPayload(rawPayload string) (invocationPayload, bool) {
+	//Need to remove unwanted text and add } to unmarshal properly
+	var reg = regexp.MustCompile(`{(?:|(.*))*}`)
+	subString := reg.FindString(rawPayload)
+
+	payload := invocationPayload{}
+
+	err := json.Unmarshal([]byte(subString), &payload)
+	if err != nil {
+		log.Debug("Could not unmarshal the invocation event payload")
+		return payload, false
+	}
+
+	return payload, true
+}
+
+func convertStrToUnit64(s string) uint64 {
+	num, err := strconv.ParseUint(s, 0, 64)
+	if err != nil {
+		log.Debug("Error with string conversion of trace or parent ID")
+	}
+	return num
 }
