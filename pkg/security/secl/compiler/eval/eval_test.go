@@ -528,19 +528,19 @@ func TestPartial(t *testing.T) {
 }
 
 func TestMacroList(t *testing.T) {
+	expression := `[ "/etc/shadow", "/etc/password" ]`
 	macro := &Macro{
-		ID:         "list",
-		Expression: `[ "/etc/shadow", "/etc/password" ]`,
+		ID: "list",
 	}
 
-	if err := macro.Parse(); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
+	if err := macro.Parse(expression); err != nil {
+		t.Fatalf("%s\n%s", err, expression)
 	}
 
 	model := &testModel{}
 
-	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
+	if err := macro.GenEvaluator(expression, model, &Opts{}); err != nil {
+		t.Fatalf("%s\n%s", err, expression)
 	}
 
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
@@ -563,13 +563,13 @@ func TestMacroList(t *testing.T) {
 }
 
 func TestMacroExpression(t *testing.T) {
+	expression := `open.filename in [ "/etc/shadow", "/etc/passwd" ]`
 	macro := &Macro{
-		ID:         "is_passwd",
-		Expression: `open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
+		ID: "is_passwd",
 	}
 
-	if err := macro.Parse(); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
+	if err := macro.Parse(expression); err != nil {
+		t.Fatalf("%s\n%s", err, expression)
 	}
 
 	event := &testEvent{
@@ -583,8 +583,8 @@ func TestMacroExpression(t *testing.T) {
 
 	model := &testModel{}
 
-	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
+	if err := macro.GenEvaluator(expression, model, &Opts{}); err != nil {
+		t.Fatalf("%s\n%s", err, expression)
 	}
 
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
@@ -606,13 +606,13 @@ func TestMacroExpression(t *testing.T) {
 }
 
 func TestMacroPartial(t *testing.T) {
+	expression := `open.filename in [ "/etc/shadow", "/etc/passwd" ]`
 	macro := &Macro{
-		ID:         "is_passwd",
-		Expression: `open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
+		ID: "is_passwd",
 	}
 
-	if err := macro.Parse(); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
+	if err := macro.Parse(expression); err != nil {
+		t.Fatalf("%s\n%s", err, expression)
 	}
 
 	event := &testEvent{
@@ -626,8 +626,8 @@ func TestMacroPartial(t *testing.T) {
 
 	model := &testModel{}
 
-	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
-		t.Fatalf("%s\n%s", err, macro.Expression)
+	if err := macro.GenEvaluator(expression, model, &Opts{}); err != nil {
+		t.Fatalf("%s\n%s", err, expression)
 	}
 
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
@@ -669,22 +669,22 @@ func TestMacroPartial(t *testing.T) {
 }
 
 func TestNestedMacros(t *testing.T) {
+	expression1 := `[ "/etc/shadow", "/etc/passwd" ]`
 	macro1 := &Macro{
-		ID:         "sensitive_files",
-		Expression: `[ "/etc/shadow", "/etc/passwd" ]`,
+		ID: "sensitive_files",
 	}
 
-	if err := macro1.Parse(); err != nil {
-		t.Fatalf("%s\n%s", err, macro1.Expression)
+	if err := macro1.Parse(expression1); err != nil {
+		t.Fatalf("%s\n%s", err, expression1)
 	}
 
+	expression2 := `open.filename in sensitive_files`
 	macro2 := &Macro{
-		ID:         "is_sensitive_opened",
-		Expression: `open.filename in sensitive_files`,
+		ID: "is_sensitive_opened",
 	}
 
-	if err := macro2.Parse(); err != nil {
-		t.Fatalf("%s\n%s", err, macro2.Expression)
+	if err := macro2.Parse(expression2); err != nil {
+		t.Fatalf("%s\n%s", err, expression2)
 	}
 
 	event := &testEvent{
@@ -701,12 +701,12 @@ func TestNestedMacros(t *testing.T) {
 		"is_sensitive_opened": macro2,
 	}
 
-	if err := macro1.GenEvaluator(model, opts); err != nil {
-		t.Fatalf("%s\n%s", err, macro1.Expression)
+	if err := macro1.GenEvaluator(expression1, model, opts); err != nil {
+		t.Fatalf("%s\n%s", err, expression1)
 	}
 
-	if err := macro2.GenEvaluator(model, opts); err != nil {
-		t.Fatalf("%s\n%s", err, macro2.Expression)
+	if err := macro2.GenEvaluator(expression2, model, opts); err != nil {
+		t.Fatalf("%s\n%s", err, expression2)
 	}
 
 	expr := `is_sensitive_opened`

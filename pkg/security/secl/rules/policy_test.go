@@ -9,10 +9,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -28,8 +26,13 @@ func savePolicy(filename string, testPolicy *Policy) error {
 }
 
 func TestMacroMerge(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(testConstants, testSupportedDiscarders, enabled, nil, nil, nil))
+	var opts Opts
+	opts.
+		WithConstants(testConstants).
+		WithSupportedDiscarders(testSupportedDiscarders).
+		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
+
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 	testPolicy := &Policy{
 		Name: "test-policy",
 		Macros: []*MacroDefinition{{
@@ -61,9 +64,6 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatalf("failed to find test_macro in ruleset: %+v", rs.opts.Macros)
 	}
 
-	sort.Strings(macro.Definition.Values)
-	assert.Equal(t, []string{"/usr/bin/vi", "/usr/bin/vim"}, macro.Definition.Values)
-
 	testPolicy.Macros[1].Combine = ""
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
@@ -76,8 +76,12 @@ func TestMacroMerge(t *testing.T) {
 }
 
 func TestRuleMerge(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(testConstants, testSupportedDiscarders, enabled, nil, nil, nil))
+	var opts Opts
+	opts.
+		WithConstants(testConstants).
+		WithSupportedDiscarders(testSupportedDiscarders).
+		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
 	testPolicy := &Policy{
 		Name: "test-policy",
@@ -125,8 +129,12 @@ func TestRuleMerge(t *testing.T) {
 }
 
 func TestMacroInRuleMerge(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(testConstants, testSupportedDiscarders, enabled, nil, nil, nil))
+	var opts Opts
+	opts.
+		WithConstants(testConstants).
+		WithSupportedDiscarders(testSupportedDiscarders).
+		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
 	testPolicy := &Policy{
 		Name: "test-policy",

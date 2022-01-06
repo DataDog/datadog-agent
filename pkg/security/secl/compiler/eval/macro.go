@@ -39,11 +39,11 @@ func NewMacro(id, expression string, model Model, opts *Opts) (*Macro, error) {
 	}
 
 	if err := macro.Parse(expression); err != nil {
-		return nil, fmt.Errorf("syntax error: +w", err)
+		return nil, fmt.Errorf("syntax error: %w", err)
 	}
 
 	if err := macro.GenEvaluator(expression, model, opts); err != nil {
-		return nil, fmt.Errorf("compilation error: +w", err)
+		return nil, fmt.Errorf("compilation error: %w", err)
 	}
 
 	return macro, nil

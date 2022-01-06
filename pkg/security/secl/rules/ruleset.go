@@ -507,7 +507,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		opts:             opts,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
 		rules:            make(map[eval.RuleID]*Rule),
-		macros:           make(map[eval.RuleID]*Macro),
 		loadedPolicies:   make(map[string]string),
 		logger:           logger,
 		pool:             eval.NewContextPool(),
