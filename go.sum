@@ -116,8 +116,8 @@ github.com/DataDog/datadog-go v4.8.3+incompatible h1:fNGaYSuObuQb5nzeTQqowRAd9bp
 github.com/DataDog/datadog-go v4.8.3+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a h1:vqz6k806rvz01tIzOA2UHE3j1IEAMcDxw8O+nA3H+Mk=
 github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a/go.mod h1:2qOvG41jii2ks6Umn6MbDGlHRgwoFiYXcjgQQ9VlsS0=
-github.com/DataDog/ebpf-manager v0.0.0-20220103145404-d938938b1a8e h1:FutKp9ucvaoyiaYslgoZ64c/1wlOIgiPs+scZFy1K7s=
-github.com/DataDog/ebpf-manager v0.0.0-20220103145404-d938938b1a8e/go.mod h1:05Y9FhEyILUdCovBthi5y4KPY8AfUg5EbMNC6RMQXDY=
+github.com/DataDog/ebpf-manager v0.0.0-20220106192434-e7d08f7e4e27 h1:k/9SjGSDj5nLwLINoMljBo602en/ZUdutqQKn8/nKtA=
+github.com/DataDog/ebpf-manager v0.0.0-20220106192434-e7d08f7e4e27/go.mod h1:q6FEcnn+mlqeRyd+nNN/xuoHfVKVsZav5k3xEIQxkpI=
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c h1:a9OMhZzrrB4nd2eAsXZIBkQ061Gb/QT4CI2g+OWWevs=
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c/go.mod h1:lMIXf2EAzxbIv2zEvWu1bdqlaclUWoCtN13MHuPcY5I=
 github.com/DataDog/gohai v0.0.0-20211126091652-d183ed971098 h1:ANBijoD3xHRs6po7uejTdUHmCnL7Gr0MlE4RSiSBR1E=
@@ -305,8 +305,8 @@ github.com/cilium/ebpf v0.2.0/go.mod h1:To2CFviqOWL/M0gIMsvSMlqe7em/l1ALkX1PyjrX
 github.com/cilium/ebpf v0.4.0/go.mod h1:4tRaxcgiL706VnOzHOdBlY8IEAIdxINsQBcU4xJJXRs=
 github.com/cilium/ebpf v0.5.0/go.mod h1:4tRaxcgiL706VnOzHOdBlY8IEAIdxINsQBcU4xJJXRs=
 github.com/cilium/ebpf v0.6.2/go.mod h1:4tRaxcgiL706VnOzHOdBlY8IEAIdxINsQBcU4xJJXRs=
-github.com/cilium/ebpf v0.6.3-0.20210917122031-fc2955d2ecee h1:eg3Xm5uBYJLRDVq750EFFx9CHTOEFIH/MjLNNpyTS3Y=
-github.com/cilium/ebpf v0.6.3-0.20210917122031-fc2955d2ecee/go.mod h1:/oI2+1shJiTGAMgl6/RgJr36Eo1jzrRcAWbcXO2usCA=
+github.com/cilium/ebpf v0.7.1-0.20211227144435-70d770f1e5f9 h1:WJJWEj2ETcJwnTZWHaB2tzWb9nTteHfFg1bX9l4t7j4=
+github.com/cilium/ebpf v0.7.1-0.20211227144435-70d770f1e5f9/go.mod h1:f5zLIM0FSNuAkSyLAN7X+Hy6yznlF1mNiWUMfxMtrgk=
 github.com/clbanning/mxj v1.8.4 h1:HuhwZtbyvyOw+3Z1AowPkU87JkJUSv751ELWaiTpj8I=
 github.com/clbanning/mxj v1.8.4/go.mod h1:BVjHeAH+rl9rs6f+QIpeRl0tfu10SXn1pUSa5PVGJng=
 github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665 h1:LDCKU3OIIsl7sX1KggC6zIHKk0PCeYbmOGbCHqNCSOQ=
