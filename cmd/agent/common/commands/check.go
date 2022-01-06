@@ -65,7 +65,7 @@ var (
 	profileMemoryVerbose   string
 	discoveryTimeout       uint
 	discoveryRetryInterval uint
-	discoveryInstances     uint
+	discoveryMinInstances  uint
 )
 
 func setupCmd(cmd *cobra.Command) {
@@ -82,7 +82,7 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
 	cmd.Flags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
-	cmd.Flags().UintVarP(&discoveryInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
+	cmd.Flags().UintVarP(&discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
@@ -154,7 +154,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				discoveryRetryInterval = discoveryTimeout
 			}
 
-			allConfigs := waitForConfigs(checkName, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, discoveryInstances)
+			allConfigs := waitForConfigs(checkName, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, discoveryMinInstances)
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -731,17 +731,18 @@ func checkReady(checkName string, minInstances uint, configs []integration.Confi
 			matchedConfigsCount++
 		}
 	}
-	return matchedConfigsCount >= instances
+	return matchedConfigsCount >= minInstances
 }
 
-// waitForConfigs retries the collection of Autodiscovery configs until the check is found or the timeout is reached.
+// waitForConfigs retries the collection of Autodiscovery configs until a minimum number of config instances
+// are discovered or the timeout is reached.
 // Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
 // depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
 // This function improves the resiliency of the check command.
 // Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
-func waitForConfigs(checkName string, retryInterval, timeout time.Duration, instances uint) []integration.Config {
+func waitForConfigs(checkName string, retryInterval, timeout time.Duration, minInstances uint) []integration.Config {
 	allConfigs := common.AC.GetAllConfigs()
-	if containsCheck(checkName, instances, allConfigs) {
+	if checkReady(checkName, minInstances, allConfigs) {
 		return allConfigs
 	}
 
@@ -757,7 +758,7 @@ func waitForConfigs(checkName string, retryInterval, timeout time.Duration, inst
 			return allConfigs
 		case <-retryTicker.C:
 			allConfigs = common.AC.GetAllConfigs()
-			if containsCheck(checkName, instances, allConfigs) {
+			if checkReady(checkName, minInstances, allConfigs) {
 				return allConfigs
 			}
 		}
