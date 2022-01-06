@@ -14,6 +14,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/theupdateframework/go-tuf/data"
+	tufutil "github.com/theupdateframework/go-tuf/util"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -203,7 +204,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
-	targetFiles, err := s.getTargetFiles(rdata.StringListToProduct(request.Client.Products))
+	targetFiles, err := s.getTargetFiles(rdata.StringListToProduct(request.Client.Products), request.CachedTargetFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +233,7 @@ func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) 
 	return roots, nil
 }
 
-func (s *Service) getTargetFiles(products []rdata.Product) ([]*pbgo.File, error) {
+func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*pbgo.TargetFileMeta) ([]*pbgo.File, error) {
 	productSet := make(map[rdata.Product]struct{})
 	for _, product := range products {
 		productSet[product] = struct{}{}
@@ -241,13 +242,27 @@ func (s *Service) getTargetFiles(products []rdata.Product) ([]*pbgo.File, error)
 	if err != nil {
 		return nil, err
 	}
+	cachedTargets := make(map[string]data.FileMeta)
+	for _, cachedTarget := range cachedTargetFiles {
+		hashes := make(data.Hashes)
+		for _, hash := range cachedTarget.Hashes {
+			hashes[hash.Algorithm] = hash.Hash
+		}
+		cachedTargets[cachedTarget.Path] = data.FileMeta{
+			Hashes: hashes,
+			Length: cachedTarget.Length,
+		}
+	}
 	var configFiles []*pbgo.File
-	for targetPath := range targets {
+	for targetPath, targetMeta := range targets {
 		configFileMeta, err := rdata.ParseFilePathMeta(targetPath)
 		if err != nil {
 			return nil, err
 		}
 		if _, inClientProducts := productSet[configFileMeta.Product]; inClientProducts {
+			if notEqualErr := tufutil.FileMetaEqual(cachedTargets[targetPath], targetMeta.FileMeta); notEqualErr == nil {
+				continue
+			}
 			fileContents, err := s.uptane.TargetFile(targetPath)
 			if err != nil {
 				return nil, err
