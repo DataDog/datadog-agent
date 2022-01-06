@@ -167,7 +167,7 @@ func fargateStaticTags(ctx context.Context) map[string]string {
 		if found {
 			log.Infof("'%s:%s' was set manually via DD_TAGS, not changing it", clusterTagName, tag)
 		} else {
-			cluster := clustername.GetClusterName(context.TODO(), "")
+			cluster := clustername.GetClusterName(ctx, "")
 			if cluster == "" {
 				log.Infof("Couldn't build the %q tag, DD_CLUSTER_NAME can be used to set it", clusterTagName)
 			} else {
