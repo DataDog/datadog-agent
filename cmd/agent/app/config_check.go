@@ -27,9 +27,10 @@ func init() {
 }
 
 var configCheckCommand = &cobra.Command{
-	Use:   "configcheck",
-	Short: "Print all configurations loaded & resolved of a running agent",
-	Long:  ``,
+	Use:     "configcheck",
+	Aliases: []string{"checkconfig"},
+	Short:   "Print all configurations loaded & resolved of a running agent",
+	Long:    ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		if flagNoColor {

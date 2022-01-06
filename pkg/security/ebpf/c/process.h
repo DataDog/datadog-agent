@@ -51,6 +51,15 @@ struct bpf_map_def SEC("maps/proc_cache") proc_cache = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/pid_ns") pid_ns = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u64),
+    .value_size = sizeof(u64),
+    .max_entries = 32768,
+    .pinning = 0,
+    .namespace = "",
+};
+
 static void __attribute__((always_inline)) fill_container_context(struct proc_cache_t *entry, struct container_context_t *context) {
     if (entry) {
         copy_container_id(entry->container.container_id, context->container_id);
@@ -121,6 +130,15 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     data->tid = pid_tgid;
 
     return get_proc_cache(tgid);
+}
+
+void __attribute__((always_inline)) register_pid_ns(u64 pid_tgid, u64 pid_tgid_ns) {
+   bpf_map_update_elem(&pid_ns, &pid_tgid, &pid_tgid_ns, BPF_NOEXIST);
+}
+
+u64 __attribute__((always_inline)) lookup_pid_ns(u64 pid_tgid) {
+    u64 *pid = bpf_map_lookup_elem(&pid_ns, &pid_tgid);
+    return pid ? *pid : 0;
 }
 
 #endif

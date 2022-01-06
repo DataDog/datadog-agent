@@ -109,7 +109,7 @@ func TestClientValidResponse(t *testing.T) {
 	targetsKey := generateKey()
 	embeddedRoot := generateRoot(generateKey(), 1, targetsKey)
 	apmConfig := pb.APMSampling{
-		TargetTps: []pb.TargetTPS{{Service: "service1", Env: "env1", Value: 4}},
+		TargetTPS: []pb.TargetTPS{{Service: "service1", Env: "env1", Value: 4}},
 	}
 	rawApmConfig, err := apmConfig.MarshalMsg(nil)
 	assert.NoError(t, err)

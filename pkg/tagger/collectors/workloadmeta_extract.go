@@ -215,7 +215,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 		utils.AddMetadataAsTags(envName, envValue, c.containerEnvAsTags, c.globContainerEnvLabels, tags)
 	}
 
-	// static tags for ECS Fargate
+	// static tags for ECS and EKS Fargate containers
 	for tag, value := range c.staticTags {
 		tags.AddLow(tag, value)
 	}
@@ -271,6 +271,11 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		tags.AddOrchestrator(kubernetes.OwnerRefNameTagName, owner.Name)
 
 		c.extractTagsFromPodOwner(pod, owner, tags)
+	}
+
+	// static tags for EKS Fargate pods
+	for tag, value := range c.staticTags {
+		tags.AddLow(tag, value)
 	}
 
 	low, orch, high, standard := tags.Compute()
