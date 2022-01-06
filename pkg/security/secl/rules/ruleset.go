@@ -21,6 +21,7 @@ type MacroID = string
 // CombinePolicy represents the policy to use to combine rules and macros
 type CombinePolicy = string
 
+// Combine policies
 const (
 	NoPolicy       CombinePolicy = ""
 	MergePolicy                  = "merge"

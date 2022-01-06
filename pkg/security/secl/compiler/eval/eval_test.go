@@ -528,28 +528,22 @@ func TestPartial(t *testing.T) {
 }
 
 func TestMacroList(t *testing.T) {
-	expression := `[ "/etc/shadow", "/etc/password" ]`
-	macro := &Macro{
-		ID: "list",
-	}
-
-	if err := macro.Parse(expression); err != nil {
-		t.Fatalf("%s\n%s", err, expression)
-	}
-
 	model := &testModel{}
-
-	if err := macro.GenEvaluator(expression, model, &Opts{}); err != nil {
-		t.Fatalf("%s\n%s", err, expression)
-	}
-
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
-	opts.Macros = map[string]*Macro{
-		"list": macro,
+
+	macro, err := NewMacro(
+		"list",
+		`[ "/etc/shadow", "/etc/password" ]`,
+		model,
+		opts,
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	opts.AddMacro(macro)
 
 	expr := `"/etc/shadow" in list`
-
 	rule, err := parseRule(expr, model, opts)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
@@ -563,14 +557,20 @@ func TestMacroList(t *testing.T) {
 }
 
 func TestMacroExpression(t *testing.T) {
-	expression := `open.filename in [ "/etc/shadow", "/etc/passwd" ]`
-	macro := &Macro{
-		ID: "is_passwd",
+	model := &testModel{}
+	opts := newOptsWithParams(make(map[string]interface{}), nil)
+
+	macro, err := NewMacro(
+		"is_passwd",
+		`open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
+		model,
+		opts,
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if err := macro.Parse(expression); err != nil {
-		t.Fatalf("%s\n%s", err, expression)
-	}
+	opts.AddMacro(macro)
 
 	event := &testEvent{
 		process: testProcess{
@@ -579,17 +579,6 @@ func TestMacroExpression(t *testing.T) {
 		open: testOpen{
 			filename: "/etc/passwd",
 		},
-	}
-
-	model := &testModel{}
-
-	if err := macro.GenEvaluator(expression, model, &Opts{}); err != nil {
-		t.Fatalf("%s\n%s", err, expression)
-	}
-
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
-	opts.Macros = map[string]*Macro{
-		"is_passwd": macro,
 	}
 
 	expr := `process.name == "httpd" && is_passwd`
@@ -606,14 +595,20 @@ func TestMacroExpression(t *testing.T) {
 }
 
 func TestMacroPartial(t *testing.T) {
-	expression := `open.filename in [ "/etc/shadow", "/etc/passwd" ]`
-	macro := &Macro{
-		ID: "is_passwd",
+	model := &testModel{}
+	opts := newOptsWithParams(make(map[string]interface{}), nil)
+
+	macro, err := NewMacro(
+		"is_passwd",
+		`open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
+		model,
+		opts,
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if err := macro.Parse(expression); err != nil {
-		t.Fatalf("%s\n%s", err, expression)
-	}
+	opts.AddMacro(macro)
 
 	event := &testEvent{
 		process: testProcess{
@@ -622,17 +617,6 @@ func TestMacroPartial(t *testing.T) {
 		open: testOpen{
 			filename: "/etc/passwd",
 		},
-	}
-
-	model := &testModel{}
-
-	if err := macro.GenEvaluator(expression, model, &Opts{}); err != nil {
-		t.Fatalf("%s\n%s", err, expression)
-	}
-
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
-	opts.Macros = map[string]*Macro{
-		"is_passwd": macro,
 	}
 
 	expr := `process.name == "httpd" && is_passwd`
@@ -669,24 +653,6 @@ func TestMacroPartial(t *testing.T) {
 }
 
 func TestNestedMacros(t *testing.T) {
-	expression1 := `[ "/etc/shadow", "/etc/passwd" ]`
-	macro1 := &Macro{
-		ID: "sensitive_files",
-	}
-
-	if err := macro1.Parse(expression1); err != nil {
-		t.Fatalf("%s\n%s", err, expression1)
-	}
-
-	expression2 := `open.filename in sensitive_files`
-	macro2 := &Macro{
-		ID: "is_sensitive_opened",
-	}
-
-	if err := macro2.Parse(expression2); err != nil {
-		t.Fatalf("%s\n%s", err, expression2)
-	}
-
 	event := &testEvent{
 		open: testOpen{
 			filename: "/etc/passwd",
@@ -694,26 +660,35 @@ func TestNestedMacros(t *testing.T) {
 	}
 
 	model := &testModel{}
-
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
-	opts.Macros = map[string]*Macro{
-		"sensitive_files":     macro1,
-		"is_sensitive_opened": macro2,
-	}
 
-	if err := macro1.GenEvaluator(expression1, model, opts); err != nil {
-		t.Fatalf("%s\n%s", err, expression1)
-	}
-
-	if err := macro2.GenEvaluator(expression2, model, opts); err != nil {
-		t.Fatalf("%s\n%s", err, expression2)
-	}
-
-	expr := `is_sensitive_opened`
-
-	rule, err := parseRule(expr, model, opts)
+	macro1, err := NewMacro(
+		"sensitive_files",
+		`[ "/etc/shadow", "/etc/passwd" ]`,
+		model,
+		opts,
+	)
 	if err != nil {
-		t.Fatalf("error while evaluating `%s`: %s", expr, err)
+		t.Fatal(err)
+	}
+
+	opts.AddMacro(macro1)
+
+	macro2, err := NewMacro(
+		"is_sensitive_opened",
+		`open.filename in sensitive_files`,
+		model,
+		opts,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts.AddMacro(macro2)
+
+	rule, err := parseRule(macro2.ID, model, opts)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", macro2.ID, err)
 	}
 
 	ctx := NewContext(unsafe.Pointer(event))

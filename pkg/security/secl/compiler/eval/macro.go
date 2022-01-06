@@ -32,6 +32,7 @@ type MacroEvaluator struct {
 	FieldValues map[Field][]FieldValue
 }
 
+// NewMacro parses an expression and returns a new macro
 func NewMacro(id, expression string, model Model, opts *Opts) (*Macro, error) {
 	macro := &Macro{
 		ID:   id,
@@ -49,6 +50,7 @@ func NewMacro(id, expression string, model Model, opts *Opts) (*Macro, error) {
 	return macro, nil
 }
 
+// NewStringValuesMacro returns a new macro from an array of strings
 func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error) {
 	var evaluator StringValuesEvaluator
 	for _, value := range values {
