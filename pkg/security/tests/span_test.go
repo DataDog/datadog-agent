@@ -10,19 +10,15 @@ package tests
 import (
 	"fmt"
 	"os"
-	"syscall"
+	"os/exec"
 	"testing"
-	"unsafe"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSpan(t *testing.T) {
-	executable := which("touch")
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_span_rule_open",
@@ -30,7 +26,7 @@ func TestSpan(t *testing.T) {
 		},
 		{
 			ID:         "test_span_rule_exec",
-			Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
+			Expression: `exec.file.path == "/usr/bin/touch"`,
 		},
 	}
 
@@ -40,39 +36,35 @@ func TestSpan(t *testing.T) {
 	}
 	defer test.Close()
 
-	var tls [200]uint64
-	for i := range tls {
-		tls[i] = 0
-	}
-
-	req := sprobe.ERPCRequest{
-		OP: sprobe.RegisterSpanTLSOP,
-	}
-
-	// format, max threads, base ptr
-	model.ByteOrder.PutUint64(req.Data[0:8], 0)
-	model.ByteOrder.PutUint64(req.Data[8:16], uint64(len(tls)/2))
-	model.ByteOrder.PutUint64(req.Data[16:24], uint64(uintptr(unsafe.Pointer(&tls))))
-
-	erpc, err := sprobe.NewERPC()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := erpc.Request(&req); err != nil {
-		t.Fatal(err)
+		if _, ok := err.(ErrUnsupportedArch); ok {
+			t.Skip(err)
+		} else {
+			t.Fatal(err)
+		}
 	}
 
-	t.Run("open", func(t *testing.T) {
-		offset := (syscall.Gettid() % (len(tls) / 2)) * 2
-		tls[offset] = 123
-		tls[offset+1] = 456
+	test.Run(t, "open", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		testFile, _, err := test.Path("test-span")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		args := []string{"span-open", "104", "204", testFile}
+		envs := []string{}
 
 		test.WaitSignal(t, func() error {
-			testFile, _, err := test.Create("test-span")
+			cmd := cmdFunc(syscallTester, args, envs)
+			out, err := cmd.CombinedOutput()
+
 			if err != nil {
-				return err
+				//if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %s", out, err)
 			}
-			return os.Remove(testFile)
+
+			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_open")
 
@@ -80,23 +72,28 @@ func TestSpan(t *testing.T) {
 				t.Error(event.String())
 			}
 
-			assert.Equal(t, uint64(123), event.SpanContext.SpanID)
-			assert.Equal(t, uint64(456), event.SpanContext.TraceID)
+			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
+			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
 		})
 	})
 
-	t.Run("exec", func(t *testing.T) {
-		syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	test.Run(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		testFile, _, err := test.Path("test-span-exec")
 		if err != nil {
-			if _, ok := err.(ErrUnsupportedArch); ok {
-				t.Skip(err)
-			} else {
-				t.Fatal(err)
-			}
+			t.Fatal(err)
 		}
+		defer os.Remove(testFile)
+
+		args := []string{"span-exec", "104", "204", "/usr/bin/touch", testFile}
+		envs := []string{}
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "span-exec", "104", "204", executable, "/tmp/test_span_rule_exec")
+			cmd := cmdFunc(syscallTester, args, envs)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %s", out, err)
+			}
+
+			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_exec")
 

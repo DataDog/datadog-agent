@@ -466,6 +466,15 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.eu", newURL)
 
+	// Gov
+	newURL, err = AddAgentVersionToDomain("https://app.ddog-gov.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("app")+".ddog-gov.com", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://app.ddog-gov.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("flare")+".ddog-gov.com", newURL)
+
 	// Additional site
 	newURL, err = AddAgentVersionToDomain("https://app.us2.datadoghq.com", "app")
 	require.Nil(t, err)
