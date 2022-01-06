@@ -253,18 +253,6 @@ spec:
             path: /sys/fs/cgroup
           name: cgroups
         - hostPath:
-            path: /etc/os-release
-          name: etc-os-release
-        - hostPath:
-            path: /etc/redhat-release
-          name: etc-redhat-release
-        - hostPath:
-            path: /etc/fedora-release
-          name: etc-fedora-release
-        - hostPath:
-            path: /etc/lsb-release
-          name: etc-lsb-release
-        - hostPath:
             path: /var/run/datadog/
             type: DirectoryOrCreate
           name: dsdsocket
