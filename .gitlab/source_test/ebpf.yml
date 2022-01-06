@@ -71,6 +71,8 @@ tests_ebpf_x64:
     - inv -e security-agent.build-functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite --build-flags "-race" --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
     # Compile runtime security stress tests to be executed in kitchen tests
     - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
+    # Copy nikos archive to be extracted in kitchen tests
+    - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
@@ -96,6 +98,8 @@ tests_ebpf_arm64:
     - inv -e security-agent.build-functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite --build-flags "-race" --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
     # Compile runtime security stress tests to be executed in kitchen tests
     - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
+    # Copy nikos archive to be extracted in kitchen tests
+    - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
