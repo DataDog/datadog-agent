@@ -27,7 +27,7 @@ type executionStartInfo struct {
 	startTime time.Time
 	traceID   uint64
 	spanID    uint64
-	parentId  uint64
+	parentID  uint64
 }
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
@@ -47,10 +47,10 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 	if hasPayload {
 		traceID := convertStrToUnit64(payload.Headers[traceIDHeader])
-		parentId := convertStrToUnit64(payload.Headers[parentIDHeader])
+		parentID := convertStrToUnit64(payload.Headers[parentIDHeader])
 
 		currentExecutionInfo.traceID = traceID
-		currentExecutionInfo.parentId = parentId
+		currentExecutionInfo.parentID = parentID
 	}
 }
 
@@ -66,7 +66,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time) {
 		Type:     "serverless",
 		TraceID:  currentExecutionInfo.traceID,
 		SpanID:   currentExecutionInfo.spanID,
-		ParentID: currentExecutionInfo.parentId,
+		ParentID: currentExecutionInfo.parentID,
 		Start:    currentExecutionInfo.startTime.UnixNano(),
 		Duration: duration,
 	}
