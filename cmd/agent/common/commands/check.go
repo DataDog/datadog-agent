@@ -41,31 +41,31 @@ import (
 )
 
 var (
-	checkRate              bool
-	checkTimes             int
-	checkPause             int
-	checkName              string
-	checkDelay             int
-	logLevel               string
-	formatJSON             bool
-	formatTable            bool
-	breakPoint             string
-	fullSketches           bool
-	saveFlare              bool
-	profileMemory          bool
-	profileMemoryDir       string
-	profileMemoryFrames    string
-	profileMemoryGC        string
-	profileMemoryCombine   string
-	profileMemorySort      string
-	profileMemoryLimit     string
-	profileMemoryDiff      string
-	profileMemoryFilters   string
-	profileMemoryUnit      string
-	profileMemoryVerbose   string
-	discoveryTimeout       uint
-	discoveryRetryInterval uint
-	discoveryCheckCount    uint
+	checkRate               bool
+	checkTimes              int
+	checkPause              int
+	checkName               string
+	checkDelay              int
+	logLevel                string
+	formatJSON              bool
+	formatTable             bool
+	breakPoint              string
+	fullSketches            bool
+	saveFlare               bool
+	profileMemory           bool
+	profileMemoryDir        string
+	profileMemoryFrames     string
+	profileMemoryGC         string
+	profileMemoryCombine    string
+	profileMemorySort       string
+	profileMemoryLimit      string
+	profileMemoryDiff       string
+	profileMemoryFilters    string
+	profileMemoryUnit       string
+	profileMemoryVerbose    string
+	discoveryTimeout        uint
+	discoveryRetryInterval  uint
+	discoveryInstancesCount uint
 )
 
 func setupCmd(cmd *cobra.Command) {
@@ -82,7 +82,7 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
 	cmd.Flags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
-	cmd.Flags().UintVarP(&discoveryCheckCount, "discovery-check-count", "", 1, "number of check instances to wait (retry/wait until the specified number of instances is not reached)")
+	cmd.Flags().UintVarP(&discoveryInstancesCount, "discovery-instances-count", "", 1, "number of check instances to wait (retry/wait until the specified number of instances is not reached)")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
@@ -154,7 +154,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				discoveryRetryInterval = discoveryTimeout
 			}
 
-			allConfigs := waitForConfigs(checkName, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, discoveryCheckCount)
+			allConfigs := waitForConfigs(checkName, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, discoveryInstancesCount)
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -723,15 +723,15 @@ func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
 	return nil
 }
 
-// containsCheck returns true if the number of configs found for the check name is ast least the expected check count
-func containsCheck(checkName string, checkCount uint, configs []integration.Config) bool {
+// containsCheck returns true if the number of configs found for the check name is ast least the expected instances count
+func containsCheck(checkName string, instancesCount uint, configs []integration.Config) bool {
 	var matchedConfigsCount uint
 	for _, cfg := range configs {
 		if cfg.Name == checkName {
 			matchedConfigsCount++
 		}
 	}
-	return matchedConfigsCount >= checkCount
+	return matchedConfigsCount >= instancesCount
 }
 
 // waitForConfigs retries the collection of Autodiscovery configs until the check is found or the timeout is reached.
@@ -739,9 +739,9 @@ func containsCheck(checkName string, checkCount uint, configs []integration.Conf
 // depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
 // This function improves the resiliency of the check command.
 // Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
-func waitForConfigs(checkName string, retryInterval, timeout time.Duration, checkCount uint) []integration.Config {
+func waitForConfigs(checkName string, retryInterval, timeout time.Duration, instancesCount uint) []integration.Config {
 	allConfigs := common.AC.GetAllConfigs()
-	if containsCheck(checkName, checkCount, allConfigs) {
+	if containsCheck(checkName, instancesCount, allConfigs) {
 		return allConfigs
 	}
 
@@ -757,7 +757,7 @@ func waitForConfigs(checkName string, retryInterval, timeout time.Duration, chec
 			return allConfigs
 		case <-retryTicker.C:
 			allConfigs = common.AC.GetAllConfigs()
-			if containsCheck(checkName, checkCount, allConfigs) {
+			if containsCheck(checkName, instancesCount, allConfigs) {
 				return allConfigs
 			}
 		}
