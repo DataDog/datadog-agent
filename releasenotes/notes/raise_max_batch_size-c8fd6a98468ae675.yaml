@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Logs and events match batch size raised from `100` to `1000` elements. Improves
+    Logs and events max batch size raised from `100` to `1000` elements. Improves
     performance in high volume scenarios. 
