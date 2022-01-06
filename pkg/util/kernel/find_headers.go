@@ -11,15 +11,16 @@ package kernel
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,6 +50,8 @@ const (
 	hostVersionErr
 	downloadFailure
 )
+
+var linuxTypesHMissingErr = errors.New("correctly versioned kernel headers found, but linux/types.h missing")
 
 // GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
 // to  download them to headerDownloadDir
@@ -87,7 +90,7 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumR
 	}
 	log.Debugf("unable to find downloaded kernel headers: %s", err)
 
-	if strings.Contains(err.Error(), "linux/types.h missing") {
+	if errors.Is(err, linuxTypesHMissingErr) {
 		// If this happens, it means we've previously downloaded kernel headers containing broken
 		// symlinks. We'll delete these to prevent them from affecting the next download
 		log.Infof("deleting previously downloaded kernel headers")
@@ -126,7 +129,7 @@ func validateHeaderDirs(hv Version, dirs []string) error {
 
 		dirv, err := getHeaderVersion(d)
 		if err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, fs.ErrNotExist) {
 				// if version.h is not found in this directory, keep going
 				continue
 			}
@@ -145,7 +148,7 @@ func validateHeaderDirs(hv Version, dirs []string) error {
 	}
 
 	if !linuxTypesHFound {
-		return fmt.Errorf("correctly versioned kernel headers found, but linux/types.h missing")
+		return linuxTypesHMissingErr
 	}
 
 	log.Debugf("valid kernel headers found in %v", dirs)
@@ -155,11 +158,12 @@ func validateHeaderDirs(hv Version, dirs []string) error {
 func containsLinuxTypesHFile(dir string) bool {
 	path := filepath.Join(dir, "include/linux/types.h")
 	f, err := os.Open(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return false
 	}
-
-	defer f.Close()
+	if f != nil {
+		defer f.Close()
+	}
 	return true
 }
 
