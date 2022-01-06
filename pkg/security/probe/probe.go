@@ -1061,11 +1061,11 @@ func (p *Probe) ensureConfigDefaults() {
 // GetOffsetConstants returns the offsets and struct sizes constants
 func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
-	return GetOffsetConstantsFromFetcher(constantFetcher)
+	return GetOffsetConstantsFromFetcher(constantFetcher, probe)
 }
 
 // GetOffsetConstantsFromFetcher returns the offsets and struct sizes constants, from a constant fetcher
-func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher) (map[string]uint64, error) {
+func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher, probe *Probe) (map[string]uint64, error) {
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
@@ -1077,8 +1077,12 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 	constantFetcher.AppendOffsetofRequest("bpf_map_type_offset", "struct bpf_map", "map_type", "linux/bpf.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_id_offset", "struct bpf_prog_aux", "id", "linux/bpf.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_name_offset", "struct bpf_prog_aux", "name", "linux/bpf.h")
+	constantFetcher.AppendOffsetofRequest("bpf_prog_tag_offset", "struct bpf_prog", "tag", "linux/filter.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_offset", "struct bpf_prog", "aux", "linux/filter.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_type_offset", "struct bpf_prog", "type", "linux/filter.h")
-	constantFetcher.AppendOffsetofRequest("bpf_prog_attach_type_offset", "struct bpf_prog", "expected_attach_type", "linux/filter.h")
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code > kernel.Kernel4_16 {
+		constantFetcher.AppendOffsetofRequest("bpf_prog_attach_type_offset", "struct bpf_prog", "expected_attach_type", "linux/filter.h")
+	}
 	return constantFetcher.FinishAndGetResults()
 }

@@ -7,10 +7,11 @@ package probe
 
 import (
 	json "encoding/json"
+	time "time"
+
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
-	time "time"
 )
 
 // suppress unused package warning
@@ -3167,6 +3168,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe21(in *jl
 		switch key {
 		case "name":
 			out.Name = string(in.String())
+		case "tag":
+			out.Tag = string(in.String())
 		case "program_type":
 			out.ProgramType = string(in.String())
 		case "attach_type":
@@ -3213,6 +3216,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe21(out *j
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.Name))
+	}
+	if in.Tag != "" {
+		const prefix string = ",\"tag\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Tag))
 	}
 	if in.ProgramType != "" {
 		const prefix string = ",\"program_type\":"

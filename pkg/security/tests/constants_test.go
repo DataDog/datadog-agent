@@ -33,12 +33,12 @@ func TestFallbackConstants(t *testing.T) {
 	fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 	rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
-	fallbackConstants, err := probe.GetOffsetConstantsFromFetcher(fallbackFetcher)
+	fallbackConstants, err := probe.GetOffsetConstantsFromFetcher(fallbackFetcher, test.probe)
 	if err != nil {
 		t.Error(err)
 	}
 
-	rcConstants, err := probe.GetOffsetConstantsFromFetcher(rcFetcher)
+	rcConstants, err := probe.GetOffsetConstantsFromFetcher(rcFetcher, test.probe)
 	if err != nil {
 		t.Error(err)
 	}

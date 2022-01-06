@@ -50,6 +50,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getBpfMapTypeOffset(f.kernelVersion)
 	case "bpf_prog_aux_offset":
 		value = getBpfProgAuxOffset(f.kernelVersion)
+	case "bpf_prog_tag_offset":
+		value = getBpfProgTagOffset(f.kernelVersion)
 	case "bpf_prog_type_offset":
 		value = getBpfProgTypeOffset(f.kernelVersion)
 	case "bpf_prog_attach_type_offset":
@@ -208,7 +210,16 @@ func getBpfMapIDOffset(kv *kernel.Version) uint64 {
 }
 
 func getBpfMapNameOffset(kv *kernel.Version) uint64 {
-	return uint64(168)
+	nameOffset := uint64(168)
+
+	switch {
+	case kv.IsRH7Kernel():
+		nameOffset = 112
+	case kv.IsRH8Kernel():
+		nameOffset = 80
+	}
+
+	return nameOffset
 }
 
 func getBpfMapTypeOffset(kv *kernel.Version) uint64 {
@@ -217,6 +228,10 @@ func getBpfMapTypeOffset(kv *kernel.Version) uint64 {
 
 func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
 	return uint64(32)
+}
+
+func getBpfProgTagOffset(kv *kernel.Version) uint64 {
+	return uint64(20)
 }
 
 func getBpfProgTypeOffset(kv *kernel.Version) uint64 {
@@ -228,9 +243,27 @@ func getBpfProgAttachTypeOffset(kv *kernel.Version) uint64 {
 }
 
 func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
-	return uint64(24)
+	idOffset := uint64(24)
+
+	switch {
+	case kv.IsRH7Kernel():
+		idOffset = 8
+	case kv.IsRH8Kernel():
+		idOffset = 32
+	}
+
+	return idOffset
 }
 
 func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
-	return uint64(176)
+	nameOffset := uint64(176)
+
+	switch {
+	case kv.IsRH7Kernel():
+		nameOffset = 144
+	case kv.IsRH8Kernel():
+		nameOffset = 528
+	}
+
+	return nameOffset
 }
