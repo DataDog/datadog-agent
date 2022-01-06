@@ -45,14 +45,21 @@ jobs:
           $Env:path = "C:\msys64\mingw64\bin;C:\msys64\usr\bin\;$Env:path" # prepend msys, otherwise make from mingw gets used
           $ErrorActionPreference = 'Stop';
           $commands = (
-            "inv -e rtloader.make",
-            "inv -e rtloader.format --raise-if-changed",
-            "inv -e rtloader.install",
-            # "inv -e rtloader.test", # FIXME: rtloader tests fail
-            "inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --fail-on-fmt --python-home-3=$Env:pythonLocation",
-            "codecov -f profile.cov -F windows"
+            { inv -e rtloader.make },
+            { inv -e rtloader.format --raise-if-changed  },
+            { inv -e rtloader.install },
+            {
+              # FIXME: skipping rtloader tests because they fail
+              # inv -e rtloader.test
+            },
+            { inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --fail-on-fmt --python-home-3=$Env:pythonLocation },
+            { codecov -f profile.cov -F windows }
           )
+
+
+
           foreach($command in $commands) {
-              echo "Running '$command'"
-              Invoke-Expression "$command; If (`$lastExitCode -ne 0) { throw `"Previous command returned `$lastExitCode`" }"
+            echo "Running $command"
+            . $command
+            If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
           }
