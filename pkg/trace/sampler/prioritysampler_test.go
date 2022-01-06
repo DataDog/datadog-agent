@@ -205,12 +205,12 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	}
 
 	// setting up remote store
-	testCasesRates := pb.APMSampling{TargetTps: make([]pb.TargetTPS, 0, len(testCases))}
+	testCasesRates := pb.APMSampling{TargetTPS: make([]pb.TargetTPS, 0, len(testCases))}
 	for _, tc := range testCases {
 		if tc.localRate {
 			continue
 		}
-		testCasesRates.TargetTps = append(testCasesRates.TargetTps, pb.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
+		testCasesRates.TargetTPS = append(testCasesRates.TargetTPS, pb.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
 	}
 	s.remoteRates = newTestRemoteRates()
 	generatedConfigVersion := uint64(120)

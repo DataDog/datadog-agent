@@ -28,18 +28,18 @@ func (z *APMSampling) DecodeMsg(dc *msgp.Reader) (err error) {
 			var zb0002 uint32
 			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
-				err = msgp.WrapError(err, "TargetTps")
+				err = msgp.WrapError(err, "TargetTPS")
 				return
 			}
-			if cap(z.TargetTps) >= int(zb0002) {
-				z.TargetTps = (z.TargetTps)[:zb0002]
+			if cap(z.TargetTPS) >= int(zb0002) {
+				z.TargetTPS = (z.TargetTPS)[:zb0002]
 			} else {
-				z.TargetTps = make([]TargetTPS, zb0002)
+				z.TargetTPS = make([]TargetTPS, zb0002)
 			}
-			for za0001 := range z.TargetTps {
-				err = z.TargetTps[za0001].DecodeMsg(dc)
+			for za0001 := range z.TargetTPS {
+				err = z.TargetTPS[za0001].DecodeMsg(dc)
 				if err != nil {
-					err = msgp.WrapError(err, "TargetTps", za0001)
+					err = msgp.WrapError(err, "TargetTPS", za0001)
 					return
 				}
 			}
@@ -62,15 +62,15 @@ func (z *APMSampling) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteArrayHeader(uint32(len(z.TargetTps)))
+	err = en.WriteArrayHeader(uint32(len(z.TargetTPS)))
 	if err != nil {
-		err = msgp.WrapError(err, "TargetTps")
+		err = msgp.WrapError(err, "TargetTPS")
 		return
 	}
-	for za0001 := range z.TargetTps {
-		err = z.TargetTps[za0001].EncodeMsg(en)
+	for za0001 := range z.TargetTPS {
+		err = z.TargetTPS[za0001].EncodeMsg(en)
 		if err != nil {
-			err = msgp.WrapError(err, "TargetTps", za0001)
+			err = msgp.WrapError(err, "TargetTPS", za0001)
 			return
 		}
 	}
@@ -83,11 +83,11 @@ func (z *APMSampling) MarshalMsg(b []byte) (o []byte, err error) {
 	// map header, size 1
 	// string "0"
 	o = append(o, 0x81, 0xa1, 0x30)
-	o = msgp.AppendArrayHeader(o, uint32(len(z.TargetTps)))
-	for za0001 := range z.TargetTps {
-		o, err = z.TargetTps[za0001].MarshalMsg(o)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.TargetTPS)))
+	for za0001 := range z.TargetTPS {
+		o, err = z.TargetTPS[za0001].MarshalMsg(o)
 		if err != nil {
-			err = msgp.WrapError(err, "TargetTps", za0001)
+			err = msgp.WrapError(err, "TargetTPS", za0001)
 			return
 		}
 	}
@@ -116,18 +116,18 @@ func (z *APMSampling) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "TargetTps")
+				err = msgp.WrapError(err, "TargetTPS")
 				return
 			}
-			if cap(z.TargetTps) >= int(zb0002) {
-				z.TargetTps = (z.TargetTps)[:zb0002]
+			if cap(z.TargetTPS) >= int(zb0002) {
+				z.TargetTPS = (z.TargetTPS)[:zb0002]
 			} else {
-				z.TargetTps = make([]TargetTPS, zb0002)
+				z.TargetTPS = make([]TargetTPS, zb0002)
 			}
-			for za0001 := range z.TargetTps {
-				bts, err = z.TargetTps[za0001].UnmarshalMsg(bts)
+			for za0001 := range z.TargetTPS {
+				bts, err = z.TargetTPS[za0001].UnmarshalMsg(bts)
 				if err != nil {
-					err = msgp.WrapError(err, "TargetTps", za0001)
+					err = msgp.WrapError(err, "TargetTPS", za0001)
 					return
 				}
 			}
@@ -146,8 +146,8 @@ func (z *APMSampling) UnmarshalMsg(bts []byte) (o []byte, err error) {
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *APMSampling) Msgsize() (s int) {
 	s = 1 + 2 + msgp.ArrayHeaderSize
-	for za0001 := range z.TargetTps {
-		s += z.TargetTps[za0001].Msgsize()
+	for za0001 := range z.TargetTPS {
+		s += z.TargetTPS[za0001].Msgsize()
 	}
 	return
 }

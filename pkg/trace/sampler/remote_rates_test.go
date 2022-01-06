@@ -71,7 +71,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		{
 			name: "first rates received",
 			ratesToApply: pb.APMSampling{
-				TargetTps: []pb.TargetTPS{
+				TargetTPS: []pb.TargetTPS{
 					{
 						Service: "willBeRemoved",
 						Value:   3.2,
@@ -150,7 +150,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		{
 			name: "receive new remote rates, non matching samplers are trimmed",
 			ratesToApply: pb.APMSampling{
-				TargetTps: []pb.TargetTPS{
+				TargetTPS: []pb.TargetTPS{
 					{
 						Service: "keep",
 						Value:   27,
@@ -168,7 +168,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		{
 			name: "receive empty remote rates and above max",
 			ratesToApply: pb.APMSampling{
-				TargetTps: []pb.TargetTPS{
+				TargetTPS: []pb.TargetTPS{
 					{
 						Service: "keep",
 						Value:   3718271,
@@ -189,7 +189,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		{
 			name: "keep highest rank",
 			ratesToApply: pb.APMSampling{
-				TargetTps: []pb.TargetTPS{
+				TargetTPS: []pb.TargetTPS{
 					{
 						Service:   "keep",
 						Value:     10,
@@ -223,7 +223,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		{
 			name: "duplicate",
 			ratesToApply: pb.APMSampling{
-				TargetTps: []pb.TargetTPS{
+				TargetTPS: []pb.TargetTPS{
 					{
 						Service: "keep",
 						Value:   10,
@@ -248,7 +248,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 	r := newTestRemoteRates()
 	for _, step := range testSteps {
 		t.Log(step.name)
-		if step.ratesToApply.TargetTps != nil {
+		if step.ratesToApply.TargetTPS != nil {
 			r.onUpdate(configGenerator(step.version, step.ratesToApply))
 		}
 		for _, s := range step.countServices {
