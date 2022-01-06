@@ -1169,14 +1169,14 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 			"select * from ##ThisIsAGlobalTempTable where id = 1",
 			"select * from ##ThisIsAGlobalTempTable where id = ?",
 			SQLConfig{
-				DBMS: DBMSSqlserver,
+				DBMS: DBMSSQLServer,
 			},
 		},
 		{
 			"select * from dbo.#ThisIsATempTable where id = 1",
 			"select * from dbo.#ThisIsATempTable where id = ?",
 			SQLConfig{
-				DBMS: DBMSSqlserver,
+				DBMS: DBMSSQLServer,
 			},
 		},
 	} {

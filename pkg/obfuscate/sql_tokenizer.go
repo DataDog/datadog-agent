@@ -151,8 +151,8 @@ func (k TokenKind) String() string {
 }
 
 const (
-	// DBMSSqlserver is a MS SQL Server
-	DBMSSqlserver = "sqlserver"
+	// DBMSSQLServer is a MS SQL Server
+	DBMSSQLServer = "mssql"
 )
 
 const escapeCharacter = '\\'
@@ -311,7 +311,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return TokenKind(ch), tkn.bytes()
 			}
 		case '#':
-			if tkn.cfg.DBMS == DBMSSqlserver {
+			if tkn.cfg.DBMS == DBMSSQLServer {
 				return tkn.scanIdentifier()
 			}
 			tkn.advance()

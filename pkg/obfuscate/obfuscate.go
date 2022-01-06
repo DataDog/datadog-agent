@@ -19,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 )
 
-//go:generate easyjson -no_std_marshalers $GOFILE
-
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
@@ -101,9 +99,9 @@ type StatsClient interface {
 }
 
 // SQLConfig holds the config for obfuscating SQL.
-// easyjson:json
 type SQLConfig struct {
 	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
+	// Valid values for this can be found at https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#connection-level-attributes
 	DBMS string `json:"dbms"`
 
 	// TableNames specifies whether the obfuscator should also extract the table names that a query addresses,
