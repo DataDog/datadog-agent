@@ -82,7 +82,7 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
 	cmd.Flags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
-	cmd.Flags().UintVarP(&discoveryInstances, "discovery-instances", "", 1, "number of check instances to wait (retry/wait until the specified number of instances is not reached)")
+	cmd.Flags().UintVarP(&discoveryInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
@@ -723,8 +723,8 @@ func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
 	return nil
 }
 
-// containsCheck returns true if the number of configs found for the check name is ast least the expected instances
-func containsCheck(checkName string, instances uint, configs []integration.Config) bool {
+// checkReady returns true if the number of configs found for the check name is more or equal to min instances
+func checkReady(checkName string, minInstances uint, configs []integration.Config) bool {
 	var matchedConfigsCount uint
 	for _, cfg := range configs {
 		if cfg.Name == checkName {
