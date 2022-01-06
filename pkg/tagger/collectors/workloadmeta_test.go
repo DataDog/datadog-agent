@@ -6,10 +6,12 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -1073,6 +1075,66 @@ func Test_mergeMaps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.EqualValues(t, tt.want, mergeMaps(tt.first, tt.second))
+		})
+	}
+}
+
+func TestFargateStaticTags(t *testing.T) {
+	mockConfig := config.Mock()
+	tests := []struct {
+		name        string
+		loadFunc    func()
+		cleanupFunc func()
+		want        map[string]string
+	}{
+		{
+			name: "dd tags",
+			loadFunc: func() {
+				mockConfig.Set("eks_fargate", true)
+				mockConfig.Set("tags", "dd_tag1:dd_val1 dd_tag2:dd_val2")
+			},
+			cleanupFunc: func() { mockConfig.Set("tags", "") },
+			want:        map[string]string{"dd_tag1": "dd_val1", "dd_tag2": "dd_val2"},
+		},
+		{
+			name: "eks fargate node",
+			loadFunc: func() {
+				mockConfig.Set("eks_fargate", true)
+				mockConfig.Set("kubernetes_kubelet_nodename", "fargate_node_name")
+			},
+			cleanupFunc: func() {
+				mockConfig.Set("eks_fargate", false)
+				mockConfig.Set("kubernetes_kubelet_nodename", "")
+			},
+			want: map[string]string{"eks_fargate_node": "fargate_node_name"},
+		},
+		{
+			name: "dd tags and eks fargate node",
+			loadFunc: func() {
+				mockConfig.Set("tags", "dd_tag1:dd_val1 dd_tag2:dd_val2")
+				mockConfig.Set("eks_fargate", true)
+				mockConfig.Set("kubernetes_kubelet_nodename", "fargate_node_name")
+			},
+			cleanupFunc: func() {
+				mockConfig.Set("tags", "")
+				mockConfig.Set("eks_fargate", false)
+				mockConfig.Set("kubernetes_kubelet_nodename", "")
+			},
+			want: map[string]string{"dd_tag1": "dd_val1", "dd_tag2": "dd_val2", "eks_fargate_node": "fargate_node_name"},
+		},
+		{
+			name:        "no tags",
+			loadFunc:    func() {},
+			cleanupFunc: func() {},
+			want:        nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.loadFunc()
+			defer tt.cleanupFunc()
+
+			assert.EqualValues(t, tt.want, fargateStaticTags(context.TODO()))
 		})
 	}
 }
