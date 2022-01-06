@@ -37,7 +37,7 @@ type catalogEntry struct {
 // rm specifies the pair of rate and mechanism.
 type rm struct {
 	r float64
-	m uint32
+	m samplingMechanism
 }
 
 // newServiceLookup returns a new serviceKeyCatalog.
