@@ -16,15 +16,13 @@ import (
 )
 
 const (
-	// Sampler parameters not (yet?) configurable
-	defaultDecayPeriod time.Duration = 5 * time.Second
+	decayPeriod time.Duration = 5 * time.Second
 	// With this factor, any past trace counts for less than 50% after 6*decayPeriod and >1% after 39*decayPeriod
 	// We can keep it hardcoded, but having `decayPeriod` configurable should be enough?
-	defaultDecayFactor          float64       = 1.125 // 9/8
-	adjustPeriod                time.Duration = 10 * time.Second
-	initialSignatureScoreOffset float64       = 1
-	minSignatureScoreOffset     float64       = 0.01
-	defaultSignatureScoreSlope  float64       = 3
+	defaultDecayFactor          float64 = 1.125 // 9/8
+	initialSignatureScoreOffset float64 = 1
+	minSignatureScoreOffset     float64 = 0.01
+	defaultSignatureScoreSlope  float64 = 3
 	// defaultSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
 	// If this is surpassed, the rate is set to 1.
 	defaultSamplingRateThresholdTo1 float64 = 1
@@ -70,7 +68,7 @@ type Sampler struct {
 // newSampler returns an initialized Sampler
 func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
 	s := &Sampler{
-		Backend:              NewMemoryBackend(defaultDecayPeriod, defaultDecayFactor),
+		Backend:              NewMemoryBackend(decayPeriod, defaultDecayFactor),
 		extraRate:            extraRate,
 		targetTPS:            atomic.NewFloat(targetTPS),
 		rateThresholdTo1:     defaultSamplingRateThresholdTo1,
@@ -110,17 +108,13 @@ func (s *Sampler) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
 		decayTicker := time.NewTicker(s.Backend.DecayPeriod)
-		adjustTicker := time.NewTicker(adjustPeriod)
 		statsTicker := time.NewTicker(10 * time.Second)
 		defer decayTicker.Stop()
-		defer adjustTicker.Stop()
 		defer statsTicker.Stop()
 		for {
 			select {
 			case <-decayTicker.C:
-				s.Backend.DecayScore()
-			case <-adjustTicker.C:
-				s.AdjustScoring()
+				s.update()
 			case <-statsTicker.C:
 				s.report()
 			case <-s.exit:
@@ -129,6 +123,12 @@ func (s *Sampler) Start() {
 			}
 		}
 	}()
+}
+
+// update decays scores and rate computation coefficients
+func (s *Sampler) update() {
+	s.Backend.DecayScore()
+	s.AdjustScoring()
 }
 
 func (s *Sampler) report() {

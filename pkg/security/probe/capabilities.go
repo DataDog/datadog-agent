@@ -23,6 +23,7 @@ type Capability struct {
 	PolicyFlags     PolicyFlag
 	FieldValueTypes eval.FieldValueType
 	ValidateFnc     func(value rules.FilterValue) bool
+	FilterWeight    int
 }
 
 // Capabilities represents the filtering capabilities for a set of fields
@@ -54,9 +55,10 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 
 	for field, cap := range caps {
 		fcs = append(fcs, rules.FieldCapability{
-			Field:       field,
-			Types:       cap.FieldValueTypes,
-			ValidateFnc: cap.ValidateFnc,
+			Field:        field,
+			Types:        cap.FieldValueTypes,
+			ValidateFnc:  cap.ValidateFnc,
+			FilterWeight: cap.FilterWeight,
 		})
 	}
 

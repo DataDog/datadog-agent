@@ -82,14 +82,14 @@ func onNewBasenameApprovers(probe *Probe, eventType model.EventType, field strin
 	var basenameApprovers []activeApprover
 	for field, values := range approvers {
 		switch field {
-		case prefix + ".name":
+		case prefix + model.NameSuffix:
 			activeApprovers, err := approveBasenames("basename_approvers", eventType, stringValues(values)...)
 			if err != nil {
 				return nil, err
 			}
 			basenameApprovers = append(basenameApprovers, activeApprovers...)
 
-		case prefix + ".path":
+		case prefix + model.PathSuffix:
 			for _, value := range stringValues(values) {
 				basename := path.Base(value)
 				activeApprover, err := approveBasename("basename_approvers", eventType, basename)

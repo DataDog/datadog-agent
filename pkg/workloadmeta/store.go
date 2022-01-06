@@ -31,9 +31,10 @@ const (
 )
 
 type subscriber struct {
-	name   string
-	ch     chan EventBundle
-	filter *Filter
+	name     string
+	priority SubscriberPriority
+	ch       chan EventBundle
+	filter   *Filter
 }
 
 type sourceToEntity map[Source]Entity
@@ -184,14 +185,15 @@ func (s *store) Start(ctx context.Context) {
 // Subscribe returns a channel where workload metadata events will be streamed
 // as they happen. On first subscription, it will also generate an EventTypeSet
 // event for each entity present in the store that matches filter.
-func (s *store) Subscribe(name string, filter *Filter) chan EventBundle {
+func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle {
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
 	// unbuffered, it'll deadlock.
 	sub := subscriber{
-		name:   name,
-		ch:     make(chan EventBundle, 1),
-		filter: filter,
+		name:     name,
+		priority: priority,
+		ch:       make(chan EventBundle, 1),
+		filter:   filter,
 	}
 
 	var events []Event
@@ -238,6 +240,9 @@ func (s *store) Subscribe(name string, filter *Filter) chan EventBundle {
 	// above. Otherwise, it can cause a deadlock.
 	s.subscribersMut.Lock()
 	s.subscribers = append(s.subscribers, sub)
+	sort.SliceStable(s.subscribers, func(i, j int) bool {
+		return s.subscribers[i].priority < s.subscribers[j].priority
+	})
 	s.subscribersMut.Unlock()
 
 	telemetry.Subscribers.Inc()

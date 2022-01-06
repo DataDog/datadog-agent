@@ -127,7 +127,6 @@ tools/windows/install-help/cal/packages/
 
 # ebpf object files
 pkg/ebpf/bytecode/build/
-pkg/ebpf/bytecode/bindata/
 *.bc
 
 # CGo generated object files
@@ -152,10 +151,6 @@ rtloader/doxygen/errors.log
 
 # integrations-core when checked out for unit tests
 integrations-core/
-
-# file generated for templates
-pkg/status/templates.go
-cmd/agent/gui/templates.go
 
 # netlink message dump test files
 pkg/network/netlink/testdata/message_dump*

@@ -22,7 +22,7 @@ build_serverless-deb_x64:
     BINARY_NAME: datadog-agent-x64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["linux_x64_go_deps"]
+  needs: ["go_deps"]
 
 build_serverless-deb_arm64:
   extends: .build_serverless_common
@@ -30,7 +30,7 @@ build_serverless-deb_arm64:
     BINARY_NAME: datadog-agent-arm64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["linux_arm64_go_deps"]
+  needs: ["go_deps"]
 
 check_serverless_size_x64:
   extends: .check_size_common
@@ -41,7 +41,7 @@ check_serverless_size_x64:
     BASELINE_SIZE_IN_BYTES: 29455948
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["linux_x64_go_deps"]
+  needs: ["go_deps"]
 
 
 check_serverless_size_arm64:
@@ -52,4 +52,4 @@ check_serverless_size_arm64:
     BASELINE_SIZE_IN_BYTES: 27753341
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["linux_arm64_go_deps"]
+  needs: ["go_deps"]

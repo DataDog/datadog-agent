@@ -6,11 +6,10 @@
 package eval
 
 import (
+	"container/list"
 	"reflect"
 	"syscall"
 	"unsafe"
-
-	"container/list"
 
 	"github.com/pkg/errors"
 )
@@ -34,6 +33,12 @@ type testProcess struct {
 	list      *list.List
 	array     []*testItem
 	createdAt int64
+
+	// overridden values
+	orName        string
+	orNameValues  func() *StringValues
+	orArray       []*testItem
+	orArrayValues func() *StringValues
 }
 
 type testItemListIterator struct {
@@ -238,15 +243,15 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 				// to test optimisation
 				(*testEvent)(ctx.Object).listEvaluated = true
 
-				var result []string
+				var values []string
 
 				el := (*testEvent)(ctx.Object).process.list.Front()
 				for el != nil {
-					result = append(result, el.Value.(*testItem).value)
+					values = append(values, el.Value.(*testItem).value)
 					el = el.Next()
 				}
 
-				return result
+				return values
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -293,13 +298,13 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 		return &StringArrayEvaluator{
 			EvalFnc: func(ctx *Context) []string {
-				var result []string
+				var values []string
 
 				for _, el := range (*testEvent)(ctx.Object).process.array {
-					result = append(result, el.value)
+					values = append(values, el.value)
 				}
 
-				return result
+				return values
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -328,6 +333,70 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 				return int((*testEvent)(ctx.Object).process.createdAt)
 			},
 			Field: field,
+		}, nil
+
+	case "process.or_name":
+
+		return &StringEvaluator{
+			EvalFnc: func(ctx *Context) string {
+				return (*testEvent)(ctx.Object).process.orName
+			},
+			Field: field,
+			OpOverrides: &OpOverrides{
+				StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+					evaluator := StringValuesEvaluator{
+						EvalFnc: func(ctx *Context) *StringValues {
+							return (*testEvent)(ctx.Object).process.orNameValues()
+						},
+					}
+
+					return StringValuesContains(a, &evaluator, opts, state)
+				},
+				StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+					evaluator := StringValuesEvaluator{
+						EvalFnc: func(ctx *Context) *StringValues {
+							return (*testEvent)(ctx.Object).process.orNameValues()
+						},
+					}
+
+					return StringValuesContains(a, &evaluator, opts, state)
+				},
+			},
+		}, nil
+
+	case "process.or_array.value":
+
+		return &StringArrayEvaluator{
+			EvalFnc: func(ctx *Context) []string {
+				var values []string
+
+				for _, el := range (*testEvent)(ctx.Object).process.orArray {
+					values = append(values, el.value)
+				}
+
+				return values
+			},
+			Field: field,
+			OpOverrides: &OpOverrides{
+				StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+					evaluator := StringValuesEvaluator{
+						EvalFnc: func(ctx *Context) *StringValues {
+							return (*testEvent)(ctx.Object).process.orArrayValues()
+						},
+					}
+
+					return StringArrayMatches(b, &evaluator, opts, state)
+				},
+				StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+					evaluator := StringValuesEvaluator{
+						EvalFnc: func(ctx *Context) *StringValues {
+							return (*testEvent)(ctx.Object).process.orArrayValues()
+						},
+					}
+
+					return StringArrayMatches(a, &evaluator, opts, state)
+				},
+			},
 		}, nil
 
 	case "open.filename":
@@ -472,6 +541,14 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 		return "*", nil
 
+	case "process.or_name":
+
+		return "*", nil
+
+	case "process.or_array.value":
+
+		return "*", nil
+
 	case "open.filename":
 
 		return "open", nil
@@ -596,7 +673,7 @@ func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.array.value":
-		return reflect.Int, nil
+		return reflect.String, nil
 
 	case "process.array.flag":
 		return reflect.Bool, nil

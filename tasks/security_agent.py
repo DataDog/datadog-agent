@@ -7,7 +7,7 @@ import tempfile
 from invoke import task
 
 from .build_tags import get_default_build_tags
-from .go import generate, golangci_lint, staticcheck, vet
+from .go import golangci_lint, staticcheck, vet
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -97,9 +97,6 @@ def build(
                 if env_var in line:
                     goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
-
-    # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx)
 
     # extend PATH from gimme with the one from get_build_flags
     if "PATH" in os.environ and "PATH" in goenv:

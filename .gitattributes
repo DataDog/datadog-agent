@@ -5,5 +5,3 @@ go.sum -diff -merge linguist-generated=true
 *.pb.gw.go linguist-generated=true
 *_easyjson.go -diff -merge
 *_easyjson.go linguist-generated=true
-pkg/ebpf/bytecode/bindata/* -diff -merge
-pkg/ebpf/bytecode/bindata/* linguist-generated=true

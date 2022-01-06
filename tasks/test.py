@@ -16,7 +16,7 @@ from .agent import integration_tests as agent_integration_tests
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
-from .go import fmt, generate, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
+from .go import fmt, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
 from .libs.copyright import CopyrightLinter
 from .libs.junit_upload import junit_upload_from_tgz, produce_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
@@ -71,6 +71,15 @@ TOOLS = {
     'internal/tools': TOOL_LIST,
     'internal/tools/proto': TOOL_LIST_PROTO,
 }
+
+
+@task
+def download_tools(ctx):
+    """Download all Go tools for testing."""
+    with environ({'GO111MODULE': 'on'}):
+        for path, _ in TOOLS.items():
+            with ctx.cd(path):
+                ctx.run("go mod download")
 
 
 @task
@@ -146,11 +155,6 @@ def test(
     build_tags = get_build_tags(build_include, build_exclude)
 
     timeout = int(timeout)
-
-    # explicitly run these tasks instead of using pre-tasks so we can
-    # pass the `target` param (pre-tasks are invoked without parameters)
-    print("--- go generating:")
-    generate(ctx)
 
     if skip_linters:
         print("--- [skipping Go linters]")
