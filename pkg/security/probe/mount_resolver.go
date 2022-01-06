@@ -11,7 +11,6 @@ package probe
 import (
 	"context"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -260,7 +259,7 @@ func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) s
 		}
 
 		if p != "/" && !strings.HasPrefix(mount.MountPointStr, p) {
-			mountPointStr = path.Join(p, mount.MountPointStr)
+			mountPointStr = p + mount.MountPointStr
 		}
 	}
 
