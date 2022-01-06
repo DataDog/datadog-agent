@@ -223,6 +223,8 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 
 // sqlConfig holds the config for the python SQL obfuscator.
 type sqlConfig struct {
+	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
+	DBMS string `json:"dbms"`
 	// TableNames specifies whether the obfuscator should extract and return table names as SQL metadata when obfuscating.
 	TableNames bool `json:"table_names"`
 	// CollectCommands specifies whether the obfuscator should extract and return commands as SQL metadata when obfuscating.
@@ -251,6 +253,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	}
 	s := C.GoString(rawQuery)
 	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
+		DBMS:            sqlOpts.DBMS,
 		TableNames:      sqlOpts.TableNames,
 		CollectCommands: sqlOpts.CollectCommands,
 		CollectComments: sqlOpts.CollectComments,

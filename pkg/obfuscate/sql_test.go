@@ -1159,6 +1159,35 @@ LIMIT 1
 	}
 }
 
+func TestObfuscatorDBMSBehavior(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		in, out string
+		cfg     SQLConfig
+	}{
+		{
+			"select * from ##ThisIsAGlobalTempTable where id = 1",
+			"select * from ##ThisIsAGlobalTempTable where id = ?",
+			SQLConfig{
+				DBMS: DBMSSqlserver,
+			},
+		},
+		{
+			"select * from dbo.#ThisIsATempTable where id = 1",
+			"select * from dbo.#ThisIsATempTable where id = ?",
+			SQLConfig{
+				DBMS: DBMSSqlserver,
+			},
+		},
+	} {
+		t.Run(tt.cfg.DBMS, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
+		})
+	}
+}
+
 func TestSQLTokenizerIgnoreEscapeFalse(t *testing.T) {
 	cases := []sqlTokenizerTestCase{
 		{
