@@ -101,7 +101,7 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 }
 
 func isRealTimeCheck(checkName string) bool {
-	return checkName == config.RTContainerCheckName
+	return checkName == config.RTProcessCheckName || checkName == config.RTContainerCheckName
 }
 
 // NewCollectorWithChecks creates a new Collector
