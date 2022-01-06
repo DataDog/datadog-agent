@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 )
 
 // EntityTags holds the tag information for a given entity. It is not
@@ -21,9 +21,9 @@ type EntityTags struct {
 	entityID           string
 	sourceTags         map[string]sourceTags
 	cacheValid         bool
-	cachedAll          tagset.HashedTags // Low + orchestrator + high
-	cachedOrchestrator tagset.HashedTags // Low + orchestrator (subslice of cachedAll)
-	cachedLow          tagset.HashedTags // Sub-slice of cachedAll
+	cachedAll          oldtagset.HashedTags // Low + orchestrator + high
+	cachedOrchestrator oldtagset.HashedTags // Low + orchestrator (subslice of cachedAll)
+	cachedLow          oldtagset.HashedTags // Sub-slice of cachedAll
 }
 
 func newEntityTags(entityID string) *EntityTags {
@@ -46,7 +46,7 @@ func (e *EntityTags) get(cardinality collectors.TagCardinality) []string {
 	return e.getHashedTags(cardinality).Get()
 }
 
-func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) tagset.HashedTags {
+func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) oldtagset.HashedTags {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
@@ -126,7 +126,7 @@ func (e *EntityTags) computeCache() {
 	tags := append(tagList[collectors.LowCardinality], tagList[collectors.OrchestratorCardinality]...)
 	tags = append(tags, tagList[collectors.HighCardinality]...)
 
-	cached := tagset.NewHashedTagsFromSlice(tags)
+	cached := oldtagset.NewHashedTagsFromSlice(tags)
 
 	lowCardTags := len(tagList[collectors.LowCardinality])
 	orchCardTags := len(tagList[collectors.OrchestratorCardinality])

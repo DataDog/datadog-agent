@@ -11,7 +11,7 @@ import "math/bits"
 // the hash is invariant over re-ordering of tags and duplicate tags.
 //
 // This type holds storage for hash operations that can be re-used between
-// operations.  It is not threadsafe and the caller must ensure that an
+// operations. It is not threadsafe and the caller must ensure that an
 // instance's Hash method is not called concurrently.
 type HashGenerator struct {
 	// seen is used as a hashset to deduplicate the tags when there is more than
@@ -49,7 +49,7 @@ func NewHashGenerator() *HashGenerator {
 	return g
 }
 
-// Hash calculates the cumulative XOR of all unique tags in the builder.  As a side-effect,
+// Hash calculates the cumulative XOR of all unique tags in the builder. As a side-effect,
 // it sorts and deduplicates the hashes contained in the builder.
 func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 	var hash uint64

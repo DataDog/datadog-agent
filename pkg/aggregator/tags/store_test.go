@@ -8,7 +8,7 @@ package tags
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 
 	"github.com/stretchr/testify/require"
 )
@@ -16,8 +16,8 @@ import (
 func TestStore(t *testing.T) {
 	c := NewStore(true, "test")
 
-	t1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
-	t2 := tagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
+	t1 := oldtagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
+	t2 := oldtagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
 
 	t1a := c.Insert(1, t1)
 
@@ -85,8 +85,8 @@ func TestStore(t *testing.T) {
 func TestStoreDisabled(t *testing.T) {
 	c := NewStore(false, "test")
 
-	t1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
-	t2 := tagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
+	t1 := oldtagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
+	t2 := oldtagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
 
 	t1a := c.Insert(1, t1)
 	require.EqualValues(t, 0, len(c.tagsByKey))

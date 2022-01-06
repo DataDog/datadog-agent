@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -144,7 +144,7 @@ type Server struct {
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
-	debugTagsAccumulator      *tagset.HashingTagsAccumulator
+	debugTagsAccumulator      *oldtagset.HashingTagsAccumulator
 	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
 	eolTerminationUDP         bool
@@ -712,7 +712,7 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	defer s.Debug.Unlock()
 
 	if s.debugTagsAccumulator == nil {
-		s.debugTagsAccumulator = tagset.NewHashingTagsAccumulator()
+		s.debugTagsAccumulator = oldtagset.NewHashingTagsAccumulator()
 	}
 
 	// key

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
@@ -114,7 +114,7 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 // sources and appends them to the TagAccumulator.  It can return tags at high
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
-func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb oldtagset.TagAccumulator) error {
 	//TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
 	if captureTagger != nil {
@@ -192,7 +192,7 @@ func OrchestratorScopeTag() ([]string, error) {
 
 // OrchestratorScopeTagBuilder queries tags for orchestrator scope (e.g.
 // task_arn in ECS Fargate) and appends them to the TagAccumulator
-func OrchestratorScopeTagBuilder(tb tagset.TagAccumulator) error {
+func OrchestratorScopeTagBuilder(tb oldtagset.TagAccumulator) error {
 	mux.RLock()
 	if captureTagger != nil {
 		err := captureTagger.AccumulateTagsFor(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
@@ -251,7 +251,7 @@ func init() {
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-func EnrichTags(tb tagset.TagAccumulator, origin string, k8sOriginID string, cardinalityName string) {
+func EnrichTags(tb oldtagset.TagAccumulator, origin string, k8sOriginID string, cardinalityName string) {
 	cardinality := taggerCardinality(cardinalityName)
 
 	if origin != packets.NoOrigin {
