@@ -6,72 +6,8 @@
 package eval
 
 import (
-	"regexp"
 	"strings"
 )
-
-// PatternMatcher defines a pattern matcher
-type PatternMatcher interface {
-	Compile(pattern string) error
-	Matches(value string) bool
-}
-
-// RegexpPatternMatcher defines a regular expression pattern matcher
-type RegexpPatternMatcher struct {
-	re *regexp.Regexp
-}
-
-// Compile a regular expression based pattern
-func (r *RegexpPatternMatcher) Compile(pattern string) error {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return err
-	}
-	r.re = re
-
-	return nil
-}
-
-// Matches returns whether the value matches
-func (r *RegexpPatternMatcher) Matches(value string) bool {
-	return r.re.MatchString(value)
-}
-
-// SimplePatternMatcher defines a simple pattern matcher
-type SimplePatternMatcher struct {
-	pattern string
-}
-
-// Compile a simple pattern
-func (s *SimplePatternMatcher) Compile(pattern string) error {
-	s.pattern = pattern
-	return nil
-}
-
-// Matches returns whether the value matches
-func (s *SimplePatternMatcher) Matches(value string) bool {
-	return patternExprMatches(s.pattern, value)
-}
-
-// GlobPatternMatcher defines a glob pattern matcher
-type GlobPatternMatcher struct {
-	glob *Glob
-}
-
-// Compile a simple pattern
-func (g *GlobPatternMatcher) Compile(pattern string) error {
-	glob, err := NewGlob(pattern)
-	if err != nil {
-		return err
-	}
-	g.glob = glob
-	return nil
-}
-
-// Matches returns whether the value matches
-func (g *GlobPatternMatcher) Matches(value string) bool {
-	return g.glob.Matches(value)
-}
 
 func nextSegment(str string) (bool, string, int) {
 	var inSegment bool
@@ -103,9 +39,14 @@ func nextSegment(str string) (bool, string, int) {
 	return star, str[start:end], end
 }
 
-func patternExprMatches(pattern string, str string) bool {
+// PatternMatches matches a pattern against a string
+func PatternMatches(pattern string, str string) bool {
 	if pattern == "*" {
 		return true
+	}
+
+	if len(pattern) == 0 {
+		return len(str) == 0
 	}
 
 	for len(pattern) > 0 {

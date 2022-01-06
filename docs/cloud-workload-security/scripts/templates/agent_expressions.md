@@ -69,7 +69,7 @@ Patterns or regular expressions can be used in SECL expressions. They can be use
 
 | Format           |  Example             | Supported Fields   | Agent Version |
 |------------------|----------------------|--------------------|---------------|
-| `~"pattern"`     | `~"/etc/*"`          | All                | 7.27          |
+| `~"pattern"`     | `~"httpd.*"`         | All                | 7.27          |
 | `r"regexp"`      | `r"rc[0-9]+"`        | All except `.path` | 7.27          |
 
 Patterns on `.path` fields will be used as Glob. `*` will match files and folders at the same level. `**`, introduced in 7.34, can be used at the end of a path in order to match all the files and subfolders.

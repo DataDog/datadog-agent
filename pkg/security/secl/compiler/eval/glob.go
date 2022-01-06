@@ -13,7 +13,9 @@ import (
 
 // Glob describes file glob object
 type Glob struct {
+	pattern  string
 	elements []string
+	isScalar bool
 }
 
 func (g *Glob) contains(filename string, strict bool) bool {
@@ -30,7 +32,7 @@ func (g *Glob) contains(filename string, strict bool) bool {
 	for start, end, i := 0, 0, 0; end != len(filename); end++ {
 		if filename[end] == '/' {
 			elf, elp = filename[start:end], g.elements[i]
-			if !patternExprMatches(elp, elf) && elp != "**" {
+			if !PatternMatches(elp, elf) && elp != "**" {
 				return false
 			}
 			start = end + 1
@@ -46,7 +48,7 @@ func (g *Glob) contains(filename string, strict bool) bool {
 			if len(elf) == 0 {
 				return !strict
 			}
-			if !patternExprMatches(elp, elf) && elp != "**" {
+			if !PatternMatches(elp, elf) && elp != "**" {
 				return false
 			}
 		}
@@ -55,13 +57,16 @@ func (g *Glob) contains(filename string, strict bool) bool {
 	return true
 }
 
-// Contains the given filename
+// Contains returns whether the glob pattern matches the beginning of the filename
 func (g *Glob) Contains(filename string) bool {
 	return g.contains(filename, false)
 }
 
 // Matches the given filename
 func (g *Glob) Matches(filename string) bool {
+	if g.isScalar {
+		return g.pattern == filename
+	}
 	return g.contains(filename, true)
 }
 
@@ -75,6 +80,8 @@ func NewGlob(pattern string) (*Glob, error) {
 	}
 
 	return &Glob{
+		pattern:  pattern,
 		elements: els,
+		isScalar: !strings.Contains(pattern, "*"),
 	}, nil
 }

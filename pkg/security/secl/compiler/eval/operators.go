@@ -77,13 +77,13 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 
 	var arrayOp func(a string, b string) bool
 
-	if a.patternMatcher != nil {
+	if a.stringMatcher != nil {
 		arrayOp = func(as string, bs string) bool {
-			return a.patternMatcher.Matches(bs)
+			return a.stringMatcher.Matches(bs)
 		}
-	} else if b.patternMatcher != nil {
+	} else if b.stringMatcher != nil {
 		arrayOp = func(as string, bs string) bool {
-			return b.patternMatcher.Matches(as)
+			return b.stringMatcher.Matches(as)
 		}
 	} else {
 		arrayOp = func(as string, bs string) bool {
@@ -119,7 +119,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		ea, eb := a.EvalFnc, b.Value
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.ValueType, PatternMatcher: b.patternMatcher}); err != nil {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.ValueType, StringMatcher: b.stringMatcher}); err != nil {
 				return nil, err
 			}
 		}
@@ -138,7 +138,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, PatternMatcher: a.patternMatcher}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, StringMatcher: a.stringMatcher}); err != nil {
 			return nil, err
 		}
 	}
@@ -242,7 +242,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 		return false
 	}
 
-	pmArrayOp := func(pm PatternMatcher, b []string) bool {
+	smArrayOp := func(pm StringMatcher, b []string) bool {
 		for _, bs := range b {
 			if pm.Matches(bs) {
 				return true
@@ -267,11 +267,11 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
-		if a.patternMatcher != nil {
-			ea, eb := a.patternMatcher, b.Values
+		if a.stringMatcher != nil {
+			ea, eb := a.stringMatcher, b.Values
 
 			return &BoolEvaluator{
-				Value:     pmArrayOp(ea, eb),
+				Value:     smArrayOp(ea, eb),
 				Weight:    a.Weight + InArrayWeight*len(eb),
 				isPartial: isPartialLeaf,
 			}, nil
@@ -310,7 +310,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, PatternMatcher: a.patternMatcher}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, StringMatcher: a.stringMatcher}); err != nil {
 			return nil, err
 		}
 	}
@@ -318,9 +318,9 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	evalFnc := func(ctx *Context) bool {
 		return arrayOp(ea, eb(ctx))
 	}
-	if a.patternMatcher != nil {
+	if a.stringMatcher != nil {
 		evalFnc = func(ctx *Context) bool {
-			return pmArrayOp(a.patternMatcher, eb(ctx))
+			return smArrayOp(a.stringMatcher, eb(ctx))
 		}
 	}
 

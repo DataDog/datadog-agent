@@ -96,8 +96,7 @@ type StringEvaluator struct {
 	// used during compilation
 	isPartial bool
 
-	// pattern matching
-	patternMatcher PatternMatcher
+	stringMatcher StringMatcher
 }
 
 // Eval returns the result of the evaluation
@@ -131,20 +130,12 @@ func (s *StringEvaluator) GetValue(ctx *Context) string {
 // Compile compile internal object
 func (s *StringEvaluator) Compile() error {
 	switch s.ValueType {
-	case PatternValueType:
-		var matcher SimplePatternMatcher
-		if err := matcher.Compile(s.Value); err != nil {
-			return fmt.Errorf("invalid pattern '%s': %s", s.Value, err)
+	case PatternValueType, RegexpValueType:
+		matcher, err := NewStringMatcher(s.ValueType, s.Value)
+		if err != nil {
+			return err
 		}
-
-		s.patternMatcher = &matcher
-	case RegexpValueType:
-		var matcher RegexpPatternMatcher
-		if err := matcher.Compile(s.Value); err != nil {
-			return fmt.Errorf("invalid pattern '%s': %s", s.Value, err)
-		}
-
-		s.patternMatcher = &matcher
+		s.stringMatcher = matcher
 	default:
 		return fmt.Errorf("invalid pattern or regexp '%s'", s.Value)
 	}

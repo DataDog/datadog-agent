@@ -293,9 +293,9 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		if values := rule.GetFieldValues(field); len(values) > 0 {
 			for _, value := range values {
 				if value.Type == eval.PatternValueType {
-					glob, err := eval.NewGlob(value.Value.(string))
-					if err != nil {
-						return nil, err
+					glob, ok := value.StringMatcher.(*eval.GlobStringMatcher)
+					if !ok {
+						return nil, errors.New("unexpected string matcher")
 					}
 
 					valueFnc = func(dirname string) (bool, bool, error) {
@@ -307,7 +307,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 						return !strings.HasPrefix(str, dirname), false, nil
 					}
 				} else {
-					// regex are not currently supported on path
+					// regex are not currently supported on path, see ValidateFields
 					valueFnc = func(dirname string) (bool, bool, error) {
 						return false, false, nil
 					}

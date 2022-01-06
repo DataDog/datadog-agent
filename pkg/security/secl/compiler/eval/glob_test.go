@@ -76,33 +76,61 @@ func TestGlobContains(t *testing.T) {
 		t.Error("should contain the filename")
 	}
 
-	if glob, _ := NewGlob("/var/*"); glob.Matches("/var/log/nginx") {
-		t.Error("shouldn't contain the filename")
-	}
-
-	if glob, _ := NewGlob("/var/log"); !glob.Matches("/var/log") {
+	if glob, _ := NewGlob("/var/*"); !glob.Contains("/var/log/nginx") {
 		t.Error("should contain the filename")
 	}
 
-	if glob, _ := NewGlob("/etc/conf.d/*"); glob.Matches("/etc/sys.d/nginx.conf") {
+	if glob, _ := NewGlob("/var/log"); !glob.Contains("/var/log") {
+		t.Error("should contain the filename")
+	}
+
+	if glob, _ := NewGlob("/etc/conf.d/*"); glob.Contains("/etc/sys.d/nginx.conf") {
 		t.Error("shouldn't contain the filename")
+	}
+
+	if glob, _ := NewGlob("/var/log"); !glob.Contains("/var/log/httpd") {
+		t.Error("should contain the filename")
 	}
 }
 
 func TestGlobMatches(t *testing.T) {
 	if glob, _ := NewGlob("/var/log/*"); !glob.Matches("/var/log/httpd") {
-		t.Error("should contain the filename")
+		t.Error("should match the filename")
 	}
 
 	if glob, _ := NewGlob("/var/**"); !glob.Matches("/var/log/nginx") {
-		t.Error("should contain the filename")
+		t.Error("should match the filename")
 	}
 
 	if glob, _ := NewGlob("/var/*"); glob.Matches("/var/log/nginx") {
-		t.Error("shouldn't contain the filename")
+		t.Error("shouldn't match the filename")
 	}
 
 	if glob, _ := NewGlob("/var/log"); !glob.Matches("/var/log") {
-		t.Error("should contain the filename")
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("/var/run"); glob.Matches("/var/log") {
+		t.Error("shouldn't match the filename")
+	}
+
+	if glob, _ := NewGlob("/var/run"); glob.Matches("/var/run/httpd") {
+		t.Error("shouldn't match the filename")
+	}
+
+	if glob, _ := NewGlob("/var/run/*"); glob.Matches("abc") {
+		t.Error("shouldn't match the filename")
+	}
+
+	if glob, _ := NewGlob("ab*"); !glob.Matches("abc") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("*b*"); !glob.Matches("abc") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("*d*"); glob.Matches("abc") {
+		t.Error("shouldn't match the filename")
 	}
 }

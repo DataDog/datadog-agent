@@ -29,34 +29,24 @@ type FieldValue struct {
 	Value interface{}
 	Type  FieldValueType
 
-	PatternMatcher PatternMatcher
+	StringMatcher StringMatcher
 }
 
 // Compile the regular expression or the pattern
 func (f *FieldValue) Compile() error {
 	switch f.Type {
-	case PatternValueType:
+	case PatternValueType, RegexpValueType:
 		value, ok := f.Value.(string)
 		if !ok {
 			return fmt.Errorf("invalid pattern `%v`", f.Value)
 		}
 
-		var matcher SimplePatternMatcher
-		if err := matcher.Compile(value); err != nil {
-			return fmt.Errorf("invalid pattern `%s`: %s", value, err)
-		}
-		f.PatternMatcher = &matcher
-	case RegexpValueType:
-		value, ok := f.Value.(string)
-		if !ok {
-			return fmt.Errorf("invalid regexp `%v`", f.Value)
+		matcher, err := NewStringMatcher(f.Type, value)
+		if err != nil {
+			return err
 		}
 
-		var matcher RegexpPatternMatcher
-		if err := matcher.Compile(value); err != nil {
-			return fmt.Errorf("invalid pattern `%s`: %s", value, err)
-		}
-		f.PatternMatcher = &matcher
+		f.StringMatcher = matcher
 	}
 
 	return nil
