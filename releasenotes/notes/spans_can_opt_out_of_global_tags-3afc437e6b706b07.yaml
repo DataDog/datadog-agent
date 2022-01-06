@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - Some spans can opt out of having global tags set.
+  - APM: Some spans can opt out of having global tags set.
