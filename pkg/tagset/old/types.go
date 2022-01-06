@@ -5,7 +5,7 @@
 
 package tagset
 
-// A TagAccumulator accumulates tags.  The underlying type will provide a means of getting
+// A TagAccumulator accumulates tags. The underlying type will provide a means of getting
 // the resulting tag set.
 type TagAccumulator interface {
 	// Append the given tags to the tag set

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,7 +21,7 @@ func TestIsZero(t *testing.T) {
 func TestGenerateReproductible(t *testing.T) {
 	name := "metric.name"
 	hostname := "hostname"
-	tags := tagset.NewHashingTagsAccumulatorWithTags([]string{"bar", "foo", "key:value", "key:value2"})
+	tags := oldtagset.NewHashingTagsAccumulatorWithTags([]string{"bar", "foo", "key:value", "key:value2"})
 
 	generator := NewKeyGenerator()
 
@@ -72,7 +72,7 @@ func BenchmarkKeyGeneration(b *testing.B) {
 	host := "myhost"
 	for i := 1; i < 4096; i *= 2 {
 		tags, _ := genTags(i, 1)
-		tagsBuf := tagset.NewHashingTagsAccumulatorWithTags(tags)
+		tagsBuf := oldtagset.NewHashingTagsAccumulatorWithTags(tags)
 		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 			generator := NewKeyGenerator()
 			tags := tagsBuf.Dup()

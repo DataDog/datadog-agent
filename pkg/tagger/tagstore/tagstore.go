@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -268,13 +268,13 @@ func (s *TagStore) Prune() {
 // LookupHashed gets tags from the store and returns them as a HashedTags instance. It
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
-func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) tagset.HashedTags {
+func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) oldtagset.HashedTags {
 	s.RLock()
 	defer s.RUnlock()
 	storedTags, present := s.store[entity]
 
 	if present == false {
-		return tagset.HashedTags{}
+		return oldtagset.HashedTags{}
 	}
 	return storedTags.getHashedTags(cardinality)
 }

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -232,10 +232,10 @@ func (t *Tagger) Stop() error {
 }
 
 // getTags returns a read only list of tags for a given entity.
-func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (tagset.HashedTags, error) {
+func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (oldtagset.HashedTags, error) {
 	if entity == "" {
 		telemetry.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
-		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
+		return oldtagset.HashedTags{}, fmt.Errorf("empty entity ID")
 	}
 
 	cachedTags := t.store.LookupHashed(entity, cardinality)
@@ -245,7 +245,7 @@ func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (
 }
 
 // AccumulateTagsFor appends tags for a given entity from the tagger to the TagAccumulator
-func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb oldtagset.TagAccumulator) error {
 	tags, err := t.getTags(entity, cardinality)
 	tb.AppendHashed(tags)
 	return err

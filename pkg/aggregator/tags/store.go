@@ -10,7 +10,7 @@ import (
 	"math/bits"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -57,7 +57,7 @@ func NewStore(enabled bool, name string) *Store {
 // retrieved from the tagsBuffer. Insert increments reference count
 // for the returned entry; callers should call Entry.Release() when
 // the returned pointer is no longer in use.
-func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *Entry {
+func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *oldtagset.HashingTagsAccumulator) *Entry {
 	if !tc.enabled {
 		return &Entry{
 			tags: tagsBuffer.Copy(),
