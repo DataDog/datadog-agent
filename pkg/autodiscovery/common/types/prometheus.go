@@ -150,13 +150,14 @@ func (pc *PrometheusCheck) Init() error {
 // initInstances defaults the Instances field in PrometheusCheck
 func (pc *PrometheusCheck) initInstances() {
 	var openmetricsDefaultMetrics []string
-	switch config.Datadog.GetInt("prometheus_scrape.version") {
+	version := config.Datadog.GetInt("prometheus_scrape.version")
+	switch version {
 	case 1:
 		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsV1
 	case 2:
 		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsV2
 	default:
-		log.Errorf("Invalid value for `prometheus_scrape.version`. Can only be 1 or 2.")
+		log.Errorf("Invalid value for `prometheus_scrape.version`: %d. Can only be 1 or 2.", version)
 		return
 	}
 
