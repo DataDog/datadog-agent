@@ -11,7 +11,7 @@ import (
 func TestConfigsAPMSamplingUpdates(t *testing.T) {
 	configs := newConfigs()
 	samplingFile1 := pb.APMSampling{
-		TargetTps: []pb.TargetTPS{
+		TargetTPS: []pb.TargetTPS{
 			{
 				Env:     "env1",
 				Service: "service1",
@@ -48,7 +48,7 @@ func TestConfigsAPMSamplingUpdates(t *testing.T) {
 	assert.Equal(t, update{apmSamplingUpdate: &APMSamplingUpdate{Config: expectedConfig1}}, update1)
 
 	samplingFile2 := pb.APMSampling{
-		TargetTps: []pb.TargetTPS{
+		TargetTPS: []pb.TargetTPS{
 			{
 				Env:     "env3",
 				Service: "service3",
