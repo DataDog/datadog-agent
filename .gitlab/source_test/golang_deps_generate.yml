@@ -10,7 +10,6 @@ golang_deps_generate:
   needs: ["go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - python3 -m pip install --upgrade --ignore-installed pip setuptools
     - python3 -m pip install -r requirements.txt
   script:
     - inv agent.build-dep-tree

@@ -154,11 +154,10 @@ func fargateStaticTags(ctx context.Context) map[string]string {
 	if fargate.IsEKSFargateInstance() {
 		node, err := fargate.GetEKSFargateNodename()
 		if err != nil {
-			tags["eks_fargate_node"] = node
-		} else {
 			log.Infof("Couldn't build the 'eks_fargate_node' tag: %w", err)
+		} else {
+			tags["eks_fargate_node"] = node
 		}
-
 	}
 
 	return tags
