@@ -116,6 +116,13 @@ var execProbes = []*manager.Probe{
 			EBPFFuncName: "kprobe_commit_creds",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/__task_pid_nr_ns",
+			EBPFFuncName: "kretprobe__task_pid_nr_ns",
+		},
+	},
 }
 
 func getExecProbes() []*manager.Probe {

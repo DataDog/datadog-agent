@@ -118,10 +118,6 @@ struct syscall_cache_t {
         } xattr;
 
         struct {
-            u8 is_thread;
-        } clone;
-
-        struct {
             struct dentry *dentry;
             struct file_t file;
             struct str_array_ref_t args;
