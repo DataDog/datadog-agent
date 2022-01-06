@@ -53,12 +53,7 @@ int socket__http_filter(struct __sk_buff* skb) {
     // src_port represents the source port number *before* normalization
     // for more context please refer to http-types.h comment on `owned_by_src_port` field
     http.owned_by_src_port = http.tup.sport;
-
-    // we normalize the tuple to always be (client, server),
-    // so if sport is not in ephemeral port range we flip it
-    if (!is_ephemeral_port(http.tup.sport)) {
-        flip_tuple(&http.tup);
-    }
+    normalize_tuple(&http.tup);
 
     read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
     http_process(&http, &skb_info);
