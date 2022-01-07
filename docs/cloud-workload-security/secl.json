@@ -1174,9 +1174,10 @@
     },
     {
       "name": "mmap",
-      "definition": "[Experimental] A mmap command was executed",
+      "definition": "A mmap command was executed",
       "type": "Kernel",
       "from_agent_version": "7.34",
+      "experimental": true,
       "properties": [
         {
           "name": "mmap.file.change_time",
@@ -1267,9 +1268,10 @@
     },
     {
       "name": "mprotect",
-      "definition": "[Experimental] A mprotect command was executed",
+      "definition": "A mprotect command was executed",
       "type": "Kernel",
       "from_agent_version": "7.34",
+      "experimental": true,
       "properties": [
         {
           "name": "mprotect.req_protection",
@@ -1384,9 +1386,10 @@
     },
     {
       "name": "ptrace",
-      "definition": "[Experimental] A ptrace command was executed",
+      "definition": "A ptrace command was executed",
       "type": "Kernel",
       "from_agent_version": "7.34",
+      "experimental": true,
       "properties": [
         {
           "name": "ptrace.request",
