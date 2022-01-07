@@ -427,12 +427,17 @@ func (id *inodeDiscarders) discardParentInode(rs *rules.RuleSet, eventType model
 	return true, mountID, inode, nil
 }
 
-// function used to retrieve discarder information, *.file.path, mountID, inode, file deleted
-type inodeEventGetter = func(event *Event) (eval.Field, uint32, uint64, uint32, bool)
+// function used to retrieve discarder information, *.file.path, FileEvent, file deleted
+type inodeEventGetter = func(event *Event) (eval.Field, *model.FileEvent, bool)
 
 func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHandler, getter inodeEventGetter) onDiscarderHandler {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
-		field, mountID, inode, pathID, isDeleted := getter(event)
+		field, fileEvent, isDeleted := getter(event)
+
+		if fileEvent.PathResolutionError != nil {
+			return fileEvent.PathResolutionError
+		}
+		mountID, inode, pathID := fileEvent.MountID, fileEvent.Inode, fileEvent.PathID
 
 		if discarder.Field == field {
 			value, err := event.GetFieldValue(field)
@@ -537,15 +542,15 @@ func init() {
 
 	allDiscarderHandlers["open"] = processDiscarderWrapper(model.FileOpenEventType,
 		filenameDiscarderWrapper(model.FileOpenEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "open.file.path", event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "open.file.path", &event.Open.File, false
 			}))
 	SupportedDiscarders["open.file.path"] = true
 
 	allDiscarderHandlers["mkdir"] = processDiscarderWrapper(model.FileMkdirEventType,
 		filenameDiscarderWrapper(model.FileMkdirEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "mkdir.file.path", event.Mkdir.File.MountID, event.Mkdir.File.Inode, event.Mkdir.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "mkdir.file.path", &event.Mkdir.File, false
 			}))
 	SupportedDiscarders["mkdir.file.path"] = true
 
@@ -555,50 +560,50 @@ func init() {
 
 	allDiscarderHandlers["unlink"] = processDiscarderWrapper(model.FileUnlinkEventType,
 		filenameDiscarderWrapper(model.FileUnlinkEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "unlink.file.path", event.Unlink.File.MountID, event.Unlink.File.Inode, event.Unlink.File.PathID, true
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "unlink.file.path", &event.Unlink.File, true
 			}))
 	SupportedDiscarders["unlink.file.path"] = true
 
 	allDiscarderHandlers["rmdir"] = processDiscarderWrapper(model.FileRmdirEventType,
 		filenameDiscarderWrapper(model.FileRmdirEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "rmdir.file.path", event.Rmdir.File.MountID, event.Rmdir.File.Inode, event.Rmdir.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "rmdir.file.path", &event.Rmdir.File, false
 			}))
 	SupportedDiscarders["rmdir.file.path"] = true
 
 	allDiscarderHandlers["chmod"] = processDiscarderWrapper(model.FileChmodEventType,
 		filenameDiscarderWrapper(model.FileChmodEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "chmod.file.path", event.Chmod.File.MountID, event.Chmod.File.Inode, event.Chmod.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "chmod.file.path", &event.Chmod.File, false
 			}))
 	SupportedDiscarders["chmod.file.path"] = true
 
 	allDiscarderHandlers["chown"] = processDiscarderWrapper(model.FileChownEventType,
 		filenameDiscarderWrapper(model.FileChownEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "chown.file.path", event.Chown.File.MountID, event.Chown.File.Inode, event.Chown.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "chown.file.path", &event.Chown.File, false
 			}))
 	SupportedDiscarders["chown.file.path"] = true
 
 	allDiscarderHandlers["utimes"] = processDiscarderWrapper(model.FileUtimesEventType,
 		filenameDiscarderWrapper(model.FileUtimesEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "utimes.file.path", event.Utimes.File.MountID, event.Utimes.File.Inode, event.Utimes.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "utimes.file.path", &event.Utimes.File, false
 			}))
 	SupportedDiscarders["utimes.file.path"] = true
 
 	allDiscarderHandlers["setxattr"] = processDiscarderWrapper(model.FileSetXAttrEventType,
 		filenameDiscarderWrapper(model.FileSetXAttrEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "setxattr.file.path", event.SetXAttr.File.MountID, event.SetXAttr.File.Inode, event.SetXAttr.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "setxattr.file.path", &event.SetXAttr.File, false
 			}))
 	SupportedDiscarders["setxattr.file.path"] = true
 
 	allDiscarderHandlers["removexattr"] = processDiscarderWrapper(model.FileRemoveXAttrEventType,
 		filenameDiscarderWrapper(model.FileRemoveXAttrEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "removexattr.file.path", event.RemoveXAttr.File.MountID, event.RemoveXAttr.File.Inode, event.RemoveXAttr.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "removexattr.file.path", &event.RemoveXAttr.File, false
 			}))
 	SupportedDiscarders["removexattr.file.path"] = true
 
