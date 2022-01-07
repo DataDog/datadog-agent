@@ -31,7 +31,6 @@ const (
 	snmpLoaderTag        = "loader:core"
 	serviceCheckName     = "snmp.can_check"
 	deviceHostnamePrefix = "device:"
-	agentVersionTagKey   = "agent_version"
 	// 1.3 (iso.org) is the OID used for getNext call to check if the device is reachable
 	deviceReachableGetNextOid = "1.3"
 )
