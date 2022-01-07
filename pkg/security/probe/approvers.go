@@ -139,4 +139,6 @@ func init() {
 	allApproversHandlers["rmdir"] = onNewBasenameApproversWrapper(model.FileRmdirEventType)
 	allApproversHandlers["unlink"] = onNewBasenameApproversWrapper(model.FileUnlinkEventType)
 	allApproversHandlers["utimes"] = onNewBasenameApproversWrapper(model.FileUtimesEventType)
+	allApproversHandlers["mmap"] = mmapOnNewApprovers
+	allApproversHandlers["mprotect"] = mprotectOnNewApprovers
 }
