@@ -133,8 +133,8 @@ func newDatadogFallbackClient(endpoints []config.Endpoint) (*datadogFallbackClie
 }
 
 func (ic *datadogIndividualClient) queryMetrics(from, to int64, query string) ([]datadog.Series, error) {
-	// TODO: check for err 500 (server side) instead of any kind of error because switching to DR doesn’t make sense if that’s the query which is bad.
-	if series, err := ic.client.QueryMetrics(from, to, query); err == nil {
+	series, err := ic.client.QueryMetrics(from, to, query)
+	if err == nil {
 		ic.lastQuerySucceeded = true
 		ic.lastSuccess = time.Now()
 		ic.retryInterval /= 2
@@ -142,15 +142,15 @@ func (ic *datadogIndividualClient) queryMetrics(from, to int64, query string) ([
 			ic.retryInterval = minRetryInterval
 		}
 		return series, err
-	} else { // revive:disable-line:indent-error-flow
-		ic.lastQuerySucceeded = false
-		ic.lastFailure = time.Now()
-		ic.retryInterval *= 2
-		if ic.retryInterval > maxRetryInterval {
-			ic.retryInterval = maxRetryInterval
-		}
-		return series, err
 	}
+
+	ic.lastQuerySucceeded = false
+	ic.lastFailure = time.Now()
+	ic.retryInterval *= 2
+	if ic.retryInterval > maxRetryInterval {
+		ic.retryInterval = maxRetryInterval
+	}
+	return series, err
 }
 
 func (ic *datadogIndividualClient) hasFailedRecently() bool {
@@ -173,7 +173,8 @@ func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]d
 			continue
 		}
 
-		if series, err := c.queryMetrics(from, to, query); err == nil {
+		series, err := c.queryMetrics(from, to, query)
+		if err == nil {
 			if i != cl.lastUsedClient {
 				log.Warnf("Switching external metrics source provider from %s to %s",
 					cl.clients[cl.lastUsedClient].client.GetBaseUrl(),
@@ -181,19 +182,20 @@ func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]d
 			}
 			cl.lastUsedClient = i
 			return series, nil
-		} else { // revive:disable-line:indent-error-flow
-			log.Infof("Failed to query metrics on %s: %#v", c.client.GetBaseUrl(), err)
-			errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
 		}
+
+		log.Infof("Failed to query metrics on %s: %#v", c.client.GetBaseUrl(), err)
+		errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
 	}
 
 	for _, c := range skippedClients {
 		log.Infof("Although we shouldn’t query %s because of the backoff policy, we’re going to do so because no other valid endpoint succeeded so far.", c.client.GetBaseUrl())
-		if series, err := c.queryMetrics(from, to, query); err == nil {
+		series, err := c.queryMetrics(from, to, query)
+		if err == nil {
 			return series, nil
-		} else { // revive:disable-line:indent-error-flow
-			errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
 		}
+
+		errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
 	}
 
 	return nil, errs
