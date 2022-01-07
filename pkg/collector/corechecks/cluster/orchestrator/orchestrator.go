@@ -77,7 +77,8 @@ type OrchestratorInstance struct {
 	// collectors:
 	//   - nodes
 	//   - services
-	Collectors []string `yaml:"collectors"`
+	Collectors              []string `yaml:"collectors"`
+	ExtraSyncTimeoutSeconds int      `yaml:"extra_sync_timeout_seconds"`
 }
 
 func (c *OrchestratorInstance) parse(data []byte) error {
@@ -187,6 +188,14 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		return err
 	}
 
+	// Get the extra time we can wait for the informer cache sync
+	var extraTimeout time.Duration
+	if o.instance.ExtraSyncTimeoutSeconds == 0 {
+		extraTimeout = 60 * time.Second
+	} else {
+		extraTimeout = time.Duration(o.instance.ExtraSyncTimeoutSeconds) * time.Second
+	}
+
 	// Prepare the collectors for the resources specified in the configuration file.
 	collectors := o.instance.Collectors
 
@@ -275,7 +284,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		go informer.Run(o.stopCh)
 	}
 
-	return apiserver.SyncInformers(informersToSync)
+	return apiserver.SyncInformers(informersToSync, extraTimeout)
 }
 
 // Run runs the orchestrator check

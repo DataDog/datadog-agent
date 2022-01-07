@@ -93,5 +93,5 @@ func StartControllers(ctx ControllerContext) error {
 		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer()
 	}
 
-	return apiserver.SyncInformers(informers)
+	return apiserver.SyncInformers(informers, 0)
 }
