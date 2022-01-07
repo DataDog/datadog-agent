@@ -222,7 +222,7 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 			h.enqueue(deletedHPA)
 			return
 		}
-        return
+		return
 	}
 
 	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
