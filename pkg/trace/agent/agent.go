@@ -30,9 +30,9 @@ import (
 )
 
 const (
-	// tagInferredSpan is the key to the meta tag that lets us know whether this span should inherit its tags.
+	// tagInferredSpanTagSource is the key to the meta tag that lets us know whether this span should inherit its tags.
 	// Expected options are "lambda" and "self"
-	tagInferredSpan = "_inferred_span.tag_source"
+	tagInferredSpanTagSource = "_inferred_span.tag_source"
 	// tagHostname specifies the hostname of the tracer.
 	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
 	tagHostname = "_dd.hostname"
@@ -245,7 +245,9 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Extra sanitization steps of the trace.
 		for _, span := range chunk.Spans {
-			if span.Meta[tagInferredSpanTagSourceKey] != "self" {
+			if span.Meta[tagInferredSpanTagSource] != "self" {
+				//Inferred spans are spans generated from within a serverless function, but refer to a managed service (e.g. DyanmoDB or something).
+				//Optionally, they can be marked with tag_source=self, which indicates they should not receive the same tags as the rest of the spans in this trace payload.
 				for k, v := range a.conf.GlobalTags {
 					if k == tagOrigin {
 						chunk.Origin = v
