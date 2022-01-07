@@ -611,8 +611,8 @@ func init() {
 
 	allDiscarderHandlers["mmap"] = processDiscarderWrapper(model.MMapEventType,
 		filenameDiscarderWrapper(model.MMapEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "mmap.file.path", event.MMap.File.MountID, event.MMap.File.Inode, event.MMap.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "mmap.file.path", &event.MMap.File, false
 			}))
 	SupportedDiscarders["mmap.file.path"] = true
 
