@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -170,7 +171,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Name:       "openmetrics",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"prometheus_url":"http://%%host%%:1234/mewtrix","namespace":"","metrics":["*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
 					ADIdentifiers: []string{"kube_service://ns/svc"},
 					Provider:      "prometheus-services",
@@ -232,7 +233,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Name:       "openmetrics",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"prometheus_url":"http://%%host%%:1234/mewtrix","namespace":"","metrics":["*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
 					ADIdentifiers: []string{"kube_service://ns/svc"},
 					Provider:      "prometheus-services",
@@ -244,7 +245,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Entity:     "kube_endpoint_uid://ns/svc/10.0.0.1",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"prometheus_url":"http://%%host%%:1234/mewtrix","namespace":"","metrics":["*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
 					ADIdentifiers: []string{"kube_endpoint_uid://ns/svc/10.0.0.1", "kubernetes_pod://svc-pod-1"},
 					NodeName:      "node1",
@@ -257,7 +258,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					Entity:     "kube_endpoint_uid://ns/svc/10.0.0.2",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
-						integration.Data(`{"prometheus_url":"http://%%host%%:1234/mewtrix","namespace":"","metrics":["*"]}`),
+						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
 					ADIdentifiers: []string{"kube_endpoint_uid://ns/svc/10.0.0.2", "kubernetes_pod://svc-pod-2"},
 					NodeName:      "node2",
@@ -269,6 +270,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 		},
 	}
 
+	config.Datadog.Set("prometheus_scrape.version", 2)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()

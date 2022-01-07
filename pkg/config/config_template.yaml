@@ -2579,6 +2579,33 @@ api_key:
 # disable_cluster_name_tag_key: false
 
 {{ end -}}
+{{- if .PrometheusScrape }}
+## @param prometheus_scrape - custom object - optional
+## This section configures the Autodiscovery based on the Prometheus annotations
+#
+# prometheus:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Enables the prometheus config provider
+  #
+  # enabled: false
+
+  ## @param service_endpoints - boolean - optional - default: false
+  ## Enables Service Endpoints checks in the prometheus config provider
+  #
+  # service_endpoints: false
+
+  ## @param checks - custom object - optional
+  ## Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
+  #
+  # checks: {}
+
+  ## @param version - integer - optional - default: 2
+  ## Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
+  #
+  # version: 2
+
+{{ end -}}
 {{- if .CloudFoundryBBS }}
 #######################################################
 ## Cloud Foundry BBS Configuration for Autodiscovery ##
