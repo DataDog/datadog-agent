@@ -43,7 +43,7 @@ func TestTellDaemonRuntimeDoneOnceStartOnly(t *testing.T) {
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
-	assert.Equal(uint64(0), GetValueSyncOnce(&d.TellDaemonRuntimeDoneOnce))
+	assert.Equal(uint64(0), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
 }
 
 func TestTellDaemonRuntimeDoneOnceStartAndEnd(t *testing.T) {
@@ -54,7 +54,7 @@ func TestTellDaemonRuntimeDoneOnceStartAndEnd(t *testing.T) {
 	d.TellDaemonRuntimeStarted()
 	d.TellDaemonRuntimeDone()
 
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.TellDaemonRuntimeDoneOnce))
+	assert.Equal(uint64(1), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
 }
 
 func TestTellDaemonRuntimeDoneOnceStartAndEndAndTimeout(t *testing.T) {
@@ -66,7 +66,7 @@ func TestTellDaemonRuntimeDoneOnceStartAndEndAndTimeout(t *testing.T) {
 	d.TellDaemonRuntimeDone()
 	d.TellDaemonRuntimeDone()
 
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.TellDaemonRuntimeDoneOnce))
+	assert.Equal(uint64(1), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
 }
 
 func TestSetTraceTagNoop(t *testing.T) {
