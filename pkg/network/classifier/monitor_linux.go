@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 )
 
 type classifier struct {
@@ -37,7 +37,10 @@ func NewClassifier(cfg *config.Config, connMap *ebpf.Map, telemetryMap *ebpf.Map
 		return nil, fmt.Errorf("error initializing ebpf programs: %w", err)
 	}
 
-	filter, _ := p.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketClassifierFilter)})
+	filter, _ := p.GetProbe(manager.ProbeIdentificationPair{
+		EBPFSection:  string(probes.SocketClassifierFilter),
+		EBPFFuncName: "socket__classifier_filter",
+	})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter %s", string(probes.SocketClassifierFilter))
 	}
