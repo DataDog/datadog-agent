@@ -105,7 +105,7 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 	ctx.InformerFactory.Start(ctx.StopCh)
 
 	// Wait for the cache to sync
-	if err := SyncInformers(ctx.informers); err != nil {
+	if err := SyncInformers(ctx.informers, 0); err != nil {
 		errs = append(errs, err)
 	}
 
