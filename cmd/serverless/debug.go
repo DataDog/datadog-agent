@@ -16,7 +16,7 @@ import (
 
 const DD_PREFIX = "DD_"
 
-func outputDatadogEnvVariable() {
+func outputDatadogEnvVariablesForDebugging() {
 	log.Debug(buildDebugString())
 }
 
