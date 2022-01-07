@@ -38,7 +38,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | ---------- | ---- | ---------- | ------------- |
 {% for event_type in event_types %}
 {% if event_type.name != "*" %}
-| `{{ event_type.name }}` | {{ event_type.kind }} | {{ event_type.definition }} | {{ event_type.min_agent_version }} |
+| `{{ event_type.name }}` | {{ event_type.kind }} | {{ "[Experimental] " if event_type.experimental else "" }}{{ event_type.definition }} | {{ event_type.min_agent_version }} |
 {% endif %}
 {% endfor %}
 
