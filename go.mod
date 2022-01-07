@@ -75,7 +75,7 @@ require (
 	github.com/DataDog/gohai v0.0.0-20211126091652-d183ed971098
 	github.com/DataDog/gopsutil v0.0.0-20211112180027-9aa392ae181a
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/nikos v1.7.0
+	github.com/DataDog/nikos v1.7.1
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9
@@ -103,7 +103,7 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.2
-	github.com/containerd/containerd v1.5.8
+	github.com/containerd/containerd v1.5.9
 	github.com/containerd/typeurl v1.0.2
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
@@ -158,7 +158,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mdlayher/netlink v1.4.1
 	github.com/mholt/archiver/v3 v3.5.1
-	github.com/miekg/dns v1.1.43
+	github.com/miekg/dns v1.1.45
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/moby/sys/mountinfo v0.4.1
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
@@ -169,7 +169,6 @@ require (
 	github.com/onsi/gomega v1.17.0 // indirect
 	github.com/open-policy-agent/opa v0.35.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.38.0
-	github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/opencontainers/selinux v1.9.1 // indirect
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad

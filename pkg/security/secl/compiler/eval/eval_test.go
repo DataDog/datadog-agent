@@ -125,6 +125,7 @@ func TestSimpleString(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
+		{Expr: `process.name != ""`, Expected: true},
 		{Expr: `process.name != "/usr/bin/vipw"`, Expected: true},
 		{Expr: `process.name != "/usr/bin/cat"`, Expected: false},
 		{Expr: `process.name == "/usr/bin/cat"`, Expected: true},
@@ -286,7 +287,7 @@ func TestSimpleBitOperations(t *testing.T) {
 	}
 }
 
-func TestRegexp(t *testing.T) {
+func TestStringMatcher(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
 			name: "/usr/bin/c$t",
@@ -297,6 +298,11 @@ func TestRegexp(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
+		{Expr: `process.name =~ ""`, Expected: false},
+		{Expr: `process.name =~ "*"`, Expected: false},
+		{Expr: `process.name =~ "/*"`, Expected: false},
+		{Expr: `process.name =~ "*/*"`, Expected: false},
+		{Expr: `process.name =~ "/*/*/*"`, Expected: true},
 		{Expr: `process.name =~ "/usr/bin/*"`, Expected: true},
 		{Expr: `process.name =~ "/usr/sbin/*"`, Expected: false},
 		{Expr: `process.name !~ "/usr/sbin/*"`, Expected: true},

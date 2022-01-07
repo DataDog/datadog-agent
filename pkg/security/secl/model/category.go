@@ -34,7 +34,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	switch eventType {
 	case "exec":
 		return ProcessCategory
-	case "bpf", "selinux":
+	case "bpf", "selinux", "mmap", "mprotect", "ptrace":
 		return KernelCategory
 	}
 

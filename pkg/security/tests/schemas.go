@@ -103,3 +103,15 @@ func validateSpanSchema(t *testing.T, event *sprobe.Event) bool {
 func validateBPFSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateSchema(t, event, "file:///schemas/bpf.schema.json")
 }
+
+func validateMMapSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///schemas/mmap.schema.json")
+}
+
+func validateMProtectSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///schemas/mprotect.schema.json")
+}
+
+func validatePTraceSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///schemas/ptrace.schema.json")
+}

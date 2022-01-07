@@ -14,4 +14,9 @@ var (
 	// KernelCapabilityConstants list of kernel capabilities
 	KernelCapabilityConstants = map[string]uint64{}
 	unlinkFlagsConstants      = map[string]int{}
+	ptraceConstants           = map[string]uint32{}
+	ptraceArchConstants       = map[string]uint32{}
+	protConstants             = map[string]int{}
+	mmapFlagConstants         = map[string]int{}
+	mmapFlagArchConstants     = map[string]int{}
 )
