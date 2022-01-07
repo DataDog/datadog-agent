@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -207,6 +208,7 @@ func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
 	newTags := append(common.CopyStrings(tags), snmpLoaderTag)
+	newTags = append(newTags, "agent_version:" + version.AgentVersion)
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
 
