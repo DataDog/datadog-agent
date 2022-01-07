@@ -139,11 +139,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 }
 
 func (b *incompleteBuffer) shouldKeep(tx *httpTX, now int64) bool {
-	then := int64(tx.response_last_seen)
-	if tx.request_started > 0 {
-		then = int64(tx.request_started)
-	}
-
+	then := int64(tx.request_started)
 	return (now - then) < b.minAgeNano
 }
 
