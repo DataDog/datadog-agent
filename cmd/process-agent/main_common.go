@@ -188,6 +188,8 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	config.InitRuntimeSettings()
+
 	// Note: This only considers container sources that are already setup. It's possible that container sources may
 	//       need a few minutes to be ready on newly provisioned hosts.
 	_, err := util.GetContainers()
