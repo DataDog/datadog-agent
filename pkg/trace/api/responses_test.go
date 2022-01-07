@@ -52,11 +52,6 @@ func (w *testResponseWriter) WriteHeader(statusCode int) {
 	w.statusCode = statusCode
 }
 
-type rm struct {
-	r float64
-	m uint32
-}
-
 func TestHTTPRateByService(t *testing.T) {
 	assert := assert.New(t)
 	dc := sampler.NewDynamicConfig()
