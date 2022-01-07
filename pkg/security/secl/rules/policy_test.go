@@ -75,59 +75,6 @@ func TestMacroMerge(t *testing.T) {
 	}
 }
 
-func TestRuleMerge(t *testing.T) {
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
-	testPolicy := &Policy{
-		Name: "test-policy",
-		Rules: []*RuleDefinition{{
-			ID:         "test_rule",
-			Expression: `open.filename =~ "/sbin/*"`,
-		}, {
-			ID:         "test_rule",
-			Expression: `&& process.uid != 0`,
-			Combine:    MergePolicy,
-		}},
-	}
-
-	tmpDir, err := ioutil.TempDir("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := LoadPolicies(tmpDir, rs); err != nil {
-		t.Error(err)
-	}
-
-	rule := rs.GetRules()["test_rule"]
-	if rule == nil {
-		t.Fatal("failed to find test_rule in ruleset")
-	}
-
-	if expectedExpression := testPolicy.Rules[0].Expression + " " + testPolicy.Rules[1].Expression; rule.Expression != expectedExpression {
-		t.Errorf("expected expression to be %s, got %s", expectedExpression, rule.Expression)
-	}
-
-	testPolicy.Rules[1].Combine = ""
-
-	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := LoadPolicies(tmpDir, rs); err == nil {
-		t.Error("expected rule ID conflict")
-	}
-}
-
 func TestMacroInRuleMerge(t *testing.T) {
 	var opts Opts
 	opts.

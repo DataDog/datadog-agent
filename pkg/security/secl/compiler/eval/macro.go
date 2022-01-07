@@ -58,7 +58,10 @@ func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error
 			Type:  ScalarValueType,
 			Value: value,
 		}
-		evaluator.AppendFieldValues(fieldValue)
+
+		if err := evaluator.AppendFieldValues(fieldValue); err != nil {
+			return nil, err
+		}
 	}
 
 	return &Macro{

@@ -65,8 +65,8 @@ type RuleDefinition struct {
 	Expression  string            `yaml:"expression"`
 	Description string            `yaml:"description"`
 	Tags        map[string]string `yaml:"tags"`
-	Combine     CombinePolicy     `yaml:"combine"`
 	Disabled    bool              `yaml:"disabled"`
+	Combine     CombinePolicy     `yaml:"combine"`
 	Policy      *Policy
 }
 
@@ -86,8 +86,6 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	switch rd2.Combine {
 	case OverridePolicy:
 		rd.Expression = rd2.Expression
-	case MergePolicy:
-		rd.Expression += " " + rd2.Expression
 	default:
 		if !rd2.Disabled {
 			return &ErrRuleLoad{Definition: rd2, Err: ErrInternalIDConflict}
