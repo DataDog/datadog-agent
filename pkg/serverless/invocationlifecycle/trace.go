@@ -43,14 +43,19 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 	currentExecutionInfo.traceID = random.Uint64()
 	currentExecutionInfo.spanID = random.Uint64()
 
-	payload, hasPayload := convertRawPayload(rawPayload)
+	payload := convertRawPayload(rawPayload)
 
-	if hasPayload {
-		traceID := convertStrToUnit64(payload.Headers[traceIDHeader])
-		parentID := convertStrToUnit64(payload.Headers[parentIDHeader])
+	if payload.Headers != nil {
+		traceID, e1 := convertStrToUnit64(payload.Headers[traceIDHeader])
+		parentID, e2 := convertStrToUnit64(payload.Headers[parentIDHeader])
 
-		currentExecutionInfo.traceID = traceID
-		currentExecutionInfo.parentID = parentID
+		//Strconv failures will return 0. Must ensure error is nil before setting IDs
+		if e1 == nil {
+			currentExecutionInfo.traceID = traceID
+		}
+		if e2 == nil {
+			currentExecutionInfo.parentID = parentID
+		}
 	}
 }
 
@@ -85,8 +90,8 @@ func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time) {
 	})
 }
 
-func convertRawPayload(rawPayload string) (invocationPayload, bool) {
-	//Need to remove unwanted text and add } to unmarshal properly
+func convertRawPayload(rawPayload string) invocationPayload {
+	//Need to remove unwanted text from the initial payload
 	var reg = regexp.MustCompile(`{(?:|(.*))*}`)
 	subString := reg.FindString(rawPayload)
 
@@ -95,16 +100,17 @@ func convertRawPayload(rawPayload string) (invocationPayload, bool) {
 	err := json.Unmarshal([]byte(subString), &payload)
 	if err != nil {
 		log.Debug("Could not unmarshal the invocation event payload")
-		return payload, false
 	}
 
-	return payload, true
+	return payload
 }
 
-func convertStrToUnit64(s string) uint64 {
+func convertStrToUnit64(s string) (uint64, error) {
+	//Need to return the error here because num will be 0 if conversion fails
 	num, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
 		log.Debug("Error with string conversion of trace or parent ID")
 	}
-	return num
+
+	return num, err
 }
