@@ -57,7 +57,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		service   string
 		env       string
 		targetTPS float64
-		mechanism uint32
+		mechanism pb.SamplingMechanism
 		rank      uint32
 	}
 

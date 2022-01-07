@@ -156,20 +156,20 @@ func TestCatalogEnvMatchAgent(t *testing.T) {
 	}
 	const totalRate = 0.2
 
-	remoteRates := map[Signature]float64{
-		sig2.Hash(): 0.5555,
-		sig3.Hash(): 0.19,
+	remoteRates := map[Signature]rm{
+		sig2.Hash(): {0.5555, 2},
+		sig3.Hash(): {0.19, 2},
 	}
 
 	rateByService := cat.ratesByService(defaultEnv, rates, remoteRates, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
-		{"service1", defaultEnv}: 0.3,
-		{"service1", ""}:         0.3,
-		{"service2", defaultEnv}: 0.5555,
-		{"service2", ""}:         0.5555,
-		{"service3", defaultEnv}: 0.19,
-		{"service3", ""}:         0.19,
-		{}:                       0.2,
+	assert.Equal(map[ServiceSignature]rm{
+		{"service1", defaultEnv}: {0.3, 0},
+		{"service1", ""}:         {0.3, 0},
+		{"service2", defaultEnv}: {0.5555, 2},
+		{"service2", ""}:         {0.5555, 2},
+		{"service3", defaultEnv}: {0.19, 2},
+		{"service3", ""}:         {0.19, 2},
+		{}:                       {0.2, 0},
 	}, rateByService)
 }
 
@@ -192,32 +192,32 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	}
 	const totalRate = 0.2
 
-	remoteRates := map[Signature]float64{
-		sig2: 0.5555,
-		sig3: 0.19,
+	remoteRates := map[Signature]rm{
+		sig2: {0.5555, 2},
+		sig3: {0.19, 2},
 	}
 
 	rateByService := cat.ratesByService("", rates, remoteRates, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
-		{"service1", "testEnv"}: 0.3,
-		{"service2", "testEnv"}: 0.5555,
-		{"service3", "testEnv"}: 0.19,
-		{}:                      0.2,
+	assert.Equal(map[ServiceSignature]rm{
+		{"service1", "testEnv"}: {0.3, 0},
+		{"service2", "testEnv"}: {0.5555, 2},
+		{"service3", "testEnv"}: {0.19, 2},
+		{}:                      {0.2, 0},
 	}, rateByService)
 
 	delete(rates, sig1)
 
 	rateByService = cat.ratesByService("", rates, nil, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
-		{"service2", "testEnv"}: 0.7,
-		{}:                      0.2,
+	assert.Equal(map[ServiceSignature]rm{
+		{"service2", "testEnv"}: {0.7, 0},
+		{}:                      {0.2, 0},
 	}, rateByService)
 
 	delete(rates, sig2)
 
 	rateByService = cat.ratesByService("", rates, nil, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
-		{}: 0.2,
+	assert.Equal(map[ServiceSignature]rm{
+		{}: {0.2, 0},
 	}, rateByService)
 }
 
