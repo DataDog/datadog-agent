@@ -8,6 +8,7 @@ package snmp
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -289,7 +291,7 @@ profiles:
 	assert.Nil(t, err)
 
 	// language=json
-	event := []byte(`
+	event := []byte(fmt.Sprintf(`
 {
   "subnet": "",
   "namespace":"profile-metadata",
@@ -301,6 +303,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_version:%s",
         "device_namespace:profile-metadata",
         "device_vendor:f5",
         "snmp_device:1.2.3.4",
@@ -350,7 +353,7 @@ profiles:
   ],
   "collect_timestamp":946684800
 }
-`)
+`, version.AgentVersion))
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
