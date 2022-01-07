@@ -121,7 +121,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 			j++
 		}
 
-		// now that we have finishing matching requests and responses
+		// now that we have finished matching requests and responses
 		// we check if we should keep orphan requests a little bit longer
 		for i < len(parts.requests) {
 			if b.shouldKeep(&parts.requests[i], nowUnix) {
