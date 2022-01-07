@@ -5,9 +5,6 @@
 
 #include "bpf_endian.h"
 
-#include <linux/kconfig.h>
-#include <net/sock.h>
-
 enum classifier_telemetry_counter
 {
     tail_call_failed,

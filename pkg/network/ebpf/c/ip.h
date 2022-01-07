@@ -35,15 +35,6 @@ struct __tcphdr {
 #define __IPPROTO_TCP 6
 #define __IPPROTO_UDP 17
 
-// TODO: Replace those by injected constants based on system configuration
-// once we have port range detection merged into the codebase.
-#define EPHEMERAL_RANGE_BEG 32768
-#define EPHEMERAL_RANGE_END 60999
-
-static __always_inline int is_ephemeral_port(u16 port) {
-    return port >= EPHEMERAL_RANGE_BEG && port <= EPHEMERAL_RANGE_END;
-}
-
 static __always_inline void read_ipv6_skb(struct __sk_buff *skb, __u64 off, __u64 *addr_l, __u64 *addr_h) {
     *addr_h |= (__u64)load_word(skb, off) << 32;
     *addr_h |= (__u64)load_word(skb, off + 4);
