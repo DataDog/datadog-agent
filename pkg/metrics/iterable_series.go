@@ -12,6 +12,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -110,4 +111,11 @@ func (series *IterableSeries) MoveNext() bool {
 // Current returns the current serie.
 func (series *IterableSeries) Current() *Serie {
 	return series.current
+}
+
+// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
+// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
+// compressed protobuf marshaled MetricPayload objects.
+func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return marshalSplitCompress(series, bufferContext)
 }
