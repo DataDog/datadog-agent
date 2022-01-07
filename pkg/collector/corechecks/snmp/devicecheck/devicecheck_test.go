@@ -14,12 +14,13 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/version"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {

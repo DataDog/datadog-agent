@@ -9,20 +9,23 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/gosnmp/gosnmp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"path/filepath"
-	"testing"
-	"time"
 )
 
 func TestProfileMetadata_f5(t *testing.T) {
