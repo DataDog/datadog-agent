@@ -40,6 +40,14 @@ func TestGlobContains(t *testing.T) {
 		t.Error("should contain the filename")
 	}
 
+	if glob, _ := NewGlob("*/http*"); glob.Contains("/var/log/httpd") {
+		t.Error("shouldn't contain the filename")
+	}
+
+	if glob, _ := NewGlob("*/*/http*"); !glob.Contains("/var/log/httpd") {
+		t.Error("should contain the filename")
+	}
+
 	if glob, _ := NewGlob("/var/*/httpd"); !glob.Contains("/var/log/httpd") {
 		t.Error("should contain the filename")
 	}
@@ -132,5 +140,13 @@ func TestGlobMatches(t *testing.T) {
 
 	if glob, _ := NewGlob("*d*"); glob.Matches("abc") {
 		t.Error("shouldn't match the filename")
+	}
+
+	if glob, _ := NewGlob("*/*/httpd"); !glob.Matches("/var/log/httpd") {
+		t.Error("should contain the filename")
+	}
+
+	if glob, _ := NewGlob("*/*/http*"); !glob.Matches("/var/log/httpd") {
+		t.Error("should contain the filename")
 	}
 }

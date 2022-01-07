@@ -38,7 +38,7 @@ const (
 
 	// maxParentDiscarderDepth defines the maximum parent depth to find parent discarders
 	// the eBPF part need to be adapted accordingly
-	maxParentDiscarderDepth = 2
+	maxParentDiscarderDepth = 3
 )
 
 var (
@@ -382,6 +382,10 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	}
 
 	dirname := getParent(filename, depth)
+	if dirname == "/" {
+		// never discard /
+		return false, nil
+	}
 
 	found, err := fnc(dirname)
 	if !found || err != nil {
@@ -394,28 +398,25 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 }
 
 func (id *inodeDiscarders) discardParentInode(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, uint32, uint64, error) {
+	var discarderDepth int
 	var isDiscarder bool
 	var err error
 
-	depth := maxParentDiscarderDepth
-	for ; depth > 0; depth-- {
+	for depth := maxParentDiscarderDepth; depth > 0; depth-- {
 		if isDiscarder, err = id.isParentPathDiscarder(rs, eventType, field, filename, depth); isDiscarder {
+			discarderDepth = depth
 			break
 		}
 	}
 
-	if err != nil {
+	if err != nil || discarderDepth == 0 {
 		return false, 0, 0, err
 	}
 
-	for ; depth > 0; depth-- {
+	for i := 0; i < discarderDepth; i++ {
 		mountID, inode, err = id.dentryResolver.GetParent(mountID, inode, pathID)
 		if err != nil {
 			return false, 0, 0, err
-		}
-
-		if mountID == 0 || inode == 0 {
-			return false, 0, 0, nil
 		}
 	}
 
