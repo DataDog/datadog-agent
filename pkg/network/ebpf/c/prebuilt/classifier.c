@@ -16,15 +16,17 @@ struct bpf_map_def SEC("maps/proto_progs") proto_progs = {
 SEC("socket/classifier_filter")
 int socket__classifier_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
-    if (!read_conn_tuple_skb(skb, &skb_info)) {
+    conn_tuple_t tup;
+    __builtin_memset(&tup, 0, sizeof(tup));
+    if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
         return 0;
     }
 
-    if (!(skb_info.tup.metadata&CONN_TYPE_TCP)) {
+    if (!(tup.metadata&CONN_TYPE_TCP)) {
         return 0;
     }
     if (skb_info.tcp_flags & TCPHDR_FIN) {
-        tls_cleanup(&skb_info);
+        tls_cleanup(&tup);
     } else {
         bpf_tail_call_compat(skb, &proto_progs, PROTO_PROG_TLS);
         increment_classifier_telemetry_count(tail_call_failed);
