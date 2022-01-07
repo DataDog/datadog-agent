@@ -1,0 +1,42 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package main
+
+import (
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestBuildDebugString(t *testing.T) {
+	os.Setenv("DD_AAA", "aaa")
+	os.Setenv("DD_CCC", "ccc")
+	os.Setenv("DD_BBB", "bbb")
+	os.Setenv("DD_API_KEY", "dontShowIt")
+	os.Setenv("hi", "hello")
+	defer os.Unsetenv("DD_AAA")
+	defer os.Unsetenv("DD_CCC")
+	defer os.Unsetenv("DD_BBB")
+	defer os.Unsetenv("hi")
+
+	res := buildDebugString()
+	assert.Equal(t, "Datadog environment variables: DD_AAA=aaa|DD_API_KEY=***|DD_BBB=bbb|DD_CCC=ccc|", res)
+}
+
+func TestObfuscateIfNeededPairInvalid(t *testing.T) {
+	assert.Empty(t, obfuscateIfNeededPair("toto", nil))
+	assert.Empty(t, obfuscateIfNeededPair("", nil))
+	assert.Empty(t, obfuscateIfNeededPair("toto=", nil))
+}
+
+func TestObfuscateIfNeededPairValid(t *testing.T) {
+	envMap := map[string]bool{
+		"DD_API_KEY": true,
+	}
+	assert.Equal(t, "toto=tutu", obfuscateIfNeededPair("toto=tutu", envMap))
+	assert.Equal(t, "DD_API_KEY=***", obfuscateIfNeededPair("DD_API_KEY=secret", envMap))
+}
