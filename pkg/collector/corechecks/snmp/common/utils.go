@@ -7,6 +7,8 @@ package common
 
 import (
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // CreateStringBatches batches strings into chunks with specific size
@@ -34,4 +36,9 @@ func CopyStrings(tags []string) []string {
 	newTags := make([]string, len(tags))
 	copy(newTags, tags)
 	return newTags
+}
+
+// GetAgentVersionTag returns agent version tag
+func GetAgentVersionTag() string {
+	return "agent_version:"+version.AgentVersion
 }

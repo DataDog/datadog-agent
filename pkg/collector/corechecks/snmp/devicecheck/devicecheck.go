@@ -13,12 +13,6 @@ import (
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/fetch"
@@ -27,12 +21,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	snmpLoaderTag        = "loader:core"
 	serviceCheckName     = "snmp.can_check"
 	deviceHostnamePrefix = "device:"
+	agentVersionTagKey   = "agent_version"
 	// 1.3 (iso.org) is the OID used for getNext call to check if the device is reachable
 	deviceReachableGetNextOid = "1.3"
 )
@@ -111,6 +110,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
+		deviceMetadataTags = append(deviceMetadataTags, common.GetAgentVersionTag())
 
 		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
@@ -207,8 +207,7 @@ func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(common.CopyStrings(tags), snmpLoaderTag)
-	newTags = append(newTags, "agent_version:" + version.AgentVersion)
+	newTags := append(common.CopyStrings(tags), snmpLoaderTag, common.GetAgentVersionTag())
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
 
