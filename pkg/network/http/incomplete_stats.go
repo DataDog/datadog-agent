@@ -5,9 +5,12 @@ package http
 import (
 	"sort"
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
+
+const defaultMinAge = 30 * time.Second
 
 // incompleteBuffer is responsible for buffering incomplete transactions
 // (eg. httpTX objects that have either only the request or response information)
@@ -37,6 +40,7 @@ type incompleteBuffer struct {
 	data       map[Key]*txParts
 	maxEntries int
 	telemetry  *telemetry
+	minAgeNano int64
 }
 
 type txParts struct {
@@ -44,11 +48,19 @@ type txParts struct {
 	responses []httpTX
 }
 
+func newTXParts() *txParts {
+	return &txParts{
+		requests:  make([]httpTX, 0, 5),
+		responses: make([]httpTX, 0, 5),
+	}
+}
+
 func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuffer {
 	return &incompleteBuffer{
 		data:       make(map[Key]*txParts),
 		maxEntries: c.MaxHTTPStatsBuffered,
 		telemetry:  telemetry,
+		minAgeNano: (defaultMinAge.Nanoseconds()),
 	}
 }
 
@@ -66,11 +78,7 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 			return
 		}
 
-		parts = &txParts{
-			requests:  make([]httpTX, 0, 5),
-			responses: make([]httpTX, 0, 5),
-		}
-
+		parts = newTXParts()
 		b.data[key] = parts
 	}
 
@@ -81,10 +89,15 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 	}
 }
 
-func (b *incompleteBuffer) Flush() []*httpTX {
-	var joined []*httpTX
+func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
+	var (
+		joined   []*httpTX
+		previous = b.data
+		nowUnix  = now.UnixNano()
+	)
 
-	for _, parts := range b.data {
+	b.data = make(map[Key]*txParts)
+	for key, parts := range previous {
 		// TODO: in this loop we're sorting all transactions at once, but we could also
 		// consider sorting data during insertion time (using a tree-like structure, for example)
 		sort.Sort(byRequestTime(parts.requests))
@@ -107,10 +120,31 @@ func (b *incompleteBuffer) Flush() []*httpTX {
 			i++
 			j++
 		}
+
+		// now that we have finishing matching requests and responses
+		// we check if we should keep orphan requests a little bit longer
+		for i < len(parts.requests) {
+			if b.shouldKeep(&parts.requests[i], nowUnix) {
+				keep := parts.requests[i:]
+				parts := newTXParts()
+				parts.requests = append(parts.requests, keep...)
+				b.data[key] = parts
+				break
+			}
+			i++
+		}
 	}
 
-	b.data = make(map[Key]*txParts)
 	return joined
+}
+
+func (b *incompleteBuffer) shouldKeep(tx *httpTX, now int64) bool {
+	then := int64(tx.response_last_seen)
+	if tx.request_started > 0 {
+		then = int64(tx.request_started)
+	}
+
+	return (now - then) < b.minAgeNano
 }
 
 type byRequestTime []httpTX

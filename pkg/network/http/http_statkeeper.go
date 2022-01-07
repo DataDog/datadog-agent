@@ -10,6 +10,7 @@ package http
 
 import (
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
@@ -55,7 +56,7 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]RequestStats {
-	for _, tx := range h.incomplete.Flush() {
+	for _, tx := range h.incomplete.Flush(time.Now()) {
 		h.add(*tx)
 	}
 
