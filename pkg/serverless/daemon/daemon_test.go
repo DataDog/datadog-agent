@@ -62,11 +62,11 @@ func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
 	assert := assert.New(t)
 	os.Setenv("DD_LOCAL_TEST", "1")
 	defer os.Unsetenv("DD_LOCAL_TEST")
-	d := StartDaemon("127.0.0.1:8124")
+	d := StartDaemon("127.0.0.1:8130")
 	defer d.Stop()
 	d.TellDaemonRuntimeStarted()
 	client := &http.Client{Timeout: 1 * time.Second}
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/flush", nil)
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8130/lambda/flush", nil)
 	assert.Nil(err)
 	_, err = client.Do(request)
 	assert.Nil(err)
