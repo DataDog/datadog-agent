@@ -103,6 +103,10 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		ttyOffset = 376
 	case kv.IsSLES15Kernel():
 		ttyOffset = 408
+	case kv.Code != 0 && kernel.Kernel4_13 <= kv.Code && kv.Code < kernel.Kernel5_0:
+		ttyOffset = 376
+	case kv.Code == kernel.Kernel5_0:
+		ttyOffset = 408
 	case kv.Code != 0 && kv.Code < kernel.Kernel5_3:
 		ttyOffset = 368
 	}
@@ -116,6 +120,8 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
 		nameOffset = 312
+	case kv.Code != 0 && kernel.Kernel5_11 <= kv.Code && kv.Code < kernel.Kernel5_13:
+		nameOffset = 360
 	}
 
 	return nameOffset
