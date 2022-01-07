@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const DD_PREFIX = "DD_"
+const ddPrefix = "DD_"
 
 func outputDatadogEnvVariablesForDebugging() {
 	log.Debug(buildDebugString())
@@ -27,7 +27,7 @@ func buildDebugString() string {
 	allEnv := os.Environ()
 	sort.Strings(allEnv)
 	for _, pair := range allEnv {
-		if strings.HasPrefix(pair, DD_PREFIX) {
+		if strings.HasPrefix(pair, ddPrefix) {
 			sb.WriteString(obfuscatePairIfNeeded(pair, envMap))
 			sb.WriteString("|")
 		}
