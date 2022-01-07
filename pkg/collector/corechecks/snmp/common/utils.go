@@ -40,5 +40,5 @@ func CopyStrings(tags []string) []string {
 
 // GetAgentVersionTag returns agent version tag
 func GetAgentVersionTag() string {
-	return "agent_version:"+version.AgentVersion
+	return "agent_version:" + version.AgentVersion
 }
