@@ -512,8 +512,7 @@ def build_http_ebpf_files(ctx, build_dir):
     network_flags.append(f"-I{network_c_dir}")
     network_flags.append(f"-D__{uname_m}__")
 
-    if uname_m == "aarch64":
-        network_flags.append("-isystem /usr/include/aarch64-linux-gnu")
+    network_flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
 
     build_network_ebpf_compile_file(
         ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
