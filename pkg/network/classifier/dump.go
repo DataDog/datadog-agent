@@ -12,37 +12,25 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 
 	"github.com/davecgh/go-spew/spew"
 )
 
-func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
+func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map) string {
 	var output strings.Builder
 
-	mapName := managerMap.Name
-	currentMap, found, err := manager.GetMap(mapName)
-	if err != nil || !found {
-		return ""
-	}
-
 	switch mapName {
-
 	case tlsInFlightMap: // maps/tls_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value tlsSession
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'tlsSession'\n")
 		iter := currentMap.Iterate()
-		var key ebpf.ConnTuple
+		var key ddebpf.ConnTuple
 		var value tlsSession
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
 	}
 	return output.String()
-}
-
-func setupDumpHandler(manager *manager.Manager) {
-	for _, m := range manager.Maps {
-		m.DumpHandler = dumpMapsHandler
-	}
 }

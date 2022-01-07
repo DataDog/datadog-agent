@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -48,7 +48,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 			{Name: tlsInFlightMap},
 		},
 		Probes: []*manager.Probe{
-			{Section: string(probes.SocketClassifierFilter)},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SocketClassifierFilter), EBPFFuncName: "socket__classifier_filter"}},
 		},
 	}
 
@@ -62,7 +62,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 	defer e.bytecode.Close()
 
-	setupDumpHandler(e.Manager)
+	e.Manager.DumpHandler = dumpMapsHandler
 
 	return e.InitWithOptions(e.bytecode, manager.Options{
 		RLimit: &unix.Rlimit{
@@ -85,14 +85,16 @@ func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 				ProgArrayName: protoProgsMap,
 				Key:           PROTO_PROG_TLS,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: tlsProtoFilter,
+					EBPFSection:  tlsProtoFilter,
+					EBPFFuncName: "socket__proto_tls",
 				},
 			},
 		},
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: string(probes.SocketClassifierFilter),
+					EBPFSection:  string(probes.SocketClassifierFilter),
+					EBPFFuncName: "socket__classifier_filter",
 				},
 			},
 		},
