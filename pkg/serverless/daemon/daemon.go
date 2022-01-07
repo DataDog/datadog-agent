@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -142,6 +143,11 @@ type Flush struct {
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
+	if len(os.Getenv("DD_LOCAL_TEST")) > 0 {
+		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
+		// thus we canot getthe REPORT log line telling that the invocation is finished
+		f.daemon.HandleRuntimeDone()
+	}
 }
 
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
