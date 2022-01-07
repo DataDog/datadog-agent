@@ -403,7 +403,9 @@ A directory was created
 
 ### Event `mmap`
 
-[Experimental] A mmap command was executed
+_This event type is experimental and may change in the future._
+
+A mmap command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
@@ -427,7 +429,9 @@ A directory was created
 
 ### Event `mprotect`
 
-[Experimental] A mprotect command was executed
+_This event type is experimental and may change in the future._
+
+A mprotect command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
@@ -461,7 +465,9 @@ A file was opened
 
 ### Event `ptrace`
 
-[Experimental] A ptrace command was executed
+_This event type is experimental and may change in the future._
+
+A ptrace command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
