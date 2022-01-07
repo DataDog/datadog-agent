@@ -284,19 +284,20 @@ def build_functional_tests(
     if arch == "x86":
         env["GOARCH"] = "386"
 
-    build_tags = "linux_bpf," + build_tags
+    build_tags = ["linux_bpf"] + build_tags.split(",")
     if bundle_ebpf:
-        build_tags = "ebpf_bindata," + build_tags
+        build_tags.append("ebpf_bindata")
 
     if static:
-        build_tags += ',osusergo,netgo'
+        build_tags += ["osusergo", "netgo"]
         if "CGO_CPPFLAGS" not in env:
             env["CGO_CPPFLAGS"] = ""
         env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
     if nikos_embedded_path:
-        build_tags += ",dnf"
+        build_tags.append("dnf")
 
+    build_tags = ",".join(build_tags)
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
