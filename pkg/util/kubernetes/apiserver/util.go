@@ -29,16 +29,18 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
 	syncTimeout := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
+	maxSyncTimeout := syncTimeout + config.Datadog.GetDuration("kube_cache_sync_timeout_delay_seconds")*time.Second
 	for name := range informers {
 		name := name // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
-			defer cancel()
-			start := time.Now()
-			if !cache.WaitForCacheSync(ctx.Done(), informers[name].HasSynced) {
-				return fmt.Errorf("couldn't sync informer %s in %v", name, time.Now().Sub(start))
+			startTime := time.Now()
+			if !syncInformer(syncTimeout, informers[name], name, startTime) {
+				log.Warnf("Informers failed to sync, increasing timeout to %s", maxSyncTimeout)
+				if !syncInformer(maxSyncTimeout, informers[name], name, startTime) {
+					return fmt.Errorf("couldn't sync informer %s in %v", name, time.Now().Sub(startTime))
+				}
+				return nil
 			}
-			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Now().Sub(start), informers[name].LastSyncResourceVersion())
 			return nil
 		})
 	}
@@ -60,4 +62,14 @@ func UnstructuredFromWPA(structIn *v1alpha1.WatermarkPodAutoscaler, unstructOut 
 	}
 	unstructOut.SetUnstructuredContent(content)
 	return nil
+}
+
+func syncInformer(timeout time.Duration, informer cache.SharedInformer, name InformerName, startTime time.Time) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if !cache.WaitForCacheSync(ctx.Done(), informer.HasSynced) {
+		return false
+	}
+	log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Now().Sub(startTime), informer.LastSyncResourceVersion())
+	return true
 }
