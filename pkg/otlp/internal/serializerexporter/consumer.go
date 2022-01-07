@@ -51,7 +51,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, name string,
 		&metrics.Serie{
 			Name:     name,
 			Points:   []metrics.Point{{Ts: float64(ts / 1e9), Value: value}},
-			Tags:     tags,
+			Tags:     metrics.CompositeTagsFromSlice(tags),
 			Host:     host,
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: 1,
@@ -64,7 +64,7 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 	c.series = append(c.series, &metrics.Serie{
 		Name:           "datadog.agent.otlp.metrics",
 		Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
-		Tags:           []string{},
+		Tags:           metrics.CompositeTagsFromSlice([]string{}),
 		Host:           hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",

@@ -220,7 +220,7 @@ func TestDefaultData(t *testing.T) {
 	series := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
+		Tags:           metrics.CompositeTagsFromSlice([]string{fmt.Sprintf("version:%s", version.AgentVersion)}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -228,7 +228,7 @@ func TestDefaultData(t *testing.T) {
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
-		Tags:           []string{},
+		Tags:           metrics.CompositeTagsFromSlice([]string{}),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}}
@@ -270,7 +270,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 			ser := &metrics.Serie{
 				Name:           "test.series",
 				Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-				Tags:           tags,
+				Tags:           metrics.CompositeTagsFromSlice(tags),
 				Host:           agg.hostname,
 				MType:          metrics.APIGaugeType,
 				SourceTypeName: "System",
@@ -370,13 +370,13 @@ func TestRecurrentSeries(t *testing.T) {
 	AddRecurrentSeries(&metrics.Serie{
 		Name:   "some.metric.1",
 		Points: []metrics.Point{{Value: 21}},
-		Tags:   []string{"tag:1", "tag:2"},
+		Tags:   metrics.CompositeTagsFromSlice([]string{"tag:1", "tag:2"}),
 		MType:  metrics.APIGaugeType,
 	})
 	AddRecurrentSeries(&metrics.Serie{
 		Name:           "some.metric.2",
 		Points:         []metrics.Point{{Value: 22}},
-		Tags:           nil,
+		Tags:           metrics.CompositeTagsFromSlice([]string{}),
 		Host:           "non default host",
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "non default SourceTypeName",
@@ -387,21 +387,21 @@ func TestRecurrentSeries(t *testing.T) {
 	series := metrics.Series{&metrics.Serie{
 		Name:           "some.metric.1",
 		Points:         []metrics.Point{{Value: 21, Ts: float64(start.Unix())}},
-		Tags:           []string{"tag:1", "tag:2"},
+		Tags:           metrics.CompositeTagsFromSlice([]string{"tag:1", "tag:2"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
 		Name:           "some.metric.2",
 		Points:         []metrics.Point{{Value: 22, Ts: float64(start.Unix())}},
-		Tags:           nil,
+		Tags:           metrics.CompositeTagsFromSlice([]string{}),
 		Host:           "non default host",
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "non default SourceTypeName",
 	}, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
+		Tags:           metrics.CompositeTagsFromSlice([]string{fmt.Sprintf("version:%s", version.AgentVersion)}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -409,7 +409,7 @@ func TestRecurrentSeries(t *testing.T) {
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
-		Tags:           []string{},
+		Tags:           metrics.CompositeTagsFromSlice([]string{}),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}}
@@ -425,7 +425,21 @@ func TestRecurrentSeries(t *testing.T) {
 		return true
 	})
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
-	s.On("SendSeries", series).Return(nil).Times(1)
+
+	seriesMatcher := mock.MatchedBy(func(actualSeries []*metrics.Serie) bool {
+		require.Equal(t, len(series), len(actualSeries))
+		for i := range series {
+			require.Equal(t, series[i].Name, actualSeries[i].Name)
+			require.Equal(t, series[i].Points, actualSeries[i].Points)
+			require.Equal(t, series[i].Tags.Join(","), actualSeries[i].Tags.Join(","))
+			require.Equal(t, series[i].Host, actualSeries[i].Host)
+			require.Equal(t, series[i].MType, actualSeries[i].MType)
+			require.Equal(t, series[i].SourceTypeName, actualSeries[i].SourceTypeName)
+		}
+
+		return true
+	})
+	s.On("SendSeries", seriesMatcher).Return(nil).Times(1)
 
 	agg.Flush(start, true)
 	s.AssertNotCalled(t, "SendEvents")
@@ -433,7 +447,7 @@ func TestRecurrentSeries(t *testing.T) {
 
 	// Assert that recurrentSeries are sent on each flushed
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
-	s.On("SendSeries", series).Return(nil).Times(1)
+	s.On("SendSeries", seriesMatcher).Return(nil).Times(1)
 	agg.Flush(start, true)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
@@ -570,7 +584,7 @@ func flushSomeSamples(agg *BufferedAggregator) map[string]*metrics.Serie {
 					Name:     name,
 					MType:    metrics.APICountType,
 					Interval: int64(timeSamplerBucketSize),
-					Tags:     make([]string, 0)}
+					Tags:     metrics.CompositeTagsFromSlice(make([]string, 0))}
 			}
 			expectedSeries[name].Points = append(expectedSeries[name].Points, metrics.Point{Ts: timestamp, Value: value})
 		}

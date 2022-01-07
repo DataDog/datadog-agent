@@ -324,7 +324,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 	aggregator.AddRecurrentSeries(&metrics.Serie{
 		Name:   "datadog.agent.check_ready",
 		Points: []metrics.Point{{Value: metricValue}},
-		Tags:   tags,
+		Tags:   metrics.CompositeTagsFromSlice(tags),
 		MType:  metrics.APIGaugeType,
 	})
 }

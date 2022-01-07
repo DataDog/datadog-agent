@@ -29,7 +29,7 @@ func buildSeries(numberOfSeries int) metrics.Series {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+			Tags:     metrics.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}

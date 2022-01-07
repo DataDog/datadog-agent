@@ -66,9 +66,9 @@ func TestIterableSeriesReceiverStopped(t *testing.T) {
 
 func TestIterableStreamJSONMarshalerAdapter(t *testing.T) {
 	var series Series
-	series = append(series, &Serie{Name: "serie1"})
-	series = append(series, &Serie{Name: "serie2"})
-	series = append(series, &Serie{Name: "serie3"})
+	series = append(series, &Serie{Name: "serie1", Tags: CompositeTagsFromSlice(nil)})
+	series = append(series, &Serie{Name: "serie2", Tags: CompositeTagsFromSlice(nil)})
+	series = append(series, &Serie{Name: "serie3", Tags: CompositeTagsFromSlice(nil)})
 
 	iterableSeries := NewIterableSeries(func(*Serie) {}, 4, 2)
 	for _, serie := range series {

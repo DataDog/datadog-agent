@@ -40,6 +40,17 @@ func AssertTagsEqual(t assert.TestingT, expected, actual []string) {
 	}
 }
 
+// AssertCompositeTagsEqual evaluates if two CompositeTags are equal (the order doesn't matters).
+func AssertCompositeTagsEqual(t assert.TestingT, expected, actual *CompositeTags) {
+	var expectedTags []string
+	expected.ForEach(func(tag string) { expectedTags = append(expectedTags, tag) })
+
+	var actualTags []string
+	actual.ForEach(func(tag string) { actualTags = append(actualTags, tag) })
+
+	AssertTagsEqual(t, expectedTags, actualTags)
+}
+
 // AssertSeriesEqual evaluate if two list of series match
 func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
 	assert.Equal(t, len(expected), len(series))
@@ -60,7 +71,7 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	assert.Equal(t, expected.Name, actual.Name)
 	if expected.Tags != nil {
 		assert.NotNil(t, actual.Tags)
-		AssertTagsEqual(t, expected.Tags, actual.Tags)
+		AssertCompositeTagsEqual(t, expected.Tags, actual.Tags)
 	}
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.MType, actual.MType)

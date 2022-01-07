@@ -84,7 +84,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	ctx, _ := s.contextResolver.get(ck)
 	ss := metrics.SketchSeries{
 		Name:       ctx.Name,
-		Tags:       ctx.Tags(),
+		Tags:       ctx.Tags().ToNewSliceString(),
 		Host:       ctx.Host,
 		Interval:   s.interval,
 		Points:     points,

@@ -253,7 +253,7 @@ func sendTelemetry(pythonVersion string) {
 	aggregator.AddRecurrentSeries(&metrics.Serie{
 		Name:   "datadog.agent.python.version",
 		Points: []metrics.Point{{Value: 1.0}},
-		Tags:   tags,
+		Tags:   metrics.CompositeTagsFromSlice(tags),
 		MType:  metrics.APIGaugeType,
 	})
 }
