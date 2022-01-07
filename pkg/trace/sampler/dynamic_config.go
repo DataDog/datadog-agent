@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 // DynamicConfig contains configuration items which may change
@@ -31,7 +33,7 @@ func NewDynamicConfig() *DynamicConfig {
 // State specifies the current state of DynamicConfig
 type State struct {
 	Rates      map[string]float64
-	Mechanisms map[string]uint32
+	Mechanisms map[string]pb.SamplingMechanism
 	Version    string
 }
 
@@ -99,13 +101,13 @@ func (rbs *RateByService) GetNewState(version string) State {
 	}
 	ret := State{
 		Rates:      make(map[string]float64, len(rbs.rates)),
-		Mechanisms: make(map[string]uint32, len(rbs.rates)),
+		Mechanisms: make(map[string]pb.SamplingMechanism, len(rbs.rates)),
 		Version:    rbs.version,
 	}
 	for k, v := range rbs.rates {
 		ret.Rates[k] = v.r
 		if v.m != 0 {
-			ret.Mechanisms[k] = uint32(v.m)
+			ret.Mechanisms[k] = v.m
 		}
 	}
 

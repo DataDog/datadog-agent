@@ -57,7 +57,7 @@ type rm struct {
 	m uint32
 }
 
-func TestHttpRateByService(t *testing.T) {
+func TestHTTPRateByService(t *testing.T) {
 	assert := assert.New(t)
 	dc := sampler.NewDynamicConfig()
 	for i, tt := range []struct {

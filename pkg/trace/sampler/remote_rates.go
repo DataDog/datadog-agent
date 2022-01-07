@@ -229,7 +229,7 @@ func (r *RemoteRates) getAllSignatureSampleRates() map[Signature]rm {
 	for sig, s := range r.samplers {
 		res[sig] = rm{
 			r: s.GetSignatureSampleRate(sig),
-			m: samplingMechanism(s.target.Mechanism),
+			m: s.target.Mechanism,
 		}
 	}
 	return res

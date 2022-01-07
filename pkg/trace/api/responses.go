@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,8 +28,8 @@ const (
 // should we add another fied.
 type traceResponse struct {
 	// All the sampling rates recommended, by service
-	Rates      map[string]float64 `json:"rate_by_service"`
-	Mechanisms map[string]uint32  `json:"mechanism,omitempty"`
+	Rates      map[string]float64              `json:"rate_by_service"`
+	Mechanisms map[string]pb.SamplingMechanism `json:"mechanism,omitempty"`
 }
 
 // httpFormatError is used for payload format errors
