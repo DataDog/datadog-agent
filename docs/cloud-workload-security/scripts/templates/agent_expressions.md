@@ -67,10 +67,12 @@ SECL operators are used to combine event attributes together into a full express
 ## Patterns and regular expressions
 Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.
 
-| Format           |  Example             | Agent Version |
-|------------------|----------------------|---------------|
-| `~"pattern"`     | `~"/etc/*"`          | 7.27          |
-| `r"regexp"`      | `r"/etc/rc[0-9]+"`   | 7.27          |
+| Format           |  Example             | Supported Fields   | Agent Version |
+|------------------|----------------------|--------------------|---------------|
+| `~"pattern"`     | `~"httpd.*"`         | All                | 7.27          |
+| `r"regexp"`      | `r"rc[0-9]+"`        | All except `.path` | 7.27          |
+
+Patterns on `.path` fields will be used as Glob. `*` will match files and folders at the same level. `**`, introduced in 7.34, can be used at the end of a path in order to match all the files and subfolders.
 
 ## Variables
 SECL variables are predefined variables that can be used as values or as part of values.
