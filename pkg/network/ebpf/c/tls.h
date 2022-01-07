@@ -5,20 +5,21 @@
 #include "tags.h"
 #include "tls-types.h"
 #include "tls-maps.h"
-#include "ip.h"
+#include "port_range.h"
 #include "http.h"
 #include "classifier-telemetry.h"
 
 #include <uapi/linux/ptrace.h>
 
-static __always_inline void tls_cleanup(skb_info_t *skb_info) {
-    bpf_map_delete_elem(&tls_in_flight, &skb_info->tup);
+static __always_inline void tls_cleanup(conn_tuple_t *tup) {
+    bpf_map_delete_elem(&tls_in_flight, tup);
 }
 
 static __always_inline int isTLS(tls_header_t *hdr, struct __sk_buff* skb, u32 offset) {
     if (skb->len - offset < TLS_HEADER_SIZE) {
         return 0;
     }
+
     __u8 app = load_byte(skb, offset);
     if ((app != TLS_HANDSHAKE) &&
         (app != TLS_APPLICATION_DATA)) {
@@ -57,20 +58,20 @@ static __always_inline int isTLS(tls_header_t *hdr, struct __sk_buff* skb, u32 o
 SEC("socket/proto_tls")
 int socket__proto_tls(struct __sk_buff* skb) {
     skb_info_t skb_info;
-    if (!read_conn_tuple_skb(skb, &skb_info)) {
+    conn_tuple_t tup;
+    __builtin_memset(&tup, 0, sizeof(tup));
+    if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
         return 0;
     }
     if (skb->len - skb_info.data_off == 0) {
         return 0;
     }
+    normalize_tuple(&tup);
 
-    if (!is_ephemeral_port(skb_info.tup.sport)) {
-        flip_tuple(&skb_info.tup);
-    }
     tls_session_t *tls = NULL;
     tls_session_t new_entry = { 0 };
-    bpf_map_update_elem(&tls_in_flight, &skb_info.tup, &new_entry, BPF_NOEXIST);
-    tls = bpf_map_lookup_elem(&tls_in_flight, &skb_info.tup);
+    bpf_map_update_elem(&tls_in_flight, &tup, &new_entry, BPF_NOEXIST);
+    tls = bpf_map_lookup_elem(&tls_in_flight, &tup);
     if (tls == NULL) {
         return 0;
     }
@@ -92,10 +93,10 @@ int socket__proto_tls(struct __sk_buff* skb) {
     /* we got TLS */
     if (tls_hdr.app == TLS_APPLICATION_DATA) {
         tls->handshake_done = 1;
-        add_tags_tuple(&skb_info.tup, TLS);
+        add_tags_tuple(&tup, TLS);
         increment_classifier_telemetry_count(tls_flow_classified);
     }
-    __builtin_memcpy(&tls->tup, &skb_info.tup, sizeof(conn_tuple_t));
+    __builtin_memcpy(&tls->tup, &tup, sizeof(conn_tuple_t));
     tls->isTLS = 1;
 
     return 0;
