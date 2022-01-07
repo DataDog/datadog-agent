@@ -28,14 +28,14 @@ func buildDebugString() string {
 	sort.Strings(allEnv)
 	for _, pair := range allEnv {
 		if strings.HasPrefix(pair, DD_PREFIX) {
-			sb.WriteString(obfuscateIfNeededPair(pair, envMap))
+			sb.WriteString(obfuscatePairIfNeeded(pair, envMap))
 			sb.WriteString("|")
 		}
 	}
 	return sb.String()
 }
 
-func obfuscateIfNeededPair(pair string, envMap map[string]bool) string {
+func obfuscatePairIfNeeded(pair string, envMap map[string]bool) string {
 	obfuscated := ""
 	tokens := strings.Split(pair, "=")
 	if len(tokens) == 2 && len(tokens[1]) > 0 {

@@ -22,21 +22,22 @@ func TestBuildDebugString(t *testing.T) {
 	defer os.Unsetenv("DD_CCC")
 	defer os.Unsetenv("DD_BBB")
 	defer os.Unsetenv("hi")
+	defer os.Unsetenv("DD_API_KEY")
 
 	res := buildDebugString()
 	assert.Equal(t, "Datadog environment variables: DD_AAA=aaa|DD_API_KEY=***|DD_BBB=bbb|DD_CCC=ccc|", res)
 }
 
-func TestObfuscateIfNeededPairInvalid(t *testing.T) {
-	assert.Empty(t, obfuscateIfNeededPair("toto", nil))
-	assert.Empty(t, obfuscateIfNeededPair("", nil))
-	assert.Empty(t, obfuscateIfNeededPair("toto=", nil))
+func TestObfuscatePairIfNeededInvalid(t *testing.T) {
+	assert.Empty(t, obfuscatePairIfNeeded("toto", nil))
+	assert.Empty(t, obfuscatePairIfNeeded("", nil))
+	assert.Empty(t, obfuscatePairIfNeeded("toto=", nil))
 }
 
-func TestObfuscateIfNeededPairValid(t *testing.T) {
+func TestObfuscatePairIfNeededValid(t *testing.T) {
 	envMap := map[string]bool{
 		"DD_API_KEY": true,
 	}
-	assert.Equal(t, "toto=tutu", obfuscateIfNeededPair("toto=tutu", envMap))
-	assert.Equal(t, "DD_API_KEY=***", obfuscateIfNeededPair("DD_API_KEY=secret", envMap))
+	assert.Equal(t, "toto=tutu", obfuscatePairIfNeeded("toto=tutu", envMap))
+	assert.Equal(t, "DD_API_KEY=***", obfuscatePairIfNeeded("DD_API_KEY=secret", envMap))
 }
