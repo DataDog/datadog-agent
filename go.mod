@@ -91,7 +91,7 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/avast/retry-go v3.0.0+incompatible
-	github.com/aws/aws-sdk-go v1.42.20
+	github.com/aws/aws-sdk-go v1.42.2
 	github.com/beevik/ntp v0.3.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
@@ -177,6 +177,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
+	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil v3.21.9+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4

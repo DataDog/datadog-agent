@@ -24,7 +24,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
-	assert.NotNil(t, metricAgent.GetMetricChannel())
+	assert.NotNil(t, metricAgent.Demux)
 	assert.True(t, metricAgent.IsReady())
 	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
 	time.Sleep(100 * time.Millisecond)
@@ -83,7 +83,7 @@ func TestStartWithProxy(t *testing.T) {
 
 	expected := []string{
 		invocationsMetric,
-		errorsMetric,
+		ErrorsMetric,
 	}
 
 	setValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
@@ -97,7 +97,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
 
-	assert.NotNil(t, metricAgent.GetMetricChannel())
+	assert.NotNil(t, metricAgent.Demux)
 
 	go func() {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +114,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			n := rand.Intn(10)
 			time.Sleep(time.Duration(n) * time.Microsecond)
-			go SendTimeoutEnhancedMetric([]string{"tag0:value0", "tag1:value1"}, metricAgent.GetMetricChannel())
+			go SendTimeoutEnhancedMetric([]string{"tag0:value0", "tag1:value1"}, metricAgent.Demux)
 		}
 	}()
 
@@ -152,7 +152,7 @@ func TestBuildMetricBlocklistForProxy(t *testing.T) {
 		"user.defined.a",
 		"user.defined.b",
 		invocationsMetric,
-		errorsMetric,
+		ErrorsMetric,
 	}
 	result := buildMetricBlocklistForProxy(userProvidedBlocklist)
 	assert.Equal(t, expected, result)

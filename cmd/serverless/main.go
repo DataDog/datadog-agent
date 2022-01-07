@@ -301,7 +301,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		"127.0.0.1:9001",
 		&invocationlifecycle.ProxyProcessor{
 			ExtraTags:           serverlessDaemon.ExtraTags,
-			MetricChannel:       serverlessDaemon.MetricAgent.GetMetricChannel(),
+			Demux:               serverlessDaemon.MetricAgent.Demux,
 			ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
 			DetectLambdaLibrary: func() bool { return serverlessDaemon.LambdaLibraryDetected },
 		})

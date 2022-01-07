@@ -6,7 +6,7 @@
 package invocationlifecycle
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
@@ -19,7 +19,7 @@ import (
 type ProxyProcessor struct {
 	ExtraTags           *serverlessLog.Tags
 	ProcessTrace        func(p *api.Payload)
-	MetricChannel       chan []metrics.MetricSample
+	Demux               aggregator.Demultiplexer
 	DetectLambdaLibrary func() bool
 }
 
@@ -50,7 +50,7 @@ func (pp *ProxyProcessor) OnInvokeEnd(endDetails *proxy.InvocationEndDetails) {
 
 	if endDetails.IsError {
 		serverlessMetrics.SendErrorsEnhancedMetric(
-			pp.ExtraTags.Tags, endDetails.EndTime, pp.MetricChannel,
+			pp.ExtraTags.Tags, endDetails.EndTime, pp.Demux,
 		)
 	}
 }
