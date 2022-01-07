@@ -383,7 +383,7 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.A
 
 	exit := make(chan struct{})
 
-	c := NewCollectorWithChecks(cfg, []checks.Check{check})
+	c := NewCollectorWithChecks(cfg, []checks.Check{check}, true)
 
 	var wg sync.WaitGroup
 	wg.Add(1)

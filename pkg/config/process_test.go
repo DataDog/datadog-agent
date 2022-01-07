@@ -152,6 +152,12 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "1h",
 			expected: time.Hour,
 		},
+		{
+			key:      "process_config.disable_realtime_checks",
+			env:      "DD_PROCESS_CONFIG_DISABLE_REALTIME_CHECKS",
+			value:    "true",
+			expected: true,
+		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			reset := setEnvForTest(tc.env, tc.value)

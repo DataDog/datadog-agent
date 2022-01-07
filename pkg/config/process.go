@@ -66,6 +66,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.internal_profiling.enabled")
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
 	procBindEnvAndSetDefault(config, "process_config.remote_tagger", true)
+	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
 
 	// Process Discovery Check
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", true,
