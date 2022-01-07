@@ -35,9 +35,9 @@ func TestObfuscatePairIfNeededInvalid(t *testing.T) {
 }
 
 func TestObfuscatePairIfNeededValid(t *testing.T) {
-	envMap := map[string]bool{
-		"DD_API_KEY": true,
-	}
+	envMap := getEnvVariableToObfuscate()
 	assert.Equal(t, "toto=tutu", obfuscatePairIfNeeded("toto=tutu", envMap))
 	assert.Equal(t, "DD_API_KEY=***", obfuscatePairIfNeeded("DD_API_KEY=secret", envMap))
+	assert.Equal(t, "DD_KMS_API_KEY=***", obfuscatePairIfNeeded("DD_KMS_API_KEY=secret", envMap))
+	assert.Equal(t, "DD_API_KEY_SECRET_ARN=***", obfuscatePairIfNeeded("DD_API_KEY_SECRET_ARN=secret", envMap))
 }
