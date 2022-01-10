@@ -72,11 +72,6 @@ func (c *K8sClusterRoleCollector) Run(rcfg *CollectorRunConfig) (res *CollectorR
 
 	messages, processed := c.proc.Process(ctx, list)
 
-	// This would happen when recovering from a processor panic. In the nominal
-	// case we would have a positive integer set at the very end of processing.
-	// If this is not the case then it means code execution stopped sooner.
-	// Panic recovery will log more information about the error so we can figure
-	// out the root cause.
 	if processed == -1 {
 		return nil, errProcessingPanic
 	}

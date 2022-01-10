@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	defaultInformerExtraSyncTimeout time.Duration = 60 * time.Second
+	defaultExtraSyncTimeout = 60 * time.Second
 )
 
 // CollectorBundle is a container for a group of collectors. It provides a way
@@ -62,15 +62,13 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 	return bundle
 }
 
-// prepare is used to initialize the collector bundle internals before it can be
-// used.
+// prepare initializes the collector bundle internals before it can be used.
 func (cb *CollectorBundle) prepare() {
 	cb.prepareCollectors()
 	cb.prepareExtraSyncTimeout()
 }
 
-// prepareCollectors sets the list of collectors in the bundle from the
-// orchestrator check configuration.
+// prepareCollectors initializes the bundle collector list.
 func (cb *CollectorBundle) prepareCollectors() {
 	// No collector configured in the check configuration.
 	// Use the list of stable collectors as the default.
@@ -93,13 +91,12 @@ func (cb *CollectorBundle) prepareCollectors() {
 	}
 }
 
-// prepareExtraSyncTimeout sets the informer extra sync timeout from the
-// orchestrator check configuration.
+// prepareExtraSyncTimeout initializes the bundle extra sync timeout.
 func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 	// No extra timeout set in the check configuration.
 	// Use the default.
 	if cb.check.instance.ExtraSyncTimeoutSeconds <= 0 {
-		cb.extraSyncTimeout = defaultInformerExtraSyncTimeout
+		cb.extraSyncTimeout = defaultExtraSyncTimeout
 		return
 	}
 

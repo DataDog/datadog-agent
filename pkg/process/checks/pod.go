@@ -10,6 +10,7 @@ package checks
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -70,6 +71,10 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 	}
 
 	messages, processed := c.processor.Process(ctx, podList)
+
+	if processed == -1 {
+		return nil, fmt.Errorf("unable to process pods: a panic occured")
+	}
 
 	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
 
