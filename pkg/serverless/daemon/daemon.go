@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const localTestEnvVar = "DD_LOCAL_TEST"
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
@@ -144,6 +146,11 @@ type Flush struct {
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
+	if len(os.Getenv(localTestEnvVar)) > 0 {
+		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
+		// thus we canot get the REPORT log line telling that the invocation is finished
+		f.daemon.TellDaemonRuntimeDone()
+	}
 }
 
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
@@ -158,7 +165,7 @@ func (d *Daemon) HandleRuntimeDone() {
 	log.Debugf("The flush strategy %s has decided to flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
-	if !d.MetricAgent.IsReady() {
+	if d.MetricAgent != nil && !d.MetricAgent.IsReady() {
 		log.Debug("The metric agent wasn't ready, skipping flush.")
 		d.TellDaemonRuntimeDone()
 		return
