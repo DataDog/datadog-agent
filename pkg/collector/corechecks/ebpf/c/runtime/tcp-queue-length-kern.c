@@ -1,5 +1,3 @@
-#include <linux/compiler.h>
-
 #include <linux/kconfig.h>
 #include <linux/types.h>
 #include <linux/version.h>
