@@ -37,16 +37,15 @@ type StartInvocation struct {
 }
 
 func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var startDetails invocationlifecycle.InvocationStartDetails
+	log.Debug("Hit on the serverless.StartInvocation route.")
 
 	reqBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Error("Could not read StartInvocation request body")
 	}
 
+	var startDetails invocationlifecycle.InvocationStartDetails
 	json.Unmarshal(reqBody, &startDetails)
-
-	log.Debug("Hit on the serverless.StartInvocation route.")
 	log.Debug(startDetails)
 }
 
@@ -57,15 +56,14 @@ type EndInvocation struct {
 }
 
 func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var endDetails invocationlifecycle.InvocationEndDetails
+	log.Debug("Hit on the serverless.EndInvocation route.")
 
 	reqBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Error("Could not read StartInvocation request body")
 	}
 
+	var endDetails invocationlifecycle.InvocationEndDetails
 	json.Unmarshal(reqBody, &endDetails)
-
-	log.Debug("Hit on the serverless.EndInvocation route.")
 	log.Debug(endDetails)
 }
