@@ -26,7 +26,8 @@ func buildDebugString() string {
 	envMap := getEnvVariableToObfuscate()
 	sb.WriteString("Datadog extension version : ")
 	sb.WriteString(tags.GetExtensionVersion())
-	sb.WriteString("|Datadog environment variables: ")
+	sb.WriteString("|")
+	sb.WriteString("Datadog environment variables: ")
 	allEnv := os.Environ()
 	sort.Strings(allEnv)
 	for _, pair := range allEnv {
