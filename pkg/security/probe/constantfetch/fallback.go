@@ -8,6 +8,8 @@
 package constantfetch
 
 import (
+	"runtime"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
 
@@ -72,7 +74,7 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 632
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_16:
 		sizeOf = 608
-	case kernel.Kernel5_0 <= kv.Code && kv.Code < kernel.Kernel5_1:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		sizeOf = 584
 	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
 		sizeOf = 592
@@ -103,10 +105,26 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		ttyOffset = 376
 	case kv.IsSLES15Kernel():
 		ttyOffset = 408
-	case kv.Code != 0 && kernel.Kernel4_13 <= kv.Code && kv.Code < kernel.Kernel5_0:
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel4_19):
 		ttyOffset = 376
-	case kv.Code == kernel.Kernel5_0:
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		ttyOffset = 400
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		ttyOffset = 408
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		ttyOffset = 408
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_7):
+		if runtime.GOARCH == "arm64" || kv.IsOracleUEKKernel() {
+			ttyOffset = 408
+		} else {
+			ttyOffset = 400
+		}
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_7, kernel.Kernel5_9):
+		if runtime.GOARCH == "arm64" {
+			ttyOffset = 400
+		} else {
+			ttyOffset = 408
+		}
 	case kv.Code != 0 && kv.Code < kernel.Kernel5_3:
 		ttyOffset = 368
 	}
@@ -120,7 +138,11 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
 		nameOffset = 312
-	case kv.Code != 0 && kernel.Kernel5_11 <= kv.Code && kv.Code < kernel.Kernel5_13:
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel5_8):
+		nameOffset = 368
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9) && runtime.GOARCH == "arm64":
+		nameOffset = 368
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_14):
 		nameOffset = 360
 	}
 
