@@ -6,6 +6,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -26,7 +27,8 @@ func TestBuildDebugString(t *testing.T) {
 
 	res := buildDebugString()
 	// cannot check for strict equality as the CI adds some env variables (ie : DD_REPO_BRANCH_NAME)
-	assert.Regexp(t, "Datadog environment variables: (.*)DD_AAA=aaa|(.*)DD_API_KEY=\\*\\*\\*|(.*)DD_BBB=bbb|(.*)DD_CCC=ccc|(.*)", res)
+	fmt.Println(res)
+	assert.Regexp(t, "Datadog extension version : totossss|Datadog environment variables: (.*)DD_AAA=aaa|(.*)DD_API_KEY=\\*\\*\\*|(.*)DD_BBB=bbb|(.*)DD_CCC=ccc|(.*)", res)
 }
 
 func TestObfuscatePairIfNeededInvalid(t *testing.T) {
