@@ -71,7 +71,6 @@ func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName,
 }
 
 const runtimeCompilationTemplate = `
-#include <linux/compiler.h>
 #include <linux/kconfig.h>
 {{ range .headers }}
 #include <{{ . }}>
