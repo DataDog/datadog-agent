@@ -74,7 +74,7 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 // Start runs and block on the Sampler main loop
 func (s *PrioritySampler) Start() {
 	if s.remoteRates != nil {
-		s.Start()
+		s.remoteRates.Start()
 	}
 	go func() {
 		updateRates := time.NewTicker(decayPeriod)
