@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,6 +24,9 @@ func outputDatadogEnvVariablesForDebugging() {
 func buildDebugString() string {
 	var sb strings.Builder
 	envMap := getEnvVariableToObfuscate()
+	sb.WriteString("Datadog extension version : ")
+	sb.WriteString(tags.GetExtensionVersion())
+	sb.WriteString("|")
 	sb.WriteString("Datadog environment variables: ")
 	allEnv := os.Environ()
 	sort.Strings(allEnv)
