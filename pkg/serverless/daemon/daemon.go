@@ -149,7 +149,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(os.Getenv(localTestEnvVar)) > 0 {
 		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
 		// thus we canot get the REPORT log line telling that the invocation is finished
-		f.daemon.TellDaemonRuntimeDone()
+		f.daemon.HandleRuntimeDone()
 	}
 }
 

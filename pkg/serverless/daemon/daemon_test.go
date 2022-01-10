@@ -70,7 +70,21 @@ func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
 	assert.Nil(err)
 	_, err = client.Do(request)
 	assert.Nil(err)
-	assert.Equal(uint64(1), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
+	select {
+	case <-wrapWait(d.RuntimeWg):
+		// all good
+	case <-time.NewTimer(500 * time.Millisecond).C:
+		t.Fail()
+	}
+}
+
+func wrapWait(wg *sync.WaitGroup) <-chan struct{} {
+	out := make(chan struct{})
+	go func() {
+		wg.Wait()
+		out <- struct{}{}
+	}()
+	return out
 }
 
 func TestTellDaemonRuntimeNotDoneIf(t *testing.T) {
