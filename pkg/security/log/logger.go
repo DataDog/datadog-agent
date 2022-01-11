@@ -25,10 +25,21 @@ const (
 // used to extract package.struct.func from the caller
 var re = regexp.MustCompile(`[^\.]*\/([^\.]*)\.\(?\*?([^\.\)]*)\)?\.(.*)$`)
 
+// TagStringer implements fmt.Stringer
+type TagStringer struct {
+	tag string
+}
+
+// String implements fmt.Stringer
+func (t *TagStringer) String() string {
+	return t.tag
+}
+
 // PatternLogger is a wrapper for the agent logger that add a level of filtering to trace log level
 type PatternLogger struct {
 	sync.RWMutex
 
+	tags     []string
 	patterns []string
 	nodes    [][]string
 }
@@ -56,7 +67,23 @@ LOOP:
 	return false
 }
 
-func (l *PatternLogger) trace(format string, params ...interface{}) {
+func (l *PatternLogger) trace(tag fmt.Stringer, format string, params ...interface{}) {
+	// check first tags
+	stag := tag.String()
+	if len(stag) != 0 {
+
+		l.RLock()
+		for _, t := range l.tags {
+			if t == stag {
+				l.RUnlock()
+				log.TraceStackDepth(depth, fmt.Sprintf(format, params...))
+
+				return
+			}
+		}
+		l.RUnlock()
+	}
+
 	pc, _, _, ok := runtime.Caller(3)
 	if !ok {
 		return
@@ -82,11 +109,21 @@ func (l *PatternLogger) trace(format string, params ...interface{}) {
 
 // Trace is used to print a trace level log
 func (l *PatternLogger) Trace(v interface{}) {
+	l.TraceTag(&TagStringer{}, v)
+}
+
+// TraceTag is used to print a trace level log for the given tag
+func (l *PatternLogger) TraceTag(tag fmt.Stringer, v interface{}) {
+	l.TraceTagf(tag, "%v", v)
+}
+
+// TraceTagf is used to print a trace level log
+func (l *PatternLogger) TraceTagf(tag fmt.Stringer, format string, params ...interface{}) {
 	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != seelog.TraceLvl {
 		return
 	}
 
-	l.trace("%v", v)
+	l.trace(tag, format, params...)
 }
 
 // Tracef is used to print a trace level log
@@ -95,7 +132,7 @@ func (l *PatternLogger) Tracef(format string, params ...interface{}) {
 		return
 	}
 
-	l.trace(format, params...)
+	l.trace(&TagStringer{}, format, params...)
 }
 
 // Debugf is used to print a trace level log
@@ -116,6 +153,16 @@ func (l *PatternLogger) Warnf(format string, params ...interface{}) {
 // Infof is used to print an error
 func (l *PatternLogger) Infof(format string, params ...interface{}) {
 	log.Infof(format, params...)
+}
+
+// AddTags add new tags
+func (l *PatternLogger) AddTags(tags ...string) []string {
+	l.Lock()
+	prev := l.tags
+	l.tags = append(l.tags, tags...)
+	l.Unlock()
+
+	return prev
 }
 
 // AddPatterns add new patterns
@@ -141,6 +188,16 @@ func (l *PatternLogger) SetPatterns(patterns ...string) []string {
 	for _, pattern := range patterns {
 		l.nodes = append(l.nodes, strings.Split(pattern, "."))
 	}
+	l.Unlock()
+
+	return prev
+}
+
+// SetTags set tags
+func (l *PatternLogger) SetTags(tags ...string) []string {
+	l.Lock()
+	prev := l.tags
+	l.tags = tags
 	l.Unlock()
 
 	return prev
@@ -174,14 +231,34 @@ func Tracef(format string, params ...interface{}) {
 	DefaultLogger.Tracef(format, params...)
 }
 
+// TraceTagf is used to print an trace
+func TraceTagf(tag fmt.Stringer, format string, params ...interface{}) {
+	DefaultLogger.TraceTagf(tag, format, params...)
+}
+
 // Trace is used to print an trace
 func Trace(v interface{}) {
 	DefaultLogger.Trace(v)
 }
 
+// TraceTag is used to print an trace
+func TraceTag(tag fmt.Stringer, v interface{}) {
+	DefaultLogger.TraceTag(tag, v)
+}
+
+// AddTags add tags
+func AddTags(tags ...string) []string {
+	return DefaultLogger.AddTags(tags...)
+}
+
 // AddPatterns add patterns
 func AddPatterns(patterns ...string) []string {
 	return DefaultLogger.AddPatterns(patterns...)
+}
+
+// SetTags set tags
+func SetTags(tags ...string) []string {
+	return DefaultLogger.SetTags(tags...)
 }
 
 // SetPatterns set patterns
