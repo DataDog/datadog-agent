@@ -46,17 +46,10 @@ func init() {
 	}))
 }
 
-// AutoConfig is responsible to collect integrations configurations from
-// different sources and then schedule or unschedule them.
-// It owns and orchestrates several key modules:
-//  - it owns a reference to the `collector.Collector` that it uses to schedule checks when template or container updates warrant them
-//  - it holds a list of `providers.ConfigProvider`s and poll them according to their policy
-//  - it holds a list of `check.Loader`s to load configurations into `Check` objects
-//  - it holds a list of `listeners.ServiceListener`s` used to listen to container lifecycle events
-//  - it uses the `ConfigResolver` that resolves a configuration template to an actual configuration based on a service matching the template
-//
-// Notice the `AutoConfig` public API speaks in terms of `integration.Config`,
-// meaning that you cannot use it to schedule integrations instances directly.
+// AutoConfig implements the agent's autodiscovery mechanism.  It is
+// responsible to collect integrations configurations from different sources
+// and then "schedule" or "unschedule" them by notifying subscribers.  See the
+// module README for details.
 type AutoConfig struct {
 	providers          []*configPoller
 	listeners          []listeners.ServiceListener

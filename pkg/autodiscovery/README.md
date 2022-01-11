@@ -47,7 +47,7 @@ It can notify in three circumstances:
 
 1. When a config provider detects a non-template configuration, that is published immediately by the metascheduler.
 2. Whenever template configurations or services change, these are reconciled by matching AD identifiers, any new or removed configs are published by the metascheduler.
-3. For every service, a simple config with no provider and no configuration is published by the metascheduler.
+3. For every service, a "service config" -- one with no provider and no configuration -- is published by the metascheduler.
 
 Entities that contain their own configuration are reconciled using an AD identifier unique to that entity.
 For example, a new container might be deteted first by a listener, creating a new serivce with an AD identifier containing its SHA.
