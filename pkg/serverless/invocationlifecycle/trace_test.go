@@ -39,8 +39,8 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	startTime := time.Now()
 	startExecutionSpan(startTime, invalidTestString)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
-	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
+	assert.NotEqual(t, 9, currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
 	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
 }
 func TestEndExecutionSpan(t *testing.T) {

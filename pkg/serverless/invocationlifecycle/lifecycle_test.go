@@ -94,8 +94,8 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
-	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
-	assert.Equal(t, uint64(0), currentExecutionInfo.traceID)
+	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+	assert.NotEqual(t, 0, currentExecutionInfo.traceID)
 	assert.NotEqual(t, startInvocationTime, currentExecutionInfo.startTime)
 }
 

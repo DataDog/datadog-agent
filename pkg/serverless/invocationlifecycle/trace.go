@@ -42,6 +42,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 	currentExecutionInfo.startTime = startTime
 	currentExecutionInfo.traceID = random.Uint64()
 	currentExecutionInfo.spanID = random.Uint64()
+	currentExecutionInfo.parentID = 0
 
 	payload := convertRawPayload(rawPayload)
 
