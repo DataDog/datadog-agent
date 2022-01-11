@@ -31,6 +31,7 @@ const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
 const kernelModulesPath = "/lib/modules/%s/build"
 const debKernelModulesPath = "/lib/modules/%s/source"
 const cosKernelModulesPath = "/usr/src/linux-headers-%s"
+const rpmKernelModulePath = "/usr/src/linux-%s"
 const fedoraKernelModulesPath = "/usr"
 
 var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
@@ -210,8 +211,16 @@ func getDefaultHeaderDirs() []string {
 		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
 		fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
 		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
+		fmt.Sprintf(rpmKernelModulePath, hi.KernelVersion),
 		fedoraKernelModulesPath,
 	}
+
+	var defaultSuffix = regexp.MustCompile("-[a-z]+$")
+	cleanedKernelVersion := defaultSuffix.ReplaceAllString(hi.KernelVersion, "")
+	if hi.KernelVersion != cleanedKernelVersion {
+		dirs = append(dirs, fmt.Sprintf(rpmKernelModulePath, cleanedKernelVersion))
+	}
+
 	return dirs
 }
 
