@@ -387,7 +387,7 @@ func TestServerlessLoggingNotInServerlessContext(t *testing.T) {
 	SetupLogger(l, "debug")
 	assert.NotNil(t, logger)
 
-	DebugfServerless("%s", "foo")
+	DebugfServerless("%s %d", "foo", 10)
 	DebugServerless("Not in serverless mode")
 	w.Flush()
 
@@ -409,10 +409,10 @@ func TestServerlessLoggingInServerlessContext(t *testing.T) {
 	SetupLogger(l, "debug")
 	assert.NotNil(t, logger)
 
-	DebugfServerless("%s", "foo")
+	DebugfServerless("%s %d", "foo", 10)
 	DebugServerless("In serverless mode")
 	w.Flush()
 
 	// Nothing is log since we are not in a serverless context
-	assert.Equal(t, "[DEBUG] DebugfServerless: foo\n[DEBUG] DebugServerless: In serverless mode\n", b.String())
+	assert.Equal(t, "[DEBUG] DebugfServerless: foo 10\n[DEBUG] DebugServerless: In serverless mode\n", b.String())
 }

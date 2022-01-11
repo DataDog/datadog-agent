@@ -493,6 +493,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series met
 
 func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
 	log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
+	log.DebugfServerless("Sending sketches payload : %+v", sketches)
 	err := agg.serializer.SendSketch(sketches)
 	state := stateOk
 	if err != nil {
@@ -633,7 +634,6 @@ func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.Sk
 func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSerializer bool) {
 	if !agg.flushAndSerializeInParallel.enabled {
 		series, sketches := agg.GetSeriesAndSketches(start)
-
 		agg.sendSketches(start, sketches, waitForSerializer)
 		agg.sendSeries(start, series, waitForSerializer)
 	} else {
