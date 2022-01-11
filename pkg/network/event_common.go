@@ -206,6 +206,9 @@ type ConnectionStats struct {
 	Source util.Address
 	Dest   util.Address
 
+	IPTranslation *IPTranslation
+	Via           *Via
+
 	Monotonic StatCounters
 	Last      StatCounters
 
@@ -224,10 +227,8 @@ type ConnectionStats struct {
 	Family           ConnectionFamily
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
-	IPTranslation    *IPTranslation
-	IntraHost        bool
-	Via              *Via
 
+	IntraHost bool
 	IsAssured bool
 }
 
