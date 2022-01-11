@@ -413,6 +413,5 @@ func TestServerlessLoggingInServerlessContext(t *testing.T) {
 	DebugServerless("In serverless mode")
 	w.Flush()
 
-	// Nothing is logged since we are not in a serverless context
 	assert.Equal(t, "[DEBUG] DebugfServerless: foo 10\n[DEBUG] DebugServerless: In serverless mode\n", b.String())
 }
