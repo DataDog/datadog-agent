@@ -18,7 +18,7 @@ func TestTraceContextEndpoint(t *testing.T) {
 	d := StartDaemon("127.0.0.1:8124")
 	defer d.Stop()
 	client := &http.Client{Timeout: 1 * time.Second}
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/trace-context", nil)
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/trace-context", nil)
 	assert.Nil(err)
 	response, err := client.Do(request)
 	assert.Nil(err)
