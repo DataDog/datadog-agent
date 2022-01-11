@@ -239,10 +239,7 @@ func (p *Probe) SetEventHandler(handler EventHandler) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
-		prettyEvent := event.String()
-		seclog.Tracef("Dispatching event %s\n", prettyEvent)
-	}
+	seclog.Tracef("Dispatching event %s\n", event)
 
 	if p.handler != nil {
 		p.handler.HandleEvent(event)

@@ -17,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -36,6 +37,9 @@ func TestRulesetLoaded(t *testing.T) {
 	defer test.Close()
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
+		patterns := seclog.AddPatterns("probe.*")
+		defer seclog.SetPatterns(patterns...)
+
 		if err = test.GetProbeCustomEvent(t, func() error {
 			// This test is an exception, we should never use any t.* method in the action function (especially within a
 			// goroutine). We don't have a choice here because we're not triggering a kernel space event: the same

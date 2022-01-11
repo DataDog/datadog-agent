@@ -29,12 +29,13 @@ var re = regexp.MustCompile(`[^\.]*\/([^\.]*)\.\(?\*?([^\.\)]*)\)?\.(.*)$`)
 type PatternLogger struct {
 	sync.RWMutex
 
-	patterns [][]string
+	patterns []string
+	nodes    [][]string
 }
 
 func (l *PatternLogger) match(els []string) bool {
 LOOP:
-	for _, pattern := range l.patterns {
+	for _, pattern := range l.nodes {
 		for i, node := range pattern {
 			if node == wildcard {
 				continue
@@ -117,13 +118,32 @@ func (l *PatternLogger) Infof(format string, params ...interface{}) {
 	log.Infof(format, params...)
 }
 
-// SetPatterns set pattern
-func (l *PatternLogger) SetPatterns(patterns []string) {
+// AddPatterns add new patterns
+func (l *PatternLogger) AddPatterns(patterns ...string) []string {
 	l.Lock()
+	prev := l.patterns
+
 	for _, pattern := range patterns {
-		l.patterns = append(l.patterns, strings.Split(pattern, "."))
+		l.patterns = append(l.patterns, pattern)
+		l.nodes = append(l.nodes, strings.Split(pattern, "."))
 	}
 	l.Unlock()
+
+	return prev
+}
+
+// SetPatterns set patterns
+func (l *PatternLogger) SetPatterns(patterns ...string) []string {
+	l.Lock()
+	prev := l.patterns
+
+	l.nodes = [][]string{}
+	for _, pattern := range patterns {
+		l.nodes = append(l.nodes, strings.Split(pattern, "."))
+	}
+	l.Unlock()
+
+	return prev
 }
 
 // DefaultLogger default logger of this package
@@ -159,9 +179,14 @@ func Trace(v interface{}) {
 	DefaultLogger.Trace(v)
 }
 
+// AddPatterns add patterns
+func AddPatterns(patterns ...string) []string {
+	return DefaultLogger.AddPatterns(patterns...)
+}
+
 // SetPatterns set patterns
-func SetPatterns(patterns []string) {
-	DefaultLogger.SetPatterns(patterns)
+func SetPatterns(patterns ...string) []string {
+	return DefaultLogger.SetPatterns(patterns...)
 }
 
 func init() {

@@ -567,7 +567,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	m.apiServer.module = m
 	m.reloader = debouncer.New(3*time.Second, m.triggerReload)
 
-	seclog.SetPatterns(cfg.LogPatterns)
+	seclog.SetPatterns(cfg.LogPatterns...)
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 
