@@ -634,6 +634,7 @@ func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.Sk
 func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSerializer bool) {
 	if !agg.flushAndSerializeInParallel.enabled {
 		series, sketches := agg.GetSeriesAndSketches(start)
+
 		agg.sendSketches(start, sketches, waitForSerializer)
 		agg.sendSeries(start, series, waitForSerializer)
 	} else {
