@@ -57,9 +57,9 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return false }
 
-	EventPayload := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	eventPayload := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startInvocationTime := time.Now()
-	startDetails := proxy.InvocationStartDetails{StartTime: startInvocationTime, InvokeEventPayload: EventPayload}
+	startDetails := proxy.InvocationStartDetails{StartTime: startInvocationTime, InvokeEventPayload: eventPayload}
 
 	testProcessor := ProxyProcessor{
 		ExtraTags:           extraTags,

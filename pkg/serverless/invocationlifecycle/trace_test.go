@@ -15,9 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var testString = `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
-var invalidTestString = `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"abcdef","x-datadog-sampling-priority":"1","x-datadog-trace-id":"abcdef"}}0`
-
 func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 	startTime := time.Now()
 	startExecutionSpan(startTime, "")
@@ -27,6 +24,7 @@ func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 }
 
 func TestStartExecutionSpanWithPayload(t *testing.T) {
+	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
 	startExecutionSpan(startTime, testString)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
@@ -36,6 +34,7 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 }
 
 func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
+	invalidTestString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"1","x-datadog-trace-id":"INVALID"}}0`
 	startTime := time.Now()
 	startExecutionSpan(startTime, invalidTestString)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
@@ -47,6 +46,7 @@ func TestEndExecutionSpan(t *testing.T) {
 	defer os.Unsetenv(functionNameEnvVar)
 	os.Setenv(functionNameEnvVar, "TestFunction")
 
+	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
 	startExecutionSpan(startTime, testString)
 
@@ -73,7 +73,7 @@ func TestEndExecutionSpan(t *testing.T) {
 
 func TestConvertRawPayloadWithHeaders(t *testing.T) {
 
-	var s = `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	s := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 
 	expectedPayload := invocationPayload{}
 	expectedPayload.Headers = map[string]string{"Accept": "*/*", "Accept-Encoding": "gzip", "x-datadog-parent-id": "1480558859903409531", "x-datadog-sampling-priority": "1", "x-datadog-trace-id": "5736943178450432258"}
@@ -85,7 +85,7 @@ func TestConvertRawPayloadWithHeaders(t *testing.T) {
 
 func TestConvertRawPayloadWithOutHeaders(t *testing.T) {
 
-	var s = `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
+	s := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
 
 	expectedPayload := invocationPayload{}
 
@@ -104,7 +104,7 @@ func TestConvertStrToUnit64WithValidInt(t *testing.T) {
 }
 
 func TestConvertStrToUnit64WithInvalidInt(t *testing.T) {
-	s := "abcdef"
+	s := "INVALID"
 	_, err := convertStrToUnit64(s)
 
 	assert.NotNil(t, err)

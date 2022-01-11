@@ -47,16 +47,11 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 	payload := convertRawPayload(rawPayload)
 
 	if payload.Headers != nil {
-		traceID, e1 := convertStrToUnit64(payload.Headers[traceIDHeader])
-		parentID, e2 := convertStrToUnit64(payload.Headers[parentIDHeader])
+		traceID, _ := convertStrToUnit64(payload.Headers[traceIDHeader])
+		parentID, _ := convertStrToUnit64(payload.Headers[parentIDHeader])
 
-		//Strconv failures will return 0. Must ensure error is nil before setting IDs
-		if e1 == nil {
-			currentExecutionInfo.traceID = traceID
-		}
-		if e2 == nil {
-			currentExecutionInfo.parentID = parentID
-		}
+		currentExecutionInfo.traceID = traceID
+		currentExecutionInfo.parentID = parentID
 	}
 }
 
@@ -93,7 +88,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time) {
 
 func convertRawPayload(rawPayload string) invocationPayload {
 	//Need to remove unwanted text from the initial payload
-	var reg = regexp.MustCompile(`{(?:|(.*))*}`)
+	reg := regexp.MustCompile(`{(?:|(.*))*}`)
 	subString := reg.FindString(rawPayload)
 
 	payload := invocationPayload{}
@@ -107,7 +102,7 @@ func convertRawPayload(rawPayload string) invocationPayload {
 }
 
 func convertStrToUnit64(s string) (uint64, error) {
-	//Need to return the error here because num will be 0 if conversion fails
+	// returning an error for testing
 	num, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
 		log.Debug("Error with string conversion of trace or parent ID")
