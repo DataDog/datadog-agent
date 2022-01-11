@@ -333,10 +333,7 @@ func (s *Serializer) SendIterableSeries(series marshaler.IterableMarshaler) erro
 // IsIterableSeriesSupported returns whether `SendIterableSeries` is supported.
 // Should be removed when `serializePayloadJSON` (useV1API && !s.enableJSONStream) will be removed
 func (s *Serializer) IsIterableSeriesSupported() bool {
-	useV1API := !config.Datadog.GetBool("use_v2_api.series")
-
-	// Supported except for serializePayloadJSON
-	return !(useV1API && !s.enableJSONStream)
+	return config.Datadog.GetBool("use_v2_api.series") || s.enableJSONStream
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
