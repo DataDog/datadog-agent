@@ -558,8 +558,10 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 }
 
 // MapOverLoadedConfigs calls the given function with the map of all
-// loaded configs.  This is done with the config store locked, so
-// callers should perform minimal work within f.
+// loaded configs (those that would be returned from LoadedConfigs).
+//
+// This is done with the config store locked, so callers should perform minimal
+// work within f.
 func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
 	if ac == nil || ac.store == nil {
 		log.Error("Autoconfig store not initialized")
@@ -569,8 +571,11 @@ func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)
 	ac.store.mapOverLoadedConfigs(f)
 }
 
-// LoadedConfigs returns a slice of all loaded configs.  This slice
-// is freshly created and will not be modified after return.
+// LoadedConfigs returns a slice of all loaded configs.  Loaded configs are non-template
+// configs, either as received from a config provider or as resolved from a template and
+// a service.  They do not include service configs.
+//
+// The returned slice is freshly created and will not be modified after return.
 func (ac *AutoConfig) LoadedConfigs() []integration.Config {
 	var configs []integration.Config
 	ac.store.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
