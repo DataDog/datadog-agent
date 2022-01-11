@@ -9,7 +9,6 @@
 package collectors
 
 import (
-	"fmt"
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -74,7 +73,7 @@ func (c *K8sCronJobCollector) Run(rcfg *CollectorRunConfig) (res *CollectorRunRe
 	messages, processed := c.proc.Process(ctx, list)
 
 	if processed == -1 {
-		return nil, fmt.Errorf("unable to process pod list: a panic occured")
+		return nil, errProcessingPanic
 	}
 
 	result := &CollectorRunResult{
