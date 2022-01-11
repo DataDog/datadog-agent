@@ -673,7 +673,10 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	})
 }
 
-// GetAutodiscoveryErrors fetches AD errors from each ConfigProvider
+// GetAutodiscoveryErrors fetches AD errors from each ConfigProvider.  The
+// resulting data structure maps provider name to resource name to a set of
+// unique error messages.  The resource names do not match other identifiers
+// and are only intended for display in diagnostic tools like `agent status`.
 func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
 	errors := map[string]map[string]providers.ErrorMsgSet{}
 	for _, pd := range ac.providers {

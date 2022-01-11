@@ -29,7 +29,7 @@ type ProviderCache struct {
 	NumAdTemplates    int
 }
 
-// ErrorMsgSet contains a unique list of configuration errors for a provider
+// ErrorMsgSet contains a list of unique configuration errors for a provider
 type ErrorMsgSet map[string]struct{}
 
 // NewCPCache instantiate a ProviderCache.
@@ -40,18 +40,30 @@ func NewCPCache() *ProviderCache {
 	}
 }
 
-// ConfigProvider is the interface that wraps the Collect method
+// ConfigProvider represents a source of `integration.Config` values
+// that can either be applied immediately or resolved for a service and
+// applied.
 //
-// Collect is responsible of populating a list of CheckConfig instances
-// by retrieving configuration patterns from external resources: files
-// on disk, databases, environment variables are just few examples.
+// These Config values may come from files on disk, databases, environment variables,
+// container labels, etc.
 //
 // Any type implementing the interface will take care of any dependency
 // or data needed to access the resource providing the configuration.
-// IsUpToDate checks the local cache of the CP and returns accordingly.
 type ConfigProvider interface {
+	// Collect is responsible of populating a list of Config instances by
+	// retrieving configuration patterns from external resources.
 	Collect(context.Context) ([]integration.Config, error)
+
+	// String returns the name of the provider.  All Config instances produced
+	// by this provider will have this value in their Provider field.
 	String() string
+
+	// IsUpToDate determines whether the information returned from the last
+	// call to Collect is still correct.  If not, Collect will be called again.
 	IsUpToDate(context.Context) (bool, error)
+
+	// GetConfigErrors returns a map of errors that occurred on the last Collect
+	// call, indexed by a description of the resource that generated the error.
+	// The result is displayed in diagnostic tools such as `agent status`.
 	GetConfigErrors() map[string]ErrorMsgSet
 }
