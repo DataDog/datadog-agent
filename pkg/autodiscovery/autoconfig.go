@@ -287,7 +287,7 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.
 
 	if config.IsTemplate() {
 		// store the template in the cache in any case
-		if err := ac.store.templateCache.Set(config); err != nil {
+		if err := ac.store.templateCache.set(config); err != nil {
 			log.Errorf("Unable to store Check configuration in the cache: %s", err)
 		}
 
@@ -475,7 +475,7 @@ func (ac *AutoConfig) removeConfigTemplates(configs []integration.Config) {
 			ac.processRemovedConfigs(removedConfigs)
 
 			// Remove template from the cache
-			err := ac.store.templateCache.Del(c)
+			err := ac.store.templateCache.del(c)
 			if err != nil {
 				log.Debugf("Could not delete template: %v", err)
 			}
@@ -590,7 +590,7 @@ func (ac *AutoConfig) LoadedConfigs() []integration.Config {
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
 func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
-	return ac.store.templateCache.GetUnresolvedTemplates()
+	return ac.store.templateCache.getUnresolvedTemplates()
 }
 
 // GetConfigErrors gets the config errors
@@ -623,7 +623,7 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 	for _, adID := range ADIdentifiers {
 		// map the AD identifier to this service for reverse lookup
 		ac.store.setADIDForServices(adID, svc.GetEntity())
-		tpls, err := ac.store.templateCache.Get(adID)
+		tpls, err := ac.store.templateCache.get(adID)
 		if err != nil {
 			log.Debugf("Unable to fetch templates from the cache: %v", err)
 		}
