@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -373,4 +374,45 @@ func TestCriticalcNotNil(t *testing.T) {
 	SetupLogger(l, "info")
 
 	assert.NotNil(t, Criticalc("test", "key", "val"))
+}
+
+func TestServerlessLoggingNotInServerlessContext(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
+	assert.Nil(t, err)
+
+	SetupLogger(l, "debug")
+	assert.NotNil(t, logger)
+
+	DebugfServerless("%s", "foo")
+	DebugServerless("Not in serverless mode")
+	w.Flush()
+
+	// Nothing is log since we are not in a serverless context
+	assert.Equal(t, 0, len(b.String()))
+}
+
+func TestServerlessLoggingInServerlessContext(t *testing.T) {
+	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "my-test-function")
+	defer os.Unsetenv("AWS_LAMBDA_FUNCTION_NAME")
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
+	assert.Nil(t, err)
+
+	SetupLogger(l, "debug")
+	assert.NotNil(t, logger)
+
+	DebugfServerless("%s", "foo")
+	DebugServerless("In serverless mode")
+	w.Flush()
+
+	// Nothing is log since we are not in a serverless context
+	assert.Equal(t, "[DEBUG] DebugfServerless: foo\n[DEBUG] DebugServerless: In serverless mode\n", b.String())
 }
