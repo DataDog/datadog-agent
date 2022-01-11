@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TraceContext is a route called by tracer so they retrieve the tracing context
+// TraceContext is a route called by tracer so they can retrieve the tracing context
 type TraceContext struct {
 }
 
