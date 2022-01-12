@@ -56,7 +56,7 @@ const (
 var (
 	// SecurityAgentCmd is the entry point for security agent CLI commands
 	SecurityAgentCmd = &cobra.Command{
-		Use:   "datadog-security-agent [command]",
+		Use:   "security-agent [command]",
 		Short: "Datadog Security Agent at your service.",
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
