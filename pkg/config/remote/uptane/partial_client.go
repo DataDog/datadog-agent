@@ -162,6 +162,7 @@ func (c *PartialClient) Update(response *pbgo.ClientGetConfigsResponse) error {
 		return err
 	}
 	if response.Targets == nil {
+		c.valid = true
 		return nil
 	}
 	err = c.validateAndUpdateTargets(response.Targets.Raw)
