@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package externalmetrics
@@ -11,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strings"
 
 	"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/provider"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
@@ -112,9 +112,6 @@ func (p *datadogMetricProvider) GetExternalMetric(namespace string, metricSelect
 
 func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	log.Debugf("Received external metric query with ns: %s, selector: %s, metricName: %s", namespace, metricSelector.String(), info.Metric)
-
-	// Convert metric name to lower case to allow proper matching (and DD metrics are always lower case)
-	info.Metric = strings.ToLower(info.Metric)
 
 	// If the metric name is already prefixed, we can directly look up metrics in store
 	datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(info.Metric)

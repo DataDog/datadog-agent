@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package externalmetrics
@@ -194,6 +195,31 @@ func TestGetExternalMetrics(t *testing.T) {
 			expectedExternalMetrics: nil,
 			expectedError:           fmt.Errorf("DatadogMetric not found for metric name: nginx.net.request_per_s, datadogmetricid: default/dcaautogen-32402d8dfc05cf540928a606d78ed68c0607f7"),
 		},
+		{
+			desc: "Test CustomExternalMetric - DatadogMetric exists and is found for a case sensitive metric name",
+			storeContent: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:                 "default/dcaautogen-3f9a484ec911f6b05c2ca00889470dd8d2868c",
+						UpdateTime:         defaultUpdateTime,
+						ExternalMetricName: "domain.concurrentRequests",
+						Valid:              true,
+						Error:              nil,
+						Value:              42.0,
+					},
+					query: "query-metric0",
+				},
+			},
+			queryMetricName: "domain.concurrentrequests",
+			expectedExternalMetrics: []external_metrics.ExternalMetricValue{
+				{
+					MetricName:   "domain.concurrentRequests",
+					MetricLabels: nil,
+					Timestamp:    defaultMetaUpdateTime,
+					Value:        resource.MustParse(fmt.Sprintf("%v", 42.0)),
+				},
+			},
+		},
 	}
 
 	for i, fixture := range fixtures {
@@ -259,11 +285,24 @@ func TestListAllExternalMetrics(t *testing.T) {
 					},
 					query: "query-metric3",
 				},
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:                 "autogen-customexternalmetricname",
+						UpdateTime:         defaultUpdateTime,
+						ExternalMetricName: "customExternalMetricName",
+						Autogen:            true,
+						Valid:              false,
+						Error:              nil,
+						Value:              42.0,
+					},
+					query: "query-metric-custom-external",
+				},
 			},
 			expectedExternalMetricInfo: []provider.ExternalMetricInfo{
 				{Metric: "datadogmetric@ns:metric0"},
 				{Metric: "datadogmetric@ns:metric1"},
 				{Metric: "metric2"},
+				{Metric: "customExternalMetricName"},
 			},
 		},
 	}
