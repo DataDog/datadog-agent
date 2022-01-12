@@ -93,6 +93,9 @@ func (t *CompositeTags) Join(separator string) string {
 	if len(t.tags2) == 0 {
 		return strings.Join(t.tags1, separator)
 	}
+	if len(t.tags1) == 0 {
+		return strings.Join(t.tags2, separator)
+	}
 	return strings.Join(t.tags1, separator) + separator + strings.Join(t.tags2, separator)
 }
 

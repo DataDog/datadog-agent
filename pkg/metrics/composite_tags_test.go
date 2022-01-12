@@ -80,6 +80,9 @@ func TestCompositeTagsJoin(t *testing.T) {
 
 	tags = CompositeTagsFromSlice([]string{"tag1", "tag2"})
 	require.Equal(t, "tag1, tag2", tags.Join(", "))
+
+	tags = NewCompositeTags(nil, []string{"tag1", "tag2"})
+	require.Equal(t, "tag1, tag2", tags.Join(", "))
 }
 
 func TestCompositeTagsMarshalJSON(t *testing.T) {
