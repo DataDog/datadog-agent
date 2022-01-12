@@ -182,17 +182,18 @@ func runAgent(exit chan struct{}) {
 		}()
 	}
 
+	// `GetContainers` will panic when running in docker if the config hasn't called `DetectFeatures`.
+	// `LoadConfigIfExists` does the job of loading the config and calling `DetectFeatures` so that we can detect containers.
+	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
+	if err := config.LoadConfigIfExists(opts.configPath); err != nil {
+		_ = log.Criticalf("Error parsing config: %s", err)
+		cleanupAndExit(1)
+	}
+
 	// For system probe, there is an additional config file that is shared with the system-probe
 	syscfg, err := sysconfig.Merge(opts.sysProbeConfigPath)
 	if err != nil {
 		_ = log.Critical(err)
-		cleanupAndExit(1)
-	}
-
-	// `GetContainers` will panic when running in docker if the config hasn't called `DetectFeatures`.
-	// `LoadConfigIfExists` does the job of loading the config and calling `DetectFeatures` so that we can detect containers.
-	if err := config.LoadConfigIfExists(opts.configPath); err != nil {
-		_ = log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
 	}
 

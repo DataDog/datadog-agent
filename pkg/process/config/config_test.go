@@ -55,10 +55,13 @@ func newConfig() {
 }
 
 func loadAgentConfigForTest(t *testing.T, path, networksYamlPath string) *AgentConfig {
+	config.InitSystemProbeConfig(config.Datadog)
+
+	require.NoError(t, LoadConfigIfExists(path))
+
 	syscfg, err := sysconfig.Merge(networksYamlPath)
 	require.NoError(t, err)
 
-	require.NoError(t, LoadConfigIfExists(path))
 	cfg, err := NewAgentConfig("test", path, syscfg, false)
 	require.NoError(t, err)
 	return cfg
