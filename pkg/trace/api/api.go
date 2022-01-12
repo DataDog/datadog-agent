@@ -550,7 +550,7 @@ func (r *HTTPReceiver) handleGetConfig(w http.ResponseWriter, req *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	cfg, err := r.coreClient.ClientGetConfigs(req.Context(), &configsRequest)
+	cfg, err := r.coreClient.ClientGetConfigs(r.coreClientCtx, &configsRequest)
 	if err != nil {
 		statusCode = http.StatusInternalServerError
 		http.Error(w, err.Error(), statusCode)
