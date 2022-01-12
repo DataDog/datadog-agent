@@ -16,7 +16,7 @@ import (
 )
 
 func TestStartExecutionSpanWithoutPayload(t *testing.T) {
-	currentExecutionInfo = executionStartInfo{}
+	defer reset()
 	startTime := time.Now()
 	startExecutionSpan(startTime, "")
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
@@ -25,7 +25,7 @@ func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 }
 
 func TestStartExecutionSpanWithPayload(t *testing.T) {
-	currentExecutionInfo = executionStartInfo{}
+	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
 	startExecutionSpan(startTime, testString)
@@ -36,7 +36,7 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 }
 
 func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
-	currentExecutionInfo = executionStartInfo{}
+	defer reset()
 	invalidTestString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"1","x-datadog-trace-id":"INVALID"}}0`
 	startTime := time.Now()
 	startExecutionSpan(startTime, invalidTestString)
@@ -48,7 +48,7 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 func TestEndExecutionSpan(t *testing.T) {
 	defer os.Unsetenv(functionNameEnvVar)
 	os.Setenv(functionNameEnvVar, "TestFunction")
-	currentExecutionInfo = executionStartInfo{}
+	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
 	startExecutionSpan(startTime, testString)
@@ -111,4 +111,8 @@ func TestConvertStrToUnit64WithInvalidInt(t *testing.T) {
 	_, err := convertStrToUnit64(s)
 
 	assert.NotNil(t, err)
+}
+
+func reset() {
+	currentExecutionInfo = executionStartInfo{}
 }
