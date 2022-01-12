@@ -377,6 +377,65 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 		},
+		{
+			// setting an entity from two different sources, and
+			// unsetting one of them, correctly generates a three
+			// sets and no unsets
+			name:   "sets and unsets an entity from different sources",
+			filter: nil,
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer.GetID(),
+					},
+				},
+				{
+					{
+						Type:   EventTypeSet,
+						Source: barSource,
+						Entity: fooContainer.GetID(),
+					},
+				},
+				{
+					{
+						Type:   EventTypeUnset,
+						Source: fooSource,
+						Entity: fooContainer.GetID(),
+					},
+				},
+			},
+			expected: []EventBundle{
+				{
+					Events: []Event{
+						{
+							Type:    EventTypeSet,
+							Sources: []Source{fooSource},
+							Entity:  fooContainer.GetID(),
+						},
+					},
+				},
+				{
+					Events: []Event{
+						{
+							Type:    EventTypeSet,
+							Sources: []Source{barSource, fooSource},
+							Entity:  fooContainer.GetID(),
+						},
+					},
+				},
+				{
+					Events: []Event{
+						{
+							Type:    EventTypeSet,
+							Sources: []Source{barSource},
+							Entity:  fooContainer.GetID(),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
