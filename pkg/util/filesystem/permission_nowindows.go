@@ -21,7 +21,7 @@ func NewPermission() (*Permission, error) {
 	return &Permission{}, nil
 }
 
-// RestrictAccessToUser restricts the access to the user (chmod 700)
+// RestrictAccessToUser restricts the access to a file to the current user and its group
 func (p *Permission) RestrictAccessToUser(path string) error {
 	usr, err := user.Lookup("dd-agent")
 	if err == nil {
