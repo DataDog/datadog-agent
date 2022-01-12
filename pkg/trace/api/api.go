@@ -536,7 +536,7 @@ func (r *HTTPReceiver) handleGetConfig(w http.ResponseWriter, req *http.Request)
 	}
 	token, err := security.FetchAuthToken()
 	if err != nil {
-		killProcess("could obtain the auth token for the tracer remote config client: %v", err)
+		log.Errorf("could obtain the auth token for the tracer remote config client: %v", err)
 	}
 	md := metadata.MD{
 		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
