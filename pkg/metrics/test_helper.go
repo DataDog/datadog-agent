@@ -42,6 +42,11 @@ func AssertTagsEqual(t assert.TestingT, expected, actual []string) {
 
 // AssertCompositeTagsEqual evaluates if two CompositeTags are equal (the order doesn't matters).
 func AssertCompositeTagsEqual(t assert.TestingT, expected, actual *CompositeTags) {
+	if expected == nil && actual == nil {
+		return
+	}
+	assert.NotNil(t, expected)
+	assert.NotNil(t, actual)
 	var expectedTags []string
 	expected.ForEach(func(tag string) { expectedTags = append(expectedTags, tag) })
 
@@ -107,13 +112,23 @@ func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act SketchSer
 	}
 	assert.Equal(t, exp.Name, act.Name, "Name")
 
+	var expTagsCount = 0
+	if exp.Tags != nil {
+		expTagsCount = exp.Tags.Len()
+	}
+
+	var actTagsCount = 0
+	if act.Tags != nil {
+		actTagsCount = act.Tags.Len()
+	}
+
 	switch {
-	case len(exp.Tags) == 0:
-		assert.Len(t, act.Tags, 0, "(act) Tags: should be empty")
-	case len(act.Tags) == 0:
-		assert.Len(t, exp.Tags, 0, "(act) Tags: shouldn't be empty")
+	case expTagsCount == 0:
+		assert.Equal(t, actTagsCount, 0, "(act) Tags: should be empty")
+	case actTagsCount == 0:
+		assert.Equal(t, expTagsCount, 0, "(act) Tags: shouldn't be empty")
 	default:
-		AssertTagsEqual(t, exp.Tags, act.Tags)
+		AssertCompositeTagsEqual(t, exp.Tags, act.Tags)
 	}
 
 	assert.Equal(t, exp.Host, act.Host, "Host")
@@ -157,10 +172,10 @@ func Makeseries(i int) SketchSeries {
 	// Makeseries is deterministic so that we can test for mutation.
 	ss := SketchSeries{
 		Name: fmt.Sprintf("name.%d", i),
-		Tags: []string{
+		Tags: CompositeTagsFromSlice([]string{
 			fmt.Sprintf("a:%d", i),
 			fmt.Sprintf("b:%d", i),
-		},
+		}),
 		Host:     fmt.Sprintf("host.%d", i),
 		Interval: int64(i),
 	}
@@ -174,7 +189,11 @@ func Makeseries(i int) SketchSeries {
 	}
 
 	gen := ckey.NewKeyGenerator()
-	ss.ContextKey = gen.Generate(ss.Name, ss.Host, tagset.NewHashingTagsAccumulatorWithTags(ss.Tags))
+	var tags []string
+	ss.Tags.ForEach(func(tag string) {
+		tags = append(tags, tag)
+	})
+	ss.ContextKey = gen.Generate(ss.Name, ss.Host, tagset.NewHashingTagsAccumulatorWithTags(tags))
 
 	return ss
 }

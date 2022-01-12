@@ -26,7 +26,7 @@ type serializerConsumer struct {
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, name string, ts uint64, qsketch *quantile.Sketch, tags []string, host string) {
 	c.sketches = append(c.sketches, metrics.SketchSeries{
 		Name:     name,
-		Tags:     tags,
+		Tags:     metrics.CompositeTagsFromSlice(tags),
 		Host:     host,
 		Interval: 1,
 		Points: []metrics.SketchPoint{{

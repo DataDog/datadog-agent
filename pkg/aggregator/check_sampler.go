@@ -51,7 +51,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 	ctx, _ := cs.contextResolver.get(ck)
 	ss := metrics.SketchSeries{
 		Name: ctx.Name,
-		Tags: ctx.Tags().ToNewSliceString(),
+		Tags: ctx.Tags(),
 		Host: ctx.Host,
 		// Interval: TODO: investigate
 		Points:     points,

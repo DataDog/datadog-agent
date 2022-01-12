@@ -41,29 +41,29 @@ func TestAssertSketchSeriesEqual(t *testing.T) {
 		}, {
 			name: "Tags same len",
 			s: [2]SketchSeries{
-				{Tags: []string{"a"}},
-				{Tags: []string{"b"}},
+				{Tags: CompositeTagsFromSlice([]string{"a"})},
+				{Tags: CompositeTagsFromSlice([]string{"b"})},
 			},
 		}, {
 			name: "Tags/diff len",
 			s: [2]SketchSeries{
-				{Tags: []string{"a"}},
-				{Tags: []string{"a", "b"}},
+				{Tags: CompositeTagsFromSlice([]string{"a"})},
+				{Tags: CompositeTagsFromSlice([]string{"a", "b"})},
 			},
 		}, {
 			// AssertSerieEqual and friends don't catch this case.
 			// TODO: fix them
 			name: "Tags/exp=nil",
 			s: [2]SketchSeries{
-				{Tags: nil},
-				{Tags: []string{"a", "b"}},
+				{Tags: CompositeTagsFromSlice(nil)},
+				{Tags: CompositeTagsFromSlice([]string{"a", "b"})},
 			},
 		},
 		{
 			name: "Tags/act=nil",
 			s: [2]SketchSeries{
-				{Tags: []string{"a", "b"}},
-				{Tags: nil},
+				{Tags: CompositeTagsFromSlice([]string{"a", "b"})},
+				{Tags: CompositeTagsFromSlice(nil)},
 			},
 		}, {
 			name: "Host",

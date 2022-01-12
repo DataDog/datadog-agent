@@ -86,7 +86,7 @@ func (t *tagsetTelemetry) updateTelemetry(tagsetSizes []uint64, atomicCounts []u
 func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSeriesList) {
 	tagsetSizes := make([]uint64, len(*sketches))
 	for i, s := range *sketches {
-		tagsetSizes[i] = uint64(len(s.Tags))
+		tagsetSizes[i] = uint64(s.Tags.Len())
 	}
 	t.updateTelemetry(tagsetSizes, t.hugeSketchesCount, t.tlmHugeSketches)
 }

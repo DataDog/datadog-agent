@@ -327,7 +327,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 		_, flushed := flushSerie(sampler, now)
 		metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 			Name:     name,
-			Tags:     tags,
+			Tags:     metrics.CompositeTagsFromSlice(tags),
 			Host:     host,
 			Interval: 10,
 			Points: []metrics.SketchPoint{
@@ -379,7 +379,7 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	assert.Equal(t, 1, len(flushed))
 	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 		Name:     "test.metric.name",
-		Tags:     []string{"a", "b"},
+		Tags:     metrics.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
 		Points: []metrics.SketchPoint{
 			{Ts: 10000, Sketch: expSketch},
@@ -427,7 +427,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 
 	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 		Name:     "test.metric.name1",
-		Tags:     []string{"a", "b"},
+		Tags:     metrics.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
@@ -437,7 +437,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 
 	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 		Name:     "test.metric.name2",
-		Tags:     []string{"a", "c"},
+		Tags:     metrics.CompositeTagsFromSlice([]string{"a", "c"}),
 		Interval: 10,
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
@@ -496,7 +496,7 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 
 	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 		Name:     "distribution.metric.name1",
-		Tags:     []string{"a", "b"},
+		Tags:     metrics.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
 		Points: []metrics.SketchPoint{
 			{Ts: 12340.0, Sketch: expSketch},

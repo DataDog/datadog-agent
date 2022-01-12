@@ -24,7 +24,7 @@ import (
 // A SketchSeries is a timeseries of quantile sketches.
 type SketchSeries struct {
 	Name       string          `json:"metric"`
-	Tags       []string        `json:"tags"`
+	Tags       *CompositeTags  `json:"tags"`
 	Host       string          `json:"host"`
 	Interval   int64           `json:"interval"`
 	Points     []SketchPoint   `json:"points"`
@@ -78,7 +78,8 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 					sketch["bins"] = bins
 				}
 			}
-
+			// `Tags` type is `*CompositeTags`` which is not handled by `StructToMap``
+			ssMap["tags"] = ss.Tags.ToNewSliceString()
 			dstSl = append(dstSl, ssMap)
 		}
 
@@ -209,11 +210,10 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 				return err
 			}
 
-			for _, tag := range ss.Tags {
-				err = ps.String(sketchTags, tag)
-				if err != nil {
-					return err
-				}
+			if err := ss.Tags.ForEachErr(func(tag string) error {
+				return ps.String(sketchTags, tag)
+			}); err != nil {
+				return err
 			}
 
 			for _, p := range ss.Points {
@@ -355,7 +355,7 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 		pb.Sketches = append(pb.Sketches, gogen.SketchPayload_Sketch{
 			Metric:      ss.Name,
 			Host:        ss.Host,
-			Tags:        ss.Tags,
+			Tags:        ss.Tags.ToNewSliceString(),
 			Dogsketches: dsl,
 		})
 	}
