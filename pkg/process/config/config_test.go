@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -24,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
