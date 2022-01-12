@@ -289,8 +289,8 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 		outputPath = args[0]
 	}
 
-	downloadUrl := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
-	fmt.Printf("Policy download url: %s\n", downloadUrl)
+	downloadURL := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
+	fmt.Printf("Policy download url: %s\n", downloadURL)
 	fmt.Printf("Output path:         %s\n", outputPath)
 
 	headers := map[string]string{
@@ -300,7 +300,7 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	res, err := httputils.Get(ctx, downloadUrl, headers, 10*time.Second)
+	res, err := httputils.Get(ctx, downloadURL, headers, 10*time.Second)
 	if err != nil {
 		return err
 	}
