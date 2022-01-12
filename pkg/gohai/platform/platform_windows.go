@@ -100,11 +100,10 @@ func netServerGetInfo() (si SERVER_INFO_101, err error) {
 
 func fetchOsDescription() (string, error) {
 	err := winbrand.Load()
-	if err == ERROR_SUCESS {
-		err = nil
+	if err == nil {
 		// From https://stackoverflow.com/a/69462683
 		procBrandingFormatString := winbrand.NewProc("BrandingFormatString")
-		if procBrandingFormatString.Find() != nil {
+		if procBrandingFormatString.Find() == nil {
 			// Encode the string "%WINDOWS_LONG%" to UTF-16 and append a null byte for the Windows API
 			magicString := utf16.Encode([]rune("%WINDOWS_LONG%" + "\x00"))
 			os, _, err := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
@@ -113,18 +112,19 @@ func fetchOsDescription() (string, error) {
 				return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(os))), nil
 			}
 		}
-	} else {
-		k, err := registry.OpenKey(registry.LOCAL_MACHINE,
-			registryHive,
-			registry.QUERY_VALUE)
-		defer k.Close()
+	}
+
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		registryHive,
+		registry.QUERY_VALUE)
+	defer k.Close()
+	if err == nil {
+		os , _, err := k.GetStringValue(productNameKey)
 		if err == nil {
-			os , _, err := k.GetStringValue(productNameKey)
-			if err == nil {
-				return os, nil
-			}
+			return os, nil
 		}
 	}
+
 	return "(undetermined windows version)", err
 }
 
