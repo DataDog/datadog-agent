@@ -31,7 +31,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartInvocation is a route that can be called at the beginning of an invocation to enable
-// the invocation lifecyle feature without the use of a proxy.
+// the invocation lifecyle feature without the use of the proxy.
 type StartInvocation struct {
 	daemon *Daemon
 }
@@ -46,11 +46,12 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var startDetails invocationlifecycle.InvocationStartDetails
 	json.Unmarshal(reqBody, &startDetails)
-	log.Debug(startDetails)
+
+	s.daemon.LifecycleProcessor.OnInvokeStart(&startDetails)
 }
 
 // EndInvocation is a route that can be called at the end of an invocation to enable
-// the invocation lifecyle feature without the use of a proxy.
+// the invocation lifecyle feature without the use of the proxy.
 type EndInvocation struct {
 	daemon *Daemon
 }
@@ -65,5 +66,6 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var endDetails invocationlifecycle.InvocationEndDetails
 	json.Unmarshal(reqBody, &endDetails)
-	log.Debug(endDetails)
+
+	e.daemon.LifecycleProcessor.OnInvokeEnd(&endDetails)
 }

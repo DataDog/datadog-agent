@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -84,6 +85,9 @@ type Daemon struct {
 
 	// logsFlushMutex ensures that only one logs flush can be underway at a given time
 	logsFlushMutex sync.Mutex
+
+	// LifecycleProcessor is used to handle lifecycle events, either using the proxy or the lifecycle API
+	LifecycleProcessor invocationlifecycle.LifecycleProcessor
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime and coordinate
@@ -107,8 +111,11 @@ func StartDaemon(addr string) *Daemon {
 		logsFlushMutex:    sync.Mutex{},
 	}
 
+	// Routes called from the Lambda Library
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
+
+	// Lifecycle API (experimental)
 	mux.Handle("/lambda/start-invocation", &StartInvocation{daemon})
 	mux.Handle("/lambda/end-invocation", &EndInvocation{daemon})
 

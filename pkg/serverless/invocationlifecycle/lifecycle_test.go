@@ -28,7 +28,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	endInvocationTime := time.Now()
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
@@ -59,7 +59,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	startInvocationTime := time.Now()
 	startDetails := InvocationStartDetails{StartTime: startInvocationTime}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
@@ -85,7 +85,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	startInvocationTime := time.Now()
 	startDetails := InvocationStartDetails{StartTime: startInvocationTime}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
@@ -123,7 +123,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 		spanID:    1,
 	}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
@@ -164,7 +164,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 		spanID:    1,
 	}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
