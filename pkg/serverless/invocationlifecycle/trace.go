@@ -47,11 +47,16 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 	payload := convertRawPayload(rawPayload)
 
 	if payload.Headers != nil {
-		traceID, _ := convertStrToUnit64(payload.Headers[traceIDHeader])
-		parentID, _ := convertStrToUnit64(payload.Headers[parentIDHeader])
+		traceID, e1 := convertStrToUnit64(payload.Headers[traceIDHeader])
+		parentID, e2 := convertStrToUnit64(payload.Headers[parentIDHeader])
 
-		currentExecutionInfo.traceID = traceID
-		currentExecutionInfo.parentID = parentID
+		if e1 == nil {
+			currentExecutionInfo.traceID = traceID
+		}
+
+		if e2 == nil {
+			currentExecutionInfo.parentID = parentID
+		}
 	}
 }
 
@@ -102,7 +107,6 @@ func convertRawPayload(rawPayload string) invocationPayload {
 }
 
 func convertStrToUnit64(s string) (uint64, error) {
-	// returning an error for testing
 	num, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
 		log.Debug("Error with string conversion of trace or parent ID")
