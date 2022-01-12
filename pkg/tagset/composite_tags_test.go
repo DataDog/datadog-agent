@@ -8,7 +8,6 @@
 package tagset
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -29,12 +28,12 @@ func TestCompositeTagsCombineCompositeTagsAndSlice(t *testing.T) {
 	// Make sure there is no reallocation later
 	tags := make([]string, 1, 10)
 	tags[0] = "tag1"
-	tags4 := NewCompositeTags(tags, []string{"tag4"})
-	tags2 := CombineCompositeTagsAndSlice(tags4, []string{"tag2"})
-	tags3 := CombineCompositeTagsAndSlice(tags4, []string{"tag3"})
+	tags2 := NewCompositeTags(tags, []string{"tag2"})
+	tags3 := CombineCompositeTagsAndSlice(tags2, []string{"tag3"})
+	tags4 := CombineCompositeTagsAndSlice(tags2, []string{"tag4"})
 
-	assert.Equal(t, "tag1,tag2,tag4", tags2.Join(","))
-	assert.Equal(t, "tag1,tag3,tag4", tags3.Join(","))
+	assert.Equal(t, "tag1,tag2,tag3", tags3.Join(","))
+	assert.Equal(t, "tag1,tag2,tag4", tags4.Join(","))
 }
 
 func TestCompositeTagsForEach(t *testing.T) {
