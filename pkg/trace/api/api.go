@@ -74,13 +74,14 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out            chan *Payload
-	conf           *config.AgentConfig
-	dynConf        *sampler.DynamicConfig
-	server         *http.Server
-	statsProcessor StatsProcessor
-	appsecHandler  http.Handler
-	coreClient     pbgo.AgentSecureClient // gRPC client to core agent process
+	out             chan *Payload
+	conf            *config.AgentConfig
+	dynConf         *sampler.DynamicConfig
+	server          *http.Server
+	statsProcessor  StatsProcessor
+	appsecHandler   http.Handler
+	coreClient      pbgo.AgentSecureClient // gRPC client to core agent process
+	coreClientToken string
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -100,7 +101,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		log.Errorf("Could not instantiate AppSec: %v", err)
 	}
 	var coreClient pbgo.AgentSecureClient
+	var coreClientToken string
 	if features.Has("config_endpoint") {
+		coreClientToken, err = security.FetchAuthToken()
+		if err != nil {
+			killProcess("could obtain the auth token for the tracer remote config client: %v", err)
+		}
 		coreClient, err = grpc.GetDDAgentSecureClient(context.Background())
 		if err != nil {
 			killProcess("could not instantiate the tracer remote config client: %v", err)
@@ -110,12 +116,13 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
 
-		out:            out,
-		statsProcessor: statsProcessor,
-		coreClient:     coreClient,
-		conf:           conf,
-		dynConf:        dynConf,
-		appsecHandler:  appsecHandler,
+		out:             out,
+		statsProcessor:  statsProcessor,
+		coreClient:      coreClient,
+		coreClientToken: coreClientToken,
+		conf:            conf,
+		dynConf:         dynConf,
+		appsecHandler:   appsecHandler,
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
@@ -534,12 +541,8 @@ func (r *HTTPReceiver) handleGetConfig(w http.ResponseWriter, req *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	token, err := security.FetchAuthToken()
-	if err != nil {
-		log.Errorf("could obtain the auth token for the tracer remote config client: %v", err)
-	}
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		"authorization": []string{fmt.Sprintf("Bearer %s", r.coreClientToken)},
 	}
 	ctx := metadata.NewOutgoingContext(req.Context(), md)
 	cfg, err := r.coreClient.ClientGetConfigs(ctx, &configsRequest)
