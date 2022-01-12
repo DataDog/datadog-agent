@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +49,7 @@ func TestPopulateDeviceField(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
-			s := &Serie{Tags: CompositeTagsFromSlice(tc.Tags)}
+			s := &Serie{Tags: tagset.CompositeTagsFromSlice(tc.Tags)}
 
 			// Run a few times to ensure stability
 			for i := 0; i < 4; i++ {
@@ -70,7 +71,7 @@ func TestMarshalJSONSeries(t *testing.T) {
 		MType:          APIGaugeType,
 		Name:           "test.metrics",
 		Host:           "localHost",
-		Tags:           CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "device:/dev/sda1"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "device:/dev/sda1"}),
 		SourceTypeName: "System",
 	}}
 
@@ -89,7 +90,7 @@ func TestSplitSerieasOneMetric(t *testing.T) {
 			MType: APIGaugeType,
 			Name:  "test.metrics",
 			Host:  "localHost",
-			Tags:  CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+			Tags:  tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		},
 		{Points: []Point{
 			{Ts: 12345.0, Value: float64(21.21)},
@@ -98,7 +99,7 @@ func TestSplitSerieasOneMetric(t *testing.T) {
 			MType: APIGaugeType,
 			Name:  "test.metrics",
 			Host:  "localHost",
-			Tags:  CompositeTagsFromSlice([]string{"tag3"}),
+			Tags:  tagset.CompositeTagsFromSlice([]string{"tag3"}),
 		},
 	}
 
@@ -119,7 +120,7 @@ func TestSplitSerieasByName(t *testing.T) {
 			MType: APIGaugeType,
 			Name:  name,
 			Host:  "localHost",
-			Tags:  CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+			Tags:  tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		series = append(series, &s1)
 		s2 := Serie{
@@ -130,7 +131,7 @@ func TestSplitSerieasByName(t *testing.T) {
 			MType: APIGaugeType,
 			Name:  name,
 			Host:  "localHost",
-			Tags:  CompositeTagsFromSlice([]string{"tag3"}),
+			Tags:  tagset.CompositeTagsFromSlice([]string{"tag3"}),
 		}
 		series = append(series, &s2)
 	}
@@ -156,7 +157,7 @@ func TestSplitOversizedMetric(t *testing.T) {
 			MType: APIGaugeType,
 			Name:  "test.test1",
 			Host:  "localHost",
-			Tags:  CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+			Tags:  tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		},
 	}
 	for _, tag := range []string{"tag1", "tag2", "tag3"} {
@@ -168,7 +169,7 @@ func TestSplitOversizedMetric(t *testing.T) {
 			MType: APIGaugeType,
 			Name:  "test.test2",
 			Host:  "localHost",
-			Tags:  CompositeTagsFromSlice([]string{tag}),
+			Tags:  tagset.CompositeTagsFromSlice([]string{tag}),
 		})
 	}
 
@@ -195,7 +196,7 @@ func TestUnmarshalSeriesJSON(t *testing.T) {
 		Name:     "test.metrics",
 		Interval: 1,
 		Host:     "localHost",
-		Tags:     CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+		Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 	}, {
 		Points: []Point{
 			{Ts: 12345.0, Value: float64(21.21)},
@@ -205,7 +206,7 @@ func TestUnmarshalSeriesJSON(t *testing.T) {
 		Name:     "test.metrics",
 		Interval: 1,
 		Host:     "localHost",
-		Tags:     CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+		Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 	}, {
 		Points: []Point{
 			{Ts: 12345.0, Value: float64(21.21)},
@@ -215,7 +216,7 @@ func TestUnmarshalSeriesJSON(t *testing.T) {
 		Name:     "test.metrics",
 		Interval: 1,
 		Host:     "localHost",
-		Tags:     CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+		Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 	}}
 
 	seriesJSON, err := series.MarshalJSON()
@@ -241,7 +242,7 @@ func TestStreamJSONMarshaler(t *testing.T) {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags:     CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		},
 		{
 			Points: []Point{
@@ -252,7 +253,7 @@ func TestStreamJSONMarshaler(t *testing.T) {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags:     CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		},
 		{
 			Points:   []Point{},
@@ -260,7 +261,7 @@ func TestStreamJSONMarshaler(t *testing.T) {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags:     CompositeTagsFromSlice([]string{}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{}),
 		},
 	}
 
@@ -307,7 +308,7 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags:     CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "device:/dev/sda1"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "device:/dev/sda1"}),
 		},
 	}
 
@@ -335,7 +336,7 @@ func TestDescribeItem(t *testing.T) {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags:     CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "device:/dev/sda1"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "device:/dev/sda1"}),
 		},
 	}
 
@@ -365,7 +366,7 @@ func TestMarshalSplitCompress(t *testing.T) {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags:     CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		})
 	}
 
@@ -403,7 +404,7 @@ func TestPayloadsSeries(t *testing.T) {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}
@@ -447,7 +448,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}

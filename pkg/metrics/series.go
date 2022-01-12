@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -46,16 +47,16 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 
 // Serie holds a timeseries (w/ json serialization to DD API format)
 type Serie struct {
-	Name           string          `json:"metric"`
-	Points         []Point         `json:"points"`
-	Tags           *CompositeTags  `json:"tags"`
-	Host           string          `json:"host"`
-	Device         string          `json:"device,omitempty"` // FIXME(olivier): remove as soon as the v1 API can handle `device` as a regular tag
-	MType          APIMetricType   `json:"type"`
-	Interval       int64           `json:"interval"`
-	SourceTypeName string          `json:"source_type_name,omitempty"`
-	ContextKey     ckey.ContextKey `json:"-"`
-	NameSuffix     string          `json:"-"`
+	Name           string                `json:"metric"`
+	Points         []Point               `json:"points"`
+	Tags           *tagset.CompositeTags `json:"tags"`
+	Host           string                `json:"host"`
+	Device         string                `json:"device,omitempty"` // FIXME(olivier): remove as soon as the v1 API can handle `device` as a regular tag
+	MType          APIMetricType         `json:"type"`
+	Interval       int64                 `json:"interval"`
+	SourceTypeName string                `json:"source_type_name,omitempty"`
+	ContextKey     ckey.ContextKey       `json:"-"`
+	NameSuffix     string                `json:"-"`
 }
 
 // Series represents a list of Serie ready to be serialize
@@ -119,7 +120,7 @@ func populateDeviceField(serie *Serie) {
 		}
 	})
 
-	serie.Tags = CompositeTagsFromSlice(filteredTags)
+	serie.Tags = tagset.CompositeTagsFromSlice(filteredTags)
 }
 
 // hasDeviceTag checks whether a series contains a device tag

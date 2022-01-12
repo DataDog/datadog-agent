@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +34,7 @@ func generateData(points int, items int, tags int) metrics.Series {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags: metrics.CompositeTagsFromSlice(func() []string {
+			Tags: tagset.CompositeTagsFromSlice(func() []string {
 				ts := make([]string, tags)
 				for t := 0; t < tags; t++ {
 					ts[t] = fmt.Sprintf("tag%d:foobar", t)

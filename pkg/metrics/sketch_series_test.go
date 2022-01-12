@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,7 +65,7 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 
 		assert.Equal(t, in.Host, pb.Host)
 		assert.Equal(t, in.Name, pb.Metric)
-		AssertCompositeTagsEqual(t, in.Tags, CompositeTagsFromSlice(pb.Tags))
+		AssertCompositeTagsEqual(t, in.Tags, tagset.CompositeTagsFromSlice(pb.Tags))
 		assert.Len(t, pb.Distributions, 0)
 
 		require.Len(t, pb.Dogsketches, len(in.Points))
@@ -126,7 +127,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	// A small item (no dropped)
 	sl[1] = SketchSeries{
 		Name:     "small",
-		Tags:     CompositeTagsFromSlice([]string{}),
+		Tags:     tagset.CompositeTagsFromSlice([]string{}),
 		Host:     "",
 		Interval: 0,
 	}
@@ -180,7 +181,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 		assert.Equal(t, in.Host, pb.Host)
 		assert.Equal(t, in.Name, pb.Metric)
-		AssertCompositeTagsEqual(t, in.Tags, CompositeTagsFromSlice(pb.Tags))
+		AssertCompositeTagsEqual(t, in.Tags, tagset.CompositeTagsFromSlice(pb.Tags))
 		assert.Len(t, pb.Distributions, 0)
 
 		require.Len(t, pb.Dogsketches, len(in.Points))
@@ -232,7 +233,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 
 			assert.Equal(t, in.Host, pb.Host)
 			assert.Equal(t, in.Name, pb.Metric)
-			AssertCompositeTagsEqual(t, in.Tags, CompositeTagsFromSlice(pb.Tags))
+			AssertCompositeTagsEqual(t, in.Tags, tagset.CompositeTagsFromSlice(pb.Tags))
 			assert.Len(t, pb.Distributions, 0)
 
 			require.Len(t, pb.Dogsketches, len(in.Points))

@@ -41,7 +41,7 @@ func AssertTagsEqual(t assert.TestingT, expected, actual []string) {
 }
 
 // AssertCompositeTagsEqual evaluates if two CompositeTags are equal (the order doesn't matters).
-func AssertCompositeTagsEqual(t assert.TestingT, expected, actual *CompositeTags) {
+func AssertCompositeTagsEqual(t assert.TestingT, expected, actual *tagset.CompositeTags) {
 	if expected == nil && actual == nil {
 		return
 	}
@@ -172,7 +172,7 @@ func Makeseries(i int) SketchSeries {
 	// Makeseries is deterministic so that we can test for mutation.
 	ss := SketchSeries{
 		Name: fmt.Sprintf("name.%d", i),
-		Tags: CompositeTagsFromSlice([]string{
+		Tags: tagset.CompositeTagsFromSlice([]string{
 			fmt.Sprintf("a:%d", i),
 			fmt.Sprintf("b:%d", i),
 		}),

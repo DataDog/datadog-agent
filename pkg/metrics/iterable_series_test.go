@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,9 +67,9 @@ func TestIterableSeriesReceiverStopped(t *testing.T) {
 
 func TestIterableStreamJSONMarshalerAdapter(t *testing.T) {
 	var series Series
-	series = append(series, &Serie{Name: "serie1", Tags: CompositeTagsFromSlice(nil)})
-	series = append(series, &Serie{Name: "serie2", Tags: CompositeTagsFromSlice(nil)})
-	series = append(series, &Serie{Name: "serie3", Tags: CompositeTagsFromSlice(nil)})
+	series = append(series, &Serie{Name: "serie1", Tags: tagset.CompositeTagsFromSlice(nil)})
+	series = append(series, &Serie{Name: "serie2", Tags: tagset.CompositeTagsFromSlice(nil)})
+	series = append(series, &Serie{Name: "serie3", Tags: tagset.CompositeTagsFromSlice(nil)})
 
 	iterableSeries := NewIterableSeries(func(*Serie) {}, 4, 2)
 	for _, serie := range series {

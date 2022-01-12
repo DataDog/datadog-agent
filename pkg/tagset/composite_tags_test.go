@@ -5,7 +5,7 @@
 
 // +build test
 
-package metrics
+package tagset
 
 import (
 	"encoding/json"
@@ -21,8 +21,8 @@ func TestCompositeTagsConstructors(t *testing.T) {
 	tags2 := CompositeTagsFromSlice([]string{"tag1", "tag2"})
 	tags3 := CombineCompositeTagsAndSlice(CompositeTagsFromSlice([]string{"tag1"}), []string{"tag2"})
 
-	AssertCompositeTagsEqual(t, tags1, tags2)
-	AssertCompositeTagsEqual(t, tags2, tags3)
+	require.Equal(t, tags1.Join(","), tags2.Join(","))
+	require.Equal(t, tags2.Join(","), tags3.Join(","))
 }
 
 func TestCompositeTagsCombineCompositeTagsAndSlice(t *testing.T) {

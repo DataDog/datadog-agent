@@ -5,14 +5,18 @@
 
 package metrics
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+)
 
 func benchmarkPopulateDeviceField(numberOfTags int, b *testing.B) {
 	tags := make([]string, 0, numberOfTags+1)
 	for i := 0; i < numberOfTags; i++ {
 		tags = append(tags, "some:tag")
 	}
-	t := CompositeTagsFromSlice(append(tags, "device:test"))
+	t := tagset.CompositeTagsFromSlice(append(tags, "device:test"))
 
 	serie := &Serie{
 		Tags: t,

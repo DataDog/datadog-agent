@@ -18,7 +18,7 @@ import (
 type Context struct {
 	Name          string
 	Host          string
-	compositeTags *metrics.CompositeTags
+	compositeTags *tagset.CompositeTags
 	tags          *tags.Entry
 }
 
@@ -27,12 +27,12 @@ func newContext(name string, host string, tags *tags.Entry) *Context {
 		Name:          name,
 		Host:          host,
 		tags:          tags,
-		compositeTags: metrics.CompositeTagsFromSlice(tags.Tags()),
+		compositeTags: tagset.CompositeTagsFromSlice(tags.Tags()),
 	}
 }
 
 // Tags returns tags for the context.
-func (c *Context) Tags() *metrics.CompositeTags {
+func (c *Context) Tags() *tagset.CompositeTags {
 	return c.compositeTags
 }
 

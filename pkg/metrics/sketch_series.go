@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/richardartoul/molecule"
@@ -23,12 +24,12 @@ import (
 
 // A SketchSeries is a timeseries of quantile sketches.
 type SketchSeries struct {
-	Name       string          `json:"metric"`
-	Tags       *CompositeTags  `json:"tags"`
-	Host       string          `json:"host"`
-	Interval   int64           `json:"interval"`
-	Points     []SketchPoint   `json:"points"`
-	ContextKey ckey.ContextKey `json:"-"`
+	Name       string                `json:"metric"`
+	Tags       *tagset.CompositeTags `json:"tags"`
+	Host       string                `json:"host"`
+	Interval   int64                 `json:"interval"`
+	Points     []SketchPoint         `json:"points"`
+	ContextKey ckey.ContextKey       `json:"-"`
 }
 
 // A SketchPoint represents a quantile sketch at a specific time
