@@ -71,7 +71,9 @@ func extractJob(j *batchv1.Job) *model.Job {
 	}
 
 	if j.Spec.ActiveDeadlineSeconds != nil {
-		job.Spec.ActiveDeadlineSeconds = *j.Spec.ActiveDeadlineSeconds
+		job.Spec.ActiveDeadlineSeconds = &model.JobSpec_ActiveDeadlineSecondsValue{
+			ActiveDeadlineSecondsValue: *j.Spec.ActiveDeadlineSeconds,
+		}
 	}
 	if j.Spec.BackoffLimit != nil {
 		job.Spec.BackoffLimit = *j.Spec.BackoffLimit
