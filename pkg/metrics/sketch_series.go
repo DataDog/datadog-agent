@@ -79,7 +79,7 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 				}
 			}
 			// `Tags` type is `*CompositeTags`` which is not handled by `StructToMap``
-			ssMap["tags"] = ss.Tags.ToNewSliceString()
+			ssMap["tags"] = ss.Tags.UnsafeToReadOnlySliceString()
 			dstSl = append(dstSl, ssMap)
 		}
 
@@ -355,7 +355,7 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 		pb.Sketches = append(pb.Sketches, gogen.SketchPayload_Sketch{
 			Metric:      ss.Name,
 			Host:        ss.Host,
-			Tags:        ss.Tags.ToNewSliceString(),
+			Tags:        ss.Tags.UnsafeToReadOnlySliceString(),
 			Dogsketches: dsl,
 		})
 	}

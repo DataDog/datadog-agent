@@ -108,8 +108,9 @@ func (t *CompositeTags) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &t.tags1)
 }
 
-// ToNewSliceString creates a new slice containing all tags.
-// Should be used only when no other solution exists.
-func (t *CompositeTags) ToNewSliceString() []string {
-	return append(append([]string{}, t.tags1...), t.tags2...)
+// UnsafeToReadOnlySliceString creates a new slice containing all tags.
+// The caller of this method must ensure that the slice is never mutate.
+// Should be used only for performance reasons.
+func (t *CompositeTags) UnsafeToReadOnlySliceString() []string {
+	return append(t.tags1, t.tags2...)
 }
