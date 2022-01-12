@@ -8,6 +8,7 @@
 package tagset
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
