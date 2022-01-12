@@ -16,24 +16,22 @@ import (
 
 // Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
-	Name          string
-	Host          string
-	compositeTags *tagset.CompositeTags
-	tags          *tags.Entry
+	Name string
+	Host string
+	tags *tags.Entry
 }
 
 func newContext(name string, host string, tags *tags.Entry) *Context {
 	return &Context{
-		Name:          name,
-		Host:          host,
-		tags:          tags,
-		compositeTags: tagset.NewCompositeTags(tags.Tags(), nil),
+		Name: name,
+		Host: host,
+		tags: tags,
 	}
 }
 
 // Tags returns tags for the context.
-func (c *Context) Tags() *tagset.CompositeTags {
-	return c.compositeTags
+func (c *Context) Tags() tagset.CompositeTags {
+	return tagset.NewCompositeTags(c.tags.Tags(), nil)
 }
 
 // contextResolver allows tracking and expiring contexts

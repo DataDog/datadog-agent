@@ -41,12 +41,7 @@ func AssertTagsEqual(t assert.TestingT, expected, actual []string) {
 }
 
 // AssertCompositeTagsEqual evaluates if two CompositeTags are equal (the order doesn't matters).
-func AssertCompositeTagsEqual(t assert.TestingT, expected, actual *tagset.CompositeTags) {
-	if expected == nil && actual == nil {
-		return
-	}
-	assert.NotNil(t, expected)
-	assert.NotNil(t, actual)
+func AssertCompositeTagsEqual(t assert.TestingT, expected, actual tagset.CompositeTags) {
 	var expectedTags []string
 	expected.ForEach(func(tag string) { expectedTags = append(expectedTags, tag) })
 
@@ -74,10 +69,7 @@ func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
 // AssertSerieEqual evaluate if two are equal.
 func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	assert.Equal(t, expected.Name, actual.Name)
-	if expected.Tags != nil {
-		assert.NotNil(t, actual.Tags)
-		AssertCompositeTagsEqual(t, expected.Tags, actual.Tags)
-	}
+	AssertCompositeTagsEqual(t, expected.Tags, actual.Tags)
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.MType, actual.MType)
 	assert.Equal(t, expected.Interval, actual.Interval)
@@ -112,15 +104,8 @@ func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act SketchSer
 	}
 	assert.Equal(t, exp.Name, act.Name, "Name")
 
-	var expTagsCount = 0
-	if exp.Tags != nil {
-		expTagsCount = exp.Tags.Len()
-	}
-
-	var actTagsCount = 0
-	if act.Tags != nil {
-		actTagsCount = act.Tags.Len()
-	}
+	expTagsCount := exp.Tags.Len()
+	actTagsCount := act.Tags.Len()
 
 	switch {
 	case expTagsCount == 0:

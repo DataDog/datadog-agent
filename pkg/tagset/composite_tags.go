@@ -19,20 +19,20 @@ type CompositeTags struct {
 }
 
 // NewCompositeTags creates a new CompositeTags
-func NewCompositeTags(tags1 []string, tags2 []string) *CompositeTags {
-	return &CompositeTags{
+func NewCompositeTags(tags1 []string, tags2 []string) CompositeTags {
+	return CompositeTags{
 		tags1: tags1,
 		tags2: tags2,
 	}
 }
 
 // CompositeTagsFromSlice creates a new CompositeTags from a slice
-func CompositeTagsFromSlice(tags []string) *CompositeTags {
+func CompositeTagsFromSlice(tags []string) CompositeTags {
 	return NewCompositeTags(tags, nil)
 }
 
 // CombineCompositeTagsAndSlice creates a new CompositeTags from an existing CompositeTags and string slice
-func CombineCompositeTagsAndSlice(compositeTags *CompositeTags, tags []string) *CompositeTags {
+func CombineCompositeTagsAndSlice(compositeTags CompositeTags, tags []string) CompositeTags {
 	if compositeTags.tags2 == nil {
 		return NewCompositeTags(compositeTags.tags1, tags)
 	}
@@ -43,7 +43,7 @@ func CombineCompositeTagsAndSlice(compositeTags *CompositeTags, tags []string) *
 }
 
 // ForEach applies `callback` to each tag
-func (t *CompositeTags) ForEach(callback func(tag string)) {
+func (t CompositeTags) ForEach(callback func(tag string)) {
 	for _, t := range t.tags1 {
 		callback(t)
 	}
@@ -54,7 +54,7 @@ func (t *CompositeTags) ForEach(callback func(tag string)) {
 
 // ForEachErr applies `callback` to each tag while `callback`` returns nil.
 // The first error is returned.
-func (t *CompositeTags) ForEachErr(callback func(tag string) error) error {
+func (t CompositeTags) ForEachErr(callback func(tag string) error) error {
 	for _, t := range t.tags1 {
 		if err := callback(t); err != nil {
 			return err
@@ -70,7 +70,7 @@ func (t *CompositeTags) ForEachErr(callback func(tag string) error) error {
 }
 
 // Find returns whether `callback` returns true for a tag
-func (t *CompositeTags) Find(callback func(tag string) bool) bool {
+func (t CompositeTags) Find(callback func(tag string) bool) bool {
 	for _, t := range t.tags1 {
 		if callback(t) {
 			return true
@@ -86,12 +86,12 @@ func (t *CompositeTags) Find(callback func(tag string) bool) bool {
 }
 
 // Len returns the length of the tags
-func (t *CompositeTags) Len() int {
+func (t CompositeTags) Len() int {
 	return len(t.tags1) + len(t.tags2)
 }
 
 // Join performs strings.Join on tags
-func (t *CompositeTags) Join(separator string) string {
+func (t CompositeTags) Join(separator string) string {
 	if len(t.tags2) == 0 {
 		return strings.Join(t.tags1, separator)
 	}
@@ -102,12 +102,13 @@ func (t *CompositeTags) Join(separator string) string {
 }
 
 // MarshalJSON serialization a Payload to JSON
-func (t *CompositeTags) MarshalJSON() ([]byte, error) {
+func (t CompositeTags) MarshalJSON() ([]byte, error) {
 	tags := append([]string{}, t.tags1...)
 	return json.Marshal(append(tags, t.tags2...))
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
+// UnmarshalJSON receiver need to be a pointer to modify `t`.
 func (t *CompositeTags) UnmarshalJSON(b []byte) error {
 	t.tags2 = nil
 	return json.Unmarshal(b, &t.tags1)
@@ -116,6 +117,6 @@ func (t *CompositeTags) UnmarshalJSON(b []byte) error {
 // UnsafeToReadOnlySliceString creates a new slice containing all tags.
 // The caller of this method must ensure that the slice is never mutate.
 // Should be used only for performance reasons.
-func (t *CompositeTags) UnsafeToReadOnlySliceString() []string {
+func (t CompositeTags) UnsafeToReadOnlySliceString() []string {
 	return append(t.tags1, t.tags2...)
 }
