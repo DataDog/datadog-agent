@@ -36,7 +36,7 @@ const shutdownDelay time.Duration = 1 * time.Second
 // FlushTimeout is the amount of time to wait for a flush to complete.
 const FlushTimeout time.Duration = 5 * time.Second
 
-// Daemon is the communcation server between the runtime and the serverless agent.
+// Daemon is the communication server between the runtime and the serverless agent and coordinates the flushing of telemetry.
 type Daemon struct {
 	httpServer *http.Server
 	mux        *http.ServeMux

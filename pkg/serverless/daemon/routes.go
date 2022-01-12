@@ -2,7 +2,9 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -68,4 +70,21 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal(reqBody, &endDetails)
 
 	e.daemon.LifecycleProcessor.OnInvokeEnd(&endDetails)
+}
+
+// TraceContext is a route called by tracer so it can retrieve the tracing context
+type TraceContext struct {
+}
+
+// TraceContext - see type TraceContext comment.
+func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Debug("Hit on the serverless.TraceContext route.")
+
+	// TODO use traceID and spanID from the generated span
+	traceID := uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
+	spanID := uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
+
+	w.Header().Set("x-datadog-trace-id", fmt.Sprintf("%v", traceID))
+	w.Header().Set("x-datadog-span-id", fmt.Sprintf("%v", spanID))
+	w.WriteHeader(200)
 }
