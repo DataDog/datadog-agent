@@ -36,8 +36,8 @@ func CombineCompositeTagsAndSlice(compositeTags *CompositeTags, tags []string) *
 	}
 	// Copy tags in case `CombineCompositeTagsAndSlice` is called twice with the same first argument.
 	// For example see TestCompositeTagsCombineCompositeTagsAndSlice.
-	newTags := append(append([]string{}, compositeTags.tags1...), tags...)
-	return NewCompositeTags(newTags, compositeTags.tags2)
+	newTags := append(append([]string{}, compositeTags.tags2...), tags...)
+	return NewCompositeTags(compositeTags.tags1, newTags)
 }
 
 // ForEach applies `callback` to each tag
