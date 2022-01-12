@@ -308,7 +308,9 @@ func (r *HTTPReceiver) Stop() error {
 	r.exit <- struct{}{}
 	<-r.exit
 
-	r.coreClientCtxCancel()
+	if r.coreClientCtxCancel != nil {
+		r.coreClientCtxCancel()
+	}
 	r.RateLimiter.Stop()
 
 	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
