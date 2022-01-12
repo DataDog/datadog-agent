@@ -14,8 +14,10 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -36,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
@@ -86,6 +89,12 @@ var (
 		Short: "Reload policies",
 		RunE:  reloadRuntimePolicies,
 	}
+
+	downloadPoliciesCmd = &cobra.Command{
+		Use:   "download-policy",
+		Short: "Download policy",
+		RunE:  downloadPolicy,
+	}
 )
 
 func init() {
@@ -98,6 +107,7 @@ func init() {
 
 	runtimeCmd.AddCommand(selfTestCmd)
 	runtimeCmd.AddCommand(reloadPoliciesCmd)
+	runtimeCmd.AddCommand(downloadPoliciesCmd)
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
@@ -257,4 +267,32 @@ func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient
 	log.Info("Datadog runtime security agent is now running")
 
 	return agent, nil
+}
+
+func downloadPolicy(cmd *cobra.Command, args []string) error {
+	apiKey := coreconfig.Datadog.GetString("api_key")
+	appKey := coreconfig.Datadog.GetString("app_key")
+	site := coreconfig.Datadog.GetString("site")
+	if site == "" {
+		site = "datadoghq.com"
+	}
+
+	downloadUrl := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
+	fmt.Printf("Policy download url: %s\n", downloadUrl)
+
+	headers := map[string]string{
+		"Content-Type":       "application/json",
+		"DD-API-KEY":         apiKey,
+		"DD-APPLICATION-KEY": appKey,
+	}
+
+	ctx := context.Background()
+	res, err := httputils.Get(ctx, downloadUrl, headers, 10*time.Second)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", res)
+
+	return nil
 }
