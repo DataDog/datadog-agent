@@ -61,4 +61,6 @@ It can notify in three circumstances:
 Entities that contain their own configuration are reconciled using an AD identifier unique to that entity.
 For example, a new container might be deteted first by a listener, creating a new serivce with an AD identifier containing its SHA.
 Soon after, the relevant config provider detects the container, extracts configuration from its labels, and creates an `integration.Config` containing the same AD identifier.
+
 The reconciliation process combines the service and the Config, resolving the template, and schedules the resolved config.
+In the process, [template variables](https://docs.datadoghq.com/agent/faq/template_variables/) are expanded based on values from the service.
