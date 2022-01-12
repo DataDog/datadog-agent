@@ -119,5 +119,8 @@ func (t *CompositeTags) UnmarshalJSON(b []byte) error {
 // The caller of this method must ensure that the slice is never mutate.
 // Should be used only for performance reasons.
 func (t CompositeTags) UnsafeToReadOnlySliceString() []string {
-	return append(t.tags1, t.tags2...)
+	if len(t.tags2) == 0 {
+		return t.tags1
+	}
+	return append(append([]string{}, t.tags1...), t.tags2...)
 }
