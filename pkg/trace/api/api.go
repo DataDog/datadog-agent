@@ -74,15 +74,13 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out                 chan *Payload
-	conf                *config.AgentConfig
-	dynConf             *sampler.DynamicConfig
-	server              *http.Server
-	statsProcessor      StatsProcessor
-	appsecHandler       http.Handler
-	coreClient          pbgo.AgentSecureClient // gRPC client to core agent process
-	coreClientCtx       context.Context
-	coreClientCtxCancel func()
+	out            chan *Payload
+	conf           *config.AgentConfig
+	dynConf        *sampler.DynamicConfig
+	server         *http.Server
+	statsProcessor StatsProcessor
+	appsecHandler  http.Handler
+	coreClient     pbgo.AgentSecureClient // gRPC client to core agent process
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -102,19 +100,8 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		log.Errorf("Could not instantiate AppSec: %v", err)
 	}
 	var coreClient pbgo.AgentSecureClient
-	var coreClientCtx context.Context
-	var coreClientCtxCancel func()
 	if features.Has("config_endpoint") {
-		token, err := security.FetchAuthToken()
-		if err != nil {
-			killProcess("could obtain the auth token for the tracer remote config client: %v", err)
-		}
-		coreClientCtx, coreClientCtxCancel = context.WithCancel(context.Background())
-		md := metadata.MD{
-			"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-		}
-		coreClientCtx = metadata.NewOutgoingContext(coreClientCtx, md)
-		coreClient, err = grpc.GetDDAgentSecureClient(coreClientCtx)
+		coreClient, err = grpc.GetDDAgentSecureClient(context.Background())
 		if err != nil {
 			killProcess("could not instantiate the tracer remote config client: %v", err)
 		}
@@ -123,14 +110,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
 
-		out:                 out,
-		statsProcessor:      statsProcessor,
-		coreClient:          coreClient,
-		coreClientCtx:       coreClientCtx,
-		coreClientCtxCancel: coreClientCtxCancel,
-		conf:                conf,
-		dynConf:             dynConf,
-		appsecHandler:       appsecHandler,
+		out:            out,
+		statsProcessor: statsProcessor,
+		coreClient:     coreClient,
+		conf:           conf,
+		dynConf:        dynConf,
+		appsecHandler:  appsecHandler,
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
@@ -308,9 +293,6 @@ func (r *HTTPReceiver) Stop() error {
 	r.exit <- struct{}{}
 	<-r.exit
 
-	if r.coreClientCtxCancel != nil {
-		r.coreClientCtxCancel()
-	}
 	r.RateLimiter.Stop()
 
 	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
@@ -552,7 +534,15 @@ func (r *HTTPReceiver) handleGetConfig(w http.ResponseWriter, req *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	cfg, err := r.coreClient.ClientGetConfigs(r.coreClientCtx, &configsRequest)
+	token, err := security.FetchAuthToken()
+	if err != nil {
+		killProcess("could obtain the auth token for the tracer remote config client: %v", err)
+	}
+	md := metadata.MD{
+		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+	}
+	ctx := metadata.NewOutgoingContext(req.Context(), md)
+	cfg, err := r.coreClient.ClientGetConfigs(ctx, &configsRequest)
 	if err != nil {
 		statusCode = http.StatusInternalServerError
 		http.Error(w, err.Error(), statusCode)
