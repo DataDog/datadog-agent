@@ -17,6 +17,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path"
 	"time"
 
 	"github.com/pkg/errors"
@@ -273,12 +275,15 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 	apiKey := coreconfig.Datadog.GetString("api_key")
 	appKey := coreconfig.Datadog.GetString("app_key")
 	site := coreconfig.Datadog.GetString("site")
+	policiesDir := coreconfig.Datadog.GetString("runtime_security_config.policies.dir")
+
 	if site == "" {
 		site = "datadoghq.com"
 	}
 
 	downloadUrl := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
 	fmt.Printf("Policy download url: %s\n", downloadUrl)
+	fmt.Printf("Policies dir:        %s\n", policiesDir)
 
 	headers := map[string]string{
 		"Content-Type":       "application/json",
@@ -292,7 +297,10 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", res)
+	outputPath := path.Join(policiesDir, "default.policy")
+	if err := os.WriteFile(outputPath, []byte(res), 0644); err != nil {
+		return err
+	}
 
 	return nil
 }
