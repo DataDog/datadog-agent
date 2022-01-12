@@ -29,7 +29,9 @@ import (
 	"time"
 
 	"github.com/tinylib/msgp/msgp"
+	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/appsec"
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -72,13 +74,15 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out            chan *Payload
-	conf           *config.AgentConfig
-	dynConf        *sampler.DynamicConfig
-	server         *http.Server
-	statsProcessor StatsProcessor
-	appsecHandler  http.Handler
-	coreClient     pbgo.AgentSecureClient // gRPC client to core agent process
+	out                 chan *Payload
+	conf                *config.AgentConfig
+	dynConf             *sampler.DynamicConfig
+	server              *http.Server
+	statsProcessor      StatsProcessor
+	appsecHandler       http.Handler
+	coreClient          pbgo.AgentSecureClient // gRPC client to core agent process
+	coreClientCtx       context.Context
+	coreClientCtxCancel func()
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -97,23 +101,36 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if err != nil {
 		log.Errorf("Could not instantiate AppSec: %v", err)
 	}
-	var grpcClient pbgo.AgentSecureClient
+	var coreClient pbgo.AgentSecureClient
+	var coreClientCtx context.Context
+	var coreClientCtxCancel func()
 	if features.Has("config_endpoint") {
-		grpcClient, err = grpc.GetDDAgentSecureClient(context.Background())
+		token, err := security.FetchAuthToken()
 		if err != nil {
-			log.Errorf("could not instantiate the tracer remote config endpoint: %v", err)
+			killProcess("could obtain the auth token for the tracer remote config client: %v", err)
+		}
+		coreClientCtx, coreClientCtxCancel = context.WithCancel(context.Background())
+		md := metadata.MD{
+			"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		}
+		coreClientCtx = metadata.NewOutgoingContext(coreClientCtx, md)
+		coreClient, err = grpc.GetDDAgentSecureClient(coreClientCtx)
+		if err != nil {
+			killProcess("could not instantiate the tracer remote config client: %v", err)
 		}
 	}
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
 
-		out:            out,
-		statsProcessor: statsProcessor,
-		coreClient:     grpcClient,
-		conf:           conf,
-		dynConf:        dynConf,
-		appsecHandler:  appsecHandler,
+		out:                 out,
+		statsProcessor:      statsProcessor,
+		coreClient:          coreClient,
+		coreClientCtx:       coreClientCtx,
+		coreClientCtxCancel: coreClientCtxCancel,
+		conf:                conf,
+		dynConf:             dynConf,
+		appsecHandler:       appsecHandler,
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
@@ -291,6 +308,7 @@ func (r *HTTPReceiver) Stop() error {
 	r.exit <- struct{}{}
 	<-r.exit
 
+	r.coreClientCtxCancel()
 	r.RateLimiter.Stop()
 
 	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
