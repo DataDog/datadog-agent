@@ -46,6 +46,8 @@ type PrioritySampler struct {
 	localRates *Sampler
 	// remoteRates targetTPS is set remotely and distributed by remote configurations.
 	// One target is defined per combination of tracerEnv, service and it applies only to root spans.
+	// remoteRates can be nil if the remote feature is not enabled in the trace-agent with feature flag "remote_rates"
+	// or in the core-agent remote client.
 	remoteRates *RemoteRates
 
 	// rateByService contains the sampling rates in % to communicate with trace-agent clients.
@@ -71,18 +73,20 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 
 // Start runs and block on the Sampler main loop
 func (s *PrioritySampler) Start() {
-	s.localRates.Start()
 	if s.remoteRates != nil {
 		s.remoteRates.Start()
 	}
 	go func() {
-		t := time.NewTicker(syncPeriod)
-		defer t.Stop()
-
+		updateRates := time.NewTicker(decayPeriod)
+		statsTicker := time.NewTicker(10 * time.Second)
+		defer updateRates.Stop()
+		defer statsTicker.Stop()
 		for {
 			select {
-			case <-t.C:
-				s.rateByService.SetAll(s.ratesByService())
+			case <-updateRates.C:
+				s.updateRates()
+			case <-statsTicker.C:
+				s.reportStats()
 			case <-s.exit:
 				return
 			}
@@ -90,9 +94,25 @@ func (s *PrioritySampler) Start() {
 	}()
 }
 
+// report sampler stats
+func (s *PrioritySampler) reportStats() {
+	s.localRates.report()
+	if s.remoteRates != nil {
+		s.remoteRates.report()
+	}
+}
+
+// update sampling rates
+func (s *PrioritySampler) updateRates() {
+	s.localRates.update()
+	if s.remoteRates != nil {
+		s.remoteRates.update()
+	}
+	s.rateByService.SetAll(s.ratesByService())
+}
+
 // Stop stops the sampler main loop
 func (s *PrioritySampler) Stop() {
-	s.localRates.Stop()
 	if s.remoteRates != nil {
 		s.remoteRates.Stop()
 	}
@@ -216,11 +236,11 @@ func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signa
 
 // ratesByService returns all rates by service, this information is useful for
 // agents to pick the right service rate.
-func (s *PrioritySampler) ratesByService() map[ServiceSignature]float64 {
-	var remoteRates map[Signature]float64
+func (s *PrioritySampler) ratesByService() map[ServiceSignature]rm {
+	var remoteRates map[Signature]rm
 	if s.remoteRates != nil {
-		remoteRates = s.remoteRates.GetAllSignatureSampleRates()
+		remoteRates = s.remoteRates.getAllSignatureSampleRates()
 	}
-	localRates := s.localRates.GetAllSignatureSampleRates()
+	localRates := s.localRates.getAllSignatureSampleRates()
 	return s.catalog.ratesByService(s.agentEnv, localRates, remoteRates, s.localRates.GetDefaultSampleRate())
 }

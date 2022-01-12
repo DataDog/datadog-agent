@@ -61,8 +61,9 @@ func truncatedParents(t *testing.T, opts testOpts) {
 	}
 
 	rule := &rules.RuleDefinition{
-		ID:         "path_test",
-		Expression: `open.file.path =~ "*/a" && open.flags & O_CREAT != 0`,
+		ID: "path_test",
+		// because of the truncated path open.file.path will be '/a/a/a/a*' and not '{{.Root}}/a/a/a*'
+		Expression: `open.file.path =~ "*/a/**" && open.flags & O_CREAT != 0`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, opts)

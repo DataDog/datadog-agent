@@ -213,6 +213,9 @@ enum event_type
     EVENT_MOUNT_RELEASED,
     EVENT_SELINUX,
     EVENT_BPF,
+    EVENT_PTRACE,
+    EVENT_MMAP,
+    EVENT_MPROTECT,
     EVENT_MAX, // has to be the last one
 };
 

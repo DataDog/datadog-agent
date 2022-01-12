@@ -110,6 +110,10 @@ func TestProcessContext(t *testing.T) {
 			ID:         "test_rule_tty",
 			Expression: `open.file.path == "{{.Root}}/test-process-tty" && open.flags & O_CREAT == 0`,
 		},
+		{
+			ID:         "test_rule_ancestors_args",
+			Expression: `open.file.path == "{{.Root}}/test-ancestors-args" && process.ancestors.args_flags == "c" && process.ancestors.args_flags == "x"`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -500,6 +504,30 @@ func TestProcessContext(t *testing.T) {
 
 			service := event.GetProcessServiceTag()
 			assert.Equal(t, service, "myservice")
+		})
+	})
+
+	test.Run(t, "ancestors-args", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		testFile, _, err := test.Path("test-ancestors-args")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		shell, executable := "sh", "touch"
+		args := []string{"-x", "-c", "$(" + executable + " " + testFile + ")"}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(shell, args, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %s", out, err)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_rule_ancestors_args", rule.ID, "wrong rule triggered")
+
+			if !validateExecSchema(t, event) {
+				t.Error(event.String())
+			}
 		})
 	})
 }

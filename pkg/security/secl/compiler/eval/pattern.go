@@ -6,35 +6,64 @@
 package eval
 
 import (
-	"fmt"
-	"regexp"
+	"strings"
 )
 
-// PatternToRegexp converts pattern to regular expression
-func PatternToRegexp(pattern string) (*regexp.Regexp, error) {
-	// quote eveything except wilcard
-	re := regexp.MustCompile(`[\.*+?()|\[\]{}^$]`)
-	quoted := re.ReplaceAllStringFunc(pattern, func(s string) string {
-		if s != "*" {
-			return "\\" + s
-		}
-		return ".*"
-	})
+func nextSegment(str string) (bool, string, int) {
+	var inSegment bool
+	var start, end int
 
-	return regexp.Compile("^" + quoted + "$")
+	var star bool
+	if str[0] == '*' {
+		star = true
+	}
+
+	for i, c := range str {
+		if c != '*' {
+			if !inSegment {
+				start = i
+				inSegment = true
+			}
+			end = i
+		} else if inSegment {
+			break
+		}
+	}
+
+	if star && start == 0 {
+		return star, "", 1
+	}
+
+	end++
+
+	return star, str[start:end], end
 }
 
-func toPattern(se *StringEvaluator) error {
-	if se.regexp != nil {
-		return nil
+// PatternMatches matches a pattern against a string
+func PatternMatches(pattern string, str string) bool {
+	if pattern == "*" {
+		return true
 	}
 
-	reg, err := PatternToRegexp(se.Value)
-	if err != nil {
-		return fmt.Errorf("invalid pattern '%s': %s", se.Value, err)
+	if len(pattern) == 0 {
+		return len(str) == 0
 	}
-	se.valueType = PatternValueType
-	se.regexp = reg
 
-	return nil
+	for len(pattern) > 0 {
+		star, segment, nextIndex := nextSegment(pattern)
+		if star {
+			index := strings.Index(str, segment)
+			if index == -1 {
+				return false
+			}
+			str = str[index+len(segment):]
+		} else {
+			if !strings.HasPrefix(str, segment) {
+				return false
+			}
+			str = str[len(segment):]
+		}
+		pattern = pattern[nextIndex:]
+	}
+	return true
 }

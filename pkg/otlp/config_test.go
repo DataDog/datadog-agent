@@ -57,7 +57,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
-				Metrics:            map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -67,7 +69,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
-				Metrics:            map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -89,7 +93,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
-				Metrics:            map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -103,7 +109,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
-				Metrics:            map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -113,7 +121,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
-				Metrics:            map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -128,7 +138,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
-				Metrics:        map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 		{
@@ -158,7 +170,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
-				Metrics:        map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"tag_cardinality": "",
+				},
 			},
 		},
 	}
@@ -196,6 +210,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 					"send_monotonic_counter":                   true,
 					"resource_attributes_as_tags":              true,
 					"instrumentation_library_metadata_as_tags": true,
+					"tag_cardinality":                          "orchestrator",
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,

@@ -31,7 +31,7 @@ type Event interface {
 	GetTags() []string
 }
 
-func eventTypesFromFields(model Model, state *state) ([]EventType, error) {
+func eventTypesFromFields(model Model, state *State) ([]EventType, error) {
 	events := make(map[EventType]bool)
 	for field := range state.fieldValues {
 		eventType, err := model.NewEvent().GetFieldEventType(field)

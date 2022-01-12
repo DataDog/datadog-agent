@@ -27,12 +27,6 @@ var defaultBackoffConfig = backoff.Config{
 	MaxDelay:   2 * time.Second,
 }
 
-// defaultAgentDialOpts default dial options to the main agent which blocks and retries based on the backoffConfig
-var defaultAgentDialOpts = []grpc.DialOption{
-	grpc.WithConnectParams(grpc.ConnectParams{Backoff: defaultBackoffConfig}),
-	grpc.WithBlock(),
-}
-
 func getGRPCClientConn(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	if config.Datadog.GetString("cmd_port") == "-1" {
 		return nil, errors.New("grpc client disabled via cmd_port: -1")
@@ -40,10 +34,6 @@ func getGRPCClientConn(ctx context.Context, opts ...grpc.DialOption) (*grpc.Clie
 
 	// This is needed as the server hangs when using "grpc.WithInsecure()"
 	tlsConf := tls.Config{InsecureSkipVerify: true}
-
-	if len(opts) == 0 {
-		opts = defaultAgentDialOpts
-	}
 
 	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConf)))
 
@@ -56,9 +46,18 @@ func getGRPCClientConn(ctx context.Context, opts ...grpc.DialOption) (*grpc.Clie
 	return grpc.DialContext(ctx, target, opts...)
 }
 
+// defaultAgentClientDialOpts default dial options to the main agent which blocks and retries based on the backoffConfig
+var defaultAgentClientDialOpts = []grpc.DialOption{
+	grpc.WithConnectParams(grpc.ConnectParams{Backoff: defaultBackoffConfig}),
+	grpc.WithBlock(),
+}
+
 // GetDDAgentClient creates a pb.AgentClient for IPC with the main agent via gRPC. This call is blocking by default, so
 // it is up to the caller to supply a context with appropriate timeout/cancel options
 func GetDDAgentClient(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
+	if len(opts) == 0 {
+		opts = defaultAgentClientDialOpts
+	}
 	conn, err := getGRPCClientConn(ctx, opts...)
 	if err != nil {
 		return nil, err

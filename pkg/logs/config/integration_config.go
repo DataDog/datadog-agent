@@ -27,6 +27,8 @@ const (
 	UTF16BE string = "utf-16-be"
 	// UTF16LE for UTF-16 Little Endian encoding
 	UTF16LE string = "utf-16-le"
+	// SHIFTJIS for Shift JIS (Japanese) encoding
+	SHIFTJIS string = "shift-jis"
 )
 
 // LogsConfig represents a log source config, which can be for instance

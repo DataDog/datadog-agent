@@ -47,8 +47,8 @@ func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (
 	key := ServiceSignature{spans[0].Service, defaultEnv}
 	var rate float64
 	if serviceRate, ok := rates[key]; ok {
-		rate = serviceRate
-		spans[0].Metrics[agentRateKey] = serviceRate
+		rate = serviceRate.r
+		spans[0].Metrics[agentRateKey] = serviceRate.r
 	} else {
 		rate = 1
 	}
@@ -149,6 +149,35 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 	}
 }
 
+func TestPrioritySamplerWithNilRemote(t *testing.T) {
+	conf := &config.AgentConfig{
+		ExtraSampleRate: 1.0,
+		TargetTPS:       0.0,
+	}
+	s := NewPrioritySampler(conf, NewDynamicConfig())
+	s.Start()
+	s.updateRates()
+	s.reportStats()
+	chunk, root := getTestTraceWithService(t, "my-service", s)
+	assert.True(t, s.Sample(chunk, root, "", false))
+	s.Stop()
+}
+
+func TestPrioritySamplerWithRemote(t *testing.T) {
+	conf := &config.AgentConfig{
+		ExtraSampleRate: 1.0,
+		TargetTPS:       0.0,
+	}
+	s := NewPrioritySampler(conf, NewDynamicConfig())
+	s.remoteRates = newRemoteRates(10)
+	s.Start()
+	s.updateRates()
+	s.reportStats()
+	chunk, root := getTestTraceWithService(t, "my-service", s)
+	assert.True(t, s.Sample(chunk, root, "", false))
+	s.Stop()
+}
+
 func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	assert := assert.New(t)
 	rand.Seed(1)
@@ -191,16 +220,16 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	}
 
 	// setting up remote store
-	testCasesRates := pb.APMSampling{TargetTps: make([]pb.TargetTPS, 0, len(testCases))}
+	testCasesRates := pb.APMSampling{TargetTPS: make([]pb.TargetTPS, 0, len(testCases))}
 	for _, tc := range testCases {
 		if tc.localRate {
 			continue
 		}
-		testCasesRates.TargetTps = append(testCasesRates.TargetTps, pb.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
+		testCasesRates.TargetTPS = append(testCasesRates.TargetTPS, pb.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
 	}
 	s.remoteRates = newTestRemoteRates()
 	generatedConfigVersion := uint64(120)
-	s.remoteRates.loadNewConfig(configGenerator(generatedConfigVersion, testCasesRates))
+	s.remoteRates.onUpdate(configGenerator(generatedConfigVersion, testCasesRates))
 
 	for _, tc := range testCases {
 		t.Logf("testing targetTPS=%0.1f generatedTPS=%0.1f localRate=%v clientDrop=%v", tc.targetTPS, tc.generatedTPS, tc.localRate, tc.clientDrop)
@@ -214,12 +243,9 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		// The time unit is a decayPeriod duration.
 		const warmUpDuration, testDuration = 10, 300
 		for timeElapsed := 0; timeElapsed < warmUpDuration+testDuration; timeElapsed++ {
-			s.localRates.Backend.DecayScore()
-			s.localRates.AdjustScoring()
-			s.remoteRates.DecayScores()
-			s.remoteRates.AdjustScoring()
+			s.updateRates()
 
-			tracesPerDecay := tc.generatedTPS * defaultDecayPeriod.Seconds()
+			tracesPerDecay := tc.generatedTPS * decayPeriod.Seconds()
 			for i := 0; i < int(tracesPerDecay); i++ {
 				chunk, root := getTestTraceWithService(t, tc.service, s)
 
@@ -260,12 +286,12 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		}
 
 		var backendSampler *Sampler
-		var ok bool
 		if tc.localRate {
 			backendSampler = s.localRates
 		} else {
-			backendSampler, ok = s.remoteRates.getSampler(ServiceSignature{Name: tc.service, Env: defaultEnv}.Hash())
+			remoteSampler, ok := s.remoteRates.getSampler(ServiceSignature{Name: tc.service, Env: defaultEnv}.Hash())
 			assert.True(ok)
+			backendSampler = &remoteSampler.Sampler
 		}
 
 		assert.InEpsilon(tc.expectedTPS, backendSampler.Backend.GetSampledScore(), tc.relativeError)
@@ -276,6 +302,6 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		// We should have a throughput of sampled traces around targetTPS
 		// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
 		// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-		assert.InEpsilon(tc.expectedTPS, float64(sampledCount)/(float64(testDuration)*defaultDecayPeriod.Seconds()), tc.relativeError)
+		assert.InEpsilon(tc.expectedTPS, float64(sampledCount)/(float64(testDuration)*decayPeriod.Seconds()), tc.relativeError)
 	}
 }

@@ -41,7 +41,7 @@ static __always_inline int http_responding(http_transaction_t *http) {
     return (http != NULL && http->response_status_code != 0);
 }
 
-static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t *tup) {
+static __always_inline void http_enqueue(http_transaction_t *http) {
     // Retrieve the active batch number for this CPU
     u32 cpu = bpf_get_smp_processor_id();
     http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
@@ -57,9 +57,6 @@ static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t 
     if (batch == NULL) {
         return;
     }
-
-    // Embed tuple information in the http_transaction_t object before enqueueing it
-    __builtin_memcpy(&http->tup, tup, sizeof(conn_tuple_t));
 
     // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
     // If you try to directly write the desired batch slot by doing
@@ -102,42 +99,20 @@ static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t 
     }
 }
 
-static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer, conn_tuple_t *tup) {
-    // This can happen in the context of HTTP keep-alives;
-    if (http_responding(http)) {
-        http_enqueue(http, tup);
-    }
-
+static __always_inline void http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
     http->request_method = method;
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
     http->response_status_code = 0;
     __builtin_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
-    return 1;
 }
 
-static __always_inline int http_begin_response(http_transaction_t *http, const char *buffer) {
-    // Extract the status code from the response fragment
-    // HTTP/1.1 200 OK
-    // _________^^^___
-    // Code below is a bit oddly structured in order to make kernel 4.4 verifier happy
-    __u16 status_code = 0;
-    __u8 space_found = 0;
-#pragma unroll
-    for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
-        if (!space_found && buffer[i] == ' ') {
-            space_found = 1;
-        } else if (space_found && status_code < 100) {
-            status_code = status_code * 10 + (buffer[i] - '0');
-        }
-    }
-
-    if (status_code < 100 || status_code >= 600) {
-        return 0;
-    }
-
+static __always_inline void http_begin_response(http_transaction_t *http, const char *buffer) {
+    u16 status_code = 0;
+    status_code += (buffer[HTTP_STATUS_OFFSET+0]-'0') * 100;
+    status_code += (buffer[HTTP_STATUS_OFFSET+1]-'0') * 10;
+    status_code += (buffer[HTTP_STATUS_OFFSET+2]-'0') * 1;
     http->response_status_code = status_code;
-    return 1;
 }
 
 static __always_inline void http_parse_data(char *p, http_packet_t *packet_type, http_method_t *method) {
@@ -167,41 +142,71 @@ static __always_inline void http_parse_data(char *p, http_packet_t *packet_type,
     }
 }
 
-static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 src_port, u64 tags) {
+static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *http, skb_info_t *skb_info, http_packet_t packet_type) {
+    if (packet_type == HTTP_PACKET_UNKNOWN) {
+        return bpf_map_lookup_elem(&http_in_flight, &http->tup);
+    }
+
+    // We detected either a request or a response
+    // In this case we initialize (or fetch) state associated to this tuple
+    bpf_map_update_elem(&http_in_flight, &http->tup, http, BPF_NOEXIST);
+    http_transaction_t *http_ebpf = bpf_map_lookup_elem(&http_in_flight, &http->tup);
+    if (http_ebpf == NULL || skb_info == NULL) {
+        return http_ebpf;
+    }
+
+    // Bail out if we've seen this TCP segment before
+    // This can happen in the context of localhost traffic where the same TCP segment
+    // can be seen multiple times coming in and out from different interfaces
+    if (http_ebpf->tcp_seq == skb_info->tcp_seq) {
+        return NULL;
+    }
+
+    http_ebpf->tcp_seq = skb_info->tcp_seq;
+    return http_ebpf;
+}
+
+static __always_inline http_transaction_t* http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
+    // this can happen in the context of keep-alives
+    bool must_flush = (packet_type == HTTP_REQUEST && http->request_started) ||
+        (packet_type == HTTP_RESPONSE && http->response_status_code);
+
+    if (!must_flush) {
+        return NULL;
+    }
+
+    u32 cpu = bpf_get_smp_processor_id();
+    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
+    if (batch_state == NULL) {
+        return NULL;
+    }
+
+    __builtin_memcpy(&batch_state->scratch_tx, http, sizeof(http_transaction_t));
+    return &batch_state->scratch_tx;
+}
+
+static __always_inline bool http_closed(http_transaction_t *http, skb_info_t *skb_info, u16 pre_norm_src_port) {
+    return (skb_info && skb_info->tcp_flags&TCPHDR_FIN &&
+            http->owned_by_src_port == pre_norm_src_port);
+}
+
+static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info) {
+    char *buffer = (char *)http_stack->request_fragment;
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_parse_data(buffer, &packet_type, &method);
-    http_transaction_t *http = NULL;
 
-    http_transaction_t new_entry = { 0 };
-    new_entry.owned_by_src_port = src_port;
-
-    switch(packet_type) {
-    case HTTP_REQUEST:
-        bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
-        http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
-        if (http == NULL || http->owned_by_src_port != src_port) {
-            return 0;
-        }
-        http_begin_request(http, method, buffer, &skb_info->tup);
-        break;
-    case HTTP_RESPONSE:
-        bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
-        http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
-        if (http == NULL) {
-            return 0;
-        }
-        http_begin_response(http, buffer);
-        break;
-    default:
-        // We're either in the middle of either a request or response
-        http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
-        if (http == NULL) {
-            return 0;
-        }
+    http_transaction_t *http = http_fetch_state(http_stack, skb_info, packet_type);
+    if (http == NULL) {
+        return 0;
     }
 
-    http->tags |= tags;
+    http_transaction_t *to_flush = http_should_flush_previous_state(http, packet_type);
+    if (packet_type == HTTP_REQUEST) {
+        http_begin_request(http, method, buffer);
+    } else if (packet_type == HTTP_RESPONSE) {
+        http_begin_response(http, buffer);
+    }
 
     // If we have a (L7/application-layer) payload we want to update the response_last_seen
     // This is to prevent things such as a keep-alive adding up to the transaction latency
@@ -209,9 +214,17 @@ static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
-    if (skb_info->tcp_flags & TCPHDR_FIN && http->owned_by_src_port == src_port) {
-        http_enqueue(http, &skb_info->tup);
-        bpf_map_delete_elem(&http_in_flight, &skb_info->tup);
+    bool conn_closed = http_closed(http, skb_info, http_stack->owned_by_src_port);
+    if (conn_closed) {
+        to_flush = http;
+    }
+
+    if (to_flush) {
+        http_enqueue(to_flush);
+    }
+
+    if (conn_closed) {
+        bpf_map_delete_elem(&http_in_flight, &http_stack->tup);
     }
 
     return 0;

@@ -539,7 +539,7 @@ type MockSerializerIterableSerie struct {
 	serializer.MockSerializer
 }
 
-func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error {
+func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableMarshaler) error {
 	iterableSerie := series.(*metrics.IterableSeries)
 	defer iterableSerie.IterationStopped()
 

@@ -14,7 +14,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -24,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	dsdReplay "github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -37,7 +35,6 @@ import (
 
 const (
 	taggerStreamSendTimeout = 1 * time.Minute
-	retrySleepDuration      = 3 * time.Second
 )
 
 type server struct {
@@ -195,121 +192,12 @@ func (s *serverSecure) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntity
 	}, nil
 }
 
-func (s *serverSecure) GetConfigs(ctx context.Context, in *pb.GetConfigsRequest) (*pb.GetConfigsResponse, error) {
+func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
 	if s.configService == nil {
 		log.Debug("Remote configuration service not initialized")
 		return nil, errors.New("remote configuration service not initialized")
 	}
-
-	if in.TracerInfo != nil {
-		if err := s.configService.TracerInfos.TrackTracer(in.TracerInfo); err != nil {
-			log.Debugf("Error tracking tracer: %w", err)
-		}
-	}
-	configs, err := s.configService.GetConfigs(in.Product)
-	if err != nil {
-		return nil, err
-	}
-
-	return &pb.GetConfigsResponse{
-		ConfigResponses: []*pbgo.ConfigResponse{configs},
-	}, nil
-}
-
-func (s *serverSecure) GetConfigUpdates(channel pb.AgentSecure_GetConfigUpdatesServer) error {
-	if s.configService == nil {
-		log.Debug("Remote configuration service not initialized")
-		return errors.New("remote config service not initialized")
-	}
-
-	ctx, cancel := context.WithCancel(channel.Context())
-	defer cancel()
-	configs := make(chan *pb.ConfigResponse, 1)
-	reqs := make(chan *pb.SubscribeConfigRequest, 1)
-	done := make(chan struct{}, 1)
-
-	go s.listenReqs(ctx, channel, reqs, done)
-	go s.sendConfigs(ctx, channel, configs, done)
-
-	for {
-		select {
-		case req := <-reqs:
-			if req != nil && req.TracerInfo != nil {
-				if err := s.configService.TracerInfos.TrackTracer(req.TracerInfo); err != nil {
-					log.Debugf("Error adding tracer info: %s", err)
-				}
-			}
-			if !s.configService.HasSubscriber(req.Product) {
-				log.Debugf("New remote configuration subscriber request for product %s", req.Product)
-				subscriber := remoteconfig.NewChanSubscriber(req.Product, time.Second, configs)
-				log.Debugf("New remote configuration subscriber for product %s", req.Product)
-				s.configService.RegisterSubscriber(subscriber)
-				defer s.configService.UnregisterSubscriber(subscriber)
-			}
-		case <-ctx.Done():
-			log.Info("Stopping gRPC server")
-			s.configService.TracerInfos.Stop()
-			if ctx.Err() != context.Canceled {
-				return ctx.Err()
-			}
-			return nil
-		case <-done:
-			log.Info("Stopping gRPC server")
-			s.configService.TracerInfos.Stop()
-			return nil
-		}
-	}
-}
-
-func (s *serverSecure) sendConfigs(ctx context.Context, channel pb.AgentSecure_GetConfigUpdatesServer, configs chan *pb.ConfigResponse, done chan struct{}) {
-	for {
-		log.Debug("Streaming config to gRPC client")
-		select {
-		case config := <-configs:
-			log.Debug("Sending configuration")
-			err := channel.Send(config)
-			if err == io.EOF {
-				log.Infof("Channel closed by client: %s", err)
-				close(done)
-				return
-			} else if err != nil {
-				log.Errorf("Dropping send config request due to error: %s", err)
-				time.Sleep(retrySleepDuration)
-				continue
-			}
-		case <-ctx.Done():
-			log.Info("Done sending config updates to client")
-			return
-		}
-	}
-}
-
-func (s *serverSecure) listenReqs(ctx context.Context, channel pb.AgentSecure_GetConfigUpdatesServer, reqs chan *pb.SubscribeConfigRequest, done chan struct{}) {
-	log.Debug("Starting to listen for subscribe config requests")
-	for {
-		req, err := channel.Recv()
-		if err == io.EOF {
-			log.Infof("Channel closed by client: %s", err)
-			close(done)
-			return
-		} else if err != nil {
-			log.Errorf("Dropping get config request due to error: %s", err)
-			time.Sleep(retrySleepDuration)
-			continue
-		}
-
-		log.Debug("Adding subscribe config request")
-		reqs <- req
-
-		select {
-		case <-ctx.Done():
-			s.configService.TracerInfos.Stop()
-			log.Info("Done listening for subscribe config requests")
-			return
-		default:
-			continue
-		}
-	}
+	return s.configService.ClientGetConfigs(in)
 }
 
 func init() {

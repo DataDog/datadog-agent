@@ -28,14 +28,7 @@ core,github.com/DataDog/agent-payload/v5/gogen,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/process,BSD-3-Clause,"Datadog, Inc"
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc"
-core,github.com/DataDog/ebpf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
 core,github.com/DataDog/ebpf-manager,MIT,Authors of Datadog
-core,github.com/DataDog/ebpf/asm,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
-core,github.com/DataDog/ebpf/internal,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
-core,github.com/DataDog/ebpf/internal/btf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
-core,github.com/DataDog/ebpf/internal/unix,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
-core,github.com/DataDog/ebpf/manager,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
-core,github.com/DataDog/ebpf/perf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
 core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Datadog, Inc"
 core,github.com/DataDog/gohai/cpu,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gohai/filesystem,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
@@ -60,6 +53,7 @@ core,github.com/DataDog/nikos/extract,MIT,"Datadog, Inc"
 core,github.com/DataDog/nikos/rpm,MIT,"Datadog, Inc"
 core,github.com/DataDog/nikos/rpm/dnf,MIT,"Datadog, Inc"
 core,github.com/DataDog/nikos/types,MIT,"Datadog, Inc"
+core,github.com/DataDog/nikos/utils,MIT,"Datadog, Inc"
 core,github.com/DataDog/nikos/wsl,MIT,"Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"DataDog, Inc | Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"DataDog, Inc | Datadog, Inc"
@@ -192,6 +186,8 @@ core,github.com/cilium/ebpf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/cilium/ebpf/asm,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/cilium/ebpf/internal,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/cilium/ebpf/internal/btf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal/epoll,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal/sys,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/cilium/ebpf/internal/unix,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/cilium/ebpf/perf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go Authors
@@ -937,6 +933,7 @@ core,golang.org/x/term,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/encoding,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/encoding/internal,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/encoding/internal/identifier,BSD-3-Clause,The Go Authors
+core,golang.org/x/text/encoding/japanese,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/encoding/unicode,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/internal/utf8internal,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/runes,BSD-3-Clause,The Go Authors

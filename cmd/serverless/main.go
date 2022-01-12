@@ -162,6 +162,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}
 
+	outputDatadogEnvVariablesForDebugging()
+
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
 	err = serverlessDaemon.RestoreCurrentStateFromFile()

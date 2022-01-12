@@ -56,7 +56,17 @@ static unsigned long long (*bpf_get_prandom_u32)(void) = (void*)BPF_FUNC_get_pra
 static int (*bpf_skb_store_bytes)(void* ctx, int off, void* from, int len, int flags) = (void*)BPF_FUNC_skb_store_bytes;
 static int (*bpf_l3_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l3_csum_replace;
 static int (*bpf_l4_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l4_csum_replace;
-static int (*bpf_tail_call)(void* ctx, void* map, int key) = (void*)BPF_FUNC_tail_call;
+
+/* at some point in kernel < 4.15, a duplicate bpf_tail_call symbol got included in the kernel headers.
+   This breaks eBPF builds with a symbol redefinition error.
+   It is fixed in 4.15 with commit https://github.com/torvalds/linux/commit/035226b964c820f65e201cdf123705a8f1d7c670
+   Using bpf_tail_call_compat as a symbol name avoids this issue.
+ */
+static int (*bpf_tail_call_compat)(void* ctx, void* map, int key) = (void*)BPF_FUNC_tail_call;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+static long (*bpf_skb_load_bytes)(const void *skb, u32 offset, void *to, u32 len) = (void*)BPF_FUNC_skb_load_bytes;
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
 static u64 (*bpf_get_current_task)(void) = (void*)BPF_FUNC_get_current_task;

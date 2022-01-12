@@ -191,11 +191,12 @@
 /pkg/process/checks/net*                @DataDog/agent-network
 /pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/process/net/                       @DataDog/processes @DataDog/agent-network
+/pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
+/pkg/proto/pbgo/                        @DataDog/do-not-notify
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/agent-network
 /pkg/ebpf/                              @DataDog/agent-network
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
-/pkg/ebpf/bytecode/bindata/bindataRuntimesecurity*      @DataDog/agent-security
 /pkg/quantile/                          @DataDog/metrics-aggregation
 /pkg/compliance/                        @DataDog/agent-security
 /pkg/kubestatemetrics                   @DataDog/container-integrations

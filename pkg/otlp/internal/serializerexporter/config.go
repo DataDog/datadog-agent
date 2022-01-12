@@ -36,6 +36,9 @@ type metricsConfig struct {
 
 	ExporterConfig metricsExporterConfig `mapstructure:",squash"`
 
+	// TagCardinality is the level of granularity of tags to send for OTLP metrics.
+	TagCardinality string `mapstructure:"tag_cardinality"`
+
 	// HistConfig defines the export of OTLP Histograms.
 	HistConfig histogramConfig `mapstructure:"histograms"`
 }

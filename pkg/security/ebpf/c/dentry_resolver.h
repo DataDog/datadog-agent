@@ -112,6 +112,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
         return DENTRY_INVALID;
     }
 
+    /*u64 max_discarder_depth;
+    LOAD_CONSTANT("max_discarder_depth", max_discarder_depth);*/
+
 #pragma unroll
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
     {
@@ -127,8 +130,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
             next_key.mount_id = 0;
         }
 
-        // discard filename and its parent only in order to limit the number of lookup
-        if (input->discarder_type && i < 2) {
+        if (input->discarder_type && i <= 3) {
             if (is_discarded_by_inode(input->discarder_type, key.mount_id, key.ino, i == 0)) {
                 return DENTRY_DISCARDED;
             }
@@ -183,14 +185,14 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
                                                                                                                        \
     if (syscall->resolver.ret > 0) {                                                                                   \
         if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {                        \
-            bpf_tail_call(ctx, progs_map, dentry_resolver_kern_key);                                                   \
+            bpf_tail_call_compat(ctx, progs_map, dentry_resolver_kern_key);                                                   \
         }                                                                                                              \
                                                                                                                        \
         syscall->resolver.ret += DR_MAX_ITERATION_DEPTH * (syscall->resolver.iteration - 1);                           \
     }                                                                                                                  \
                                                                                                                        \
     if (syscall->resolver.callback >= 0) {                                                                             \
-        bpf_tail_call(ctx, callbacks_map, syscall->resolver.callback);                                                 \
+        bpf_tail_call_compat(ctx, callbacks_map, syscall->resolver.callback);                                                 \
     }                                                                                                                  \
 
 SEC("kprobe/dentry_resolver_kern")
@@ -365,7 +367,7 @@ int kprobe_dentry_resolver_erpc(struct pt_regs *ctx) {
             goto exit;
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
-        bpf_tail_call(ctx, &dentry_resolver_kprobe_progs, DR_ERPC_KEY);
+        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
     }
 
@@ -470,7 +472,7 @@ int __attribute__((always_inline)) handle_dr_request(struct pt_regs *ctx, void *
         goto exit;
     }
 
-    bpf_tail_call(ctx, &dentry_resolver_kprobe_progs, dr_erpc_key);
+    bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, dr_erpc_key);
 
 exit:
     monitor_resolution_err(resolution_err);
@@ -479,9 +481,9 @@ exit:
 
 int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
     if (dr_type == DR_KPROBE) {
-        bpf_tail_call(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
+        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
     } else if (dr_type == DR_TRACEPOINT) {
-        bpf_tail_call(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
+        bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
     }
     return 0;
 }
