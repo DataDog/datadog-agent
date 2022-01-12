@@ -32,6 +32,7 @@ func CompositeTagsFromSlice(tags []string) CompositeTags {
 }
 
 // CombineCompositeTagsAndSlice creates a new CompositeTags from an existing CompositeTags and string slice
+// Implementation note: This function may duplicate `compositeTags.tags2`.
 func CombineCompositeTagsAndSlice(compositeTags CompositeTags, tags []string) CompositeTags {
 	if compositeTags.tags2 == nil {
 		return NewCompositeTags(compositeTags.tags1, tags)
