@@ -182,9 +182,12 @@ func runAgent(exit chan struct{}) {
 		}()
 	}
 
+	// We need to load in the system probe environment variables before we load the config, otherwise an
+	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
+	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
+
 	// `GetContainers` will panic when running in docker if the config hasn't called `DetectFeatures`.
 	// `LoadConfigIfExists` does the job of loading the config and calling `DetectFeatures` so that we can detect containers.
-	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 	if err := config.LoadConfigIfExists(opts.configPath); err != nil {
 		_ = log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
