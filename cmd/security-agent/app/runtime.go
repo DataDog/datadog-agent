@@ -95,6 +95,7 @@ var (
 	downloadPoliciesCmd = &cobra.Command{
 		Use:   "download-policy",
 		Short: "Download policy",
+		Args:  cobra.MaximumNArgs(1),
 		RunE:  downloadPolicy,
 	}
 )
@@ -274,16 +275,23 @@ func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient
 func downloadPolicy(cmd *cobra.Command, args []string) error {
 	apiKey := coreconfig.Datadog.GetString("api_key")
 	appKey := coreconfig.Datadog.GetString("app_key")
-	site := coreconfig.Datadog.GetString("site")
-	policiesDir := coreconfig.Datadog.GetString("runtime_security_config.policies.dir")
 
+	site := coreconfig.Datadog.GetString("site")
 	if site == "" {
 		site = "datadoghq.com"
 	}
 
+	var outputPath string
+	if len(args) == 0 {
+		policiesDir := coreconfig.Datadog.GetString("runtime_security_config.policies.dir")
+		outputPath = path.Join(policiesDir, "default.policy")
+	} else {
+		outputPath = args[0]
+	}
+
 	downloadUrl := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
 	fmt.Printf("Policy download url: %s\n", downloadUrl)
-	fmt.Printf("Policies dir:        %s\n", policiesDir)
+	fmt.Printf("Output path:         %s\n", outputPath)
 
 	headers := map[string]string{
 		"Content-Type":       "application/json",
@@ -297,7 +305,6 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	outputPath := path.Join(policiesDir, "default.policy")
 	if err := os.WriteFile(outputPath, []byte(res), 0644); err != nil {
 		return err
 	}
