@@ -11,6 +11,8 @@ import (
 )
 
 // CompositeTags stores two tag sets and provides methods to manipulate them easily
+// CompositeTags is designed to be used for metric tags created by the aggregator
+// (Context, Serie, SketchSeries, ...)
 type CompositeTags struct {
 	tags1 []string
 	tags2 []string

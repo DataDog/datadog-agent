@@ -27,7 +27,7 @@ func newContext(name string, host string, tags *tags.Entry) *Context {
 		Name:          name,
 		Host:          host,
 		tags:          tags,
-		compositeTags: tagset.CompositeTagsFromSlice(tags.Tags()),
+		compositeTags: tagset.NewCompositeTags(tags.Tags(), nil),
 	}
 }
 
