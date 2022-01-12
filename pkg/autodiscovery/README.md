@@ -7,21 +7,24 @@ This package manages configuration for dynamic entities like pods and containers
 The high-level architecture of this package is implemented by the AutoConfig type, and looks like this:
 
 ```
-               ┌────────────────┐
-               │ Workload Meta  │
-               └──┬──────────┬──┘
-  Static          │          │
-  Files──┐        │          │
-         │        │          │
-    ┌────▼────────▼──┐    ┌──▼─────────────┐
+Kubernetes
+    API──────┐
+             │
+Cluster      │ ┌────────────────┐
+  Agent────┐ │ │ Workload Meta  │
+           │ │ └──┬──────────┬──┘
+ Static    │ │    │          │
+  Files──┐ │ │    │          │
+         │ │ │    │          │
+    ┌────▼─▼─▼────▼──┐    ┌──▼─────────────┐
     │Config Providers│    │   Listeners    │
     └──┬─────┬───────┘    └────────┬───────┘
        │     │                     │
-       │     │templates    services│
        │     │                     │
-       │     └────► reconcile ◄────┤
+       │     │templates    services│
+       │     └────────► │ ◄────────┤
        │                │          │
-       │                │          │
+       │            reconcile      │
        │                │          │
        │non-template    │          │
        │configs         │          │
@@ -32,7 +35,13 @@ The high-level architecture of this package is implemented by the AutoConfig typ
                  └─────────────┘
 ```
 
-The [config providers](https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/autodiscovery/providers) draw configuration information from many sources, including static files (`conf.d/<integration>.d/conf.yaml`) and the workloadmeta service.
+The [config providers](https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/autodiscovery/providers) draw configuration information from many sources
+
+* Kubernetes (for Endpoints and Services, run only on on the cluster agent)
+* cluster agent (for cluster checks and endpoints checks);
+* static files (`conf.d/<integration>.d/conf.yaml`); and
+* the workloadmeta service.
+
 The providers extract configuration from entities' tags, labels, etc. in the form of [`integration.Config`](https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/autodiscovery/integration#Config) values.
 
 Some configs are "templates", meaning that they must be resolved with a service to generate a full, non-template config.
