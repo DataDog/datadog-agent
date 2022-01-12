@@ -83,14 +83,13 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			if av.Meta != "" {
 				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
 			}
-			fmt.Fprintln(
+			fmt.Fprintf(
 				color.Output,
-				fmt.Sprintf("Security agent %s %s- Commit: '%s' - Serialization version: %s",
-					color.BlueString(av.GetNumberAndPre()),
-					meta,
-					color.GreenString(version.Commit),
-					color.MagentaString(serializer.AgentPayloadVersion),
-				),
+				"Security agent %s %s- Commit: '%s' - Serialization version: %s\n",
+				color.BlueString(av.GetNumberAndPre()),
+				meta,
+				color.GreenString(version.Commit),
+				color.MagentaString(serializer.AgentPayloadVersion),
 			)
 		},
 	}
