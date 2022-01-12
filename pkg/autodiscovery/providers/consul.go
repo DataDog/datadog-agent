@@ -47,7 +47,7 @@ func (c *consulWrapper) KV() consulKVBackend {
 type ConsulConfigProvider struct {
 	Client      consulBackend
 	TemplateDir string
-	cache       *ProviderCache
+	cache       *providerCache
 }
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
@@ -85,7 +85,7 @@ func NewConsulConfigProvider(providerConfig *config.ConfigurationProviders) (Con
 		}
 		clientCfg.HttpAuth = auth
 	}
-	cache := NewCPCache()
+	cache := newProviderCache()
 	cli, err := consul.NewClient(clientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to instantiate the consul client: %s", err)
@@ -129,7 +129,7 @@ func (p *ConsulConfigProvider) Collect(ctx context.Context) ([]integration.Confi
 func (p *ConsulConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	kv := p.Client.KV()
 	adListUpdated := false
-	dateIdx := p.cache.LatestTemplateIdx
+	dateIdx := p.cache.mostRecentMod
 
 	queryOptions := &consul.QueryOptions{}
 	queryOptions = queryOptions.WithContext(ctx)
@@ -137,21 +137,21 @@ func (p *ConsulConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if p.cache.NumAdTemplates != len(identifiers) {
-		if p.cache.NumAdTemplates == 0 {
+	if p.cache.count != len(identifiers) {
+		if p.cache.count == 0 {
 			log.Infof("Initializing cache for %v", p.String())
 		}
 		log.Debugf("List of AD Template was modified, updating cache.")
-		p.cache.NumAdTemplates = len(identifiers)
+		p.cache.count = len(identifiers)
 		adListUpdated = true
 	}
 
 	for _, identifier := range identifiers {
 		dateIdx = math.Max(float64(identifier.ModifyIndex), dateIdx)
 	}
-	if dateIdx > p.cache.LatestTemplateIdx || adListUpdated {
-		log.Debugf("Cache Index was %v and is now %v", p.cache.LatestTemplateIdx, dateIdx)
-		p.cache.LatestTemplateIdx = dateIdx
+	if dateIdx > p.cache.mostRecentMod || adListUpdated {
+		log.Debugf("Cache Index was %v and is now %v", p.cache.mostRecentMod, dateIdx)
+		p.cache.mostRecentMod = dateIdx
 		log.Infof("Cache updated for %v", p.String())
 		return false, nil
 	}

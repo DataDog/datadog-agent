@@ -23,23 +23,6 @@ func RegisterProvider(name string, factory ConfigProviderFactory) {
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
 type ConfigProviderFactory func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)
 
-// ProviderCache contains the number of AD Templates and the latest Index
-type ProviderCache struct {
-	LatestTemplateIdx float64
-	NumAdTemplates    int
-}
-
-// ErrorMsgSet contains a list of unique configuration errors for a provider
-type ErrorMsgSet map[string]struct{}
-
-// NewCPCache instantiate a ProviderCache.
-func NewCPCache() *ProviderCache {
-	return &ProviderCache{
-		LatestTemplateIdx: 0,
-		NumAdTemplates:    0,
-	}
-}
-
 // ConfigProvider represents a source of `integration.Config` values
 // that can either be applied immediately or resolved for a service and
 // applied.
