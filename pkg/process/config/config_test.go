@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -54,8 +55,11 @@ func newConfig() {
 }
 
 func loadAgentConfigForTest(t *testing.T, path, networksYamlPath string) *AgentConfig {
+	syscfg, err := sysconfig.Merge(networksYamlPath)
+	require.NoError(t, err)
+
 	require.NoError(t, LoadConfigIfExists(path))
-	cfg, err := NewAgentConfig("test", path, networksYamlPath, false)
+	cfg, err := NewAgentConfig("test", path, syscfg, false)
 	require.NoError(t, err)
 	return cfg
 }
@@ -115,35 +119,38 @@ func TestOnlyEnvConfig(t *testing.T) {
 	newConfig()
 	defer restoreGlobalConfig()
 
+	syscfg, err := sysconfig.Merge("")
+	require.NoError(t, err)
+
 	// setting an API Key should be enough to generate valid config
 	os.Setenv("DD_API_KEY", "apikey_from_env")
 	defer os.Unsetenv("DD_API_KEY")
 	os.Setenv("DD_PROCESS_AGENT_ENABLED", "true")
 	defer os.Unsetenv("DD_PROCESS_AGENT_ENABLED")
 
-	agentConfig, _ := NewAgentConfig("test", "", "", true)
+	agentConfig, _ := NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
 	assert.True(t, agentConfig.Enabled)
 
 	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
 	os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "false")
-	agentConfig, _ = NewAgentConfig("test", "", "", true)
+	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
 	assert.False(t, agentConfig.Enabled)
 
 	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
 	os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "true")
-	agentConfig, _ = NewAgentConfig("test", "", "", true)
+	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
 	// Process discovery enabled by default enables the process agent
 	assert.True(t, agentConfig.Enabled)
 
 	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
-	agentConfig, _ = NewAgentConfig("test", "", "", true)
+	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, 99, agentConfig.MaxPerMessage)
 
 	_ = os.Setenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "1234")
-	agentConfig, _ = NewAgentConfig("test", "", "", true)
+	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, 1234, agentConfig.MaxCtrProcessesPerMessage)
 	_ = os.Unsetenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE")
 }
@@ -153,13 +160,16 @@ func TestOnlyEnvConfig(t *testing.T) {
 func TestEnvGrpcConnectionTimeoutSecs(t *testing.T) {
 	providers.Register(providerMocks.FakeContainerImpl{})
 
+	syscfg, err := sysconfig.Merge("")
+	require.NoError(t, err)
+
 	_ = os.Setenv("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", "1")
-	_, _ = NewAgentConfig("test", "", "", true)
+	_, _ = NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, 1, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
 	_ = os.Unsetenv("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS")
 
 	_ = os.Setenv("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS", "2")
-	_, _ = NewAgentConfig("test", "", "", true)
+	_, _ = NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, 2, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
 	_ = os.Unsetenv("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS")
 }
@@ -205,7 +215,9 @@ func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
 	os.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
 	defer os.Unsetenv("DD_CUSTOM_SENSITIVE_WORDS")
 
-	agentConfig, _ := NewAgentConfig("test", "", "", true)
+	syscfg, err := sysconfig.Merge("")
+	assert.NoError(t, err)
+	agentConfig, _ := NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, true, agentConfig.Scrubber.Enabled)
 
 	cases := []struct {
@@ -233,7 +245,9 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 	defer os.Unsetenv("DD_SCRUB_ARGS")
 	defer os.Unsetenv("DD_CUSTOM_SENSITIVE_WORDS")
 
-	agentConfig, _ := NewAgentConfig("test", "", "", true)
+	syscfg, err := sysconfig.Merge("")
+	require.NoError(t, err)
+	agentConfig, _ := NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, false, agentConfig.Scrubber.Enabled)
 
 	cases := []struct {
@@ -262,7 +276,9 @@ func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
 	os.Setenv("LOG_LEVEL", "debug")
 	defer os.Unsetenv("LOG_LEVEL")
 
-	_, _ = NewAgentConfig("test", "", "", true)
+	syscfg, err := sysconfig.Merge("")
+	require.NoError(t, err)
+	_, _ = NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, "error", config.Datadog.GetString("log_level"))
 }
 
@@ -537,7 +553,9 @@ func TestNetworkConfig(t *testing.T) {
 		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
 		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
 
-		agentConfig, err := NewAgentConfig("test", "", "", true)
+		syscfg, err := sysconfig.Merge("")
+		require.NoError(t, err)
+		agentConfig, err := NewAgentConfig("test", "", syscfg, true)
 		require.NoError(t, err)
 
 		assert.True(t, agentConfig.EnableSystemProbe)
@@ -630,12 +648,15 @@ func TestInvalidHostname(t *testing.T) {
 	providers.Register(providerMocks.FakeContainerImpl{})
 	defer providers.Deregister()
 
+	syscfg, err := sysconfig.Merge("")
+	require.NoError(t, err)
+
 	// Lower the GRPC timeout, otherwise the test will time out in CI
 	config.Datadog.Set("process_config.grpc_connection_timeout_secs", 1)
 
 	// Input yaml file has an invalid hostname (localhost) so we expect to configure via environment
-	agentConfig, err := NewAgentConfig("test", "./testdata/TestDDAgentConfigYamlOnly-InvalidHostname.yaml", "", true)
-	assert.NoError(t, err)
+	agentConfig, err := NewAgentConfig("test", "./testdata/TestDDAgentConfigYamlOnly-InvalidHostname.yaml", syscfg, true)
+	require.NoError(t, err)
 
 	expectedHostname, _ := os.Hostname()
 	assert.Equal(t, expectedHostname, agentConfig.HostName)
