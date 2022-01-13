@@ -224,9 +224,12 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
+    u32 id = 0;
+
     // select map if applicable
     if (syscall->bpf.map_id != 0) {
-        struct bpf_map_t *map = bpf_map_lookup_elem(&bpf_maps, &syscall->bpf.map_id);
+        id = syscall->bpf.map_id;
+        struct bpf_map_t *map = bpf_map_lookup_elem(&bpf_maps, &id);
         if (map != NULL) {
             event.map = *map;
         }
@@ -234,7 +237,8 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
 
     // select prog if applicable
     if (syscall->bpf.prog_id != 0) {
-        struct bpf_prog_t *prog = bpf_map_lookup_elem(&bpf_progs, &syscall->bpf.prog_id);
+        id = syscall->bpf.prog_id;
+        struct bpf_prog_t *prog = bpf_map_lookup_elem(&bpf_progs, &id);
         if (prog != NULL) {
             event.prog = *prog;
         }
