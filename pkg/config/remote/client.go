@@ -92,6 +92,7 @@ func newClient(facts Facts, products []data.Product, dialOpts ...grpc.DialOption
 // Close closes the client
 func (c *Client) Close() {
 	c.close()
+	close(c.apmSamplingUpdates)
 }
 
 func (c *Client) pollLoop() {
