@@ -1562,39 +1562,44 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Spin-up HTTPS server
-	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-		EnableTLS:        true,
-		EnableKeepAlives: true,
-	})
-	defer serverDoneFn()
+	testHTTPS := func(keepalives bool) {
+		// Spin-up HTTPS server
+		serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+			EnableTLS:        true,
+			EnableKeepAlives: keepalives,
+		})
+		defer serverDoneFn()
 
-	// Run wget once to make sure the OpenSSL is detected and uprobes are attached
-	exec.Command(wget).Run()
-	time.Sleep(time.Second)
+		// Run wget once to make sure the OpenSSL is detected and uprobes are attached
+		exec.Command(wget).Run()
+		time.Sleep(time.Second)
 
-	// Issue request using `wget`
-	// This is necessary (as opposed to using net/http) because we want to
-	// test a HTTP client linked to OpenSSL
-	const targetURL = "https://127.0.0.1:443/200/foobar"
-	requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
-	err = requestCmd.Run()
-	require.NoErrorf(t, err, "failed to issue request via wget: %s", err)
+		// Issue request using `wget`
+		// This is necessary (as opposed to using net/http) because we want to
+		// test a HTTP client linked to OpenSSL
+		const targetURL = "https://127.0.0.1:443/200/foobar"
+		requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
+		err = requestCmd.Run()
+		assert.NoErrorf(t, err, "failed to issue request via wget: %s", err)
 
-	require.Eventuallyf(t, func() bool {
-		payload, err := tr.GetActiveConnections("1")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		for key := range payload.HTTP {
-			if key.Path == "/200/foobar" {
-				return true
+		assert.Eventuallyf(t, func() bool {
+			payload, _ := tr.GetActiveConnections("1")
+			for key := range payload.HTTP {
+				if key.Path == "/200/foobar" {
+					return true
+				}
 			}
-		}
 
-		return false
-	}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
+			return false
+		}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
+	}
+
+	t.Run("with keep-alives", func(t *testing.T) {
+		testHTTPS(true)
+	})
+	t.Run("without keep-alives", func(t *testing.T) {
+		testHTTPS(false)
+	})
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
