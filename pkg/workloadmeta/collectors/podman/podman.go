@@ -127,7 +127,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 			EnvVars:    envs,
 			Hostname:   hostname(container),
 			Image:      image,
-			NetworkIPs: make(map[string]string), // I think there's no way to get this mapping
+			NetworkIPs: networkIPs(container),
 			PID:        container.State.PID,
 			Ports:      ports,
 			Runtime:    workloadmeta.ContainerRuntimePodman,
@@ -149,6 +149,18 @@ func (c *collector) expiredEvents() []workloadmeta.CollectorEvent {
 			Source: workloadmeta.SourcePodman,
 			Entity: expired,
 		})
+	}
+
+	return res
+}
+
+func networkIPs(container *podman.Container) map[string]string {
+	res := make(map[string]string)
+
+	if len(container.State.NetworkStatus) > 0 {
+		if len(container.State.NetworkStatus[0].IPs) > 0 {
+			res["podman"] = container.State.NetworkStatus[0].IPs[0].Address.IP.String()
+		}
 	}
 
 	return res

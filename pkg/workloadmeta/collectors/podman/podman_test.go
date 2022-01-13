@@ -10,9 +10,11 @@ package podman
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
+	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/cri-o/ocicni/pkg/ocicni"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
@@ -79,6 +81,17 @@ func TestPull(t *testing.T) {
 				State:       podman.ContainerStateRunning,
 				StartedTime: startTime,
 				PID:         10,
+				NetworkStatus: []*current.Result{
+					{
+						IPs: []*current.IPConfig{
+							{
+								Address: net.IPNet{
+									IP: net.ParseIP("10.88.0.13"),
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 		{
@@ -117,6 +130,17 @@ func TestPull(t *testing.T) {
 				State:       podman.ContainerStateRunning,
 				StartedTime: startTime,
 				PID:         11,
+				NetworkStatus: []*current.Result{
+					{
+						IPs: []*current.IPConfig{
+							{
+								Address: net.IPNet{
+									IP: net.ParseIP("10.88.0.14"),
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -153,8 +177,10 @@ func TestPull(t *testing.T) {
 					ShortName: "agent",
 					Tag:       "latest",
 				},
-				NetworkIPs: make(map[string]string),
-				PID:        10,
+				NetworkIPs: map[string]string{
+					"podman": "10.88.0.13",
+				},
+				PID: 10,
 				Ports: []workloadmeta.ContainerPort{
 					{
 						Port:     2000,
@@ -198,8 +224,10 @@ func TestPull(t *testing.T) {
 					ShortName: "agent-dev",
 					Tag:       "latest",
 				},
-				NetworkIPs: make(map[string]string),
-				PID:        11,
+				NetworkIPs: map[string]string{
+					"podman": "10.88.0.14",
+				},
+				PID: 11,
 				Ports: []workloadmeta.ContainerPort{
 					{
 						Port:     3000,
