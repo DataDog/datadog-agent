@@ -102,7 +102,7 @@ type Consumer struct {
 // Event encapsulates the result of a single netlink.Con.Receive() call
 type Event struct {
 	msgs   []netlink.Message
-	netns  int32
+	netns  uint32
 	buffer *[]byte
 	pool   *sync.Pool
 }
@@ -151,7 +151,7 @@ func (c *Consumer) Events() (<-chan Event, error) {
 
 		c.streaming = true
 		_ = c.conn.JoinGroup(netlinkCtNew)
-		c.receive(output)
+		c.receive(output, 0)
 	}()
 
 	return output, nil
@@ -311,8 +311,13 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 			return fmt.Errorf("netlink dump message validation error: %w", err)
 		}
 
+		nsIno, err := util.GetInoForNs(ns)
+		if err != nil {
+			return fmt.Errorf("netns ino: %w", err)
+		}
+
 		c.socket = sock
-		c.receive(output)
+		c.receive(output, nsIno)
 		return nil
 	})
 }
@@ -396,7 +401,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 // attribute is true, and only when we detect an EOF we close the output channel.
 // It's also worth noting that in the event of an ENOBUF error, we'll re-create a new netlink socket,
 // and attach a BPF sampler to it, to lower the the read throughput and save CPU.
-func (c *Consumer) receive(output chan Event) {
+func (c *Consumer) receive(output chan Event, ns uint32) {
 	atomic.StoreInt32(&c.recvLoopRunning, 1)
 	defer func() {
 		atomic.StoreInt32(&c.recvLoopRunning, 0)
@@ -439,6 +444,10 @@ ReadLoop:
 			msgs = msgs[:len(msgs)-1]
 		}
 
+		if netns == 0 {
+			netns = ns
+		}
+
 		output <- c.eventFor(msgs, netns, buffer)
 
 		// If we're doing a conntrack dump we terminate after reading the multi-part message
@@ -448,7 +457,7 @@ ReadLoop:
 	}
 }
 
-func (c *Consumer) eventFor(msgs []netlink.Message, netns int32, buffer *[]byte) Event {
+func (c *Consumer) eventFor(msgs []netlink.Message, netns uint32, buffer *[]byte) Event {
 	return Event{
 		msgs:   msgs,
 		netns:  netns,
