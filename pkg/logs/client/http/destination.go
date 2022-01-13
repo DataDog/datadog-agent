@@ -253,7 +253,9 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 	req.Header.Set("DD-API-KEY", d.apiKey)
 	req.Header.Set("Content-Type", d.contentType)
-	req.Header.Set("Content-Encoding", payload.Encoding)
+	if payload.Encoding != "" {
+		req.Header.Set("Content-Encoding", payload.Encoding)
+	}
 	if d.protocol != "" {
 		req.Header.Set("DD-PROTOCOL", string(d.protocol))
 	}

@@ -6,7 +6,6 @@
 package config
 
 import (
-	"os"
 	"strings"
 	"time"
 )
@@ -29,16 +28,10 @@ func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 }
 
 func setupProcesses(config Config) {
-	config.SetDefault("process_config.enabled", "false")
 	// process_config.enabled is only used on Windows by the core agent to start the process agent service.
 	// it can be set from file, but not from env. Override it with value from DD_PROCESS_AGENT_ENABLED.
-	ddProcessAgentEnabled, found := os.LookupEnv("DD_PROCESS_AGENT_ENABLED")
-	if found {
-		AddOverride("process_config.enabled", ddProcessAgentEnabled)
-	}
-
+	procBindEnvAndSetDefault(config, "process_config.enabled", "false")
 	config.BindEnv("process_config.process_dd_url", "")
-
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.enabled")
 	config.SetKnown("process_config.intervals.process_realtime")

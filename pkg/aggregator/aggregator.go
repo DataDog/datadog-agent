@@ -302,7 +302,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		ServerlessFlush:         make(chan bool),
 		ServerlessFlushDone:     make(chan struct{}),
 		flushAndSerializeInParallel: flushAndSerializeInParallel{
-			enabled:     config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel"),
+			enabled:     config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") && s != nil && s.IsIterableSeriesSupported(),
 			bufferSize:  config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
 			channelSize: config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
 		},
