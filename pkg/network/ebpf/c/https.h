@@ -34,7 +34,6 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     __builtin_memcpy(&http.tup, t, sizeof(conn_tuple_t));
     read_into_buffer((char *)http.request_fragment, buffer, len);
     http.owned_by_src_port = http.tup.sport;
-    normalize_tuple(&http.tup);
     http.tags |= tags;
     http_process(&http, NULL);
 }
@@ -43,6 +42,7 @@ static __always_inline void https_finish(conn_tuple_t *t) {
     http_transaction_t http;
     __builtin_memset(&http, 0, sizeof(http));
     __builtin_memcpy(&http.tup, t, sizeof(conn_tuple_t));
+    http.owned_by_src_port = http.tup.sport;
 
     skb_info_t skb_info = {0};
     skb_info.tcp_flags |= TCPHDR_FIN;
