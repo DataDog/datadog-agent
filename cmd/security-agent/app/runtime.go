@@ -93,12 +93,16 @@ var (
 		RunE:  reloadRuntimePolicies,
 	}
 
-	downloadPoliciesCmd = &cobra.Command{
+	downloadPolicyCmd = &cobra.Command{
 		Use:   "download-policy",
 		Short: "Download policy",
 		Args:  cobra.MaximumNArgs(1),
 		RunE:  downloadPolicy,
 	}
+
+	downloadPolicyArgs = struct {
+		check bool
+	}{}
 )
 
 func init() {
@@ -111,7 +115,8 @@ func init() {
 
 	runtimeCmd.AddCommand(selfTestCmd)
 	runtimeCmd.AddCommand(reloadPoliciesCmd)
-	runtimeCmd.AddCommand(downloadPoliciesCmd)
+	runtimeCmd.AddCommand(downloadPolicyCmd)
+	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
@@ -131,9 +136,9 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func checkPolicies(cmd *cobra.Command, args []string) error {
+func checkPoliciesInner(dir string) error {
 	cfg := &secconfig.Config{
-		PoliciesDir:         checkPoliciesArgs.dir,
+		PoliciesDir:         dir,
 		EnableKernelFilters: true,
 		EnableApprovers:     true,
 		EnableDiscarders:    true,
@@ -176,6 +181,10 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s\n", string(content))
 
 	return nil
+}
+
+func checkPolicies(cmd *cobra.Command, args []string) error {
+	return checkPoliciesInner(checkPoliciesArgs.dir)
 }
 
 func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
@@ -318,9 +327,22 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := os.WriteFile(outputPath, []byte(res), 0644); err != nil {
+	tempDir, err := os.MkdirTemp("", "policy_check")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tempDir)
+
+	tempOutputPath := path.Join(tempDir, "check.policy")
+	if err := os.WriteFile(tempOutputPath, []byte(res), 0644); err != nil {
 		return err
 	}
 
-	return nil
+	if downloadPolicyArgs.check {
+		if err := checkPoliciesInner(tempDir); err != nil {
+			return err
+		}
+	}
+
+	return os.Rename(tempOutputPath, outputPath)
 }
