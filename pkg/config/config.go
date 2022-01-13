@@ -392,18 +392,6 @@ func InitConfig(config Config) {
 		} else {
 			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 		}
-
-		if pathExists("/host/etc") {
-			if val, isSet := os.LookupEnv("HOST_ETC"); !isSet {
-				// We want to detect the host distro informations instead of the one from the container.
-				// 'HOST_ETC' is used by some libraries like gopsutil and by the system-probe to
-				// download the right kernel headers.
-				os.Setenv("HOST_ETC", "/host/etc")
-				log.Debug("Setting environment variable HOST_ETC to '/host/etc'")
-			} else {
-				log.Debugf("'/host/etc' folder detected but HOST_ETC is already set to '%s', leaving it untouched", val)
-			}
-		}
 	} else {
 		config.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -418,6 +406,7 @@ func InitConfig(config Config) {
 	config.BindEnv("procfs_path")
 	config.BindEnv("container_proc_root")
 	config.BindEnv("container_cgroup_root")
+	config.BindEnvAndSetDefault("ignore_host_etc", false)
 
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
@@ -1143,6 +1132,24 @@ func findUnknownEnvVars(config Config) []string {
 	return unknownVars
 }
 
+func useHostEtc(config Config) {
+	if IsContainerized() && pathExists("/host/etc") {
+		if !config.GetBool("ignore_host_etc") {
+			if val, isSet := os.LookupEnv("HOST_ETC"); !isSet {
+				// We want to detect the host distro informations instead of the one from the container.
+				// 'HOST_ETC' is used by some libraries like gopsutil and by the system-probe to
+				// download the right kernel headers.
+				os.Setenv("HOST_ETC", "/host/etc")
+				log.Debug("Setting environment variable HOST_ETC to '/host/etc'")
+			} else {
+				log.Debugf("'/host/etc' folder detected but HOST_ETC is already set to '%s', leaving it untouched", val)
+			}
+		} else {
+			log.Debug("/host/etc detected but ignored because 'ignore_host_etc' is set to true")
+		}
+	}
+}
+
 func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
@@ -1189,6 +1196,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		AddOverride("python_version", DefaultPython)
 	}
 
+	useHostEtc(config)
 	loadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
