@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
 
@@ -305,6 +306,10 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 		"Content-Type":       "application/json",
 		"DD-API-KEY":         apiKey,
 		"DD-APPLICATION-KEY": appKey,
+	}
+
+	if av, err := version.Agent(); err == nil {
+		headers["DD-AGENT-VERSION"] = av.GetNumberAndPre()
 	}
 
 	ctx := context.Background()
