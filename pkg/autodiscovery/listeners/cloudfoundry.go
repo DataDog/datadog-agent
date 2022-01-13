@@ -203,8 +203,8 @@ func (l *CloudFoundryListener) Stop() {
 	l.stop <- true
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *CloudFoundryService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *CloudFoundryService) GetServiceID() string {
 	return s.adIdentifier.String()
 }
 

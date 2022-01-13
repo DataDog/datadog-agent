@@ -87,8 +87,8 @@ func (l *EnvironmentListener) createServices() {
 	}
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *EnvironmentService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *EnvironmentService) GetServiceID() string {
 	return s.adIdentifier
 }
 

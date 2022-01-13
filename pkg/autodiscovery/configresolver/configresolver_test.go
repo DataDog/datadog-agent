@@ -34,12 +34,12 @@ type dummyService struct {
 	ExtraConfig   map[string]string
 }
 
-// GetEntity returns the service entity name
-func (s *dummyService) GetEntity() string {
+// GetServiceID returns the service entity name
+func (s *dummyService) GetServiceID() string {
 	return s.ID
 }
 
-// GetEntity returns the service entity name
+// GetServiceID returns the service entity name
 func (s *dummyService) GetTaggerEntity() string {
 	return s.ID
 }

@@ -537,17 +537,17 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
 	config, tagsHash, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
-		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetEntity(), err)
+		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
 		errorStats.setResolveWarning(tpl.Name, newErr.Error())
 		return tpl, log.Warn(newErr)
 	}
 	resolvedConfig, err := decryptConfig(config)
 	if err != nil {
-		newErr := fmt.Errorf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetEntity(), err)
+		newErr := fmt.Errorf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
 		return config, log.Warn(newErr)
 	}
 	ac.store.setLoadedConfig(resolvedConfig)
-	ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
+	ac.store.addConfigForService(svc.GetServiceID(), resolvedConfig)
 	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
@@ -607,7 +607,7 @@ func GetResolveWarnings() map[string][]string {
 // triggers scheduling events if it finds a valid config for it.
 func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
 	// in any case, register the service and store its tag hash
-	ac.store.setServiceForEntity(svc, svc.GetEntity())
+	ac.store.setServiceForEntity(svc, svc.GetServiceID())
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
 		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
@@ -617,12 +617,12 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 	var templates []integration.Config
 	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
 	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
+		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetServiceID(), err)
 		return
 	}
 	for _, adID := range ADIdentifiers {
 		// map the AD identifier to this service for reverse lookup
-		ac.store.setADIDForServices(adID, svc.GetEntity())
+		ac.store.setADIDForServices(adID, svc.GetServiceID())
 		tpls, err := ac.store.templateCache.get(adID)
 		if err != nil {
 			log.Debugf("Unable to fetch templates from the cache: %v", err)
@@ -644,7 +644,7 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 	ac.schedule([]integration.Config{
 		{
 			LogsConfig:      integration.Data{},
-			Entity:          svc.GetEntity(),
+			Entity:          svc.GetServiceID(),
 			TaggerEntity:    svc.GetTaggerEntity(),
 			CreationTime:    svc.GetCreationTime(),
 			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
@@ -656,15 +656,15 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
-	ac.store.removeServiceForEntity(svc.GetEntity())
-	removedConfigs := ac.store.removeConfigsForService(svc.GetEntity())
+	ac.store.removeServiceForEntity(svc.GetServiceID())
+	removedConfigs := ac.store.removeConfigsForService(svc.GetServiceID())
 	ac.processRemovedConfigs(removedConfigs)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 	// FIXME: unschedule remove services as well
 	ac.unschedule([]integration.Config{
 		{
 			LogsConfig:      integration.Data{},
-			Entity:          svc.GetEntity(),
+			Entity:          svc.GetServiceID(),
 			TaggerEntity:    svc.GetTaggerEntity(),
 			CreationTime:    svc.GetCreationTime(),
 			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
