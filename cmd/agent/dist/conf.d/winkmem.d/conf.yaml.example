@@ -3,33 +3,33 @@ init_config:
   ## For each of the four metrics, configure the top N results to be reported.  The
   ## default for all is 10.
 
-  ## @param topPagedBytes: - integer - optional - default: 10
-  ## report the top N pool tag consumers by size of paged memory
-  # topPagedBytes: 8
+  ## @param top_paged_bytes: - integer - optional - default: 10
+  ## Report the top N pool tag consumers by size of paged memory.
+  # top_paged_bytes: 8
 
-  ## @param topNonPagedBytes: - integer - optional - default: 10
-  ## report the top N pool tag consumers by size of non-paged memory
-  # topNonPagedBytes: 5
+  ## @param top_non_paged_bytes: - integer - optional - default: 10
+  ## Report the top N pool tag consumers by size of non-paged memory.
+  # top_non_paged_bytes: 5
 
-  ## @topPagedAllocsOutstanding: - integer - optional - default: 10
-  ## report the pool tag with the top number of allocations outstanding 
-  ## (allocations minus frees).  This can be different from the topPagedBytes
-  ## if there are many small allocations (vs. a few large)
-  # topPagedAllocsOutstanding: 5
+  ## @top_paged_allocs_outstanding: - integer - optional - default: 10
+  ## Report the pool tag with the top number of allocations outstanding
+  ## (allocations minus frees).  This can be different from the top_paged_bytes
+  ## if there are many small allocations (vs. a few large allocations).
+  # top_paged_allocs_outstanding: 5
 
-  ## @topNonPagedAllocsOutstanding: - integer - optional - default: 10
-  ## report the pool tag with the top number of non-paged allocations outstanding
-  ## (allocations minus frees).  This can be different from the topNonPagedBytes
-  ## if there are many small allocations (vs. a few large)
-  # topNonPagedAllocsOutstanding: 5
+  ## @top_non_paged_allocs_outstanding: - integer - optional - default: 10
+  ## Report the pool tag with the top number of non-paged allocations outstanding
+  ## (allocations minus frees).  This can be different from the top_non_paged_bytes
+  ## if there are many small allocations (vs. a few large allocations)
+  # top_non_paged_allocs_outstanding: 5
 
-  ## @alloctags: - list - optional - default: None
-  ## list of specific pool tags that should be reported regardless of whether
-  ## that tag is a top consumer
-  # alloctags:
+  ## @extra_tags: - list - optional - default: None
+  ## List of specific pool tags that should be reported, regardless of whether
+  ## that tag is a top consumer.
+  # extra_tags:
   # - Tag1
   # - Tag2
 
-# There is only one instance of the check; there is no instance configuration
+# There is only one instance of the check; there is no instance configuration.
 instances:
   - {}

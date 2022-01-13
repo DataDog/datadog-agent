@@ -38,11 +38,11 @@ var (
 // Config is the configuration options for this check
 // it is exported so that the yaml parser can read it.
 type Config struct {
-	TopPagedBytes                int      `yaml:"topPagedBytes"`
-	TopNonPagedBytes             int      `yaml:"topNonPagedBytes"`
-	TopPagedAllocsOutstanding    int      `yaml:"topPagedAllocsOutstanding"`
-	TopNonPagedAllocsOutstanding int      `yaml:"topNonPagedAllocsOutstanding"`
-	SpecificTags                 []string `yaml:"alloctags"`
+	TopPagedBytes                int      `yaml:"top_paged_bytes"`
+	TopNonPagedBytes             int      `yaml:"top_non_paged_bytes"`
+	TopPagedAllocsOutstanding    int      `yaml:"top_paged_allocs_outstanding"`
+	TopNonPagedAllocsOutstanding int      `yaml:"top_non_paged_allocs_outstanding"`
+	SpecificTags                 []string `yaml:"extra_tags"`
 }
 
 // KMemCheck is the agent object for this check.
@@ -189,9 +189,7 @@ type sortKeyList []sortKey
 
 func (p sortKeyList) Len() int { return len(p) }
 func (p sortKeyList) Swap(i, j int) {
-	l1, l2 := p[j], p[i]
 	p[j], p[i] = p[i], p[j]
-	p[i], p[j] = l1, l2
 }
 func (p sortKeyList) Less(i, j int) bool { return p[i].Key < p[j].Key }
 
