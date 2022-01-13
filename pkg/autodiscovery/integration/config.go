@@ -42,7 +42,7 @@ const (
 // components, in fields of type Data.
 //
 // The Data fields contain YAML data except when config.Provider is
-// names.Container or names.Kubernetes, in which case the configuraiton is in
+// names.Container or names.Kubernetes, in which case the configuration is in
 // JSON.
 type Config struct {
 	// When a new field is added to this struct, please evaluate whether it
