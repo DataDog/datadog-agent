@@ -45,7 +45,7 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
 	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
 }
-func TestEndExecutionSpan(t *testing.T) {
+func TestEndExecutionSpanWithNoError(t *testing.T) {
 	defer os.Unsetenv(functionNameEnvVar)
 	os.Setenv(functionNameEnvVar, "TestFunction")
 	defer reset()
@@ -55,13 +55,13 @@ func TestEndExecutionSpan(t *testing.T) {
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-
+	isError := false
 	var tracePayload *api.Payload
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(mockProcessTrace, endTime)
+	endExecutionSpan(mockProcessTrace, endTime, isError)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -72,6 +72,27 @@ func TestEndExecutionSpan(t *testing.T) {
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 
+}
+
+func TestEndExecutionSpanWithError(t *testing.T) {
+	defer os.Unsetenv(functionNameEnvVar)
+	os.Setenv(functionNameEnvVar, "TestFunction")
+	defer reset()
+	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	startTime := time.Now()
+	startExecutionSpan(startTime, testString)
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	isError := true
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	endExecutionSpan(mockProcessTrace, endTime, isError)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, executionSpan.Error, int32(1))
 }
 
 func TestConvertRawPayloadWithHeaders(t *testing.T) {

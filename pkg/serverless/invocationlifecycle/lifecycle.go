@@ -45,7 +45,7 @@ func (pp *ProxyProcessor) OnInvokeEnd(endDetails *proxy.InvocationEndDetails) {
 
 	if !pp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(pp.ProcessTrace, endDetails.EndTime)
+		endExecutionSpan(pp.ProcessTrace, endDetails.EndTime, endDetails.IsError)
 	}
 
 	if endDetails.IsError {
