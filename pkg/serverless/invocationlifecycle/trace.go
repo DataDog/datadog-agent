@@ -77,7 +77,6 @@ func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time, isEr
 		Duration: duration,
 	}
 
-	// set the span as an error span if necessary
 	if isError {
 		executionSpan.Error = 1
 	}
