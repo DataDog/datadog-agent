@@ -1,6 +1,6 @@
 init_config:
   ## The Windows kernel memory check lists the top users of kernel memory by pool tag.
-  ## for each of the four metrics, configure the top N results to be reported.  The
+  ## For each of the four metrics, configure the top N results to be reported.  The
   ## default for all is 10.
 
   ## @param topPagedBytes: - integer - optional - default: 10
