@@ -103,8 +103,15 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		})
 	}
 
+	var eventType workloadmeta.EventType
+	if container.State.State == podman.ContainerStateRunning {
+		eventType = workloadmeta.EventTypeSet
+	} else {
+		eventType = workloadmeta.EventTypeUnset
+	}
+
 	return workloadmeta.CollectorEvent{
-		Type:   workloadmeta.EventTypeSet,
+		Type:   eventType,
 		Source: workloadmeta.SourcePodman,
 		Entity: &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
