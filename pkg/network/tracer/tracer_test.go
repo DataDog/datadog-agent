@@ -1564,7 +1564,8 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 
 	// Spin-up HTTPS server
 	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-		EnableTLS: true,
+		EnableTLS:        true,
+		EnableKeepAlives: true,
 	})
 	defer serverDoneFn()
 
