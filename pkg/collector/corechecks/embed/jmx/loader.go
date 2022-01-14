@@ -54,7 +54,7 @@ func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.D
 
 	cf := integration.Config{
 		ADIdentifiers: config.ADIdentifiers,
-		Entity:        config.Entity,
+		ServiceID:     config.ServiceID,
 		InitConfig:    config.InitConfig,
 		Instances:     []integration.Data{instance},
 		LogsConfig:    config.LogsConfig,
