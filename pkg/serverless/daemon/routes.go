@@ -6,10 +6,13 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const localTestEnvVar = "DD_LOCAL_TEST"
 
 // Hello is a route called by the Datadog Lambda Library when it starts.
 // It is used to detect the Datadog Lambda Library in the environment.
@@ -30,6 +33,11 @@ type Flush struct {
 
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
+	if len(os.Getenv(localTestEnvVar)) > 0 {
+		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
+		// thus we canot get the REPORT log line telling that the invocation is finished
+		f.daemon.HandleRuntimeDone()
+	}
 }
 
 // StartInvocation is a route that can be called at the beginning of an invocation to enable

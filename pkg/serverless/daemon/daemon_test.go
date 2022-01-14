@@ -59,6 +59,8 @@ func TestTellDaemonRuntimeDoneOnceStartAndEnd(t *testing.T) {
 }
 
 func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
+	os.Setenv(localTestEnvVar, "1")
+	defer os.Unsetenv(localTestEnvVar)
 	assert := assert.New(t)
 	d := StartDaemon("127.0.0.1:8200")
 	defer d.Stop()
