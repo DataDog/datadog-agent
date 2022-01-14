@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const localTestEnvVar = "DD_LOCAL_TEST"
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
