@@ -306,3 +306,131 @@ func TestPull(t *testing.T) {
 		})
 	}
 }
+
+func TestNetworkIPS(t *testing.T) {
+	tests := []struct {
+		name               string
+		container          podman.Container
+		expectedNetworkIPs map[string]string
+	}{
+		{
+			// This is the case where no --net is specified when running the
+			// container. The default network "podman" is used in this case.
+			name: "no network names, but one network status reported",
+			container: podman.Container{
+				Config: &podman.ContainerConfig{
+					ContainerNetworkConfig: podman.ContainerNetworkConfig{
+						Networks: []string{},
+					},
+				},
+				State: &podman.ContainerState{
+					NetworkStatus: []*current.Result{
+						{
+							IPs: []*current.IPConfig{
+								{
+									Address: net.IPNet{
+										IP: net.ParseIP("10.88.0.14"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedNetworkIPs: map[string]string{
+				"podman": "10.88.0.14",
+			},
+		},
+		{
+			name: "same number of network names and statuses reported",
+			container: podman.Container{
+				Config: &podman.ContainerConfig{
+					ContainerNetworkConfig: podman.ContainerNetworkConfig{
+						// Sorted by the order they appear in the run command.
+						Networks: []string{"network-b", "network-a", "network-c"},
+					},
+				},
+				State: &podman.ContainerState{ // Sorted alphabetically by network name
+					NetworkStatus: []*current.Result{
+						{
+							IPs: []*current.IPConfig{
+								{
+									Address: net.IPNet{
+										IP: net.ParseIP("10.88.0.11"),
+									},
+								},
+							},
+						},
+						{
+							IPs: []*current.IPConfig{
+								{
+									Address: net.IPNet{
+										IP: net.ParseIP("10.88.0.12"),
+									},
+								},
+							},
+						},
+						{
+							IPs: []*current.IPConfig{
+								{
+									Address: net.IPNet{
+										IP: net.ParseIP("10.88.0.13"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedNetworkIPs: map[string]string{
+				"network-a": "10.88.0.11",
+				"network-b": "10.88.0.12",
+				"network-c": "10.88.0.13",
+			},
+		},
+		{
+			// If there's more than one network name and the number doesn't
+			// match the number of statutes reported, it means that some
+			// networks were attached or removed after the container was
+			// started. This is a use case that we don't support, and we just
+			// return and empty map.
+			name: "different number of network names and statutes reported",
+			container: podman.Container{
+				Config: &podman.ContainerConfig{
+					ContainerNetworkConfig: podman.ContainerNetworkConfig{
+						Networks: []string{"network-a"},
+					},
+				},
+				State: &podman.ContainerState{
+					NetworkStatus: []*current.Result{
+						{
+							IPs: []*current.IPConfig{
+								{
+									Address: net.IPNet{
+										IP: net.ParseIP("10.88.0.10"),
+									},
+								},
+							},
+						},
+						{
+							IPs: []*current.IPConfig{
+								{
+									Address: net.IPNet{
+										IP: net.ParseIP("10.88.0.11"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedNetworkIPs: map[string]string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expectedNetworkIPs, networkIPs(&test.container))
+		})
+	}
+}
