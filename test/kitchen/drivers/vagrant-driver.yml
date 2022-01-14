@@ -22,6 +22,8 @@ platforms:
   - name: <%= platform[0] %>
     driver:
       box: <%= platform[1] %>
+      vagrantfiles:
+        - ./drivers/vagrant-vbguest.rb
       <% if platform[1].include?('opensuse') %>
       customize:
         disk_bus: sata
