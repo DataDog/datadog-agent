@@ -80,11 +80,10 @@ type Config struct {
 	// discovered by a listener.
 	Provider string `json:"provider"` // (include in digest: false)
 
-	// Entity is the entity ID of the service, set only for service configs.
+	// Entity is the name of the service (set only for service configs)
 	Entity string `json:"-"` // (include in digest: true)
 
 	// TaggerEntity is the tagger entity ID
-	// XXX how is this different from Entity?
 	TaggerEntity string `json:"-"` // (include in digest: false)
 
 	// ClusterCheck is cluster-check configuration flag
