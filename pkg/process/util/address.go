@@ -38,6 +38,8 @@ func AddressFromString(ip string) Address {
 }
 
 // NetIPFromAddress returns a net.IP from an Address
+// Warning: the returned `net.IP` will share the same underlying
+// memory as the given `buf` argument.
 func NetIPFromAddress(addr Address, buf []byte) net.IP {
 	var addrLen int
 	switch addr.(type) {
@@ -153,6 +155,7 @@ func (a v6Address) IsLoopback() bool {
 // IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`
 var IPBufferPool = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, net.IPv6len)
+		b := make([]byte, net.IPv6len)
+		return &b
 	},
 }

@@ -131,14 +131,14 @@ func NewNetlinkRouter(procRoot string) (Router, error) {
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
 	var iifName string
 
-	srcBuf := util.IPBufferPool.Get().([]byte)
-	dstBuf := util.IPBufferPool.Get().([]byte)
+	srcBuf := util.IPBufferPool.Get().(*[]byte)
+	dstBuf := util.IPBufferPool.Get().(*[]byte)
 	defer func() {
 		util.IPBufferPool.Put(srcBuf)
 		util.IPBufferPool.Put(dstBuf)
 	}()
 
-	srcIP := util.NetIPFromAddress(source, srcBuf)
+	srcIP := util.NetIPFromAddress(source, *srcBuf)
 	if n.rootNs != netns {
 		// if its a non-root ns, we're dealing with traffic from
 		// a container most likely, and so need to find out
@@ -161,7 +161,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		}
 	}
 
-	dstIP := util.NetIPFromAddress(dest, dstBuf)
+	dstIP := util.NetIPFromAddress(dest, *dstBuf)
 	routes, err := netlink.RouteGetWithOptions(
 		dstIP,
 		&netlink.RouteGetOptions{
