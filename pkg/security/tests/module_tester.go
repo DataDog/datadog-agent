@@ -695,7 +695,7 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	var status strings.Builder
 	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
 
-	for i := model.UnknownEventType + 1; i < model.MaxEventType; i++ {
+	for i := model.UnknownEventType + 1; i < model.MaxKernelEventType; i++ {
 		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
 		if stats.Count == 0 && kernelStats.Count == 0 && kernelStats.Lost == 0 {
 			continue

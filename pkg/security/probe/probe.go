@@ -67,7 +67,7 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handler   EventHandler
+	handlers  [model.MaxAllEventType][]EventHandler
 	monitor   *Monitor
 	resolvers *Resolvers
 	event     *Event
@@ -309,17 +309,23 @@ func (p *Probe) Start() {
 	go p.reOrderer.Start(&p.wg)
 }
 
-// SetEventHandler set the probe event handler
-func (p *Probe) SetEventHandler(handler EventHandler) {
-	p.handler = handler
+// AddEventHandler set the probe event handler
+func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) {
+	p.handlers[eventType] = append(p.handlers[eventType], handler)
 }
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
 	seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
 
-	if p.handler != nil {
-		p.handler.HandleEvent(event)
+	// send wildcard first
+	for _, handler := range p.handlers[model.UnknownEventType] {
+		handler.HandleEvent(event)
+	}
+
+	// send specific event
+	for _, handler := range p.handlers[event.GetEventType()] {
+		handler.HandleEvent(event)
 	}
 
 	// Process after evaluation because some monitors need the DentryResolver to have been called first.
@@ -330,8 +336,9 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
 
-	if p.handler != nil && p.config.AgentMonitoringEvents {
-		p.handler.HandleCustomEvent(rule, event)
+	// send specific event
+	for _, handler := range p.handlers[event.GetEventType()] {
+		handler.HandleCustomEvent(rule, event)
 	}
 }
 

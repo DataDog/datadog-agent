@@ -108,7 +108,7 @@ func (m *Module) Init() error {
 	// start api server
 	m.apiServer.Start(m.ctx)
 
-	m.probe.SetEventHandler(m)
+	m.probe.AddEventHandler(model.UnknownEventType, m)
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
