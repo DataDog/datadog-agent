@@ -106,7 +106,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		case s.newSources(config):
 			log.Infof("New source to remove: entity: %v", config.ServiceID)
 
-			_, identifier, err := s.parseEntity(config.ServiceID)
+			_, identifier, err := s.parseServiceID(config.ServiceID)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
@@ -240,7 +240,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 
 // toService creates a new service for an integrationConfig.
 func (s *Scheduler) toService(config integration.Config) (*service.Service, error) {
-	provider, identifier, err := s.parseEntity(config.ServiceID)
+	provider, identifier, err := s.parseServiceID(config.ServiceID)
 	if err != nil {
 		return nil, err
 	}
@@ -252,6 +252,16 @@ func (s *Scheduler) parseEntity(entity string) (string, string, error) {
 	components := strings.Split(entity, containers.EntitySeparator)
 	if len(components) != 2 {
 		return "", "", fmt.Errorf("entity is malformed : %v", entity)
+	}
+	return components[0], components[1], nil
+}
+
+// parseServiceID breaks down an AD service ID, assuming it is formatted
+// as `something://something-else`, into its consituent parts.
+func (s *Scheduler) parseServiceID(serviceID string) (string, string, error) {
+	components := strings.Split(serviceID, containers.EntitySeparator)
+	if len(components) != 2 {
+		return "", "", fmt.Errorf("service ID does not have the form `xxx://yyy`: %v", serviceID)
 	}
 	return components[0], components[1], nil
 }
