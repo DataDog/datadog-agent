@@ -89,8 +89,8 @@ type Daemon struct {
 	// logsFlushMutex ensures that only one logs flush can be underway at a given time
 	logsFlushMutex sync.Mutex
 
-	// LifecycleProcessor is used to handle lifecycle events, either using the proxy or the lifecycle API
-	LifecycleProcessor invocationlifecycle.LifecycleProcessor
+	// InvocationProcessor is used to handle lifecycle events, either using the proxy or the lifecycle API
+	InvocationProcessor invocationlifecycle.InvocationProcessor
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime and coordinate

@@ -297,8 +297,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	wg.Wait()
 
-	// set up LifecycleProcessor in the serverless Daemon to be used for the proxy and/or lifecycle API
-	serverlessDaemon.LifecycleProcessor = invocationlifecycle.LifecycleProcessor{
+	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
+	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
 		ExtraTags:           serverlessDaemon.ExtraTags,
 		MetricChannel:       serverlessDaemon.MetricAgent.GetMetricChannel(),
 		ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
@@ -309,7 +309,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	_ = proxy.Start(
 		"127.0.0.1:9000",
 		"127.0.0.1:9001",
-		&serverlessDaemon.LifecycleProcessor,
+		serverlessDaemon.InvocationProcessor,
 	)
 
 	// run the invocation loop in a routine

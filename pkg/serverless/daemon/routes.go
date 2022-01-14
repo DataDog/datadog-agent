@@ -44,12 +44,19 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	reqBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Error("Could not read StartInvocation request body")
+		http.Error(w, "Could not read StartInvocation request body", 400)
+		return
 	}
 
 	var startDetails invocationlifecycle.InvocationStartDetails
-	json.Unmarshal(reqBody, &startDetails)
+	err = json.Unmarshal(reqBody, &startDetails)
+	if err != nil {
+		log.Error("Could not unmarshal StartInvocation payload")
+		http.Error(w, "Could not unmarshal StartInvocation payload", 400)
+		return
+	}
 
-	s.daemon.LifecycleProcessor.OnInvokeStart(&startDetails)
+	s.daemon.InvocationProcessor.OnInvokeStart(&startDetails)
 }
 
 // EndInvocation is a route that can be called at the end of an invocation to enable
@@ -63,20 +70,26 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	reqBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Error("Could not read StartInvocation request body")
+		log.Error("Could not read EndInvocation request body")
+		http.Error(w, "Could not read EndInvocation request body", 400)
+		return
 	}
 
 	var endDetails invocationlifecycle.InvocationEndDetails
-	json.Unmarshal(reqBody, &endDetails)
+	err = json.Unmarshal(reqBody, &endDetails)
+	if err != nil {
+		log.Error("Could not unmarshal EndInvocation payload")
+		http.Error(w, "Could not unmarshal EndInvocation payload", 400)
+		return
+	}
 
-	e.daemon.LifecycleProcessor.OnInvokeEnd(&endDetails)
+	e.daemon.InvocationProcessor.OnInvokeEnd(&endDetails)
 }
 
 // TraceContext is a route called by tracer so it can retrieve the tracing context
 type TraceContext struct {
 }
 
-// TraceContext - see type TraceContext comment.
 func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.TraceContext route.")
 
@@ -86,5 +99,4 @@ func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("x-datadog-trace-id", fmt.Sprintf("%v", traceID))
 	w.Header().Set("x-datadog-span-id", fmt.Sprintf("%v", spanID))
-	w.WriteHeader(200)
 }
