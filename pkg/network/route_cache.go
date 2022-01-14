@@ -103,7 +103,7 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
 	k := routeKey{netns: netns, source: source, dest: dest}
 
-	switch len(dest.Bytes()) {
+	switch util.IPLen(dest) {
 	case 4:
 		k.connFamily = AFINET
 	case 16:

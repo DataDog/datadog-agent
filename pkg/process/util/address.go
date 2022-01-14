@@ -41,17 +41,7 @@ func AddressFromString(ip string) Address {
 // Warning: the returned `net.IP` will share the same underlying
 // memory as the given `buf` argument.
 func NetIPFromAddress(addr Address, buf []byte) net.IP {
-	var addrLen int
-	switch addr.(type) {
-	case v4Address:
-		addrLen = 4
-	case v6Address:
-		addrLen = 16
-	default:
-		return nil
-	}
-
-	if len(buf) < addrLen {
+	if addrLen := IPLen(addr); len(buf) < addrLen {
 		// if the function is misused we allocate
 		buf = make([]byte, addrLen)
 	}
@@ -74,6 +64,18 @@ func ToLowHigh(addr Address) (l, h uint64) {
 	}
 
 	return
+}
+
+// IPLen returns the size (in bytes) required to represent the address IP
+func IPLen(a Address) int {
+	switch a.(type) {
+	case v4Address:
+		return 4
+	case v6Address:
+		return 16
+	default:
+		return 0
+	}
 }
 
 type v4Address [4]byte
