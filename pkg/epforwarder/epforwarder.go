@@ -232,8 +232,8 @@ func (p *passthroughPipeline) Start() {
 }
 
 func (p *passthroughPipeline) Stop() {
-	p.sender.Stop()
 	p.strategy.Stop()
+	p.sender.Stop()
 	p.auditor.Stop()
 }
 
