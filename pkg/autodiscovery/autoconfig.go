@@ -644,7 +644,7 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 	ac.schedule([]integration.Config{
 		{
 			LogsConfig:      integration.Data{},
-			Entity:          svc.GetServiceID(),
+			ServiceID:       svc.GetServiceID(),
 			TaggerEntity:    svc.GetTaggerEntity(),
 			CreationTime:    svc.GetCreationTime(),
 			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
@@ -664,7 +664,7 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	ac.unschedule([]integration.Config{
 		{
 			LogsConfig:      integration.Data{},
-			Entity:          svc.GetServiceID(),
+			ServiceID:       svc.GetServiceID(),
 			TaggerEntity:    svc.GetTaggerEntity(),
 			CreationTime:    svc.GetCreationTime(),
 			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),

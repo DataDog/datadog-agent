@@ -183,7 +183,7 @@ func TestStoreGenerateConfigs(t *testing.T) {
 			want: []integration.Config{
 				{
 					Name:                  "check1",
-					Entity:                "kube_endpoint_uid://ns1/ep1/10.0.0.1",
+					ServiceID:             "kube_endpoint_uid://ns1/ep1/10.0.0.1",
 					ADIdentifiers:         []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kubernetes_pod://pod-1"},
 					AdvancedADIdentifiers: nil,
 					NodeName:              "node1",
@@ -192,7 +192,7 @@ func TestStoreGenerateConfigs(t *testing.T) {
 				},
 				{
 					Name:                  "check1",
-					Entity:                "kube_endpoint_uid://ns1/ep1/10.0.0.2",
+					ServiceID:             "kube_endpoint_uid://ns1/ep1/10.0.0.2",
 					ADIdentifiers:         []string{"kube_endpoint_uid://ns1/ep1/10.0.0.2", "kubernetes_pod://pod-2"},
 					AdvancedADIdentifiers: nil,
 					NodeName:              "node2",

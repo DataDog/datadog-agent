@@ -80,8 +80,9 @@ type Config struct {
 	// discovered by a listener.
 	Provider string `json:"provider"` // (include in digest: false)
 
-	// Entity is the name of the service (set only for service configs)
-	Entity string `json:"-"` // (include in digest: true)
+	// ServiceID is the ID of the service (set only for resolved templates and
+	// for service configs)
+	ServiceID string `json:"-"` // (include in digest: true)
 
 	// TaggerEntity is the tagger entity ID
 	TaggerEntity string `json:"-"` // (include in digest: false)
@@ -401,7 +402,7 @@ func (c *Config) Digest() string {
 	}
 	h.Write([]byte(c.NodeName))                                    //nolint:errcheck
 	h.Write([]byte(c.LogsConfig))                                  //nolint:errcheck
-	h.Write([]byte(c.Entity))                                      //nolint:errcheck
+	h.Write([]byte(c.ServiceID))                                   //nolint:errcheck
 	h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags))) //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)

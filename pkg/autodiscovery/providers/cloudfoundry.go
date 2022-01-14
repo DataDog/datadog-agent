@@ -125,7 +125,7 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP *cloudfoundry.D
 			// mark all checks as cluster checks
 			for i := range parsedConfigs {
 				parsedConfigs[i].ClusterCheck = true
-				parsedConfigs[i].Entity = parsedConfigs[i].ADIdentifiers[0]
+				parsedConfigs[i].ServiceID = parsedConfigs[i].ADIdentifiers[0]
 			}
 			allConfigs = append(allConfigs, parsedConfigs...)
 		}

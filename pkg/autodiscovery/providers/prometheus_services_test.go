@@ -242,7 +242,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 				},
 				{
 					Name:       "openmetrics",
-					Entity:     "kube_endpoint_uid://ns/svc/10.0.0.1",
+					ServiceID:  "kube_endpoint_uid://ns/svc/10.0.0.1",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
 						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
@@ -255,7 +255,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 				},
 				{
 					Name:       "openmetrics",
-					Entity:     "kube_endpoint_uid://ns/svc/10.0.0.2",
+					ServiceID:  "kube_endpoint_uid://ns/svc/10.0.0.2",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
 						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
