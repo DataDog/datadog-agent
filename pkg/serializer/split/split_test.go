@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -64,7 +65,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}
@@ -110,7 +111,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}

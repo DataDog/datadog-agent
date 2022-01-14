@@ -21,9 +21,17 @@ type Context struct {
 	tags *tags.Entry
 }
 
+func newContext(name string, host string, tags *tags.Entry) *Context {
+	return &Context{
+		Name: name,
+		Host: host,
+		tags: tags,
+	}
+}
+
 // Tags returns tags for the context.
-func (c *Context) Tags() []string {
-	return c.tags.Tags()
+func (c *Context) Tags() tagset.CompositeTags {
+	return tagset.NewCompositeTags(c.tags.Tags(), nil)
 }
 
 // contextResolver allows tracking and expiring contexts
@@ -56,11 +64,9 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	contextKey, tagsKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
-		cr.contextsByKey[contextKey] = &Context{
-			Name: metricSampleContext.GetName(),
-			tags: cr.tagsCache.Insert(tagsKey, cr.tagsBuffer),
-			Host: metricSampleContext.GetHost(),
-		}
+
+		cr.contextsByKey[contextKey] =
+			newContext(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsCache.Insert(tagsKey, cr.tagsBuffer))
 	}
 
 	cr.tagsBuffer.Reset()
