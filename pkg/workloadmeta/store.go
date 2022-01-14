@@ -457,20 +457,19 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				continue
 			}
 
-			entityOfSource, ok := s.store[entityID.Kind][entityID.ID]
-			entitySources, _ := filter.SelectSources(entityOfSource.sources())
+			entityOfSource := s.store[entityID.Kind][entityID.ID]
+			filteredSources, _ := filter.SelectSources(entityOfSource.sources())
 
-			if ev.Type == EventTypeSet && ok {
-				// setting an entity is straight forward
+			if ev.Type == EventTypeSet || len(filteredSources) > 0 {
+				// setting an entity (EventTypeSet) or entity
+				// had one source removed, but others remain
 				filteredEvents = append(filteredEvents, Event{
 					Type:    EventTypeSet,
-					Sources: entitySources,
-					Entity:  entityOfSource.merge(entitySources),
+					Sources: filteredSources,
+					Entity:  entityOfSource.merge(filteredSources),
 				})
-				continue
-			}
 
-			if !ok {
+			} else {
 				// entity has been removed entirely, unsetting
 				// is straight forward too
 				filteredEvents = append(filteredEvents, Event{
@@ -478,14 +477,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 					Sources: evSources,
 					Entity:  ev.Entity,
 				})
-				continue
 			}
-
-			filteredEvents = append(filteredEvents, Event{
-				Type:    EventTypeUnset,
-				Sources: evSources,
-				Entity:  ev.Entity,
-			})
 		}
 
 		notifyChannel(sub.name, sub.ch, filteredEvents, true)

@@ -96,7 +96,7 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 )
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman"}
+SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"})

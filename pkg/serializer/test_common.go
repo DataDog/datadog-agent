@@ -33,6 +33,11 @@ func (s *MockSerializer) SendIterableSeries(series marshaler.IterableMarshaler) 
 	return s.Called(series).Error(0)
 }
 
+// IsIterableSeriesSupported returns whether `SendIterableSeries` is supported
+func (s *MockSerializer) IsIterableSeriesSupported() bool {
+	return s.Called().Get(0).(bool)
+}
+
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *MockSerializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	return s.Called(series).Error(0)

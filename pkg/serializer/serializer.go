@@ -97,6 +97,7 @@ type MetricSerializer interface {
 	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
 	SendIterableSeries(series marshaler.IterableMarshaler) error
+	IsIterableSeriesSupported() bool
 	SendSketch(sketches marshaler.Marshaler) error
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
@@ -327,6 +328,12 @@ func (s *Serializer) SendIterableSeries(series marshaler.IterableMarshaler) erro
 		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
 	}
 	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
+}
+
+// IsIterableSeriesSupported returns whether `SendIterableSeries` is supported.
+// Should be removed when `serializePayloadJSON` (useV1API && !s.enableJSONStream) will be removed
+func (s *Serializer) IsIterableSeriesSupported() bool {
+	return config.Datadog.GetBool("use_v2_api.series") || s.enableJSONStream
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder

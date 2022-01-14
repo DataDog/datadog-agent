@@ -45,7 +45,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.ProcessTrace, endDetails.EndTime)
+		endExecutionSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError)
 	}
 
 	if endDetails.IsError {
