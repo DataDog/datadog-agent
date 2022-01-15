@@ -8,7 +8,6 @@ int classifier_ingress(struct __sk_buff *skb) {
 
 SEC("classifier/egress")
 int classifier_egress(struct __sk_buff *skb) {
-    struct flow_pid_key_t flow = {};
     struct cursor c = {};
     tc_cursor_init(&c, skb);
 
@@ -17,7 +16,6 @@ int classifier_egress(struct __sk_buff *skb) {
         // should never happen
         return ACT_OK;
     }
-    flow.netns = pkt->netns;
 
     if (!(parse_ethhdr(&c, &pkt->eth)))
         return ACT_OK;
@@ -29,7 +27,8 @@ int classifier_egress(struct __sk_buff *skb) {
                 return ACT_OK;
 
             pkt->l4_protocol = pkt->ipv4.protocol;
-            flow.addr[0] = pkt->ipv4.saddr;
+            pkt->flow.saddr[0] = pkt->ipv4.saddr;
+            pkt->flow.daddr[0] = pkt->ipv4.daddr;
             break;
 
         case htons(ETH_P_IPV6):
@@ -39,12 +38,14 @@ int classifier_egress(struct __sk_buff *skb) {
                 return ACT_OK;
 
             pkt->l4_protocol = pkt->ipv6.nexthdr;
-            flow.addr[0] = *(u64*)&pkt->ipv6.saddr;
-            flow.addr[1] = *((u64*)(&pkt->ipv6.saddr) + 1);
+            pkt->flow.saddr[0] = *(u64*)&pkt->ipv6.saddr;
+            pkt->flow.saddr[1] = *((u64*)(&pkt->ipv6.saddr) + 1);
+            pkt->flow.daddr[0] = *(u64*)&pkt->ipv6.daddr;
+            pkt->flow.daddr[1] = *((u64*)(&pkt->ipv6.daddr) + 1);
             break;
 
         default:
-            // TODO: handle ARP, ... etc
+            // TODO: handle ARP, etc ...
             return ACT_OK;
     }
 
@@ -56,28 +57,30 @@ int classifier_egress(struct __sk_buff *skb) {
 
             // adjust cursor with variable tcp options
             c.pos += (pkt->tcp.doff << 2) - sizeof(struct tcphdr);
-            return ACT_OK;
+
+            // save current offset within the packet
+            pkt->offset = ((u32)(long)c.pos - skb->data);
+            pkt->flow.sport = pkt->tcp.source;
+            pkt->flow.dport = pkt->tcp.dest;
+            break;
 
         case IPPROTO_UDP:
             // parse UDP header
-            if (!(parse_udphdr(&c, &pkt->udp)) || pkt->udp.dest != htons(DNS_PORT))
+            if (!(parse_udphdr(&c, &pkt->udp)))
                 return ACT_OK;
 
             // save current offset within the packet
             pkt->offset = ((u32)(long)c.pos - skb->data);
-
-            // resolve pid
-            flow.port = pkt->udp.source;
-            pkt->pid = get_flow_pid(&flow);
-
-            return handle_dns_req(skb, pkt);
+            pkt->flow.sport = pkt->udp.source;
+            pkt->flow.dport = pkt->udp.dest;
+            break;
 
         default:
-            // TODO: handle SCTP, ... etc
+            // TODO: handle SCTP, etc ...
             return ACT_OK;
     }
 
-    return ACT_OK;
+    return route_pkt(skb, pkt, EGRESS);
 };
 
 #endif

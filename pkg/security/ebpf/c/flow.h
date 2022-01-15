@@ -1,30 +1,26 @@
 #ifndef _FLOW_H_
 #define _FLOW_H_
 
-struct flow_pid_key_t {
+#define EGRESS 1
+#define INGRESS 2
+
+struct pid_route_t {
     u64 addr[2];
     u32 netns;
     u16 port;
 };
 
-struct flow_pid_value_t {
-    u32 pid;
-};
-
 struct bpf_map_def SEC("maps/flow_pid") flow_pid = {
     .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(struct flow_pid_key_t),
-    .value_size = sizeof(struct flow_pid_value_t),
+    .key_size = sizeof(struct pid_route_t),
+    .value_size = sizeof(u32),
     .max_entries = 10240,
     .pinning = 0,
     .namespace = "",
 };
 
-#define EGRESS 1
-#define INGRESS 2
-
-__attribute__((always_inline)) u32 get_flow_pid(struct flow_pid_key_t *key) {
-    struct flow_pid_value_t *value = bpf_map_lookup_elem(&flow_pid, key);
+__attribute__((always_inline)) u32 get_flow_pid(struct pid_route_t *key) {
+    u32 *value = bpf_map_lookup_elem(&flow_pid, key);
     if (!value) {
         // Try with IP set to 0.0.0.0
         key->addr[0] = 0;
@@ -35,7 +31,7 @@ __attribute__((always_inline)) u32 get_flow_pid(struct flow_pid_key_t *key) {
         }
     }
 
-    return value->pid;
+    return *value;
 }
 
 SEC("kprobe/security_sk_classify_flow")
@@ -43,7 +39,7 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
 {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct flowi *fl = (struct flowi *)PT_REGS_PARM2(ctx);
-    struct flow_pid_key_t key = {};
+    struct pid_route_t key = {};
     u16 family = 0;
 
     bpf_probe_read(&family, sizeof(family), &sk->sk_family);
@@ -68,9 +64,7 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
     if (key.port != 0) {
         u64 id = bpf_get_current_pid_tgid();
         u32 tid = (u32)id;
-        struct flow_pid_value_t value = {
-            .pid = id >> 32,
-        };
+        u32 pid = id >> 32;
 
         // add netns information
         u32 *netns = bpf_map_lookup_elem(&netns_cache, &tid);
@@ -84,7 +78,7 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
             }
         }
 
-        bpf_map_update_elem(&flow_pid, &key, &value, BPF_ANY);
+        bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
 
 #ifdef DEBUG
         bpf_printk("# registered (flow) pid:%d netns:%u\n", value.pid, key.netns);
@@ -99,7 +93,7 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
 {
     struct socket *sk = (struct socket *)PT_REGS_PARM1(ctx);
     struct sockaddr *address = (struct sockaddr *)PT_REGS_PARM2(ctx);
-    struct flow_pid_key_t key = {};
+    struct pid_route_t key = {};
     u16 family = 0;
 
     // Extract IP and port from the sockaddr structure
@@ -120,9 +114,7 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
     if (key.port != 0) {
         u64 id = bpf_get_current_pid_tgid();
         u32 tid = (u32) id;
-        struct flow_pid_value_t value = {
-            .pid = id >> 32,
-        };
+        u32 pid = id >> 32;
 
         // add netns information
         u32 *netns = bpf_map_lookup_elem(&netns_cache, &tid);
@@ -136,7 +128,7 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
              }
          }
 
-        bpf_map_update_elem(&flow_pid, &key, &value, BPF_ANY);
+        bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
 
 #ifdef DEBUG
         bpf_printk("# registered (bind) pid:%d\n", value.pid);
@@ -145,5 +137,87 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
     }
     return 0;
 };
+
+struct flow_t {
+    u64 saddr[2];
+    u64 daddr[2];
+    u32 netns;
+    u16 sport;
+    u16 dport;
+};
+
+__attribute__((always_inline)) void flip(struct flow_t *flow) {
+    u64 tmp = 0;
+    tmp = flow->sport;
+    flow->sport = flow->dport;
+    flow->dport = tmp;
+
+    tmp = flow->saddr[0];
+    flow->saddr[0] = flow->daddr[0];
+    flow->daddr[0] = tmp;
+
+    tmp = flow->saddr[1];
+    flow->saddr[1] = flow->daddr[1];
+    flow->daddr[1] = tmp;
+}
+
+__attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple, struct flow_t *flow) {
+    flow->sport = tuple->src.u.all;
+    flow->dport = tuple->dst.u.all;
+
+    bpf_probe_read(&flow->saddr, sizeof(flow->saddr), &tuple->src.u3.all);
+    bpf_probe_read(&flow->daddr, sizeof(flow->daddr), &tuple->dst.u3.all);
+}
+
+struct bpf_map_def SEC("maps/conntrack") conntrack = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(struct flow_t),
+    .value_size = sizeof(struct flow_t),
+    .max_entries = 4096,
+    .pinning = 0,
+    .namespace = "",
+};
+
+__attribute__((always_inline)) int trace_nat_manip_pkt(struct pt_regs *ctx, struct nf_conn *ct) {
+    u32 netns = get_netns_from_nf_conn(ct);
+
+    struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
+    bpf_probe_read(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
+
+    struct nf_conntrack_tuple *orig_tuple = &tuplehash[IP_CT_DIR_ORIGINAL].tuple;
+    struct nf_conntrack_tuple *reply_tuple = &tuplehash[IP_CT_DIR_REPLY].tuple;
+
+    // parse nat flows
+    struct flow_t orig = {
+        .netns = netns,
+    };
+    struct flow_t reply = {
+        .netns = netns,
+    };
+    parse_tuple(orig_tuple, &orig);
+    parse_tuple(reply_tuple, &reply);
+
+    // save nat translation:
+    //   - flip(reply) should be mapped to orig
+    //   - reply should be mapped to flip(orig)
+    flip(&reply);
+    bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
+    flip(&reply);
+    flip(&orig);
+    bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
+    return 0;
+}
+
+SEC("kprobe/nf_nat_manip_pkt")
+int kprobe_nf_nat_manip_pkt(struct pt_regs *ctx) {
+    struct nf_conn *ct = (struct nf_conn *)PT_REGS_PARM2(ctx);
+    return trace_nat_manip_pkt(ctx, ct);
+}
+
+SEC("kprobe/nf_nat_packet")
+int kprobe_nf_nat_packet(struct pt_regs *ctx) {
+    struct nf_conn *ct = (struct nf_conn *)PT_REGS_PARM2(ctx);
+    return trace_nat_manip_pkt(ctx, ct);
+}
 
 #endif

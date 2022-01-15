@@ -11,6 +11,8 @@
 #include <linux/nsproxy.h>
 
 #include <net/sock.h>
+#include <net/netfilter/nf_conntrack.h>
+#include <net/netfilter/nf_nat.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
 #include <uapi/linux/udp.h>
@@ -56,8 +58,8 @@
 #include "mmap.h"
 #include "mprotect.h"
 #include "raw_syscalls.h"
-#include "network_parser.h"
 #include "flow.h"
+#include "network_parser.h"
 #include "dns.h"
 #include "tc.h"
 #include "module.h"

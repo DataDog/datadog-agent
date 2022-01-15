@@ -72,10 +72,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSizeOfUpid(f.kernelVersion)
 	case "dentry_sb_offset":
 		value = getDentrySuperBlockOffset(f.kernelVersion)
-<<<<<<< HEAD
 	case "pipe_inode_info_bufs_offset":
 		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
-=======
 	case "net_device_ifindex_offset":
 		value = getNetDeviceIfindexOffset(f.kernelVersion)
 	case "net_ns_offset":
@@ -84,7 +82,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSockCommonSKCNetOffset(f.kernelVersion)
 	case "socket_sock_offset":
 		value = getSocketSockOffset(f.kernelVersion)
->>>>>>> e4418a9396 (use runtime compilation to fetch offsets)
+	case "nf_conn_ct_net_offset":
+		value = getNFConnCTNetOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -492,4 +491,8 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 	}
 
 	return offset
+}
+
+func getNFConnCTNetOffset(version *kernel.Version) uint64 {
+	return uint64(144)
 }

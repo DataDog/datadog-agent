@@ -45,6 +45,14 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 	return []manager.TailCallRoute{
 		{
 			ProgArrayName: "classifier_router",
+			Key:           TCDNSRequestKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "classifier/dns_request",
+				EBPFFuncName: "classifier_dns_request",
+			},
+		},
+		{
+			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  "classifier/dns_request_parser",

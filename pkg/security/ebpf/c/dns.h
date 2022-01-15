@@ -1,7 +1,6 @@
 #ifndef _DNS_H_
 #define _DNS_H_
 
-#define DNS_PORT 53
 #define DNS_MAX_LENGTH 256
 
 struct dnshdr {
@@ -70,8 +69,8 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
 
     evt->name[0] = 0;
     evt->process.pid = pkt->pid;
-    evt->process.netns = pkt->netns;
-    evt->device.netns = pkt->netns;
+    evt->process.netns = pkt->translated_flow.netns;
+    evt->device.netns = pkt->translated_flow.netns;
     evt->device.ifindex = skb->ifindex;
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
@@ -137,7 +136,14 @@ __attribute__((always_inline)) int is_dns_request_parsing_done(struct __sk_buff 
     return 1;
 }
 
-__attribute__((always_inline)) int handle_dns_req(struct __sk_buff *skb, struct packet_t *pkt) {
+SEC("classifier/dns_request")
+int classifier_dns_request(struct __sk_buff *skb) {
+    struct packet_t *pkt = get_packet();
+    if (pkt == NULL) {
+        // should never happen
+        return ACT_OK;
+    }
+
     struct dnshdr header = {};
     if (bpf_skb_load_bytes(skb, pkt->offset, &header, sizeof(header)) < 0) {
         return ACT_OK;
@@ -194,11 +200,5 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
 
     return ACT_OK;
 }
-
-// => add DNS server IP
-// => detect new interfaces & attach TC probe
-// => loop for IPv6
-// => tests
-// => parse DNS answer (number of answers, resolved IPs, resolution time)
 
 #endif

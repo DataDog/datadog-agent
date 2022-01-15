@@ -20,6 +20,10 @@ var NetworkTrackingSelectors = []manager.ProbesSelector{
 	&manager.AllOf{Selectors: []manager.ProbesSelector{
 		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_socket_bind", EBPFFuncName: "kprobe_security_socket_bind"}},
 		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_sk_classify_flow", EBPFFuncName: "kprobe_security_sk_classify_flow"}},
+		&manager.OneOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/nf_nat_manip_pkt", EBPFFuncName: "kprobe_nf_nat_manip_pkt"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/nf_nat_packet", EBPFFuncName: "kprobe_nf_nat_packet"}},
+		}},
 	}},
 
 	// network device probes

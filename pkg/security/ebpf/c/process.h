@@ -264,6 +264,15 @@ __attribute__((always_inline)) u32 get_netns_from_socket(struct socket *socket) 
     return get_netns_from_sock(sk);
 }
 
+__attribute__((always_inline)) u32 get_netns_from_nf_conn(struct nf_conn *ct) {
+    u64 nf_conn_ct_net_offset;
+    LOAD_CONSTANT("nf_conn_ct_net_offset", nf_conn_ct_net_offset);
+
+    struct net *net = NULL;
+    bpf_probe_read(&net, sizeof(net), (void *)ct + nf_conn_ct_net_offset);
+    return get_netns_from_net(net);
+}
+
 struct namespace_switch_event_t {
     struct kevent_t event;
     struct process_context_t process;
