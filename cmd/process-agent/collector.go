@@ -78,13 +78,12 @@ type Collector struct {
 }
 
 // NewCollector creates a new Collector
-func NewCollector(cfg *config.AgentConfig) (Collector, error) {
+func NewCollector(cfg *config.AgentConfig, enabledChecks []checks.Check) (Collector, error) {
 	sysInfo, err := checks.CollectSystemInfo(cfg)
 	if err != nil {
 		return Collector{}, err
 	}
 
-	enabledChecks := make([]checks.Check, 0)
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 	for _, c := range checks.All {
 		if !runRealTime && isRealTimeCheck(c.Name()) {
@@ -97,27 +96,22 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 		}
 	}
 
-	return NewCollectorWithChecks(cfg, enabledChecks, runRealTime), nil
-}
-
-func isRealTimeCheck(checkName string) bool {
-	return checkName == config.RTProcessCheckName || checkName == config.RTContainerCheckName
-}
-
-// NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runRealTime bool) Collector {
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
 		groupID:       rand.Int31(),
-		enabledChecks: checks,
+		enabledChecks: enabledChecks,
 
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  0,
 
 		runRealTime: runRealTime,
-	}
+	}, nil
+}
+
+func isRealTimeCheck(checkName string) bool {
+	return checkName == config.RTProcessCheckName || checkName == config.RTContainerCheckName
 }
 
 func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {

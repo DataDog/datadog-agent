@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -252,8 +253,10 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	checksToRun := getEnabledChecks(syscfg, cfg.Orchestrator)
+
 	// Exit if agent is not enabled and we're not debugging a check.
-	if !cfg.Enabled && opts.check == "" {
+	if len(checksToRun) == 0 && opts.check == "" {
 		log.Infof(agent6DisabledMessage)
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
@@ -441,4 +444,35 @@ func cleanupAndExit(status int) {
 	}
 
 	os.Exit(status)
+}
+
+func getEnabledChecks(syscfg *sysconfig.Config, orchicfg *oconfig.OrchestratorConfig) (enabledChecks []check.Check) {
+	if ddconfig.GetProcessCollectionEnabled() {
+		enabledChecks = append(enabledChecks, checks.Process)
+	} else {
+		if ddconfig.Datadog.GetBool("process_config.process_discovery.enabled") {
+			enabledChecks = append(enabledChecks, checks.ProcessDiscovery)
+		}
+		if ddconfig.GetContainerCollectionEnabled() {
+			enabledChecks = append(enabledChecks, checks.Container)
+		}
+	}
+
+	// Enable sysprobe checks
+	for mod := range syscfg.EnabledModules {
+		if moduleChecks, ok := config.ModuleCheckMap[mod]; ok {
+			enabledChecks = append(enabledChecks, moduleChecks...)
+		}
+	}
+
+	if orchicfg.OrchestrationCollectionEnabled {
+		if orchicfg.KubeClusterName != "" {
+			enabledChecks = append(enabledChecks, checks.Pod)
+		} else {
+			_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. " +
+				"To fix this, set it manually via the cluster_name config option")
+		}
+	}
+
+	return
 }

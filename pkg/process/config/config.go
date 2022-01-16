@@ -68,7 +68,7 @@ var (
 	processChecks   = []string{ProcessCheckName, RTProcessCheckName}
 	containerChecks = []string{ContainerCheckName, RTContainerCheckName}
 
-	moduleCheckMap = map[sysconfig.ModuleName][]string{
+	ModuleCheckMap = map[sysconfig.ModuleName][]string{
 		sysconfig.NetworkTracerModule:        {ConnectionsCheckName, NetworkCheckName},
 		sysconfig.OOMKillProbeModule:         {OOMKillCheckName},
 		sysconfig.TCPQueueLengthTracerModule: {TCPQueueLengthCheckName},
@@ -95,7 +95,6 @@ type WindowsConfig struct {
 //
 // Deprecated. Use `pkg/config` directly.
 type AgentConfig struct {
-	Enabled                   bool
 	HostName                  string
 	APIEndpoints              []apicfg.Endpoint
 	QueueSize                 int // The number of items allowed in each delivery queue.
@@ -116,14 +115,12 @@ type AgentConfig struct {
 	ContainerHostType model.ContainerHostType
 
 	// System probe collection configuration
-	EnableSystemProbe  bool
 	SystemProbeAddress string
 
 	// Orchestrator config
 	Orchestrator *oconfig.OrchestratorConfig
 
 	// Check config
-	EnabledChecks  []string
 	CheckIntervals map[string]time.Duration
 
 	// Internal store of a proxy used for generating the Transport
@@ -184,7 +181,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	}
 
 	ac := &AgentConfig{
-		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
 
 		// Allow buffering up to 60 megabytes of payload data in total
@@ -290,21 +286,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 	}
 
 	if syscfg.Enabled {
-		cfg.EnableSystemProbe = true
 		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = syscfg.SocketAddress
-
-		// enable corresponding checks to system-probe modules
-		for mod := range syscfg.EnabledModules {
-			if checks, ok := moduleCheckMap[mod]; ok {
-				cfg.EnabledChecks = append(cfg.EnabledChecks, checks...)
-			}
-		}
-
-		if !cfg.Enabled {
-			log.Info("enabling process-agent for connections check as the system-probe is enabled")
-			cfg.Enabled = true
-		}
 	}
 
 	// TODO: Once proxies have been moved to common config util, remove this
