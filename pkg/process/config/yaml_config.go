@@ -8,7 +8,6 @@ package config
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -57,18 +56,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.HostName = config.Datadog.GetString("hostname")
 	}
 
-	// Note: The enabled environment flag operates differently than that of our YAML configuration
-	if v, ok := os.LookupEnv("DD_PROCESS_AGENT_ENABLED"); ok {
-		// DD_PROCESS_AGENT_ENABLED: true - Process + Container checks enabled
-		//                           false - No checks enabled
-		//                           (none) - Container check enabled (by default)
-		if enabled, err := isAffirmative(v); enabled {
-			a.Enabled = true
-			a.EnabledChecks = processChecks
-		} else if !enabled && err == nil {
-			a.Enabled = false
-		}
-	} else if k := key(ns, "enabled"); config.Datadog.IsSet(k) {
+	if k := key(ns, "enabled"); config.Datadog.IsSet(k) {
 		// A string indicate the enabled state of the Agent.
 		//   If "false" (the default) we will only collect containers.
 		//   If "true" we will collect containers and processes.

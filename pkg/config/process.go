@@ -6,6 +6,7 @@
 package config
 
 import (
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +43,17 @@ func setupProcesses(config Config) {
 	// "process_config.enabled" is deprecated. We must be able to detect if it is present, to know if we should use it
 	// or container_collection.enabled and process_collection.enabled.
 	procBindEnv(config, "process_config.enabled")
+	config.SetEnvKeyTransformer("process_config.enabled", func(val string) interface{} {
+		// DD_PROCESS_AGENT_ENABLED: true - Process + Container checks enabled
+		//                           (unset) - Defaults are used, only container check is enabled
+		//                           false - No checks enabled
+		_ = displayProcConfigEnabledDeprecationWarning()
+		if enabled, _ := strconv.ParseBool(val); enabled {
+			return "true"
+		} else {
+			return "disabled"
+		}
+	})
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
@@ -85,12 +97,12 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 }
 
-var displayProcConfigEnabledOnce sync.Once
+var displayProcConfigEnabledWarningOnce sync.Once
 
 // displayProcConfigEnabledDeprecationWarning displays a deprecation warning for process_config.enabled only once.
 // For testing purposes, it rethrows the warning.
 func displayProcConfigEnabledDeprecationWarning() (warning error) {
-	displayProcConfigEnabledOnce.Do(func() {
+	displayProcConfigEnabledWarningOnce.Do(func() {
 		warning = log.Warn("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
 			" and process_config.process_collection.enabled instead")
 	})
@@ -115,7 +127,7 @@ func GetProcessCollectionEnabled(config Config) bool {
 	if config.IsSet("process_config.enabled") {
 		_ = displayProcConfigEnabledDeprecationWarning()
 
-		return config.GetString("process_config.enabled") == "true"
+		return config.GetBool("process_config.enabled") == true
 	}
 	return config.GetBool("process_config.process_collection.enabled")
 }

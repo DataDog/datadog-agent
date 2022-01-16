@@ -179,10 +179,10 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: true,
 		},
 		{
-			key:      "process_config.container_collection.enabled",
-			env:      "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
+			key:      "process_config.enabled",
+			env:      "DD_PROCESS_CONFIG_ENABLED",
 			value:    "false",
-			expected: false,
+			expected: "disabled",
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
