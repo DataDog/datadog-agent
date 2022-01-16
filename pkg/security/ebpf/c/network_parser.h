@@ -114,6 +114,8 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
         tmp_flow = *translated_flow;
     }
 
+    // TODO: if nothing was found in the conntrack map, lookup ingress nat rules (nothing to do for egress though)
+
     // resolve pid
     switch (network_direction) {
         case EGRESS: {

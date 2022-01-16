@@ -24,6 +24,8 @@ var NetworkTrackingSelectors = []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/nf_nat_manip_pkt", EBPFFuncName: "kprobe_nf_nat_manip_pkt"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/nf_nat_packet", EBPFFuncName: "kprobe_nf_nat_packet"}},
 		}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/path_get", EBPFFuncName: "kprobe_path_get"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/proc_fd_link", EBPFFuncName: "kprobe_proc_fd_link"}},
 	}},
 
 	// network device probes

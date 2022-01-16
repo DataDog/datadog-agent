@@ -67,21 +67,15 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
         u32 pid = id >> 32;
 
         // add netns information
-        u32 *netns = bpf_map_lookup_elem(&netns_cache, &tid);
-        if (netns != NULL) {
-            key.netns = *netns;
-        } else {
-            // use the socket
-            key.netns = get_netns_from_sock(sk);
-            if (key.netns != 0) {
-                bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
-            }
+        key.netns = get_netns_from_sock(sk);
+        if (key.netns != 0) {
+            bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
         }
 
         bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
 
 #ifdef DEBUG
-        bpf_printk("# registered (flow) pid:%d netns:%u\n", value.pid, key.netns);
+        bpf_printk("# registered (flow) pid:%d netns:%u\n", pid, key.netns);
         bpf_printk("# p:%d a:%d a:%d\n", key.port, key.addr[0], key.addr[1]);
 #endif
     }
@@ -117,21 +111,15 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
         u32 pid = id >> 32;
 
         // add netns information
-        u32 *netns = bpf_map_lookup_elem(&netns_cache, &tid);
-        if (netns != NULL) {
-            key.netns = *netns;
-        } else {
-             // use the socket
-             key.netns = get_netns_from_socket(sk);
-             if (key.netns != 0) {
-                 bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
-             }
-         }
+        key.netns = get_netns_from_socket(sk);
+        if (key.netns != 0) {
+            bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
+        }
 
         bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
 
 #ifdef DEBUG
-        bpf_printk("# registered (bind) pid:%d\n", value.pid);
+        bpf_printk("# registered (bind) pid:%d\n", pid);
         bpf_printk("# p:%d a:%d a:%d\n", key.port, key.addr[0], key.addr[1]);
 #endif
     }

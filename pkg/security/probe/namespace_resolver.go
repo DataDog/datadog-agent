@@ -73,6 +73,20 @@ func (nn *NetworkNamespace) openHandle(tid uint32) error {
 	nn.Lock()
 	defer nn.Unlock()
 
+	// check that the handle matches the expected netns ID
+	threadNetnsID, err := utils.GetProcessNetworkNamespace(tid)
+	if err != nil {
+		return err
+	}
+	if threadNetnsID != nn.nsID {
+		// The reason why this can happen is that a process can hold a socket in a different network namespace. This is
+		// the case for the Docker Embedded DNS server: a socket is created in the container namespace, but the thead
+		// holding the socket jumps back to the host network namespace. Unfortunately this code is racy: ideally we'd
+		// like to lock the network namespace of the thread in place until we fetch both the netns ID and the handle,
+		// but afaik that's not possible (without freezing the process or its cgroup ...).
+		return fmt.Errorf("the provided doesn't match the expected netns ID: got %d, expected %d", threadNetnsID, nn.nsID)
+	}
+
 	handle, err := os.Open(utils.NetNSPath(tid))
 	if err != nil {
 		return err

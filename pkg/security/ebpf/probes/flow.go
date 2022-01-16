@@ -39,6 +39,20 @@ var flowProbes = []*manager.Probe{
 			EBPFFuncName: "kprobe_nf_nat_packet",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/path_get",
+			EBPFFuncName: "kprobe_path_get",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/proc_fd_link",
+			EBPFFuncName: "kprobe_proc_fd_link",
+		},
+	},
 }
 
 func getFlowProbes() []*manager.Probe {
