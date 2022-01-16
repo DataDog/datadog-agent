@@ -7,7 +7,10 @@ package config
 
 import (
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -27,10 +30,21 @@ func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 	config.BindEnvAndSetDefault(key, val, envs...)
 }
 
+// procBindEnv is a helper function that does the same thing as procBindEnvAndSetDefault except it does not set a default.
+func procBindEnv(config Config, key string) {
+	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
+	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
+
+	config.BindEnv(key, processConfigKey, processAgentKey)
+}
+
 func setupProcesses(config Config) {
-	// process_config.enabled is only used on Windows by the core agent to start the process agent service.
-	// it can be set from file, but not from env. Override it with value from DD_PROCESS_AGENT_ENABLED.
-	procBindEnvAndSetDefault(config, "process_config.enabled", "false")
+	// "process_config.enabled" is deprecated. We must be able to detect if it is present, to know if we should use it
+	// or container_collection.enabled and process_collection.enabled.
+	procBindEnv(config, "process_config.enabled")
+	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
+	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
+
 	config.BindEnv("process_config.process_dd_url", "")
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.enabled")
@@ -69,4 +83,39 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
+}
+
+var displayProcConfigEnabledOnce sync.Once
+
+// displayProcConfigEnabledDeprecationWarning displays a deprecation warning for process_config.enabled only once.
+// For testing purposes, it rethrows the warning.
+func displayProcConfigEnabledDeprecationWarning() (warning error) {
+	displayProcConfigEnabledOnce.Do(func() {
+		warning = log.Warn("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
+			" and process_config.process_collection.enabled instead")
+	})
+	return
+}
+
+// GetContainerCollectionEnabled retrieves the value of process_config.container_collection.enabled.
+// If process_config.enabled is set, we display a deprecation warning and use that value instead.
+func GetContainerCollectionEnabled(config Config) bool {
+	if config.IsSet("process_config.enabled") {
+		_ = displayProcConfigEnabledDeprecationWarning()
+
+		return config.GetString("process_config.enabled") == "false"
+	}
+	return config.GetBool("process_config.container_collection.enabled") &&
+		!config.GetBool("process_config.process_collection.enabled") // Process Collection already collects containers
+}
+
+// GetProcessCollectionEnabled retrieves the value of process_config.process_collection.enabled.
+// If process_config.enabled is set, we display a deprecation warning and use that value instead.
+func GetProcessCollectionEnabled(config Config) bool {
+	if config.IsSet("process_config.enabled") {
+		_ = displayProcConfigEnabledDeprecationWarning()
+
+		return config.GetString("process_config.enabled") == "true"
+	}
+	return config.GetBool("process_config.process_collection.enabled")
 }
