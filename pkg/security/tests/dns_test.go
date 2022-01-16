@@ -32,6 +32,10 @@ func TestDNS(t *testing.T) {
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
 			assert.Equal(t, "google.com", event.DNS.Name, "wrong domain name")
+
+			if !validateDNSSchema(t, event) {
+				t.Error(event.String())
+			}
 		})
 	})
 }

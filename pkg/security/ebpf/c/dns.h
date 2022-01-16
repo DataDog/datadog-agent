@@ -69,6 +69,7 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
 
     evt->name[0] = 0;
     evt->process.pid = pkt->pid;
+    evt->process.tid = pkt->pid;
     evt->process.netns = pkt->translated_flow.netns;
     evt->device.netns = pkt->translated_flow.netns;
     evt->device.ifindex = skb->ifindex;
