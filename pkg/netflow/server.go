@@ -30,16 +30,16 @@ type SnmpPacket struct {
 // PacketsChannel is the type of channels of trap packets.
 type PacketsChannel = chan *SnmpPacket
 
-// TrapServer manages an SNMPv2 trap listener.
-type TrapServer struct {
+// NetflowCollector manages an SNMPv2 trap listener.
+type NetflowCollector struct {
 	Addr     string
 	config   *Config
-	listener *gosnmp.TrapListener
+	listener *utils.StateNetFlow
 	packets  PacketsChannel
 }
 
 var (
-	serverInstance *TrapServer
+	serverInstance *NetflowCollector
 	startError     error
 )
 
@@ -71,7 +71,7 @@ func GetPacketsChannel() PacketsChannel {
 }
 
 // NewNetflowServer configures and returns a running SNMP traps server.
-func NewNetflowServer() (*TrapServer, error) {
+func NewNetflowServer() (*NetflowCollector, error) {
 	config, err := ReadConfig()
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func NewNetflowServer() (*TrapServer, error) {
 		return nil, err
 	}
 
-	server := &TrapServer{
+	server := &NetflowCollector{
 		listener: listener,
 		config:   config,
 		packets:  packets,
@@ -93,7 +93,7 @@ func NewNetflowServer() (*TrapServer, error) {
 	return server, nil
 }
 
-func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListener, error) {
+func startSNMPv2Listener(c *Config, packets PacketsChannel) (*utils.StateNetFlow, error) {
 	log.Warn("Starting Netflow Server")
 
 	ctx := context.TODO()
@@ -160,16 +160,16 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListene
 	//	return nil, err
 	//}
 
-	return nil, nil
+	return sNF, nil
 }
 
-// Stop stops the TrapServer.
-func (s *TrapServer) Stop() {
+// Stop stops the NetflowCollector.
+func (s *NetflowCollector) Stop() {
 	stopped := make(chan interface{})
 
 	go func() {
 		log.Infof("Stop listening on %s", s.config.Addr())
-		s.listener.Close()
+		s.listener.Shutdown()
 		close(stopped)
 	}()
 
