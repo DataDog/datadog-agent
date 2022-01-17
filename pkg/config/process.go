@@ -6,12 +6,11 @@
 package config
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -40,19 +39,19 @@ func procBindEnv(config Config, key string) {
 }
 
 func setupProcesses(config Config) {
-	// "process_config.enabled" is deprecated. We must be able to detect if it is present, to know if we should use it
+	// "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
 	// or container_collection.enabled and process_collection.enabled.
 	procBindEnv(config, "process_config.enabled")
 	config.SetEnvKeyTransformer("process_config.enabled", func(val string) interface{} {
 		// DD_PROCESS_AGENT_ENABLED: true - Process + Container checks enabled
-		//                           (unset) - Defaults are used, only container check is enabled
 		//                           false - No checks enabled
+		//                           (unset) - Defaults are used, only container check is enabled
 		_ = displayProcConfigEnabledDeprecationWarning()
 		if enabled, _ := strconv.ParseBool(val); enabled {
 			return "true"
-		} else {
-			return "disabled"
 		}
+
+		return "disabled"
 	})
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
