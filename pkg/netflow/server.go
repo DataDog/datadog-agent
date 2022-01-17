@@ -165,6 +165,7 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel) (*utils.StateNetFlow
 
 // Stop stops the NetflowCollector.
 func (s *NetflowCollector) Stop() {
+	log.Infof("Stop listening on %s", s.config.Addr())
 	stopped := make(chan interface{})
 
 	go func() {

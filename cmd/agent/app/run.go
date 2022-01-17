@@ -492,7 +492,9 @@ func StopAgent() {
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
+	log.Info("Stop Netflow")
 	netflow.StopServer()
+	log.Info("Finish Stop Netflow")
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()

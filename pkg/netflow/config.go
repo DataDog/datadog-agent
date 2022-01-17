@@ -6,7 +6,6 @@
 package netflow
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -30,15 +29,15 @@ type Config struct {
 // ReadConfig builds and returns configuration from Agent configuration.
 func ReadConfig() (*Config, error) {
 	var c Config
-	err := config.Datadog.UnmarshalKey("snmp_traps_config", &c)
+	err := config.Datadog.UnmarshalKey("netflow_config", &c)
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate required fields.
-	if c.CommunityStrings == nil || len(c.CommunityStrings) == 0 {
-		return nil, errors.New("`community_strings` is required and must be non-empty")
-	}
+	//if c.CommunityStrings == nil || len(c.CommunityStrings) == 0 {
+	//	return nil, errors.New("`community_strings` is required and must be non-empty")
+	//}
 
 	// Set defaults.
 	if c.Port == 0 {
