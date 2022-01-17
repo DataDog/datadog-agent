@@ -56,20 +56,12 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.HostName = config.Datadog.GetString("hostname")
 	}
 
-	if k := key(ns, "enabled"); config.Datadog.IsSet(k) {
-		// A string indicate the enabled state of the Agent.
-		//   If "false" (the default) we will only collect containers.
-		//   If "true" we will collect containers and processes.
-		//   If "disabled" the agent will be disabled altogether and won't start.
-		enabled := config.Datadog.GetString(k)
-		ok, err := isAffirmative(enabled)
-		if ok {
-			a.Enabled, a.EnabledChecks = true, processChecks
-		} else if enabled == "disabled" {
-			a.Enabled = false
-		} else if !ok && err == nil {
-			a.Enabled, a.EnabledChecks = true, containerChecks
-		}
+	a.Enabled = false
+	if config.GetProcessCollectionEnabled(config.Datadog) {
+		a.Enabled, a.EnabledChecks = true, processChecks
+	}
+	if config.GetContainerCollectionEnabled(config.Datadog) {
+		a.Enabled, a.EnabledChecks = true, containerChecks
 	}
 
 	// The interval, in seconds, at which we will run each check. If you want consistent
