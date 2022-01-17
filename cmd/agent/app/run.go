@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/netflow"
 	"net/http"
 	"os"
 	"os/signal"
@@ -405,6 +406,14 @@ func StartAgent() error {
 				"snmp-traps server did not start, as log collection is disabled. " +
 					"Please enable log collection to collect and forward traps.",
 			)
+		}
+	}
+
+	// Start SNMP trap server
+	if netflow.IsEnabled() {
+		err = netflow.StartServer()
+		if err != nil {
+			log.Errorf("Failed to start netflow server: %s", err)
 		}
 	}
 
