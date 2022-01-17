@@ -231,6 +231,15 @@ func (r *Resolvers) snapshot() error {
 	cacheModified := false
 
 	for _, proc := range processes {
+		ppid, err := proc.Ppid()
+		if err != nil {
+			continue
+		}
+
+		if IsKThread(uint32(ppid), uint32(proc.Pid)) {
+			continue
+		}
+
 		// Start with the mount resolver because the process resolver might need it to resolve paths
 		if err := r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {

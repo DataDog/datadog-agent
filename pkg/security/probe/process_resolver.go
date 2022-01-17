@@ -600,6 +600,11 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	return p.insertExecEntry(pid, entry)
 }
 
+// IsKThread returns whether given pids are from kthreads
+func IsKThread(ppid, pid uint32) bool {
+	return ppid == 2 || pid == 2
+}
+
 func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {
 	if maxDepth < 1 || pid == 0 {
 		return nil
@@ -612,6 +617,11 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 
 	filledProc := utils.GetFilledProcess(proc)
 	if filledProc == nil {
+		return nil
+	}
+
+	// ignore kthreads
+	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
 		return nil
 	}
 
