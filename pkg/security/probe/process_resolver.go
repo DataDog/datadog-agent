@@ -812,26 +812,24 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			var pids []uint32
-
-			p.RLock()
-			for pid := range p.entryCache {
-				pids = append(pids, pid)
+			procPids, err := process.Pids()
+			if err != nil {
+				continue
 			}
-			p.RUnlock()
+			procPidsMap := make(map[uint32]bool)
+			for _, pid := range procPids {
+				procPidsMap[uint32(pid)] = true
+			}
 
-			// iterating slowly
-			for _, pid := range pids {
-				if _, err := process.NewProcess(int32(pid)); err != nil {
-					// check start time to ensure to not delete a recent pid
-					p.Lock()
+			p.Lock()
+			for pid := range p.entryCache {
+				if _, exists := procPidsMap[pid]; !exists {
 					if entry := p.entryCache[pid]; entry != nil {
 						p.exitedQueue = append(p.exitedQueue, pid)
 					}
-					p.Unlock()
 				}
-				time.Sleep(50 * time.Millisecond)
 			}
+			p.Unlock()
 		case <-ctx.Done():
 			return
 		}
