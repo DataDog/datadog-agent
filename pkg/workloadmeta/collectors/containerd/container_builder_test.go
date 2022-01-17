@@ -106,7 +106,9 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		Runtime: workloadmeta.ContainerRuntimeContainerd,
 		State: workloadmeta.ContainerState{
 			Running:    true,
+			Status:     workloadmeta.ContainerStatusRunning,
 			StartedAt:  createdAt,
+			CreatedAt:  createdAt,
 			FinishedAt: time.Time{}, // Not available
 		},
 		NetworkIPs: make(map[string]string), // Not available

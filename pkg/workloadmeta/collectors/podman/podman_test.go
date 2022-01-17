@@ -190,6 +190,8 @@ func TestPull(t *testing.T) {
 				Runtime: workloadmeta.ContainerRuntimePodman,
 				State: workloadmeta.ContainerState{
 					Running:   true,
+					Status:    workloadmeta.ContainerStatusRunning,
+					CreatedAt: startTime,
 					StartedAt: startTime,
 				},
 			},
@@ -237,6 +239,8 @@ func TestPull(t *testing.T) {
 				Runtime: workloadmeta.ContainerRuntimePodman,
 				State: workloadmeta.ContainerState{
 					Running:   true,
+					Status:    workloadmeta.ContainerStatusRunning,
+					CreatedAt: startTime,
 					StartedAt: startTime,
 				},
 			},
