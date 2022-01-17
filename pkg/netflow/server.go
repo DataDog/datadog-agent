@@ -6,10 +6,16 @@
 package netflow
 
 import (
+	"context"
+	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/json"
+	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/file"
+	"github.com/netsampler/goflow2/format"
+	"github.com/netsampler/goflow2/transport"
 	"net"
 	"time"
 
 	"github.com/netsampler/goflow2/utils"
+	logrus "github.com/sirupsen/logrus"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gosnmp/gosnmp"
@@ -90,13 +96,32 @@ func NewNetflowServer() (*TrapServer, error) {
 func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListener, error) {
 	log.Warn("Starting Netflow Server")
 
+	ctx := context.TODO()
+	formatter, err := format.FindFormat(ctx, "json")
+	if err != nil {
+		return nil, err
+	}
+
+	transporter, err := transport.FindTransport(ctx, "file")
+	if err != nil {
+		return nil, err
+	}
+	defer transporter.Close(ctx)
+
+	logger :=logrus.StandardLogger()
+	logger.SetLevel(logrus.TraceLevel)
 	sNF := &utils.StateNetFlow{
 		Format:    formatter,
 		Transport: transporter,
-		Logger:    log.StandardLogger(),
-		Config:    config,
+		Logger:    logger,
 	}
-	err = sNF.FlowRoutine(*Workers, hostname, int(port), *ReusePort)
+	hostname := "127.0.0.1"
+	port := 9999
+	reusePort := false
+	err = sNF.FlowRoutine(1, hostname, int(port), reusePort)
+	if err != nil {
+		return nil, err
+	}
 
 	//listener := gosnmp.NewTrapListener()
 	//listener.Params = c.BuildV2Params()
