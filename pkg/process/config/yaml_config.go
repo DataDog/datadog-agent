@@ -275,10 +275,9 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 	root := key(ns, "process_discovery")
 
 	// Discovery check can only be enabled when regular process collection is not enabled.
-	// (process_config.process_discovery.enabled = true and process_config.enabled is not set to "true")
-	processAgentEnabled := strings.ToLower(config.Datadog.GetString(key(ns, "enabled")))
-	checkEnabled := config.Datadog.GetBool(key(root, "enabled"))
-	if checkEnabled && processAgentEnabled != "true" {
+	processCheckEnabled := config.GetProcessCollectionEnabled(config.Datadog)
+	discoveryCheckEnabled := config.Datadog.GetBool(key(root, "enabled"))
+	if discoveryCheckEnabled && !processCheckEnabled {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
 		a.Enabled = true
 

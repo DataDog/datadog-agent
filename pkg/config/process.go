@@ -6,11 +6,12 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
