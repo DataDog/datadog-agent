@@ -1168,14 +1168,19 @@ api_key:
 #
 # process_config:
 
-  ## @param enabled - string - optional - default: "false"
-  ## @env DD_PROCESS_CONFIG_ENABLED - string - optional - default: "false"
-  ##  A string indicating the enabled state of the Process Agent:
-  ##    * "false"    : The Agent collects only containers information.
-  ##    * "true"     : The Agent collects containers and processes information.
-  ##    * "disabled" : The Agent process collection is disabled.
-  #
-  # enabled: "true"
+  ## @param container_collection - custom object - optional
+  ## Specifies settings for collecting processes.
+  # process_collection:
+    ## @param enabled - boolean - optional - default: false
+    ## Toggles the process check. If enabled, this check gathers information about running processes.
+    # enabled: false
+
+  ## @param container_collection - custom object - optional
+  ## Specifies settings for collecting containers.
+  # container_collection:
+    ## @param enabled - boolean - optional - default: true
+    ## Toggles the container check. If enabled, this check gathers information about running containers.
+    # enabled: true
 
   ## @param expvar_port - string - optional - default: 6062
   ## @env DD_PROCESS_CONFIG_EXPVAR_PORT - string - optional - default: 6062
