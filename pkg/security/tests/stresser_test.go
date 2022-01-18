@@ -182,11 +182,7 @@ func (s *StressReport) Save(filename string, name string) error {
 
 	j, _ := json.Marshal(reports)
 	err := ioutil.WriteFile(filename, j, 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // Load previous report
@@ -202,11 +198,7 @@ func (s *StressReports) Load(filename string) error {
 		return err
 	}
 
-	if err := json.Unmarshal(data, s); err != nil {
-		return err
-	}
-
-	return nil
+	return json.Unmarshal(data, s)
 }
 
 func getTopData(filename string, from string, size int) ([]byte, error) {

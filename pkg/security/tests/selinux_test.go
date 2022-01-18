@@ -274,8 +274,5 @@ func setEnforceStatus(status string) error {
 
 	cmd := exec.Command("sudo", "-n", "setenforce", strconv.Itoa(enforceNumber))
 	_, err := cmd.Output()
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
