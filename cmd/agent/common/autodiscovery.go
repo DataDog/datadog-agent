@@ -8,6 +8,7 @@ package common
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
@@ -19,8 +20,8 @@ import (
 // When this is solved, we can remove this check and simplify code below
 var (
 	incompatibleListeners = map[string]map[string]struct{}{
-		"kubelet": {"docker": struct{}{}},
-		"docker":  {"kubelet": struct{}{}},
+		"kubelet":   {"container": struct{}{}},
+		"container": {"kubelet": struct{}{}},
 	}
 )
 
@@ -55,6 +56,15 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			} else {
 				log.Infof("Duplicate AD provider from extra_config_providers discarded as already present in config_providers: %s", name)
 			}
+		}
+
+		// The "docker" config provider was replaced with the "container" one
+		// that supports Docker, but also other runtimes. We need this
+		// conversion to avoid breaking configs that included "docker".
+		if options, found := uniqueConfigProviders["docker"]; found {
+			delete(uniqueConfigProviders, "docker")
+			options.Name = names.Container
+			uniqueConfigProviders["container"] = options
 		}
 
 		for _, provider := range extraConfigProviders {
@@ -101,6 +111,15 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 		// Add extra listeners
 		for _, name := range config.Datadog.GetStringSlice("extra_listeners") {
 			listeners = append(listeners, config.Listeners{Name: name})
+		}
+
+		// The "docker" listener was replaced with the "container" one that
+		// supports Docker, but also other runtimes. We need this conversion to
+		// avoid breaking configs that included "docker".
+		for i := range listeners {
+			if listeners[i].Name == "docker" {
+				listeners[i].Name = "container"
+			}
 		}
 
 		for _, listener := range extraConfigListeners {
