@@ -788,5 +788,5 @@ func ChangeLogLevel(l seelog.LoggerInterface, level string) error {
 
 // isServerless returns whether or not the agent is running in a serverless context
 func isServerless() bool {
-	return len(os.Getenv("AWS_LAMBDA_FUNCTION_NAME")) > 0
+	return false
 }
