@@ -67,6 +67,10 @@ const (
 	MMapEventType
 	// MProtectEventType MProtect event
 	MProtectEventType
+	// InitModuleEventType InitModule event
+	InitModuleEventType
+	// DeleteModuleEventType DeleteModule evnt
+	DeleteModuleEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -146,6 +150,10 @@ func (t EventType) String() string {
 		return "mmap"
 	case MProtectEventType:
 		return "mprotect"
+	case InitModuleEventType:
+		return "init_module"
+	case DeleteModuleEventType:
+		return "delete_module"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

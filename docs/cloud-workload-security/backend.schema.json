@@ -29,6 +29,10 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/PTraceEvent"
     },
+    "module": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/ModuleEvent"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -410,6 +414,23 @@
         "req_protection": {
           "type": "string",
           "description": "new memory segment protection"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ModuleEvent": {
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "module name"
+        },
+        "loaded_from_memory": {
+          "type": "boolean",
+          "description": "indicates if a module was loaded from memory, as opposed to a file"
         }
       },
       "additionalProperties": false,

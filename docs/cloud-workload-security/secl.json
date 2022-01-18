@@ -741,6 +741,25 @@
       ]
     },
     {
+      "name": "delete_module",
+      "definition": "A kernel module was deleted",
+      "type": "Kernel",
+      "from_agent_version": "7.35",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "delete_module.name",
+          "type": "string",
+          "definition": "Name of the kernel module that was deleted"
+        },
+        {
+          "name": "delete_module.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
       "name": "exec",
       "definition": "A process was executed or forked",
       "type": "Process",
@@ -971,6 +990,100 @@
           "name": "exec.user",
           "type": "string",
           "definition": "User of the process"
+        }
+      ]
+    },
+    {
+      "name": "init_module",
+      "definition": "A new kernel module was loaded",
+      "type": "Kernel",
+      "from_agent_version": "7.35",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "init_module.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "init_module.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem"
+        },
+        {
+          "name": "init_module.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "init_module.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "init_module.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "init_module.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "init_module.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "init_module.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "init_module.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "init_module.file.name",
+          "type": "string",
+          "definition": "File's basename"
+        },
+        {
+          "name": "init_module.file.path",
+          "type": "string",
+          "definition": "File's path"
+        },
+        {
+          "name": "init_module.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "init_module.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "init_module.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "init_module.loaded_from_memory",
+          "type": "bool",
+          "definition": "Indicates if the kernel module was loaded from memory"
+        },
+        {
+          "name": "init_module.name",
+          "type": "string",
+          "definition": "Name of the new kernel module"
+        },
+        {
+          "name": "init_module.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
         }
       ]
     },

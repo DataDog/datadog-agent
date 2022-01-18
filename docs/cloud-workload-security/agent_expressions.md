@@ -36,7 +36,9 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `capset` | Process | A process changed its capacity set | 7.27 |
 | `chmod` | File | A file’s permissions were changed | 7.27 |
 | `chown` | File | A file’s owner was changed | 7.27 |
+| `delete_module` | Kernel | A kernel module was deleted | 7.35 |
 | `exec` | Process | A process was executed or forked | 7.27 |
+| `init_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `mkdir` | File | A directory was created | 7.27 |
 | `mmap` | Kernel | A mmap command was executed | 7.35 |
@@ -311,6 +313,15 @@ A file’s owner was changed
 | `chown.file.user` | string | User of the file's owner |
 | `chown.retval` | int | Return value of the syscall |
 
+### Event `delete_module`
+
+A kernel module was deleted
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `delete_module.name` | string | Name of the kernel module that was deleted |
+| `delete_module.retval` | int | Return value of the syscall |
+
 ### Event `exec`
 
 A process was executed or forked
@@ -362,6 +373,30 @@ A process was executed or forked
 | `exec.tty_name` | string | Name of the TTY associated with the process |
 | `exec.uid` | int | UID of the process |
 | `exec.user` | string | User of the process |
+
+### Event `init_module`
+
+A new kernel module was loaded
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `init_module.file.change_time` | int | Change time of the file |
+| `init_module.file.filesystem` | string | File's filesystem |
+| `init_module.file.gid` | int | GID of the file's owner |
+| `init_module.file.group` | string | Group of the file's owner |
+| `init_module.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `init_module.file.inode` | int | Inode of the file |
+| `init_module.file.mode` | int | Mode/rights of the file |
+| `init_module.file.modification_time` | int | Modification time of the file |
+| `init_module.file.mount_id` | int | Mount ID of the file |
+| `init_module.file.name` | string | File's basename |
+| `init_module.file.path` | string | File's path |
+| `init_module.file.rights` | int | Mode/rights of the file |
+| `init_module.file.uid` | int | UID of the file's owner |
+| `init_module.file.user` | string | User of the file's owner |
+| `init_module.loaded_from_memory` | bool | Indicates if the kernel module was loaded from memory |
+| `init_module.name` | string | Name of the new kernel module |
+| `init_module.retval` | int | Return value of the syscall |
 
 ### Event `link`
 

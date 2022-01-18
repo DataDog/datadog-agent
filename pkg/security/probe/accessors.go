@@ -43,7 +43,11 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("chown"),
 
+		eval.EventType("delete_module"),
+
 		eval.EventType("exec"),
+
+		eval.EventType("init_module"),
 
 		eval.EventType("link"),
 
@@ -576,6 +580,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: 9999 * eval.HandlerWeight,
 		}, nil
 
+	case "delete_module.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).DeleteModule.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "delete_module.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DeleteModule.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "exec.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1026,6 +1050,176 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.User
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "init_module.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).InitModule.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "init_module.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).InitModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "init_module.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).InitModule.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "init_module.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).InitModule.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "init_module.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).InitModule.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "init_module.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).InitModule.File.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "init_module.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).InitModule.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "init_module.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).InitModule.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "init_module.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).InitModule.File.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "init_module.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).InitModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "init_module.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).InitModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "init_module.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).InitModule.File.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "init_module.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).InitModule.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "init_module.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).InitModule.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "init_module.loaded_from_memory":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).InitModule.LoadedFromMemory
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "init_module.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).InitModule.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "init_module.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).InitModule.SyscallEvent.Retval)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6937,6 +7131,10 @@ func (e *Event) GetFields() []eval.Field {
 
 		"container.tags",
 
+		"delete_module.name",
+
+		"delete_module.retval",
+
 		"exec.args",
 
 		"exec.args_flags",
@@ -7026,6 +7224,40 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.uid",
 
 		"exec.user",
+
+		"init_module.file.change_time",
+
+		"init_module.file.filesystem",
+
+		"init_module.file.gid",
+
+		"init_module.file.group",
+
+		"init_module.file.in_upper_layer",
+
+		"init_module.file.inode",
+
+		"init_module.file.mode",
+
+		"init_module.file.modification_time",
+
+		"init_module.file.mount_id",
+
+		"init_module.file.name",
+
+		"init_module.file.path",
+
+		"init_module.file.rights",
+
+		"init_module.file.uid",
+
+		"init_module.file.user",
+
+		"init_module.loaded_from_memory",
+
+		"init_module.name",
+
+		"init_module.retval",
 
 		"link.file.change_time",
 
@@ -8010,6 +8242,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ResolveContainerTags(&e.ContainerContext), nil
 
+	case "delete_module.name":
+
+		return e.DeleteModule.Name, nil
+
+	case "delete_module.retval":
+
+		return int(e.DeleteModule.SyscallEvent.Retval), nil
+
 	case "exec.args":
 
 		return e.ResolveProcessArgs(&e.Exec.Process), nil
@@ -8189,6 +8429,74 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.user":
 
 		return e.Exec.Process.Credentials.User, nil
+
+	case "init_module.file.change_time":
+
+		return int(e.InitModule.File.FileFields.CTime), nil
+
+	case "init_module.file.filesystem":
+
+		return e.ResolveFileFilesystem(&e.InitModule.File), nil
+
+	case "init_module.file.gid":
+
+		return int(e.InitModule.File.FileFields.GID), nil
+
+	case "init_module.file.group":
+
+		return e.ResolveFileFieldsGroup(&e.InitModule.File.FileFields), nil
+
+	case "init_module.file.in_upper_layer":
+
+		return e.ResolveFileFieldsInUpperLayer(&e.InitModule.File.FileFields), nil
+
+	case "init_module.file.inode":
+
+		return int(e.InitModule.File.FileFields.Inode), nil
+
+	case "init_module.file.mode":
+
+		return int(e.InitModule.File.FileFields.Mode), nil
+
+	case "init_module.file.modification_time":
+
+		return int(e.InitModule.File.FileFields.MTime), nil
+
+	case "init_module.file.mount_id":
+
+		return int(e.InitModule.File.FileFields.MountID), nil
+
+	case "init_module.file.name":
+
+		return e.ResolveFileBasename(&e.InitModule.File), nil
+
+	case "init_module.file.path":
+
+		return e.ResolveFilePath(&e.InitModule.File), nil
+
+	case "init_module.file.rights":
+
+		return int(e.ResolveRights(&e.InitModule.File.FileFields)), nil
+
+	case "init_module.file.uid":
+
+		return int(e.InitModule.File.FileFields.UID), nil
+
+	case "init_module.file.user":
+
+		return e.ResolveFileFieldsUser(&e.InitModule.File.FileFields), nil
+
+	case "init_module.loaded_from_memory":
+
+		return e.InitModule.LoadedFromMemory, nil
+
+	case "init_module.name":
+
+		return e.InitModule.Name, nil
+
+	case "init_module.retval":
+
+		return int(e.InitModule.SyscallEvent.Retval), nil
 
 	case "link.file.change_time":
 
@@ -11521,6 +11829,12 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.tags":
 		return "*", nil
 
+	case "delete_module.name":
+		return "delete_module", nil
+
+	case "delete_module.retval":
+		return "delete_module", nil
+
 	case "exec.args":
 		return "exec", nil
 
@@ -11655,6 +11969,57 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "exec.user":
 		return "exec", nil
+
+	case "init_module.file.change_time":
+		return "init_module", nil
+
+	case "init_module.file.filesystem":
+		return "init_module", nil
+
+	case "init_module.file.gid":
+		return "init_module", nil
+
+	case "init_module.file.group":
+		return "init_module", nil
+
+	case "init_module.file.in_upper_layer":
+		return "init_module", nil
+
+	case "init_module.file.inode":
+		return "init_module", nil
+
+	case "init_module.file.mode":
+		return "init_module", nil
+
+	case "init_module.file.modification_time":
+		return "init_module", nil
+
+	case "init_module.file.mount_id":
+		return "init_module", nil
+
+	case "init_module.file.name":
+		return "init_module", nil
+
+	case "init_module.file.path":
+		return "init_module", nil
+
+	case "init_module.file.rights":
+		return "init_module", nil
+
+	case "init_module.file.uid":
+		return "init_module", nil
+
+	case "init_module.file.user":
+		return "init_module", nil
+
+	case "init_module.loaded_from_memory":
+		return "init_module", nil
+
+	case "init_module.name":
+		return "init_module", nil
+
+	case "init_module.retval":
+		return "init_module", nil
 
 	case "link.file.change_time":
 		return "link", nil
@@ -13027,6 +13392,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "delete_module.name":
+
+		return reflect.String, nil
+
+	case "delete_module.retval":
+
+		return reflect.Int, nil
+
 	case "exec.args":
 
 		return reflect.String, nil
@@ -13206,6 +13579,74 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.user":
 
 		return reflect.String, nil
+
+	case "init_module.file.change_time":
+
+		return reflect.Int, nil
+
+	case "init_module.file.filesystem":
+
+		return reflect.String, nil
+
+	case "init_module.file.gid":
+
+		return reflect.Int, nil
+
+	case "init_module.file.group":
+
+		return reflect.String, nil
+
+	case "init_module.file.in_upper_layer":
+
+		return reflect.Bool, nil
+
+	case "init_module.file.inode":
+
+		return reflect.Int, nil
+
+	case "init_module.file.mode":
+
+		return reflect.Int, nil
+
+	case "init_module.file.modification_time":
+
+		return reflect.Int, nil
+
+	case "init_module.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "init_module.file.name":
+
+		return reflect.String, nil
+
+	case "init_module.file.path":
+
+		return reflect.String, nil
+
+	case "init_module.file.rights":
+
+		return reflect.Int, nil
+
+	case "init_module.file.uid":
+
+		return reflect.Int, nil
+
+	case "init_module.file.user":
+
+		return reflect.String, nil
+
+	case "init_module.loaded_from_memory":
+
+		return reflect.Bool, nil
+
+	case "init_module.name":
+
+		return reflect.String, nil
+
+	case "init_module.retval":
+
+		return reflect.Int, nil
 
 	case "link.file.change_time":
 
@@ -15304,6 +15745,28 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "delete_module.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DeleteModule.Name"}
+		}
+		e.DeleteModule.Name = str
+
+		return nil
+
+	case "delete_module.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DeleteModule.SyscallEvent.Retval"}
+		}
+		e.DeleteModule.SyscallEvent.Retval = int64(v)
+
+		return nil
+
 	case "exec.args":
 
 		var ok bool
@@ -15787,6 +16250,187 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.User"}
 		}
 		e.Exec.Process.Credentials.User = str
+
+		return nil
+
+	case "init_module.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.CTime"}
+		}
+		e.InitModule.File.FileFields.CTime = uint64(v)
+
+		return nil
+
+	case "init_module.file.filesystem":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.Filesytem"}
+		}
+		e.InitModule.File.Filesytem = str
+
+		return nil
+
+	case "init_module.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.GID"}
+		}
+		e.InitModule.File.FileFields.GID = uint32(v)
+
+		return nil
+
+	case "init_module.file.group":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.Group"}
+		}
+		e.InitModule.File.FileFields.Group = str
+
+		return nil
+
+	case "init_module.file.in_upper_layer":
+
+		var ok bool
+		if e.InitModule.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.InUpperLayer"}
+		}
+		return nil
+
+	case "init_module.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.Inode"}
+		}
+		e.InitModule.File.FileFields.Inode = uint64(v)
+
+		return nil
+
+	case "init_module.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.Mode"}
+		}
+		e.InitModule.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "init_module.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.MTime"}
+		}
+		e.InitModule.File.FileFields.MTime = uint64(v)
+
+		return nil
+
+	case "init_module.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.MountID"}
+		}
+		e.InitModule.File.FileFields.MountID = uint32(v)
+
+		return nil
+
+	case "init_module.file.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.BasenameStr"}
+		}
+		e.InitModule.File.BasenameStr = str
+
+		return nil
+
+	case "init_module.file.path":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.PathnameStr"}
+		}
+		e.InitModule.File.PathnameStr = str
+
+		return nil
+
+	case "init_module.file.rights":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.Mode"}
+		}
+		e.InitModule.File.FileFields.Mode = uint16(v)
+
+		return nil
+
+	case "init_module.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.UID"}
+		}
+		e.InitModule.File.FileFields.UID = uint32(v)
+
+		return nil
+
+	case "init_module.file.user":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.File.FileFields.User"}
+		}
+		e.InitModule.File.FileFields.User = str
+
+		return nil
+
+	case "init_module.loaded_from_memory":
+
+		var ok bool
+		if e.InitModule.LoadedFromMemory, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.LoadedFromMemory"}
+		}
+		return nil
+
+	case "init_module.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.Name"}
+		}
+		e.InitModule.Name = str
+
+		return nil
+
+	case "init_module.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "InitModule.SyscallEvent.Retval"}
+		}
+		e.InitModule.SyscallEvent.Retval = int64(v)
 
 		return nil
 
