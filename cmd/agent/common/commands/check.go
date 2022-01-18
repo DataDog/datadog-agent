@@ -169,11 +169,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 					fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 					selectedChecks := []string{checkName}
 					if checkRate {
-						if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel,
+							time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, discoveryMinInstances); err != nil {
 							return fmt.Errorf("while running the jmx check: %v", err)
 						}
 					} else {
-						if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel,
+							time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, discoveryMinInstances); err != nil {
 							return fmt.Errorf("while running the jmx check: %v", err)
 						}
 					}
