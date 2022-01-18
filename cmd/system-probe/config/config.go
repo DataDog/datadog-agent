@@ -217,8 +217,8 @@ func load(configPath string) (*Config, error) {
 		log.Info("runtime_security_config.enabled or runtime_security_config.fim_enabled detected, enabling system-probe")
 		c.EnabledModules[SecurityRuntimeModule] = struct{}{}
 	}
-	if aconfig.GetProcessCollectionEnabled(cfg) {
-		log.Info("detected process collection enabled, enabling system-probe")
+	if cfg.GetBool(key(spNS, "process_config.enabled")) {
+		log.Info("process_config.enabled detected, enabling system-probe")
 		c.EnabledModules[ProcessModule] = struct{}{}
 	}
 
