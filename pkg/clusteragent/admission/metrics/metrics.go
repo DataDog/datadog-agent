@@ -34,7 +34,7 @@ var (
 	MutationErrors = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_errors",
 		[]string{"mutation_type", "reason"}, "Number of mutation failures by mutation type (agent config, standard tags).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	WebhooksReceived = telemetry.NewGaugeWithOpts("admission_webhooks", "webhooks_received",
+	WebhooksReceived = telemetry.NewCounterWithOpts("admission_webhooks", "webhooks_received",
 		[]string{}, "Number of mutation webhook requests received.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	GetOwnerCacheHit = telemetry.NewGaugeWithOpts("admission_webhooks", "owner_cache_hit",
