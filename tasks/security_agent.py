@@ -1,10 +1,14 @@
 import datetime
 import os
+import re
 import shutil
 import sys
 import tempfile
+from subprocess import check_output
 
 from invoke import task
+
+from tasks.libs.common.color import color_message
 
 from .build_tags import get_default_build_tags
 from .go import golangci_lint, staticcheck, vet
@@ -243,6 +247,8 @@ def build_functional_tests(
         vet(ctx, targets=targets, build_tags=[build_tags], arch=arch)
         golangci_lint(ctx, targets=targets, build_tags=[build_tags], arch=arch)
         staticcheck(ctx, targets=targets, build_tags=[build_tags], arch=arch)
+
+    check_outdated_ebpf_probes()
 
     ldflags, _, env = get_build_flags(ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path)
 
@@ -495,3 +501,22 @@ def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
     ctx.run("go generate ./pkg/security/...")
+
+
+def check_outdated_ebpf_probes():
+    current_short = get_git_commit()
+
+    sysprobe_version_line = check_output(["./bin/system-probe/system-probe", "version"]).decode('utf-8').strip()
+    commit_re = re.compile("- Commit: ([a-fA-F0-9]+) -")
+    if m := commit_re.search(sysprobe_version_line):
+        sysprobe_short = m.group(1)
+        if sysprobe_short != current_short:
+            print(
+                color_message(
+                    "Warning: the commit from system-probe differs from the current one"
+                    ", you may be running with outdated eBPF probes",
+                    "orange",
+                )
+            )
+    else:
+        print(color_message("Warning: failed to fetch commit from system-probe", "orange"))
