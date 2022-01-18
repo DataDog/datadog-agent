@@ -17,6 +17,7 @@ type Address interface {
 	WriteTo([]byte) int
 	String() string
 	IsLoopback() bool
+	Len() int
 }
 
 // AddressFromNetIP returns an Address from a provided net.IP
@@ -41,7 +42,7 @@ func AddressFromString(ip string) Address {
 // Warning: the returned `net.IP` will share the same underlying
 // memory as the given `buf` argument.
 func NetIPFromAddress(addr Address, buf []byte) net.IP {
-	if addrLen := IPLen(addr); len(buf) < addrLen {
+	if addrLen := addr.Len(); len(buf) < addrLen {
 		// if the function is misused we allocate
 		buf = make([]byte, addrLen)
 	}
@@ -64,18 +65,6 @@ func ToLowHigh(addr Address) (l, h uint64) {
 	}
 
 	return
-}
-
-// IPLen returns the size (in bytes) required to represent the address IP
-func IPLen(a Address) int {
-	switch a.(type) {
-	case v4Address:
-		return 4
-	case v6Address:
-		return 16
-	default:
-		return 0
-	}
 }
 
 type v4Address [4]byte
@@ -117,6 +106,11 @@ func (a v4Address) IsLoopback() bool {
 	return net.IP(a[:]).IsLoopback()
 }
 
+// Len returns the number of bytes required to represent this IP
+func (a v4Address) Len() int {
+	return 4
+}
+
 type v6Address [16]byte
 
 // V6Address creates an Address using the uint128 representation of an v6 IP
@@ -152,6 +146,11 @@ func (a v6Address) String() string {
 // IsLoopback returns true if this address is the loopback address
 func (a v6Address) IsLoopback() bool {
 	return net.IP(a[:]).IsLoopback()
+}
+
+// Len returns the number of bytes required to represent this IP
+func (a v6Address) Len() int {
+	return 16
 }
 
 // IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`
