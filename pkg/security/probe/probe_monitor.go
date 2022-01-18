@@ -133,6 +133,12 @@ func (m *Monitor) SendStats() error {
 		return errors.Wrap(err, "failed to send load controller stats")
 	}
 
+	if m.activityDumpManager != nil {
+		if err := m.activityDumpManager.SendStats(); err != nil {
+			return errors.Wrap(err, "failed to send activity dump maanger stats")
+		}
+	}
+
 	return nil
 }
 

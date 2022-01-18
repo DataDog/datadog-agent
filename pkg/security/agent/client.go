@@ -77,6 +77,7 @@ func (c *RuntimeSecurityClient) StopActivityDump(tags []string, comm string) (st
 	return response.Error, nil
 }
 
+// GenerateProfile generates a policy file from the provided activity dump
 func (c *RuntimeSecurityClient) GenerateProfile(file string) (string, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
 

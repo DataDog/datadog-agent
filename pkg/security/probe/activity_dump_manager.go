@@ -10,7 +10,6 @@ package probe
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -112,7 +111,7 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.DumpActivityParams) (st
 	adm.Lock()
 	defer adm.Unlock()
 
-	newDump, err := NewActivityDump(params, adm.tracedPids, adm.probe.resolvers)
+	newDump, err := NewActivityDump(params, adm.tracedPids, adm.probe.resolvers, adm.probe.scrubber)
 	if err != nil {
 		return "", "", err
 	}
@@ -133,6 +132,13 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.DumpActivityParams) (st
 	// loop through the process cache entry tree and push traced pids if necessary
 	adm.probe.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback)
 
+	// Snapshot the processes in each activity dump
+	for _, ad := range adm.activeDumps {
+		_ = ad.Snapshot()
+	}
+
+	seclog.Infof("profiling started for %s", newDump.GetSelectorStr())
+
 	return newDump.OutputFile, newDump.GraphFile, nil
 }
 
@@ -143,7 +149,7 @@ func (adm *ActivityDumpManager) ListActivityDumps(params *api.ListActivityDumpsP
 
 	var activeDumps []string
 	for _, d := range adm.activeDumps {
-		activeDumps = append(activeDumps, fmt.Sprintf("tags: %s, comm: %s", strings.Join(d.Tags, ", "), d.Comm))
+		activeDumps = append(activeDumps, d.GetSelectorStr())
 	}
 	return activeDumps
 }
@@ -158,6 +164,7 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.StopActivityDumpPar
 	for i, d := range adm.activeDumps {
 		if (d.TagsListMatches(params.Tags) && inputDump.TagsListMatches(d.Tags)) || d.CommMatches(params.Comm) {
 			d.Done()
+			seclog.Infof("profiling stopped for %s", d.GetSelectorStr())
 			toDelete = i
 
 			// push comm to kernel space
@@ -185,18 +192,25 @@ func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
 	defer adm.Unlock()
 
 	for _, d := range adm.activeDumps {
-		if d.EventMatches(event) {
-			d.Insert(event)
-		}
+		d.Insert(event)
 	}
 }
 
 // SearchTracedProcessCacheEntryCallback inserts traced pids if necessary
 func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(entry *model.ProcessCacheEntry) {
+	// compute the list of ancestors, we need to start inserting them from the root
+	ancestors := []*model.ProcessCacheEntry{entry}
+	parent := entry.GetNextAncestorNoFork()
+	for parent != nil {
+		ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
+		parent = parent.GetNextAncestorNoFork()
+	}
+
 	for _, d := range adm.activeDumps {
-		if d.Matches(adm.probe.resolvers.ResolvePCEContainerTags(entry), entry.Comm) {
-			_ = d.tracedPIDs.Put(entry.Pid, uint64(0))
-			return
+		for _, parent = range ancestors {
+			if node := d.FindOrCreateProcessActivityNode(parent); node != nil {
+				_ = d.tracedPIDs.Put(node.Process.Pid, uint64(0))
+			}
 		}
 	}
 	return
@@ -250,4 +264,17 @@ func (adm *ActivityDumpManager) GenerateProfile(params *api.GenerateProfileParam
 	}
 
 	return profile.Name(), nil
+}
+
+// SendStats sends the activity dump manager stats
+func (adm *ActivityDumpManager) SendStats() error {
+	adm.Lock()
+	defer adm.Unlock()
+
+	for _, dump := range adm.activeDumps {
+		if err := dump.SendStats(adm.probe.statsdClient); err != nil {
+			return errors.Wrapf(err, "couldn't send metrics for %s", dump.GetSelectorStr())
+		}
+	}
+	return nil
 }
