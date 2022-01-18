@@ -77,7 +77,7 @@ func TestRmdir(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
-				return err
+				return error(err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
