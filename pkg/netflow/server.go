@@ -7,11 +7,15 @@ package netflow
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/json"
 	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/file"
+	"github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/metric"
+	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/metric"
 	"github.com/netsampler/goflow2/format"
 	"github.com/netsampler/goflow2/transport"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/netsampler/goflow2/utils"
@@ -35,7 +39,8 @@ type NetflowCollector struct {
 	Addr     string
 	config   *Config
 	listener *utils.StateNetFlow
-	packets  PacketsChannel
+	packets       PacketsChannel
+	demultiplexer aggregator.Demultiplexer
 }
 
 var (
@@ -44,8 +49,8 @@ var (
 )
 
 // StartServer starts the global trap server.
-func StartServer() error {
-	server, err := NewNetflowServer()
+func StartServer(demultiplexer aggregator.Demultiplexer) error {
+	server, err := NewNetflowServer(demultiplexer)
 	serverInstance = server
 	startError = err
 	return err
@@ -71,7 +76,7 @@ func GetPacketsChannel() PacketsChannel {
 }
 
 // NewNetflowServer configures and returns a running SNMP traps server.
-func NewNetflowServer() (*NetflowCollector, error) {
+func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*NetflowCollector, error) {
 	config, err := ReadConfig()
 	if err != nil {
 		return nil, err
@@ -79,22 +84,31 @@ func NewNetflowServer() (*NetflowCollector, error) {
 
 	packets := make(PacketsChannel, packetsChanSize)
 
-	listener, err := startSNMPv2Listener(config, packets)
+	listener, err := startSNMPv2Listener(config, packets, demultiplexer)
 	if err != nil {
 		return nil, err
 	}
 
 	server := &NetflowCollector{
-		listener: listener,
-		config:   config,
-		packets:  packets,
+		listener:      listener,
+		config:        config,
+		packets:       packets,
+		demultiplexer: demultiplexer,
 	}
 
 	return server, nil
 }
 
-func startSNMPv2Listener(c *Config, packets PacketsChannel) (*utils.StateNetFlow, error) {
+func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggregator.Demultiplexer) (*utils.StateNetFlow, error) {
 	log.Warn("Starting Netflow Server")
+	agg := demultiplexer.Aggregator()
+	metricChan := agg.GetBufferedMetricsWithTsChannel()
+
+	d := &metric.MetricDriver{
+		Lock: &sync.RWMutex{},
+		MetricChan: metricChan,
+	}
+	transport.RegisterTransportDriver("metric", d)
 
 	ctx := context.TODO()
 	formatter, err := format.FindFormat(ctx, "json")
@@ -102,7 +116,7 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel) (*utils.StateNetFlow
 		return nil, err
 	}
 
-	transporter, err := transport.FindTransport(ctx, "file")
+	transporter, err := transport.FindTransport(ctx, "metric")
 	if err != nil {
 		return nil, err
 	}
@@ -122,43 +136,6 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel) (*utils.StateNetFlow
 	if err != nil {
 		return nil, err
 	}
-
-	//listener := gosnmp.NewTrapListener()
-	//listener.Params = c.BuildV2Params()
-
-	//listener.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-	//	if err := validateCredentials(p, c); err != nil {
-	//		log.Warnf("Invalid credentials from %s on listener %s, dropping packet", u.String(), c.Addr())
-	//		trapsPacketsAuthErrors.Add(1)
-	//		return
-	//	}
-	//	log.Debugf("Packet received from %s on listener %s", u.String(), c.Addr())
-	//	trapsPackets.Add(1)
-	//	packets <- &SnmpPacket{Content: p, Addr: u}
-	//}
-
-	//errors := make(chan error, 1)
-
-	//// Start actually listening in the background.
-	//go func() {
-	//	log.Infof("Start listening for traps on %s", c.Addr())
-	//	err := listener.Listen(c.Addr())
-	//	if err != nil {
-	//		errors <- err
-	//	}
-	//}()
-	//
-	//select {
-	//// Wait for listener to be started and listening to traps.
-	//// See: https://godoc.org/github.com/gosnmp/gosnmp#TrapListener.Listening
-	//case <-listener.Listening():
-	//	break
-	//// If the listener failed to start (eg because it couldn't bind to a socket),
-	//// we'll get an error here.
-	//case err := <-errors:
-	//	close(errors)
-	//	return nil, err
-	//}
 
 	return sNF, nil
 }

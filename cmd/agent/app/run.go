@@ -411,7 +411,7 @@ func StartAgent() error {
 
 	// Start SNMP trap server
 	if netflow.IsEnabled() {
-		err = netflow.StartServer()
+		err = netflow.StartServer(demux)
 		if err != nil {
 			log.Errorf("Failed to start netflow server: %s", err)
 		}
