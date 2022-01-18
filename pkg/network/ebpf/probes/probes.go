@@ -108,6 +108,9 @@ const (
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"
 
+	// ConntrackFillInfo is the probe for for dumping existing conntrack entries
+	ConntrackFillInfo ProbeName = "kprobe/ctnetlink_fill_info"
+
 	// SockFDLookup is the kprobe used for mapping socket FDs to kernel sock structs
 	SockFDLookup ProbeName = "kprobe/sockfd_lookup_light"
 

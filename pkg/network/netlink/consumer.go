@@ -328,6 +328,109 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 	})
 }
 
+// DumpAndDiscardTable sends a message to netlink to dump all entries present in the Conntrack table. It
+// returns a channel which be closed once all entries have been read.
+// Because the dumped conntrack entries are read & processed in kernelspace, the messages received
+// from netlink here are immediately discarded.
+// This method is meant to be used once during the process initialization of system-probe when the ebpf
+// conntracker is used.
+func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
+	var nss []netns.NsHandle
+	var err error
+	if c.listenAllNamespaces {
+		nss, err = util.GetNetNamespaces(c.procRoot)
+		if err != nil {
+			return nil, fmt.Errorf("error dumping conntrack table, could not get network namespaces: %w", err)
+		}
+	}
+
+	rootNS, err := util.GetRootNetNamespace(c.procRoot)
+	if err != nil {
+		return nil, fmt.Errorf("error dumping conntrack table, could not get root namespace: %w", err)
+	}
+
+	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
+	if err != nil {
+		rootNS.Close()
+		return nil, fmt.Errorf("error dumping conntrack table, could not open netlink socket: %w", err)
+	}
+
+	done := make(chan bool, 1)
+
+	go func() {
+		// root ns first
+		if err := c.dumpAndDiscardTable(family, rootNS); err != nil {
+			log.Errorf("error dumping conntrack table for root namespace, some NAT info may be missing: %s", err)
+		}
+
+		for _, ns := range nss {
+			if rootNS.Equal(ns) {
+				// we've already dumped the table for the root ns above
+				continue
+			}
+
+			if !c.isPeerNS(conn, ns) {
+				log.Tracef("not dumping ns %s since it is not a peer of the root ns", ns)
+				continue
+			}
+
+			if err := c.dumpAndDiscardTable(family, ns); err != nil {
+				log.Errorf("error dumping conntrack table for namespace %d: %s", ns, err)
+			}
+		}
+
+		for _, ns := range nss {
+			_ = ns.Close()
+		}
+
+		close(done)
+
+		_ = rootNS.Close()
+		_ = conn.Close()
+	}()
+
+	return done, nil
+}
+
+func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
+	return util.WithNS(c.procRoot, ns, func() error {
+
+		log.Tracef("dumping table for ns %s family %d", ns, family)
+
+		sock, err := NewSocket()
+		if err != nil {
+			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
+		}
+
+		conn := netlink.NewConn(sock, sock.pid)
+
+		defer func() {
+			_ = conn.Close()
+		}()
+
+		req := netlink.Message{
+			Header: netlink.Header{
+				Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
+				Flags: netlink.Request | netlink.Dump,
+			},
+			Data: []byte{family, unix.NFNETLINK_V0, 0, 0},
+		}
+
+		verify, err := conn.Send(req)
+		if err != nil {
+			return fmt.Errorf("netlink dump error: %w", err)
+		}
+
+		if err := netlink.Validate(req, []netlink.Message{verify}); err != nil {
+			return fmt.Errorf("netlink dump message validation error: %w", err)
+		}
+
+		c.socket = sock
+		c.receiveAndDiscard()
+		return nil
+	})
+}
+
 // GetStats returns telemetry associated to the Consumer
 func (c *Consumer) GetStats() map[string]int64 {
 	return map[string]int64{
@@ -456,6 +559,28 @@ ReadLoop:
 
 		// If we're doing a conntrack dump we terminate after reading the multi-part message
 		if multiPartDone && !c.streaming {
+			return
+		}
+	}
+}
+
+// receive netlink messages and discard them immediately
+func (c *Consumer) receiveAndDiscard() {
+	for {
+		done, err := c.socket.ReceiveAndDiscard()
+		if err != nil {
+			log.Tracef("consumer netlink socket error: %s", err)
+			switch socketError(err) {
+			case errEOF:
+				// EOFs are usually indicative of normal program termination, so we simply exit
+				return
+			case errENOBUF:
+				atomic.AddInt64(&c.enobufs, 1)
+			default:
+				atomic.AddInt64(&c.readErrors, 1)
+			}
+		}
+		if done {
 			return
 		}
 	}

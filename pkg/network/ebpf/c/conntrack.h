@@ -6,6 +6,7 @@
 #include "conntrack-types.h"
 #include "conntrack-maps.h"
 #include "ip.h"
+#include "netns.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
@@ -100,6 +101,35 @@ static __always_inline void increment_telemetry_count(enum conntrack_telemetry_c
     case registers_dropped:
         __sync_fetch_and_add(&val->registers_dropped, 1);
     }
+}
+
+static __always_inline int nf_conn_to_conntrack_tuples(struct nf_conn* ct, conntrack_tuple_t* orig, conntrack_tuple_t* reply) {
+    struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
+    __builtin_memset(tuplehash, 0, sizeof(tuplehash));
+    bpf_probe_read_kernel(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
+
+    struct nf_conntrack_tuple orig_tup = tuplehash[IP_CT_DIR_ORIGINAL].tuple;
+    struct nf_conntrack_tuple reply_tup = tuplehash[IP_CT_DIR_REPLY].tuple;
+    
+    u32 netns = get_netns(&ct->ct_net);
+
+    if (!nf_conntrack_tuple_to_conntrack_tuple(orig, &orig_tup)) {
+        return 1;
+    }
+    orig->netns = netns;
+
+    log_debug("orig\n");
+    print_translation(orig);
+
+    if (!nf_conntrack_tuple_to_conntrack_tuple(reply, &reply_tup)) {
+        return 1;
+    }
+    reply->netns = netns;
+
+    log_debug("reply\n");
+    print_translation(reply);
+
+    return 0;
 }
 
 #endif
