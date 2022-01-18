@@ -1,18 +1,6 @@
 ---
-.docker_hub_variables: &docker_hub_variables
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
-  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
-  DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
-  DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
-  DOCKER_REGISTRY_URL: docker.io
-  SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-  SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
-  SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
-
 .docker_build_windows_job_definition:
   stage: image_build
-  variables:
-    <<: *docker_hub_variables
   before_script:
     - $ErrorActionPreference = "Stop"
     - mkdir ci-scripts
