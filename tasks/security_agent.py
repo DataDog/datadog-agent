@@ -4,7 +4,7 @@ import re
 import shutil
 import sys
 import tempfile
-from subprocess import check_output
+import subprocess
 
 from invoke import task
 
@@ -506,7 +506,13 @@ def cws_go_generate(ctx):
 def check_outdated_ebpf_probes():
     current_short = get_git_commit()
 
-    sysprobe_version_line = check_output(["./bin/system-probe/system-probe", "version"]).decode('utf-8').strip()
+    try:
+        sysprobe_version_line = (
+            subprocess.check_output(["./bin/system-probe/system-probe", "version"]).decode('utf-8').strip()
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        sysprobe_version_line = ""
+
     commit_re = re.compile("- Commit: ([a-fA-F0-9]+) -")
     captures = commit_re.search(sysprobe_version_line)
     if captures:
