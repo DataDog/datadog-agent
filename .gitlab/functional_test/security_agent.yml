@@ -19,6 +19,7 @@
     CHEF_VERSION: 15.16.4
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
+  retry: 0
 
 kitchen_test_security_agent_x64:
   extends:
