@@ -61,7 +61,7 @@ The payload is a JSON dict with the following fields
     enabled, otherwise the field is omitted.
   - `feature_cws_enabled` - **bool**: True if the Cloud Workload Security is enabled (see: `runtime_security_config.enabled`
     config option).
-  - `feature_process_enabled` - **bool**: True if the Process Agent is enabled (see: `process_config.enabled` config
+  - `feature_process_enabled` - **bool**: True if the Process Agent is enabled (see: `process_config.process_collection.enabled` config
     option).
   - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:
     `network_config.enabled` config option in `system-probe.yaml`).
