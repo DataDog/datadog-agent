@@ -1026,7 +1026,7 @@ func TestGetInventoriesMinInterval(t *testing.T) {
 func TestGetInventoriesMinIntervalInvalid(t *testing.T) {
 	// an invalid integer results in a value of 0 from Viper (with a logged warning)
 	Mock().Set("inventories_min_interval", 0)
-	assert.EqualValues(t, DefaultInventoriesMinInterval, GetInventoriesMinInterval())
+	assert.EqualValues(t, DefaultInventoriesMinInterval*time.Second, GetInventoriesMinInterval())
 }
 
 func TestGetInventoriesMaxInterval(t *testing.T) {
@@ -1037,5 +1037,5 @@ func TestGetInventoriesMaxInterval(t *testing.T) {
 func TestGetInventoriesMaxIntervalInvalid(t *testing.T) {
 	// an invalid integer results in a value of 0 from Viper (with a logged warning)
 	Mock().Set("inventories_max_interval", 0)
-	assert.EqualValues(t, DefaultInventoriesMaxInterval, GetInventoriesMaxInterval())
+	assert.EqualValues(t, DefaultInventoriesMaxInterval*time.Second, GetInventoriesMaxInterval())
 }
