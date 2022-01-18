@@ -47,11 +47,9 @@ func setupProcesses(config Config) {
 		// DD_PROCESS_AGENT_ENABLED: true - Process + Container checks enabled
 		//                           false - No checks enabled
 		//                           (unset) - Defaults are used, only container check is enabled
-		_ = displayProcConfigEnabledDeprecationWarning()
 		if enabled, _ := strconv.ParseBool(val); enabled {
 			return "true"
 		}
-
 		return "disabled"
 	})
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
