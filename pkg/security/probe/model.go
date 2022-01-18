@@ -245,16 +245,18 @@ func (ev *Event) ResolveProcessCreatedAt(e *model.Process) uint64 {
 
 // ResolveProcessArgs resolves the args of the event
 func (ev *Event) ResolveProcessArgs(process *model.Process) string {
-	if process.Args == "" {
+	if !process.ArgsResolved {
 		process.Args = strings.Join(ev.ResolveProcessArgv(process), " ")
+		process.ArgsResolved = true
 	}
 	return process.Args
 }
 
 // ResolveProcessArgv resolves the args of the event as an array
 func (ev *Event) ResolveProcessArgv(process *model.Process) []string {
-	if len(process.Argv) == 0 {
+	if !process.ArgvResolved {
 		process.Argv, process.ArgsTruncated = ev.resolvers.ProcessResolver.GetProcessArgv(process)
+		process.ArgvResolved = true
 	}
 	return process.Argv
 }
@@ -330,7 +332,7 @@ func (ev *Event) ResolveProcessEnvsTruncated(process *model.Process) bool {
 
 // ResolveProcessEnvs resolves the envs of the event
 func (ev *Event) ResolveProcessEnvs(process *model.Process) []string {
-	if len(process.Envs) == 0 {
+	if !process.EnvsResolved {
 		envs, truncated := ev.resolvers.ProcessResolver.GetProcessEnvs(process)
 		if envs != nil {
 			process.Envs = make([]string, 0, len(envs))
@@ -339,6 +341,7 @@ func (ev *Event) ResolveProcessEnvs(process *model.Process) []string {
 			}
 			process.EnvsTruncated = truncated
 		}
+		process.EnvsResolved = true
 	}
 	return process.Envs
 }

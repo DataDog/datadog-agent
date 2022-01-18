@@ -274,11 +274,14 @@ type Process struct {
 	EnvsEntry *EnvsEntry `field:"-"`
 
 	// defined to generate accessors
-	Args          string   `field:"args,ResolveProcessArgs:100"`                                                                                           // Arguments of the process (as a string)
+	Args          string   `field:"args,ResolveProcessArgs:100"` // Arguments of the process (as a string)
+	ArgsResolved  bool     `field:"-"`
 	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags" field:"args_options,ResolveProcessArgsOptions"` // Arguments of the process (as an array)
-	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated"`                                                                            // Indicator of arguments truncation
-	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                                                                                           // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"`                                                                            // Indicator of environment variables truncation
+	ArgvResolved  bool     `field:"-"`
+	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated"` // Indicator of arguments truncation
+	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                // Environment variables of the process
+	EnvsResolved  bool     `field:"-"`
+	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"` // Indicator of environment variables truncation
 }
 
 // SpanContext describes a span context
