@@ -64,7 +64,6 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 		fmt.Sprintf("dst_port:%d", flowmsg.DstPort),
 		fmt.Sprintf("type:%s", eType),
 		fmt.Sprintf("icmp_type:%s", icmpType),
-		fmt.Sprintf("dst_port:%d", flowmsg.FlowDirection),
 	}
 
 	timestamp := float64(time.Now().UnixNano())
