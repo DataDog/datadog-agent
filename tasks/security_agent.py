@@ -508,8 +508,9 @@ def check_outdated_ebpf_probes():
 
     sysprobe_version_line = check_output(["./bin/system-probe/system-probe", "version"]).decode('utf-8').strip()
     commit_re = re.compile("- Commit: ([a-fA-F0-9]+) -")
-    if m := commit_re.search(sysprobe_version_line):
-        sysprobe_short = m.group(1)
+    captures = commit_re.search(sysprobe_version_line)
+    if captures:
+        sysprobe_short = captures.group(1)
         if sysprobe_short != current_short:
             print(
                 color_message(
