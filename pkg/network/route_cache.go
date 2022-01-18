@@ -159,7 +159,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 	}()
 
 	srcIP := util.NetIPFromAddress(source, *srcBuf)
-	if n.rootNs != netns {
+	if n.rootNs != netns && !srcIP.IsLoopback() {
 		// if its a non-root ns, we're dealing with traffic from
 		// a container most likely, and so need to find out
 		// which interface is associated with the ns
