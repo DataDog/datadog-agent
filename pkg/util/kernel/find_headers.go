@@ -216,8 +216,10 @@ func getDefaultHeaderDirs() []string {
 		fedoraKernelModulesPath,
 	}
 
-	var flavorSuffix = regexp.MustCompile("-[a-z]+$")
+	// openSUSE specific
+	flavorSuffix := regexp.MustCompile("-[a-z]+$")
 	cleanedKernelVersion := flavorSuffix.ReplaceAllString(hi.KernelVersion, "")
+	cleanedKernelVersion += "-obj"
 	if hi.KernelVersion != cleanedKernelVersion {
 		dirs = append(dirs, fmt.Sprintf(rpmKernelModulePath, cleanedKernelVersion))
 	}
