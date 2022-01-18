@@ -410,7 +410,9 @@ func (c *Consumer) receive(output chan Event, ns uint32) {
 ReadLoop:
 	for {
 		buffer := c.pool.Get().(*[]byte)
-		msgs, netns, err := c.socket.ReceiveInto(*buffer)
+		// ignore the netns value coming from netlink because it is a nsid NOT an inode number.
+		// once we have a mapping between nsid->ino, then we can use these values again.
+		msgs, _, err := c.socket.ReceiveInto(*buffer)
 
 		if err != nil {
 			log.Tracef("consumer netlink socket error: %s", err)
@@ -444,11 +446,7 @@ ReadLoop:
 			msgs = msgs[:len(msgs)-1]
 		}
 
-		if netns == 0 {
-			netns = ns
-		}
-
-		output <- c.eventFor(msgs, netns, buffer)
+		output <- c.eventFor(msgs, ns, buffer)
 
 		// If we're doing a conntrack dump we terminate after reading the multi-part message
 		if multiPartDone && !c.streaming {
