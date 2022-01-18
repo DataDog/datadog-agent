@@ -95,8 +95,17 @@ var (
 	saveFlare         bool
 )
 
+var (
+	discoveryTimeout       uint
+	discoveryRetryInterval uint
+	discoveryMinInstances  uint
+)
+
 func init() {
 	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "", "set the log level (default 'debug') (deprecated, use the env var DD_LOG_LEVEL instead)")
+	jmxCmd.PersistentFlags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
+	jmxCmd.PersistentFlags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
+	jmxCmd.PersistentFlags().UintVarP(&discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 
 	// attach list and collect commands to jmx command
 	jmxCmd.AddCommand(jmxListCmd)
@@ -170,7 +179,13 @@ func runJmxCommandConsole(command string) error {
 
 	common.LoadComponents(config.Datadog.GetString("confd_path"))
 
-	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel)
+	if discoveryRetryInterval > discoveryTimeout {
+		fmt.Println("The discovery retry interval", discoveryRetryInterval, "is higher than the discovery timeout", discoveryTimeout)
+		fmt.Println("Setting the discovery retry interval to", discoveryTimeout)
+		discoveryRetryInterval = discoveryTimeout
+	}
+
+	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, discoveryMinInstances)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

@@ -10,6 +10,7 @@ package standalone
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -23,37 +24,37 @@ import (
 // ExecJMXCommandConsole runs the provided JMX command name on the selected checks, and
 // reports with the ConsoleReporter to the agent's `log.Info`.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string) error {
-	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel)
+func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, discoveryRetryInterval time.Duration, discoveryTimeout time.Duration, discoveryMinInstances uint) error {
+	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, discoveryRetryInterval, discoveryTimeout, discoveryMinInstances)
 }
 
 // ExecJmxListWithMetricsJSON runs the JMX command with "with-metrics", reporting
 // the data as a JSON on the console. It is used by the `check jmx` cli command
 // of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string) error {
+func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, discoveryRetryInterval time.Duration, discoveryTimeout time.Duration, discoveryMinInstances uint) error {
 	// don't pollute the JSON with the log pattern.
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
 	}
-	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel)
+	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel, discoveryRetryInterval, discoveryTimeout, discoveryMinInstances)
 }
 
 // ExecJmxListWithRateMetricsJSON runs the JMX command with "with-rate-metrics", reporting
 // the data as a JSON on the console. It is used by the `check jmx --rate` cli command
 // of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string) error {
+func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, discoveryRetryInterval time.Duration, discoveryTimeout time.Duration, discoveryMinInstances uint) error {
 	// don't pollute the JSON with the log pattern.
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
 	}
-	return execJmxCommand("list_with_rate_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel)
+	return execJmxCommand("list_with_rate_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel, discoveryRetryInterval, discoveryTimeout, discoveryMinInstances)
 }
 
 // execJmxCommand runs the provided JMX command name on the selected checks.
 // The common utils, including AutoConfig, must have already been initialized.
-func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.JMXReporter, output func(...interface{}), logLevel string) error {
+func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.JMXReporter, output func(...interface{}), logLevel string, discoveryRetryInterval time.Duration, discoveryTimeout time.Duration, discoveryMinInstances uint) error {
 	// start the cmd HTTP server
 	if err := api.StartServer(nil); err != nil {
 		return fmt.Errorf("Error while starting api server, exiting: %v", err)
@@ -67,7 +68,7 @@ func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.J
 	runner.Output = output
 	runner.LogLevel = logLevel
 
-	loadJMXConfigs(runner, selectedChecks)
+	loadJMXConfigs(runner, selectedChecks, discoveryRetryInterval, discoveryTimeout, discoveryMinInstances)
 
 	err := runner.Start(false)
 	if err != nil {
@@ -87,11 +88,12 @@ func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.J
 	return nil
 }
 
-func loadJMXConfigs(runner *jmxfetch.JMXFetch, selectedChecks []string) {
-	fmt.Println("Loading configs :")
+func loadJMXConfigs(runner *jmxfetch.JMXFetch, selectedChecks []string, discoveryRetryInterval time.Duration, discoveryTimeout time.Duration, discoveryMinInstances uint) {
+	fmt.Println("Loading configs...")
 
-	configs := common.AC.GetAllConfigs()
 	includeEverything := len(selectedChecks) == 0
+
+	configs := common.WaitForConfigs(discoveryRetryInterval, discoveryTimeout, jmxCheckMatcherBuilder(includeEverything, selectedChecks, discoveryMinInstances))
 
 	for _, c := range configs {
 		if check.IsJMXConfig(c) && (includeEverything || configIncluded(c, selectedChecks)) {
@@ -123,4 +125,17 @@ func configIncluded(config integration.Config, selectedChecks []string) bool {
 		}
 	}
 	return false
+}
+
+// jmxCheckMatcherBuilder returns a function that returns true if the number of JMX configs found for the check name is more or equal to min instances
+func jmxCheckMatcherBuilder(includeEverything bool, selectedChecks []string, minInstances uint) func ([]integration.Config) bool {
+	return func(configs []integration.Config) bool {
+		var matchedConfigsCount uint
+		for _, c := range configs {
+			if check.IsJMXConfig(c) && (includeEverything || configIncluded(c, selectedChecks)) {
+				matchedConfigsCount++
+			}
+		}
+		return matchedConfigsCount >= minInstances
+	}
 }

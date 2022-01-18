@@ -154,7 +154,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				discoveryRetryInterval = discoveryTimeout
 			}
 
-			allConfigs := waitForConfigs(checkName, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, discoveryMinInstances)
+			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, checkMatcherBuilder(checkName, discoveryMinInstances))
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -723,44 +723,16 @@ func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
 	return nil
 }
 
-// checkReady returns true if the number of configs found for the check name is more or equal to min instances
-func checkReady(checkName string, minInstances uint, configs []integration.Config) bool {
-	var matchedConfigsCount uint
-	for _, cfg := range configs {
-		if cfg.Name == checkName {
-			matchedConfigsCount++
-		}
-	}
-	return matchedConfigsCount >= minInstances
-}
-
-// waitForConfigs retries the collection of Autodiscovery configs until a minimum number of config instances
-// for the check are discovered or the timeout is reached.
-// Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
-// depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
-// This function improves the resiliency of the check command.
-// Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
-func waitForConfigs(checkName string, retryInterval, timeout time.Duration, minInstances uint) []integration.Config {
-	allConfigs := common.AC.GetAllConfigs()
-	if checkReady(checkName, minInstances, allConfigs) {
-		return allConfigs
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	retryTicker := time.NewTicker(retryInterval)
-	defer retryTicker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return allConfigs
-		case <-retryTicker.C:
-			allConfigs = common.AC.GetAllConfigs()
-			if checkReady(checkName, minInstances, allConfigs) {
-				return allConfigs
+// checkMatcherBuilder returns a function that returns true if the number of configs found for the
+// check name is more or equal to min instances
+func checkMatcherBuilder(checkName string, minInstances uint) func(configs []integration.Config) bool {
+	return func(configs []integration.Config) bool {
+		var matchedConfigsCount uint
+		for _, cfg := range configs {
+			if cfg.Name == checkName {
+				matchedConfigsCount++
 			}
 		}
+		return matchedConfigsCount >= minInstances
 	}
 }
