@@ -159,7 +159,8 @@ func validateSelectedParameters(t *testing.T, migratedConfigFile, oldConfigFile 
 
 	// Some second level parameters
 	migratedProcessConfig := migratedConf["process_config"].(map[interface{}]interface{})
-	assert.Equal(t, oldConfig["process_agent_enabled"], migratedProcessConfig["enabled"])
+	processConfigProcessCollection := migratedProcessConfig["process_collection"].(map[interface{}]interface{})
+	assert.Equal(t, oldConfig["process_agent_enabled"], strconv.FormatBool(processConfigProcessCollection["enabled"].(bool)))
 
 	migratedApmConfig := migratedConf["apm_config"].(map[interface{}]interface{})
 	assert.Equal(t, toBool(oldConfig["apm_enabled"]), migratedApmConfig["enabled"])
