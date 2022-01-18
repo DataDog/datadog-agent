@@ -21,15 +21,6 @@ var (
 )
 
 var (
-	// ScheduledConfigs tracks how many configs are scheduled.
-	ScheduledConfigs = telemetry.NewGaugeWithOpts(
-		subsystem,
-		"scheduled_configs",
-		[]string{"provider", "type"},
-		"Number of configs scheduled in Autodiscovery by provider and type.",
-		commonOpts,
-	)
-
 	// WatchedResources tracks how many resources are watched by AD listeners.
 	WatchedResources = telemetry.NewGaugeWithOpts(
 		subsystem,

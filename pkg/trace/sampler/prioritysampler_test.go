@@ -47,8 +47,8 @@ func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (
 	key := ServiceSignature{spans[0].Service, defaultEnv}
 	var rate float64
 	if serviceRate, ok := rates[key]; ok {
-		rate = serviceRate
-		spans[0].Metrics[agentRateKey] = serviceRate
+		rate = serviceRate.r
+		spans[0].Metrics[agentRateKey] = serviceRate.r
 	} else {
 		rate = 1
 	}
@@ -155,6 +155,21 @@ func TestPrioritySamplerWithNilRemote(t *testing.T) {
 		TargetTPS:       0.0,
 	}
 	s := NewPrioritySampler(conf, NewDynamicConfig())
+	s.Start()
+	s.updateRates()
+	s.reportStats()
+	chunk, root := getTestTraceWithService(t, "my-service", s)
+	assert.True(t, s.Sample(chunk, root, "", false))
+	s.Stop()
+}
+
+func TestPrioritySamplerWithRemote(t *testing.T) {
+	conf := &config.AgentConfig{
+		ExtraSampleRate: 1.0,
+		TargetTPS:       0.0,
+	}
+	s := NewPrioritySampler(conf, NewDynamicConfig())
+	s.remoteRates = newRemoteRates(10)
 	s.Start()
 	s.updateRates()
 	s.reportStats()

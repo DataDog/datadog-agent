@@ -20,7 +20,6 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,7 +54,7 @@ const (
 	DefaultBatchMaxConcurrentSend = 0
 
 	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
-	DefaultBatchMaxSize = 100
+	DefaultBatchMaxSize = 1000
 
 	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
 	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
@@ -110,6 +109,9 @@ var (
 var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
+
+	// PrometheusScrapeChecksTransformer decodes the `prometheus_scrape.checks` parameter
+	PrometheusScrapeChecksTransformer func(string) interface{}
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
@@ -175,6 +177,14 @@ type MetricMapping struct {
 	Tags      map[string]string `mapstructure:"tags" json:"tags"`
 }
 
+// Endpoint represent a datadog endpoint
+type Endpoint struct {
+	Site   string `mapstructure:"site" json:"site"`
+	URL    string `mapstructure:"url" json:"url"`
+	APIKey string `mapstructure:"api_key" json:"api_key"`
+	APPKey string `mapstructure:"app_key" json:"app_key" `
+}
+
 // Warnings represent the warnings in the config
 type Warnings struct {
 	TraceMallocEnabledWithPy2 bool
@@ -187,6 +197,21 @@ const (
 	// Metrics type covers series & sketches
 	Metrics DataType = "metrics"
 )
+
+// prometheusScrapeChecksTransformer is a trampoline function that delays the
+// resolution of `PrometheusScrapeChecksTransformer` from `InitConfig` (invoked
+// from an `init()` function to `cobra.(*Command).Execute` (invoked from `main.main`)
+//
+// Without it, the issue is that `config.PrometheusScrapeChecksTransformer` would be:
+// * written from an `init` function from `pkg/autodiscovery/common/types` and
+// * read from an `init` function here.
+// This would result in an undefined behaviour
+//
+// With this intermediate function, it’s read from `cobra.(*Command).Execute`
+// which is called from `main.main` which is guaranteed to be called after all `init`.
+func prometheusScrapeChecksTransformer(s string) interface{} {
+	return PrometheusScrapeChecksTransformer(s)
+}
 
 func init() {
 	osinit()
@@ -367,18 +392,6 @@ func InitConfig(config Config) {
 		} else {
 			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 		}
-
-		if pathExists("/host/etc") {
-			if val, isSet := os.LookupEnv("HOST_ETC"); !isSet {
-				// We want to detect the host distro informations instead of the one from the container.
-				// 'HOST_ETC' is used by some libraries like gopsutil and by the system-probe to
-				// download the right kernel headers.
-				os.Setenv("HOST_ETC", "/host/etc")
-				log.Debug("Setting environment variable HOST_ETC to '/host/etc'")
-			} else {
-				log.Debugf("'/host/etc' folder detected but HOST_ETC is already set to '%s', leaving it untouched", val)
-			}
-		}
 	} else {
 		config.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -393,6 +406,7 @@ func InitConfig(config Config) {
 	config.BindEnv("procfs_path")
 	config.BindEnv("container_proc_root")
 	config.BindEnv("container_cgroup_root")
+	config.BindEnvAndSetDefault("ignore_host_etc", false)
 
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
@@ -586,13 +600,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 	config.BindEnv("prometheus_scrape.checks")                                // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
-	config.SetEnvKeyTransformer("prometheus_scrape.checks", func(in string) interface{} {
-		var promChecks []*types.PrometheusCheck
-		if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
-			log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
-		}
-		return promChecks
-	})
+	config.SetEnvKeyTransformer("prometheus_scrape.checks", prometheusScrapeChecksTransformer)
+	config.BindEnvAndSetDefault("prometheus_scrape.version", 1) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
@@ -816,6 +825,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.endpoint", "")                 // Override the Datadog API endpoint to query external metrics from
 	config.BindEnvAndSetDefault("external_metrics_provider.api_key", "")                  // Override the Datadog API Key for external metrics endpoint
 	config.BindEnvAndSetDefault("external_metrics_provider.app_key", "")                  // Override the Datadog APP Key for external metrics endpoint
+	config.SetKnown("external_metrics_provider.endpoints")                                // List of redundant endpoints to query external metrics from
 	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)           // value in seconds. Frequency of calls to Datadog to refresh metric values
 	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)             // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                 // value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes 1.11) is enough to consider a metric stale
@@ -949,7 +959,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.retention", 6)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.events_count_threshold", 20000)
-	config.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 60)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.control_period", 2)
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
 	config.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
@@ -1122,6 +1132,24 @@ func findUnknownEnvVars(config Config) []string {
 	return unknownVars
 }
 
+func useHostEtc(config Config) {
+	if IsContainerized() && pathExists("/host/etc") {
+		if !config.GetBool("ignore_host_etc") {
+			if val, isSet := os.LookupEnv("HOST_ETC"); !isSet {
+				// We want to detect the host distro informations instead of the one from the container.
+				// 'HOST_ETC' is used by some libraries like gopsutil and by the system-probe to
+				// download the right kernel headers.
+				os.Setenv("HOST_ETC", "/host/etc")
+				log.Debug("Setting environment variable HOST_ETC to '/host/etc'")
+			} else {
+				log.Debugf("'/host/etc' folder detected but HOST_ETC is already set to '%s', leaving it untouched", val)
+			}
+		} else {
+			log.Debug("/host/etc detected but ignored because 'ignore_host_etc' is set to true")
+		}
+	}
+}
+
 func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
@@ -1168,6 +1196,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		AddOverride("python_version", DefaultPython)
 	}
 
+	useHostEtc(config)
 	loadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers

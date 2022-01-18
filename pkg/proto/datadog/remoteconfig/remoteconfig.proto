@@ -93,8 +93,20 @@ message ClientState {
 
 // Client queries
 
+message TargetFileHash {
+  string algorithm = 1;
+  bytes hash = 2;
+}
+
+message TargetFileMeta {
+  string path = 1;
+  int64 length = 2;
+  repeated TargetFileHash hashes = 3;
+}
+
 message ClientGetConfigsRequest {
   Client client = 1;
+  repeated TargetFileMeta cached_target_files = 2;
 }
 
 message ClientGetConfigsResponse {

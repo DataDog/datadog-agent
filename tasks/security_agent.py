@@ -233,6 +233,7 @@ def build_functional_tests(
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
+    nikos_embedded_path=None,
     bundle_ebpf=True,
     static=False,
     skip_linters=False,
@@ -243,7 +244,7 @@ def build_functional_tests(
         golangci_lint(ctx, targets=targets, build_tags=[build_tags], arch=arch)
         staticcheck(ctx, targets=targets, build_tags=[build_tags], arch=arch)
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version)
+    ldflags, _, env = get_build_flags(ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path)
 
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)
@@ -259,6 +260,9 @@ def build_functional_tests(
     if static:
         ldflags += '-extldflags "-static"'
         build_tags += ',osusergo,netgo'
+
+    if nikos_embedded_path:
+        build_tags += ",dnf"
 
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'

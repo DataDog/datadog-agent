@@ -1,5 +1,14 @@
 package pb
 
+// SamplingMechanism is the source of the sampling rates.
+// Possible values
+//     1: agent rate (Default)
+//     2: dynamically calculated remote rate
+//     6: remote rate defined by user
+//     7: remote rate defined by Datadog
+// This list is not exhaustive.
+type SamplingMechanism uint32
+
 // TargetTPS contains the targeted traces per second the agent should try to sample for a particular service and env
 type TargetTPS struct {
 	Service string `msgpack:"0"`
@@ -10,7 +19,7 @@ type TargetTPS struct {
 	// in favor of the highest rank.
 	Rank uint32 `msgpack:"3"`
 	// Mechanism is the identifier of the mechanism that generated this TargetTPS
-	Mechanism uint32 `msgpack:"4"`
+	Mechanism SamplingMechanism `msgpack:"4"`
 }
 
 // APMSampling is the list of target tps

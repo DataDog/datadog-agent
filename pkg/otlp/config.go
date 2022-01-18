@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-// +build !serverless
+// +build !serverless,otlp
 
 package otlp
 
@@ -145,6 +145,11 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 	if isSetExperimentalMetrics(cfg) {
 		metrics = cfg.GetStringMap(config.ExperimentalOTLPMetrics)
 	}
+
+	// HACK: Because of https://github.com/spf13/viper/issues/1012
+	// we need to manually get the nested setting to support the bound environment variable.
+	// The 'correct' solution would be to fix this in our Viper fork.
+	metrics["tag_cardinality"] = cfg.GetString(config.ExperimentalOTLPTagCardinalityKey)
 
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),

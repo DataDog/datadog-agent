@@ -7,10 +7,11 @@ package config
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
@@ -39,7 +40,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.process_discovery.enabled",
-			defaultValue: false,
+			defaultValue: true,
 		},
 		{
 			key:          "process_config.process_discovery.interval",
@@ -150,6 +151,12 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL",
 			value:    "1h",
 			expected: time.Hour,
+		},
+		{
+			key:      "process_config.disable_realtime_checks",
+			env:      "DD_PROCESS_CONFIG_DISABLE_REALTIME_CHECKS",
+			value:    "true",
+			expected: true,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {

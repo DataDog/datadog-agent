@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,7 +71,7 @@ func TestDefaults(t *testing.T) {
 
 	// Testing process-agent defaults
 	assert.Equal(t, map[string]interface{}{
-		"enabled":  false,
+		"enabled":  true,
 		"interval": 4 * time.Hour,
 	}, config.GetStringMap("process_config.process_discovery"))
 }
@@ -998,22 +996,6 @@ func TestDogstatsdMappingProfilesEnv(t *testing.T) {
 	}
 	mappings, _ := GetDogstatsdMappingProfiles()
 	assert.Equal(t, mappings, expected)
-}
-
-func TestPrometheusScrapeChecksEnv(t *testing.T) {
-	env := "DD_PROMETHEUS_SCRAPE_CHECKS"
-	err := os.Setenv(env, `[{"configurations":[{"timeout":5,"send_distribution_buckets":true}],"autodiscovery":{"kubernetes_container_names":["my-app"],"kubernetes_annotations":{"include":{"custom_label":"true"}}}}]`)
-	assert.Nil(t, err)
-	defer os.Unsetenv(env)
-	expected := []*types.PrometheusCheck{
-		{
-			Instances: []*types.OpenmetricsInstance{{Timeout: 5, DistributionBuckets: true}},
-			AD:        &types.ADConfig{KubeContainerNames: []string{"my-app"}, KubeAnnotations: &types.InclExcl{Incl: map[string]string{"custom_label": "true"}}},
-		},
-	}
-	checks := []*types.PrometheusCheck{}
-	assert.NoError(t, Datadog.UnmarshalKey("prometheus_scrape.checks", &checks))
-	assert.EqualValues(t, checks, expected)
 }
 
 func TestGetValidHostAliasesWithConfig(t *testing.T) {

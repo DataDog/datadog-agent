@@ -272,6 +272,8 @@ func (dr *DentryResolver) lookupInodeFromCache(mountID uint32, inode uint64) (*P
 	return cacheEntry, nil
 }
 
+// We need to cache inode by inode instead of caching the whole path in order to be
+// able to invalidate the whole path if one of its element got rename or removed.
 func (dr *DentryResolver) cacheInode(key PathKey, path *PathEntry) error {
 	entries, exists := dr.cache[key.MountID]
 	if !exists {

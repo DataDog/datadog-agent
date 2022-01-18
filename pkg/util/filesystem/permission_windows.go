@@ -60,7 +60,7 @@ func getCurrentUserSid() (*windows.SID, error) {
 	return windows.StringToSid(sidString)
 }
 
-// RestrictAccessToUser restricts the access to the user (chmod 700)
+// RestrictAccessToUser update the ACL of a file so only the current user and ADMIN/SYSTEM can access it
 func (p *Permission) RestrictAccessToUser(path string) error {
 	return acl.Apply(
 		path,

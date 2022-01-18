@@ -17,6 +17,16 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
+  cookbook_file "#{wrk_dir}/nikos.tar.gz" do
+    source "nikos.tar.gz"
+    mode '755'
+  end
+
+  archive_file "nikos.tar.gz" do
+    path "#{wrk_dir}/nikos.tar.gz"
+    destination "/opt/datadog-agent/embedded/nikos/embedded"
+  end
+
   # `/swapfile` doesn't work on Oracle Linux, so we use `/mnt/swapfile`
   swap_file '/mnt/swapfile' do
     size 2048

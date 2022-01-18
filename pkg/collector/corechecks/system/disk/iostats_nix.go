@@ -18,11 +18,13 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/mem" // for system.io.block_{in,out}
 )
 
 // For testing purpose
 var (
 	ioCounters = disk.IOCounters
+	swapMemory = mem.SwapMemory
 
 	// for test purpose
 	nowNano = func() int64 { return time.Now().UnixNano() }
@@ -171,6 +173,15 @@ func (c *IOCheck) nixIO() error {
 		// See more: (https://github.com/sysstat/sysstat/blob/v11.5.6/iostat.c#L1033-L1040)
 		sender.Gauge("system.io.util", roundFloat(util/10.0), "", tags)
 
+	}
+
+	// pgpgin and pgpgout are reported in /proc/vmstat and parsed by mem.swapMemory() only
+	s, errSwap := swapMemory()
+	if errSwap == nil {
+		sender.Rate("system.io.block_in", float64(s.PgIn), "", nil)
+		sender.Rate("system.io.block_out", float64(s.PgOut), "", nil)
+	} else {
+		log.Errorf("system.IOCheck: could not retrieve I/O block stats: %s", errSwap)
 	}
 
 	c.stats = iomap

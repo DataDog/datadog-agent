@@ -521,6 +521,7 @@ func TestAggregatorFlush(t *testing.T) {
 			config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", tt.enabled)
 			s := &MockSerializerIterableSerie{}
 			s.On("SendServiceChecks", mock.Anything).Return(nil)
+			s.On("IsIterableSeriesSupported", mock.Anything).Return(true).Maybe()
 			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 			expectedSeries := flushSomeSamples(agg)
 			assertSeriesEqual(t, s.series, expectedSeries)
@@ -539,7 +540,7 @@ type MockSerializerIterableSerie struct {
 	serializer.MockSerializer
 }
 
-func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error {
+func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableMarshaler) error {
 	iterableSerie := series.(*metrics.IterableSeries)
 	defer iterableSerie.IterationStopped()
 

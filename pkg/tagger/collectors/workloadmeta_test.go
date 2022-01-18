@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 
@@ -1041,6 +1042,40 @@ func TestHandleContainerStaticTags(t *testing.T) {
 	assertTagInfoListEqual(t, expected, actual)
 }
 
+func TestHandlePodStaticTags(t *testing.T) {
+	collector := &WorkloadMetaCollector{
+		staticTags: map[string]string{
+			"eks_fargate_node":  "node",
+			"kube_cluster_name": "cluster",
+		},
+	}
+
+	pod := workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "uid",
+		},
+	}
+
+	expected := []*TagInfo{
+		{
+			Source:               podSource,
+			Entity:               "kubernetes_pod_uid://uid",
+			HighCardTags:         []string{},
+			OrchestratorCardTags: []string{},
+			LowCardTags:          []string{"eks_fargate_node:node", "kube_cluster_name:cluster"},
+			StandardTags:         []string{},
+		},
+	}
+
+	actual := collector.handleKubePod(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: &pod,
+	})
+
+	assertTagInfoListEqual(t, expected, actual)
+}
+
 func TestParseJSONValue(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -1198,6 +1233,52 @@ func TestFargateStaticTags(t *testing.T) {
 			loadFunc:    func() {},
 			cleanupFunc: func() {},
 			want:        nil,
+		},
+		{
+			name: "kube cluster name",
+			loadFunc: func() {
+				clustername.ResetClusterName()
+				mockConfig.Set("eks_fargate", true)
+				mockConfig.Set("cluster_name", "fargate-cluster-name")
+			},
+			cleanupFunc: func() {
+				mockConfig.Set("eks_fargate", false)
+				mockConfig.Set("cluster_name", "")
+				clustername.ResetClusterName()
+			},
+			want: map[string]string{"kube_cluster_name": "fargate-cluster-name"},
+		},
+		{
+			name: "dd tags and kube cluster name, nominal case",
+			loadFunc: func() {
+				clustername.ResetClusterName()
+				mockConfig.Set("tags", "dd_tag1:dd_val1 dd_tag2:dd_val2")
+				mockConfig.Set("eks_fargate", true)
+				mockConfig.Set("cluster_name", "fargate-cluster-name")
+			},
+			cleanupFunc: func() {
+				mockConfig.Set("tags", "")
+				mockConfig.Set("eks_fargate", false)
+				mockConfig.Set("cluster_name", "")
+				clustername.ResetClusterName()
+			},
+			want: map[string]string{"dd_tag1": "dd_val1", "dd_tag2": "dd_val2", "kube_cluster_name": "fargate-cluster-name"},
+		},
+		{
+			name: "dd tags and kube cluster name, kube_cluster_name defined in dd tags",
+			loadFunc: func() {
+				clustername.ResetClusterName()
+				mockConfig.Set("tags", "kube_cluster_name:cluster_name_dd_tags")
+				mockConfig.Set("eks_fargate", true)
+				mockConfig.Set("cluster_name", "cluster_name")
+			},
+			cleanupFunc: func() {
+				mockConfig.Set("tags", "")
+				mockConfig.Set("eks_fargate", false)
+				mockConfig.Set("cluster_name", "")
+				clustername.ResetClusterName()
+			},
+			want: map[string]string{"kube_cluster_name": "cluster_name_dd_tags"},
 		},
 	}
 	for _, tt := range tests {

@@ -6,6 +6,7 @@
 #include <linux/version.h>
 #include <linux/bpf.h>
 #include <linux/filter.h>
+#include <uapi/asm-generic/mman-common.h>
 
 #include "defs.h"
 #include "buffer_selector.h"
@@ -41,6 +42,9 @@
 #include "ioctl.h"
 #include "selinux.h"
 #include "bpf.h"
+#include "ptrace.h"
+#include "mmap.h"
+#include "mprotect.h"
 #include "raw_syscalls.h"
 
 struct invalidate_dentry_event_t {

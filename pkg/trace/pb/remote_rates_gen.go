@@ -153,6 +153,58 @@ func (z *APMSampling) Msgsize() (s int) {
 }
 
 // DecodeMsg implements msgp.Decodable
+func (z *SamplingMechanism) DecodeMsg(dc *msgp.Reader) (err error) {
+	{
+		var zb0001 uint32
+		zb0001, err = dc.ReadUint32()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = SamplingMechanism(zb0001)
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z SamplingMechanism) EncodeMsg(en *msgp.Writer) (err error) {
+	err = en.WriteUint32(uint32(z))
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z SamplingMechanism) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	o = msgp.AppendUint32(o, uint32(z))
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *SamplingMechanism) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	{
+		var zb0001 uint32
+		zb0001, bts, err = msgp.ReadUint32Bytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = SamplingMechanism(zb0001)
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z SamplingMechanism) Msgsize() (s int) {
+	s = msgp.Uint32Size
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
 func (z *TargetTPS) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
 	_ = field
@@ -195,10 +247,14 @@ func (z *TargetTPS) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 		case "4":
-			z.Mechanism, err = dc.ReadUint32()
-			if err != nil {
-				err = msgp.WrapError(err, "Mechanism")
-				return
+			{
+				var zb0002 uint32
+				zb0002, err = dc.ReadUint32()
+				if err != nil {
+					err = msgp.WrapError(err, "Mechanism")
+					return
+				}
+				z.Mechanism = SamplingMechanism(zb0002)
 			}
 		default:
 			err = dc.Skip()
@@ -259,7 +315,7 @@ func (z *TargetTPS) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteUint32(z.Mechanism)
+	err = en.WriteUint32(uint32(z.Mechanism))
 	if err != nil {
 		err = msgp.WrapError(err, "Mechanism")
 		return
@@ -285,7 +341,7 @@ func (z *TargetTPS) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendUint32(o, z.Rank)
 	// string "4"
 	o = append(o, 0xa1, 0x34)
-	o = msgp.AppendUint32(o, z.Mechanism)
+	o = msgp.AppendUint32(o, uint32(z.Mechanism))
 	return
 }
 
@@ -332,10 +388,14 @@ func (z *TargetTPS) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "4":
-			z.Mechanism, bts, err = msgp.ReadUint32Bytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "Mechanism")
-				return
+			{
+				var zb0002 uint32
+				zb0002, bts, err = msgp.ReadUint32Bytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Mechanism")
+					return
+				}
+				z.Mechanism = SamplingMechanism(zb0002)
 			}
 		default:
 			bts, err = msgp.Skip(bts)

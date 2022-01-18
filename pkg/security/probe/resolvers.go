@@ -10,7 +10,6 @@ package probe
 import (
 	"context"
 	"os"
-	"path"
 	"sort"
 	"strings"
 
@@ -97,7 +96,10 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)
 	}
-	pathStr = path.Join(mountPath, pathStr)
+
+	if mountPath != "/" {
+		pathStr = mountPath + pathStr
+	}
 
 	return pathStr, err
 }

@@ -142,6 +142,7 @@ suites:
           APIKEY=<%= api_key %>
           LOGS_ENABLED=false
           PROCESS_ENABLED=false
+          PROCESS_DISCOVERY_ENABLED=false
           APM_ENABLED=false
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>

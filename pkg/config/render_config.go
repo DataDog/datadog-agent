@@ -50,6 +50,7 @@ type context struct {
 	SecurityModule    bool
 	SecurityAgent     bool
 	NetworkModule     bool // Sub-module of System Probe
+	PrometheusScrape  bool
 }
 
 func mkContext(buildType string) context {
@@ -79,6 +80,7 @@ func mkContext(buildType string) context {
 		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
 		Compliance:        true,
 		SNMP:              true,
+		PrometheusScrape:  true,
 	}
 
 	switch buildType {

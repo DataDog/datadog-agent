@@ -29,7 +29,7 @@ RUN set -ex \
         ssh
 
 # Golang
-ENV GIMME_GO_VERSION 1.16.7
+ENV GIMME_GO_VERSION 1.16.12
 ENV GOROOT /root/.gimme/versions/go$GIMME_GO_VERSION.linux.amd64
 ENV GOPATH /go
 ENV PATH $GOROOT/bin:$GOPATH/bin:$PATH

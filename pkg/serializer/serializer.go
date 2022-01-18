@@ -96,7 +96,8 @@ type MetricSerializer interface {
 	SendEvents(e EventsStreamJSONMarshaler) error
 	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
-	SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error
+	SendIterableSeries(series marshaler.IterableMarshaler) error
+	IsIterableSeriesSupported() bool
 	SendSketch(sketches marshaler.Marshaler) error
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
@@ -300,19 +301,39 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 }
 
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder
-func (s *Serializer) SendIterableSeries(series marshaler.IterableStreamJSONMarshaler) error {
+func (s *Serializer) SendIterableSeries(series marshaler.IterableMarshaler) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
 
-	seriesPayloads, extraHeaders, err := s.serializeIterableStreamablePayload(series, stream.DropItemOnErrItemTooBig)
+	useV1API := !config.Datadog.GetBool("use_v2_api.series")
+
+	var seriesPayloads forwarder.Payloads
+	var extraHeaders http.Header
+	var err error
+
+	if useV1API {
+		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(series, stream.DropItemOnErrItemTooBig)
+	} else {
+		seriesPayloads, err = series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		extraHeaders = protobufExtraHeadersWithCompression
+	}
 
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
+	if useV1API {
+		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
+	}
+	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
+}
+
+// IsIterableSeriesSupported returns whether `SendIterableSeries` is supported.
+// Should be removed when `serializePayloadJSON` (useV1API && !s.enableJSONStream) will be removed
+func (s *Serializer) IsIterableSeriesSupported() bool {
+	return config.Datadog.GetBool("use_v2_api.series") || s.enableJSONStream
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder

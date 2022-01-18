@@ -29,6 +29,7 @@ ALL_TAGS = {
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "npm",
     "orchestrator",
+    "otlp",
     "podman",
     "process",
     "python",
@@ -56,6 +57,7 @@ AGENT_TAGS = {
     "kubelet",
     "netcgo",
     "orchestrator",
+    "otlp",
     "podman",
     "process",
     "python",
@@ -83,10 +85,10 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "secrets"}
 DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "secrets", "zlib"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"jetson", "systemd", "zlib"}
+IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orchestrator"})
+PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orchestrator"}).difference({"otlp"})
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
 PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
@@ -94,13 +96,13 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 )
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman"}
+SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "netcgo", "podman", "secrets"}
+TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman", "secrets"}
 
 # TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
 TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
