@@ -2,9 +2,10 @@ package metric
 
 import (
 	"context"
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/golang/protobuf/proto"
+	flowmessage "github.com/netsampler/goflow2/pb"
 	"io"
 	"os"
 	"os/signal"
@@ -76,11 +77,20 @@ func (d *MetricDriver) Init(context.Context) error {
 }
 
 func (d *MetricDriver) Send(key, data []byte) error {
-	d.Lock.RLock()
-	w := d.w
-	d.Lock.RUnlock()
+	//d.Lock.RLock()
+	//w := d.w
+	//d.Lock.RUnlock()
 	log.Warn("Send metric")
-	_, err := fmt.Fprint(w, string(data)+d.lineSeparator)
+
+
+	buf := proto.NewBuffer(data)
+
+	msg := new(flowmessage.FlowMessage)
+	err := buf.DecodeMessage(msg)
+
+	log.Warnf("msg.SrcAddr: %v", msg.SrcAddr)
+
+	//_, err := fmt.Fprint(w, string(data)+d.lineSeparator)
 
 	timestamp := float64(time.Now().UnixNano())
 	enhancedMetrics := []metrics.MetricSample{{

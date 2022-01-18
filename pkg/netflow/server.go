@@ -8,14 +8,14 @@ package netflow
 import (
 	"context"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/json"
 	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/json"
+	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/protobuf"
 	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/file"
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/metric"
 	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/metric"
 	"github.com/netsampler/goflow2/format"
 	"github.com/netsampler/goflow2/transport"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/netsampler/goflow2/utils"
@@ -104,11 +104,16 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggreg
 	agg := demultiplexer.Aggregator()
 	metricChan := agg.GetBufferedMetricsWithTsChannel()
 
-	d := &metric.MetricDriver{
-		Lock: &sync.RWMutex{},
+	//d := &metric.MetricDriver{
+	//	Lock: &sync.RWMutex{},
+	//	MetricChan: metricChan,
+	//}
+	//transport.RegisterTransportDriver("metric", d)
+
+	d := &json.JsonDriver{
 		MetricChan: metricChan,
 	}
-	transport.RegisterTransportDriver("metric", d)
+	format.RegisterFormatDriver("json", d)
 
 	ctx := context.TODO()
 	formatter, err := format.FindFormat(ctx, "json")
@@ -116,7 +121,7 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggreg
 		return nil, err
 	}
 
-	transporter, err := transport.FindTransport(ctx, "metric")
+	transporter, err := transport.FindTransport(ctx, "file")
 	if err != nil {
 		return nil, err
 	}
