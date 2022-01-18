@@ -172,6 +172,10 @@ func (s *store) Start(ctx context.Context) {
 					log.Warnf("error de-registering health check: %s", err)
 				}
 
+				s.unsubscribeAll()
+
+				log.Infof("stopped workloadmeta store")
+
 				return
 			}
 		}
@@ -262,11 +266,10 @@ func (s *store) Unsubscribe(ch chan EventBundle) {
 		if sub.ch == ch {
 			s.subscribers = append(s.subscribers[:i], s.subscribers[i+1:]...)
 			telemetry.Subscribers.Dec()
-			break
+			close(ch)
+			return
 		}
 	}
-
-	close(ch)
 }
 
 // GetContainer returns metadata about a container.
@@ -519,6 +522,17 @@ func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
 	}
 
 	return entities, nil
+}
+
+func (s *store) unsubscribeAll() {
+	s.subscribersMut.Lock()
+	defer s.subscribersMut.Unlock()
+
+	for _, sub := range s.subscribers {
+		close(sub.ch)
+	}
+
+	telemetry.Subscribers.Set(0)
 }
 
 func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
