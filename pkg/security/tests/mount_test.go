@@ -66,7 +66,7 @@ func TestMount(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			// Test mount
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
-				return fmt.Errorf("could not create bind mount: %s", err)
+				return fmt.Errorf("could not create bind mount: %w", err)
 			}
 			return nil
 		}, func(event *sprobe.Event) bool {
@@ -123,7 +123,7 @@ func TestMount(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			// Test umount
 			if err = syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
-				return fmt.Errorf("could not unmount test-mount: %s", err)
+				return fmt.Errorf("could not unmount test-mount: %w", err)
 			}
 			return nil
 		}, func(event *sprobe.Event) bool {
