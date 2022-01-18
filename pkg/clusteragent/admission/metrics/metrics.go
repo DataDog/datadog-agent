@@ -7,7 +7,11 @@
 
 package metrics
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // Metric names
 const (
@@ -43,4 +47,12 @@ var (
 	GetOwnerCacheMiss = telemetry.NewGaugeWithOpts("admission_webhooks", "owner_cache_miss",
 		[]string{"resource"}, "Number of cache misses while getting pod's owner object.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	WebhooksResponseDuration = telemetry.NewHistogramWithOpts(
+		"admission_webhooks",
+		"response_duration",
+		[]string{},
+		"Webhook response duration distribution (in seconds).",
+		prometheus.DefBuckets, // The default prometheus buckets are adapted to measure response time
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
 )
