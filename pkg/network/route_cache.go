@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 type routeKey struct {
@@ -119,6 +120,7 @@ type ifkey struct {
 
 type netlinkRouter struct {
 	rootNs  uint32
+	ioctlFD int
 	ifcache *lru.Cache
 }
 
@@ -129,8 +131,18 @@ func NewNetlinkRouter(procRoot string) (Router, error) {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
+	var fd int
+	err = util.WithRootNS(procRoot, func() (sockErr error) {
+		fd, sockErr = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
+		return
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	return &netlinkRouter{
-		rootNs: rootNs,
+		rootNs:  rootNs,
+		ioctlFD: fd,
 		// ifcache should ideally fit all interfaces on a given node
 		ifcache: lru.New(128),
 	}, nil
@@ -152,14 +164,10 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		// a container most likely, and so need to find out
 		// which interface is associated with the ns
 
-		// get input interface for src ip
-		ifi := n.getInterface(source, srcIP, netns)
-		if ifi == nil {
+		// get input interface name for src ip
+		iifName = n.getInterfaceName(source, srcIP, netns)
+		if iifName == "" {
 			return Route{}, false
-		}
-
-		if ifi.Flags&net.FlagLoopback == 0 {
-			iifName = ifi.Name
 		}
 	}
 
@@ -184,22 +192,29 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 	}, true
 }
 
-func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netns uint32) *net.Interface {
+func (n *netlinkRouter) getInterfaceName(srcAddress util.Address, srcIP net.IP, netns uint32) string {
 	key := ifkey{ip: srcAddress, netns: netns}
 	if entry, ok := n.ifcache.Get(key); ok {
-		return entry.(*net.Interface)
+		return entry.(string)
 	}
 
 	routes, err := netlink.RouteGet(srcIP)
 	if err != nil || len(routes) != 1 {
-		return nil
+		return ""
 	}
 
-	ifi, err := net.InterfaceByIndex(routes[0].LinkIndex)
+	ifr, err := unix.NewIfreq("")
 	if err != nil {
-		return nil
+		return ""
 	}
 
-	n.ifcache.Add(key, ifi)
-	return ifi
+	ifr.SetUint32(uint32(routes[0].LinkIndex))
+	err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr)
+	if err != nil {
+		return ""
+	}
+
+	ifname := ifr.Name()
+	n.ifcache.Add(key, ifname)
+	return ifname
 }
