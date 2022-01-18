@@ -11,6 +11,7 @@ package podman
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -103,8 +104,15 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		})
 	}
 
+	var eventType workloadmeta.EventType
+	if container.State.State == podman.ContainerStateRunning {
+		eventType = workloadmeta.EventTypeSet
+	} else {
+		eventType = workloadmeta.EventTypeUnset
+	}
+
 	return workloadmeta.CollectorEvent{
-		Type:   workloadmeta.EventTypeSet,
+		Type:   eventType,
 		Source: workloadmeta.SourcePodman,
 		Entity: &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
@@ -120,7 +128,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 			EnvVars:    envs,
 			Hostname:   hostname(container),
 			Image:      image,
-			NetworkIPs: make(map[string]string), // I think there's no way to get this mapping
+			NetworkIPs: networkIPs(container),
 			PID:        container.State.PID,
 			Ports:      ports,
 			Runtime:    workloadmeta.ContainerRuntimePodman,
@@ -142,6 +150,49 @@ func (c *collector) expiredEvents() []workloadmeta.CollectorEvent {
 			Source: workloadmeta.SourcePodman,
 			Entity: expired,
 		})
+	}
+
+	return res
+}
+
+func getShortID(container *podman.Container) (containerID string) {
+	if len(container.Config.ID) >= 12 {
+		containerID = container.Config.ID[:12]
+	} else {
+		containerID = container.Config.ID
+	}
+	return
+}
+
+func networkIPs(container *podman.Container) map[string]string {
+	res := make(map[string]string)
+
+	// container.Config.Networks contains only the networks specified at container creation time
+	// and not the ones attached afterwards with `podman network attach`
+	// They appear in the order in which they were specified in the `podman run --net=…` command
+	networkNames := make([]string, len(container.Config.Networks))
+	copy(networkNames, container.Config.Networks)
+	sort.Strings(networkNames)
+
+	// Handle the default case where no `--net` is specified
+	if len(networkNames) == 0 && len(container.State.NetworkStatus) == 1 {
+		networkNames = []string{"podman"}
+	}
+
+	if len(networkNames) != len(container.State.NetworkStatus) {
+		log.Warnf("podman container %s %s has now a number of networks (%d) different from what it was at creation time (%d). This can be due to the use of `podman network attach`/`podman network detach`. This may confuse the agent.", getShortID(container), container.Config.Name, len(container.State.NetworkStatus), len(networkNames))
+		return map[string]string{}
+	}
+
+	// container.State.NetworkStatus contains all the networks but they are not in the same order
+	// as in container.Config.Network. Here, they are sorted by network name.
+	for i := 0; i < len(networkNames); i++ {
+		if len(container.State.NetworkStatus[i].IPs) > 1 {
+			log.Warnf("podman container %s %s has several IPs on network %s. This is most probably because of a dual-stack IPv4/IPv6 setup. The agent will use only the first IP.", getShortID(container), container.Config.Name, networkNames[i])
+		}
+		if len(container.State.NetworkStatus[i].IPs) > 0 {
+			res[networkNames[i]] = container.State.NetworkStatus[i].IPs[0].Address.IP.String()
+		}
 	}
 
 	return res

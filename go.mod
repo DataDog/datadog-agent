@@ -62,17 +62,17 @@ require (
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/BurntSushi/toml v0.4.1 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.8
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.34.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.34.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/quantile v0.34.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.34.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.34.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.34.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.34.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.34.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.34.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/quantile v0.34.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.34.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.34.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.34.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.34.0-rc.2
 	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf-manager v0.0.0-20220106215052-9189b77594bb
-	github.com/DataDog/gohai v0.0.0-20211126091652-d183ed971098
+	github.com/DataDog/gohai v0.0.0-20220112164844-3f118982b8ef
 	github.com/DataDog/gopsutil v0.0.0-20211112180027-9aa392ae181a
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/nikos v1.7.1
@@ -105,6 +105,7 @@ require (
 	github.com/containerd/cgroups v1.0.2
 	github.com/containerd/containerd v1.5.9
 	github.com/containerd/typeurl v1.0.2
+	github.com/containernetworking/cni v0.8.1
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
 	github.com/cri-o/ocicni v0.2.0

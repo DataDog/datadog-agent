@@ -30,6 +30,7 @@ type batchStrategy struct {
 	batchWait        time.Duration
 	contentEncoding  ContentEncoding
 	syncFlushTrigger chan struct{} // trigger a synchronous flush
+	syncFlushDone    chan struct{} // wait for a synchronous flush to finish
 	clock            clock.Clock
 }
 
@@ -63,6 +64,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		batchWait:        batchWait,
 		contentEncoding:  contentEncoding,
 		syncFlushTrigger: make(chan struct{}),
+		syncFlushDone:    make(chan struct{}),
 		pipelineName:     pipelineName,
 		clock:            clock,
 	}
@@ -71,6 +73,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 // Stop flushes the buffer and stops the strategy
 func (s *batchStrategy) Stop() {
 	s.syncFlushTrigger <- struct{}{}
+	<-s.syncFlushDone
 	close(s.inputChan)
 }
 
@@ -99,6 +102,7 @@ func (s *batchStrategy) Start() {
 				s.flushBuffer(s.outputChan)
 			case <-s.syncFlushTrigger:
 				s.flushBuffer(s.outputChan)
+				s.syncFlushDone <- struct{}{}
 			}
 		}
 	}()
