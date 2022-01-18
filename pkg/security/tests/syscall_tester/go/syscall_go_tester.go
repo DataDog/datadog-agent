@@ -58,8 +58,10 @@ func BPFLoad() error {
 		return fmt.Errorf("failed to initialize manager: %w", err)
 	}
 
-	if err := BPFClone(m); err != nil {
-		return err
+	if bpfClone {
+		if err := BPFClone(m); err != nil {
+			return err
+		}
 	}
 
 	return nil
