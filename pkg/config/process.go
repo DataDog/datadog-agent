@@ -113,7 +113,12 @@ func GetContainerCollectionEnabled(config Config) bool {
 	if config.IsSet("process_config.enabled") {
 		_ = displayProcConfigEnabledDeprecationWarning()
 
-		return config.GetString("process_config.enabled") == "false"
+		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
+		if procConfigEnabled == "disabled" {
+			return false
+		}
+		result, _ := strconv.ParseBool(procConfigEnabled)
+		return !result
 	}
 	return config.GetBool("process_config.container_collection.enabled") &&
 		!config.GetBool("process_config.process_collection.enabled") // Process Collection already collects containers
@@ -125,7 +130,12 @@ func GetProcessCollectionEnabled(config Config) bool {
 	if config.IsSet("process_config.enabled") {
 		_ = displayProcConfigEnabledDeprecationWarning()
 
-		return config.GetBool("process_config.enabled") == true
+		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
+		if procConfigEnabled == "disabled" {
+			return false
+		}
+		result, _ := strconv.ParseBool(procConfigEnabled)
+		return result
 	}
 	return config.GetBool("process_config.process_collection.enabled")
 }
