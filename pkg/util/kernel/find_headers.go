@@ -28,8 +28,9 @@ import (
 )
 
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
-const kernelModulesPath = "/lib/modules/%s/build"
-const debKernelModulesPath = "/lib/modules/%s/source"
+
+// const kernelModulesPath = "/lib/modules/%s/build"
+// const debKernelModulesPath = "/lib/modules/%s/source"
 const cosKernelModulesPath = "/usr/src/linux-headers-%s"
 const rpmKernelModulePath = "/usr/src/linux-%s"
 const fedoraKernelModulesPath = "/usr"
@@ -208,15 +209,15 @@ func getDefaultHeaderDirs() []string {
 	}
 
 	dirs := []string{
-		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
+		// fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
+		// fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
 		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
 		fmt.Sprintf(rpmKernelModulePath, hi.KernelVersion),
 		fedoraKernelModulesPath,
 	}
 
-	var defaultSuffix = regexp.MustCompile("-[a-z]+$")
-	cleanedKernelVersion := defaultSuffix.ReplaceAllString(hi.KernelVersion, "")
+	var flavorSuffix = regexp.MustCompile("-[a-z]+$")
+	cleanedKernelVersion := flavorSuffix.ReplaceAllString(hi.KernelVersion, "")
 	if hi.KernelVersion != cleanedKernelVersion {
 		dirs = append(dirs, fmt.Sprintf(rpmKernelModulePath, cleanedKernelVersion))
 	}
