@@ -137,7 +137,11 @@ func (l *KubeletListener) createContainerService(
 		return
 	}
 
-	if !container.State.FinishedAt.IsZero() {
+	// Note: Docker containers can have a "FinishedAt" time set even when
+	// they're running. That happens when they've been stopped and then
+	// restarted. "FinishedAt" corresponds to the last time the container was
+	// stopped.
+	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
 		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
 		if time.Now().Sub(finishedAt) > excludeAge {
