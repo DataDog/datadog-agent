@@ -112,8 +112,14 @@ func newRouteKey(source, dest util.Address, netns uint32) routeKey {
 	return k
 }
 
+type ifkey struct {
+	ip    util.Address
+	netns uint32
+}
+
 type netlinkRouter struct {
-	rootNs uint32
+	rootNs  uint32
+	ifcache *lru.Cache
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
@@ -125,6 +131,8 @@ func NewNetlinkRouter(procRoot string) (Router, error) {
 
 	return &netlinkRouter{
 		rootNs: rootNs,
+		// ifcache should ideally fit all interfaces on a given node
+		ifcache: lru.New(128),
 	}, nil
 }
 
@@ -145,14 +153,8 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		// which interface is associated with the ns
 
 		// get input interface for src ip
-
-		routes, err := netlink.RouteGet(srcIP)
-		if err != nil || len(routes) != 1 {
-			return Route{}, false
-		}
-
-		ifi, err := net.InterfaceByIndex(routes[0].LinkIndex)
-		if err != nil {
+		ifi := n.getInterface(source, srcIP, netns)
+		if ifi == nil {
 			return Route{}, false
 		}
 
@@ -180,4 +182,24 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		Gateway: util.AddressFromNetIP(r.Gw),
 		IfIndex: r.LinkIndex,
 	}, true
+}
+
+func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netns uint32) *net.Interface {
+	key := ifkey{ip: srcAddress, netns: netns}
+	if entry, ok := n.ifcache.Get(key); ok {
+		return entry.(*net.Interface)
+	}
+
+	routes, err := netlink.RouteGet(srcIP)
+	if err != nil || len(routes) != 1 {
+		return nil
+	}
+
+	ifi, err := net.InterfaceByIndex(routes[0].LinkIndex)
+	if err != nil {
+		return nil
+	}
+
+	n.ifcache.Add(key, ifi)
+	return ifi
 }
