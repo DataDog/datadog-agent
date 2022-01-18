@@ -400,6 +400,18 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 	require.Equal(t, 5, len(payloads))
 }
 
+func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
+	mockConfig := config.Mock()
+	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
+	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
+	mockConfig.Set("serializer_max_series_points_per_payload", 1)
+
+	series := makeSeries(1, 2)
+	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	require.NoError(t, err)
+	require.Len(t, payloads, 0)
+}
+
 // test taken from the spliter
 func TestPayloadsSeries(t *testing.T) {
 	testSeries := Series{}

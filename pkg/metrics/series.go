@@ -264,6 +264,8 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 	payloads := []*[]byte{}
 
 	var pointsThisPayload int
+	var seriesThisPayload int
+	var serie *Serie
 	maxPointsPerPayload := config.Datadog.GetInt("serializer_max_series_points_per_payload")
 
 	// constants for the protobuf data we will be writing, taken from MetricPayload in
@@ -286,6 +288,7 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 		var err error
 
 		pointsThisPayload = 0
+		seriesThisPayload = 0
 		bufferContext.CompressorInput.Reset()
 		bufferContext.CompressorOutput.Reset()
 
@@ -294,6 +297,16 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 			return err
 		}
 
+		return nil
+	}
+
+	addToPayload := func() error {
+		err = compressor.AddItem(buf.Bytes())
+		if err != nil {
+			return err
+		}
+		pointsThisPayload += len(serie.Points)
+		seriesThisPayload++
 		return nil
 	}
 
@@ -317,7 +330,7 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 	}
 
 	for iterator.MoveNext() {
-		serie := iterator.Current()
+		serie = iterator.Current()
 
 		buf.Reset()
 		err = ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
@@ -394,7 +407,7 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 			return nil, err
 		}
 
-		if pointsThisPayload > maxPointsPerPayload {
+		if len(serie.Points) > maxPointsPerPayload {
 			// this series is just too big to fit in a payload (even alone)
 			err = stream.ErrItemTooBig
 		} else if pointsThisPayload+len(serie.Points) > maxPointsPerPayload {
@@ -402,8 +415,7 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 			err = stream.ErrPayloadFull
 		} else {
 			// Compress the protobuf metadata and the marshaled series
-			err = compressor.AddItem(buf.Bytes())
-			pointsThisPayload += len(serie.Points)
+			err = addToPayload()
 		}
 
 		switch err {
@@ -422,8 +434,7 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 			}
 
 			// Add it to the new compression buffer
-			err = compressor.AddItem(buf.Bytes())
-			pointsThisPayload += len(serie.Points)
+			err = addToPayload()
 			if err == stream.ErrItemTooBig {
 				// Item was too big, drop it
 				expvarsItemTooBig.Add(1)
@@ -450,9 +461,12 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 		}
 	}
 
-	err = finishPayload()
-	if err != nil {
-		return nil, err
+	// if the last payload has any data, flush it
+	if seriesThisPayload > 0 {
+		err = finishPayload()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return payloads, nil
