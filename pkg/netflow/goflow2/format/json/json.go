@@ -39,20 +39,69 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 	dstAddr := net.IP(flowmsg.DstAddr)
 	log.Warnf("srcAddr: %v", srcAddr)
 	log.Warnf("dstAddr: %v", dstAddr)
+
+	protoName, ok := common.ProtoName[flowmsg.Proto]
+	if !ok {
+		protoName = "unknown"
+	}
+
+	eType, ok := common.EtypeName[flowmsg.Etype]
+	if !ok {
+		eType = "unknown"
+	}
+
+	icmpType := common.IcmpCodeType(flowmsg.Proto, flowmsg.IcmpCode, flowmsg.IcmpType)
+	if icmpType == "" {
+		icmpType = "unknown"
+	}
+
 	tags := []string{
-		"src_addr:" + srcAddr.String(),
-		"dst_addr:" + dstAddr.String(),
+		fmt.Sprintf("src_addr:%s", srcAddr),
+		fmt.Sprintf("src_port:%d", flowmsg.SrcPort),
+		fmt.Sprintf("proto:%d", flowmsg.Proto),
+		fmt.Sprintf("proto_name:%s", protoName),
+		fmt.Sprintf("dst_addr:%s", dstAddr),
+		fmt.Sprintf("dst_port:%d", flowmsg.DstPort),
+		fmt.Sprintf("type:%s", eType),
+		fmt.Sprintf("icmp_type:%s", icmpType),
+		fmt.Sprintf("dst_port:%d", flowmsg.FlowDirection),
 	}
 
 	timestamp := float64(time.Now().UnixNano())
-	enhancedMetrics := []metrics.MetricSample{{
-		Name:       "dev.netflow.bytes",
-		Value:      float64(flowmsg.Bytes),
-		Mtype:      metrics.GaugeType,
-		Tags:       tags,
-		SampleRate: 1,
-		Timestamp:  timestamp,
-	}}
+	enhancedMetrics := []metrics.MetricSample{
+		{
+			Name:       "netflow.bytes",
+			Value:      float64(flowmsg.Bytes),
+			Mtype:      metrics.CountType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  timestamp,
+		},
+		{
+			Name:       "netflow.bytes.rate",
+			Value:      float64(flowmsg.Bytes),
+			Mtype:      metrics.RateType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  timestamp,
+		},
+		{
+			Name:       "netflow.packets",
+			Value:      float64(flowmsg.Packets),
+			Mtype:      metrics.CountType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  timestamp,
+		},
+		{
+			Name:       "netflow.packets.rate",
+			Value:      float64(flowmsg.Packets),
+			Mtype:      metrics.RateType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  timestamp,
+		},
+	}
 	d.MetricChan <- enhancedMetrics
 
 	msg, ok := data.(proto.Message)
