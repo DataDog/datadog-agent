@@ -47,7 +47,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 	payload := convertRawPayload(rawPayload)
 
 	if payload.Headers != nil {
-		traceID, e1 := convertStrToUnit64(payload.Headers[traceIDHeader])
+		traceID, e1 := convertStrToUnit64(payload.Headers[TraceIDHeader])
 		parentID, e2 := convertStrToUnit64(payload.Headers[parentIDHeader])
 
 		if e1 == nil {
