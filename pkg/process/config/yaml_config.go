@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,14 +57,29 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.HostName = config.Datadog.GetString("hostname")
 	}
 
+	if config.Datadog.IsSet("process_config.enabled") {
+		log.Debug("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
+			" and process_config.process_collection.enabled instead")
+		procConfigEnabled := strings.ToLower(config.Datadog.GetString("process_config.enabled"))
+		if procConfigEnabled == "disabled" {
+			config.Datadog.Set("process_config.process_collection.enabled", false)
+			config.Datadog.Set("process_config.container_collection.enabled", false)
+		} else if enabled, _ := strconv.ParseBool(procConfigEnabled); enabled { // "true"
+			config.Datadog.Set("process_config.process_collection.enabled", true)
+			config.Datadog.Set("process_config.container_collection.enabled", false)
+		} else { // "false"
+			config.Datadog.Set("process_config.process_collection.enabled", false)
+			config.Datadog.Set("process_config.container_collection.enabled", true)
+		}
+	}
+
 	a.Enabled = false
-	if config.GetProcessCollectionEnabled(config.Datadog) {
+	if config.Datadog.GetBool("process_config.process_collection.enabled") {
 		a.Enabled, a.EnabledChecks = true, processChecks
-	} else if config.GetContainerCollectionEnabled(config.Datadog) {
+	} else if config.Datadog.GetBool("procss_config.container_collection.enabled") {
 		// Container checks are enabled only when process checks are not (since they automatically collect container data).
 		a.Enabled, a.EnabledChecks = true, containerChecks
 	}
-
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
@@ -267,7 +283,7 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 	root := key(ns, "process_discovery")
 
 	// Discovery check can only be enabled when regular process collection is not enabled.
-	processCheckEnabled := config.GetProcessCollectionEnabled(config.Datadog)
+	processCheckEnabled := config.Datadog.GetBool("process_config.process_collection.enabled")
 	discoveryCheckEnabled := config.Datadog.GetBool(key(root, "enabled"))
 	if discoveryCheckEnabled && !processCheckEnabled {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)

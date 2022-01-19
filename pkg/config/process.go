@@ -8,10 +8,7 @@ package config
 import (
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -95,46 +92,6 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 }
 
-var displayProcConfigEnabledWarningOnce sync.Once
+func GetProcessCollectionEnabled(a interface{}) {
 
-// displayProcConfigEnabledDeprecationWarning displays a deprecation warning for process_config.enabled only once.
-// For testing purposes, it returns a bool describing if the message was displayed or not
-func displayProcConfigEnabledDeprecationWarning() {
-	displayProcConfigEnabledWarningOnce.Do(func() {
-		log.Debug("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
-			" and process_config.process_collection.enabled instead")
-	})
-	return
-}
-
-// GetContainerCollectionEnabled retrieves the value of process_config.container_collection.enabled.
-// If process_config.enabled is set, we display a deprecation warning and use that value instead.
-func GetContainerCollectionEnabled(config Config) bool {
-	if config.IsSet("process_config.enabled") {
-		displayProcConfigEnabledDeprecationWarning()
-
-		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
-		if procConfigEnabled == "disabled" {
-			return false
-		}
-		result, _ := strconv.ParseBool(procConfigEnabled)
-		return !result
-	}
-	return config.GetBool("process_config.container_collection.enabled")
-}
-
-// GetProcessCollectionEnabled retrieves the value of process_config.process_collection.enabled.
-// If process_config.enabled is set, we display a deprecation warning and use that value instead.
-func GetProcessCollectionEnabled(config Config) bool {
-	if config.IsSet("process_config.enabled") {
-		displayProcConfigEnabledDeprecationWarning()
-
-		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
-		if procConfigEnabled == "disabled" {
-			return false
-		}
-		enabled, _ := strconv.ParseBool(procConfigEnabled)
-		return enabled
-	}
-	return config.GetBool("process_config.process_collection.enabled")
 }
