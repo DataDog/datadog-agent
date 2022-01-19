@@ -207,7 +207,7 @@ dogstatsd_deb-x64:
 
 dogstatsd_deb-arm64:
   rules:
-    !reference [.on_a7]
+    !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
