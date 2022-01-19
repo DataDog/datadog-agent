@@ -91,12 +91,52 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 		tags = append(tags, fmt.Sprintf("src_dns:%s", dns))
 	}
 
-	dstCountry, err := d.getCountryCode(dstAddr.String())
+	db, err := geoip2.Open("/opt/geoip_files/GeoIP2-City.mmdb")
 	if err != nil {
-		log.Debugf("error getting country code `%s`:", dstAddr, err)
-	}
-	if srcL7ProtoName != "" {
-		tags = append(tags, fmt.Sprintf("dst_country:%s", dstCountry))
+		log.Debugf("error opening geoip2:", err)
+	} else {
+		defer db.Close()
+
+		geoCity, err := db.City(dstAddr)
+		if err != nil {
+			log.Debugf("error getting city `%s`:", dstAddr, err)
+		} else {
+			tags = append(tags, fmt.Sprintf("dst_country_code:%s", geoCity.Country.IsoCode))
+			for _, countryName := range geoCity.Country.Names {
+				tags = append(tags, fmt.Sprintf("dst_country_name:%s", countryName))
+			}
+			for _, cityName := range geoCity.City.Names {
+				tags = append(tags, fmt.Sprintf("dst_city_name:%s", cityName))
+			}
+		}
+		geoASN, err := db.ASN(dstAddr)
+		if err != nil {
+			log.Debugf("error getting ASN `%s`:", dstAddr, err)
+		} else {
+			tags = append(tags, fmt.Sprintf("dst_as_number:%d", geoASN.AutonomousSystemNumber))
+			tags = append(tags, fmt.Sprintf("dst_as_org:%s", geoASN.AutonomousSystemOrganization))
+		}
+		connType, err := db.ConnectionType(dstAddr)
+		if err != nil {
+			log.Debugf("error getting ConnectionType `%s`:", dstAddr, err)
+		} else {
+			tags = append(tags, fmt.Sprintf("dst_conn_type:%s", connType.ConnectionType))
+		}
+		domain, err := db.Domain(dstAddr)
+		if err != nil {
+			log.Debugf("error getting ConnectionType `%s`:", dstAddr, err)
+		} else {
+			tags = append(tags, fmt.Sprintf("dst_domain:%s", domain.Domain))
+		}
+		isp, err := db.ISP(dstAddr)
+		if err != nil {
+			log.Debugf("error getting ConnectionType `%s`:", dstAddr, err)
+		} else {
+			tags = append(tags, fmt.Sprintf("dst_isp:%s", isp.ISP))
+			tags = append(tags, fmt.Sprintf("dst_isp_org:%s", isp.ISP))
+			tags = append(tags, fmt.Sprintf("dst_isp_as_number:%d", isp.AutonomousSystemNumber))
+			tags = append(tags, fmt.Sprintf("dst_isp_as_org:%s", isp.AutonomousSystemOrganization))
+		}
 	}
 
 	log.Debugf("tags: %v", tags)
@@ -130,19 +170,12 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 	return []byte(key), []byte(common.FormatMessageReflectJSON(msg, "")), nil
 }
 
-func (d *JsonDriver) getCountryCode(ipAddr string) (countryCode string, err error) {
-	db, err := geoip2.Open("GeoIP2-City.mmdb")
+func (d *JsonDriver) getGeoCity(db *geoip2.Reader, ip net.IP) (countryCode *geoip2.City, err error) {
+	record, err := db.City(ip)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	defer db.Close()
-	// If you are using strings that may be invalid, check that ip is not nil
-	ip := net.ParseIP(ipAddr)
-	record, err := db.Country(ip)
-	if err != nil {
-		return "", err
-	}
-	return record.Country.IsoCode, nil
+	return record, nil
 }
 
 //func init() {
