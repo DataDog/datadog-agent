@@ -168,7 +168,7 @@ func StartAutoConfig() {
 	AC.LoadAndRun()
 }
 
-// waitForConfigs retries the collection of Autodiscovery configs until the checkMatcher function (which
+// WaitForConfigs retries the collection of Autodiscovery configs until the checkMatcher function (which
 // defines whether the list of integration configs collected is sufficient) returns true or the timeout is reached.
 // Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
 // depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
