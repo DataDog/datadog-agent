@@ -1182,6 +1182,16 @@ api_key:
     ## Enables collection of information about running containers.
     # enabled: true
 
+  ## Deprecated - use `process_collection.enabled` and `container_collection.enabled` instead
+  ## @param enabled - string - optional - default: "false"
+  ## @env DD_PROCESS_CONFIG_ENABLED - string - optional - default: "false"
+  ##  A string indicating the enabled state of the Process Agent:
+  ##    * "false"    : The Agent collects only containers information.
+  ##    * "true"     : The Agent collects containers and processes information.
+  ##    * "disabled" : The Agent process collection is disabled.
+  #
+  # enabled: "true"
+
   ## @param expvar_port - string - optional - default: 6062
   ## @env DD_PROCESS_CONFIG_EXPVAR_PORT - string - optional - default: 6062
   ## Port for the debug endpoints for the process Agent.

@@ -179,6 +179,12 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: true,
 		},
 		{
+			key:      "process_config.container_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
 			key:      "process_config.enabled",
 			env:      "DD_PROCESS_CONFIG_ENABLED",
 			value:    "false",
@@ -248,8 +254,8 @@ func TestProcBindEnv(t *testing.T) {
 }
 
 func TestDisplayProcConfigEnabledDeprecationWarning(t *testing.T) {
-	assert.Error(t, displayProcConfigEnabledDeprecationWarning())
-	assert.NoError(t, displayProcConfigEnabledDeprecationWarning()) // Make sure warning only shows once
+	assert.True(t, displayProcConfigEnabledDeprecationWarning())
+	assert.False(t, displayProcConfigEnabledDeprecationWarning()) // Make sure warning only shows once
 }
 
 func TestGetProcessAndContainerCollectionEnabled(t *testing.T) {
@@ -260,7 +266,7 @@ func TestGetProcessAndContainerCollectionEnabled(t *testing.T) {
 		processCollection, processCollectionExpected     bool
 	}{
 		{
-			name:                        "process_config.enabled set",
+			name:                        "process_config.enabled=true",
 			procConfigEnabled:           "true",
 			containerCollection:         false,
 			containerCollectionExpected: false,
@@ -268,11 +274,25 @@ func TestGetProcessAndContainerCollectionEnabled(t *testing.T) {
 			processCollectionExpected:   true,
 		},
 		{
+			name:                        "process_config.enabled=false",
+			procConfigEnabled:           "false",
+			containerCollectionExpected: true,
+			processCollectionExpected:   false,
+		},
+		{
+			name:                        "process_config.enabled=disabled",
+			procConfigEnabled:           "disabled",
+			containerCollection:         true,
+			containerCollectionExpected: false,
+			processCollection:           true,
+			processCollectionExpected:   false,
+		},
+		{
 			name:                        "process_collection enabled",
 			processCollection:           true,
 			processCollectionExpected:   true,
 			containerCollection:         true,
-			containerCollectionExpected: false,
+			containerCollectionExpected: true,
 		},
 		{
 			name:                        "container_collection enabled",

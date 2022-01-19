@@ -98,11 +98,12 @@ func setupProcesses(config Config) {
 var displayProcConfigEnabledWarningOnce sync.Once
 
 // displayProcConfigEnabledDeprecationWarning displays a deprecation warning for process_config.enabled only once.
-// For testing purposes, it rethrows the warning.
-func displayProcConfigEnabledDeprecationWarning() (warning error) {
+// For testing purposes, it returns a bool describing if the message was displayed or not
+func displayProcConfigEnabledDeprecationWarning() (displayed bool) {
 	displayProcConfigEnabledWarningOnce.Do(func() {
-		warning = log.Warn("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
+		log.Debug("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
 			" and process_config.process_collection.enabled instead")
+		displayed = true
 	})
 	return
 }
@@ -120,8 +121,7 @@ func GetContainerCollectionEnabled(config Config) bool {
 		result, _ := strconv.ParseBool(procConfigEnabled)
 		return !result
 	}
-	return config.GetBool("process_config.container_collection.enabled") &&
-		!config.GetBool("process_config.process_collection.enabled") // Process Collection already collects containers
+	return config.GetBool("process_config.container_collection.enabled")
 }
 
 // GetProcessCollectionEnabled retrieves the value of process_config.process_collection.enabled.

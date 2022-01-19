@@ -3,6 +3,8 @@ features:
   - |
     Added `process_config.process_collection.enabled` and `process_config.container_collection.enabled` settings.
     Use these new settings instead of `process_config.enabled` to control container and process collection in the process agent.
-
+  - |
+    Since `process_config.enabled` is deprecated, use `process_config.container_collection.enabled` and
+    `process_config.process_collection.enabled` instead.
 deprecations:
   - Deprecated `process_config.enabled`.
