@@ -32,6 +32,20 @@ var (
 		58:  "ICMPv6",
 		132: "SCTP",
 	}
+	L7ProtoName = map[uint32]string{
+		21: "ftp",
+		22: "ssh",
+		53: "dns",
+		67: "dhcp_server",
+		68: "dhcp_client",
+		80: "http",
+		123: "ntp",
+		137: "netbios_name",
+		138: "netbios_datagram",
+		443: "https",
+		587: "smtp",
+		771: "rtip",
+	}
 	IcmpTypeName = map[uint32]string{
 		0:  "EchoReply",
 		3:  "DestinationUnreachable",

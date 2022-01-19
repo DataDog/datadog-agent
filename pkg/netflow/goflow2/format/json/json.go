@@ -50,6 +50,9 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 		eType = "unknown"
 	}
 
+	dstL7ProtoName, _ := common.L7ProtoName[flowmsg.DstPort]
+	srcL7ProtoName, _ := common.L7ProtoName[flowmsg.SrcPort]
+
 	icmpType := common.IcmpCodeType(flowmsg.Proto, flowmsg.IcmpCode, flowmsg.IcmpType)
 	if icmpType == "" {
 		icmpType = "unknown"
@@ -64,6 +67,13 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 		fmt.Sprintf("dst_port:%d", flowmsg.DstPort),
 		fmt.Sprintf("type:%s", eType),
 		fmt.Sprintf("icmp_type:%s", icmpType),
+	}
+	if dstL7ProtoName != "" {
+		tags = append(tags, fmt.Sprintf("dst_l7_proto_name:%s", dstL7ProtoName))
+	}
+
+	if srcL7ProtoName != "" {
+		tags = append(tags, fmt.Sprintf("src_l7_proto_name:%s", srcL7ProtoName))
 	}
 
 	timestamp := float64(time.Now().UnixNano())
