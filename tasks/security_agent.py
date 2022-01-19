@@ -261,7 +261,9 @@ def build_functional_tests(
 
     if static:
         build_tags += ',osusergo,netgo'
-        env["CGO_CPPFLAGS"] = "-DSKIP_GLIBC_WRAPPER"
+        if "CGO_CPPFLAGS" not in env:
+            env["CGO_CPPFLAGS"] = ""
+        env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
     if nikos_embedded_path:
         build_tags += ",dnf"
