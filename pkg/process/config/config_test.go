@@ -579,27 +579,6 @@ func TestSystemProbeNoNetwork(t *testing.T) {
 
 }
 
-func TestIsAffirmative(t *testing.T) {
-	value, err := isAffirmative("yes")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	value, err = isAffirmative("True")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	value, err = isAffirmative("1")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	_, err = isAffirmative("")
-	assert.NotNil(t, err)
-
-	value, err = isAffirmative("ok")
-	assert.Nil(t, err)
-	assert.False(t, value)
-}
-
 func TestGetHostnameFromGRPC(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
