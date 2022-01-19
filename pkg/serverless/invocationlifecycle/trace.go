@@ -118,3 +118,11 @@ func convertStrToUnit64(s string) (uint64, error) {
 
 	return num, err
 }
+
+func TraceID() uint64 {
+	return currentExecutionInfo.traceID
+}
+
+func SpanID() uint64 {
+	return currentExecutionInfo.spanID
+}

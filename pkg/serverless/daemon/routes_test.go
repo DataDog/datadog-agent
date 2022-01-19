@@ -7,6 +7,7 @@ package daemon
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -64,13 +65,26 @@ func TestEndInvocation(t *testing.T) {
 
 func TestTraceContext(t *testing.T) {
 	assert := assert.New(t)
+
 	d := StartDaemon("127.0.0.1:8124")
 	defer d.Stop()
+	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+		ExtraTags:           d.ExtraTags,
+		MetricChannel:       nil,
+		ProcessTrace:        nil,
+		DetectLambdaLibrary: func() bool { return false },
+	}
 	client := &http.Client{Timeout: 1 * time.Second}
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/trace-context", nil)
+	body := bytes.NewBuffer([]byte(`{"start_time": "2019-10-12T07:20:50.52Z","headers": {"x-datadog-trace-id": ["1234"]},"payload": "{\"headers\":{\"x-datadog-parent-id\":\"1111\",\"x-datadog-trace-id\":\"2222\"}}"}`))
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
+	assert.Nil(err)
+	_, err = client.Do(request)
+	assert.Nil(err)
+	request, err = http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/trace-context", nil)
 	assert.Nil(err)
 	response, err := client.Do(request)
 	assert.Nil(err)
-	assert.NotEmpty(response.Header.Get("x-datadog-trace-id"))
-	assert.NotEmpty(response.Header.Get("x-datadog-span-id"))
+	assert.Equal("2222", fmt.Sprintf("%v", invocationlifecycle.TraceID()))
+	assert.Equal(response.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", invocationlifecycle.TraceID()))
+	assert.Equal(response.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", invocationlifecycle.SpanID()))
 }
