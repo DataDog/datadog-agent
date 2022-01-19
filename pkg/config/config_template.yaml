@@ -1168,18 +1168,18 @@ api_key:
 #
 # process_config:
 
-  ## @param container_collection - custom object - optional
+  ## @param process_collection - custom object - optional
   ## Specifies settings for collecting processes.
   # process_collection:
     ## @param enabled - boolean - optional - default: false
-    ## Toggles the process check. If enabled, this check gathers information about running processes.
+    ## Enables collection of information about running processes.
     # enabled: false
 
   ## @param container_collection - custom object - optional
   ## Specifies settings for collecting containers.
   # container_collection:
     ## @param enabled - boolean - optional - default: true
-    ## Toggles the container check. If enabled, this check gathers information about running containers.
+    ## Enables collection of information about running containers.
     # enabled: true
 
   ## @param expvar_port - string - optional - default: 6062

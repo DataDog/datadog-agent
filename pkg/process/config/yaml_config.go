@@ -59,8 +59,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.Enabled = false
 	if config.GetProcessCollectionEnabled(config.Datadog) {
 		a.Enabled, a.EnabledChecks = true, processChecks
-	}
-	if config.GetContainerCollectionEnabled(config.Datadog) {
+	} else if config.GetContainerCollectionEnabled(config.Datadog) {
+		// Container checks are enabled only when process checks are not (since they automatically collect container data).
 		a.Enabled, a.EnabledChecks = true, containerChecks
 	}
 
