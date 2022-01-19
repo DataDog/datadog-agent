@@ -169,16 +169,3 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 	key := common.HashProtoLocal(msg)
 	return []byte(key), []byte(common.FormatMessageReflectJSON(msg, "")), nil
 }
-
-func (d *JsonDriver) getGeoCity(db *geoip2.Reader, ip net.IP) (countryCode *geoip2.City, err error) {
-	record, err := db.City(ip)
-	if err != nil {
-		return nil, err
-	}
-	return record, nil
-}
-
-//func init() {
-//	d := &JsonDriver{}
-//	format.RegisterFormatDriver("json", d)
-//}
