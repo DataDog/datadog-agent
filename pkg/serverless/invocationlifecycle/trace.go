@@ -119,10 +119,12 @@ func convertStrToUnit64(s string) (uint64, error) {
 	return num, err
 }
 
+// TraceID returns the current TraceID
 func TraceID() uint64 {
 	return currentExecutionInfo.traceID
 }
 
+// SpanID returns the current SpanID
 func SpanID() uint64 {
 	return currentExecutionInfo.spanID
 }
