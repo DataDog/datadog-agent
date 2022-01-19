@@ -101,7 +101,9 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 		if err != nil {
 			log.Debugf("error getting city `%s`:", dstAddr, err)
 		} else {
-			tags = append(tags, fmt.Sprintf("dst_country_code:%s", geoCity.Country.IsoCode))
+			if geoCity.Country.IsoCode != "" {
+				tags = append(tags, fmt.Sprintf("dst_country_code:%s", geoCity.Country.IsoCode))
+			}
 			for _, countryName := range geoCity.Country.Names {
 				tags = append(tags, fmt.Sprintf("dst_country_name:%s", countryName))
 			}
