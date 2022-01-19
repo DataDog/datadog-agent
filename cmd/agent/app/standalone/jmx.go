@@ -123,16 +123,3 @@ func configIncluded(config integration.Config, selectedChecks []string) bool {
 	}
 	return false
 }
-
-// jmxCheckMatcherBuilder returns a function that returns true if the number of JMX configs found for the check name is more or equal to min instances
-func jmxCheckMatcherBuilder(includeEverything bool, selectedChecks []string, minInstances uint) func([]integration.Config) bool {
-	return func(configs []integration.Config) bool {
-		var matchedConfigsCount uint
-		for _, c := range configs {
-			if check.IsJMXConfig(c) && (includeEverything || configIncluded(c, selectedChecks)) {
-				matchedConfigsCount++
-			}
-		}
-		return matchedConfigsCount >= minInstances
-	}
-}
