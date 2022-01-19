@@ -1623,7 +1623,7 @@ func GetVectorURL(datatype DataType) (string, error) {
 func GetInventoriesMinInterval() time.Duration {
 	minInterval := time.Duration(Datadog.GetInt("inventories_min_interval")) * time.Second
 	if minInterval == 0 {
-		minInterval = DefaultInventoriesMinInterval
+		minInterval = DefaultInventoriesMinInterval * time.Second
 	}
 	return minInterval
 }
@@ -1632,7 +1632,7 @@ func GetInventoriesMinInterval() time.Duration {
 func GetInventoriesMaxInterval() time.Duration {
 	maxInterval := time.Duration(Datadog.GetInt("inventories_max_interval")) * time.Second
 	if maxInterval == 0 {
-		maxInterval = DefaultInventoriesMaxInterval
+		maxInterval = DefaultInventoriesMaxInterval * time.Second
 	}
 	return maxInterval
 }
