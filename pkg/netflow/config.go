@@ -21,7 +21,6 @@ func IsEnabled() bool {
 // YAML field tags provided for test marshalling purposes.
 type Config struct {
 	Port             uint16   `mapstructure:"port" yaml:"port"`
-	CommunityStrings []string `mapstructure:"community_strings" yaml:"community_strings"`
 	BindHost         string   `mapstructure:"bind_host" yaml:"bind_host"`
 	StopTimeout      int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
 }

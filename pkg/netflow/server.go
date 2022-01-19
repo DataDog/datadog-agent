@@ -138,8 +138,8 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggreg
 		Transport: transporter,
 		Logger:    logger,
 	}
-	hostname := "127.0.0.1"
-	port := 9999
+	hostname := c.BindHost
+	port := c.Port
 	reusePort := false
 	err = sNF.FlowRoutine(1, hostname, int(port), reusePort)
 	if err != nil {
