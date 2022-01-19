@@ -253,11 +253,6 @@ func TestProcBindEnv(t *testing.T) {
 	reset()
 }
 
-func TestDisplayProcConfigEnabledDeprecationWarning(t *testing.T) {
-	assert.True(t, displayProcConfigEnabledDeprecationWarning())
-	assert.False(t, displayProcConfigEnabledDeprecationWarning()) // Make sure warning only shows once
-}
-
 func TestGetProcessAndContainerCollectionEnabled(t *testing.T) {
 	for _, tc := range []struct {
 		name                                             string

@@ -99,11 +99,10 @@ var displayProcConfigEnabledWarningOnce sync.Once
 
 // displayProcConfigEnabledDeprecationWarning displays a deprecation warning for process_config.enabled only once.
 // For testing purposes, it returns a bool describing if the message was displayed or not
-func displayProcConfigEnabledDeprecationWarning() (displayed bool) {
+func displayProcConfigEnabledDeprecationWarning() {
 	displayProcConfigEnabledWarningOnce.Do(func() {
 		log.Debug("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
 			" and process_config.process_collection.enabled instead")
-		displayed = true
 	})
 	return
 }
@@ -112,7 +111,7 @@ func displayProcConfigEnabledDeprecationWarning() (displayed bool) {
 // If process_config.enabled is set, we display a deprecation warning and use that value instead.
 func GetContainerCollectionEnabled(config Config) bool {
 	if config.IsSet("process_config.enabled") {
-		_ = displayProcConfigEnabledDeprecationWarning()
+		displayProcConfigEnabledDeprecationWarning()
 
 		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
 		if procConfigEnabled == "disabled" {
@@ -128,7 +127,7 @@ func GetContainerCollectionEnabled(config Config) bool {
 // If process_config.enabled is set, we display a deprecation warning and use that value instead.
 func GetProcessCollectionEnabled(config Config) bool {
 	if config.IsSet("process_config.enabled") {
-		_ = displayProcConfigEnabledDeprecationWarning()
+		displayProcConfigEnabledDeprecationWarning()
 
 		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
 		if procConfigEnabled == "disabled" {
