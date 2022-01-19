@@ -38,6 +38,7 @@ func TestRouteCacheGet(t *testing.T) {
 	}
 
 	cache := NewRouteCache(10, m)
+	defer cache.Close()
 
 	// run through to fill up cache
 	for _, te := range tests {
@@ -71,6 +72,7 @@ func TestRouteCacheTTL(t *testing.T) {
 	m.EXPECT().Route(gomock.Any(), gomock.Any(), gomock.Any()).Return(route, true).Times(2)
 
 	cache := newRouteCache(10, m, time.Millisecond)
+	defer cache.Close()
 
 	source := util.AddressFromString("1.1.1.1")
 	dest := util.AddressFromString("1.2.3.4")

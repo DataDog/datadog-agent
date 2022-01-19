@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -50,11 +51,13 @@ const defaultTTL = 2 * time.Minute
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple
 type RouteCache interface {
 	Get(source, dest util.Address, netns uint32) (Route, bool)
+	Close()
 }
 
 // Router is an interface to get a route for a (source, destination, net ns) tuple
 type Router interface {
 	Route(source, dest util.Address, netns uint32) (Route, bool)
+	Close()
 }
 
 // NewRouteCache creates a new RouteCache
@@ -99,6 +102,10 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 	}
 
 	return Route{}, false
+}
+
+func (c *routeCache) Close() {
+	c.router.Close()
 }
 
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
@@ -190,6 +197,10 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		Gateway: util.AddressFromNetIP(r.Gw),
 		IfIndex: r.LinkIndex,
 	}, true
+}
+
+func (n *netlinkRouter) Close() {
+	syscall.Close(n.ioctlFD)
 }
 
 func (n *netlinkRouter) getInterfaceName(srcAddress util.Address, srcIP net.IP, netns uint32) string {

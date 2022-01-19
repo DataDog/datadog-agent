@@ -73,6 +73,10 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 }
 
 func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
+	if g == nil {
+		return nil
+	}
+
 	dest := cs.Dest
 	if cs.IPTranslation != nil {
 		dest = cs.IPTranslation.ReplSrcIP
@@ -134,6 +138,14 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	default:
 		return nil
 	}
+}
+
+func (g *gatewayLookup) Close() {
+	if g == nil || g.routeCache == nil {
+		return
+	}
+
+	g.routeCache.Close()
 }
 
 func (g *gatewayLookup) purge() {
