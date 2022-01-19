@@ -414,10 +414,14 @@ func (id *inodeDiscarders) discardParentInode(rs *rules.RuleSet, eventType model
 	}
 
 	for i := 0; i < discarderDepth; i++ {
-		mountID, inode, err = id.dentryResolver.GetParent(mountID, inode, pathID)
+		parentMountID, parentInode, err := id.dentryResolver.GetParent(mountID, inode, pathID)
 		if err != nil {
-			return false, 0, 0, err
+			if i == 0 {
+				return false, 0, 0, err
+			}
+			break
 		}
+		mountID, inode = parentMountID, parentInode
 	}
 
 	if err := id.discardInode(eventType, mountID, inode, false); err != nil {
