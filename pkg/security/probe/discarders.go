@@ -39,6 +39,9 @@ const (
 	// maxParentDiscarderDepth defines the maximum parent depth to find parent discarders
 	// the eBPF part need to be adapted accordingly
 	maxParentDiscarderDepth = 3
+
+	// allEventTypes is a mask to match all the events
+	allEventTypes = 0xffffffffffffffff
 )
 
 var (
