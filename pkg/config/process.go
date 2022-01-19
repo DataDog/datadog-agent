@@ -134,8 +134,8 @@ func GetProcessCollectionEnabled(config Config) bool {
 		if procConfigEnabled == "disabled" {
 			return false
 		}
-		result, _ := strconv.ParseBool(procConfigEnabled)
-		return result
+		enabled, _ := strconv.ParseBool(procConfigEnabled)
+		return enabled
 	}
 	return config.GetBool("process_config.process_collection.enabled")
 }
