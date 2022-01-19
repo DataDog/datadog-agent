@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app/standalone"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -187,7 +186,7 @@ func runJmxCommandConsole(command string) error {
 		discoveryRetryInterval = discoveryTimeout
 	}
 
-	allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, selectedCheckMatcherBuilder(cliSelectedChecks, discoveryMinInstances))
+	allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, common.SelectedCheckMatcherBuilder(cliSelectedChecks, discoveryMinInstances))
 
 	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel, allConfigs)
 
@@ -196,20 +195,4 @@ func runJmxCommandConsole(command string) error {
 	}
 
 	return err
-}
-
-// selectedCheckMatcherBuilder returns a function that returns true if the number of configs found for the
-// check name is more or equal to min instances
-func selectedCheckMatcherBuilder(checkNames []string, minInstances uint) func(configs []integration.Config) bool {
-	return func(configs []integration.Config) bool {
-		var matchedConfigsCount uint
-		for _, cfg := range configs {
-			for _, name := range checkNames {
-				if cfg.Name == name {
-					matchedConfigsCount++
-				}
-			}
-		}
-		return matchedConfigsCount >= minInstances
-	}
 }

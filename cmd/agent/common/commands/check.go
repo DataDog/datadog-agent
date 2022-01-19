@@ -154,7 +154,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				discoveryRetryInterval = discoveryTimeout
 			}
 
-			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, checkMatcherBuilder(checkName, discoveryMinInstances))
+			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, common.SelectedCheckMatcherBuilder([]string{checkName}, discoveryMinInstances))
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -721,18 +721,4 @@ func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
 	}
 
 	return nil
-}
-
-// checkMatcherBuilder returns a function that returns true if the number of configs found for the
-// check name is more or equal to min instances
-func checkMatcherBuilder(checkName string, minInstances uint) func(configs []integration.Config) bool {
-	return func(configs []integration.Config) bool {
-		var matchedConfigsCount uint
-		for _, cfg := range configs {
-			if cfg.Name == checkName {
-				matchedConfigsCount++
-			}
-		}
-		return matchedConfigsCount >= minInstances
-	}
 }
