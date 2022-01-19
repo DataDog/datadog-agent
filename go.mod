@@ -175,6 +175,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/opencontainers/selinux v1.9.1 // indirect
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
+	github.com/oschwald/geoip2-golang v1.5.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pierrec/lz4/v4 v4.1.3 // indirect
 	github.com/pkg/errors v0.9.1

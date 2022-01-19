@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/protobuf/proto"
+	"github.com/oschwald/geoip2-golang"
 	flowmessage "github.com/netsampler/goflow2/pb"
 	"net"
 	"time"
@@ -55,6 +56,14 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 	if icmpType == "" {
 		icmpType = "unknown"
 	}
+	dstDnsList, err := net.LookupAddr(dstAddr.String())
+	if err != nil {
+		log.Debugf("DNS lookup error for addr `%s`:", dstAddr, err)
+	}
+	srcDnsList, err := net.LookupAddr(srcAddr.String())
+	if err != nil {
+		log.Debugf("DNS lookup error for addr `%s`:", srcAddr, err)
+	}
 
 	tags := []string{
 		fmt.Sprintf("src_addr:%s", srcAddr),
@@ -73,7 +82,24 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 	if srcL7ProtoName != "" {
 		tags = append(tags, fmt.Sprintf("src_l7_proto_name:%s", srcL7ProtoName))
 	}
-	log.Warnf("tags: %v", tags)
+
+	for _, dns := range dstDnsList {
+		tags = append(tags, fmt.Sprintf("dst_dns:%s", dns))
+	}
+
+	for _, dns := range srcDnsList {
+		tags = append(tags, fmt.Sprintf("src_dns:%s", dns))
+	}
+
+	dstCountry, err := d.getCountryCode(dstAddr.String())
+	if err != nil {
+		log.Debugf("error getting country code `%s`:", dstAddr, err)
+	}
+	if srcL7ProtoName != "" {
+		tags = append(tags, fmt.Sprintf("dst_country:%s", dstCountry))
+	}
+
+	log.Debugf("tags: %v", tags)
 	timestamp := float64(time.Now().UnixNano())
 	enhancedMetrics := []metrics.MetricSample{
 		{
@@ -85,25 +111,9 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 			Timestamp:  timestamp,
 		},
 		{
-			Name:       "netflow.bytes.rate",
-			Value:      float64(flowmsg.Bytes),
-			Mtype:      metrics.RateType,
-			Tags:       tags,
-			SampleRate: 1,
-			Timestamp:  timestamp,
-		},
-		{
 			Name:       "netflow.packets",
 			Value:      float64(flowmsg.Packets),
 			Mtype:      metrics.CountType,
-			Tags:       tags,
-			SampleRate: 1,
-			Timestamp:  timestamp,
-		},
-		{
-			Name:       "netflow.packets.rate",
-			Value:      float64(flowmsg.Packets),
-			Mtype:      metrics.RateType,
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  timestamp,
@@ -118,6 +128,21 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 
 	key := common.HashProtoLocal(msg)
 	return []byte(key), []byte(common.FormatMessageReflectJSON(msg, "")), nil
+}
+
+func (d *JsonDriver) getCountryCode(ipAddr string) (countryCode string, err error) {
+	db, err := geoip2.Open("GeoIP2-City.mmdb")
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+	// If you are using strings that may be invalid, check that ip is not nil
+	ip := net.ParseIP(ipAddr)
+	record, err := db.Country(ip)
+	if err != nil {
+		return "", err
+	}
+	return record.Country.IsoCode, nil
 }
 
 //func init() {
