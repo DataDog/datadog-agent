@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build jmx
 // +build jmx
 
 package app
@@ -18,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app/standalone"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -185,11 +187,29 @@ func runJmxCommandConsole(command string) error {
 		discoveryRetryInterval = discoveryTimeout
 	}
 
-	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, discoveryMinInstances)
+	allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, selectedCheckMatcherBuilder(cliSelectedChecks, discoveryMinInstances))
+
+	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel, allConfigs)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")
 	}
 
 	return err
+}
+
+// selectedCheckMatcherBuilder returns a function that returns true if the number of configs found for the
+// check name is more or equal to min instances
+func selectedCheckMatcherBuilder(checkNames []string, minInstances uint) func(configs []integration.Config) bool {
+	return func(configs []integration.Config) bool {
+		var matchedConfigsCount uint
+		for _, cfg := range configs {
+			for _, name := range checkNames {
+				if cfg.Name == name {
+					matchedConfigsCount++
+				}
+			}
+		}
+		return matchedConfigsCount >= minInstances
+	}
 }
