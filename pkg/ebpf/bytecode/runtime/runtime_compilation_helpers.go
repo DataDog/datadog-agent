@@ -1,4 +1,3 @@
-//go:build linux_bpf
 // +build linux_bpf
 
 package runtime
