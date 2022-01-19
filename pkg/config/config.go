@@ -905,7 +905,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.internal_profiling.enabled")
 
-	config.BindEnvAndSetDefault("process_config.remote_tagger", true)
+	config.BindEnvAndSetDefault("process_config.remote_tagger", false)
 
 	// Process Discovery Check
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false)
