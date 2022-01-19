@@ -423,7 +423,6 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				updateRTStatus   = true
 			)
 
-
 			switch result.name {
 			case checks.Process.Name():
 				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
