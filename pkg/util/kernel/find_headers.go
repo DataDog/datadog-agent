@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,11 +30,12 @@ import (
 
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
 
-// const kernelModulesPath = "/lib/modules/%s/build"
-// const debKernelModulesPath = "/lib/modules/%s/source"
+const kernelModulesPath = "/lib/modules/%s/build"
+const debKernelModulesPath = "/lib/modules/%s/source"
 const cosKernelModulesPath = "/usr/src/linux-headers-%s"
 const rpmKernelModulePath = "/usr/src/linux-%s"
-const fedoraKernelModulesPath = "/usr"
+
+// const fedoraKernelModulesPath = "/usr"
 
 var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
 
@@ -209,22 +211,36 @@ func getDefaultHeaderDirs() []string {
 	}
 
 	dirs := []string{
-		// fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
-		// fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
+		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
+		fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
 		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
 		fmt.Sprintf(rpmKernelModulePath, hi.KernelVersion),
-		fedoraKernelModulesPath,
+		// fedoraKernelModulesPath,
 	}
 
 	// openSUSE specific
-	flavorSuffix := regexp.MustCompile("-[a-z]+$")
-	cleanedKernelVersion := flavorSuffix.ReplaceAllString(hi.KernelVersion, "")
-	cleanedKernelVersion += "-obj"
-	if hi.KernelVersion != cleanedKernelVersion {
-		dirs = append(dirs, fmt.Sprintf(rpmKernelModulePath, cleanedKernelVersion))
-	}
+	dirs = append(dirs, getOpenSUSEDefaultHeaderDirs(hi.KernelVersion, hi.KernelArch)...)
 
 	return dirs
+}
+
+func getOpenSUSEDefaultHeaderDirs(kernelVersion, kernelArch string) []string {
+	if kernelVersion == "" || kernelArch == "" {
+		return []string{}
+	}
+
+	flavorSuffix := regexp.MustCompile("-([a-z]+)$")
+	parts := flavorSuffix.FindStringSubmatch(kernelVersion)
+	if len(parts) == 0 {
+		return []string{}
+	}
+
+	cleanedKernelVersion := strings.TrimSuffix(kernelVersion, parts[0])
+	flavor := parts[1]
+
+	base := fmt.Sprintf("/usr/src/linux-%s/", cleanedKernelVersion)
+	obj := fmt.Sprintf("/usr/src/linux-%s-obj/%s/%s", cleanedKernelVersion, kernelArch, flavor)
+	return []string{base, obj}
 }
 
 func getDownloadedHeaderDirs(headerDownloadDir string) []string {
