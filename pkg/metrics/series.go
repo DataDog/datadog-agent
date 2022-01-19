@@ -318,7 +318,9 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 			return err
 		}
 
-		payloads = append(payloads, &payload)
+		if seriesThisPayload > 0 {
+			payloads = append(payloads, &payload)
+		}
 
 		return nil
 	}
@@ -462,11 +464,9 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 	}
 
 	// if the last payload has any data, flush it
-	if seriesThisPayload > 0 {
-		err = finishPayload()
-		if err != nil {
-			return nil, err
-		}
+	err = finishPayload()
+	if err != nil {
+		return nil, err
 	}
 
 	return payloads, nil
