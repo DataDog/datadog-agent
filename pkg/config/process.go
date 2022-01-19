@@ -91,7 +91,3 @@ func setupProcesses(config Config) {
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 }
-
-func GetProcessCollectionEnabled(a interface{}) {
-
-}
