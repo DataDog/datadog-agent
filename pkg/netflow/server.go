@@ -9,9 +9,13 @@ import (
 	"context"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/json"
+	// import
 	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/json"
+	// import
 	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/protobuf"
+	// import
 	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/file"
+	// import
 	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/metric"
 	"github.com/netsampler/goflow2/format"
 	"github.com/netsampler/goflow2/transport"
@@ -34,17 +38,17 @@ type SnmpPacket struct {
 // PacketsChannel is the type of channels of trap packets.
 type PacketsChannel = chan *SnmpPacket
 
-// NetflowCollector manages an SNMPv2 trap listener.
-type NetflowCollector struct {
-	Addr     string
-	config   *Config
-	listener *utils.StateNetFlow
+// NfCollector manages an SNMPv2 trap listener.
+type NfCollector struct {
+	Addr          string
+	config        *Config
+	listener      *utils.StateNetFlow
 	packets       PacketsChannel
 	demultiplexer aggregator.Demultiplexer
 }
 
 var (
-	serverInstance *NetflowCollector
+	serverInstance *NfCollector
 	startError     error
 )
 
@@ -76,7 +80,7 @@ func GetPacketsChannel() PacketsChannel {
 }
 
 // NewNetflowServer configures and returns a running SNMP traps server.
-func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*NetflowCollector, error) {
+func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*NfCollector, error) {
 	config, err := ReadConfig()
 	if err != nil {
 		return nil, err
@@ -89,7 +93,7 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*NetflowCollector
 		return nil, err
 	}
 
-	server := &NetflowCollector{
+	server := &NfCollector{
 		listener:      listener,
 		config:        config,
 		packets:       packets,
@@ -110,7 +114,7 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggreg
 	//}
 	//transport.RegisterTransportDriver("metric", d)
 
-	d := &json.JsonDriver{
+	d := &json.Driver{
 		MetricChan: metricChan,
 	}
 	format.RegisterFormatDriver("json", d)
@@ -127,7 +131,7 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggreg
 	}
 	defer transporter.Close(ctx)
 
-	logger :=logrus.StandardLogger()
+	logger := logrus.StandardLogger()
 	logger.SetLevel(logrus.TraceLevel)
 	sNF := &utils.StateNetFlow{
 		Format:    formatter,
@@ -145,8 +149,8 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggreg
 	return sNF, nil
 }
 
-// Stop stops the NetflowCollector.
-func (s *NetflowCollector) Stop() {
+// Stop stops the NfCollector.
+func (s *NfCollector) Stop() {
 	log.Infof("Stop listening on %s", s.config.Addr())
 	stopped := make(chan interface{})
 

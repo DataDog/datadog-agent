@@ -15,6 +15,7 @@ var (
 	selectorDeclaredLock = &sync.Mutex{}
 )
 
+// SelectorFlag desc
 func SelectorFlag() {
 	selectorDeclaredLock.Lock()
 	defer selectorDeclaredLock.Unlock()
@@ -26,6 +27,7 @@ func SelectorFlag() {
 	flag.StringVar(&selectorVar, "format.selector", "", "List of fields to do keep in output")
 }
 
+// ManualSelectorInit desc
 func ManualSelectorInit() error {
 	if selectorVar == "" {
 		return nil

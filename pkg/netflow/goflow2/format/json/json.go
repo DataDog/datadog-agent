@@ -7,23 +7,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/protobuf/proto"
-	"github.com/oschwald/geoip2-golang"
 	flowmessage "github.com/netsampler/goflow2/pb"
+	"github.com/oschwald/geoip2-golang"
 	"net"
 	"time"
 )
 
-type JsonDriver struct {
+// Driver desc
+type Driver struct {
 	MetricChan chan []metrics.MetricSample
 }
 
-func (d *JsonDriver) Prepare() error {
+// Prepare desc
+func (d *Driver) Prepare() error {
 	common.HashFlag()
 	common.SelectorFlag()
 	return nil
 }
 
-func (d *JsonDriver) Init(context.Context) error {
+// Init desc
+func (d *Driver) Init(context.Context) error {
 	err := common.ManualHashInit()
 	if err != nil {
 		return err
@@ -31,7 +34,8 @@ func (d *JsonDriver) Init(context.Context) error {
 	return common.ManualSelectorInit()
 }
 
-func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
+// Format desc
+func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 	flowmsg, ok := data.(*flowmessage.FlowMessage)
 	if !ok {
 		return nil, nil, fmt.Errorf("message is not flowmessage.FlowMessage")
@@ -56,11 +60,11 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 	if icmpType == "" {
 		icmpType = "unknown"
 	}
-	dstDnsList, err := net.LookupAddr(dstAddr.String())
+	dstDNSList, err := net.LookupAddr(dstAddr.String())
 	if err != nil {
 		log.Debugf("DNS lookup error for addr `%s`:", dstAddr, err)
 	}
-	srcDnsList, err := net.LookupAddr(srcAddr.String())
+	srcDNSList, err := net.LookupAddr(srcAddr.String())
 	if err != nil {
 		log.Debugf("DNS lookup error for addr `%s`:", srcAddr, err)
 	}
@@ -83,11 +87,11 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 		tags = append(tags, fmt.Sprintf("src_l7_proto_name:%s", srcL7ProtoName))
 	}
 
-	for _, dns := range dstDnsList {
+	for _, dns := range dstDNSList {
 		tags = append(tags, fmt.Sprintf("dst_dns:%s", dns))
 	}
 
-	for _, dns := range srcDnsList {
+	for _, dns := range srcDNSList {
 		tags = append(tags, fmt.Sprintf("src_dns:%s", dns))
 	}
 

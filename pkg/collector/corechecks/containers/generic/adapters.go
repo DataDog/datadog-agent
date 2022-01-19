@@ -30,16 +30,16 @@ func (l MetadataContainerLister) List() ([]*workloadmeta.Container, error) {
 	return workloadmeta.GetGlobalStore().ListContainers()
 }
 
-// GenericMetricsAdapter implements MetricsAdapter API in a basic way.
+// GenMetricsAdapter implements MetricsAdapter API in a basic way.
 // Adds `runtime` tag and do not change metrics.
-type GenericMetricsAdapter struct{}
+type GenMetricsAdapter struct{}
 
 // AdaptTags adds a `runtime` tag for all containers
-func (a GenericMetricsAdapter) AdaptTags(tags []string, c *workloadmeta.Container) []string {
+func (a GenMetricsAdapter) AdaptTags(tags []string, c *workloadmeta.Container) []string {
 	return append(tags, "runtime:"+string(c.Runtime))
 }
 
 // AdaptMetrics is a passthrough (does not change anything)
-func (a GenericMetricsAdapter) AdaptMetrics(metricName string, value float64) (string, float64) {
+func (a GenMetricsAdapter) AdaptMetrics(metricName string, value float64) (string, float64) {
 	return metricName, value
 }

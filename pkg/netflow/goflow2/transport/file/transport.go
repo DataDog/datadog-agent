@@ -12,7 +12,8 @@ import (
 	"syscall"
 )
 
-type FileDriver struct {
+// Driver desc
+type Driver struct {
 	fileDestination string
 	lineSeparator   string
 	w               io.Writer
@@ -21,14 +22,15 @@ type FileDriver struct {
 	q               chan bool
 }
 
-func (d *FileDriver) Prepare() error {
+// Prepare desc
+func (d *Driver) Prepare() error {
 	flag.StringVar(&d.fileDestination, "transport.file", "", "File/console output (empty for stdout)")
 	flag.StringVar(&d.lineSeparator, "transport.file.sep", "\n", "Line separator")
 	// idea: add terminal coloring based on key partitioning (if any)
 	return nil
 }
 
-func (d *FileDriver) openFile() error {
+func (d *Driver) openFile() error {
 	file, err := os.OpenFile(d.fileDestination, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -38,7 +40,8 @@ func (d *FileDriver) openFile() error {
 	return err
 }
 
-func (d *FileDriver) Init(context.Context) error {
+// Init desc
+func (d *Driver) Init(context.Context) error {
 	d.q = make(chan bool, 1)
 
 	if d.fileDestination == "" {
@@ -74,7 +77,8 @@ func (d *FileDriver) Init(context.Context) error {
 	return nil
 }
 
-func (d *FileDriver) Send(key, data []byte) error {
+// Send desc
+func (d *Driver) Send(key, data []byte) error {
 	d.lock.RLock()
 	w := d.w
 	d.lock.RUnlock()
@@ -82,7 +86,8 @@ func (d *FileDriver) Send(key, data []byte) error {
 	return err
 }
 
-func (d *FileDriver) Close(context.Context) error {
+// Close desc
+func (d *Driver) Close(context.Context) error {
 	if d.fileDestination != "" {
 		d.lock.Lock()
 		d.file.Close()
@@ -94,7 +99,7 @@ func (d *FileDriver) Close(context.Context) error {
 }
 
 func init() {
-	d := &FileDriver{
+	d := &Driver{
 		lock: &sync.RWMutex{},
 	}
 	transport.RegisterTransportDriver("file", d)

@@ -10,21 +10,30 @@ import (
 )
 
 const (
-	FORMAT_TYPE_UNKNOWN = iota
-	FORMAT_TYPE_STRING_FUNC
-	FORMAT_TYPE_STRING
-	FORMAT_TYPE_INTEGER
-	FORMAT_TYPE_IP
-	FORMAT_TYPE_MAC
-	FORMAT_TYPE_BYTES
+	// FormatTypeUnknown desc
+	FormatTypeUnknown = iota
+	// FormatTypeStringFunc desc
+	FormatTypeStringFunc
+	// FormatTypeString desc
+	FormatTypeString
+	// FormatTypeInteger desc
+	FormatTypeInteger
+	// FormatTypeIP desc
+	FormatTypeIP
+	// FormatTypeMac desc
+	FormatTypeMac
+	// FormatTypeBytes desc
+	FormatTypeBytes
 )
 
 var (
+	// EtypeName desc
 	EtypeName = map[uint32]string{
 		0x806:  "ARP",
 		0x800:  "IPv4",
 		0x86dd: "IPv6",
 	}
+	// ProtoName desc
 	ProtoName = map[uint32]string{
 		1:   "ICMP",
 		6:   "TCP",
@@ -32,13 +41,14 @@ var (
 		58:  "ICMPv6",
 		132: "SCTP",
 	}
+	// L7ProtoName desc
 	L7ProtoName = map[uint32]string{
-		21: "ftp",
-		22: "ssh",
-		53: "dns",
-		67: "dhcp_server",
-		68: "dhcp_client",
-		80: "http",
+		21:  "ftp",
+		22:  "ssh",
+		53:  "dns",
+		67:  "dhcp_server",
+		68:  "dhcp_client",
+		80:  "http",
 		123: "ntp",
 		137: "netbios_name",
 		138: "netbios_datagram",
@@ -46,6 +56,7 @@ var (
 		587: "smtp",
 		771: "rtip",
 	}
+	// IcmpTypeName desc
 	IcmpTypeName = map[uint32]string{
 		0:  "EchoReply",
 		3:  "DestinationUnreachable",
@@ -54,6 +65,7 @@ var (
 		10: "RouterSolicitation",
 		11: "TimeExceeded",
 	}
+	// Icmp6TypeName desc
 	Icmp6TypeName = map[uint32]string{
 		1:   "DestinationUnreachable",
 		2:   "PacketTooBig",
@@ -64,6 +76,7 @@ var (
 		134: "RouterAdvertisement",
 	}
 
+	// TextFields desc
 	TextFields = []string{
 		"Type",
 		"TimeReceived",
@@ -106,53 +119,56 @@ var (
 		"SrcNet",
 		"DstNet",
 	}
+	// TextFieldsTypes desc
 	TextFieldsTypes = []int{
-		FORMAT_TYPE_STRING_FUNC,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_IP,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_IP,
-		FORMAT_TYPE_IP,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_MAC,
-		FORMAT_TYPE_MAC,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_IP,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
-		FORMAT_TYPE_INTEGER,
+		FormatTypeStringFunc,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeIP,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeIP,
+		FormatTypeIP,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeMac,
+		FormatTypeMac,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeIP,
+		FormatTypeInteger,
+		FormatTypeInteger,
+		FormatTypeInteger,
 	}
+	// RenderExtras desc
 	RenderExtras = []string{
 		"EtypeName",
 		"ProtoName",
 		"IcmpName",
 	}
+	// RenderExtraCall desc
 	RenderExtraCall = []RenderExtraFunction{
 		RenderExtraFunctionEtypeName,
 		RenderExtraFunctionProtoName,
@@ -160,13 +176,17 @@ var (
 	}
 )
 
+// AddTextField desc
+// AddTextField desc
 func AddTextField(name string, jtype int) {
 	TextFields = append(TextFields, name)
 	TextFieldsTypes = append(TextFieldsTypes, jtype)
 }
 
+// RenderExtraFunction desc
 type RenderExtraFunction func(proto.Message) string
 
+// RenderExtraFetchNumbers desc
 func RenderExtraFetchNumbers(msg proto.Message, fields []string) []uint64 {
 	vfm := reflect.ValueOf(msg)
 	vfm = reflect.Indirect(vfm)
@@ -182,20 +202,25 @@ func RenderExtraFetchNumbers(msg proto.Message, fields []string) []uint64 {
 	return values
 }
 
+// RenderExtraFunctionEtypeName desc
 func RenderExtraFunctionEtypeName(msg proto.Message) string {
 	num := RenderExtraFetchNumbers(msg, []string{"Etype"})
 	return EtypeName[uint32(num[0])]
 }
 
+// RenderExtraFunctionProtoName desc
 func RenderExtraFunctionProtoName(msg proto.Message) string {
 	num := RenderExtraFetchNumbers(msg, []string{"Proto"})
 	return ProtoName[uint32(num[0])]
 }
+
+// RenderExtraFunctionIcmpName desc
 func RenderExtraFunctionIcmpName(msg proto.Message) string {
 	num := RenderExtraFetchNumbers(msg, []string{"Proto", "IcmpCode", "IcmpType"})
 	return IcmpCodeType(uint32(num[0]), uint32(num[1]), uint32(num[2]))
 }
 
+// IcmpCodeType desc
 func IcmpCodeType(proto, icmpCode, icmpType uint32) string {
 	if proto == 1 {
 		return IcmpTypeName[icmpType]
@@ -205,6 +230,7 @@ func IcmpCodeType(proto, icmpCode, icmpType uint32) string {
 	return ""
 }
 
+// RenderIP desc
 func RenderIP(addr []byte) string {
 	if addr == nil || (len(addr) != 4 && len(addr) != 16) {
 		return ""
@@ -213,14 +239,17 @@ func RenderIP(addr []byte) string {
 	return net.IP(addr).String()
 }
 
+// FormatMessageReflectText desc
 func FormatMessageReflectText(msg proto.Message, ext string) string {
 	return FormatMessageReflectCustom(msg, ext, "", " ", "=", false)
 }
 
+// FormatMessageReflectJSON desc
 func FormatMessageReflectJSON(msg proto.Message, ext string) string {
 	return fmt.Sprintf("{%s}", FormatMessageReflectCustom(msg, ext, "\"", ",", ":", true))
 }
 
+// FormatMessageReflectCustom desc
 func FormatMessageReflectCustom(msg proto.Message, ext, quotes, sep, sign string, null bool) string {
 	fstr := make([]string, len(TextFields)+len(RenderExtras))
 
@@ -233,21 +262,21 @@ func FormatMessageReflectCustom(msg proto.Message, ext, quotes, sep, sign string
 		if fieldValue.IsValid() {
 
 			switch TextFieldsTypes[j] {
-			case FORMAT_TYPE_STRING_FUNC:
+			case FormatTypeStringFunc:
 				strMethod := fieldValue.MethodByName("String").Call([]reflect.Value{})
 				fstr[i] = fmt.Sprintf("%s%s%s%s%q", quotes, kf, quotes, sign, strMethod[0].String())
-			case FORMAT_TYPE_STRING:
+			case FormatTypeString:
 				fstr[i] = fmt.Sprintf("%s%s%s%s%q", quotes, kf, quotes, sign, fieldValue.String())
-			case FORMAT_TYPE_INTEGER:
+			case FormatTypeInteger:
 				fstr[i] = fmt.Sprintf("%s%s%s%s%d", quotes, kf, quotes, sign, fieldValue.Uint())
-			case FORMAT_TYPE_IP:
+			case FormatTypeIP:
 				ip := fieldValue.Bytes()
 				fstr[i] = fmt.Sprintf("%s%s%s%s%q", quotes, kf, quotes, sign, RenderIP(ip))
-			case FORMAT_TYPE_MAC:
+			case FormatTypeMac:
 				mac := make([]byte, 8)
 				binary.BigEndian.PutUint64(mac, fieldValue.Uint())
 				fstr[i] = fmt.Sprintf("%s%s%s%s%q", quotes, kf, quotes, sign, net.HardwareAddr(mac[2:]).String())
-			case FORMAT_TYPE_BYTES:
+			case FormatTypeBytes:
 				fstr[i] = fmt.Sprintf("%s%s%s%s%.2x", quotes, kf, quotes, sign, fieldValue.Bytes())
 			default:
 				if null {

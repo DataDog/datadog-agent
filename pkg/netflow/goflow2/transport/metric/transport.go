@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-type MetricDriver struct {
+// Driver desc
+type Driver struct {
 	fileDestination string
 	lineSeparator   string
 	w               io.Writer
@@ -24,13 +25,14 @@ type MetricDriver struct {
 	MetricChan      chan []metrics.MetricSample
 }
 
-func (d *MetricDriver) Prepare() error {
+// Prepare desc
+func (d *Driver) Prepare() error {
 	d.fileDestination = ""
 	d.lineSeparator = "\n"
 	return nil
 }
 
-func (d *MetricDriver) openFile() error {
+func (d *Driver) openFile() error {
 	file, err := os.OpenFile(d.fileDestination, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -40,7 +42,8 @@ func (d *MetricDriver) openFile() error {
 	return err
 }
 
-func (d *MetricDriver) Init(context.Context) error {
+// Init desc
+func (d *Driver) Init(context.Context) error {
 	d.q = make(chan bool, 1)
 
 	if d.fileDestination == "" {
@@ -76,12 +79,12 @@ func (d *MetricDriver) Init(context.Context) error {
 	return nil
 }
 
-func (d *MetricDriver) Send(key, data []byte) error {
+// Send desc
+func (d *Driver) Send(key, data []byte) error {
 	//d.Lock.RLock()
 	//w := d.w
 	//d.Lock.RUnlock()
 	log.Warn("Send metric")
-
 
 	buf := proto.NewBuffer(data)
 
@@ -105,7 +108,8 @@ func (d *MetricDriver) Send(key, data []byte) error {
 	return err
 }
 
-func (d *MetricDriver) Close(context.Context) error {
+// Close desc
+func (d *Driver) Close(context.Context) error {
 	if d.fileDestination != "" {
 		d.Lock.Lock()
 		d.file.Close()
@@ -115,10 +119,3 @@ func (d *MetricDriver) Close(context.Context) error {
 	close(d.q)
 	return nil
 }
-
-//func init() {
-//	d := &MetricDriver{
-//		lock: &sync.RWMutex{},
-//	}
-//	transport.RegisterTransportDriver("metric", d)
-//}

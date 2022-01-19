@@ -49,7 +49,7 @@ func createTestProcessor(listerContainers []*workloadmeta.Container, listerError
 	p := &Processor{
 		metricsProvider: mockProvider,
 		ctrLister:       &mockLister,
-		metricsAdapter:  GenericMetricsAdapter{},
+		metricsAdapter:  GenMetricsAdapter{},
 		ctrFilter:       filter,
 	}
 

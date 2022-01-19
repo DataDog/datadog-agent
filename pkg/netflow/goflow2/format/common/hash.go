@@ -16,6 +16,7 @@ var (
 	hashDeclaredLock = &sync.Mutex{}
 )
 
+// HashFlag desc
 func HashFlag() {
 	hashDeclaredLock.Lock()
 	defer hashDeclaredLock.Unlock()
@@ -28,15 +29,18 @@ func HashFlag() {
 
 }
 
+// ManualHashInit desc
 func ManualHashInit() error {
 	fields = strings.Split(fieldsVar, ",")
 	return nil
 }
 
+// HashProtoLocal desc
 func HashProtoLocal(msg interface{}) string {
 	return HashProto(fields, msg)
 }
 
+// HashProto desc
 func HashProto(fields []string, msg interface{}) string {
 	var keyStr string
 

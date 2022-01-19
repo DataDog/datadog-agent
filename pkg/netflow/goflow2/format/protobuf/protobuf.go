@@ -9,21 +9,25 @@ import (
 	"github.com/netsampler/goflow2/format"
 )
 
-type ProtobufDriver struct {
+// Driver desc
+type Driver struct {
 	fixedLen bool
 }
 
-func (d *ProtobufDriver) Prepare() error {
+// Prepare desc
+func (d *Driver) Prepare() error {
 	common.HashFlag()
 	flag.BoolVar(&d.fixedLen, "format.protobuf.fixedlen", false, "Prefix the protobuf with message length")
 	return nil
 }
 
-func (d *ProtobufDriver) Init(context.Context) error {
+// Init desc
+func (d *Driver) Init(context.Context) error {
 	return common.ManualHashInit()
 }
 
-func (d *ProtobufDriver) Format(data interface{}) ([]byte, []byte, error) {
+// Format desc
+func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 	msg, ok := data.(proto.Message)
 	if !ok {
 		return nil, nil, fmt.Errorf("message is not protobuf")
@@ -33,14 +37,13 @@ func (d *ProtobufDriver) Format(data interface{}) ([]byte, []byte, error) {
 	if !d.fixedLen {
 		b, err := proto.Marshal(msg)
 		return []byte(key), b, err
-	} else {
-		buf := proto.NewBuffer([]byte{})
-		err := buf.EncodeMessage(msg)
-		return []byte(key), buf.Bytes(), err
 	}
+	buf := proto.NewBuffer([]byte{})
+	err := buf.EncodeMessage(msg)
+	return []byte(key), buf.Bytes(), err
 }
 
 func init() {
-	d := &ProtobufDriver{}
+	d := &Driver{}
 	format.RegisterFormatDriver("pb", d)
 }
