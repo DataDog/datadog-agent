@@ -37,8 +37,6 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 	}
 	srcAddr := net.IP(flowmsg.SrcAddr)
 	dstAddr := net.IP(flowmsg.DstAddr)
-	log.Warnf("srcAddr: %v", srcAddr)
-	log.Warnf("dstAddr: %v", dstAddr)
 
 	protoName, ok := common.ProtoName[flowmsg.Proto]
 	if !ok {
@@ -75,7 +73,7 @@ func (d *JsonDriver) Format(data interface{}) ([]byte, []byte, error) {
 	if srcL7ProtoName != "" {
 		tags = append(tags, fmt.Sprintf("src_l7_proto_name:%s", srcL7ProtoName))
 	}
-
+	log.Warnf("tags: %v", tags)
 	timestamp := float64(time.Now().UnixNano())
 	enhancedMetrics := []metrics.MetricSample{
 		{
