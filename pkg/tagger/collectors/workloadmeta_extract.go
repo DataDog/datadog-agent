@@ -180,7 +180,11 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	tags.AddLow("image_tag", image.Tag)
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
-		tags.AddLow("docker_image", fmt.Sprintf("%s:%s", image.Name, image.Tag))
+		if image.Tag != "" {
+			tags.AddLow("docker_image", fmt.Sprintf("%s:%s", image.Name, image.Tag))
+		} else {
+			tags.AddLow("docker_image", image.Name)
+		}
 	}
 
 	// standard tags from labels
