@@ -40,9 +40,28 @@ func TestStartInvocation(t *testing.T) {
 	body := bytes.NewBuffer([]byte(`{"start_time": "2019-10-12T07:20:50.52Z", "headers": {"header-1": ["value-1"]}, "payload": "payload-string"}`))
 	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
 	assert.Nil(err)
-	_, err = client.Do(request)
+	res, err := client.Do(request)
 	assert.Nil(err)
+	assert.Equal(res.StatusCode, 200)
 	assert.True(m.OnInvokeStartCalled)
+}
+
+func TestStartInvocationInvalidRequestBody(t *testing.T) {
+	assert := assert.New(t)
+	d := StartDaemon("127.0.0.1:8124")
+	defer d.Stop()
+
+	m := &mockLifecycleProcessor{}
+	d.InvocationProcessor = m
+
+	client := &http.Client{Timeout: 1 * time.Second}
+	body := bytes.NewBuffer([]byte(`INVALID`))
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
+	assert.Nil(err)
+	res, err := client.Do(request)
+	assert.Nil(err)
+	assert.Equal(res.StatusCode, 400)
+	assert.False(m.OnInvokeStartCalled)
 }
 
 func TestEndInvocation(t *testing.T) {
@@ -57,9 +76,28 @@ func TestEndInvocation(t *testing.T) {
 	body := bytes.NewBuffer([]byte(`{"end_time": "2019-10-12T07:20:50.52Z", "is_error": false}`))
 	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/end-invocation", body)
 	assert.Nil(err)
-	_, err = client.Do(request)
+	res, err := client.Do(request)
 	assert.Nil(err)
+	assert.Equal(res.StatusCode, 200)
 	assert.True(m.OnInvokeEndCalled)
+}
+
+func TestEndInvocationInvalidRequestBody(t *testing.T) {
+	assert := assert.New(t)
+	d := StartDaemon("127.0.0.1:8124")
+	defer d.Stop()
+
+	m := &mockLifecycleProcessor{}
+	d.InvocationProcessor = m
+
+	client := &http.Client{Timeout: 1 * time.Second}
+	body := bytes.NewBuffer([]byte(`INVALID`))
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/end-invocation", body)
+	assert.Nil(err)
+	res, err := client.Do(request)
+	assert.Nil(err)
+	assert.Equal(res.StatusCode, 400)
+	assert.False(m.OnInvokeStartCalled)
 }
 
 func TestTraceContext(t *testing.T) {
