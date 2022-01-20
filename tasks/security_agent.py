@@ -1,8 +1,10 @@
 import datetime
+import errno
 import os
 import shutil
 import sys
 import tempfile
+from subprocess import check_output
 
 from invoke import task
 
@@ -21,6 +23,7 @@ from .utils import (
     get_version,
     get_version_numeric_only,
 )
+from .system_probe import get_ebpf_build_flags, CLANG_CMD as CLANG_BPF_CMD
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
@@ -176,6 +179,20 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     ctx.run(cmd.format(**args))
 
 
+def build_ebpf_probe_syscall_tester(ctx, build_dir):
+    c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
+    c_file = os.path.join(c_dir, "ebpf_probe.c")
+    o_file = os.path.join(build_dir, f"ebpf_probe.o")
+
+    flags = get_ebpf_build_flags(target=["-target", "bpf"])
+    uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
+    flags.append(f"-D__{uname_m}__")
+
+    return ctx.run(
+        CLANG_BPF_CMD.format(flags=" ".join(flags), bc_file=o_file, c_file=c_file),
+    )
+
+
 def build_go_syscall_tester(ctx, build_dir):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
@@ -216,13 +233,21 @@ def build_syscall_tester(ctx, build_dir, static=True):
 
 @task
 def build_embed_syscall_tester(ctx, static=True):
-    syscall_tester_bin = build_syscall_tester(ctx, os.path.join(".", "bin"), static=static)
-    syscall_x86_tester_bin = build_syscall_x86_tester(ctx, os.path.join(".", "bin"), static=static)
-    syscall_go_tester_bin = build_go_syscall_tester(ctx, os.path.join(".", "bin"))
+    build_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "bin")
+    try:
+        os.makedirs(build_dir)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+
+    syscall_tester_bin = build_syscall_tester(ctx, build_dir, static=static)
+    syscall_x86_tester_bin = build_syscall_x86_tester(ctx, build_dir, static=static)
+    build_ebpf_probe_syscall_tester(ctx, build_dir)
+    syscall_go_tester_bin = build_go_syscall_tester(ctx, build_dir)
     bundle_files(
         ctx,
         [syscall_tester_bin, syscall_x86_tester_bin, syscall_go_tester_bin],
-        "bin",
+        "pkg/security/tests/syscall_tester/bin",
         "pkg/security/tests/syscall_tester/bindata.go",
         "syscall_tester",
         "functionaltests",
