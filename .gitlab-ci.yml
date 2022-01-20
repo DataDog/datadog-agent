@@ -13,7 +13,7 @@ include:
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
-  - /.gitlab/image_scan.yml
+  - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
   - /.gitlab/image_deploy.yml
   - /.gitlab/deploy_6.yml
@@ -62,7 +62,7 @@ stages:
   - kitchen_testing
   - pkg_metrics
   - container_build
-  - image_scan
+  - container_scan
   - check_deploy
   - image_deploy
   - deploy6
