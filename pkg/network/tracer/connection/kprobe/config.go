@@ -57,6 +57,10 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 			enableProbe(enabled, probes.DoSendfile)
 			enableProbe(enabled, probes.DoSendfileRet)
 		}
+
+		if kv >= kernel.VersionCode(5, 5, 0) {
+			enableProbe(enabled, probes.SockFDInstall)
+		}
 	}
 
 	if c.CollectUDPConns {

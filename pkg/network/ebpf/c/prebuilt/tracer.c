@@ -32,12 +32,37 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
     tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     update_tcp_stats(t, stats);
 }
+
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
     // counting segments/packets not currently supported on prebuilt
     // to implement, would need to do the offset-guess on the following
     // fields in the tcp_sk: packets_in & packets_out (respectively)
     *packets_in = 0;
     *packets_out = 0;
+}
+
+static __always_inline int socket2sock(struct socket *socket, struct sock **sock) {
+    enum sock_type sock_type = 0;
+    bpf_probe_read(&sock_type, sizeof(short), &socket->type);
+
+    // (struct socket).ops is always directly after (struct socket).sk,
+    // which is a pointer.
+    u64 ops_offset = offset_socket_sk() + sizeof(void*);
+    struct proto_ops *proto_ops = NULL;
+    bpf_probe_read(&proto_ops, sizeof(proto_ops), (void*)(socket) + ops_offset);
+    if (!proto_ops) {
+        return 1;
+    }
+
+    int family = 0;
+    bpf_probe_read(&family, sizeof(family), &proto_ops->family);
+    if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
+        return 1;
+    }
+
+    // Retrieve struct sock* pointer from struct socket*
+    bpf_probe_read(sock, sizeof(*sock), (char*)socket + offset_socket_sk());
+    return 0;
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -608,6 +633,37 @@ int kretprobe__inet6_bind(struct pt_regs* ctx) {
     return sys_exit_bind(ret);
 }
 
+SEC("kprobe/fd_install")
+int kprobe__fd_install(struct pt_regs* ctx) {
+// void fd_install(unsigned int fd, struct file *file)
+    int sockfd = (int)PT_REGS_PARM1(ctx);
+    void *file = (void *)PT_REGS_PARM2(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    void *private_data;
+    bpf_probe_read(&private_data, sizeof(private_data), file + offsetof(struct file, private_data));
+    struct inode *inode;
+    bpf_probe_read(&inode, sizeof(inode), file + offsetof(struct file, f_inode));
+    struct socket *socket = SOCKET_I(inode);
+    if (!private_data || (private_data != socket)) {
+        return 0;
+    }
+    struct sock *sock = NULL;
+    if (socket2sock(socket, &sock)) {
+        return 0;
+    }
+    pid_fd_t pid_fd = {
+        .pid = pid_tgid >> 32,
+        .fd = sockfd,
+    };
+    log_debug("=fd_install pid fd %d %d \n", pid_fd.pid, pid_fd.fd);
+
+    // These entries are cleaned up by tcp_close
+    bpf_map_update_elem(&pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
+    bpf_map_update_elem(&sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
+    return 0;
+}
+
 SEC("kprobe/sockfd_lookup_light")
 int kprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     int sockfd = (int)PT_REGS_PARM1(ctx);
@@ -643,27 +699,10 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
 
     // For now let's only store information for TCP sockets
     struct socket* socket = (struct socket*)PT_REGS_RC(ctx);
-    enum sock_type sock_type = 0;
-    bpf_probe_read(&sock_type, sizeof(short), &socket->type);
-
-    // (struct socket).ops is always directly after (struct socket).sk,
-    // which is a pointer.
-    u64 ops_offset = offset_socket_sk() + sizeof(void*);
-    struct proto_ops *proto_ops = NULL;
-    bpf_probe_read(&proto_ops, sizeof(proto_ops), (void*)(socket) + ops_offset);
-    if (!proto_ops) {
+    struct sock* sock = NULL;
+    if (socket2sock(socket, &sock)) {
         goto cleanup;
     }
-
-    int family = 0;
-    bpf_probe_read(&family, sizeof(family), &proto_ops->family);
-    if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
-        goto cleanup;
-    }
-
-    // Retrieve struct sock* pointer from struct socket*
-    struct sock *sock = NULL;
-    bpf_probe_read(&sock, sizeof(sock), (char*)socket + offset_socket_sk());
 
     pid_fd_t pid_fd = {
         .pid = pid_tgid >> 32,

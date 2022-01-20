@@ -102,6 +102,9 @@ const (
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"
 
+	// SockFDInstall is the kprobe used for mapping socket FDs to kernel sock structs (kernel >= 5.5) for sys_connect() sys_accept()
+	SockFDInstall ProbeName = "kprobe/fd_install"
+
 	// SockFDLookup is the kprobe used for mapping socket FDs to kernel sock structs
 	SockFDLookup ProbeName = "kprobe/sockfd_lookup_light"
 

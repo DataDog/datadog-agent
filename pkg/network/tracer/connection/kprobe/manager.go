@@ -45,6 +45,7 @@ var mainProbes = map[probes.ProbeName]string{
 	probes.Inet6Bind:            "kprobe__inet6_bind",
 	probes.InetBindRet:          "kretprobe__inet_bind",
 	probes.Inet6BindRet:         "kretprobe__inet6_bind",
+	probes.SockFDInstall:        "kprobe__fd_install",
 	probes.SockFDLookup:         "kprobe__sockfd_lookup_light",
 	probes.SockFDLookupRet:      "kretprobe__sockfd_lookup_light",
 	probes.DoSendfile:           "kprobe__do_sendfile",
