@@ -116,22 +116,24 @@ func matchCert() *regexp.Regexp {
 	)
 }
 
+// matchYAMLKeyWithListValue matches YAML keys with list values.
 func matchYAMLKeyWithListValue(key string) *regexp.Regexp {
-	/* Match yaml keys with list values.
+	/*
+		Example 1:
+		snmp_traps_config:
+		  community_strings:
+		    - 'pass1'
+		    - 'pass2'
 
-	Example 1:
-	snmp_traps_config:
-	  community_strings:
-	    - 'pass1'
-	    - 'pass2'
-	Example 2:
-	snmp_traps_config:
-	  community_strings: ['pass1', 'pass2']
-	Example 3:
-	snmp_traps_config:
-	  community_strings: [
-	    'pass1',
-	    'pass2']
+		Example 2:
+		snmp_traps_config:
+		  community_strings: ['pass1', 'pass2']
+
+		Example 3:
+		snmp_traps_config:
+		  community_strings: [
+		    'pass1',
+		    'pass2']
 	*/
 	return regexp.MustCompile(
 		fmt.Sprintf(`(\s*%s\s*:)\s*(?:\n(?:\s+-\s+.*)*|\[(?:\n?.*)*\])`, key),
