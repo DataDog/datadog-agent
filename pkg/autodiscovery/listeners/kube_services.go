@@ -59,6 +59,16 @@ func init() {
 	Register(kubeServicesName, NewKubeServiceListener)
 }
 
+// isServiceAnnotated returns true if the Service has an annotation with a given key
+func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
+	if ksvc != nil {
+		if _, found := ksvc.GetAnnotations()[annotationKey]; found {
+			return true
+		}
+	}
+	return false
+}
+
 func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()

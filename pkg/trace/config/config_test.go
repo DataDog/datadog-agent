@@ -291,9 +291,6 @@ func TestFullYamlConfig(t *testing.T) {
 
 	assert.EqualValues([]string{"/health", "/500"}, c.Ignore["resource"])
 
-	assert.Equal("0.0.0.0", c.OTLPReceiver.BindHost)
-	assert.Equal(50053, c.OTLPReceiver.GRPCPort)
-
 	o := c.Obfuscation
 	assert.NotNil(o)
 	assert.True(o.ES.Enabled)

@@ -19,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -114,16 +112,6 @@ func standardTagsDigest(labels map[string]string) string {
 	_, _ = h.Write([]byte(labels[kubernetes.VersionTagLabelKey]))
 	_, _ = h.Write([]byte(labels[kubernetes.ServiceTagLabelKey]))
 	return strconv.FormatUint(h.Sum64(), 16)
-}
-
-// isServiceAnnotated returns true if the Service has an annotation with a given key
-func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
-	if ksvc != nil {
-		if _, found := ksvc.GetAnnotations()[annotationKey]; found {
-			return true
-		}
-	}
-	return false
 }
 
 // newContainerFilters instantiates the required container filters for AD listeners

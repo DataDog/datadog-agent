@@ -218,6 +218,10 @@ func GetPollInterval(cp config.ConfigurationProviders) time.Duration {
 // of things being monitored, or to one of those things being modified.  This
 // can be used to determine IsUpToDate() and avoid full Collect() calls when
 // nothing has changed.
+//nolint:unused
+// nolint needed as this type is defined in a file without a build tag,
+// but only used in multiple files with different build tags, none of which
+// are used in the IoT Agent.
 type providerCache struct {
 	// mostRecentMod is the most recent modification timestamp of a
 	// monitored thing
@@ -231,6 +235,10 @@ type providerCache struct {
 type ErrorMsgSet map[string]struct{}
 
 // newProviderCache instantiate a ProviderCache.
+//nolint:deadcode,unused
+// nolint needed as this function is defined in a file without a build tag,
+// but only used in multiple files with different build tags, none of which
+// are used in the IoT Agent.
 func newProviderCache() *providerCache {
 	return &providerCache{
 		mostRecentMod: 0,
