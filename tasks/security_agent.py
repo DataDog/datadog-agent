@@ -231,14 +231,18 @@ def build_syscall_tester(ctx, build_dir, static=True):
     return build_c_syscall_tester_common(ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static)
 
 
-@task
-def build_embed_syscall_tester(ctx, static=True):
-    build_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "bin")
+def create_dir_if_needed(dir):
     try:
-        os.makedirs(build_dir)
+        os.makedirs(dir)
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
+
+
+@task
+def build_embed_syscall_tester(ctx, static=True):
+    build_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "bin")
+    create_dir_if_needed(build_dir)
 
     syscall_tester_bin = build_syscall_tester(ctx, build_dir, static=static)
     syscall_x86_tester_bin = build_syscall_x86_tester(ctx, build_dir, static=static)
