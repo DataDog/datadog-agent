@@ -62,6 +62,9 @@ type Daemon struct {
 	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
 	LambdaLibraryDetected bool
 
+	// runtimeStateMutex is used to ensure that modifying the state of the runtime is thread-safe
+	runtimeStateMutex sync.Mutex
+
 	// RuntimeWg is used to keep track of whether the runtime is currently handling an invocation.
 	// It should be reset when we start a new invocation, as we may start a new invocation before hearing that the last one finished.
 	RuntimeWg *sync.WaitGroup
@@ -310,6 +313,8 @@ func (d *Daemon) Stop() {
 func (d *Daemon) TellDaemonRuntimeStarted() {
 	// Reset the RuntimeWg on every new invocation.
 	// We might receive a new invocation before we learn that the previous invocation has finished.
+	d.runtimeStateMutex.Lock()
+	defer d.runtimeStateMutex.Unlock()
 	d.RuntimeWg = &sync.WaitGroup{}
 	d.TellDaemonRuntimeDoneOnce = &sync.Once{}
 	d.RuntimeWg.Add(1)
@@ -317,6 +322,8 @@ func (d *Daemon) TellDaemonRuntimeStarted() {
 
 // TellDaemonRuntimeDone tells the daemon that the runtime finished handling an invocation
 func (d *Daemon) TellDaemonRuntimeDone() {
+	d.runtimeStateMutex.Lock()
+	defer d.runtimeStateMutex.Unlock()
 	d.TellDaemonRuntimeDoneOnce.Do(func() {
 		d.RuntimeWg.Done()
 	})
