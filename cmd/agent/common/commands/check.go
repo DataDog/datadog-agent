@@ -154,7 +154,8 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				discoveryRetryInterval = discoveryTimeout
 			}
 
-			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, common.SelectedCheckMatcherBuilder([]string{checkName}, discoveryMinInstances))
+			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
+				common.SelectedCheckMatcherBuilder([]string{checkName}, discoveryMinInstances))
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
