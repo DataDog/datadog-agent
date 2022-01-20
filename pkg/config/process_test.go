@@ -252,3 +252,36 @@ func TestProcBindEnv(t *testing.T) {
 	assert.Equal(t, "baz", cfg.GetString("process_config.foo.bar"))
 	reset()
 }
+
+func TestProcConfigEnabledTransform(t *testing.T) {
+	for _, tc := range []struct {
+		procConfigEnabled                                      string
+		expectedContainerCollection, expectedProcessCollection bool
+	}{
+		{
+			procConfigEnabled:           "true",
+			expectedContainerCollection: false,
+			expectedProcessCollection:   true,
+		},
+		{
+			procConfigEnabled:           "false",
+			expectedContainerCollection: true,
+			expectedProcessCollection:   false,
+		},
+		{
+			procConfigEnabled:           "disabled",
+			expectedContainerCollection: false,
+			expectedProcessCollection:   false,
+		},
+	} {
+		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
+			cfg := setupConf()
+			cfg.Set("process_config.enabled", tc.procConfigEnabled)
+			LoadProcessTransforms(cfg)
+
+			assert.Equal(t, tc.expectedContainerCollection, cfg.GetBool("process_config.container_collection.enabled"))
+			assert.Equal(t, tc.expectedProcessCollection, cfg.GetBool("process_config.process_collection.enabled"))
+		})
+	}
+
+}

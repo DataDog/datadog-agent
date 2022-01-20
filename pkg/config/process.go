@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -90,4 +92,23 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
+}
+
+// LoadProcessTransforms loads transforms associated with process config settings. This is used to handle deprecated settings
+func LoadProcessTransforms(config Config) {
+	if config.IsSet("process_config.enabled") {
+		log.Debug("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
+			" and process_config.process_collection.enabled instead")
+		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
+		if procConfigEnabled == "disabled" {
+			config.Set("process_config.process_collection.enabled", false)
+			config.Set("process_config.container_collection.enabled", false)
+		} else if enabled, _ := strconv.ParseBool(procConfigEnabled); enabled { // "true"
+			config.Set("process_config.process_collection.enabled", true)
+			config.Set("process_config.container_collection.enabled", false)
+		} else { // "false"
+			config.Set("process_config.process_collection.enabled", false)
+			config.Set("process_config.container_collection.enabled", true)
+		}
+	}
 }

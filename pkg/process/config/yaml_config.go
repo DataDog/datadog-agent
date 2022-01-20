@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -55,22 +54,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 
 	if config.Datadog.IsSet("hostname") {
 		a.HostName = config.Datadog.GetString("hostname")
-	}
-
-	if config.Datadog.IsSet("process_config.enabled") {
-		log.Debug("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
-			" and process_config.process_collection.enabled instead")
-		procConfigEnabled := strings.ToLower(config.Datadog.GetString("process_config.enabled"))
-		if procConfigEnabled == "disabled" {
-			config.Datadog.Set("process_config.process_collection.enabled", false)
-			config.Datadog.Set("process_config.container_collection.enabled", false)
-		} else if enabled, _ := strconv.ParseBool(procConfigEnabled); enabled { // "true"
-			config.Datadog.Set("process_config.process_collection.enabled", true)
-			config.Datadog.Set("process_config.container_collection.enabled", false)
-		} else { // "false"
-			config.Datadog.Set("process_config.process_collection.enabled", false)
-			config.Datadog.Set("process_config.container_collection.enabled", true)
-		}
 	}
 
 	a.Enabled = false
