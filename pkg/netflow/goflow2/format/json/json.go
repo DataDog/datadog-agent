@@ -97,7 +97,7 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 		if err != nil {
 			log.Debugf("error parsing dns `%s`:", domain, err)
 		} else {
-			tags = append(tags, fmt.Sprintf("dst_root_domain:%s", rootDomain))
+			tags = append(tags, fmt.Sprintf("dst_root_domain:%s", rootDomain.Domain))
 		}
 	}
 
@@ -107,7 +107,7 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 		if err != nil {
 			log.Debugf("error parsing dns `%s`:", domain, err)
 		} else {
-			tags = append(tags, fmt.Sprintf("src_root_domain:%s", rootDomain))
+			tags = append(tags, fmt.Sprintf("src_root_domain:%s", rootDomain.Domain))
 		}
 	}
 
