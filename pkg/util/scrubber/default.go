@@ -136,7 +136,7 @@ func matchYAMLKeyWithListValue(key string) *regexp.Regexp {
 		    'pass2']
 	*/
 	return regexp.MustCompile(
-		fmt.Sprintf(`(\s*%s\s*:)\s*(?:\n(?:\s+-\s+.*)*|\[(?:\n?.*)*\])`, key),
+		fmt.Sprintf(`(\s*%s\s*:)\s*(?:\n(?:\s+-\s+.*)*|\[(?:\n?.*?)*?\])`, key),
 		/*           -----------      ---------------  -------------
 		             match key(s)     |                |
 		                              match multiple   match anything
