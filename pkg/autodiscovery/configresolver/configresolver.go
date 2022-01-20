@@ -55,6 +55,7 @@ func SubstituteTemplateEnvVars(config *integration.Config) error {
 // Resolve also returns the hash of the tags to the config.
 // The tags and hashes are computed once and in this function, then propagated to the main AD to avoid having inconsistent tags and hashes in the AD store.
 func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, string, error) {
+	log.Infof("LOGGING resolve %#v, %#v", tpl, svc)
 	ctx := context.TODO()
 	// Copy original template
 	resolvedConfig := integration.Config{

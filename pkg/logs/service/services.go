@@ -7,6 +7,8 @@ package service
 
 import (
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Services provides new and removed services.
@@ -30,6 +32,7 @@ func NewServices() *Services {
 func (s *Services) AddService(service *Service) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	log.Infof("LOGGING add service %#v", service)
 
 	added, _ := s.addedPerType[service.Type]
 	for _, ch := range append(added, s.allAdded...) {

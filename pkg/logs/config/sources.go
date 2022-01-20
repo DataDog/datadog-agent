@@ -7,6 +7,8 @@ package config
 
 import (
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LogSources stores a list of log sources.
@@ -27,6 +29,7 @@ func NewLogSources() *LogSources {
 
 // AddSource adds a new source.
 func (s *LogSources) AddSource(source *LogSource) {
+	log.Infof("LOGGING add source %#v config %#v", source, source.Config)
 	s.mu.Lock()
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {

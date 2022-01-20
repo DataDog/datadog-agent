@@ -44,20 +44,26 @@ func NewContainer(container types.ContainerJSON, service *service.Service) *Cont
 func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 	var bestMatch *config.LogSource
 	for _, source := range sources {
+		log.Infof("LOGGING scanning source %#v", source)
 		if source.Config.Identifier != "" && c.isIdentifierMatch(source.Config.Identifier) {
 			// perfect match between the source and the container
+			log.Infof("LOGGING   HERE 1")
 			return source
 		}
 		if !c.IsMatch(source) {
+			log.Infof("LOGGING   HERE 2")
 			continue
 		}
 		if bestMatch == nil {
+			log.Infof("LOGGING   HERE 3")
 			bestMatch = source
 		}
 		if c.computeScore(bestMatch) < c.computeScore(source) {
+			log.Infof("LOGGING   HERE 4")
 			bestMatch = source
 		}
 	}
+	log.Infof("LOGGING   HERE 5")
 	return bestMatch
 }
 

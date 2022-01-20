@@ -506,11 +506,13 @@ func (ac *AutoConfig) removeConfigTemplates(configs []integration.Config) {
 // list of Autodiscovery identifiers for services that are unknown to the
 // resolver at this moment.
 func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Config {
+	log.Infof("LOGGING resolveTemplate %#v", tpl)
 	// use a map to dedupe configurations
 	resolvedSet := map[string]integration.Config{}
 
 	// go through the AD identifiers provided by the template
 	for _, id := range tpl.ADIdentifiers {
+		log.Infof("LOGGING resolveTemplate adid %s", id)
 		// check out whether any service we know has this identifier
 		serviceIds, found := ac.store.getServiceEntitiesForADID(id)
 		if !found {
@@ -521,6 +523,7 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 		}
 
 		for serviceID := range serviceIds {
+			log.Infof("LOGGING resolveTemplate svcid %s", serviceID)
 			svc := ac.store.getServiceForEntity(serviceID)
 			if svc == nil {
 				log.Warnf("Service %s was removed before we could resolve its config", serviceID)

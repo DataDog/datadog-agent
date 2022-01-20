@@ -119,6 +119,7 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case service := <-l.addedServices:
+			log.Infof("LOGGING k8s got service %#v", service)
 			l.addSource(service)
 		case service := <-l.removedServices:
 			l.removeSource(service)
@@ -193,6 +194,7 @@ func (l *Launcher) addSource(svc *service.Service) {
 		log.Warn(err)
 		return
 	}
+	log.Infof("LOGGING k8s making source for container %#v", svc.Identifier)
 	source, err := l.getSource(pod, container)
 	if err != nil {
 		if err != errCollectAllDisabled {
@@ -209,6 +211,8 @@ func (l *Launcher) addSource(svc *service.Service) {
 	}
 
 	l.sourcesByContainer[svc.GetEntityID()] = source
+	log.Infof("LOGGING k8s final source: %#v", source)
+	log.Infof("LOGGING k8s final source.Config: %#v", source.Config)
 	l.sources.AddSource(source)
 
 	// Clean-up retry logic

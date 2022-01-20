@@ -54,6 +54,7 @@ func (s *Scheduler) Stop() {
 // An entity represents a unique identifier for a process that be reused to query logs.
 func (s *Scheduler) Schedule(configs []integration.Config) {
 	for _, config := range configs {
+		log.Infof("LOGGING got config %s: %#v", s.configName(config), config)
 		if !config.IsLogConfig() {
 			continue
 		}
@@ -63,6 +64,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		}
 		switch {
 		case s.newSources(config):
+			log.Infof("LOGGING config %s is a logs Source", s.configName(config))
 			log.Infof("Received a new logs config: %v", s.configName(config))
 			sources, err := s.toSources(config)
 			if err != nil {
@@ -73,6 +75,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.sources.AddSource(source)
 			}
 		case s.newService(config):
+			log.Infof("LOGGING config %s is a logs Service", s.configName(config))
 			entityType, _, err := s.parseEntity(config.TaggerEntity)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)

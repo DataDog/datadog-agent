@@ -158,6 +158,7 @@ func (l *Launcher) run() {
 				continue
 			}
 			container := NewContainer(dockerContainer, service)
+			log.Infof("LOGGING scanning activeSources")
 			source := container.FindSource(l.activeSources)
 			switch {
 			case source != nil:
@@ -174,7 +175,9 @@ func (l *Launcher) run() {
 			// a docker label or a pod annotation.
 			l.activeSources = append(l.activeSources, source)
 			pendingContainers := make(map[string]*Container)
+			log.Infof("LOGGING scanning pending containers")
 			for _, container := range l.pendingContainers {
+				log.Infof("LOGGING scanning pending container %#v", container)
 				if container.IsMatch(source) {
 					// found a container matching the new source, start a new tailer
 					l.startTailer(container, source)
@@ -339,6 +342,7 @@ func (l *Launcher) shouldTailFromFile(container *Container) bool {
 }
 
 func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSource) {
+	log.Infof("LOGGING scheduleFileSource for %#v %#v", container, source)
 	containerID := container.service.Identifier
 	if _, isTailed := l.fileSourcesByContainer[containerID]; isTailed {
 		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
@@ -362,6 +366,7 @@ func (l *Launcher) unscheduleFileSource(containerID string) {
 }
 
 func (l *Launcher) startSocketTailer(container *Container, source *config.LogSource) {
+	log.Infof("LOGGING startSocketTailer for %#v || %#v || %#v", container, source, source.Config)
 	containerID := container.service.Identifier
 	if _, isTailed := l.getTailer(containerID); isTailed {
 		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
