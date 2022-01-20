@@ -72,6 +72,8 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 	}
 
 	tags := []string{
+		fmt.Sprintf("sampler_addr:%s", net.IP(flowmsg.SamplerAddress).String()),
+		fmt.Sprintf("flow_type:%s", flowmsg.Type.String()),
 		fmt.Sprintf("src_addr:%s", srcAddr),
 		fmt.Sprintf("src_port:%s", sanitizePort(flowmsg.SrcPort)),
 		fmt.Sprintf("proto:%d", flowmsg.Proto),
