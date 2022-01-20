@@ -131,34 +131,34 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 				tags = append(tags, fmt.Sprintf("dst_city_name:%s", cityName))
 			}
 		}
-		geoASN, err := db.ASN(dstAddr)
-		if err != nil {
-			log.Debugf("error getting ASN `%s`:", dstAddr, err)
-		} else {
-			tags = append(tags, fmt.Sprintf("dst_as_number:%d", geoASN.AutonomousSystemNumber))
-			tags = append(tags, fmt.Sprintf("dst_as_org:%s", geoASN.AutonomousSystemOrganization))
-		}
-		connType, err := db.ConnectionType(dstAddr)
-		if err != nil {
-			log.Debugf("error getting ConnectionType `%s`:", dstAddr, err)
-		} else {
-			tags = append(tags, fmt.Sprintf("dst_conn_type:%s", connType.ConnectionType))
-		}
-		domain, err := db.Domain(dstAddr)
-		if err != nil {
-			log.Debugf("error getting ConnectionType `%s`:", dstAddr, err)
-		} else {
-			tags = append(tags, fmt.Sprintf("dst_domain:%s", domain.Domain))
-		}
-		isp, err := db.ISP(dstAddr)
-		if err != nil {
-			log.Debugf("error getting ConnectionType `%s`:", dstAddr, err)
-		} else {
-			tags = append(tags, fmt.Sprintf("dst_isp:%s", isp.ISP))
-			tags = append(tags, fmt.Sprintf("dst_isp_org:%s", isp.ISP))
-			tags = append(tags, fmt.Sprintf("dst_isp_as_number:%d", isp.AutonomousSystemNumber))
-			tags = append(tags, fmt.Sprintf("dst_isp_as_org:%s", isp.AutonomousSystemOrganization))
-		}
+		//geoASN, err := db.ASN(dstAddr)
+		//if err != nil {
+		//	log.Debugf("error getting ASN `%s`:", dstAddr, err)
+		//} else {
+		//	tags = append(tags, fmt.Sprintf("dst_as_number:%d", geoASN.AutonomousSystemNumber))
+		//	tags = append(tags, fmt.Sprintf("dst_as_org:%s", geoASN.AutonomousSystemOrganization))
+		//}
+		//connType, err := db.ConnectionType(dstAddr)
+		//if err != nil {
+		//	log.Debugf("error getting ConnectionType `%s`:", dstAddr, err)
+		//} else {
+		//	tags = append(tags, fmt.Sprintf("dst_conn_type:%s", connType.ConnectionType))
+		//}
+		//domain, err := db.Domain(dstAddr)
+		//if err != nil {
+		//	log.Debugf("error getting ConnectionType `%s`:", dstAddr, err)
+		//} else {
+		//	tags = append(tags, fmt.Sprintf("dst_domain:%s", domain.Domain))
+		//}
+		//isp, err := db.ISP(dstAddr)
+		//if err != nil {
+		//	log.Debugf("error getting ConnectionType `%s`:", dstAddr, err)
+		//} else {
+		//	tags = append(tags, fmt.Sprintf("dst_isp:%s", isp.ISP))
+		//	tags = append(tags, fmt.Sprintf("dst_isp_org:%s", isp.ISP))
+		//	tags = append(tags, fmt.Sprintf("dst_isp_as_number:%d", isp.AutonomousSystemNumber))
+		//	tags = append(tags, fmt.Sprintf("dst_isp_as_org:%s", isp.AutonomousSystemOrganization))
+		//}
 	}
 
 	log.Debugf("tags: %v", tags)
