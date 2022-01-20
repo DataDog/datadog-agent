@@ -9,6 +9,8 @@ install_script_version=1.0.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
+service_name="com.datadoghq.agent"
+systemwide_servicefile_name="/Library/LaunchDaemons/${service_name}.plist"
 
 upgrade=
 if [ -n "$DD_UPGRADE" ]; then
@@ -30,6 +32,22 @@ fi
 site=
 if [ -n "$DD_SITE" ]; then
     site=$DD_SITE
+fi
+
+systemdaemon_install=false
+systemdaemon_user_group=
+if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
+    systemdaemon_install=$DD_SYSTEMDAEMON_INSTALL
+    if [ -n "$DD_SYSTEMDAEMON_USER_GROUP" ]; then
+        systemdaemon_user_group=$DD_SYSTEMDAEMON_USER_GROUP
+    else
+        printf "\033[31mDD_SYSTEMDAEMON_INSTALL set without DD_SYSTEDAEMON_USER_GROUP\033[0m\n"
+        exit 1;
+    fi
+    if ! echo "$systemdaemon_user_group" | grep "^[^:][^:]*:[^:][^:]*$" > /dev/null; then
+        printf "\033[31mDD_SYSTEDAEMON_USER_GROUP must be in format UID:GID or UserName:GroupName\033[0m\n"
+        exit 1;
+    fi
 fi
 
 agent_major_version=6
@@ -89,6 +107,9 @@ export TMPDIR
 
 cmd_real_user="sudo -Eu $real_user"
 
+user_home=$($cmd_real_user bash -c 'echo "$HOME"')
+user_plist_file=${user_home}/Library/LaunchAgents/${service_name}.plist
+
 # In order to install with the right user
 rm -f /tmp/datadog-install-user
 echo "$real_user" > /tmp/datadog-install-user
@@ -128,14 +149,54 @@ function import_config() {
     $cmd_agent import $etc_dir $etc_dir -f
 }
 
+function plist_modify_user_group() {
+    plist_file="$1"
+    user_value="$(echo $2 | awk -F: '{ print $1 }')"
+    group_value="$(echo $2 | awk -F: '{ print $2 }')"
+    user_parameter="UID"
+    group_parameter="GID"
+
+    # we have to distinguish between uid/gid and username/groupname
+    if [ ! -z "${user_value##[0-9]*}" ]; then
+        user_parameter="UserName"
+    fi
+    if [ ! -z "${group_value##[0-9]*}" ]; then
+        group_parameter="GroupName"
+    fi
+
+    # if, in a future agent version we add UID/GID/UserName/GroupName to the plist file,
+    # we want this older version of install script fail, because it wouldn't know what to do
+    terms="UID UserName GID GroupName"
+    for term in $terms; do
+        if grep "<key>$term</key>" "$1"; then
+            printf "\033[31m$plist_file already contains <key>$term</key>, please update this script to the latest version\033[0m\n"
+            return 1
+        fi
+    done
+
+    ## to insert user/group into the xml file, we'll find the last "</dict>" occurence and insert before it
+    closing_dict_line=$($sudo_cmd cat "$plist_file" | grep -n "</dict>" | tail -1 | cut -f1 -d:)
+    # there's no way to do in-place sed without a backup file on an arbitrary MacOS version
+    $sudo_cmd sed -i .backup -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|" -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|" "$plist_file"
+    $sudo_cmd rm "${plist_file}.backup"
+}
+
 # # Install the agent
 printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
 rm -f $dmg_file
-curl --fail --progress-bar $dmg_url > $dmg_file
+# curl --fail --progress-bar $dmg_url > $dmg_file
+dmg_file=/Users/slavek.kabrda/Downloads/datadog-agent-7.34.0-rc.1-1.dmg
 printf "\033[34m\n* Installing datadog-agent, you might be asked for your sudo password...\n\033[0m"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "\033[34m\n    - Mounting the DMG installer...\n\033[0m"
 $sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" >/dev/null
+if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]; then
+    # TODO: if systemwide is running, but user is trying to install locally, fail
+    printf "\033[34m\n    - Stopping systemwide Datadog Agent daemon ...\n\033[0m"
+    # we use "|| true" because if the service is not started/loaded, the commands fail
+    $sudo_cmd launchctl stop $service_name || true
+    $sudo_cmd launchctl print system/$service_name 2>/dev/null >/dev/null && $sudo_cmd launchctl unload $systemwide_servicefile_name || true
+fi
 printf "\033[34m\n    - Unpacking and copying files (this usually takes about a minute) ...\n\033[0m"
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
 printf "\033[34m\n    - Unmounting the DMG installer ...\n\033[0m"
@@ -160,7 +221,7 @@ if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
         new_config
     fi
     printf "\n\033[34m* Restarting the Agent...\n\033[0m\n"
-    $cmd_launchctl stop com.datadoghq.agent
+    $cmd_launchctl stop $service_name
 
     # Wait for the agent to fully stop
     retry=0
@@ -175,13 +236,30 @@ You may have to restart it manually using the systray app or the
 \"launchctl start com.datadoghq.agent\" command.\n\033[0m\n"
     fi
 
-    $cmd_launchctl start com.datadoghq.agent
+    $cmd_launchctl start $service_name
 else
     printf "\033[34m\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n\033[0m\n"
 fi
 
 # Starting the app
-$cmd_real_user open -a 'Datadog Agent.app'
+if [ "$systemdaemon_install" = false ]; then
+    $cmd_real_user open -a 'Datadog Agent.app'
+else
+    # TODO: modify the message below
+    printf "\033[34m\n* Installing $service_name as a systemwide LaunchDaemon ...\n\n\033[0m"
+    # disable launching the System Tray app, which is enabled in the postinstall package script
+    $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
+    # unload the agent for current user
+    $cmd_launchctl stop "$service_name"
+    $cmd_launchctl unload "$user_plist_file"
+    # move the plist file to the system location
+    $sudo_cmd mv "$user_plist_file" /Library/LaunchDaemons/
+    # make sure the daemon launches under proper user/group and then start it
+    plist_modify_user_group "$systemwide_servicefile_name" "$systemdaemon_user_group"
+    $sudo_cmd chown "$systemdaemon_user_group" "$systemwide_servicefile_name"
+    $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
+    $sudo_cmd launchctl start "$service_name"
+fi
 
 # Agent works, echo some instructions and exit
 printf "\033[32m
