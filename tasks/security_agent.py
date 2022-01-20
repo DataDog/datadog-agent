@@ -249,15 +249,6 @@ def build_embed_syscall_tester(ctx, static=True):
     syscall_x86_tester_bin = build_syscall_x86_tester(ctx, build_dir, static=static)
     build_ebpf_probe_syscall_tester(ctx, go_dir)
     syscall_go_tester_bin = build_go_syscall_tester(ctx, build_dir)
-    bundle_files(
-        ctx,
-        [syscall_tester_bin, syscall_x86_tester_bin, syscall_go_tester_bin],
-        "pkg/security/tests/syscall_tester/bin",
-        "pkg/security/tests/syscall_tester/bindata.go",
-        "syscall_tester",
-        "functionaltests",
-        False,
-    )
 
 
 @task
