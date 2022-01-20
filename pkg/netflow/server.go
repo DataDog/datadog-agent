@@ -49,14 +49,12 @@ type NfCollector struct {
 
 var (
 	serverInstance *NfCollector
-	startError     error
 )
 
 // StartServer starts the global trap server.
 func StartServer(demultiplexer aggregator.Demultiplexer) error {
 	server, err := NewNetflowServer(demultiplexer)
 	serverInstance = server
-	startError = err
 	return err
 }
 
@@ -65,7 +63,6 @@ func StopServer() {
 	if serverInstance != nil {
 		serverInstance.Stop()
 		serverInstance = nil
-		startError = nil
 	}
 }
 
