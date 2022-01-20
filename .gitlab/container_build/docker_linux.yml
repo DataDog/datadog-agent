@@ -1,6 +1,6 @@
 ---
 .docker_build_job_definition:
-  stage: image_build
+  stage: container_build
   script:
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}

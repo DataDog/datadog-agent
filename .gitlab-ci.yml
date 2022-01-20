@@ -12,7 +12,7 @@ include:
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/pkg_metrics.yml
-  - /.gitlab/image_build.yml
+  - /.gitlab/container_build.yml
   - /.gitlab/image_scan.yml
   - /.gitlab/check_deploy.yml
   - /.gitlab/image_deploy.yml
@@ -61,7 +61,7 @@ stages:
   - kitchen_deploy
   - kitchen_testing
   - pkg_metrics
-  - image_build
+  - container_build
   - image_scan
   - check_deploy
   - image_deploy
