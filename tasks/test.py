@@ -20,7 +20,7 @@ from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
 from .libs.copyright import CopyrightLinter
-from .libs.junit_upload import junit_upload_from_tgz, produce_junit_tar
+from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
@@ -335,7 +335,10 @@ def test(
                 ) as module_file:
                     json_file.write(module_file.read())
 
-            junit_files.append(os.path.join(module.full_path(), junit_file))
+            junit_file_path = os.path.join(module.full_path(), junit_file)
+            add_flavor_to_junitxml(junit_file_path, flavor)
+
+            junit_files.append(junit_file_path)
 
     if junit_tar:
         produce_junit_tar(junit_files, junit_tar)
