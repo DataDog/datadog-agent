@@ -31,7 +31,8 @@ func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 	config.BindEnvAndSetDefault(key, val, envs...)
 }
 
-// procBindEnv is a helper function that does the same thing as procBindEnvAndSetDefault except it does not set a default.
+// procBindEnv is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key, but does not set a default.
+// We need this helper function because the standard BindEnv can only generate one prefix from a key.
 func procBindEnv(config Config, key string) {
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
@@ -98,7 +99,6 @@ func setupProcesses(config Config) {
 var displayProcConfigEnabledWarningOnce sync.Once
 
 // displayProcConfigEnabledDeprecationWarning displays a deprecation warning for process_config.enabled only once.
-// For testing purposes, it returns a bool describing if the message was displayed or not
 func displayProcConfigEnabledDeprecationWarning() {
 	displayProcConfigEnabledWarningOnce.Do(func() {
 		log.Debug("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
