@@ -8,7 +8,6 @@ package config
 import (
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -94,47 +93,25 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
+
+	AddOverrideFunc(LoadProcessTransforms)
 }
 
-var displayProcConfigEnabledWarningOnce sync.Once
-
-// displayProcConfigEnabledDeprecationWarning displays a deprecation warning for process_config.enabled only once.
-func displayProcConfigEnabledDeprecationWarning() {
-	displayProcConfigEnabledWarningOnce.Do(func() {
+// LoadProcessTransforms loads transforms associated with process config settings. This is used to handle deprecated settings
+func LoadProcessTransforms(config Config) {
+	if config.IsSet("process_config.enabled") {
 		log.Debug("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
 			" and process_config.process_collection.enabled instead")
-	})
-	return
-}
-
-// GetContainerCollectionEnabled retrieves the value of process_config.container_collection.enabled.
-// If process_config.enabled is set, we display a deprecation warning and use that value instead.
-func GetContainerCollectionEnabled(config Config) bool {
-	if config.IsSet("process_config.enabled") {
-		displayProcConfigEnabledDeprecationWarning()
-
 		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
 		if procConfigEnabled == "disabled" {
-			return false
+			config.Set("process_config.process_collection.enabled", false)
+			config.Set("process_config.container_collection.enabled", false)
+		} else if enabled, _ := strconv.ParseBool(procConfigEnabled); enabled { // "true"
+			config.Set("process_config.process_collection.enabled", true)
+			config.Set("process_config.container_collection.enabled", false)
+		} else { // "false"
+			config.Set("process_config.process_collection.enabled", false)
+			config.Set("process_config.container_collection.enabled", true)
 		}
-		result, _ := strconv.ParseBool(procConfigEnabled)
-		return !result
 	}
-	return config.GetBool("process_config.container_collection.enabled")
-}
-
-// GetProcessCollectionEnabled retrieves the value of process_config.process_collection.enabled.
-// If process_config.enabled is set, we display a deprecation warning and use that value instead.
-func GetProcessCollectionEnabled(config Config) bool {
-	if config.IsSet("process_config.enabled") {
-		displayProcConfigEnabledDeprecationWarning()
-
-		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
-		if procConfigEnabled == "disabled" {
-			return false
-		}
-		enabled, _ := strconv.ParseBool(procConfigEnabled)
-		return enabled
-	}
-	return config.GetBool("process_config.process_collection.enabled")
 }

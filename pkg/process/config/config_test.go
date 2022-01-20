@@ -681,11 +681,9 @@ func TestGetHostnameShellCmd(t *testing.T) {
 func TestProcessDiscoveryConfig(t *testing.T) {
 	assert := assert.New(t)
 
-	procConfigEnabledValues := []string{"true", "false", "disabled"}
-	procDiscoveryEnabledValues := []bool{true, false}
-	for _, procConfigEnabled := range procConfigEnabledValues {
-		for _, procDiscoveryEnabled := range procDiscoveryEnabledValues {
-			config.Datadog.Set("process_config.enabled", procConfigEnabled)
+	for _, procCollectionEnabled := range []bool{true, false} {
+		for _, procDiscoveryEnabled := range []bool{true, false} {
+			config.Datadog.Set("process_config.process_collection.enabled", procCollectionEnabled)
 			config.Datadog.Set("process_config.process_discovery.enabled", procDiscoveryEnabled)
 			config.Datadog.Set("process_config.process_discovery.interval", time.Hour)
 			cfg := AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
@@ -693,7 +691,7 @@ func TestProcessDiscoveryConfig(t *testing.T) {
 
 			// Make sure that the process discovery check is only enabled when both the process-agent is not set to true,
 			// and procDiscoveryEnabled isn't overridden.
-			if procDiscoveryEnabled == true && procConfigEnabled != "true" {
+			if procDiscoveryEnabled && !procCollectionEnabled {
 				assert.ElementsMatch([]string{DiscoveryCheckName}, cfg.EnabledChecks)
 
 				// Interval Tests:

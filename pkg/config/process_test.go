@@ -253,60 +253,35 @@ func TestProcBindEnv(t *testing.T) {
 	reset()
 }
 
-func TestGetProcessAndContainerCollectionEnabled(t *testing.T) {
+func TestProcConfigEnabledTransform(t *testing.T) {
 	for _, tc := range []struct {
-		name                                             string
-		procConfigEnabled                                string
-		containerCollection, containerCollectionExpected bool
-		processCollection, processCollectionExpected     bool
+		procConfigEnabled                                      string
+		expectedContainerCollection, expectedProcessCollection bool
 	}{
 		{
-			name:                        "process_config.enabled=true",
 			procConfigEnabled:           "true",
-			containerCollection:         false,
-			containerCollectionExpected: false,
-			processCollection:           false,
-			processCollectionExpected:   true,
+			expectedContainerCollection: false,
+			expectedProcessCollection:   true,
 		},
 		{
-			name:                        "process_config.enabled=false",
 			procConfigEnabled:           "false",
-			containerCollectionExpected: true,
-			processCollectionExpected:   false,
+			expectedContainerCollection: true,
+			expectedProcessCollection:   false,
 		},
 		{
-			name:                        "process_config.enabled=disabled",
 			procConfigEnabled:           "disabled",
-			containerCollection:         true,
-			containerCollectionExpected: false,
-			processCollection:           true,
-			processCollectionExpected:   false,
-		},
-		{
-			name:                        "process_collection enabled",
-			processCollection:           true,
-			processCollectionExpected:   true,
-			containerCollection:         true,
-			containerCollectionExpected: true,
-		},
-		{
-			name:                        "container_collection enabled",
-			processCollection:           false,
-			processCollectionExpected:   false,
-			containerCollection:         true,
-			containerCollectionExpected: true,
+			expectedContainerCollection: false,
+			expectedProcessCollection:   false,
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
 			cfg := setupConf()
-			if tc.procConfigEnabled != "" {
-				cfg.Set("process_config.enabled", tc.procConfigEnabled)
-			}
-			cfg.Set("process_config.process_collection.enabled", tc.processCollection)
-			cfg.Set("process_config.container_collection.enabled", tc.containerCollection)
+			cfg.Set("process_config.enabled", tc.procConfigEnabled)
+			LoadProcessTransforms(cfg)
 
-			assert.Equal(t, tc.processCollectionExpected, GetProcessCollectionEnabled(cfg))
-			assert.Equal(t, tc.containerCollectionExpected, GetContainerCollectionEnabled(cfg))
+			assert.Equal(t, tc.expectedContainerCollection, cfg.GetBool("process_config.container_collection.enabled"))
+			assert.Equal(t, tc.expectedProcessCollection, cfg.GetBool("process_config.process_collection.enabled"))
 		})
 	}
+
 }
