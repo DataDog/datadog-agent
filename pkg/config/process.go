@@ -92,6 +92,8 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
+
+	AddOverrideFunc(LoadProcessTransforms)
 }
 
 // LoadProcessTransforms loads transforms associated with process config settings. This is used to handle deprecated settings
