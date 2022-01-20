@@ -6,7 +6,11 @@
 package common
 
 import (
+	"context"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
@@ -170,4 +174,35 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 // StartAutoConfig starts auto discovery
 func StartAutoConfig() {
 	AC.LoadAndRun()
+}
+
+// WaitForConfigs retries the collection of Autodiscovery configs until the checkMatcher function (which
+// defines whether the list of integration configs collected is sufficient) returns true or the timeout is reached.
+// Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
+// depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
+// This function improves the resiliency of the check command.
+// Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
+func WaitForConfigs(retryInterval, timeout time.Duration, checkMatcher func([]integration.Config) bool) []integration.Config {
+	allConfigs := AC.GetAllConfigs()
+	if checkMatcher(allConfigs) {
+		return allConfigs
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	retryTicker := time.NewTicker(retryInterval)
+	defer retryTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return allConfigs
+		case <-retryTicker.C:
+			allConfigs = AC.GetAllConfigs()
+			if checkMatcher(allConfigs) {
+				return allConfigs
+			}
+		}
+	}
 }
