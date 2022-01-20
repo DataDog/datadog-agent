@@ -10,6 +10,9 @@ import (
 	flowmessage "github.com/netsampler/goflow2/pb"
 	"github.com/oschwald/geoip2-golang"
 	"net"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -60,22 +63,22 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 	if icmpType == "" {
 		icmpType = "unknown"
 	}
-	dstDNSList, err := net.LookupAddr(dstAddr.String())
+	dstDomainList, err := net.LookupAddr(dstAddr.String())
 	if err != nil {
 		log.Debugf("DNS lookup error for addr `%s`:", dstAddr, err)
 	}
-	srcDNSList, err := net.LookupAddr(srcAddr.String())
+	srcDomainList, err := net.LookupAddr(srcAddr.String())
 	if err != nil {
 		log.Debugf("DNS lookup error for addr `%s`:", srcAddr, err)
 	}
 
 	tags := []string{
 		fmt.Sprintf("src_addr:%s", srcAddr),
-		fmt.Sprintf("src_port:%d", flowmsg.SrcPort),
+		fmt.Sprintf("src_port:%s", sanitizePort(flowmsg.SrcPort)),
 		fmt.Sprintf("proto:%d", flowmsg.Proto),
 		fmt.Sprintf("proto_name:%s", protoName),
 		fmt.Sprintf("dst_addr:%s", dstAddr),
-		fmt.Sprintf("dst_port:%d", flowmsg.DstPort),
+		fmt.Sprintf("dst_port:%s", sanitizePort(flowmsg.DstPort)),
 		fmt.Sprintf("type:%s", eType),
 		fmt.Sprintf("icmp_type:%s", icmpType),
 	}
@@ -87,12 +90,12 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 		tags = append(tags, fmt.Sprintf("src_l7_proto_name:%s", srcL7ProtoName))
 	}
 
-	for _, dns := range dstDNSList {
-		tags = append(tags, fmt.Sprintf("dst_dns:%s", dns))
+	for _, domain := range dstDomainList {
+		tags = append(tags, fmt.Sprintf("dst_domain:%s", domain))
 	}
 
-	for _, dns := range srcDNSList {
-		tags = append(tags, fmt.Sprintf("src_dns:%s", dns))
+	for _, domain := range srcDomainList {
+		tags = append(tags, fmt.Sprintf("src_domain:%s", domain))
 	}
 
 	db, err := geoip2.Open("/opt/geoip_files/GeoIP2-City.mmdb")
@@ -174,4 +177,64 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 
 	key := common.HashProtoLocal(msg)
 	return []byte(key), []byte(common.FormatMessageReflectJSON(msg, "")), nil
+}
+
+func sanitizePort(port uint32) string {
+	// TODO: this is a naive way to sanitze port
+	var strPort string
+	if port > 1024 {
+		strPort = "x"
+	} else {
+		strPort = strconv.Itoa(int(port))
+	}
+	return strPort
+}
+
+// Replacer structure to store regex matching logs parts to replace
+type Replacer struct {
+	Regex *regexp.Regexp
+	Repl  string
+}
+
+var replacers = []Replacer{
+	{
+		Regex: regexp.MustCompile(`ec2-.*\.amazonaws\.com`),
+		Repl:  "ec2-*.amazonaws.com",
+	},
+	{
+		Regex: regexp.MustCompile(`.*\.awsglobalaccelerator\.com`),
+		Repl:  "*.awsglobalaccelerator.com",
+	},
+	{
+		Regex: regexp.MustCompile(`.*\.bc\.googleusercontent\.com`),
+		Repl:  "*.bc.googleusercontent.com",
+	},
+	{
+		Regex: regexp.MustCompile(`par.+-in-.+\.1e100\.net`),
+		Repl:  "par*-in-*.1e100.net",
+	},
+	{
+		Regex: regexp.MustCompile(`lb-.*\.github\.com`),
+		Repl:  "lb-*.github.com",
+	},
+	{
+		Regex: regexp.MustCompile(`.*\.ipv6\.abo\.wanadoo\.fr`),
+		Repl:  "*.ipv6.abo.wanadoo.fr",
+	},
+	{
+		Regex: regexp.MustCompile(`server-.*\.cloudfront\.net`),
+		Repl:  "server-*.cloudfront.net",
+	},
+}
+
+func sanitizeHost(host string) string {
+	host = strings.TrimSuffix(host, ".")
+	if strings.HasPrefix(host, "ec2-") && strings.HasSuffix(host, "amazon.com") {
+	}
+	for _, replacer := range replacers {
+		if replacer.Regex.MatchString(host) {
+			host = replacer.Regex.ReplaceAllLiteralString(host, replacer.Repl)
+		}
+	}
+	return host
 }
