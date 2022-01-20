@@ -69,6 +69,27 @@ func TestTellDaemonRuntimeDoneOnceStartAndEndAndTimeout(t *testing.T) {
 	assert.Equal(uint64(1), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
 }
 
+func TestRaceTellDaemonRuntimeStartedVersusTellDaemonRuntimeDone(t *testing.T) {
+	d := StartDaemon("127.0.0.1:8124")
+	defer d.Stop()
+
+	d.TellDaemonRuntimeStarted()
+
+	go func() {
+		for i := 0; i < 1000; i++ {
+			go d.TellDaemonRuntimeStarted()
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 1000; i++ {
+			go d.TellDaemonRuntimeDone()
+		}
+	}()
+
+	time.Sleep(2 * time.Second)
+}
+
 func TestSetTraceTagNoop(t *testing.T) {
 	tagsMap := map[string]string{
 		"key0": "value0",
