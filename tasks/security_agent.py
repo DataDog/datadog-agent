@@ -183,31 +183,35 @@ def build_go_syscall_tester(ctx, build_dir):
     return syscall_tester_exe_file
 
 
-def build_syscall_x86_tester(ctx, build_dir, static=True):
-    syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
-    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_x86_tester.c")
-    syscall_tester_exe_file = os.path.join(build_dir, "syscall_x86_tester")
+def build_c_syscall_tester_common(ctx, file_name, build_dir, flags=None, libs=None, static=True):
+    if flags is None:
+        flags = []
+    if libs is None:
+        libs = []
 
-    flags = '-m32'
+    syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
+    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, f"{file_name}.c")
+    syscall_tester_exe_file = os.path.join(build_dir, file_name)
+
     if static:
-        flags += ' -static'
-    ctx.run(CLANG_EXE_CMD.format(flags=flags, libs='', c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file))
+        flags.append("-static")
+
+    flags_arg = " ".join(flags)
+    libs_arg = " ".join(libs)
+    ctx.run(
+        CLANG_EXE_CMD.format(
+            flags=flags_arg, libs=libs_arg, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file
+        )
+    )
     return syscall_tester_exe_file
+
+
+def build_syscall_x86_tester(ctx, build_dir, static=True):
+    return build_c_syscall_tester_common(ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static)
 
 
 def build_syscall_tester(ctx, build_dir, static=True):
-    syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
-    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_tester.c")
-    syscall_tester_exe_file = os.path.join(build_dir, "syscall_tester")
-
-    flags = ''
-    if static:
-        flags += ' -static'
-    libs = '-lpthread'
-    ctx.run(
-        CLANG_EXE_CMD.format(flags=flags, libs=libs, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file)
-    )
-    return syscall_tester_exe_file
+    return build_c_syscall_tester_common(ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static)
 
 
 @task
