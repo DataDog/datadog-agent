@@ -59,7 +59,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.Enabled = false
 	if config.Datadog.GetBool("process_config.process_collection.enabled") {
 		a.Enabled, a.EnabledChecks = true, processChecks
-	} else if config.Datadog.GetBool("procss_config.container_collection.enabled") {
+	} else if config.Datadog.GetBool("process_config.container_collection.enabled") {
 		// Container checks are enabled only when process checks are not (since they automatically collect container data).
 		a.Enabled, a.EnabledChecks = true, containerChecks
 	}

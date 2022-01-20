@@ -248,7 +248,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 }
 
 // LoadConfigIfExists takes a path to either a directory containing datadog.yaml or a direct path to a datadog.yaml file
-// and loads it into ddconfig.Datadog.
+// and loads it into ddconfig.Datadog. It does this silently, and does not produce any logs.
 func LoadConfigIfExists(path string) error {
 	if path != "" {
 		if util.PathExists(path) {
@@ -264,8 +264,6 @@ func LoadConfigIfExists(path string) error {
 			log.Infof("no config exists at %s, ignoring...", path)
 		}
 	}
-	config.LoadProcessTransforms(config.Datadog)
-
 	return nil
 }
 
