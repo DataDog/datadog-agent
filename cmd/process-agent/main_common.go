@@ -254,7 +254,7 @@ func runAgent(exit chan struct{}) {
 	}
 
 	// Exit if agent is not enabled and we're not debugging a check.
-	if !cfg.Enabled && opts.check == "" {
+	if len(cfg.EnabledChecks) == 0 && opts.check == "" {
 		log.Infof(agent6DisabledMessage)
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"

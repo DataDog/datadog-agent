@@ -95,7 +95,6 @@ type WindowsConfig struct {
 //
 // Deprecated. Use `pkg/config` directly.
 type AgentConfig struct {
-	Enabled                   bool
 	HostName                  string
 	APIEndpoints              []apicfg.Endpoint
 	QueueSize                 int // The number of items allowed in each delivery queue.
@@ -184,7 +183,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	}
 
 	ac := &AgentConfig{
-		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
 
 		// Allow buffering up to 60 megabytes of payload data in total
@@ -299,11 +297,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 			if checks, ok := moduleCheckMap[mod]; ok {
 				cfg.EnabledChecks = append(cfg.EnabledChecks, checks...)
 			}
-		}
-
-		if !cfg.Enabled {
-			log.Info("enabling process-agent for connections check as the system-probe is enabled")
-			cfg.Enabled = true
 		}
 	}
 

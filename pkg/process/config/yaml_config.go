@@ -56,12 +56,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.HostName = config.Datadog.GetString("hostname")
 	}
 
-	a.Enabled = false
 	if config.Datadog.GetBool("process_config.process_collection.enabled") {
-		a.Enabled, a.EnabledChecks = true, processChecks
+		a.EnabledChecks = processChecks
 	} else if config.Datadog.GetBool("process_config.container_collection.enabled") {
 		// Container checks are enabled only when process checks are not (since they automatically collect container data).
-		a.Enabled, a.EnabledChecks = true, containerChecks
+		a.EnabledChecks = containerChecks
 	}
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
@@ -270,7 +269,6 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 	discoveryCheckEnabled := config.Datadog.GetBool(key(root, "enabled"))
 	if discoveryCheckEnabled && !processCheckEnabled {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
-		a.Enabled = true
 
 		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
 		// We use a minimum of 10 minutes for this value.
