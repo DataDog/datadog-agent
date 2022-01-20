@@ -67,7 +67,7 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // EndInvocation is a route that can be called at the end of an invocation to enable
-// the invocation lifecyle feature without the use of the proxy.
+// the invocation lifecycle feature without the use of the proxy.
 type EndInvocation struct {
 	daemon *Daemon
 }
