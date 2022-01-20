@@ -137,6 +137,7 @@ func TestOnlyEnvConfig(t *testing.T) {
 
 	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
 	os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "false")
+	_, _ = config.Load() // Deprecated environment variables won't have their transforms applied until the config is reloaded
 	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
 	assert.False(t, agentConfig.Enabled)
