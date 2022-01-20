@@ -196,7 +196,7 @@ func sanitizePort(port uint32) string {
 	// TODO: this is a naive way to sanitze port
 	var strPort string
 	if port > 1024 {
-		strPort = "x"
+		strPort = "redacted"
 	} else {
 		strPort = strconv.Itoa(int(port))
 	}
