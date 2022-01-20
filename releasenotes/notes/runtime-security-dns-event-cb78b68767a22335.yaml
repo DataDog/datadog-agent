@@ -7,6 +7,6 @@
 # Each section note must be formatted as reStructuredText.
 ---
 features:
-  - [CWS] Track network devices creation and load TC classifiers dynamically.
-  - [CWS] Track network namespaces.
-  - [CWS] Introduce dns event type.
+  - CWS can now track network devices creation and load TC classifiers dynamically.
+  - CWS can now track network namespaces.
+  - The DNS event type was added to CWS.

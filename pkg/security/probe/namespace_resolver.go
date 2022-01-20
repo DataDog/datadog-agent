@@ -29,6 +29,7 @@ var (
 	flushNamespacesPeriod = 5 * time.Second
 )
 
+// NetworkNamespace is used to hold a handle to a network namespace
 type NetworkNamespace struct {
 	sync.RWMutex
 
@@ -216,11 +217,10 @@ func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, tid uint32)
 		if netns.hasValidHandle() {
 			// we already have a handle for this network namespace, ignore
 			return netns, false
-		} else {
-			if err := netns.openHandle(tid); err != nil {
-				// we'll get this namespace another time, ignore
-				return nil, false
-			}
+		}
+		if err := netns.openHandle(tid); err != nil {
+			// we'll get this namespace another time, ignore
+			return nil, false
 		}
 	}
 
@@ -440,7 +440,7 @@ func (nr *NamespaceResolver) SendStats() error {
 			queuedNetworkDevicesCount += float64(count)
 		}
 		if !netns.lonelyTimeout.IsZero() {
-			lonelyNetworkNamespacesCount += 1
+			lonelyNetworkNamespacesCount++
 		}
 	}
 

@@ -252,6 +252,7 @@ type SignalEventSerializer struct {
 	Target *ProcessContextSerializer `json:"target,omitempty" jsonschema_description:"process context of the signal target"`
 }
 
+// DNSEventSerializer serializes a dns event to JSON
 type DNSEventSerializer struct {
 	ID          int    `json:"id" jsonschema_description:"id is the unique identifier of the DNS request"`
 	QDCount     int    `json:"qdcount" jsonschema_description:"qdcount is the number of questions in the DNS request"`

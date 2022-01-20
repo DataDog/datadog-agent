@@ -948,6 +948,7 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	netns := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(device.NetNS)
 	if netns != nil {
 		handle, err = netns.GetNamespaceHandleDup()
+		defer handle.Close()
 	}
 	if netns == nil || err != nil || handle == nil {
 		// queue network device so that a TC classifier can be added later
@@ -958,6 +959,8 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	return p.setupNewTCClassifierWithNetNSHandle(device, handle)
 }
 
+// setupNewTCClassifierWithNetNSHandle creates and attaches TC probes on the provided device. WARNING: this function
+// will not close the provided netns handle, so the caller of this function needs to take care of it.
 func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netnsHandle *os.File) error {
 	p.tcProgramsLock.Lock()
 	defer p.tcProgramsLock.Unlock()
@@ -1008,7 +1011,7 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 			delete(p.tcPrograms, tcKey)
 		} else {
 			if tcKey.IfIndex > 1 {
-				probesCountNoLoopback[tcKey.NetNS] += 1
+				probesCountNoLoopback[tcKey.NetNS]++
 			}
 		}
 	}

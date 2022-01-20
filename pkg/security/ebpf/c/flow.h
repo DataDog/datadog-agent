@@ -204,7 +204,7 @@ int kprobe_nf_nat_manip_pkt(struct pt_regs *ctx) {
 
 SEC("kprobe/nf_nat_packet")
 int kprobe_nf_nat_packet(struct pt_regs *ctx) {
-    struct nf_conn *ct = (struct nf_conn *)PT_REGS_PARM2(ctx);
+    struct nf_conn *ct = (struct nf_conn *)PT_REGS_PARM1(ctx);
     return trace_nat_manip_pkt(ctx, ct);
 }
 

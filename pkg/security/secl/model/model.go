@@ -772,11 +772,12 @@ type NetDevice struct {
 	PeerIfIndex uint32
 }
 
+// GetKey returns a key to uniquely identify a network device on the system
 func (d NetDevice) GetKey() string {
 	return fmt.Sprintf("%v_%v", d.IfIndex, d.NetNS)
 }
 
-// NetDeviceEvent representes a network device event
+// NetDeviceEvent represents a network device event
 type NetDeviceEvent struct {
 	SyscallEvent
 
