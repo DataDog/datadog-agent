@@ -240,13 +240,14 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, static=True):
+def build_embed_syscall_tester(ctx, arch="x64", static=True):
     build_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     create_dir_if_needed(build_dir)
 
     build_syscall_tester(ctx, build_dir, static=static)
-    build_syscall_x86_tester(ctx, build_dir, static=static)
+    if arch == "x64":
+        build_syscall_x86_tester(ctx, build_dir, static=static)
     build_ebpf_probe_syscall_tester(ctx, go_dir)
     build_go_syscall_tester(ctx, build_dir)
 
