@@ -11,9 +11,7 @@ import (
 	flowmessage "github.com/netsampler/goflow2/pb"
 	"github.com/oschwald/geoip2-golang"
 	"net"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -201,53 +199,4 @@ func sanitizePort(port uint32) string {
 		strPort = strconv.Itoa(int(port))
 	}
 	return strPort
-}
-
-// Replacer structure to store regex matching logs parts to replace
-type Replacer struct {
-	Regex *regexp.Regexp
-	Repl  string
-}
-
-var replacers = []Replacer{
-	{
-		Regex: regexp.MustCompile(`ec2-.*\.amazonaws\.com`),
-		Repl:  "ec2-*.amazonaws.com",
-	},
-	{
-		Regex: regexp.MustCompile(`.*\.awsglobalaccelerator\.com`),
-		Repl:  "*.awsglobalaccelerator.com",
-	},
-	{
-		Regex: regexp.MustCompile(`.*\.bc\.googleusercontent\.com`),
-		Repl:  "*.bc.googleusercontent.com",
-	},
-	{
-		Regex: regexp.MustCompile(`par.+-in-.+\.1e100\.net`),
-		Repl:  "par*-in-*.1e100.net",
-	},
-	{
-		Regex: regexp.MustCompile(`lb-.*\.github\.com`),
-		Repl:  "lb-*.github.com",
-	},
-	{
-		Regex: regexp.MustCompile(`.*\.ipv6\.abo\.wanadoo\.fr`),
-		Repl:  "*.ipv6.abo.wanadoo.fr",
-	},
-	{
-		Regex: regexp.MustCompile(`server-.*\.cloudfront\.net`),
-		Repl:  "server-*.cloudfront.net",
-	},
-}
-
-func sanitizeHost(host string) string {
-	host = strings.TrimSuffix(host, ".")
-	if strings.HasPrefix(host, "ec2-") && strings.HasSuffix(host, "amazon.com") {
-	}
-	for _, replacer := range replacers {
-		if replacer.Regex.MatchString(host) {
-			host = replacer.Regex.ReplaceAllLiteralString(host, replacer.Repl)
-		}
-	}
-	return host
 }

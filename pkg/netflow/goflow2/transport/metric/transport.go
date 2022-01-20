@@ -66,7 +66,10 @@ func (d *Driver) Init(context.Context) error {
 				case <-c:
 					d.Lock.Lock()
 					d.file.Close()
-					d.openFile()
+					err := d.openFile()
+					if err != nil {
+						return
+					}
 					d.Lock.Unlock()
 					// if there is an error, keeps using the old file
 				case <-d.q:
