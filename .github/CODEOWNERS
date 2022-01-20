@@ -64,7 +64,7 @@
 
 /.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/image_deploy/                               @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/container_scan.yml                          @DataDog/container-integrations @DataDog/agent-platform
 

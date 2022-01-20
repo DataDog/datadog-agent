@@ -15,7 +15,7 @@ include:
   - /.gitlab/container_build.yml
   - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
-  - /.gitlab/image_deploy.yml
+  - /.gitlab/dev_container_deploy.yml
   - /.gitlab/deploy_6.yml
   - /.gitlab/deploy_7.yml
   - /.gitlab/choco_build.yml
@@ -64,7 +64,7 @@ stages:
   - container_build
   - container_scan
   - check_deploy
-  - image_deploy
+  - dev_container_deploy
   - deploy6
   - deploy7
   - choco_build
