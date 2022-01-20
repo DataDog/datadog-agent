@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build orchestrator
 // +build orchestrator
 
 package orchestrator
@@ -185,21 +186,31 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.Status = ComputeStatus(p)
 	podModel.ConditionMessage = GetConditionMessage(p)
 
-	for _, c := range p.Spec.Containers {
-		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_container); modelReq != nil {
-			podModel.ResourceRequirements = append(podModel.ResourceRequirements, modelReq)
-		}
-	}
-
-	for _, c := range p.Spec.InitContainers {
-		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_initContainer); modelReq != nil {
-			podModel.ResourceRequirements = append(podModel.ResourceRequirements, modelReq)
-		}
-	}
+	podModel.ResourceRequirements = GetModelResourceRequirements(p.Spec.Containers, p.Spec.InitContainers)
 
 	return &podModel
 }
 
+func GetModelResourceRequirements(containers []v1.Container, initContainers []v1.Container) []*model.ResourceRequirements {
+	resReq := make([]*model.ResourceRequirements, 0)
+	for _, c := range containers {
+		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_container); modelReq != nil {
+			resReq = append(resReq, modelReq)
+		}
+	}
+
+	for _, c := range initContainers {
+		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_initContainer); modelReq != nil {
+			resReq = append(resReq, modelReq)
+		}
+	}
+	if len(resReq) == 0 {
+		return nil
+	}
+	return resReq
+}
+
+// convertResourceRequirements converts  v1.ResourceRequirements to model.ResourceRequirements
 // resourceRequirements calculations: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#:~:text=Resource%20units%20in%20Kubernetes&text=Limits%20and%20requests%20for%20CPU,A%20Container%20with%20spec.
 // CPU: 1/10 of a single core, would represent that as 100m.
 // Memory: Memory is measured in bytes. In addition, it may be used with SI suffices (E, P, T, G, M, K, m) or their power-of-two-equivalents (Ei, Pi, Ti, Gi, Mi, Ki).

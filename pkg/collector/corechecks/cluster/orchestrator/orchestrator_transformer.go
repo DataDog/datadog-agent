@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
 package orchestrator
@@ -46,6 +47,8 @@ func extractDeployment(d *v1.Deployment) *model.Deployment {
 	if d.Spec.Selector != nil {
 		deploy.Selectors = extractLabelSelector(d.Spec.Selector)
 	}
+
+	deploy.ResourceRequirements = orchestrator.GetModelResourceRequirements(d.Spec.Template.Spec.Containers, d.Spec.Template.Spec.InitContainers)
 
 	// status
 	deploy.Replicas = d.Status.Replicas
@@ -170,6 +173,8 @@ func extractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
 		statefulSet.Spec.Selectors = extractLabelSelector(sts.Spec.Selector)
 	}
 
+	statefulSet.Spec.ResourceRequirements = orchestrator.GetModelResourceRequirements(sts.Spec.Template.Spec.Containers, sts.Spec.Template.Spec.InitContainers)
+
 	return &statefulSet
 }
 
@@ -201,6 +206,8 @@ func extractDaemonSet(ds *v1.DaemonSet) *model.DaemonSet {
 		}
 	}
 
+	daemonSet.Spec.ResourceRequirements = orchestrator.GetModelResourceRequirements(ds.Spec.Template.Spec.Containers, ds.Spec.Template.Spec.InitContainers)
+
 	if ds.Spec.Selector != nil {
 		daemonSet.Spec.Selectors = extractLabelSelector(ds.Spec.Selector)
 	}
@@ -220,6 +227,8 @@ func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 	if rs.Spec.Selector != nil {
 		replicaSet.Selectors = extractLabelSelector(rs.Spec.Selector)
 	}
+
+	replicaSet.ResourceRequirements = orchestrator.GetModelResourceRequirements(rs.Spec.Template.Spec.Containers, rs.Spec.Template.Spec.InitContainers)
 
 	// status
 	replicaSet.Replicas = rs.Status.Replicas

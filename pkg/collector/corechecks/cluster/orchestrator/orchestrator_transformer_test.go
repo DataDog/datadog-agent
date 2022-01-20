@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
 package orchestrator
@@ -40,6 +41,51 @@ func int64Ptr(v int64) *int64 {
 
 func strPtr(v string) *string {
 	return &v
+}
+
+func getTemplateWithResourceRequirements() corev1.PodTemplateSpec {
+	parseRequests := resource.MustParse("250M")
+	parseLimits := resource.MustParse("550M")
+	return corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "aContainer",
+					Resources: corev1.ResourceRequirements{
+						Limits:   map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: parseLimits},
+						Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: parseRequests},
+					},
+				},
+			},
+			InitContainers: []corev1.Container{
+				{
+					Name: "aContainer",
+					Resources: corev1.ResourceRequirements{
+						Limits:   map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: parseLimits},
+						Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: parseRequests},
+					},
+				},
+			},
+		},
+	}
+}
+
+func getExpectedModelResourceRequirements() []*model.ResourceRequirements {
+	parseRequests := resource.MustParse("250M")
+	parseLimits := resource.MustParse("550M")
+	return []*model.ResourceRequirements{
+		{
+			Limits:   map[string]int64{corev1.ResourceMemory.String(): parseLimits.Value()},
+			Requests: map[string]int64{corev1.ResourceMemory.String(): parseRequests.Value()},
+			Name:     "aContainer",
+			Type:     model.ResourceRequirementsType_container,
+		}, {
+			Limits:   map[string]int64{corev1.ResourceMemory.String(): parseLimits.Value()},
+			Requests: map[string]int64{corev1.ResourceMemory.String(): parseRequests.Value()},
+			Name:     "aContainer",
+			Type:     model.ResourceRequirementsType_initContainer,
+		},
+	}
 }
 
 func TestExtractStatefulSet(t *testing.T) {
@@ -115,6 +161,15 @@ func TestExtractStatefulSet(t *testing.T) {
 			},
 		},
 		"empty sts": {input: v1.StatefulSet{}, expected: model.StatefulSet{Metadata: &model.Metadata{}, Spec: &model.StatefulSetSpec{}, Status: &model.StatefulSetStatus{}}},
+		"sts with resources": {
+			input: v1.StatefulSet{
+				Spec: v1.StatefulSetSpec{
+					Template: getTemplateWithResourceRequirements(),
+				},
+			}, expected: model.StatefulSet{
+				Metadata: &model.Metadata{},
+				Spec:     &model.StatefulSetSpec{ResourceRequirements: getExpectedModelResourceRequirements()},
+				Status:   &model.StatefulSetStatus{}}},
 		"partial sts": {
 			input: v1.StatefulSet{
 				ObjectMeta: metav1.ObjectMeta{
@@ -146,7 +201,7 @@ func TestExtractStatefulSet(t *testing.T) {
 func TestExtractDeployment(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 	testInt32 := int32(2)
-	testIntorStr := intstr.FromString("1%")
+	testIntOrStr := intstr.FromString("1%")
 	tests := map[string]struct {
 		input    v1.Deployment
 		expected model.Deployment
@@ -179,8 +234,8 @@ func TestExtractDeployment(t *testing.T) {
 					Strategy: v1.DeploymentStrategy{
 						Type: v1.DeploymentStrategyType("RollingUpdate"),
 						RollingUpdate: &v1.RollingUpdateDeployment{
-							MaxSurge:       &testIntorStr,
-							MaxUnavailable: &testIntorStr,
+							MaxSurge:       &testIntOrStr,
+							MaxUnavailable: &testIntOrStr,
 						},
 					},
 				},
@@ -236,6 +291,15 @@ func TestExtractDeployment(t *testing.T) {
 			},
 		},
 		"empty deploy": {input: v1.Deployment{}, expected: model.Deployment{Metadata: &model.Metadata{}, ReplicasDesired: 1}},
+		"deploy with resources": {
+			input: v1.Deployment{
+				Spec: v1.DeploymentSpec{Template: getTemplateWithResourceRequirements()},
+			},
+			expected: model.Deployment{
+				Metadata:             &model.Metadata{},
+				ReplicasDesired:      1,
+				ResourceRequirements: getExpectedModelResourceRequirements(),
+			}},
 		"partial deploy": {
 			input: v1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -386,6 +450,15 @@ func TestExtractReplicaSet(t *testing.T) {
 			},
 		},
 		"empty rs": {input: v1.ReplicaSet{}, expected: model.ReplicaSet{Metadata: &model.Metadata{}, ReplicasDesired: 1}},
+		"rs with resources": {
+			input: v1.ReplicaSet{
+				Spec: v1.ReplicaSetSpec{Template: getTemplateWithResourceRequirements()},
+			},
+			expected: model.ReplicaSet{
+				Metadata:             &model.Metadata{},
+				ReplicasDesired:      1,
+				ResourceRequirements: getExpectedModelResourceRequirements(),
+			}},
 		"partial rs": {
 			input: v1.ReplicaSet{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1968,6 +2041,66 @@ func TestComputeNodeStatus(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, computeNodeStatus(&tc.input))
+		})
+	}
+}
+
+func TestExtractDaemonset(t *testing.T) {
+	testIntOrStr := intstr.FromString("1%")
+
+	tests := map[string]struct {
+		input    v1.DaemonSet
+		expected model.DaemonSet
+	}{
+		"empty ds": {input: v1.DaemonSet{}, expected: model.DaemonSet{Metadata: &model.Metadata{}, Spec: &model.DaemonSetSpec{}, Status: &model.DaemonSetStatus{}}},
+		"ds with resources": {
+			input: v1.DaemonSet{
+				Spec: v1.DaemonSetSpec{Template: getTemplateWithResourceRequirements()},
+			},
+			expected: model.DaemonSet{
+				Metadata: &model.Metadata{},
+				Spec:     &model.DaemonSetSpec{ResourceRequirements: getExpectedModelResourceRequirements()},
+				Status:   &model.DaemonSetStatus{},
+			},
+		},
+		"partial ds": {
+			input: v1.DaemonSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "daemonset",
+					Namespace: "namespace",
+				},
+				Spec: v1.DaemonSetSpec{
+					UpdateStrategy: v1.DaemonSetUpdateStrategy{
+						Type: v1.DaemonSetUpdateStrategyType("RollingUpdate"),
+						RollingUpdate: &v1.RollingUpdateDaemonSet{
+							MaxSurge:       &testIntOrStr,
+							MaxUnavailable: &testIntOrStr,
+						},
+					},
+				},
+				Status: v1.DaemonSetStatus{
+					CurrentNumberScheduled: 1,
+					NumberReady:            1,
+				},
+			}, expected: model.DaemonSet{
+				Metadata: &model.Metadata{
+					Name:      "daemonset",
+					Namespace: "namespace",
+				},
+				Spec: &model.DaemonSetSpec{
+					DeploymentStrategy: "RollingUpdate",
+					MaxUnavailable:     "1%",
+				},
+				Status: &model.DaemonSetStatus{
+					CurrentNumberScheduled: 1,
+					NumberReady:            1,
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, &tc.expected, extractDaemonSet(&tc.input))
 		})
 	}
 }
