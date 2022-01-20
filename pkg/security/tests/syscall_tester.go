@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"bytes"
 	"embed"
 	"fmt"
 	"os"
@@ -19,16 +18,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// ErrUnsupportedArch is the error returned for unsupported architectures
-type ErrUnsupportedArch struct {
-	arch string
-}
-
-// Error returns the error string
-func (ua ErrUnsupportedArch) Error() string {
-	return fmt.Sprintf("unsupported_arch: %s", ua.arch)
-}
-
 //go:embed syscall_tester/bin
 var syscallTesterFS embed.FS
 
@@ -36,11 +25,6 @@ func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, e
 	var uname unix.Utsname
 	if err := unix.Uname(&uname); err != nil {
 		return "", fmt.Errorf("couldn't resolve arch: %s", err)
-	}
-
-	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
-	case "aarch64":
-		return "", ErrUnsupportedArch{arch: "aarch64"}
 	}
 
 	testerBin, err := syscallTesterFS.ReadFile(fmt.Sprintf("syscall_tester/bin/%s", binary))
