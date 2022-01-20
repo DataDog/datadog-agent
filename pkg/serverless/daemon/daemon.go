@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const localTestEnvVar = "DD_LOCAL_TEST"
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
@@ -36,8 +35,7 @@ const shutdownDelay time.Duration = 1 * time.Second
 // FlushTimeout is the amount of time to wait for a flush to complete.
 const FlushTimeout time.Duration = 5 * time.Second
 
-// Daemon is the communcation server for between the runtime and the serverless Agent.
-// The name "daemon" is just in order to avoid serverless.StartServer ...
+// Daemon is the communication server between the runtime and the serverless agent and coordinates the flushing of telemetry.
 type Daemon struct {
 	httpServer *http.Server
 	mux        *http.ServeMux
@@ -89,12 +87,13 @@ type Daemon struct {
 
 	// logsFlushMutex ensures that only one logs flush can be underway at a given time
 	logsFlushMutex sync.Mutex
+
+	// InvocationProcessor is used to handle lifecycle events, either using the proxy or the lifecycle API
+	InvocationProcessor invocationlifecycle.InvocationProcessor
 }
 
-// StartDaemon starts an HTTP server to receive messages from the runtime.
-// The DogStatsD server is provided when ready (slightly later), to have the
-// hello route available as soon as possible. However, the HELLO route is blocking
-// to have a way for the runtime function to know when the Serverless Agent is ready.
+// StartDaemon starts an HTTP server to receive messages from the runtime and coordinate
+// the flushing of telemetry.
 func StartDaemon(addr string) *Daemon {
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
@@ -116,6 +115,8 @@ func StartDaemon(addr string) *Daemon {
 
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
+	mux.Handle("/lambda/start-invocation", &StartInvocation{daemon})
+	mux.Handle("/lambda/end-invocation", &EndInvocation{daemon})
 	mux.Handle("/trace-context", &TraceContext{})
 
 	// start the HTTP server used to communicate with the runtime and the Lambda platform
@@ -124,34 +125,6 @@ func StartDaemon(addr string) *Daemon {
 	}()
 
 	return daemon
-}
-
-// Hello is a route called by the Datadog Lambda Library when it starts.
-// It is used to detect the Datadog Lambda Library in the environment.
-type Hello struct {
-	daemon *Daemon
-}
-
-// ServeHTTP - see type Hello comment.
-func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Debug("Hit on the serverless.Hello route.")
-	h.daemon.LambdaLibraryDetected = true
-}
-
-// Flush is a route called by the Datadog Lambda Library when the runtime is done handling an invocation.
-// It is no longer used, but the route is maintained for backwards compatibility.
-type Flush struct {
-	daemon *Daemon
-}
-
-// ServeHTTP - see type Flush comment.
-func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Debug("Hit on the serverless.Flush route.")
-	if len(os.Getenv(localTestEnvVar)) > 0 {
-		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
-		// thus we canot get the REPORT log line telling that the invocation is finished
-		f.daemon.HandleRuntimeDone()
-	}
 }
 
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
