@@ -12,6 +12,8 @@ from contextlib import contextmanager
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.flavor import AgentFlavor
+
 from .agent import integration_tests as agent_integration_tests
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .cluster_agent import integration_tests as dca_integration_tests
@@ -92,11 +94,12 @@ def install_tools(ctx):
                     ctx.run(f"go install {tool}")
 
 
-@task()
+@task(iterable=['flavor'])
 def test(
     ctx,
     module=None,
     targets=None,
+    flavor=[],
     coverage=False,
     build_include=None,
     build_exclude=None,
@@ -146,13 +149,21 @@ def test(
         print("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
 
-    build_include = (
-        get_default_build_tags(build="test-with-process-tags", arch=arch)
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
-    )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    build_tags = get_build_tags(build_include, build_exclude)
+    def build_tags_for_flavor(flavor, build_include, build_exclude):
+        build_include = (
+            get_default_build_tags(build="unit-tests", arch=arch, flavor=flavor)
+            if build_include is None
+            else filter_incompatible_tags(build_include.split(","), arch=arch)
+        )
+        build_exclude = [] if build_exclude is None else build_exclude.split(",")
+        return get_build_tags(build_include, build_exclude)
+
+    if not flavor:
+        flavors = [AgentFlavor.base]
+    else:
+        flavors = [AgentFlavor[f] for f in flavor]
+
+    flavors_build_tags = [(f, build_tags_for_flavor(f, build_include, build_exclude)) for f in flavors]
 
     timeout = int(timeout)
 
@@ -163,33 +174,47 @@ def test(
         # from the 'skip-dirs' list we need to keep using the old functions that
         # lint without build flags (linting some file is better than no linting).
         print("--- Vetting and linting (legacy):")
+        print ("----- Common")
         for module in modules:
-            print(f"----- Module '{module.full_path()}'")
+            print(f"------- Module '{module.full_path()}'")
             if not module.condition():
-                print("----- Skipped")
+                print("------- Skipped")
                 continue
 
             with ctx.cd(module.full_path()):
-                vet(ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
                 fmt(ctx, targets=module.targets, fail_on_fmt=fail_on_fmt)
                 lint(ctx, targets=module.targets)
                 misspell(ctx, targets=module.targets)
                 ineffassign(ctx, targets=module.targets)
-                staticcheck(ctx, targets=module.targets, build_tags=build_tags, arch=arch)
+
+        for flavor, build_tags in flavors_build_tags:
+            print(f"----- Flavor '{flavor.name}'")
+            for module in modules:
+                print(f"------- Module '{module.full_path()}'")
+                if not module.condition():
+                    print("------- Skipped")
+                    continue
+
+                with ctx.cd(module.full_path()):
+                    vet(ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
+                    staticcheck(ctx, targets=module.targets, build_tags=build_tags, arch=arch)
 
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':
             print("--- golangci_lint:")
-            for module in modules:
-                print(f"----- Module '{module.full_path()}'")
-                if not module.condition():
-                    print("----- Skipped")
-                    continue
 
-                with ctx.cd(module.full_path()):
-                    golangci_lint(
-                        ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
-                    )
+            for flavor, build_tags in flavors_build_tags:
+                print(f"----- Flavor '{flavor.name}'")
+                for module in modules:
+                    print(f"------- Module '{module.full_path()}'")
+                    if not module.condition():
+                        print("------- Skipped")
+                        continue
+
+                    with ctx.cd(module.full_path()):
+                        golangci_lint(
+                            ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
+                        )
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
@@ -245,7 +270,6 @@ def test(
 
     nocache = '-count=1' if not cache else ''
 
-    build_tags.append("test")
     TMP_JSON = 'tmp.json'
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
@@ -253,16 +277,11 @@ def test(
         print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
 
-    junit_file_flag = ""
-    junit_file = "junit-out.xml"
-    if junit_tar:
-        junit_file_flag = "--junitfile " + junit_file
 
     cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
     args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(build_tags),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "race_opt": race_opt,
@@ -274,37 +293,49 @@ def test(
         "nocache": nocache,
         "json_flag": f'--jsonfile "{TMP_JSON}" ' if save_result_json else "",
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
-        "junit_file_flag": junit_file_flag,
     }
 
     failed_modules = []
     junit_files = []
-    for module in modules:
-        print(f"----- Module '{module.full_path()}'")
-        if not module.condition():
-            print("----- Skipped")
-            continue
+    for flavor, build_tags in flavors_build_tags:
+        print(f"----- Flavor '{flavor.name}'")
 
-        with ctx.cd(module.full_path()):
-            res = ctx.run(
-                cmd.format(
-                    packages=' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets), **args
-                ),
-                env=env,
-                out_stream=test_profiler,
-                warn=True,
-            )
+        args["go_build_tags"] = " ".join(build_tags + ["test"])
 
-        if res.exited is None or res.exited > 0:
-            failed_modules.append(module.full_path())
+        junit_file_flag = ""
+        junit_file = "junit-out-{}.xml".format(flavor.name)
+        if junit_tar:
+            junit_file_flag = "--junitfile " + junit_file
 
-        if save_result_json:
-            with open(save_result_json, 'ab') as json_file, open(
-                os.path.join(module.full_path(), TMP_JSON), 'rb'
-            ) as module_file:
-                json_file.write(module_file.read())
+        args["junit_file_flag"] = junit_file_flag
 
-        junit_files.append(os.path.join(module.full_path(), junit_file))
+
+        for module in modules:
+            print(f"------- Module '{module.full_path()}'")
+            if not module.condition():
+                print("------- Skipped")
+                continue
+
+            with ctx.cd(module.full_path()):
+                res = ctx.run(
+                    cmd.format(
+                        packages=' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets), **args
+                    ),
+                    env=env,
+                    out_stream=test_profiler,
+                    warn=True,
+                )
+
+            if res.exited is None or res.exited > 0:
+                failed_modules.append(module.full_path())
+
+            if save_result_json:
+                with open(save_result_json, 'ab') as json_file, open(
+                    os.path.join(module.full_path(), TMP_JSON), 'rb'
+                ) as module_file:
+                    json_file.write(module_file.read())
+
+            junit_files.append(os.path.join(module.full_path(), junit_file))
 
     if junit_tar:
         produce_junit_tar(junit_files, junit_tar)

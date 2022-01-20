@@ -115,8 +115,9 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
     }
 )
 
-# TEST_TAGS lists the tags that have to be added to run tests
-TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
+# AGENT_TEST_TAGS lists the tags that have to be added to run tests
+AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
+
 
 ### Tag exclusion lists
 
@@ -143,16 +144,23 @@ build_tags = {
         "system-probe": SYSTEM_PROBE_TAGS,
         "trace-agent": TRACE_AGENT_TAGS,
         # Test setups
-        "test": TEST_TAGS,
-        "test-with-process-tags": TEST_TAGS.union(PROCESS_AGENT_TAGS),
+        "test": AGENT_TEST_TAGS,
+        "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS),
     },
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
         "process-agent": PROCESS_AGENT_HEROKU_TAGS,
         "trace-agent": TRACE_AGENT_HEROKU_TAGS,
+        "unit-tests": AGENT_HEROKU_TAGS,
     },
     AgentFlavor.iot: {
         "agent": IOT_AGENT_TAGS,
+        "unit-tests": IOT_AGENT_TAGS,
+    },
+    AgentFlavor.dogstatsd: {
+        "dogstatsd": DOGSTATSD_TAGS,
+        "system-tests": AGENT_TAGS,
+        "unit-tests": DOGSTATSD_TAGS,
     },
 }
 
