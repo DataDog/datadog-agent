@@ -86,7 +86,7 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.5.1
 	github.com/Microsoft/hcsshim v0.9.1
-	github.com/Shopify/sarama v1.30.1
+	github.com/Shopify/sarama v1.30.1 // indirect
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
@@ -148,6 +148,7 @@ require (
 	github.com/imdario/mergo v0.3.12
 	github.com/iovisor/gobpf v0.2.0
 	github.com/itchyny/gojq v0.12.6
+	github.com/jpillora/go-tld v1.1.1
 	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/karrick/godirwalk v1.16.1

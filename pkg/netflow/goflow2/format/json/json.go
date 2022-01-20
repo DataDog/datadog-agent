@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/protobuf/proto"
+	"github.com/jpillora/go-tld"
 	flowmessage "github.com/netsampler/goflow2/pb"
 	"github.com/oschwald/geoip2-golang"
 	"net"
@@ -92,10 +93,22 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 
 	for _, domain := range dstDomainList {
 		tags = append(tags, fmt.Sprintf("dst_domain:%s", domain))
+		rootDomain, err := tld.Parse(domain)
+		if err != nil {
+			log.Debugf("error parsing dns `%s`:", domain, err)
+		} else {
+			tags = append(tags, fmt.Sprintf("dst_root_domain:%s", rootDomain))
+		}
 	}
 
 	for _, domain := range srcDomainList {
 		tags = append(tags, fmt.Sprintf("src_domain:%s", domain))
+		rootDomain, err := tld.Parse(domain)
+		if err != nil {
+			log.Debugf("error parsing dns `%s`:", domain, err)
+		} else {
+			tags = append(tags, fmt.Sprintf("src_root_domain:%s", rootDomain))
+		}
 	}
 
 	db, err := geoip2.Open("/opt/geoip_files/GeoIP2-City.mmdb")
