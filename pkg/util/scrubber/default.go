@@ -116,7 +116,11 @@ func matchCert() *regexp.Regexp {
 	)
 }
 
-// matchYAMLKeyWithListValue matches YAML keys with list values.
+// matchYAMLKeyWithListValue matches YAML keys with array values.
+// caveat: doesn't work if the array contain nested arrays. Example:
+//   key: [
+//    [a, b, c],
+//    def]
 func matchYAMLKeyWithListValue(key string) *regexp.Regexp {
 	/*
 		Example 1:
