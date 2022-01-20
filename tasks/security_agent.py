@@ -10,10 +10,11 @@ from invoke import task
 
 from .build_tags import get_default_build_tags
 from .go import golangci_lint, staticcheck, vet
+from .system_probe import CLANG_CMD as CLANG_BPF_CMD
+from .system_probe import get_ebpf_build_flags
 from .utils import (
     REPO_PATH,
     bin_name,
-    bundle_files,
     generate_config,
     get_build_flags,
     get_git_branch_name,
@@ -23,7 +24,6 @@ from .utils import (
     get_version,
     get_version_numeric_only,
 )
-from .system_probe import get_ebpf_build_flags, CLANG_CMD as CLANG_BPF_CMD
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
@@ -182,7 +182,7 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
 def build_ebpf_probe_syscall_tester(ctx, build_dir):
     c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
     c_file = os.path.join(c_dir, "ebpf_probe.c")
-    o_file = os.path.join(build_dir, f"ebpf_probe.o")
+    o_file = os.path.join(build_dir, "ebpf_probe.o")
 
     flags = get_ebpf_build_flags(target=["-target", "bpf"])
     uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
@@ -245,10 +245,10 @@ def build_embed_syscall_tester(ctx, static=True):
     go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     create_dir_if_needed(build_dir)
 
-    syscall_tester_bin = build_syscall_tester(ctx, build_dir, static=static)
-    syscall_x86_tester_bin = build_syscall_x86_tester(ctx, build_dir, static=static)
+    build_syscall_tester(ctx, build_dir, static=static)
+    build_syscall_x86_tester(ctx, build_dir, static=static)
     build_ebpf_probe_syscall_tester(ctx, go_dir)
-    syscall_go_tester_bin = build_go_syscall_tester(ctx, build_dir)
+    build_go_syscall_tester(ctx, build_dir)
 
 
 @task
