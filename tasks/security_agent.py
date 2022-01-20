@@ -187,6 +187,7 @@ def build_ebpf_probe_syscall_tester(ctx, build_dir):
     flags = get_ebpf_build_flags(target=["-target", "bpf"])
     uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
     flags.append(f"-D__{uname_m}__")
+    flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
 
     return ctx.run(
         CLANG_BPF_CMD.format(flags=" ".join(flags), bc_file=o_file, c_file=c_file),
