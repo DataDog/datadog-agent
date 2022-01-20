@@ -6,6 +6,11 @@
 package invocationlifecycle
 
 const (
-	traceIDHeader  = "x-datadog-trace-id"
+	// TraceIDHeader is the header containing the traceID
+	TraceIDHeader = "x-datadog-trace-id"
+
+	// SpanIDHeader is the header containing the spanID
+	SpanIDHeader = "x-datadog-span-id"
+
 	parentIDHeader = "x-datadog-parent-id"
 )

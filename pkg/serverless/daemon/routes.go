@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"os"
 
@@ -100,11 +99,6 @@ type TraceContext struct {
 
 func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.TraceContext route.")
-
-	// TODO use traceID and spanID from the generated span
-	traceID := uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
-	spanID := uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
-
-	w.Header().Set("x-datadog-trace-id", fmt.Sprintf("%v", traceID))
-	w.Header().Set("x-datadog-span-id", fmt.Sprintf("%v", spanID))
+	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
+	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", invocationlifecycle.SpanID()))
 }
