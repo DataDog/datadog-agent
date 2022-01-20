@@ -94,11 +94,11 @@ func setupProcesses(config Config) {
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 
-	AddOverrideFunc(LoadProcessTransforms)
+	AddOverrideFunc(loadProcessTransforms)
 }
 
-// LoadProcessTransforms loads transforms associated with process config settings. This is used to handle deprecated settings
-func LoadProcessTransforms(config Config) {
+// loadProcessTransforms loads transforms associated with process config settings. This is used to handle deprecated settings
+func loadProcessTransforms(config Config) {
 	if config.IsSet("process_config.enabled") {
 		log.Debug("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
 			" and process_config.process_collection.enabled instead")

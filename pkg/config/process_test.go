@@ -277,7 +277,7 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
 			cfg := setupConf()
 			cfg.Set("process_config.enabled", tc.procConfigEnabled)
-			LoadProcessTransforms(cfg)
+			loadProcessTransforms(cfg)
 
 			assert.Equal(t, tc.expectedContainerCollection, cfg.GetBool("process_config.container_collection.enabled"))
 			assert.Equal(t, tc.expectedProcessCollection, cfg.GetBool("process_config.process_collection.enabled"))
