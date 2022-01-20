@@ -83,10 +83,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: DefaultProcessMaxPerMessage,
 		},
 		{
-			key:          "process_config.max_ctr_procs_per_message",
-			defaultValue: DefaultProcessMaxCtrProcsPerMessage,
-		},
-		{
 			key:          "process_config.expvar_port",
 			defaultValue: DefaultProcessExpVarPort,
 		},
@@ -271,12 +267,6 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_MAX_PER_MESSAGE",
 			value:    "10",
 			expected: 10,
-		},
-		{
-			key:      "process_config.max_ctr_procs_per_message",
-			env:      "DD_PROCESS_CONFIG_MAX_CTR_PROCS_PER_MESSAGE",
-			value:    "20",
-			expected: 20,
 		},
 		{
 			key:      "process_config.expvar_port",

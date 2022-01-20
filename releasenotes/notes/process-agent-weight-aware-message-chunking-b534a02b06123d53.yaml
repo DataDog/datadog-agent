@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Changes process payload chunking in the process Agent to take into account
+    size of process details such as CLI, and user name.
+deprecations:
+  - |
+    Deprecates process_config.max_ctr_procs_per_message setting.
+

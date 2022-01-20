@@ -32,8 +32,8 @@ var _ CheckWithRealTime = (*ProcessCheck)(nil)
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
-// ctrProcMsgFactory builds a CollectorProc
-type ctrProcMsgFactory func([]*model.Process, ...*model.Container) *model.CollectorProc
+// TODO: determine a heuristic suitable for interpreting this as a 1MB limit
+var maxWeightPerMessage = 1000000
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
@@ -84,7 +84,6 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.networkID = networkID
 
 	p.maxBatchSize = getMaxBatchSize()
-	p.maxCtrProcsBatchSize = getMaxCtrProcsBatchSize()
 }
 
 // Name returns the name of the ProcessCheck.
@@ -181,7 +180,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.maxBatchSize, p.maxCtrProcsBatchSize, p.sysInfo, groupID, p.networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.maxBatchSize, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -261,121 +260,59 @@ func createProcCtrMessages(
 	containers []*model.Container,
 	cfg *config.AgentConfig,
 	maxBatchSize int,
-	maxCtrProcsBatchSize int,
 	sysInfo *model.SystemInfo,
 	groupID int32,
 	networkID string,
 ) ([]model.MessageBody, int, int) {
-	var totalProcs, totalContainers int
-	var msgs []*model.CollectorProc
-
-	// we first split non-container processes in chunks
-	chunks := chunkProcesses(procsByCtr[emptyCtrID], maxBatchSize)
-	for _, c := range chunks {
-		msgs = append(msgs, &model.CollectorProc{
-			HostName:          cfg.HostName,
-			NetworkId:         networkID,
-			Info:              sysInfo,
-			Processes:         c,
-			GroupId:           groupID,
-			ContainerHostType: cfg.ContainerHostType,
-		})
-	}
-
-	procCtrMessages := packProcCtrMessages(maxCtrProcsBatchSize, procsByCtr, containers,
-		func(p []*model.Process, c ...*model.Container) *model.CollectorProc {
-			return &model.CollectorProc{
-				HostName:          cfg.HostName,
-				NetworkId:         networkID,
-				Info:              sysInfo,
-				Processes:         p,
-				Containers:        c,
-				GroupId:           groupID,
-				ContainerHostType: cfg.ContainerHostType,
-			}
-		},
-	)
-
-	msgs = append(msgs, procCtrMessages...)
-
+	collectorProcs, totalProcs, totalContainers := chunkProcessesAndContainers(procsByCtr, containers, maxBatchSize, maxWeightPerMessage)
 	// fill in GroupSize for each CollectorProc and convert them to final messages
 	// also count containers and processes
-	messages := make([]model.MessageBody, 0, len(msgs))
-	for _, m := range msgs {
-		m.GroupSize = int32(len(msgs))
+	messages := make([]model.MessageBody, 0, len(collectorProcs))
+	for _, m := range collectorProcs {
+		m.GroupSize = int32(len(collectorProcs))
+		m.HostName = cfg.HostName
+		m.NetworkId = networkID
+		m.Info = sysInfo
+		m.GroupId = groupID
+		m.ContainerHostType = cfg.ContainerHostType
+
 		messages = append(messages, m)
-		totalProcs += len(m.Processes)
-		totalContainers += len(m.Containers)
 	}
+
+	log.Tracef("Created %d process messages", len(messages))
 
 	return messages, totalProcs, totalContainers
 }
 
-// packProcCtrMessages packs container processes into messages using the next-fit bin packing algorithm. The
-// container and its processes are placed into a CollectorProc up to the provided capacity. Some containers may have
-// more processes than the supplied capacity, for these they simply get packed into its own message.
-func packProcCtrMessages(
-	capacity int,
+func chunkProcessesAndContainers(
 	procsByCtr map[string][]*model.Process,
 	containers []*model.Container,
-	msgFn ctrProcMsgFactory,
-) []*model.CollectorProc {
-	var msgs []*model.CollectorProc
-	var ctrs []*model.Container
-	var ctrProcs []*model.Process
+	maxChunkSize int,
+	maxChunkWeight int,
+) ([]*model.CollectorProc, int, int) {
+	chunker := &collectorProcChunker{}
 
-	space := capacity
+	totalProcs := len(procsByCtr[emptyCtrID])
 
+	chunkProcessesBySizeAndWeight(procsByCtr[emptyCtrID], maxChunkSize, maxChunkWeight, chunker)
+
+	totalContainers := 0
 	for _, ctr := range containers {
 		procs := procsByCtr[ctr.Id]
-
-		if len(procs) > capacity {
-			// this container has more process then the msg capacity, so we send it separately
-			msgs = append(msgs, msgFn(procs, ctr))
+		if len(procs) == 0 {
+			// can happen if a process is skipped (e.g. disallowlisted)
 			continue
 		}
-
-		if len(procs) > space {
-			// there is not enough space to fit the next set of container processes, so complete the payload with
-			// the previous container processes and reset
-			msgs = append(msgs, msgFn(ctrProcs, ctrs...))
-			ctrs = nil
-			ctrProcs = nil
-			space = capacity
+		totalProcs += len(procs)
+		totalContainers++
+		chunker.container = ctr
+		chunker.idx = 0
+		if len(chunker.collectorProcs) > 1 {
+			chunker.idx = len(chunker.collectorProcs) - 1
 		}
-
-		ctrs = append(ctrs, ctr)
-		ctrProcs = append(ctrProcs, procs...)
-		space -= len(procs)
+		chunkProcessesBySizeAndWeight(procs, maxChunkSize, maxChunkWeight, chunker)
 	}
-
-	if len(ctrs) > 0 {
-		// create messages with any remaining containers and processes
-		msgs = append(msgs, msgFn(ctrProcs, ctrs...))
-	}
-
-	log.Tracef("Created %d container process messages", len(msgs))
-
-	return msgs
-}
-
-// chunkProcesses split non-container processes into chunks and return a list of chunks
-func chunkProcesses(procs []*model.Process, size int) [][]*model.Process {
-	chunkCount := len(procs) / size
-	if chunkCount*size < len(procs) {
-		chunkCount++
-	}
-	chunks := make([][]*model.Process, 0, chunkCount)
-
-	for i := 0; i < len(procs); i += size {
-		end := i + size
-		if end > len(procs) {
-			end = len(procs)
-		}
-		chunks = append(chunks, procs[i:end])
-	}
-
-	return chunks
+	return chunker.collectorProcs, totalProcs, totalContainers
 }
 
 func ctrIDForPID(ctrList []*containers.Container) map[int32]string {

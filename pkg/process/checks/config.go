@@ -40,23 +40,3 @@ func getMaxBatchSize() int {
 
 	return maxBatchSize
 }
-
-// getMaxCtrProcsBatchSize returns the maximum number of processes belonging to a container in a check payload
-func getMaxCtrProcsBatchSize() int {
-	maxCtrProcsBatchSizeOnce.Do(func() {
-		ctrProcsBatchSize := ddconfig.Datadog.GetInt("process_config.max_ctr_procs_per_message")
-
-		if ctrProcsBatchSize <= 0 {
-			ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
-			log.Warnf("Invalid max container processes count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxCtrProcsPerMessage)
-
-		} else if ctrProcsBatchSize > ddconfig.ProcessMaxCtrProcsPerMessageLimit {
-			ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
-			log.Warnf("Overriding the configured max of container processes count per message because it exceeds maximum limit of %d", ddconfig.ProcessMaxCtrProcsPerMessageLimit)
-		}
-
-		maxCtrProcsBatchSize = ctrProcsBatchSize
-	})
-
-	return maxCtrProcsBatchSize
-}
