@@ -141,10 +141,14 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggreg
 	hostname := c.BindHost
 	port := c.Port
 	reusePort := false
-	err = sNF.FlowRoutine(1, hostname, int(port), reusePort)
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		log.Errorf("Starting FlowRoutine...")
+		err = sNF.FlowRoutine(1, hostname, int(port), reusePort)
+		log.Errorf("Exited FlowRoutine")
+		if err != nil {
+			log.Errorf("Error exiting FlowRoutine: %s", err)
+		}
+	}()
 
 	return sNF, nil
 }

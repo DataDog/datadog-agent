@@ -20,9 +20,9 @@ func IsEnabled() bool {
 // Config contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
 type Config struct {
-	Port             uint16   `mapstructure:"port" yaml:"port"`
-	BindHost         string   `mapstructure:"bind_host" yaml:"bind_host"`
-	StopTimeout      int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
+	Port        uint16 `mapstructure:"port" yaml:"port"`
+	BindHost    string `mapstructure:"bind_host" yaml:"bind_host"`
+	StopTimeout int    `mapstructure:"stop_timeout" yaml:"stop_timeout"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
