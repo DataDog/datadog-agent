@@ -128,23 +128,9 @@ func TestOnlyEnvConfig(t *testing.T) {
 	// setting an API Key should be enough to generate valid config
 	os.Setenv("DD_API_KEY", "apikey_from_env")
 	defer os.Unsetenv("DD_API_KEY")
-	os.Setenv("DD_PROCESS_AGENT_ENABLED", "true")
-	defer os.Unsetenv("DD_PROCESS_AGENT_ENABLED")
 
 	agentConfig, _ := NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
-
-	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
-	os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "false")
-	_, _ = config.Load() // Deprecated environment variables won't have their transforms applied until the config is reloaded
-	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
-	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
-
-	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
-	os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "true")
-	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
-	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
-	// Process discovery enabled by default enables the process agent
 
 	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
 	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
