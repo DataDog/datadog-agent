@@ -25,8 +25,7 @@ import (
 )
 
 const (
-	ns                   = "process_config"
-	discoveryMinInterval = 10 * time.Minute
+	ns = "process_config"
 )
 
 func key(pieces ...string) string {
@@ -70,10 +69,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.setCheckInterval(ns, "process", ProcessCheckName)
 	a.setCheckInterval(ns, "process_realtime", RTProcessCheckName)
 	a.setCheckInterval(ns, "connections", ConnectionsCheckName)
-
-	// We need another method to read in process discovery check configs because it is in its own object,
-	// and uses a different unit of time
-	a.initProcessDiscoveryCheck()
 
 	if a.CheckIntervals[ProcessCheckName] < a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
 		// Process check interval must be greater or equal to RTProcess check interval and the intervals must be divisible
@@ -272,11 +267,6 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 
 		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
 		// We use a minimum of 10 minutes for this value.
-		discoveryInterval := config.Datadog.GetDuration(key(root, "interval"))
-		if discoveryInterval < discoveryMinInterval {
-			discoveryInterval = discoveryMinInterval
-			_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
-		}
-		a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
+		a.CheckIntervals[DiscoveryCheckName] = config.Datadog.GetDuration(key(root, "interval"))
 	}
 }

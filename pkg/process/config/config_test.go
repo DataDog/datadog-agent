@@ -655,41 +655,6 @@ func TestGetHostnameShellCmd(t *testing.T) {
 	}
 }
 
-// TestProcessDiscoveryConfig tests to make sure that the process discovery check is properly configured
-func TestProcessDiscoveryConfig(t *testing.T) {
-	assert := assert.New(t)
-
-	for _, procCollectionEnabled := range []bool{true, false} {
-		for _, procDiscoveryEnabled := range []bool{true, false} {
-			config.Datadog.Set("process_config.process_collection.enabled", procCollectionEnabled)
-			config.Datadog.Set("process_config.process_discovery.enabled", procDiscoveryEnabled)
-			config.Datadog.Set("process_config.process_discovery.interval", time.Hour)
-			cfg := AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
-			cfg.initProcessDiscoveryCheck()
-
-			// Make sure that the process discovery check is only enabled when process collection is disabled,
-			// and procDiscoveryEnabled isn't overridden.
-			if procDiscoveryEnabled && !procCollectionEnabled {
-				assert.ElementsMatch([]string{DiscoveryCheckName}, cfg.EnabledChecks)
-
-				// Interval Tests:
-				// These can only be done while the check is enabled, which is why we do them here.
-
-				// Make sure that the discovery check interval can be overridden.
-				assert.Equal(time.Hour, cfg.CheckIntervals[DiscoveryCheckName])
-
-				// Ensure that the minimum interval for the process_discovery check is enforced
-				config.Datadog.Set("process_config.process_discovery.interval", time.Second)
-				cfg = AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
-				cfg.initProcessDiscoveryCheck()
-				assert.Equal(10*time.Minute, cfg.CheckIntervals[DiscoveryCheckName])
-			} else {
-				assert.ElementsMatch([]string{}, cfg.EnabledChecks)
-			}
-		}
-	}
-}
-
 // fakeExecCommand is a function that initialises a new exec.Cmd, one which will
 // simply call TestShellProcessSuccess rather than the command it is provided. It will
 // also pass through the command and its arguments as an argument to TestShellProcessSuccess

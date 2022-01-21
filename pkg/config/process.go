@@ -16,6 +16,8 @@ import (
 const (
 	// DefaultGRPCConnectionTimeoutSecs sets the default value for timeout when connecting to the agent
 	DefaultGRPCConnectionTimeoutSecs = 60
+
+	procDiscoveryMinInterval = 10 * time.Minute
 )
 
 // procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
@@ -113,6 +115,15 @@ func loadProcessTransforms(config Config) {
 		} else { // "false"
 			config.Set("process_config.process_collection.enabled", false)
 			config.Set("process_config.container_collection.enabled", true)
+		}
+	}
+
+	if config.GetBool("process_config.process_discovery.enabled") {
+		procDiscoveryInterval := config.GetDuration("process_config.process_discovery.enabled")
+		if procDiscoveryInterval < procDiscoveryMinInterval {
+			_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s",
+				procDiscoveryMinInterval.String())
+			config.Set("process_config.process_discovery.interval", procDiscoveryMinInterval)
 		}
 	}
 }

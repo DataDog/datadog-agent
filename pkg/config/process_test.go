@@ -285,3 +285,10 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 	}
 
 }
+
+func TestProcessDiscoveryTransform(t *testing.T) {
+	cfg := setupConf()
+	cfg.Set("process_config.process_discovery.interval", procDiscoveryMinInterval-1)
+	loadProcessTransforms(cfg)
+	assert.Equal(t, procDiscoveryMinInterval, cfg.GetDuration("process_config.process_discovery.interval"))
+}
