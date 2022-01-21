@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -55,16 +54,11 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read StartInvocation request body", 400)
 		return
 	}
-
-	var startDetails invocationlifecycle.InvocationStartDetails
-	err = json.Unmarshal(reqBody, &startDetails)
-	if err != nil {
-		log.Error("Could not unmarshal StartInvocation payload")
-		http.Error(w, "Could not unmarshal StartInvocation payload", 400)
-		return
+	var startDetails = &invocationlifecycle.InvocationStartDetails{
+		StartTime:             startTime,
+		InvokeEventRawPayload: string(reqBody),
 	}
-	startDetails.StartTime = startTime
-	s.daemon.InvocationProcessor.OnInvokeStart(&startDetails)
+	s.daemon.InvocationProcessor.OnInvokeStart(startDetails)
 }
 
 // EndInvocation is a route that can be called at the end of an invocation to enable

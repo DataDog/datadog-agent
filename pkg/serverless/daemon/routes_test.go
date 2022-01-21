@@ -49,24 +49,6 @@ func TestStartInvocation(t *testing.T) {
 	assert.True(m.OnInvokeStartCalled)
 }
 
-func TestStartInvocationInvalidRequestBody(t *testing.T) {
-	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
-	defer d.Stop()
-
-	m := &mockLifecycleProcessor{}
-	d.InvocationProcessor = m
-
-	client := &http.Client{Timeout: 1 * time.Second}
-	body := bytes.NewBuffer([]byte(`INVALID`))
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
-	assert.Nil(err)
-	res, err := client.Do(request)
-	assert.Nil(err)
-	assert.Equal(res.StatusCode, 400)
-	assert.False(m.OnInvokeStartCalled)
-}
-
 func TestEndInvocation(t *testing.T) {
 	assert := assert.New(t)
 	d := StartDaemon("127.0.0.1:8124")
@@ -118,7 +100,7 @@ func TestTraceContext(t *testing.T) {
 		DetectLambdaLibrary: func() bool { return false },
 	}
 	client := &http.Client{Timeout: 1 * time.Second}
-	body := bytes.NewBuffer([]byte(`{"start_time": "2019-10-12T07:20:50.52Z","headers": {"x-datadog-trace-id": ["1234"]},"payload": "{\"headers\":{\"x-datadog-parent-id\":\"1111\",\"x-datadog-trace-id\":\"2222\"}}"}`))
+	body := bytes.NewBuffer([]byte(`{"start_time": "2019-10-12T07:20:50.52Z","Headers": {"x-datadog-trace-id": "2222"}}`))
 	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
 	assert.Nil(err)
 	_, err = client.Do(request)
