@@ -77,7 +77,7 @@ func SNMPTrapsSource() *LogSource {
 		return NewLogSource(SnmpTraps, &LogsConfig{
 			Type:    SnmpTrapsType,
 			Service: "snmp",
-			Source:  "snmp",
+			Source:  "netflow",
 		})
 	}
 	return nil
