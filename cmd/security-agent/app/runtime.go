@@ -127,7 +127,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	var opts rules.Opts
 	opts.
 		WithConstants(model.SECLConstants).
-		WithVariables(sprobe.SECLVariables).
+		WithVariables(model.SECLVariables).
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
