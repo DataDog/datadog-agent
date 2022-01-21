@@ -82,6 +82,23 @@ if [ ! "$apikey" ]; then
     fi
 fi
 
+if [ "$systemdaemon_install" == false ] && [ -f "$systemwide_servicefile_name" ]; then
+    printf "\033[31m
+$systemwide_servicefile_name exists, suggesting a
+systemwide Agent installation is present. Individual users
+can't install the Agent when systemwide installation exists.
+
+If no systemwide installation is present or you want to remove it, run:
+
+    sudo launchctl unload -w $systemwide_servicefile_name
+    sudo rm $systemwide_servicefile_name
+
+Then rerun this script to install the Agent for your user account.
+\033[0m\n"
+
+    exit 1;
+fi
+
 
 # SUDO_USER is defined in man sudo: https://linux.die.net/man/8/sudo
 # "SUDO_USER Set to the login name of the user who invoked sudo."
@@ -184,8 +201,7 @@ function plist_modify_user_group() {
 # # Install the agent
 printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
 rm -f $dmg_file
-# curl --fail --progress-bar $dmg_url > $dmg_file
-dmg_file=/Users/slavek.kabrda/Downloads/datadog-agent-7.34.0-rc.1-1.dmg
+curl --fail --progress-bar $dmg_url > $dmg_file
 printf "\033[34m\n* Installing datadog-agent, you might be asked for your sudo password...\n\033[0m"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "\033[34m\n    - Mounting the DMG installer...\n\033[0m"
@@ -270,7 +286,16 @@ background and submit metrics to Datadog.
 You can check the agent status using the \"datadog-agent status\" command
 or by opening the webui using the \"datadog-agent launch-gui\" command.
 
+\033[0m"
+
+if [ "$systemdaemon_install" = false ]; then
+    printf "\033[32m
 If you ever want to stop the Agent, please use the Datadog Agent App or
 the launchctl command. It will start automatically at login.
-
 \033[0m"
+else
+    printf "\033[32m
+If you ever want to stop the Agent, please use the the launchctl command.
+The Agent will start automatically at system startup.
+\033[0m"
+fi
