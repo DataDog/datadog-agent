@@ -126,6 +126,7 @@ export TMPDIR
 
 cmd_real_user="sudo -Eu $real_user"
 
+# shellcheck disable=SC2016
 user_home=$($cmd_real_user bash -c 'echo "$HOME"')
 user_plist_file=${user_home}/Library/LaunchAgents/${service_name}.plist
 
@@ -170,8 +171,8 @@ function import_config() {
 
 function plist_modify_user_group() {
     plist_file="$1"
-    user_value="$(echo $2 | awk -F: '{ print $1 }')"
-    group_value="$(echo $2 | awk -F: '{ print $2 }')"
+    user_value="$(echo "$2" | awk -F: '{ print $1 }')"
+    group_value="$(echo "$2" | awk -F: '{ print $2 }')"
     user_parameter="UID"
     group_parameter="GID"
 
@@ -193,7 +194,7 @@ function plist_modify_user_group() {
         fi
     done
 
-    ## to insert user/group into the xml file, we'll find the last "</dict>" occurence and insert before it
+    ## to insert user/group into the xml file, we'll find the last "</dict>" occurrence and insert before it
     closing_dict_line=$($sudo_cmd cat "$plist_file" | grep -n "</dict>" | tail -1 | cut -f1 -d:)
     # there's no way to do in-place sed without a backup file on an arbitrary MacOS version
     $sudo_cmd sed -i .backup -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|" -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|" "$plist_file"
@@ -213,7 +214,9 @@ if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]
     printf "\033[34m\n    - Stopping systemwide Datadog Agent daemon ...\n\033[0m"
     # we use "|| true" because if the service is not started/loaded, the commands fail
     $sudo_cmd launchctl stop $service_name || true
-    $sudo_cmd launchctl print system/$service_name 2>/dev/null >/dev/null && $sudo_cmd launchctl unload $systemwide_servicefile_name || true
+    if $sudo_cmd launchctl print system/$service_name 2>/dev/null >/dev/null; then
+        $sudo_cmd launchctl unload $systemwide_servicefile_name || true
+    fi
 fi
 printf "\033[34m\n    - Unpacking and copying files (this usually takes about a minute) ...\n\033[0m"
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
