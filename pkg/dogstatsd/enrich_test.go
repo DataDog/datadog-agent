@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
@@ -905,6 +906,8 @@ func TestEnrichTags(t *testing.T) {
 		defaultHostname            string
 		originTags                 string
 		entityIDPrecendenceEnabled bool
+		setupFunc                  func()
+		cleanupFunc                func()
 	}
 	tests := []struct {
 		name              string
@@ -1068,9 +1071,55 @@ func TestEnrichTags(t *testing.T) {
 			wantedK8sOrigin:   "kubernetes_pod_uid://42",
 			wantedCardinality: "",
 		},
+		{
+			name: "entity_id=uid prefixed_origin=container_id://id should consider entity_id",
+			args: args{
+				tags:            []string{"env:prod", "dd.internal.entity_id:uid", "dd.internal.prefixed_origin:container_id://id"},
+				defaultHostname: "foo",
+				originTags:      "originID",
+			},
+			wantedTags:      []string{"env:prod"},
+			wantedHost:      "foo",
+			wantedOrigin:    "originID",
+			wantedK8sOrigin: "kubernetes_pod_uid://uid",
+		},
+		{
+			name: "prefixed_origin=container_id://id dogstatsd_origin_detection disabled, should ignore prefixed_origin",
+			args: args{
+				tags:            []string{"env:prod", "dd.internal.prefixed_origin:container_id://id"},
+				defaultHostname: "foo",
+				originTags:      "originID",
+			},
+			wantedTags:      []string{"env:prod"},
+			wantedHost:      "foo",
+			wantedOrigin:    "originID",
+			wantedK8sOrigin: "",
+		},
+		{
+			name: "prefixed_origin=container_id://id dogstatsd_origin_detection enabled, should consider prefixed_origin",
+			args: args{
+				tags:            []string{"env:prod", "dd.internal.prefixed_origin:container_id://id"},
+				defaultHostname: "foo",
+				originTags:      "originID",
+				setupFunc:       func() { config.Datadog.Set("dogstatsd_origin_detection", true) },
+				cleanupFunc:     func() { config.Datadog.Set("dogstatsd_origin_detection", false) },
+			},
+			wantedTags:      []string{"env:prod"},
+			wantedHost:      "foo",
+			wantedOrigin:    "originID",
+			wantedK8sOrigin: "container_id://id",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.args.setupFunc != nil {
+				tt.args.setupFunc()
+			}
+
+			if tt.args.cleanupFunc != nil {
+				defer tt.args.cleanupFunc()
+			}
+
 			tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.defaultHostname, tt.args.originTags, tt.args.entityIDPrecendenceEnabled)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)

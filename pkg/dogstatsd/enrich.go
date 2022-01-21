@@ -8,14 +8,16 @@ package dogstatsd
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 var (
-	hostTagPrefix       = "host:"
-	entityIDTagPrefix   = "dd.internal.entity_id:"
-	entityIDIgnoreValue = "none"
+	hostTagPrefix           = "host:"
+	entityIDTagPrefix       = "dd.internal.entity_id:"
+	prefixedOriginTagPrefix = "dd.internal.prefixed_origin:"
+	entityIDIgnoreValue     = "none"
 	// CardinalityTagPrefix is used to set the dynamic cardinality
 	CardinalityTagPrefix = "dd.internal.card:"
 )
@@ -24,7 +26,7 @@ func extractTagsMetadata(tags []string, defaultHostname string, originTags strin
 	host := defaultHostname
 
 	n := 0
-	entityIDValue, cardinality := "", ""
+	entityIDValue, cardinality, prefixedOrigin := "", "", ""
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, hostTagPrefix) {
 			host = tag[len(hostTagPrefix):]
@@ -32,6 +34,8 @@ func extractTagsMetadata(tags []string, defaultHostname string, originTags strin
 			entityIDValue = tag[len(entityIDTagPrefix):]
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
 			cardinality = tag[len(CardinalityTagPrefix):]
+		} else if strings.HasPrefix(tag, prefixedOriginTagPrefix) {
+			prefixedOrigin = tag[len(prefixedOriginTagPrefix):]
 		} else {
 			tags[n] = tag
 			n++
@@ -47,17 +51,23 @@ func extractTagsMetadata(tags []string, defaultHostname string, originTags strin
 		origin = originTags
 	}
 
-	k8sOrigin := ""
-	// We set k8sOriginID if the metrics contain a 'dd.internal.entity_id' tag different from 'none'.
+	udpOrigin := ""
+	// We set udpOrigin if the metrics contain a 'dd.internal.entity_id' tag different from 'none'.
 	if entityIDValue != "" && entityIDValue != entityIDIgnoreValue {
 		// Check if the value is not "none" in order to avoid calling
 		// the tagger for entity that doesn't exist.
 
 		// currently only supported for pods
-		k8sOrigin = kubelet.KubePodTaggerEntityPrefix + entityIDValue
+		udpOrigin = kubelet.KubePodTaggerEntityPrefix + entityIDValue
 	}
 
-	return tags, host, origin, k8sOrigin, cardinality
+	// Set udpOrigin based on 'dd.internal.prefixed_origin' tag
+	// if dogstatsd_origin_detection is enabled and 'dd.internal.entity_id' is not set.
+	if config.Datadog.GetBool("dogstatsd_origin_detection") && entityIDValue == "" && prefixedOrigin != "" {
+		udpOrigin = prefixedOrigin
+	}
+
+	return tags, host, origin, udpOrigin, cardinality
 }
 
 func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
