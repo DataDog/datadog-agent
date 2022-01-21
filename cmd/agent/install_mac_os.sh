@@ -9,6 +9,8 @@ install_script_version=1.0.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
+log_dir=/opt/datadog-agent/logs
+run_dir=/opt/datadog-agent/run
 service_name="com.datadoghq.agent"
 systemwide_servicefile_name="/Library/LaunchDaemons/${service_name}.plist"
 
@@ -270,9 +272,11 @@ else
     $cmd_launchctl unload "$user_plist_file"
     # move the plist file to the system location
     $sudo_cmd mv "$user_plist_file" /Library/LaunchDaemons/
-    # make sure the daemon launches under proper user/group and then start it
+    # make sure the daemon launches under proper user/group and that it has access
+    # to all files/dirs it needs; then start it
     plist_modify_user_group "$systemwide_servicefile_name" "$systemdaemon_user_group"
     $sudo_cmd chown "$systemdaemon_user_group" "$systemwide_servicefile_name"
+    $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
     $sudo_cmd launchctl start "$service_name"
 fi
