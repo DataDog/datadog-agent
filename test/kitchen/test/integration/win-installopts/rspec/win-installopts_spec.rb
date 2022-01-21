@@ -1,22 +1,5 @@
 require 'spec_helper'
 
-def read_conf_file
-    conf_path = ""
-    if os == :windows
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-      ddpath_exists = File.exist?("#{ENV['ProgramData']}\\Datadog")
-      ddfile_exists = File.exist?(conf_path)
-      puts "path exists #{ddpath_exists} file exists #{ddfile_exists}"
-    else
-      conf_path = '/etc/datadog-agent/datadog.yaml'
-    end
-    puts "cp is #{conf_path}"
-    f = File.read(conf_path)
-    confYaml = YAML.load(f)
-    confYaml
-end
-
-
 shared_examples_for 'an Agent with APM disabled' do
   it 'has apm disabled' do
     confYaml = read_conf_file()
