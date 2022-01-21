@@ -219,7 +219,7 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   fi
   agent_major_version=$DD_AGENT_MAJOR_VERSION
 else
-  if [ "$agent_flavor" != "datadog-iot-agent" ]
+  if [ "$agent_flavor" != "datadog-iot-agent" ]; then
     echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
   else
     echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing IoT Agent version 7 by default.\033[0m"
