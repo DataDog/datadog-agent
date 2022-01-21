@@ -12,5 +12,8 @@ const (
 	// SpanIDHeader is the header containing the spanID
 	SpanIDHeader = "x-datadog-span-id"
 
+	// InvocationErrorHeader : if set to "true", the extension will know that the current invocation has failed
+	InvocationErrorHeader = "x-datadog-invocation-error"
+
 	parentIDHeader = "x-datadog-parent-id"
 )

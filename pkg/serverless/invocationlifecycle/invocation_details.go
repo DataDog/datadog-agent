@@ -12,7 +12,7 @@ import (
 // InvocationStartDetails stores information about the start of an invocation.
 // This structure is passed to the onInvokeStart method of the invocationProcessor interface
 type InvocationStartDetails struct {
-	StartTime          time.Time           `json:"start_time"`
+	StartTime          time.Time
 	InvokeHeaders      map[string][]string `json:"headers"`
 	InvokeEventPayload string              `json:"payload"`
 }
@@ -20,6 +20,7 @@ type InvocationStartDetails struct {
 // InvocationEndDetails stores information about the end of an invocation.
 // This structure is passed to the onInvokeEnd method of the invocationProcessor interface
 type InvocationEndDetails struct {
-	EndTime time.Time `json:"end_time"`
-	IsError bool      `json:"is_error"`
+	EndTime   time.Time
+	IsError   bool
+	RequestId string
 }
