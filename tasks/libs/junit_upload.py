@@ -7,13 +7,16 @@ import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 
+from ..flavor import AgentFlavor
+
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
 DATADOG_CI_COMMAND = ["datadog-ci", "junit", "upload"]
 JOB_URL_FILE_NAME = "job_url.txt"
 TAGS_FILE_NAME = "tags.txt"
 
-def add_flavor_to_junitxml(xml_path, flavor):
+
+def add_flavor_to_junitxml(xml_path: str, flavor: AgentFlavor):
     """
     Takes a JUnit XML file and adds a flavor field to it, to allow tagging
     tests by flavor.
@@ -22,11 +25,12 @@ def add_flavor_to_junitxml(xml_path, flavor):
 
     # Create a new element containing the flavor and append it to the tree
     flavor_element = ET.Element('flavor')
-    flavor_element.text = flavor
+    flavor_element.text = flavor.name
     tree.getroot().append(flavor_element)
 
     # Write back to the original file
     tree.write(xml_path)
+
 
 def split_junitxml(xml_path, codeowners, output_dir):
     """
@@ -75,7 +79,8 @@ def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url="
             "datadog-agent",
             "--tags",
             'test.codeowners:["' + CODEOWNERS_ORG_PREFIX + owner + '"]',
-            'test.flavor:["' + flavor + '"]'
+            "--tags",
+            f"test.flavor:{flavor}",
         ]
         if additional_tags:
             args.extend(additional_tags)

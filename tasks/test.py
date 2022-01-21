@@ -8,6 +8,7 @@ import os
 import re
 import sys
 from contextlib import contextmanager
+from typing import Dict, List
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -15,7 +16,7 @@ from invoke.exceptions import Exit
 from tasks.flavor import AgentFlavor
 
 from .agent import integration_tests as agent_integration_tests
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from .build_tags import compute_build_tags_for_flavor
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
@@ -26,6 +27,32 @@ from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
+GO_TEST_RESULT_TMP_JSON = 'tmp.json'
+
+
+class TestProfiler:
+    times = []
+    parser = re.compile(r"^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
+
+    def write(self, txt):
+        # Output to stdout
+        # NOTE: write to underlying stream on Python 3 to avoid unicode issues when default encoding is not UTF-8
+        getattr(sys.stdout, 'buffer', sys.stdout).write(ensure_bytes(txt))
+        # Extract the run time
+        for result in self.parser.finditer(txt):
+            self.times.append((result.group(1), float(result.group(2))))
+
+    def flush(self):
+        sys.stdout.flush()
+
+    def print_sorted(self, limit=0):
+        if self.times:
+            sorted_times = sorted(self.times, key=operator.itemgetter(1), reverse=True)
+
+            if limit:
+                sorted_times = sorted_times[:limit]
+            for pkg, time in sorted_times:
+                print(f"{time}s\t{pkg}")
 
 
 def ensure_bytes(s):
@@ -94,12 +121,119 @@ def install_tools(ctx):
                     ctx.run(f"go install {tool}")
 
 
+def lint_common(ctx, modules: List[GoModule], fail_on_fmt: bool):
+    # Until all packages whitelisted in .golangci.yml are fixed and removed
+    # from the 'skip-dirs' list we need to keep using the old functions that
+    # lint without build flags (linting some files is better than no linting).
+    print("--- Common: linters (legacy)")
+    for module in modules:
+        print(f"----- Module '{module.full_path()}'")
+        if not module.condition():
+            print("----- Skipped")
+            continue
+
+        with ctx.cd(module.full_path()):
+            fmt(ctx, targets=module.targets, fail_on_fmt=fail_on_fmt)
+            lint(ctx, targets=module.targets)
+            misspell(ctx, targets=module.targets)
+            ineffassign(ctx, targets=module.targets)
+
+
+def lint_flavor(
+    ctx, modules: List[GoModule], flavor: AgentFlavor, build_tags: List[str], arch: str, rtloader_root: bool
+):
+    print(f"--- Flavor {flavor.name}: vet and staticcheck (legacy)")
+    for module in modules:
+        print(f"----- Module '{module.full_path()}'")
+        if not module.condition():
+            print("----- Skipped")
+            continue
+
+        with ctx.cd(module.full_path()):
+            vet(ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
+            staticcheck(ctx, targets=module.targets, build_tags=build_tags, arch=arch)
+
+    # For now we only run golangci_lint on Unix as the Windows env needs more work
+    if sys.platform != 'win32':
+        print(f"--- Flavor {flavor.name}: golangci_lint")
+        for module in modules:
+            print(f"----- Module '{module.full_path()}'")
+            if not module.condition():
+                print("----- Skipped")
+                continue
+
+            with ctx.cd(module.full_path()):
+                golangci_lint(
+                    ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
+                )
+
+
+def test_flavor(
+    ctx,
+    flavor: AgentFlavor,
+    build_tags: List[str],
+    modules: List[GoModule],
+    cmd: str,
+    env: Dict[str, str],
+    args: Dict[str, str],
+    junit_tar: str,
+    save_result_json: str,
+    test_profiler: TestProfiler,
+):
+    print(f"--- Flavor {flavor.name}: unit tests")
+
+    failed_modules = []
+    junit_files = []
+
+    args["go_build_tags"] = " ".join(build_tags + ["test"])
+
+    junit_file_flag = ""
+    junit_file = f"junit-out-{flavor.name}.xml"
+    if junit_tar:
+        junit_file_flag = "--junitfile " + junit_file
+    args["junit_file_flag"] = junit_file_flag
+
+    for module in modules:
+        print(f"----- Module '{module.full_path()}'")
+        if not module.condition():
+            print("----- Skipped")
+            continue
+
+        with ctx.cd(module.full_path()):
+            res = ctx.run(
+                cmd.format(
+                    packages=' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets), **args
+                ),
+                env=env,
+                out_stream=test_profiler,
+                warn=True,
+            )
+
+        if res.exited is None or res.exited > 0:
+            failed_modules.append(module.full_path())
+
+        if save_result_json:
+            with open(save_result_json, 'ab') as json_file, open(
+                os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON), 'rb'
+            ) as module_file:
+                json_file.write(module_file.read())
+
+        junit_file_path = None
+        if junit_tar:
+            junit_file_path = os.path.join(module.full_path(), junit_file)
+            add_flavor_to_junitxml(junit_file_path, flavor)
+
+        junit_files.append(junit_file_path)
+
+    return junit_files, failed_modules
+
+
 @task(iterable=['flavor'])
 def test(
     ctx,
     module=None,
     targets=None,
-    flavor=[],
+    flavor=None,
     coverage=False,
     build_include=None,
     build_exclude=None,
@@ -136,6 +270,8 @@ def test(
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
+    # Process input arguments
+
     if isinstance(module, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
@@ -149,72 +285,35 @@ def test(
         print("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
 
-    def build_tags_for_flavor(flavor, build_include, build_exclude):
-        build_include = (
-            get_default_build_tags(build="unit-tests", arch=arch, flavor=flavor)
-            if build_include is None
-            else filter_incompatible_tags(build_include.split(","), arch=arch)
-        )
-        build_exclude = [] if build_exclude is None else build_exclude.split(",")
-        return get_build_tags(build_include, build_exclude)
-
     if not flavor:
         flavors = [AgentFlavor.base]
     else:
         flavors = [AgentFlavor[f] for f in flavor]
 
-    flavors_build_tags = [(f, build_tags_for_flavor(f, build_include, build_exclude)) for f in flavors]
+    flavors_build_tags = [
+        (
+            f,
+            compute_build_tags_for_flavor(
+                flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
+            ),
+        )
+        for f in flavors
+    ]
 
     timeout = int(timeout)
+
+    # Lint
 
     if skip_linters:
         print("--- [skipping Go linters]")
     else:
-        # Until all packages whitelisted in .golangci.yml are fixed and removed
-        # from the 'skip-dirs' list we need to keep using the old functions that
-        # lint without build flags (linting some file is better than no linting).
-        print("--- Vetting and linting (legacy):")
-        print ("----- Common")
-        for module in modules:
-            print(f"------- Module '{module.full_path()}'")
-            if not module.condition():
-                print("------- Skipped")
-                continue
-
-            with ctx.cd(module.full_path()):
-                fmt(ctx, targets=module.targets, fail_on_fmt=fail_on_fmt)
-                lint(ctx, targets=module.targets)
-                misspell(ctx, targets=module.targets)
-                ineffassign(ctx, targets=module.targets)
-
+        lint_common(ctx, modules=modules, fail_on_fmt=fail_on_fmt)
         for flavor, build_tags in flavors_build_tags:
-            print(f"----- Flavor '{flavor.name}'")
-            for module in modules:
-                print(f"------- Module '{module.full_path()}'")
-                if not module.condition():
-                    print("------- Skipped")
-                    continue
+            lint_flavor(
+                ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
+            )
 
-                with ctx.cd(module.full_path()):
-                    vet(ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
-                    staticcheck(ctx, targets=module.targets, build_tags=build_tags, arch=arch)
-
-        # for now we only run golangci_lint on Unix as the Windows env need more work
-        if sys.platform != 'win32':
-            print("--- golangci_lint:")
-
-            for flavor, build_tags in flavors_build_tags:
-                print(f"----- Flavor '{flavor.name}'")
-                for module in modules:
-                    print(f"------- Module '{module.full_path()}'")
-                    if not module.condition():
-                        print("------- Skipped")
-                        continue
-
-                    with ctx.cd(module.full_path()):
-                        golangci_lint(
-                            ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
-                        )
+    # Test preparation
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
@@ -262,21 +361,17 @@ def test(
         else:
             covermode_opt = "-covermode=count"
 
-    print("\n--- Running unit tests:")
-
     coverprofile = ""
     if coverage:
         coverprofile = f"-coverprofile={PROFILE_COV}"
 
     nocache = '-count=1' if not cache else ''
 
-    TMP_JSON = 'tmp.json'
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
-        # We don't need to do that for TMP_JSON since gotestsum overwrites the output.
+        # We don't need to do that for GO_TEST_RESULT_TMP_JSON since gotestsum overwrites the output.
         print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
-
 
     cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
@@ -291,61 +386,47 @@ def test(
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
-        "json_flag": f'--jsonfile "{TMP_JSON}" ' if save_result_json else "",
+        "json_flag": f'--jsonfile "{GO_TEST_RESULT_TMP_JSON}" ' if save_result_json else "",
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
     }
 
-    failed_modules = []
+    # Test
+
+    failed_modules = {}
     junit_files = []
     for flavor, build_tags in flavors_build_tags:
-        print(f"----- Flavor '{flavor.name}'")
+        junit_files_for_flavor, failed_modules_for_flavor = test_flavor(
+            ctx,
+            flavor=flavor,
+            build_tags=build_tags,
+            modules=modules,
+            cmd=cmd,
+            env=env,
+            args=args,
+            junit_tar=junit_tar,
+            save_result_json=save_result_json,
+            test_profiler=test_profiler,
+        )
 
-        args["go_build_tags"] = " ".join(build_tags + ["test"])
+        if failed_modules_for_flavor:
+            failed_modules[flavor] = failed_modules_for_flavor
+        if junit_files_for_flavor:
+            junit_files.extend(junit_files_for_flavor)
 
-        junit_file_flag = ""
-        junit_file = "junit-out-{}.xml".format(flavor.name)
-        if junit_tar:
-            junit_file_flag = "--junitfile " + junit_file
-
-        args["junit_file_flag"] = junit_file_flag
-
-
-        for module in modules:
-            print(f"------- Module '{module.full_path()}'")
-            if not module.condition():
-                print("------- Skipped")
-                continue
-
-            with ctx.cd(module.full_path()):
-                res = ctx.run(
-                    cmd.format(
-                        packages=' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets), **args
-                    ),
-                    env=env,
-                    out_stream=test_profiler,
-                    warn=True,
-                )
-
-            if res.exited is None or res.exited > 0:
-                failed_modules.append(module.full_path())
-
-            if save_result_json:
-                with open(save_result_json, 'ab') as json_file, open(
-                    os.path.join(module.full_path(), TMP_JSON), 'rb'
-                ) as module_file:
-                    json_file.write(module_file.read())
-
-            junit_file_path = os.path.join(module.full_path(), junit_file)
-            add_flavor_to_junitxml(junit_file_path, flavor)
-
-            junit_files.append(junit_file_path)
+    # Output
 
     if junit_tar:
         produce_junit_tar(junit_files, junit_tar)
 
     if failed_modules:
+        failure_string = '\n'.join(
+            [
+                f"{', '.join(failed_modules_for_flavor)} ({flavor.name} flavor)"
+                for flavor, failed_modules_for_flavor in failed_modules.items()
+            ]
+        )
         # Exit if any of the modules failed
-        raise Exit(code=1, message=f"Unit tests failed in the following modules: {', '.join(failed_modules)}")
+        raise Exit(code=1, message=f"Unit tests failed in the following modules:\n{failure_string}")
 
     if coverage:
         print("\n--- Test coverage:")
@@ -541,31 +622,6 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
             os.environ["ARGO_WORKFLOW"] = argo_workflow
 
     ctx.run(f"./test/e2e/scripts/setup-instance/00-entrypoint-{target}.sh")
-
-
-class TestProfiler:
-    times = []
-    parser = re.compile(r"^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
-
-    def write(self, txt):
-        # Output to stdout
-        # NOTE: write to underlying stream on Python 3 to avoid unicode issues when default encoding is not UTF-8
-        getattr(sys.stdout, 'buffer', sys.stdout).write(ensure_bytes(txt))
-        # Extract the run time
-        for result in self.parser.finditer(txt):
-            self.times.append((result.group(1), float(result.group(2))))
-
-    def flush(self):
-        sys.stdout.flush()
-
-    def print_sorted(self, limit=0):
-        if self.times:
-            sorted_times = sorted(self.times, key=operator.itemgetter(1), reverse=True)
-
-            if limit:
-                sorted_times = sorted_times[:limit]
-            for pkg, time in sorted_times:
-                print(f"{time}s\t{pkg}")
 
 
 @task

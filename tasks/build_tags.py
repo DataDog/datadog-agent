@@ -2,6 +2,7 @@
 Utilities to manage build tags
 """
 import sys
+from typing import List
 
 from invoke import task
 
@@ -163,6 +164,28 @@ build_tags = {
         "unit-tests": DOGSTATSD_TAGS,
     },
 }
+
+
+def compute_build_tags_for_flavor(
+    build: str, arch: str, build_include: List[str], build_exclude: List[str], flavor: AgentFlavor = AgentFlavor.base
+):
+    """
+    Given a flavor, an architecture, a list of tags to include and exclude, get the final list
+    of tags that should be applied.
+
+    If the list of build tags to include is empty, take the default list of build tags for
+    the flavor or arch. Otherwise, use the list of build tags to include, minus incompatible tags
+    for the given architecture.
+
+    Then, remove from these the provided list of tags to exclude.
+    """
+    build_include = (
+        get_default_build_tags(build=build, arch=arch, flavor=flavor)
+        if build_include is None
+        else filter_incompatible_tags(build_include.split(","), arch=arch)
+    )
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
+    return get_build_tags(build_include, build_exclude)
 
 
 def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
