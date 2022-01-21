@@ -1,6 +1,10 @@
 """
 Utilities to manage build tags
 """
+# TODO: check if we really need the typing import.
+# Recent versions of Python should be able to use dict and list directly in type hints,
+# so we only need to check that we don't run this code with old Python versions.
+
 import sys
 from typing import List
 

@@ -1,7 +1,9 @@
 """
 High level testing tasks
 """
-
+# TODO: check if we really need the typing import.
+# Recent versions of Python should be able to use dict and list directly in type hints,
+# so we only need to check that we don't run this code with old Python versions.
 
 import operator
 import os
@@ -121,6 +123,9 @@ def install_tools(ctx):
                     ctx.run(f"go install {tool}")
 
 
+# TODO: transform this & the linter functions to be able to run all linters with a single
+# for_each(modules: List[GoModule], callback: Callable[GoModule, *Args], *args)
+# call.
 def lint_common(ctx, modules: List[GoModule], fail_on_fmt: bool):
     """
     Runs linters that are flavor-independent (because they don't rely on build tags).
@@ -227,22 +232,20 @@ def test_flavor(
             ) as module_file:
                 json_file.write(module_file.read())
 
-        junit_file_path = None
         if junit_tar:
             junit_file_path = os.path.join(module.full_path(), junit_file)
             add_flavor_to_junitxml(junit_file_path, flavor)
-
-        junit_files.append(junit_file_path)
+            junit_files.append(junit_file_path)
 
     return junit_files, failed_modules
 
 
-@task(iterable=['flavor'])
+@task(iterable=['flavors'])
 def test(
     ctx,
     module=None,
     targets=None,
-    flavor=None,
+    flavors=None,
     coverage=False,
     build_include=None,
     build_exclude=None,
@@ -294,20 +297,17 @@ def test(
         print("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
 
-    if not flavor:
+    if not flavors:
         flavors = [AgentFlavor.base]
     else:
-        flavors = [AgentFlavor[f] for f in flavor]
+        flavors = [AgentFlavor[f] for f in flavors]
 
-    flavors_build_tags = [
-        (
-            f,
-            compute_build_tags_for_flavor(
-                flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
-            ),
+    flavors_build_tags = {
+        f: compute_build_tags_for_flavor(
+            flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
         )
         for f in flavors
-    ]
+    }
 
     timeout = int(timeout)
 
@@ -317,7 +317,7 @@ def test(
         print("--- [skipping Go linters]")
     else:
         lint_common(ctx, modules=modules, fail_on_fmt=fail_on_fmt)
-        for flavor, build_tags in flavors_build_tags:
+        for flavor, build_tags in flavors_build_tags.items():
             lint_flavor(
                 ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
             )
@@ -403,7 +403,7 @@ def test(
 
     failed_modules = {}
     junit_files = []
-    for flavor, build_tags in flavors_build_tags:
+    for flavor, build_tags in flavors_build_tags.items():
         junit_files_for_flavor, failed_modules_for_flavor = test_flavor(
             ctx,
             flavor=flavor,
