@@ -55,6 +55,17 @@ func FormatStatus(data []byte) (string, error) {
 	snmpTrapsStats := stats["snmpTrapsStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
+	// return pared down version of status if cluster checks runner
+	if config.IsCLCRunner() {
+		renderStatusTemplate(b, "/header.tmpl", stats)
+		renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
+		renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
+		renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
+		renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
+		renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"], stats["filterErrors"])
+
+		return b.String(), nil
+	}
 	renderStatusTemplate(b, "/header.tmpl", stats)
 	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
 	renderStatusTemplate(b, "/jmxfetch.tmpl", stats)
