@@ -253,8 +253,10 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	enabledChecks := getEnabledChecks()
+
 	// Exit if agent is not enabled and we're not debugging a check.
-	if len(cfg.EnabledChecks) == 0 && opts.check == "" {
+	if len(enabledChecks) == 0 && opts.check == "" {
 		log.Infof(agent6DisabledMessage)
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
@@ -320,7 +322,7 @@ func runAgent(exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(cfg)
+	cl, err := NewCollector(cfg, enabledChecks)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
 		cleanupAndExit(1)
@@ -442,4 +444,28 @@ func cleanupAndExit(status int) {
 	}
 
 	os.Exit(status)
+}
+
+func getEnabledChecks() (enabledChecks []string) {
+	rtChecksEnabled := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
+		enabledChecks = append(enabledChecks, checks.Process.Name())
+		if rtChecksEnabled {
+			enabledChecks = append(enabledChecks, checks.Process.RealTimeName())
+		}
+	} else {
+		if ddconfig.Datadog.GetBool("process_config.container_collection.enabled") {
+			enabledChecks = append(enabledChecks, checks.Container.Name())
+			if rtChecksEnabled {
+				enabledChecks = append(enabledChecks, checks.RTContainer.Name())
+			}
+		}
+		if ddconfig.Datadog.GetBool("process_config.process_discovery.enabled") {
+			enabledChecks = append(enabledChecks, checks.ProcessDiscovery.Name())
+		}
+	}
+	if ddconfig.Datadog.GetBool("network_config.enabled") {
+		enabledChecks = append(enabledChecks, checks.Connections.Name())
+	}
+	return
 }

@@ -122,7 +122,7 @@ func TestDisableRealTime(t *testing.T) {
 
 	assert := assert.New(t)
 	cfg := config.NewDefaultAgentConfig(false)
-	cfg.EnabledChecks = []string{
+	enabledChecks := []string{
 		config.ProcessCheckName,
 		config.RTProcessCheckName,
 		config.ContainerCheckName,
@@ -134,7 +134,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig := ddconfig.Mock()
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 
-			c, err := NewCollector(cfg)
+			c, err := NewCollector(cfg, enabledChecks)
 			assert.NoError(err)
 			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)

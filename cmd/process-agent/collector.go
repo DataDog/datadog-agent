@@ -78,7 +78,7 @@ type Collector struct {
 }
 
 // NewCollector creates a new Collector
-func NewCollector(cfg *config.AgentConfig) (Collector, error) {
+func NewCollector(cfg *config.AgentConfig, enabledCheckNames []string) (Collector, error) {
 	sysInfo, err := checks.CollectSystemInfo(cfg)
 	if err != nil {
 		return Collector{}, err
@@ -91,7 +91,7 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 			log.Infof("Skip enabling check '%s': realtime disabled", c.Name())
 			continue
 		}
-		if cfg.CheckIsEnabled(c.Name()) {
+		if util.StringInSlice(enabledCheckNames, c.Name()) {
 			c.Init(cfg, sysInfo)
 			enabledChecks = append(enabledChecks, c)
 		}
@@ -236,7 +236,12 @@ func (l *Collector) run(exit chan struct{}) error {
 	for _, e := range l.cfg.Orchestrator.OrchestratorEndpoints {
 		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
 	}
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
+
+	var checkNames []string
+	for _, check := range l.enabledChecks {
+		checkNames = append(checkNames, check.Name())
+	}
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
 
