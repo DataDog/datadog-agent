@@ -68,7 +68,7 @@ var (
 	processChecks   = []string{ProcessCheckName, RTProcessCheckName}
 	containerChecks = []string{ContainerCheckName, RTContainerCheckName}
 
-	moduleCheckMap = map[sysconfig.ModuleName][]string{
+	ModuleCheckMap = map[sysconfig.ModuleName][]string{
 		sysconfig.NetworkTracerModule:        {ConnectionsCheckName, NetworkCheckName},
 		sysconfig.OOMKillProbeModule:         {OOMKillCheckName},
 		sysconfig.TCPQueueLengthTracerModule: {TCPQueueLengthCheckName},
@@ -291,13 +291,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 		cfg.EnableSystemProbe = true
 		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = syscfg.SocketAddress
-
-		// enable corresponding checks to system-probe modules
-		for mod := range syscfg.EnabledModules {
-			if checks, ok := moduleCheckMap[mod]; ok {
-				cfg.EnabledChecks = append(cfg.EnabledChecks, checks...)
-			}
-		}
 	}
 
 	// TODO: Once proxies have been moved to common config util, remove this
@@ -328,15 +321,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 	if cfg.Windows.ArgsRefreshInterval == 0 {
 		log.Warnf("invalid configuration: windows_collect_skip_new_args was set to 0.  Disabling argument collection")
 		cfg.Windows.ArgsRefreshInterval = -1
-	}
-
-	// activate the pod collection if enabled and we have the cluster name set
-	if cfg.Orchestrator.OrchestrationCollectionEnabled {
-		if cfg.Orchestrator.KubeClusterName != "" {
-			cfg.EnabledChecks = append(cfg.EnabledChecks, PodCheckName)
-		} else {
-			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
-		}
 	}
 
 	return cfg, nil

@@ -119,7 +119,7 @@ func loadProcessTransforms(config Config) {
 	}
 
 	if config.GetBool("process_config.process_discovery.enabled") {
-		procDiscoveryInterval := config.GetDuration("process_config.process_discovery.enabled")
+		procDiscoveryInterval := config.GetDuration("process_config.process_discovery.interval")
 		if procDiscoveryInterval < procDiscoveryMinInterval {
 			_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s",
 				procDiscoveryMinInterval.String())

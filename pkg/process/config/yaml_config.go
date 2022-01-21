@@ -55,12 +55,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.HostName = config.Datadog.GetString("hostname")
 	}
 
-	if config.Datadog.GetBool("process_config.process_collection.enabled") {
-		a.EnabledChecks = processChecks
-	} else if config.Datadog.GetBool("process_config.container_collection.enabled") {
-		// Container checks are enabled only when process checks are not (since they automatically collect container data).
-		a.EnabledChecks = containerChecks
-	}
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
@@ -250,23 +244,5 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 	if interval := config.Datadog.GetInt(k); interval != 0 {
 		log.Infof("Overriding %s check interval to %ds", checkKey, interval)
 		a.CheckIntervals[checkKey] = time.Duration(interval) * time.Second
-	}
-}
-
-// Separate handler for initializing the process discovery check.
-// Since it has its own unique object, we need to handle loading in the check config differently separately
-// from the other checks.
-func (a *AgentConfig) initProcessDiscoveryCheck() {
-	root := key(ns, "process_discovery")
-
-	// Discovery check can only be enabled when regular process collection is not enabled.
-	processCheckEnabled := config.Datadog.GetBool("process_config.process_collection.enabled")
-	discoveryCheckEnabled := config.Datadog.GetBool(key(root, "enabled"))
-	if discoveryCheckEnabled && !processCheckEnabled {
-		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
-
-		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
-		// We use a minimum of 10 minutes for this value.
-		a.CheckIntervals[DiscoveryCheckName] = config.Datadog.GetDuration(key(root, "interval"))
 	}
 }

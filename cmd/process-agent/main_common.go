@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -253,7 +254,7 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	enabledChecks := getEnabledChecks()
+	enabledChecks := getEnabledChecks(syscfg, cfg.Orchestrator)
 
 	// Exit if agent is not enabled and we're not debugging a check.
 	if len(enabledChecks) == 0 && opts.check == "" {
@@ -446,7 +447,7 @@ func cleanupAndExit(status int) {
 	os.Exit(status)
 }
 
-func getEnabledChecks() (enabledChecks []string) {
+func getEnabledChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig) (enabledChecks []string) {
 	rtChecksEnabled := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
 		enabledChecks = append(enabledChecks, checks.Process.Name())
@@ -466,6 +467,23 @@ func getEnabledChecks() (enabledChecks []string) {
 	}
 	if ddconfig.Datadog.GetBool("network_config.enabled") {
 		enabledChecks = append(enabledChecks, checks.Connections.Name())
+	}
+
+	// activate the pod collection if enabled and we have the cluster name set
+	if oCfg.OrchestrationCollectionEnabled {
+		if oCfg.KubeClusterName != "" {
+			enabledChecks = append(enabledChecks, checks.Pod.Name())
+		} else {
+			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
+		}
+	}
+
+	if sysCfg.Enabled {
+		for mod := range sysCfg.EnabledModules {
+			if checks, ok := config.ModuleCheckMap[mod]; ok {
+				enabledChecks = append(enabledChecks, checks...)
+			}
+		}
 	}
 	return
 }
