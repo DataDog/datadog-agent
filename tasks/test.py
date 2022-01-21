@@ -122,6 +122,9 @@ def install_tools(ctx):
 
 
 def lint_common(ctx, modules: List[GoModule], fail_on_fmt: bool):
+    """
+    Runs linters that are flavor-independent (because they don't rely on build tags).
+    """
     # Until all packages whitelisted in .golangci.yml are fixed and removed
     # from the 'skip-dirs' list we need to keep using the old functions that
     # lint without build flags (linting some files is better than no linting).
@@ -142,6 +145,9 @@ def lint_common(ctx, modules: List[GoModule], fail_on_fmt: bool):
 def lint_flavor(
     ctx, modules: List[GoModule], flavor: AgentFlavor, build_tags: List[str], arch: str, rtloader_root: bool
 ):
+    """
+    Runs linters for given flavor, build tags, and modules.
+    """
     print(f"--- Flavor {flavor.name}: vet and staticcheck (legacy)")
     for module in modules:
         print(f"----- Module '{module.full_path()}'")
@@ -180,6 +186,9 @@ def test_flavor(
     save_result_json: str,
     test_profiler: TestProfiler,
 ):
+    """
+    Runs unit tests for given flavor, build tags, and modules.
+    """
     print(f"--- Flavor {flavor.name}: unit tests")
 
     failed_modules = []
