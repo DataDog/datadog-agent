@@ -21,5 +21,5 @@ type InvocationStartDetails struct {
 type InvocationEndDetails struct {
 	EndTime   time.Time
 	IsError   bool
-	RequestId string
+	RequestID string
 }

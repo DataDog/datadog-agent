@@ -40,7 +40,7 @@ func TestStartInvocation(t *testing.T) {
 	d.InvocationProcessor = m
 
 	client := &http.Client{Timeout: 1 * time.Second}
-	body := bytes.NewBuffer([]byte(`{"start_time": "2019-10-12T07:20:50.52Z", "headers": {"header-1": ["value-1"]}, "payload": "payload-string"}`))
+	body := bytes.NewBuffer([]byte(`{"toto": "titi", "tata":true}`))
 	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
 	assert.Nil(err)
 	res, err := client.Do(request)
@@ -100,7 +100,7 @@ func TestTraceContext(t *testing.T) {
 		DetectLambdaLibrary: func() bool { return false },
 	}
 	client := &http.Client{Timeout: 1 * time.Second}
-	body := bytes.NewBuffer([]byte(`{"start_time": "2019-10-12T07:20:50.52Z","Headers": {"x-datadog-trace-id": "2222"}}`))
+	body := bytes.NewBuffer([]byte(`{"toto": "tutu","Headers": {"x-datadog-trace-id": "2222"}}`))
 	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
 	assert.Nil(err)
 	_, err = client.Do(request)

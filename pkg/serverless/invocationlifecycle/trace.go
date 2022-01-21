@@ -63,7 +63,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(processTrace func(p *api.Payload), requestId string, endTime time.Time, isError bool) {
+func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool) {
 	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -77,7 +77,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestId string, endTi
 		Start:    currentExecutionInfo.startTime.UnixNano(),
 		Duration: duration,
 		Meta: map[string]string{
-			"request_id": requestId,
+			"request_id": requestID,
 		},
 	}
 

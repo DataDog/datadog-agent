@@ -54,7 +54,7 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read StartInvocation request body", 400)
 		return
 	}
-	var startDetails = &invocationlifecycle.InvocationStartDetails{
+	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,
 		InvokeEventRawPayload: string(reqBody),
 	}
@@ -73,7 +73,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var endDetails = invocationlifecycle.InvocationEndDetails{
 		EndTime:   endTime,
 		IsError:   r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
-		RequestId: e.daemon.ExecutionContext.LastRequestID,
+		RequestID: e.daemon.ExecutionContext.LastRequestID,
 	}
 	e.daemon.InvocationProcessor.OnInvokeEnd(&endDetails)
 }

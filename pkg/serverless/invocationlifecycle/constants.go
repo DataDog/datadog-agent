@@ -7,12 +7,15 @@ package invocationlifecycle
 
 const (
 	// TraceIDHeader is the header containing the traceID
+	// used in /trace-context
 	TraceIDHeader = "x-datadog-trace-id"
 
 	// SpanIDHeader is the header containing the spanID
+	// used in /lambda/start-invocation
 	SpanIDHeader = "x-datadog-span-id"
 
 	// InvocationErrorHeader : if set to "true", the extension will know that the current invocation has failed
+	// used in /lambda/end-invocation
 	InvocationErrorHeader = "x-datadog-invocation-error"
 
 	parentIDHeader = "x-datadog-parent-id"
