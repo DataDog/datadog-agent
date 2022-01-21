@@ -100,8 +100,9 @@ func setupProcesses(config Config) {
 // loadProcessTransforms loads transforms associated with process config settings. This is used to handle deprecated settings
 func loadProcessTransforms(config Config) {
 	if config.IsSet("process_config.enabled") {
-		log.Debug("process_config.enabled is deprecated, use process_config.container_collection.enabled" +
-			" and process_config.process_collection.enabled instead")
+		log.Info("process_config.enabled is deprecated, use process_config.container_collection.enabled " +
+			"and process_config.process_collection.enabled instead, " +
+			"see https://docs.datadoghq.com/infrastructure/process#installation for more information")
 		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
 		if procConfigEnabled == "disabled" {
 			config.Set("process_config.process_collection.enabled", false)
