@@ -97,6 +97,7 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListene
 		}
 		log.Debugf("Packet received from %s on listener %s", u.String(), c.Addr())
 		trapsPackets.Add(1)
+
 		packets <- &SnmpPacket{Content: p, Addr: u}
 	}
 

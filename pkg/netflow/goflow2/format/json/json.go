@@ -165,6 +165,14 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 	timestamp := float64(time.Now().UnixNano())
 	enhancedMetrics := []metrics.MetricSample{
 		{
+			Name:       "netflow.telemetry.flow_count",
+			Value:      1,
+			Mtype:      metrics.CountType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  timestamp,
+		},
+		{
 			Name:       "netflow.bytes",
 			Value:      float64(flowmsg.Bytes),
 			Mtype:      metrics.CountType,
