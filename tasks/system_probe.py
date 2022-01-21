@@ -184,7 +184,7 @@ def kitchen_prepare(ctx, windows=is_windows):
     for pkg in TEST_PACKAGES_LIST:
         target_packages += (
             check_output(
-                f"go list -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
+                f"go list -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
                 shell=True,
             )
             .decode('utf-8')
@@ -198,8 +198,9 @@ def kitchen_prepare(ctx, windows=is_windows):
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/netlink/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
+    gopath = check_output("go env GOPATH", shell=True).decode('utf-8').strip("\n")
     for i, pkg in enumerate(target_packages):
-        relative_path = os.path.relpath(pkg)
+        relative_path = os.path.relpath(gopath + "/src/" + pkg)
         target_path = os.path.join(KITCHEN_ARTIFACT_DIR, relative_path)
         target_bin = "testsuite"
         if windows:
