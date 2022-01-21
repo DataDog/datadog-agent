@@ -61,5 +61,8 @@ func getPythonVersion() (string, error) {
 	}
 	version := fmt.Sprintf("%s", out)
 	values := regexp.MustCompile("Python (.*)\n").FindStringSubmatch(version)
+	if len(values) < 2 {
+		return "", fmt.Errorf("could not find Python version in `python -V` output: %q", version)
+	}
 	return strings.Trim(values[1], "\r"), nil
 }
