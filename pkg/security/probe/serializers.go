@@ -32,8 +32,8 @@ type FileSerializer struct {
 	InUpperLayer        *bool      `json:"in_upper_layer,omitempty" jsonschema_description:"Indicator of file OverlayFS layer"`
 	MountID             *uint32    `json:"mount_id,omitempty" jsonschema_description:"File mount ID"`
 	Filesystem          string     `json:"filesystem,omitempty" jsonschema_description:"File filesystem name"`
-	UID                 uint32     `json:"uid" jsonschema_description:"File User ID"`
-	GID                 uint32     `json:"gid" jsonschema_description:"File Group ID"`
+	UID                 int64      `json:"uid" jsonschema_description:"File User ID"`
+	GID                 int64      `json:"gid" jsonschema_description:"File Group ID"`
 	User                string     `json:"user,omitempty" jsonschema_description:"File user"`
 	Group               string     `json:"group,omitempty" jsonschema_description:"File group"`
 	XAttrName           string     `json:"attribute_name,omitempty" jsonschema_description:"File extended attribute name"`
@@ -287,8 +287,8 @@ func newFileSerializer(fe *model.FileEvent, e *Event, forceInode ...uint64) *Fil
 		MountID:             getUint32Pointer(&fe.MountID),
 		Filesystem:          e.ResolveFileFilesystem(fe),
 		Mode:                getUint32Pointer(&mode), // only used by open events
-		UID:                 fe.UID,
-		GID:                 fe.GID,
+		UID:                 int64(fe.UID),
+		GID:                 int64(fe.GID),
 		User:                e.ResolveFileFieldsUser(&fe.FileFields),
 		Group:               e.ResolveFileFieldsGroup(&fe.FileFields),
 		Mtime:               getTimeIfNotZero(time.Unix(0, int64(fe.MTime))),
@@ -308,8 +308,8 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		Filesystem:          process.Filesystem,
 		InUpperLayer:        getInUpperLayer(r, &process.FileFields),
 		Mode:                getUint32Pointer(&mode),
-		UID:                 process.FileFields.UID,
-		GID:                 process.FileFields.GID,
+		UID:                 int64(process.FileFields.UID),
+		GID:                 int64(process.FileFields.GID),
 		User:                r.ResolveFileFieldsUser(&process.FileFields),
 		Group:               r.ResolveFileFieldsGroup(&process.FileFields),
 		Mtime:               getTimeIfNotZero(time.Unix(0, int64(process.FileFields.MTime))),

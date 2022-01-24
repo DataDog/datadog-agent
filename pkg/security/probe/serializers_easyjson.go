@@ -1537,9 +1537,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(in *jl
 		case "filesystem":
 			out.Filesystem = string(in.String())
 		case "uid":
-			out.UID = uint32(in.Uint32())
+			out.UID = int64(in.Int64())
 		case "gid":
-			out.GID = uint32(in.Uint32())
+			out.GID = int64(in.Int64())
 		case "user":
 			out.User = string(in.String())
 		case "group":
@@ -1705,12 +1705,12 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe10(out *j
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint32(uint32(in.UID))
+		out.Int64(int64(in.UID))
 	}
 	{
 		const prefix string = ",\"gid\":"
 		out.RawString(prefix)
-		out.Uint32(uint32(in.GID))
+		out.Int64(int64(in.GID))
 	}
 	if in.User != "" {
 		const prefix string = ",\"user\":"
@@ -1859,9 +1859,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 		case "filesystem":
 			out.Filesystem = string(in.String())
 		case "uid":
-			out.UID = uint32(in.Uint32())
+			out.UID = int64(in.Int64())
 		case "gid":
-			out.GID = uint32(in.Uint32())
+			out.GID = int64(in.Int64())
 		case "user":
 			out.User = string(in.String())
 		case "group":
@@ -2077,12 +2077,12 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *j
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint32(uint32(in.UID))
+		out.Int64(int64(in.UID))
 	}
 	{
 		const prefix string = ",\"gid\":"
 		out.RawString(prefix)
-		out.Uint32(uint32(in.GID))
+		out.Int64(int64(in.GID))
 	}
 	if in.User != "" {
 		const prefix string = ",\"user\":"
