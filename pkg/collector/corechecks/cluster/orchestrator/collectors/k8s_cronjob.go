@@ -22,20 +22,20 @@ import (
 
 // K8sCronJobCollector is a collector for Kubernetes CronJobs.
 type K8sCronJobCollector struct {
-	informer batchv1Informers.CronJobInformer
-	lister   batchv1Listers.CronJobLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  batchv1Informers.CronJobInformer
+	lister    batchv1Listers.CronJobLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sCronJobCollector() *K8sCronJobCollector {
 	return &K8sCronJobCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: true,
 			Name:     "cronjobs",
 			NodeType: orchestrator.K8sCronJob,
 		},
-		proc: processors.NewProcessor(new(processors.K8sCronJobHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sCronJobHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sCronJobCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sCronJobCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sCronJobCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunResult
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

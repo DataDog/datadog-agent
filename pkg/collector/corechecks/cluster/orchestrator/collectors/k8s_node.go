@@ -22,20 +22,20 @@ import (
 
 // K8sNodeCollector is a collector for Kubernetes Nodes.
 type K8sNodeCollector struct {
-	informer corev1Informers.NodeInformer
-	lister   corev1Listers.NodeLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  corev1Informers.NodeInformer
+	lister    corev1Listers.NodeLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sNodeCollector() *K8sNodeCollector {
 	return &K8sNodeCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: true,
 			Name:     "nodes",
 			NodeType: orchestrator.K8sNode,
 		},
-		proc: processors.NewProcessor(new(processors.K8sNodeHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sNodeHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sNodeCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sNodeCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sNodeCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunResult, e
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

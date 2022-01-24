@@ -22,20 +22,20 @@ import (
 
 // K8sDaemonSetCollector is a collector for Kubernetes DaemonSets.
 type K8sDaemonSetCollector struct {
-	informer appsv1Informers.DaemonSetInformer
-	lister   appsv1Listers.DaemonSetLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  appsv1Informers.DaemonSetInformer
+	lister    appsv1Listers.DaemonSetLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sDaemonSetCollector() *K8sDaemonSetCollector {
 	return &K8sDaemonSetCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: true,
 			Name:     "daemonsets",
 			NodeType: orchestrator.K8sDaemonSet,
 		},
-		proc: processors.NewProcessor(new(processors.K8sDaemonSetHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sDaemonSetHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sDaemonSetCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sDaemonSetCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sDaemonSetCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunResu
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

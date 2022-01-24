@@ -22,20 +22,20 @@ import (
 
 // K8sPersistentVolumeCollector is a collector for Kubernetes PersistentVolumes.
 type K8sPersistentVolumeCollector struct {
-	informer corev1Informers.PersistentVolumeInformer
-	lister   corev1Listers.PersistentVolumeLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  corev1Informers.PersistentVolumeInformer
+	lister    corev1Listers.PersistentVolumeLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sPersistentVolumeCollector() *K8sPersistentVolumeCollector {
 	return &K8sPersistentVolumeCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: false,
 			Name:     "persistentvolumes",
 			NodeType: orchestrator.K8sPersistentVolume,
 		},
-		proc: processors.NewProcessor(new(processors.K8sPersistentVolumeHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sPersistentVolumeHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sPersistentVolumeCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sPersistentVolumeCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sPersistentVolumeCollector) Run(rcfg *CollectorRunConfig) (*Collector
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

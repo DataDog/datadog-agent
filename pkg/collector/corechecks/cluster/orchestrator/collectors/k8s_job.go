@@ -22,20 +22,20 @@ import (
 
 // K8sJobCollector is a collector for Kubernetes Jobs.
 type K8sJobCollector struct {
-	informer batchv1Informers.JobInformer
-	lister   batchv1Listers.JobLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  batchv1Informers.JobInformer
+	lister    batchv1Listers.JobLister
+	metadata      *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sJobCollector() *K8sJobCollector {
 	return &K8sJobCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: true,
 			Name:     "jobs",
 			NodeType: orchestrator.K8sJob,
 		},
-		proc: processors.NewProcessor(new(processors.K8sJobHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sJobHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sJobCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sJobCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sJobCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunResult, er
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

@@ -22,20 +22,20 @@ import (
 
 // K8sRoleBindingCollector is a collector for Kubernetes RoleBindings.
 type K8sRoleBindingCollector struct {
-	informer rbacv1Informers.RoleBindingInformer
-	lister   rbacv1Listers.RoleBindingLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  rbacv1Informers.RoleBindingInformer
+	lister    rbacv1Listers.RoleBindingLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sRoleBindingCollector() *K8sRoleBindingCollector {
 	return &K8sRoleBindingCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: false,
 			Name:     "rolebindings",
 			NodeType: orchestrator.K8sRoleBinding,
 		},
-		proc: processors.NewProcessor(new(processors.K8sRoleBindingHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sRoleBindingHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sRoleBindingCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sRoleBindingCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sRoleBindingCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunRe
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

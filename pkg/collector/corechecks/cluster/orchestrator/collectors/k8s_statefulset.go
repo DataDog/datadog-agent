@@ -22,20 +22,20 @@ import (
 
 // K8sStatefulSetCollector is a collector for Kubernetes StatefulSets.
 type K8sStatefulSetCollector struct {
-	informer appsv1Informers.StatefulSetInformer
-	lister   appsv1Listers.StatefulSetLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  appsv1Informers.StatefulSetInformer
+	lister    appsv1Listers.StatefulSetLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sStatefulSetCollector() *K8sStatefulSetCollector {
 	return &K8sStatefulSetCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: true,
 			Name:     "statefulsets",
 			NodeType: orchestrator.K8sStatefulSet,
 		},
-		proc: processors.NewProcessor(new(processors.K8sStatefulSetHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sStatefulSetHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sStatefulSetCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sStatefulSetCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sStatefulSetCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunRe
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

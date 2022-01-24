@@ -22,20 +22,20 @@ import (
 
 // K8sPersistentVolumeClaimCollector is a collector for Kubernetes PersistentVolumeClaims.
 type K8sPersistentVolumeClaimCollector struct {
-	informer corev1Informers.PersistentVolumeClaimInformer
-	lister   corev1Listers.PersistentVolumeClaimLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  corev1Informers.PersistentVolumeClaimInformer
+	lister    corev1Listers.PersistentVolumeClaimLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sPersistentVolumeClaimCollector() *K8sPersistentVolumeClaimCollector {
 	return &K8sPersistentVolumeClaimCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: false,
 			Name:     "persistentvolumeclaims",
 			NodeType: orchestrator.K8sPersistentVolumeClaim,
 		},
-		proc: processors.NewProcessor(new(processors.K8sPersistentVolumeClaimHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sPersistentVolumeClaimHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sPersistentVolumeClaimCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sPersistentVolumeClaimCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sPersistentVolumeClaimCollector) Run(rcfg *CollectorRunConfig) (*Coll
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

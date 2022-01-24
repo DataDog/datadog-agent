@@ -22,20 +22,20 @@ import (
 
 // K8sClusterRoleCollector is a collector for Kubernetes ClusterRoles.
 type K8sClusterRoleCollector struct {
-	informer rbacv1Informers.ClusterRoleInformer
-	lister   rbacv1Listers.ClusterRoleLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  rbacv1Informers.ClusterRoleInformer
+	lister    rbacv1Listers.ClusterRoleLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sClusterRoleCollector() *K8sClusterRoleCollector {
 	return &K8sClusterRoleCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: false,
 			Name:     "clusterroles",
 			NodeType: orchestrator.K8sClusterRole,
 		},
-		proc: processors.NewProcessor(new(processors.K8sClusterRoleHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sClusterRoleHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sClusterRoleCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sClusterRoleCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sClusterRoleCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunRe
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

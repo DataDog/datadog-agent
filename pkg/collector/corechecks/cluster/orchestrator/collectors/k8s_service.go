@@ -22,20 +22,20 @@ import (
 
 // K8sServiceCollector is a collector for Kubernetes Services.
 type K8sServiceCollector struct {
-	informer corev1Informers.ServiceInformer
-	lister   corev1Listers.ServiceLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  corev1Informers.ServiceInformer
+	lister    corev1Listers.ServiceLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sServiceCollector() *K8sServiceCollector {
 	return &K8sServiceCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: true,
 			Name:     "services",
 			NodeType: orchestrator.K8sService,
 		},
-		proc: processors.NewProcessor(new(processors.K8sServiceHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sServiceHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sServiceCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sServiceCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sServiceCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunResult
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

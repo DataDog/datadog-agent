@@ -22,20 +22,20 @@ import (
 
 // K8sClusterRoleBindingCollector is a collector for Kubernetes ClusterRoleBindings.
 type K8sClusterRoleBindingCollector struct {
-	informer rbacv1Informers.ClusterRoleBindingInformer
-	lister   rbacv1Listers.ClusterRoleBindingLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  rbacv1Informers.ClusterRoleBindingInformer
+	lister    rbacv1Listers.ClusterRoleBindingLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sClusterRoleBindingCollector() *K8sClusterRoleBindingCollector {
 	return &K8sClusterRoleBindingCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: false,
 			Name:     "clusterrolebindings",
 			NodeType: orchestrator.K8sClusterRoleBinding,
 		},
-		proc: processors.NewProcessor(new(processors.K8sClusterRoleBindingHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sClusterRoleBindingHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sClusterRoleBindingCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sClusterRoleBindingCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sClusterRoleBindingCollector) Run(rcfg *CollectorRunConfig) (*Collect
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

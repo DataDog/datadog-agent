@@ -22,20 +22,20 @@ import (
 
 // K8sClusterCollector is a collector for Kubernetes clusters.
 type K8sClusterCollector struct {
-	informer corev1Informers.NodeInformer
-	lister   corev1Listers.NodeLister
-	meta     *CollectorMetadata
-	proc     *processors.K8sClusterProcessor
+	informer  corev1Informers.NodeInformer
+	lister    corev1Listers.NodeLister
+	metadata  *CollectorMetadata
+	processor *processors.K8sClusterProcessor
 }
 
 func newK8sClusterCollector() *K8sClusterCollector {
 	return &K8sClusterCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: true,
 			Name:     "clusters",
 			NodeType: orchestrator.K8sCluster,
 		},
-		proc: processors.NewK8sClusterProcessor(),
+		processor: processors.NewK8sClusterProcessor(),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sClusterCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sClusterCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sClusterCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunResult
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed, err := c.proc.Process(ctx, list)
+	messages, processed, err := c.processor.Process(ctx, list)
 
 	// This would happen when recovering from a processor panic. In the nominal
 	// case we would have a positive integer set at the very end of processing.

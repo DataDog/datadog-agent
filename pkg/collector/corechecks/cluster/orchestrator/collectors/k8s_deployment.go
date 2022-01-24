@@ -22,20 +22,20 @@ import (
 
 // K8sDeploymentCollector is a collector for Kubernetes Deployments.
 type K8sDeploymentCollector struct {
-	informer appsv1Informers.DeploymentInformer
-	lister   appsv1Listers.DeploymentLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  appsv1Informers.DeploymentInformer
+	lister    appsv1Listers.DeploymentLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sDeploymentCollector() *K8sDeploymentCollector {
 	return &K8sDeploymentCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: true,
 			Name:     "deployments",
 			NodeType: orchestrator.K8sDeployment,
 		},
-		proc: processors.NewProcessor(new(processors.K8sDeploymentHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sDeploymentHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sDeploymentCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sDeploymentCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sDeploymentCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunRes
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic

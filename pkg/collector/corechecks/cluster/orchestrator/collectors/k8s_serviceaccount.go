@@ -22,20 +22,20 @@ import (
 
 // K8sServiceAccountCollector is a collector for Kubernetes ServiceAccounts.
 type K8sServiceAccountCollector struct {
-	informer corev1Informers.ServiceAccountInformer
-	lister   corev1Listers.ServiceAccountLister
-	meta     *CollectorMetadata
-	proc     *processors.Processor
+	informer  corev1Informers.ServiceAccountInformer
+	lister    corev1Listers.ServiceAccountLister
+	metadata  *CollectorMetadata
+	processor *processors.Processor
 }
 
 func newK8sServiceAccountCollector() *K8sServiceAccountCollector {
 	return &K8sServiceAccountCollector{
-		meta: &CollectorMetadata{
+		metadata: &CollectorMetadata{
 			IsStable: false,
 			Name:     "serviceaccounts",
 			NodeType: orchestrator.K8sServiceAccount,
 		},
-		proc: processors.NewProcessor(new(processors.K8sServiceAccountHandlers)),
+		processor: processors.NewProcessor(new(processors.K8sServiceAccountHandlers)),
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *K8sServiceAccountCollector) Init(rcfg *CollectorRunConfig) {
 
 // Metadata is used to access information about the collector.
 func (c *K8sServiceAccountCollector) Metadata() *CollectorMetadata {
-	return c.meta
+	return c.metadata
 }
 
 // Run triggers the collection process.
@@ -67,10 +67,10 @@ func (c *K8sServiceAccountCollector) Run(rcfg *CollectorRunConfig) (*CollectorRu
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
 		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.meta.NodeType,
+		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.proc.Process(ctx, list)
+	messages, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, errProcessingPanic
