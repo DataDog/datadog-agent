@@ -1,3 +1,4 @@
+
 # Inventory Payload
 
 This package populates some of the agent-related fields in the `inventories` product in DataDog.
@@ -63,7 +64,7 @@ The payload is a JSON dict with the following fields
     config option).
   - `feature_process_enabled` - **bool**: True if the Process Agent has process collection enabled
      (see: `process_config.process_collection.enabled` config option).
-  - `feature_containers_enabled` - **bool**: True if the Process Agent has container collection enabled
+  - `feature_container_processes_enabled` - **bool**: True if the Process Agent has container collection enabled
      (see: `process_config.container_collection.enabled`)
   - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:
     `network_config.enabled` config option in `system-probe.yaml`).
