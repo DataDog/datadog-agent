@@ -10,6 +10,7 @@ package transformers
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	rbacv1 "k8s.io/api/rbac/v1"
 )
 

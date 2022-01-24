@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	jsoniter "github.com/json-iterator/go"
 	"k8s.io/apimachinery/pkg/types"
 )

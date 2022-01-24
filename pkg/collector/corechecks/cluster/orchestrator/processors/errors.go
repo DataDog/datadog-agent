@@ -9,8 +9,9 @@
 package processors
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // newMarshallingError creates an error that wraps the cause of a marshalling
