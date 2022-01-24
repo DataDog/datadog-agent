@@ -238,14 +238,8 @@ func (h *testProbeHandler) HandleEvent(event *sprobe.Event) {
 	h.RLock()
 	defer h.RUnlock()
 
-	if h.module == nil {
-		return
-	}
-
 	h.reloading.Lock()
 	defer h.reloading.Unlock()
-
-	h.module.HandleEvent(event)
 
 	if h.eventHandler != nil && h.eventHandler.callback != nil {
 		h.eventHandler.callback(event)
@@ -567,7 +561,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.Wrap(err, "failed to init module")
 	}
 
-	testMod.probe.SetEventHandler(testMod.probeHandler)
+	testMod.probe.AddEventHandler(testMod.probeHandler, model.UnknownEventType)
 
 	if err := testMod.module.Start(); err != nil {
 		return nil, errors.Wrap(err, "failed to start module")
