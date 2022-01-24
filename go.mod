@@ -35,6 +35,9 @@ replace (
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.28.0
 )
 
+// HACK: Add `insecure` package (added on grpc-go v1.34) to support packages using it (notably go.opentelemetry/collector)
+replace google.golang.org/grpc/credentials/insecure => ./internal/patch/grpc-go-insecure
+
 replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
