@@ -24,7 +24,7 @@ import (
 type K8sJobCollector struct {
 	informer  batchv1Informers.JobInformer
 	lister    batchv1Listers.JobLister
-	metadata      *CollectorMetadata
+	metadata  *CollectorMetadata
 	processor *processors.Processor
 }
 
