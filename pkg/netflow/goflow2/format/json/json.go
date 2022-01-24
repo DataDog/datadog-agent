@@ -82,6 +82,8 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 		fmt.Sprintf("dst_port:%s", sanitizePort(flowmsg.DstPort)),
 		fmt.Sprintf("type:%s", eType),
 		fmt.Sprintf("icmp_type:%s", icmpType),
+		fmt.Sprintf("in_if:%d", flowmsg.InIf),
+		fmt.Sprintf("out_if:%d", flowmsg.OutIf),
 	}
 	if dstL7ProtoName != "" {
 		tags = append(tags, fmt.Sprintf("dst_l7_proto_name:%s", dstL7ProtoName))
