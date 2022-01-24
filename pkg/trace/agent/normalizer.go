@@ -152,6 +152,12 @@ func normalizeChunk(chunk *pb.TraceChunk, root *pb.Span) {
 		if p, ok := root.Metrics[tagSamplingPriority]; ok {
 			chunk.Priority = int32(p)
 		}
+		for _, s := range chunk.Spans {
+			if p, ok := s.Metrics[tagSamplingPriority]; ok {
+				chunk.Priority = int32(p)
+				break
+			}
+		}
 	}
 	if chunk.Origin == "" && root.Meta != nil {
 		// Older tracers set origin in the root span.
