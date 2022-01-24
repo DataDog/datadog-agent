@@ -8,6 +8,7 @@ package config
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -17,6 +18,10 @@ const (
 	// DefaultGRPCConnectionTimeoutSecs sets the default value for timeout when connecting to the agent
 	DefaultGRPCConnectionTimeoutSecs = 60
 )
+
+// setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
+// we need to make sure it is only applied once
+var processesAddOverrideOnce sync.Once
 
 // procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
 // We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
@@ -94,10 +99,12 @@ func setupProcesses(config Config) {
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 
-	AddOverrideFunc(loadProcessTransforms)
+	processesAddOverrideOnce.Do(func() {
+		AddOverrideFunc(loadProcessTransforms)
+	})
 }
 
-// loadProcessTransforms loads transforms associated with process config settings. This is used to handle deprecated settings
+// loadProcessTransforms loads transforms associated with process config settings.
 func loadProcessTransforms(config Config) {
 	if config.IsSet("process_config.enabled") {
 		log.Info("process_config.enabled is deprecated, use process_config.container_collection.enabled " +
