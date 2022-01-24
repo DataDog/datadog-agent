@@ -22,6 +22,7 @@ func setupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/agent/status", statusHandler).Methods("GET")
 }
 
 // StartServer starts the config server
