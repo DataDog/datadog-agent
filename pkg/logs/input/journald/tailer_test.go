@@ -35,7 +35,7 @@ func TestIdentifier(t *testing.T) {
 }
 
 func TestShouldDropEntry(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{ExcludeUnits: []string{"foo", "bar"}})
+	source := config.NewLogSource("", &config.LogsConfig{ExcludeUnits: []string{"foo", "bar"}, ExcludeMatches: []string{"baz=one"}})
 	tailer := NewTailer(source, nil)
 	err := tailer.setup()
 	assert.Nil(t, err)
@@ -58,6 +58,27 @@ func TestShouldDropEntry(t *testing.T) {
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "boo",
+			},
+		}))
+
+	assert.True(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				"baz": "one",
+			},
+		}))
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				"baz": "two",
+			},
+		}))
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				"other": "one",
 			},
 		}))
 }

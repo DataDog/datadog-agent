@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"time"
 
 	"github.com/coreos/go-systemd/sdjournal"
@@ -31,7 +32,7 @@ type Tailer struct {
 	source     *config.LogSource
 	outputChan chan *message.Message
 	journal    *sdjournal.Journal
-	blacklist  map[string]bool
+	blacklist  map[string]map[string]bool // a map of string to a "set" of strings
 	stop       chan struct{}
 	done       chan struct{}
 }
@@ -88,20 +89,39 @@ func (t *Tailer) setup() error {
 		return err
 	}
 
+	// add filters to collect only the logs matching units/matches described in the configuration,
+	// if no units/matches are defined, collect all the logs of the journal by default.
 	for _, unit := range config.IncludeUnits {
-		// add filters to collect only the logs of the units defined in the configuration,
-		// if no units are defined, collect all the logs of the journal by default.
 		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT + "=" + unit
 		err := t.journal.AddMatch(match)
 		if err != nil {
 			return fmt.Errorf("could not add filter %s: %s", match, err)
 		}
 	}
+	for _, match := range config.IncludeMatches {
+		err := t.journal.AddMatch(match)
+		if err != nil {
+			return fmt.Errorf("could not add filter %s: %s", match, err)
+		}
+	}
 
-	t.blacklist = make(map[string]bool)
+	// add filters to drop all the logs related to matches to exclude.
+	t.blacklist = map[string]map[string]bool{sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: make(map[string]bool)}
 	for _, unit := range config.ExcludeUnits {
-		// add filters to drop all the logs related to units to exclude.
-		t.blacklist[unit] = true
+		t.blacklist[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT][unit] = true
+	}
+	matchRe := regexp.MustCompile("^([^=]+)=(.+)$")
+	for _, match := range config.ExcludeMatches {
+		submatches := matchRe.FindStringSubmatch(match)
+		if len(submatches) < 1 {
+			return fmt.Errorf("incorrectly formatted ExcludeMatch (must be `[field]=[value]`: %s", match)
+		}
+		key := submatches[1]
+		if t.blacklist[key] == nil {
+			t.blacklist[key] = map[string]bool{}
+		}
+		value := submatches[2]
+		t.blacklist[key][value] = true
 	}
 
 	return nil
@@ -163,13 +183,12 @@ func (t *Tailer) tail() {
 // shouldDrop returns true if the entry should be dropped,
 // returns false otherwise.
 func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
-	unit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
-	if !exists {
-		return false
-	}
-	if _, blacklisted := t.blacklist[unit]; blacklisted {
-		// drop the entry
-		return true
+	for key, values := range t.blacklist {
+		if value, ok := entry.Fields[key]; ok {
+			if _, contains := values[value]; contains {
+				return true
+			}
+		}
 	}
 	return false
 }
