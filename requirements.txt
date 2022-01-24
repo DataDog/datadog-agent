@@ -1,7 +1,7 @@
 # python development requirements for the Datadog Agent
 invoke==1.6.0
 reno==3.5.0
-dulwich<0.20.27
+dulwich<0.20.33
 docker==5.0.3
 docker-squash==1.0.9
 requests==2.26.0
