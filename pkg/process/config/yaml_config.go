@@ -57,10 +57,10 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	}
 
 	if config.Datadog.GetBool("process_config.process_collection.enabled") {
-		a.EnabledChecks = processChecks
+		a.EnabledChecks = append(a.EnabledChecks, processChecks...)
 	} else if config.Datadog.GetBool("process_config.container_collection.enabled") {
 		// Container checks are enabled only when process checks are not (since they automatically collect container data).
-		a.EnabledChecks = containerChecks
+		a.EnabledChecks = append(a.EnabledChecks, containerChecks...)
 	}
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
