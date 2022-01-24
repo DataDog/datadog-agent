@@ -132,7 +132,6 @@ func (p *K8sClusterProcessor) Process(ctx *ProcessorContext, list interface{}) (
 }
 
 func fillClusterResourceVersion(c *model.Cluster) error {
-	// Marshal the cluster message to JSON.
 	marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
 	jsonClustermodel, err := marshaller.Marshal(c)
 	if err != nil {
