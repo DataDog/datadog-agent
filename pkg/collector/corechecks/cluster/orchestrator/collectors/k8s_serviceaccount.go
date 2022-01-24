@@ -56,7 +56,7 @@ func (c *K8sServiceAccountCollector) Metadata() *CollectorMetadata {
 }
 
 // Run triggers the collection process.
-func (c *K8sServiceAccountCollector) Run(rcfg *CollectorRunConfig) (res *CollectorRunResult, err error) {
+func (c *K8sServiceAccountCollector) Run(rcfg *CollectorRunConfig) (*CollectorRunResult, error) {
 	list, err := c.lister.List(labels.Everything())
 	if err != nil {
 		return nil, newListingError(err)
