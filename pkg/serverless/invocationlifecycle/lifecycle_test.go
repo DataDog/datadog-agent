@@ -58,7 +58,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 
 	eventPayload := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startInvocationTime := time.Now()
-	startDetails := InvocationStartDetails{StartTime: startInvocationTime, InvokeEventPayload: eventPayload}
+	startDetails := InvocationStartDetails{StartTime: startInvocationTime, InvokeEventRawPayload: eventPayload}
 
 	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,

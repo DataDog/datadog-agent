@@ -25,10 +25,7 @@ func (tp *testProcessorResponseValid) OnInvokeStart(startDetails *invocationlife
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if len(startDetails.InvokeHeaders) != 3 {
-		panic("headers")
-	}
-	if !strings.HasSuffix(startDetails.InvokeEventPayload, "ok") {
+	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
 		panic("payload")
 	}
 }
@@ -48,10 +45,7 @@ func (tp *testProcessorResponseError) OnInvokeStart(startDetails *invocationlife
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if len(startDetails.InvokeHeaders) != 3 {
-		panic("headers")
-	}
-	if !strings.HasSuffix(startDetails.InvokeEventPayload, "ok") {
+	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
 		panic("payload")
 	}
 }

@@ -26,13 +26,11 @@ type LifecycleProcessor struct {
 func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
 	log.Debug("[lifecycle] onInvokeStart ------")
 	log.Debug("[lifecycle] Invocation has started at :", startDetails.StartTime)
-	log.Debug("[lifecycle] Invocation invokeHeaders are :", startDetails.InvokeHeaders)
-	log.Debug("[lifecycle] Invocation invokeEvent payload is :", startDetails.InvokeEventPayload)
+	log.Debug("[lifecycle] Invocation invokeEvent payload is :", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventPayload)
-
+		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload)
 	}
 }
 
@@ -45,7 +43,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError)
+		endExecutionSpan(lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError)
 	}
 
 	if endDetails.IsError {

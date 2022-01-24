@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -62,7 +63,7 @@ func startExecutionSpan(startTime time.Time, rawPayload string) {
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time, isError bool) {
+func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool) {
 	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -75,6 +76,9 @@ func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time, isEr
 		ParentID: currentExecutionInfo.parentID,
 		Start:    currentExecutionInfo.startTime.UnixNano(),
 		Duration: duration,
+		Meta: map[string]string{
+			"request_id": requestID,
+		},
 	}
 
 	if isError {
@@ -82,7 +86,8 @@ func endExecutionSpan(processTrace func(p *api.Payload), endTime time.Time, isEr
 	}
 
 	traceChunk := &pb.TraceChunk{
-		Spans: []*pb.Span{executionSpan},
+		Priority: int32(sampler.PriorityNone),
+		Spans:    []*pb.Span{executionSpan},
 	}
 
 	tracerPayload := &pb.TracerPayload{

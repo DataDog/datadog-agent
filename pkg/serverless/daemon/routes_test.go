@@ -19,14 +19,16 @@ import (
 type mockLifecycleProcessor struct {
 	OnInvokeStartCalled bool
 	OnInvokeEndCalled   bool
+	isError             bool
 }
 
 func (m *mockLifecycleProcessor) OnInvokeStart(*invocationlifecycle.InvocationStartDetails) {
 	m.OnInvokeStartCalled = true
 }
 
-func (m *mockLifecycleProcessor) OnInvokeEnd(*invocationlifecycle.InvocationEndDetails) {
+func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails) {
 	m.OnInvokeEndCalled = true
+	m.isError = endDetails.IsError
 }
 
 func TestStartInvocation(t *testing.T) {
@@ -38,31 +40,13 @@ func TestStartInvocation(t *testing.T) {
 	d.InvocationProcessor = m
 
 	client := &http.Client{Timeout: 1 * time.Second}
-	body := bytes.NewBuffer([]byte(`{"start_time": "2019-10-12T07:20:50.52Z", "headers": {"header-1": ["value-1"]}, "payload": "payload-string"}`))
+	body := bytes.NewBuffer([]byte(`{"toto": "titi", "tata":true}`))
 	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
 	assert.Equal(res.StatusCode, 200)
 	assert.True(m.OnInvokeStartCalled)
-}
-
-func TestStartInvocationInvalidRequestBody(t *testing.T) {
-	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
-	defer d.Stop()
-
-	m := &mockLifecycleProcessor{}
-	d.InvocationProcessor = m
-
-	client := &http.Client{Timeout: 1 * time.Second}
-	body := bytes.NewBuffer([]byte(`INVALID`))
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
-	assert.Nil(err)
-	res, err := client.Do(request)
-	assert.Nil(err)
-	assert.Equal(res.StatusCode, 400)
-	assert.False(m.OnInvokeStartCalled)
 }
 
 func TestEndInvocation(t *testing.T) {
@@ -74,13 +58,34 @@ func TestEndInvocation(t *testing.T) {
 	d.InvocationProcessor = m
 
 	client := &http.Client{Timeout: 1 * time.Second}
-	body := bytes.NewBuffer([]byte(`{"end_time": "2019-10-12T07:20:50.52Z", "is_error": false}`))
+	body := bytes.NewBuffer([]byte(`{}`))
 	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/end-invocation", body)
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
 	assert.Equal(res.StatusCode, 200)
+	assert.False(m.isError)
 	assert.True(m.OnInvokeEndCalled)
+}
+
+func TestEndInvocationWithError(t *testing.T) {
+	assert := assert.New(t)
+	d := StartDaemon("127.0.0.1:8124")
+	defer d.Stop()
+
+	m := &mockLifecycleProcessor{}
+	d.InvocationProcessor = m
+
+	client := &http.Client{Timeout: 1 * time.Second}
+	body := bytes.NewBuffer([]byte(`{}`))
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/end-invocation", body)
+	request.Header.Set("x-datadog-invocation-error", "true")
+	assert.Nil(err)
+	res, err := client.Do(request)
+	assert.Nil(err)
+	assert.Equal(res.StatusCode, 200)
+	assert.True(m.OnInvokeEndCalled)
+	assert.True(m.isError)
 }
 
 func TestTraceContext(t *testing.T) {
@@ -95,7 +100,7 @@ func TestTraceContext(t *testing.T) {
 		DetectLambdaLibrary: func() bool { return false },
 	}
 	client := &http.Client{Timeout: 1 * time.Second}
-	body := bytes.NewBuffer([]byte(`{"start_time": "2019-10-12T07:20:50.52Z","headers": {"x-datadog-trace-id": ["1234"]},"payload": "{\"headers\":{\"x-datadog-parent-id\":\"1111\",\"x-datadog-trace-id\":\"2222\"}}"}`))
+	body := bytes.NewBuffer([]byte(`{"toto": "tutu","Headers": {"x-datadog-trace-id": "2222"}}`))
 	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/start-invocation", body)
 	assert.Nil(err)
 	_, err = client.Do(request)
@@ -107,22 +112,4 @@ func TestTraceContext(t *testing.T) {
 	assert.Equal("2222", fmt.Sprintf("%v", invocationlifecycle.TraceID()))
 	assert.Equal(response.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", invocationlifecycle.TraceID()))
 	assert.Equal(response.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", invocationlifecycle.SpanID()))
-}
-
-func TestEndInvocationInvalidRequestBody(t *testing.T) {
-	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
-	defer d.Stop()
-
-	m := &mockLifecycleProcessor{}
-	d.InvocationProcessor = m
-
-	client := &http.Client{Timeout: 1 * time.Second}
-	body := bytes.NewBuffer([]byte(`INVALID`))
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/lambda/end-invocation", body)
-	assert.Nil(err)
-	res, err := client.Do(request)
-	assert.Nil(err)
-	assert.Equal(res.StatusCode, 400)
-	assert.False(m.OnInvokeStartCalled)
 }
