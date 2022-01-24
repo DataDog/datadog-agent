@@ -563,15 +563,6 @@ func TestUnconnectedUDPSendIPv6(t *testing.T) {
 }
 
 func TestGatewayLookupNotEnabled(t *testing.T) {
-	t.Run("gateway lookup not enabled", func(t *testing.T) {
-		cfg := testConfig()
-		tr, err := NewTracer(cfg)
-		require.NoError(t, err)
-		require.NotNil(t, tr)
-		defer tr.Stop()
-		require.Nil(t, tr.gwLookup)
-	})
-
 	t.Run("gateway lookup enabled, not on aws", func(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
