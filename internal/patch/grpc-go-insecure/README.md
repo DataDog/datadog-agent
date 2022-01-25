@@ -15,7 +15,8 @@ We need this because of a 'dependency hell' situation:
 3. `go.opentelemetry.io/collector` v0.42.0 and above depends on the `google.golang.org/grpc/credentials/insecure` package, which was added in v1.34. We depend on the Collector dependency directly.
 
 This situation would be solved by bumping Kubernetes to v0.22.0 or above, which depends on etcd v3.6.0+, which does not make use of the removed grpc-go API.
-However, Kubernetes can't be upgraded above v0.21.x, because of another 'dependency hell': [it depends on v0.20 of `go.opentelemetry.io/otel`](https://github.com/kubernetes/kubernetes/issues/106536).
+However, Kubernetes can't be upgraded above v0.21.x, because of another 'dependency hell': [it depends on v0.20 of `go.opentelemetry.io/otel`](https://github.com/kubernetes/kubernetes/issues/106536).Preserving backwards-compatibility with older Kubernetes API objects also makes the update difficult.
+
 
 This module is used to solve this dependency hell, by adding the `google.golang.org/grpc/credentials/insecure` package into version v1.28 of grpc-go.
 
