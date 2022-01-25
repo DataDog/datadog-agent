@@ -34,8 +34,16 @@ func parseAndEnrichSingleMetricMessage(message []byte, namespace string, namespa
 		return metrics.MetricSample{}, err
 	}
 
+	params := enrichmentParams{
+		metricPrefix:              namespace,
+		metricPrefixBlacklist:     namespaceBlacklist,
+		metricBlocklist:           metricBlocklist,
+		defaultHostname:           defaultHostname,
+		entityIDPrecedenceEnabled: true,
+	}
+
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, namespace, namespaceBlacklist, metricBlocklist, defaultHostname, "", true, false)
+	samples = params.enrichMetricSample(samples, parsed, "")
 	if len(samples) != 1 {
 		return metrics.MetricSample{}, fmt.Errorf("wrong number of metrics parsed")
 	}
@@ -49,8 +57,16 @@ func parseAndEnrichMultipleMetricMessage(message []byte, namespace string, names
 		return []metrics.MetricSample{}, err
 	}
 
+	params := enrichmentParams{
+		metricPrefix:              namespace,
+		metricPrefixBlacklist:     namespaceBlacklist,
+		metricBlocklist:           metricBlocklist,
+		defaultHostname:           defaultHostname,
+		entityIDPrecedenceEnabled: true,
+	}
+
 	samples := []metrics.MetricSample{}
-	return enrichMetricSample(samples, parsed, namespace, namespaceBlacklist, metricBlocklist, defaultHostname, "", true, false), nil
+	return params.enrichMetricSample(samples, parsed, ""), nil
 }
 
 func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
@@ -819,7 +835,14 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", nil, metricBlocklist, "default", "", true, false)
+
+	params := enrichmentParams{
+		metricBlocklist:           metricBlocklist,
+		defaultHostname:           "default",
+		entityIDPrecedenceEnabled: true,
+	}
+
+	samples = params.enrichMetricSample(samples, parsed, "")
 
 	assert.Equal(t, 0, len(samples))
 }
@@ -830,8 +853,16 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
+
+	params := enrichmentParams{
+		metricBlocklist:           metricBlocklist,
+		defaultHostname:           "default",
+		entityIDPrecedenceEnabled: true,
+		ServerlessMode:            true,
+	}
+
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", nil, metricBlocklist, "default", "", true, true)
+	samples = params.enrichMetricSample(samples, parsed, "")
 
 	assert.Equal(t, 1, len(samples))
 	assert.Equal(t, "", samples[0].Host)
@@ -846,8 +877,15 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
+
+	params := enrichmentParams{
+		metricBlocklist:           metricBlocklist,
+		defaultHostname:           "default",
+		entityIDPrecedenceEnabled: true,
+	}
+
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", nil, metricBlocklist, "default", "", true, false)
+	samples = params.enrichMetricSample(samples, parsed, "")
 
 	assert.Equal(t, 1, len(samples))
 }

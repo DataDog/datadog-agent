@@ -20,6 +20,16 @@ var (
 	CardinalityTagPrefix = "dd.internal.card:"
 )
 
+type enrichmentParams struct {
+	metricPrefix              string
+	metricPrefixBlacklist     []string
+	metricBlocklist           []string
+	defaultHostname           string
+	entityIDPrecedenceEnabled bool
+	// ServerlessMode is set to true if we're running in a serverless environment.
+	ServerlessMode bool
+}
+
 func extractTagsMetadata(tags []string, defaultHostname string, originTags string, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
 	host := defaultHostname
 
@@ -98,20 +108,19 @@ func isMetricBlocklisted(metricName string, metricBlocklist []string) bool {
 	return false
 }
 
-func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
-	metricBlocklist []string, defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
+func (p *enrichmentParams) enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string) []metrics.MetricSample {
 	metricName := ddSample.name
-	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(ddSample.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
+	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(ddSample.tags, p.defaultHostname, origin, p.entityIDPrecedenceEnabled)
 
-	if !isExcluded(metricName, namespace, excludedNamespaces) {
-		metricName = namespace + metricName
+	if !isExcluded(metricName, p.metricPrefix, p.metricPrefixBlacklist) {
+		metricName = p.metricPrefix + metricName
 	}
 
-	if len(metricBlocklist) > 0 && isMetricBlocklisted(metricName, metricBlocklist) {
+	if len(p.metricBlocklist) > 0 && isMetricBlocklisted(metricName, p.metricBlocklist) {
 		return []metrics.MetricSample{}
 	}
 
-	if serverlessMode { // we don't want to set the host while running in serverless mode
+	if p.ServerlessMode { // we don't want to set the host while running in serverless mode
 		hostnameFromTags = ""
 	}
 

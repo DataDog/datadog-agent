@@ -128,29 +128,24 @@ type Server struct {
 	// and pushing them to the aggregator
 	workers []*worker
 
-	packetsIn                 chan packets.Packets
-	sharedPacketPool          *packets.Pool
-	sharedPacketPoolManager   *packets.PoolManager
-	sharedFloat64List         *float64ListPool
-	Statistics                *util.Stats
-	Started                   bool
-	stopChan                  chan bool
-	health                    *health.Handle
-	metricPrefix              string
-	metricPrefixBlacklist     []string
-	metricBlocklist           []string
-	defaultHostname           string
-	histToDist                bool
-	histToDistPrefix          string
-	extraTags                 []string
-	Debug                     *dsdServerDebug
-	debugTagsAccumulator      *tagset.HashingTagsAccumulator
-	TCapture                  *replay.TrafficCapture
-	mapper                    *mapper.MetricMapper
-	eolTerminationUDP         bool
-	eolTerminationUDS         bool
-	eolTerminationNamedPipe   bool
-	entityIDPrecedenceEnabled bool
+	packetsIn               chan packets.Packets
+	sharedPacketPool        *packets.Pool
+	sharedPacketPoolManager *packets.PoolManager
+	sharedFloat64List       *float64ListPool
+	Statistics              *util.Stats
+	Started                 bool
+	stopChan                chan bool
+	health                  *health.Handle
+	histToDist              bool
+	histToDistPrefix        string
+	extraTags               []string
+	Debug                   *dsdServerDebug
+	debugTagsAccumulator    *tagset.HashingTagsAccumulator
+	TCapture                *replay.TrafficCapture
+	mapper                  *mapper.MetricMapper
+	eolTerminationUDP       bool
+	eolTerminationUDS       bool
+	eolTerminationNamedPipe bool
 	// disableVerboseLogs is a feature flag to disable the logs capable
 	// of flooding the logger output (e.g. parsing messages error).
 	// NOTE(remy): this should probably be dropped and use a throttler logger, see
@@ -162,9 +157,9 @@ type Server struct {
 	cachedTlmOriginIds map[string]cachedTagsOriginMap
 	cachedOrder        []cachedTagsOriginMap // for cache eviction
 
-	// ServerlessMode is set to true if we're running in a serverless environment.
-	ServerlessMode     bool
 	UdsListenerRunning bool
+
+	enrichmentParams
 }
 
 // metricStat holds how many times a metric has been
@@ -308,28 +303,23 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 	}
 
 	s := &Server{
-		Started:                   true,
-		Statistics:                stats,
-		packetsIn:                 packetsChannel,
-		sharedPacketPool:          sharedPacketPool,
-		sharedPacketPoolManager:   sharedPacketPoolManager,
-		sharedFloat64List:         newFloat64ListPool(),
-		demultiplexer:             demultiplexer,
-		listeners:                 tmpListeners,
-		stopChan:                  make(chan bool),
-		health:                    health.RegisterLiveness("dogstatsd-main"),
-		metricPrefix:              metricPrefix,
-		metricPrefixBlacklist:     metricPrefixBlacklist,
-		metricBlocklist:           metricBlocklist,
-		defaultHostname:           defaultHostname,
-		histToDist:                histToDist,
-		histToDistPrefix:          histToDistPrefix,
-		extraTags:                 extraTags,
-		eolTerminationUDP:         eolTerminationUDP,
-		eolTerminationUDS:         eolTerminationUDS,
-		eolTerminationNamedPipe:   eolTerminationNamedPipe,
-		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
-		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
+		Started:                 true,
+		Statistics:              stats,
+		packetsIn:               packetsChannel,
+		sharedPacketPool:        sharedPacketPool,
+		sharedPacketPoolManager: sharedPacketPoolManager,
+		sharedFloat64List:       newFloat64ListPool(),
+		demultiplexer:           demultiplexer,
+		listeners:               tmpListeners,
+		stopChan:                make(chan bool),
+		health:                  health.RegisterLiveness("dogstatsd-main"),
+		histToDist:              histToDist,
+		histToDistPrefix:        histToDistPrefix,
+		extraTags:               extraTags,
+		eolTerminationUDP:       eolTerminationUDP,
+		eolTerminationUDS:       eolTerminationUDS,
+		eolTerminationNamedPipe: eolTerminationNamedPipe,
+		disableVerboseLogs:      config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
 		Debug: &dsdServerDebug{
 			Stats: make(map[ckey.ContextKey]metricStat),
 			metricsCounts: metricsCountBuckets{
@@ -342,6 +332,14 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		TCapture:           capture,
 		UdsListenerRunning: udsListenerRunning,
 		cachedTlmOriginIds: make(map[string]cachedTagsOriginMap),
+
+		enrichmentParams: enrichmentParams{
+			metricPrefix:              metricPrefix,
+			metricPrefixBlacklist:     metricPrefixBlacklist,
+			metricBlocklist:           metricBlocklist,
+			defaultHostname:           defaultHostname,
+			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
+		},
 	}
 
 	// packets forwarding
@@ -639,7 +637,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlocklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
+	metricSamples = s.enrichMetricSample(metricSamples, sample, origin)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
