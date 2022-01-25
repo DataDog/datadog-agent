@@ -102,7 +102,10 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand)
+	rootCmd.AddCommand(
+		configCommand,
+		statusCmd,
+	)
 }
 
 // fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
