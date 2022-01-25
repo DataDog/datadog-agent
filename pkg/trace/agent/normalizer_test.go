@@ -499,6 +499,8 @@ func TestNormalizePopulatePriorityFromAnySpan(t *testing.T) {
 	chunk := testutil.TraceChunkWithSpan(root)
 	chunk.Priority = int32(sampler.PriorityNone)
 	chunk.Spans = []*pb.Span{newTestSpan(), newTestSpan(), newTestSpan()}
+	chunk.Spans[0].Metrics = nil
+	chunk.Spans[2].Metrics = nil
 	traceutil.SetMetric(chunk.Spans[1], "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
 	normalizeChunk(chunk, root)
 	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
