@@ -29,7 +29,7 @@ replace (
 
 // pinned to grpc v1.28.0 - this pin is required due to k8s.io/apiserver (and other) pins being set to v0.21.5
 //                          the kubernetes pins are required at this time. We will bump grpc once k8s releases
-//                          v1.24 or v1.25.
+//                          v1.24 or v1.25. Keep in sync with the version in internal/patch/grpc-go-insecure.
 replace (
 	github.com/grpc-ecosystem/grpc-gateway => github.com/grpc-ecosystem/grpc-gateway v1.12.2
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.28.0
