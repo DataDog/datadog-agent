@@ -173,7 +173,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/onsi/gomega v1.17.0 // indirect
 	github.com/open-policy-agent/opa v0.35.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.38.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.42.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/opencontainers/selinux v1.9.1 // indirect
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
@@ -204,8 +204,8 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.305.1
-	go.opentelemetry.io/collector v0.41.0
-	go.opentelemetry.io/collector/model v0.41.0
+	go.opentelemetry.io/collector v0.42.0
+	go.opentelemetry.io/collector/model v0.42.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/multierr v1.7.0
 	go.uber.org/zap v1.20.0
@@ -219,7 +219,9 @@ require (
 	golang.org/x/tools v0.1.8
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
-	google.golang.org/grpc v1.42.0
+	google.golang.org/grpc v1.43.0
+	// See internal/patch/grpc-go-insecure/README.md for more details.
+	google.golang.org/grpc/credentials/insecure v0.0.0 // indirect
 	gopkg.in/DataDog/dd-trace-go.v1 v1.34.0
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
@@ -253,3 +255,10 @@ exclude github.com/containerd/containerd v1.5.0-beta.1
 
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
 replace github.com/golang/glog v1.0.0 => github.com/paulcacheux/glog v1.0.1-0.20211019114809-ec0f43a655b9
+
+// k8s.io/component-base is incompatible with logr v1.x,
+// remove once k8s.io/* is upgrade to v0.23.x or above (https://github.com/kubernetes/kubernetes/commit/cb6a6537)
+replace (
+	github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
+	github.com/go-logr/stdr => github.com/go-logr/stdr v0.4.0
+)
