@@ -39,7 +39,7 @@ Cluster      │ ┌────────────────┐
 
 The [config providers](https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/autodiscovery/providers) draw configuration information from many sources
 
-* Kubernetes (for Endpoints and Services, run only on on the cluster agent)
+* Kubernetes (for Endpoints and Services, run only on the cluster agent)
 * cluster agent (for cluster checks and endpoints checks);
 * static files (`conf.d/<integration>.d/conf.yaml`); and
 * the workloadmeta service.
@@ -84,7 +84,7 @@ It can notify in three circumstances:
 ## Resolving Templates
 
 Entities that contain their own configuration are reconciled using an AD identifier unique to that entity.
-For example, a new container might be deteted first by a listener, creating a new serivce with an AD identifier containing its SHA.
+For example, a new container might be detected first by a listener, creating a new service with an AD identifier containing its SHA.
 Soon after, the relevant config provider detects the container, extracts configuration from its labels, and creates an `integration.Config` containing the same AD identifier.
 
 The reconciliation process combines the service and the Config, resolving the template, and schedules the resolved config.
