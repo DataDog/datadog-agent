@@ -36,6 +36,7 @@ replace (
 )
 
 // HACK: Add `insecure` package (added on grpc-go v1.34) to support packages using it (notably go.opentelemetry/collector)
+// See internal/patch/grpc-go-insecure/README.md for more details.
 replace google.golang.org/grpc/credentials/insecure => ./internal/patch/grpc-go-insecure
 
 replace (
