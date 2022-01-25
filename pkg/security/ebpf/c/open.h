@@ -336,8 +336,13 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID) {
-       return 0;
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_OPEN);
+        return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_INVALID) {
+        return 0;
     }
 
     struct open_event_t event = {

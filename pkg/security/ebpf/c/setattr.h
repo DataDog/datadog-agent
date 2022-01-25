@@ -88,6 +88,7 @@ int __attribute__((always_inline)) kprobe_dr_setattr_callback(struct pt_regs *ct
     }
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(syscall->type);
         return discard_syscall(syscall);
     }
 

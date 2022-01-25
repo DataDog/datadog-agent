@@ -3,6 +3,32 @@
 
 #define REVISION_ARRAY_SIZE 4096
 
+#define INODE_DISCARDER_TYPE 0
+#define PID_DISCARDER_TYPE   1
+
+struct discarder_stats_t {
+    u64 discarders_added;
+    u64 event_discarded;
+};
+
+struct bpf_map_def SEC("maps/discarder_stats_fb") discarder_stats_fb = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct discarder_stats_t),
+    .max_entries = EVENT_LAST_DISCARDER,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/discarder_stats_bb") discarder_stats_bb = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct discarder_stats_t),
+    .max_entries = EVENT_LAST_DISCARDER,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct bpf_map_def SEC("maps/discarder_revisions") discarder_revisions = {
     .type = BPF_MAP_TYPE_ARRAY,
     .key_size = sizeof(u32),
@@ -11,6 +37,40 @@ struct bpf_map_def SEC("maps/discarder_revisions") discarder_revisions = {
     .pinning = 0,
     .namespace = "",
 };
+
+int __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
+    struct bpf_map_def *discarder_stats = select_buffer(&discarder_stats_fb, &discarder_stats_bb, DISCARDER_MONITOR_KEY);
+    if (discarder_stats == NULL) {
+        return 0;
+    }
+
+    u32 key = event_type;
+    struct discarder_stats_t *stats = bpf_map_lookup_elem(discarder_stats, &key);
+    if (stats == NULL) {
+        return 0;
+    }
+
+    __sync_fetch_and_add(&stats->discarders_added, 1);
+
+    return 0;
+}
+
+int __attribute__((always_inline)) monitor_discarded(u64 event_type) {
+    struct bpf_map_def *discarder_stats = select_buffer(&discarder_stats_fb, &discarder_stats_bb, DISCARDER_MONITOR_KEY);
+    if (discarder_stats == NULL) {
+        return 0;
+    }
+
+    u32 key = event_type;
+    struct discarder_stats_t *stats = bpf_map_lookup_elem(discarder_stats, &key);
+    if (stats == NULL) {
+        return 0;
+    }
+
+    __sync_fetch_and_add(&stats->event_discarded, 1);
+
+    return 0;
+}
 
 int __attribute__((always_inline)) get_discarder_revision(u32 mount_id) {
     u32 i = mount_id % REVISION_ARRAY_SIZE;
@@ -176,6 +236,8 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
         }
         bpf_map_update_elem(&inode_discarders, &key, &new_inode_params, BPF_NOEXIST);
     }
+
+    monitor_discarder_added(event_type);
 
     return 0;
 }
@@ -344,6 +406,8 @@ int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 tim
         }
         bpf_map_update_elem(&pid_discarders, &key, &new_pid_params, BPF_NOEXIST);
     }
+
+    monitor_discarder_added(EVENT_ANY);
 
     return 0;
 }
