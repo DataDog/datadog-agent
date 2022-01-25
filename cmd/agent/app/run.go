@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -385,12 +386,15 @@ func StartAgent() error {
 	// Start OTLP intake
 	if otlp.IsEnabled(config.Datadog) {
 		var err error
+		inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, true)
 		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog, demux.Serializer())
 		if err != nil {
 			log.Errorf("Could not start OTLP: %s", err)
 		} else {
 			log.Debug("OTLP pipeline started")
 		}
+	} else {
+		inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, false)
 	}
 
 	// Start SNMP trap server

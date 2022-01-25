@@ -13,13 +13,11 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Config) bool {
-	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, false)
 	return false
 }
 

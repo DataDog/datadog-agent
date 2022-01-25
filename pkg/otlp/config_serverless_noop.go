@@ -10,11 +10,9 @@ package otlp
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 )
 
 // IsEnabled always returns false since OTLP is disabled in the serverless agent flavor
 func IsEnabled(cfg config.Config) bool {
-	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, false)
 	return false
 }

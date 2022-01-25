@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	colConfig "go.opentelemetry.io/collector/config"
 	"go.uber.org/multierr"
@@ -165,15 +164,7 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Config) bool {
 	// TODO (AP-1267): Check stable config too
-	isSet := isSetExperimental(cfg)
-	// NOTE: it is perhaps not ideal to set this here, but:
-	// * we can't import otlp in inventories, because that triggers import loop
-	// * we don't want to use raw config in inventories, because the rules for
-	//   evaluating are quite complex and will change with stable config
-	// * this is called in cmd/agent/app/run.go before inventories, so the correct
-	//   value will be set before inventory metadata is used first time
-	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, isSet)
-	return isSet
+	return isSetExperimental(cfg)
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
