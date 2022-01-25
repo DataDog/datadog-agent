@@ -52,8 +52,8 @@ func NewListener(socketAddr string) (*UDSListener, error) {
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	if err := os.Chmod(socketAddr, 0720); err != nil {
-		return nil, fmt.Errorf("can't set the socket at write only: %s", err)
+	if err := os.Chmod(socketAddr, 0770); err != nil {
+		return nil, fmt.Errorf("can't chmod socket to 770: %s", err)
 	}
 
 	perms, err := filesystem.NewPermission()

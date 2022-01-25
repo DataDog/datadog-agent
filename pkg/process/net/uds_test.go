@@ -54,7 +54,7 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string) {
 	time.Sleep(1 * time.Second)
 	fi, err := os.Stat(socketPath)
 	require.NoError(t, err)
-	assert.Equal(t, "Srwx-w----", fi.Mode().String())
+	assert.Equal(t, "Srwxrwx---", fi.Mode().String())
 }
 
 func TestNewUDSListener(t *testing.T) {
