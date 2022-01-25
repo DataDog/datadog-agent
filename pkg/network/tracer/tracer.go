@@ -343,41 +343,41 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}, nil
 }
 
-func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
+func (t *Tracer) getConnTelemetry(mapSize int) map[string]int64 {
 	kprobeStats := ddebpf.GetProbeTotals()
-	tm := &network.ConnectionsTelemetry{
-		MonotonicKprobesTriggered: kprobeStats.Hits,
-		MonotonicKprobesMissed:    kprobeStats.Misses,
-		ConnsBpfMapSize:           int64(mapSize),
-		MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
+	tm := map[string]int64{
+		"MonotonicKprobesTriggered": kprobeStats.Hits,
+		"MonotonicKprobesMissed":    kprobeStats.Misses,
+		"ConnsBpfMapSize":           int64(mapSize),
+		"MonotonicConnsClosed":      atomic.LoadInt64(&t.closedConns),
 	}
 
 	conntrackStats := t.conntracker.GetStats()
 	if rt, ok := conntrackStats["registers_total"]; ok {
-		tm.MonotonicConntrackRegisters = rt
+		tm["MonotonicConntrackRegisters"] = rt
 	}
 	if rtd, ok := conntrackStats["registers_dropped"]; ok {
-		tm.MonotonicConntrackRegistersDropped = rtd
+		tm["MonotonicConntrackRegistersDropped"] = rtd
 	}
 	if sp, ok := conntrackStats["sampling_pct"]; ok {
-		tm.ConntrackSamplingPercent = sp
+		tm["ConntrackSamplingPercent"] = sp
 	}
 
 	dnsStats := t.reverseDNS.GetStats()
 	if pp, ok := dnsStats["packets_processed"]; ok {
-		tm.MonotonicDNSPacketsProcessed = pp
+		tm["MonotonicDNSPacketsProcessed"] = pp
 	}
 
 	if ds, ok := dnsStats["dropped_stats"]; ok {
-		tm.DNSStatsDropped = ds
+		tm["DNSStatsDropped"] = ds
 	}
 
 	ebpfStats := t.ebpfTracer.GetTelemetry()
 	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
-		tm.MonotonicUDPSendsProcessed = usp
+		tm["MonotonicUDPSendsProcessed"] = usp
 	}
 	if usm, ok := ebpfStats["udp_sends_missed"]; ok {
-		tm.MonotonicUDPSendsMissed = usm
+		tm["MonotonicUDPSendsMissed"] = usm
 	}
 
 	return tm
