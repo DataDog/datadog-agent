@@ -16,7 +16,7 @@
 #define FAKE_INODE_MSW 0xdeadc001UL
 
 #define DR_MAX_TAIL_CALL          30
-#define DR_MAX_ITERATION_DEPTH    50
+#define DR_MAX_ITERATION_DEPTH    49
 #define DR_MAX_SEGMENT_LENGTH     255
 
 struct path_leaf_t {
@@ -141,9 +141,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
         }
 
         if (input->discarder_type && i <= 3) {
-            params.inode = key.ino;
-            params.mount_id = key.mount_id;
-            params.is_leaf = i == 0;
+            params.discarder.path_key.ino = key.ino;
+            params.discarder.path_key.mount_id = key.mount_id;
+            params.discarder.is_leaf = i == 0;
             if (is_discarded_by_inode(&params)) {
                 return DENTRY_DISCARDED;
             }
@@ -198,14 +198,14 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
                                                                                                                        \
     if (syscall->resolver.ret > 0) {                                                                                   \
         if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {                        \
-            bpf_tail_call_compat(ctx, progs_map, dentry_resolver_kern_key);                                                   \
+            bpf_tail_call_compat(ctx, progs_map, dentry_resolver_kern_key);                                            \
         }                                                                                                              \
                                                                                                                        \
         syscall->resolver.ret += DR_MAX_ITERATION_DEPTH * (syscall->resolver.iteration - 1);                           \
     }                                                                                                                  \
                                                                                                                        \
     if (syscall->resolver.callback >= 0) {                                                                             \
-        bpf_tail_call_compat(ctx, callbacks_map, syscall->resolver.callback);                                                 \
+        bpf_tail_call_compat(ctx, callbacks_map, syscall->resolver.callback);                                          \
     }                                                                                                                  \
 
 SEC("kprobe/dentry_resolver_kern")

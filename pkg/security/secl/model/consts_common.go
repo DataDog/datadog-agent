@@ -21,7 +21,8 @@ const (
 	MaxSegmentLength = 255
 
 	// MaxPathDepth defines the maximum depth of a path
-	MaxPathDepth = 1500
+	// see pkg/security/ebpf/c/dentry_resolver.h: DR_MAX_TAIL_CALL * DR_MAX_ITERATION_DEPTH
+	MaxPathDepth = 1470
 
 	// MaxBpfObjName defines the maximum length of a Bpf object name
 	MaxBpfObjName = 16

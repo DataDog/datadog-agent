@@ -75,26 +75,24 @@ u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
     }
 }
 
-void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type) {
+void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type, u64 now) {
     void *entry = bpf_map_lookup_elem(discarder_map, key);
     if (entry == NULL)
         return NULL;
 
     struct discarder_params_t *params = (struct discarder_params_t *)entry;
 
-    u64 tm = bpf_ktime_get_ns();
-
     // this discarder has been marked as on hold by event such as unlink, rename, etc.
     // keep them for a while in the map to avoid userspace to reinsert it with a pending userspace event
     if (params->is_retained) {
-        if (params->expire_at < tm) {
+        if (params->expire_at < now) {
             bpf_map_delete_elem(discarder_map, key);
         }
         return NULL;
     }
 
     u64* pid_tm = get_discarder_timestamp(params, event_type);
-    if (pid_tm != NULL && *pid_tm && *pid_tm <= tm) {
+    if (pid_tm != NULL && *pid_tm && *pid_tm <= now) {
         return NULL;
     }
 
@@ -183,9 +181,7 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
 
 struct is_discarded_by_inode_t {
     u64 event_type;
-    u64 inode;
-    u32 mount_id;
-    u32 is_leaf;
+    struct inode_discarder_t discarder;
 
     u64 now;
     u32 tgid_is_traced;
@@ -197,8 +193,8 @@ int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_
     if (params->tgid_is_traced) {
         struct traced_inode_t traced_key = {
             .tgid = params->tgid,
-            .inode = params->inode,
-            .mount_id = params->mount_id,
+            .inode = params->discarder.path_key.ino,
+            .mount_id = params->discarder.path_key.mount_id,
         };
         u64 *last_sent = bpf_map_lookup_elem(&traced_inodes, &traced_key);
         if (last_sent == NULL) {
@@ -215,20 +211,12 @@ int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_
         }
     }
 
-    struct inode_discarder_t key = {
-        .path_key = {
-            .ino = params->inode,
-            .mount_id = params->mount_id,
-        },
-        .is_leaf = params->is_leaf,
-    };
-
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->event_type);
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &params->discarder, params->event_type, params->now);
     if (!inode_params) {
         return 0;
     }
 
-    return inode_params->revision == get_discarder_revision(params->mount_id);
+    return inode_params->revision == get_discarder_revision(params->discarder.path_key.mount_id);
 }
 
 void __attribute__((always_inline)) remove_inode_discarders(u32 mount_id, u64 inode) {
@@ -332,7 +320,7 @@ int __attribute__((always_inline)) is_discarded_by_pid(u64 event_type, u32 tgid)
         .tgid = tgid,
     };
 
-    return is_discarded(&pid_discarders, &key, event_type) != NULL;
+    return is_discarded(&pid_discarders, &key, event_type, bpf_ktime_get_ns()) != NULL;
 }
 
 int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 event_type) {
@@ -352,13 +340,20 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
             return 1;
 
         struct proc_cache_t *entry = get_proc_cache(tgid);
-        struct is_discarded_by_inode_t params = {
-            .event_type = event_type,
-            .inode = entry->executable.path_key.ino,
-            .mount_id = entry->executable.path_key.mount_id,
-        };
-        if (entry && is_discarded_by_inode(&params)) {
-            return 1;
+        if (entry != NULL) {
+            struct is_discarded_by_inode_t params = {
+                .event_type = event_type,
+                .discarder = {
+                    .path_key = {
+                        .ino = entry->executable.path_key.ino,
+                        .mount_id = entry->executable.path_key.mount_id,
+                        // we don't want to copy the path_id
+                    },
+                },
+            };
+            if (is_discarded_by_inode(&params)) {
+                return 1;
+            }
         }
     }
 
