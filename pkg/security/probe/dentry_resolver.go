@@ -737,6 +737,11 @@ func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32)
 	if err != nil && err != errTruncatedParentsERPC && dr.mapEnabled {
 		parentMountID, parentInode, err = dr.resolveParentFromMap(mountID, inode, pathID)
 	}
+
+	if parentInode == 0 {
+		return 0, 0, ErrEntryNotFound
+	}
+
 	return parentMountID, parentInode, err
 }
 
