@@ -83,27 +83,6 @@ func FormatConnection(
 	return c
 }
 
-// FormatConnTelemetry converts telemetry from its internal representation to a protobuf message
-func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
-	if tel == nil {
-		return nil
-	}
-
-	t := new(model.ConnectionsTelemetry)
-	t.MonotonicKprobesTriggered = tel.MonotonicKprobesTriggered
-	t.MonotonicKprobesMissed = tel.MonotonicKprobesMissed
-	t.MonotonicConntrackRegisters = tel.MonotonicConntrackRegisters
-	t.MonotonicConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
-	t.MonotonicDnsPacketsProcessed = tel.MonotonicDNSPacketsProcessed
-	t.MonotonicConnsClosed = tel.MonotonicConnsClosed
-	t.ConnsBpfMapSize = tel.ConnsBpfMapSize
-	t.MonotonicUdpSendsProcessed = tel.MonotonicUDPSendsProcessed
-	t.MonotonicUdpSendsMissed = tel.MonotonicUDPSendsMissed
-	t.ConntrackSamplingPercent = tel.ConntrackSamplingPercent
-	t.DnsStatsDropped = tel.DNSStatsDropped
-	return t
-}
-
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilationTelemetry) map[string]*model.RuntimeCompilationTelemetry {
 	if telByAsset == nil {

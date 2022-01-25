@@ -43,7 +43,7 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *procutil.LogLimit
-	lastTelemetry          *model.CollectorConnectionsTelemetry
+	lastTelemetry          map[string]int64
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
 	lastConnsByPID atomic.Value
@@ -130,48 +130,48 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 	return conns
 }
 
-func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model.CollectorConnectionsTelemetry {
+func (c *ConnectionsCheck) diffTelemetry(tel map[string]int64) map[string]int64 {
 	if tel == nil {
 		return nil
 	}
 	// only save but do not report the first collected telemetry to prevent reporting full monotonic values.
 	if c.lastTelemetry == nil {
-		c.lastTelemetry = &model.CollectorConnectionsTelemetry{}
+		c.lastTelemetry = make(map[string]int64)
 		c.saveTelemetry(tel)
 		return nil
 	}
 
-	cct := &model.CollectorConnectionsTelemetry{
-		KprobesTriggered:          tel.MonotonicKprobesTriggered - c.lastTelemetry.KprobesTriggered,
-		KprobesMissed:             tel.MonotonicKprobesMissed - c.lastTelemetry.KprobesMissed,
-		ConntrackRegisters:        tel.MonotonicConntrackRegisters - c.lastTelemetry.ConntrackRegisters,
-		ConntrackRegistersDropped: tel.MonotonicConntrackRegistersDropped - c.lastTelemetry.ConntrackRegistersDropped,
-		DnsPacketsProcessed:       tel.MonotonicDnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
-		ConnsClosed:               tel.MonotonicConnsClosed - c.lastTelemetry.ConnsClosed,
-		ConnsBpfMapSize:           tel.ConnsBpfMapSize,
-		UdpSendsProcessed:         tel.MonotonicUdpSendsProcessed - c.lastTelemetry.UdpSendsProcessed,
-		UdpSendsMissed:            tel.MonotonicUdpSendsMissed - c.lastTelemetry.UdpSendsMissed,
-		ConntrackSamplingPercent:  tel.ConntrackSamplingPercent,
-		DnsStatsDropped:           tel.DnsStatsDropped,
+	cct := map[string]int64{
+		"KprobesTriggered":          tel["MonotonicKprobesTriggered"] - c.lastTelemetry["KprobesTriggered"],
+		"KprobesMissed":             tel["MonotonicKprobesMissed"] - c.lastTelemetry["KprobesMissed"],
+		"ConntrackRegisters":        tel["MonotonicConntrackRegisters"] - c.lastTelemetry["ConntrackRegisters"],
+		"ConntrackRegistersDropped": tel["MonotonicConntrackRegistersDropped"] - c.lastTelemetry["ConntrackRegistersDropped"],
+		"DnsPacketsProcessed":       tel["MonotonicDnsPacketsProcessed"] - c.lastTelemetry["DnsPacketsProcessed"],
+		"ConnsClosed":               tel["MonotonicConnsClosed"] - c.lastTelemetry["ConnsClosed"],
+		"ConnsBpfMapSize":           tel["ConnsBpfMapSize"],
+		"UdpSendsProcessed":         tel["MonotonicUdpSendsProcessed"] - c.lastTelemetry["UdpSendsProcessed"],
+		"UdpSendsMissed":            tel["MonotonicUdpSendsMissed"] - c.lastTelemetry["UdpSendsMissed"],
+		"ConntrackSamplingPercent":  tel["ConntrackSamplingPercent"],
+		"DnsStatsDropped":           tel["DnsStatsDropped"],
 	}
 	c.saveTelemetry(tel)
 	return cct
 }
 
-func (c *ConnectionsCheck) saveTelemetry(tel *model.ConnectionsTelemetry) {
+func (c *ConnectionsCheck) saveTelemetry(tel map[string]int64) {
 	if tel == nil || c.lastTelemetry == nil {
 		return
 	}
 
-	c.lastTelemetry.KprobesTriggered = tel.MonotonicKprobesTriggered
-	c.lastTelemetry.KprobesMissed = tel.MonotonicKprobesMissed
-	c.lastTelemetry.ConntrackRegisters = tel.MonotonicConntrackRegisters
-	c.lastTelemetry.ConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
-	c.lastTelemetry.DnsPacketsProcessed = tel.MonotonicDnsPacketsProcessed
-	c.lastTelemetry.ConnsClosed = tel.MonotonicConnsClosed
-	c.lastTelemetry.UdpSendsProcessed = tel.MonotonicUdpSendsProcessed
-	c.lastTelemetry.UdpSendsMissed = tel.MonotonicUdpSendsMissed
-	c.lastTelemetry.DnsStatsDropped = tel.DnsStatsDropped
+	c.lastTelemetry["KprobesTriggered"] = tel["MonotonicKprobesTriggered"]
+	c.lastTelemetry["KprobesMissed"] = tel["MonotonicKprobesMissed"]
+	c.lastTelemetry["ConntrackRegisters"] = tel["MonotonicConntrackRegisters"]
+	c.lastTelemetry["ConntrackRegistersDropped"] = tel["MonotonicConntrackRegistersDropped"]
+	c.lastTelemetry["DnsPacketsProcessed"] = tel["MonotonicDnsPacketsProcessed"]
+	c.lastTelemetry["ConnsClosed"] = tel["MonotonicConnsClosed"]
+	c.lastTelemetry["UdpSendsProcessed"] = tel["MonotonicUdpSendsProcessed"]
+	c.lastTelemetry["UdpSendsMissed"] = tel["MonotonicUdpSendsMissed"]
+	c.lastTelemetry["DnsStatsDropped"] = tel["DnsStatsDropped"]
 }
 
 func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
@@ -278,7 +278,7 @@ func batchConnections(
 	cxs []*model.Connection,
 	dns map[string]*model.DNSEntry,
 	networkID string,
-	connTelemetry *model.CollectorConnectionsTelemetry,
+	connTelemetry map[string]int64,
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	domains []string,
 	routes []*model.Route,

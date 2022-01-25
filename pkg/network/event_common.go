@@ -118,25 +118,10 @@ type BufferedData struct {
 type Connections struct {
 	BufferedData
 	DNS                         map[util.Address][]string
-	ConnTelemetry               *ConnectionsTelemetry
+	ConnTelemetry               map[string]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
-}
-
-// ConnectionsTelemetry stores telemetry from the system probe related to connections collection
-type ConnectionsTelemetry struct {
-	MonotonicKprobesTriggered          int64
-	MonotonicKprobesMissed             int64
-	MonotonicConntrackRegisters        int64
-	MonotonicConntrackRegistersDropped int64
-	MonotonicDNSPacketsProcessed       int64
-	MonotonicConnsClosed               int64
-	ConnsBpfMapSize                    int64
-	MonotonicUDPSendsProcessed         int64
-	MonotonicUDPSendsMissed            int64
-	ConntrackSamplingPercent           int64
-	DNSStatsDropped                    int64
 }
 
 // RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets

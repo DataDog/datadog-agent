@@ -115,7 +115,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		},
 	} {
 		cfg.MaxConnsPerMessage = tc.maxSize
-		ctm := &model.CollectorConnectionsTelemetry{}
+		ctm := map[string]int64{}
 		rctm := map[string]*model.RuntimeCompilationTelemetry{}
 		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil, nil)
 
