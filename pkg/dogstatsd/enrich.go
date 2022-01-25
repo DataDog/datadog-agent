@@ -30,7 +30,7 @@ type enrichmentParams struct {
 	ServerlessMode bool
 }
 
-func extractTagsMetadata(tags []string, defaultHostname string, originTags string, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
+func extractTagsMetadata(tags []string, defaultHostname string, originUds string, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
 	host := defaultHostname
 
 	n := 0
@@ -54,7 +54,7 @@ func extractTagsMetadata(tags []string, defaultHostname string, originTags strin
 	// or 'dogstatsd_entity_id_precedence' is set to False (default false).
 	if entityIDValue == "" || !entityIDPrecedenceEnabled {
 		// Add origin tags only if the entity id tags is not provided
-		origin = originTags
+		origin = originUds
 	}
 
 	k8sOrigin := ""

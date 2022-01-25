@@ -941,7 +941,7 @@ func TestEnrichTags(t *testing.T) {
 	type args struct {
 		tags                       []string
 		defaultHostname            string
-		originTags                 string
+		originUds                  string
 		entityIDPrecendenceEnabled bool
 	}
 	tests := []struct {
@@ -957,7 +957,7 @@ func TestEnrichTags(t *testing.T) {
 			name: "empty tags, host=foo",
 			args: args{
 				defaultHostname:            "foo",
-				originTags:                 "",
+				originUds:                  "",
 				entityIDPrecendenceEnabled: true,
 			},
 			wantedTags:        nil,
@@ -971,7 +971,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:                       []string{"env:prod"},
 				defaultHostname:            "foo",
-				originTags:                 "originID",
+				originUds:                  "originID",
 				entityIDPrecendenceEnabled: true,
 			},
 			wantedTags:        []string{"env:prod"},
@@ -985,7 +985,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:                       nil,
 				defaultHostname:            "foo",
-				originTags:                 "originID",
+				originUds:                  "originID",
 				entityIDPrecendenceEnabled: true,
 			},
 			wantedTags:        nil,
@@ -999,7 +999,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},
 				defaultHostname:            "foo",
-				originTags:                 "originID",
+				originUds:                  "originID",
 				entityIDPrecendenceEnabled: true,
 			},
 			wantedTags:        []string{"env:prod"},
@@ -1013,7 +1013,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "none")},
 				defaultHostname:            "foo",
-				originTags:                 "originID",
+				originUds:                  "originID",
 				entityIDPrecendenceEnabled: true,
 			},
 			wantedTags:        []string{"env:prod"},
@@ -1027,7 +1027,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42")},
 				defaultHostname:            "foo",
-				originTags:                 "originID",
+				originUds:                  "originID",
 				entityIDPrecendenceEnabled: false,
 			},
 			wantedTags:        []string{"env:prod"},
@@ -1041,7 +1041,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.HighCardinalityString},
 				defaultHostname:            "foo",
-				originTags:                 "originID",
+				originUds:                  "originID",
 				entityIDPrecendenceEnabled: false,
 			},
 			wantedTags:        []string{"env:prod"},
@@ -1055,7 +1055,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.OrchestratorCardinalityString},
 				defaultHostname:            "foo",
-				originTags:                 "originID",
+				originUds:                  "originID",
 				entityIDPrecendenceEnabled: false,
 			},
 			wantedTags:        []string{"env:prod"},
@@ -1069,7 +1069,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.LowCardinalityString},
 				defaultHostname:            "foo",
-				originTags:                 "originID",
+				originUds:                  "originID",
 				entityIDPrecendenceEnabled: false,
 			},
 			wantedTags:        []string{"env:prod"},
@@ -1083,7 +1083,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.UnknownCardinalityString},
 				defaultHostname:            "foo",
-				originTags:                 "originID",
+				originUds:                  "originID",
 				entityIDPrecendenceEnabled: false,
 			},
 			wantedTags:        []string{"env:prod"},
@@ -1097,7 +1097,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix},
 				defaultHostname:            "foo",
-				originTags:                 "originID",
+				originUds:                  "originID",
 				entityIDPrecendenceEnabled: false,
 			},
 			wantedTags:        []string{"env:prod"},
@@ -1109,7 +1109,7 @@ func TestEnrichTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.defaultHostname, tt.args.originTags, tt.args.entityIDPrecendenceEnabled)
+			tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.defaultHostname, tt.args.originUds, tt.args.entityIDPrecendenceEnabled)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
