@@ -1107,6 +1107,21 @@ func TestEnrichTags(t *testing.T) {
 			wantedK8sOrigin:   "kubernetes_pod_uid://42",
 			wantedCardinality: "",
 		},
+		{
+			name: "entityId=container cardinality='' present entityIDPrecendenceEnabled=false, host=foo, ",
+			args: args{
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix},
+				defaultHostname:            "foo",
+				originUds:                  "originID",
+				originDsd:                  "container",
+				entityIDPrecendenceEnabled: false,
+			},
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "originID",
+			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedCardinality: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

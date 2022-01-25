@@ -246,6 +246,21 @@ func TestParseGaugeWithSampleRate(t *testing.T) {
 	assert.InEpsilon(t, 0.21, sample.sampleRate, epsilon)
 }
 
+func TestParseGaugeWithOrigin(t *testing.T) {
+	parser := newParser(newFloat64ListPool())
+	parser.enableDsdOrigin = true
+	sample, err := parser.parseMetricSample([]byte("daemon:666|g|c:container://12345678"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", sample.name)
+	assert.InEpsilon(t, 666.0, sample.value, epsilon)
+	require.Nil(t, sample.values)
+	assert.Equal(t, gaugeType, sample.metricType)
+	assert.Len(t, sample.tags, 0)
+	assert.Equal(t, "container://12345678", sample.origin)
+}
+
 func TestParseGaugeWithPoundOnly(t *testing.T) {
 	sample, err := parseMetricSample([]byte("daemon:666|g|#"))
 
