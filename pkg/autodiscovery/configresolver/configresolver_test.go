@@ -39,7 +39,7 @@ func (s *dummyService) GetServiceID() string {
 	return s.ID
 }
 
-// GetServiceID returns the service entity name
+// GetTaggerEntity returns the tagger entity ID for the entity corresponding to this service
 func (s *dummyService) GetTaggerEntity() string {
 	return s.ID
 }
