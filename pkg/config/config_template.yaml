@@ -289,30 +289,19 @@ api_key:
 #
 # forwarder_requeue_buffer_size: 100
 
-## @param forwarder_backoff_factor - int - optional - default: 2
-## @env DD_FORWARDER_BACKOFF_FACTOR - integer - optional - default: 2
-## Defines the number to control the overlap between consecutive retry interval ranges.
-# forwarder_backoff_factor: 2
-
 ## @param forwarder_backoff_base - int - optional - default: 2
 ## @env DD_FORWARDER_BACKOFF_BASE - integer - optional - default: 2
-## Defines the rate of exponential growth.
+## Defines the rate of exponential growth, and the first retry interval range.
+## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
+## higher rate of exponential growth.
 # forwarder_backoff_base: 2
 
 ## @param forwarder_backoff_max - int - optional - default: 64
 ## @env DD_FORWARDER_BACKOFF_MAX - integer - optional - default: 64
 ## Defines the maximum number of seconds to wait for a retry.
+## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
+## higher maximum backoff time.
 # forwarder_backoff_max: 64
-
-## @param forwarder_recovery_interval - int - optional - default: 2
-## @env DD_FORWARDER_RECOVERY_INTERVAL - integer - optional - default: 2
-## Defines how many retry interval ranges to step down for an endpoint upon success.
-# forwarder_recovery_interval: 2
-
-## @param forwarder_recovery_reset - boolean - optional - default: false
-## @env DD_FORWARDER_RECOVERY_RESET - boolean - optional - default: false
-## Defines whether or not a successful request should completely clear an endpoint's error count.
-# forwarder_recovery_reset: false
 
 ## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle"]
 ## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle
