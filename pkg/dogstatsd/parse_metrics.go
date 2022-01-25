@@ -44,6 +44,9 @@ type dogstatsdMetricSample struct {
 	metricType metricType
 	sampleRate float64
 	tags       []string
+	// origin (container id) that was passed via message field (origin from uds pid and origin
+	// from the internal tags are stored elsewhere)
+	origin string
 }
 
 // sanity checks a given message against the metric sample format

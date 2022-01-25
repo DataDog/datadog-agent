@@ -29,6 +29,8 @@ var (
 	fieldSeparator = []byte("|")
 	colonSeparator = []byte(":")
 	commaSeparator = []byte(",")
+
+	originFieldPrefix = []byte("c:")
 )
 
 // parser parses dogstatsd messages
@@ -36,14 +38,20 @@ var (
 type parser struct {
 	interner    *stringInterner
 	float64List *float64ListPool
+
+	// enableDsdOrigin controls whether the server should honor the container id sent by the
+	// client. Defaulting to false, this opt-in flag is used to avoid changing tags cardinality
+	// for existing installations.
+	enableDsdOrigin bool
 }
 
 func newParser(float64List *float64ListPool) *parser {
 	stringInternerCacheSize := config.Datadog.GetInt("dogstatsd_string_interner_size")
 
 	return &parser{
-		interner:    newStringInterner(stringInternerCacheSize),
-		float64List: float64List,
+		interner:        newStringInterner(stringInternerCacheSize),
+		float64List:     float64List,
+		enableDsdOrigin: config.Datadog.GetBool("dogstatsd_origin_detection_udp"),
 	}
 }
 
@@ -133,6 +141,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	sampleRate := 1.0
 	var tags []string
 	var optionalField []byte
+	var origin string
 	for message != nil {
 		optionalField, message = nextField(message)
 		switch {
@@ -143,6 +152,8 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			if err != nil {
 				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd sample rate %q", optionalField)
 			}
+		case p.enableDsdOrigin && bytes.HasPrefix(optionalField, originFieldPrefix):
+			origin = p.interner.LoadOrStore(optionalField[len(originFieldPrefix):])
 		}
 	}
 
@@ -154,6 +165,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		metricType: metricType,
 		sampleRate: sampleRate,
 		tags:       tags,
+		origin:     origin,
 	}, nil
 }
 

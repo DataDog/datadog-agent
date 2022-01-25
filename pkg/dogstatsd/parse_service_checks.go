@@ -29,6 +29,7 @@ type dogstatsdServiceCheck struct {
 	hostname  string
 	message   string
 	tags      []string
+	origin    string
 }
 
 var (
@@ -95,6 +96,8 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 		newServiceCheck.tags = p.parseTags(optionalField[len(serviceCheckTagsPrefix):])
 	case bytes.HasPrefix(optionalField, serviceCheckMessagePrefix):
 		newServiceCheck.message = string(optionalField[len(serviceCheckMessagePrefix):])
+	case p.enableDsdOrigin && bytes.HasPrefix(optionalField, originFieldPrefix):
+		newServiceCheck.origin = string(optionalField[len(originFieldPrefix):])
 	}
 	if err != nil {
 		return serviceCheck, err

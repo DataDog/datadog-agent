@@ -37,6 +37,7 @@ type dogstatsdEvent struct {
 	sourceType     string
 	alertType      alertType
 	tags           []string
+	origin         string
 }
 
 type eventHeader struct {
@@ -162,6 +163,8 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
 		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
+	case bytes.HasPrefix(optionalField, originFieldPrefix):
+		newEvent.origin = string(optionalField[len(originFieldPrefix):])
 	}
 	if err != nil {
 		return event, err
