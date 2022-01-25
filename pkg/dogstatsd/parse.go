@@ -135,9 +135,10 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	var optionalField []byte
 	for message != nil {
 		optionalField, message = nextField(message)
-		if bytes.HasPrefix(optionalField, tagsFieldPrefix) {
+		switch {
+		case bytes.HasPrefix(optionalField, tagsFieldPrefix):
 			tags = p.parseTags(optionalField[1:])
-		} else if bytes.HasPrefix(optionalField, sampleRateFieldPrefix) {
+		case bytes.HasPrefix(optionalField, sampleRateFieldPrefix):
 			sampleRate, err = parseMetricSampleSampleRate(optionalField[1:])
 			if err != nil {
 				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd sample rate %q", optionalField)
