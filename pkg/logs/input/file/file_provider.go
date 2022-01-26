@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -21,61 +22,33 @@ import (
 // files are tailed
 const openFilesLimitWarningType = "open_files_limit_warning"
 
-// File represents a file to tail
-type File struct {
-	Path string
-	// IsWildcardPath is set to true when the File has been discovered
-	// in a directory with wildcard(s) in the configuration.
-	IsWildcardPath bool
-	Source         *config.LogSource
-}
-
-// NewFile returns a new File
-func NewFile(path string, source *config.LogSource, isWildcardPath bool) *File {
-	return &File{
-		Path:           path,
-		Source:         source,
-		IsWildcardPath: isWildcardPath,
-	}
-}
-
-// GetScanKey returns a key used by the scanner to index the scanned file.
-// If it is a file scanned for a container, it will use the format: <filepath>/<container_id>
-// Otherwise, it will simply use the format: <filepath>
-func (t *File) GetScanKey() string {
-	if t.Source != nil && t.Source.Config != nil && t.Source.Config.Identifier != "" {
-		return fmt.Sprintf("%s/%s", t.Path, t.Source.Config.Identifier)
-	}
-	return t.Path
-}
-
-// Provider implements the logic to retrieve at most filesLimit Files defined in sources
-type Provider struct {
+// fileProvider implements the logic to retrieve at most filesLimit Files defined in sources
+type fileProvider struct {
 	filesLimit      int
 	shouldLogErrors bool
 }
 
-// NewProvider returns a new Provider
-func NewProvider(filesLimit int) *Provider {
-	return &Provider{
+// newFileProvider returns a new Provider
+func newFileProvider(filesLimit int) *fileProvider {
+	return &fileProvider{
 		filesLimit:      filesLimit,
 		shouldLogErrors: true,
 	}
 }
 
-// FilesToTail returns all the Files matching paths in sources,
+// filesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
 // For now, there is no way to prioritize specific Files over others,
 // they are just returned in reverse lexicographical order, see `searchFiles`
-func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
-	var filesToTail []*File
+func (p *fileProvider) filesToTail(sources []*config.LogSource) []*tailer.File {
+	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
 
 	for i := 0; i < len(sources); i++ {
 		source := sources[i]
 		tailedFileCounter := 0
-		files, err := p.CollectFiles(source)
+		files, err := p.collectFiles(source)
 		isWildcardPath := config.ContainsWildcard(source.Config.Path)
 		if err != nil {
 			source.Status.Error(err)
@@ -118,14 +91,14 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 	return filesToTail
 }
 
-// CollectFiles returns all the files matching the source path.
-func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
+// collectFiles returns all the files matching the source path.
+func (p *fileProvider) collectFiles(source *config.LogSource) ([]*tailer.File, error) {
 	path := source.Config.Path
 	_, err := os.Stat(path)
 	switch {
 	case err == nil:
-		return []*File{
-			NewFile(path, source, false),
+		return []*tailer.File{
+			tailer.NewFile(path, source, false),
 		}, nil
 	case config.ContainsWildcard(path):
 		pattern := path
@@ -136,7 +109,7 @@ func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
 }
 
 // searchFiles returns all the files matching the source path pattern.
-func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*File, error) {
+func (p *fileProvider) searchFiles(pattern string, source *config.LogSource) ([]*tailer.File, error) {
 	paths, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
@@ -145,7 +118,7 @@ func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*Fil
 		// no file was found, its parent directories might have wrong permissions or it just does not exist
 		return nil, fmt.Errorf("could not find any file matching pattern %s, check that all its subdirectories are executable", pattern)
 	}
-	var files []*File
+	var files []*tailer.File
 
 	// Files are sorted because of a heuristic on the filename: often the filename and/or the folder name
 	// contains information in the file datetime. Most of the time we want the most recent files.
@@ -180,7 +153,7 @@ func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*Fil
 
 	for _, path := range paths {
 		if excludedPaths[path] == 0 {
-			files = append(files, NewFile(path, source, true))
+			files = append(files, tailer.NewFile(path, source, true))
 		}
 	}
 	return files, nil

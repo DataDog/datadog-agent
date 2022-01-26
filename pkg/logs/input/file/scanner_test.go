@@ -19,6 +19,7 @@ import (
 
 	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	filetailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
@@ -86,8 +87,8 @@ func (suite *ScannerTestSuite) TestScannerStartsTailers() {
 func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 	s := suite.s
 
-	var tailer *Tailer
-	var newTailer *Tailer
+	var tailer *filetailer.Tailer
+	var newTailer *filetailer.Tailer
 	var err error
 	var msg *message.Message
 
@@ -111,8 +112,8 @@ func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	s := suite.s
 
-	var tailer *Tailer
-	var newTailer *Tailer
+	var tailer *filetailer.Tailer
+	var newTailer *filetailer.Tailer
 	var err error
 	var msg *message.Message
 
@@ -137,8 +138,8 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 
 func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	s := suite.s
-	var tailer *Tailer
-	var newTailer *Tailer
+	var tailer *filetailer.Tailer
+	var newTailer *filetailer.Tailer
 	var err error
 	var msg *message.Message
 
@@ -204,7 +205,7 @@ func TestScannerTestSuiteWithConfigID(t *testing.T) {
 func TestScannerScanStartNewTailer(t *testing.T) {
 	var path string
 	var file *os.File
-	var tailer *Tailer
+	var tailer *filetailer.Tailer
 	var msg *message.Message
 
 	IDs := []string{"", "123456789"}
@@ -240,9 +241,9 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 		scanner.scan()
 		assert.Equal(t, 1, len(scanner.tailers))
 		tailer = scanner.tailers[getScanKey(path, source)]
-		msg = <-tailer.outputChan
+		msg = <-tailer.OutputChan
 		assert.Equal(t, "hello", string(msg.Content))
-		msg = <-tailer.outputChan
+		msg = <-tailer.OutputChan
 		assert.Equal(t, "world", string(msg.Content))
 	}
 }
@@ -281,13 +282,13 @@ func TestScannerWithConcurrentContainerTailer(t *testing.T) {
 	assert.Nil(t, err)
 
 	tailer := scanner.tailers[getScanKey(path, firstSource)]
-	msg := <-tailer.outputChan
+	msg := <-tailer.OutputChan
 	assert.Equal(t, "Once", string(msg.Content))
-	msg = <-tailer.outputChan
+	msg = <-tailer.OutputChan
 	assert.Equal(t, "Upon", string(msg.Content))
-	msg = <-tailer.outputChan
+	msg = <-tailer.OutputChan
 	assert.Equal(t, "A", string(msg.Content))
-	msg = <-tailer.outputChan
+	msg = <-tailer.OutputChan
 	assert.Equal(t, "Time", string(msg.Content))
 
 	// Add a second source, same file, different container ID, tailing twice the same file is supported in that case
@@ -333,13 +334,13 @@ func TestScannerTailFromTheBeginning(t *testing.T) {
 		assert.Nil(t, err)
 
 		tailer := scanner.tailers[getScanKey(source.Config.Path, source)]
-		msg := <-tailer.outputChan
+		msg := <-tailer.OutputChan
 		assert.Equal(t, "Once", string(msg.Content))
-		msg = <-tailer.outputChan
+		msg = <-tailer.OutputChan
 		assert.Equal(t, "Upon", string(msg.Content))
-		msg = <-tailer.outputChan
+		msg = <-tailer.OutputChan
 		assert.Equal(t, "A", string(msg.Content))
-		msg = <-tailer.outputChan
+		msg = <-tailer.OutputChan
 		assert.Equal(t, "Time", string(msg.Content))
 	}
 }
@@ -415,7 +416,7 @@ func TestContainerIDInContainerLogFile(t *testing.T) {
 
 	assert.NoError(err, "error while creating the temporary file")
 
-	file := File{
+	file := filetailer.File{
 		Path:           "/var/log/pods/file-uuid-foo-bar.log",
 		IsWildcardPath: false,
 		Source:         logSource,
@@ -442,5 +443,5 @@ func TestContainerIDInContainerLogFile(t *testing.T) {
 }
 
 func getScanKey(path string, source *config.LogSource) string {
-	return NewFile(path, source, false).GetScanKey()
+	return filetailer.NewFile(path, source, false).GetScanKey()
 }

@@ -17,7 +17,7 @@ import (
 
 // setup sets up the file tailer
 func (t *Tailer) setup(offset int64, whence int) error {
-	fullpath, err := filepath.Abs(t.file.Path)
+	fullpath, err := filepath.Abs(t.File.Path)
 	if err != nil {
 		return err
 	}
@@ -26,7 +26,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	// adds metadata to enable users to filter logs by filename
 	t.tags = t.buildTailerTags()
 
-	log.Info("Opening", t.file.Path, "for tailer key", t.file.GetScanKey())
+	log.Info("Opening", t.File.Path, "for tailer key", t.File.GetScanKey())
 	f, err := openFile(fullpath)
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func (t *Tailer) read() (int, error) {
 	n, err := t.osFile.Read(inBuf)
 	if err != nil && err != io.EOF {
 		// an unexpected error occurred, stop the tailor
-		t.file.Source.Status.Error(err)
+		t.File.Source.Status.Error(err)
 		return 0, log.Error("Unexpected error occurred while reading file: ", err)
 	}
 	if n == 0 {
