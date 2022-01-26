@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The experimental OTLP ingest endpoint now supports the same settings as the OpenTelemetry Collector OTLP receiver v0.42.0.
+    The experimental OTLP ingest endpoint now supports the same settings as the OpenTelemetry Collector OTLP receiver v0.43.1.

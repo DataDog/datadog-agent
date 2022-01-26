@@ -12,8 +12,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configmapprovider"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
 	"go.opentelemetry.io/collector/service"
 	"go.uber.org/multierr"
 
@@ -128,10 +126,5 @@ func newMapProvider(cfg PipelineConfig) (service.ConfigProvider, error) {
 	if err != nil {
 		return nil, err
 	}
-	provider := configutils.NewProviderFromMap(cfgMap)
-	return service.NewConfigProvider(
-		[]configmapprovider.Provider{provider},
-		[]service.ConfigMapConverterFunc{},
-		configunmarshaler.NewDefault(),
-	), nil
+	return configutils.NewConfigProviderFromMap(cfgMap), nil
 }
