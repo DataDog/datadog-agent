@@ -95,5 +95,5 @@ build_vckpg_deps:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl},readwrite" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} C:\vcpkg\vcpkg.exe install  --x-wait-for-lock --triplet "x64-windows-static" --vcpkg-root "C:\vcpkg\scripts\buildsystems\msbuild\..\..\..\\" "--x-manifest-root=C:\mnt\tools\windows\install-help\cal\\" "--x-install-root=C:\vcpkg\scripts\buildsystems\msbuild\..\..\..\installed\\" --feature-flags=versions
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl},readwrite" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} C:\mnt\tasks\winbuildscripts\build_vcpkg_deps.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
