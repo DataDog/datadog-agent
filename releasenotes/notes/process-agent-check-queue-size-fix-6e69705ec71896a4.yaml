@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Add DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES and DD_PROCESS_AGENT_PROCESS_QUEUE_BYTES env variables to set process_config.process_queue_bytes
