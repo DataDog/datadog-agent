@@ -185,3 +185,47 @@ func TestNewCollectorQueueSize(t *testing.T) {
 		})
 	}
 }
+
+func TestNewCollectorRTQueueSize(t *testing.T) {
+	tests := []struct {
+		name              string
+		override          bool
+		queueSize         int
+		expectedQueueSize int
+	}{
+		{
+			name:              "default queue size",
+			override:          false,
+			queueSize:         2,
+			expectedQueueSize: ddconfig.DefaultRTCheckQueueSize,
+		},
+		{
+			name:              "valid queue size override",
+			override:          true,
+			queueSize:         2,
+			expectedQueueSize: 2,
+		},
+		{
+			name:              "invalid queue size override",
+			override:          true,
+			queueSize:         -2,
+			expectedQueueSize: ddconfig.DefaultRTCheckQueueSize,
+		},
+	}
+
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig(false)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock()
+			if tc.override {
+				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
+			}
+
+			c, err := NewCollector(cfg)
+			assert.NoError(err)
+			assert.Equal(tc.expectedQueueSize, c.rtProcessResults.MaxSize())
+		})
+	}
+}

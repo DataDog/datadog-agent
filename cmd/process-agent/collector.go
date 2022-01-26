@@ -112,10 +112,21 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		queueSize = ddconfig.DefaultCheckQueueSize
 	}
 
+	rtQueueSize := ddconfig.Datadog.GetInt("process_config.rt_queue_size")
+	if rtQueueSize < 0 {
+		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultRTCheckQueueSize)
+		rtQueueSize = ddconfig.DefaultRTCheckQueueSize
+	}
+
 	processResults := api.NewWeightedQueue(queueSize, int64(cfg.ProcessQueueBytes))
+	log.Debugf("Creating process check queue with max_size=%d and max_weight=%d", queueSize, cfg.ProcessQueueBytes)
+
 	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
-	rtProcessResults := api.NewWeightedQueue(cfg.RTQueueSize, int64(cfg.ProcessQueueBytes))
+	rtProcessResults := api.NewWeightedQueue(rtQueueSize, int64(cfg.ProcessQueueBytes))
+	log.Debugf("Creating rt process check queue with max_size=%d and max_weight=%d", rtQueueSize, cfg.ProcessQueueBytes)
+
 	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
+	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", queueSize, cfg.Orchestrator.PodQueueBytes)
 
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),

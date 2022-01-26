@@ -58,6 +58,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.queue_size",
 			defaultValue: DefaultCheckQueueSize,
 		},
+		{
+			key:          "process_config.rt_queue_size",
+			defaultValue: DefaultCheckQueueSize,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -199,6 +203,12 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_QUEUE_SIZE",
 			value:    "42",
 			expected: 42,
+		},
+		{
+			key:      "process_config.rt_queue_size",
+			env:      "DD_PROCESS_CONFIG_RT_QUEUE_SIZE",
+			value:    "10",
+			expected: 10,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
