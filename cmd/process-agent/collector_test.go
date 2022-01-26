@@ -102,7 +102,6 @@ func TestHasContainers(t *testing.T) {
 }
 
 func TestDisableRealTime(t *testing.T) {
-
 	tests := []struct {
 		name            string
 		disableRealtime bool
@@ -140,5 +139,49 @@ func TestDisableRealTime(t *testing.T) {
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
 		})
 	}
+}
 
+func TestNewCollectorQueueSize(t *testing.T) {
+	tests := []struct {
+		name              string
+		override          bool
+		queueSize         int
+		expectedQueueSize int
+	}{
+		{
+			name:              "default queue size",
+			override:          false,
+			queueSize:         ddconfig.DefaultCheckQueueSize,
+			expectedQueueSize: ddconfig.DefaultCheckQueueSize,
+		},
+		{
+			name:              "valid queue size override",
+			override:          true,
+			queueSize:         42,
+			expectedQueueSize: 42,
+		},
+		{
+			name:              "invalid queue size override",
+			override:          true,
+			queueSize:         -10,
+			expectedQueueSize: ddconfig.DefaultCheckQueueSize,
+		},
+	}
+
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig(false)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock()
+			if tc.override {
+				mockConfig.Set("process_config.queue_size", tc.queueSize)
+			}
+
+			c, err := NewCollector(cfg)
+			assert.NoError(err)
+			assert.Equal(tc.expectedQueueSize, c.processResults.MaxSize())
+			assert.Equal(tc.expectedQueueSize, c.podResults.MaxSize())
+		})
+	}
 }

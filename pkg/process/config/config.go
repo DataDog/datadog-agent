@@ -98,7 +98,6 @@ type AgentConfig struct {
 	Enabled                   bool
 	HostName                  string
 	APIEndpoints              []apicfg.Endpoint
-	QueueSize                 int // The number of items allowed in each delivery queue.
 	RTQueueSize               int // the number of items allowed in real-time delivery queue
 	ProcessQueueBytes         int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
 	Blacklist                 []*regexp.Regexp
@@ -189,10 +188,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 
 		// Allow buffering up to 60 megabytes of payload data in total
 		ProcessQueueBytes: 60 * 1000 * 1000,
-		// This can be fairly high as the input should get throttled by queue bytes first.
-		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
-		QueueSize:   256,
-		RTQueueSize: 5, // We set a small queue size for real-time message queue because they get staled very quickly, thus we only keep the latest several payloads
+		RTQueueSize:       5, // We set a small queue size for real-time message queue because they get staled very quickly, thus we only keep the latest several payloads
 
 		MaxPerMessage:             maxMessageBatch,
 		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,

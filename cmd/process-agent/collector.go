@@ -106,6 +106,17 @@ func isRealTimeCheck(checkName string) bool {
 
 // NewCollectorWithChecks creates a new Collector
 func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runRealTime bool) Collector {
+	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
+	if queueSize < 0 {
+		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultCheckQueueSize)
+		queueSize = ddconfig.DefaultCheckQueueSize
+	}
+
+	processResults := api.NewWeightedQueue(queueSize, int64(cfg.ProcessQueueBytes))
+	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
+	rtProcessResults := api.NewWeightedQueue(cfg.RTQueueSize, int64(cfg.ProcessQueueBytes))
+	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
+
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
@@ -115,6 +126,10 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  0,
+
+		processResults:   processResults,
+		rtProcessResults: rtProcessResults,
+		podResults:       podResults,
 
 		runRealTime: runRealTime,
 	}
@@ -239,11 +254,6 @@ func (l *Collector) run(exit chan struct{}) error {
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
 
 	go util.HandleSignals(exit)
-
-	l.processResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
-	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
-	l.rtProcessResults = api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
-	l.podResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
 
 	go func() {
 		<-exit

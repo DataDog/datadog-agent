@@ -334,7 +334,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	ep := agentConfig.APIEndpoints[0]
 	assert.Equal("apikey_20", ep.APIKey)
 	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
-	assert.Equal(10, agentConfig.QueueSize)
+	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(true, agentConfig.Enabled)
 	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
@@ -350,7 +350,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal("apikey_20", ep.APIKey)
 	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
 	assert.Equal("server-01", agentConfig.HostName)
-	assert.Equal(10, agentConfig.QueueSize)
+	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(true, agentConfig.Enabled)
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
@@ -367,7 +367,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 
 	assert.Equal("apikey_20", ep.APIKey)
 	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
-	assert.Equal(10, agentConfig.QueueSize)
+	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(true, agentConfig.Enabled)
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
