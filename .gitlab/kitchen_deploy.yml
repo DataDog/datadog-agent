@@ -37,8 +37,6 @@
   - popd
 
 .deploy_deb_testing-a6:
-  rules:
-    !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
@@ -48,6 +46,8 @@
     - ls $OMNIBUS_PACKAGE_DIR
 
 deploy_deb_testing-a6_x64:
+  rules:
+    !reference [.on_kitchen_tests_a6]
   extends:
     - .deploy_deb_testing-a6
   needs: ["agent_deb-x64-a6", "agent_heroku_deb-x64-a6", "tests_deb-x64-py2", "tests_deb-x64-py3"]
@@ -63,6 +63,8 @@ deploy_deb_testing-a6_x64:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 deploy_deb_testing-a6_arm64:
+  rules:
+    !reference [.on_all_builds_a6]
   extends:
     - .deploy_deb_testing-a6
   needs: ["agent_deb-arm64-a6", "tests_deb-arm64-py2", "tests_deb-arm64-py3"]
@@ -76,8 +78,6 @@ deploy_deb_testing-a6_arm64:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 .deploy_deb_testing-a7:
-  rules:
-    !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
@@ -87,6 +87,8 @@ deploy_deb_testing-a6_arm64:
     - ls $OMNIBUS_PACKAGE_DIR
 
 deploy_deb_testing-a7_x64:
+  rules:
+    !reference [.on_default_kitchen_tests_a7]
   extends:
     - .deploy_deb_testing-a7
   needs: ["agent_deb-x64-a7", "agent_heroku_deb-x64-a7", "iot_agent_deb-x64", "dogstatsd_deb-x64", "tests_deb-x64-py3"]
@@ -102,6 +104,8 @@ deploy_deb_testing-a7_x64:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 deploy_deb_testing-a7_arm64:
+  rules:
+    !reference [.on_all_builds_a7]
   extends:
     - .deploy_deb_testing-a7
   needs: ["agent_deb-arm64-a7", "tests_deb-arm64-py2", "tests_deb-arm64-py3"]
