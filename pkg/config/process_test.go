@@ -47,7 +47,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: 4 * time.Hour,
 		},
 		{
-			<<<<<<< HEAD
 			key:          "process_config.process_collection.enabled",
 			defaultValue: false,
 		},
@@ -66,6 +65,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 		{
 			key:          "process_config.process_queue_bytes",
 			defaultValue: DefaultProcessQueueBytes,
+		},
+		{
+			key:          "process_config.rt_queue_size",
+			defaultValue: DefaultCheckQueueSize,
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
