@@ -218,7 +218,7 @@ Bug Fixes
 Other Notes
 -----------
 
-- The Windows installer only create the datadog.yaml file on new installs.
+- The Windows installer only creates the datadog.yaml file on new installs.
 
 
 .. _Release Notes_7.32.4:
