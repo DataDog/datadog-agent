@@ -21,7 +21,7 @@ var (
 	CardinalityTagPrefix = "dd.internal.card:"
 )
 
-func extractTagsMetadata(tags []string, defaultHostname, originFromUDS, originFromMsg string, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
+func extractTagsMetadata(tags []string, defaultHostname, originFromUDS string, originFromMsg []byte, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
 	host := defaultHostname
 
 	n := 0
@@ -58,10 +58,10 @@ func extractTagsMetadata(tags []string, defaultHostname, originFromUDS, originFr
 
 		// currently only supported for pods
 		originFromClient = kubelet.KubePodTaggerEntityPrefix + originFromTag
-	} else if originFromTag == "" && originFromMsg != "" {
+	} else if originFromTag == "" && len(originFromMsg) > 0 {
 		// originFromMsg is the container id sent by the newer clients.
 		// Opt-in is handled when parsing.
-		originFromClient = containers.BuildTaggerEntityName(originFromMsg)
+		originFromClient = containers.BuildTaggerEntityName(string(originFromMsg))
 	}
 
 	return tags, host, udsOrigin, originFromClient, cardinality

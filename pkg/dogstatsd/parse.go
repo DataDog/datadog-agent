@@ -145,7 +145,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 
 	sampleRate := 1.0
 	var tags []string
-	var containerID string
+	var containerID []byte
 	var optionalField []byte
 	for message != nil {
 		optionalField, message = nextField(message)
@@ -212,8 +212,8 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 }
 
 // extractContainerID parses the value of the container ID field.
-func (p *parser) extractContainerID(rawContainerIDField []byte) string {
-	return string(rawContainerIDField[len(containerIDFieldPrefix):])
+func (p *parser) extractContainerID(rawContainerIDField []byte) []byte {
+	return rawContainerIDField[len(containerIDFieldPrefix):]
 }
 
 // the std API does not have methods to do []byte => float parsing

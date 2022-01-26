@@ -904,7 +904,7 @@ func TestEnrichTags(t *testing.T) {
 		tags                       []string
 		defaultHostname            string
 		originFromUDS              string
-		originFromMsg              string
+		originFromMsg              []byte
 		entityIDPrecendenceEnabled bool
 	}
 	tests := []struct {
@@ -1075,7 +1075,7 @@ func TestEnrichTags(t *testing.T) {
 				tags:            []string{"env:prod", "dd.internal.entity_id:pod-uid"},
 				defaultHostname: "foo",
 				originFromUDS:   "originID",
-				originFromMsg:   "container-id",
+				originFromMsg:   []byte("container-id"),
 			},
 			wantedTags:      []string{"env:prod"},
 			wantedHost:      "foo",
@@ -1088,7 +1088,7 @@ func TestEnrichTags(t *testing.T) {
 				tags:            []string{"env:prod"},
 				defaultHostname: "foo",
 				originFromUDS:   "originID",
-				originFromMsg:   "container-id",
+				originFromMsg:   []byte("container-id"),
 			},
 			wantedTags:      []string{"env:prod"},
 			wantedHost:      "foo",

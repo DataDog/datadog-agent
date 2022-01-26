@@ -30,7 +30,7 @@ type dogstatsdServiceCheck struct {
 	message   string
 	tags      []string
 	// containerID represents the container ID of the sender (optional).
-	containerID string
+	containerID []byte
 }
 
 var (

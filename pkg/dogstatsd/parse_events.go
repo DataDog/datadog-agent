@@ -39,7 +39,7 @@ type dogstatsdEvent struct {
 	alertType      alertType
 	tags           []string
 	// containerID represents the container ID of the sender (optional).
-	containerID string
+	containerID []byte
 }
 
 type eventHeader struct {
