@@ -60,20 +60,33 @@
     - .kitchen_ec2_arm64
   needs: ["deploy_deb_testing-a7_arm64"]
 
-# Kitchen: final test matrix (tests * scenarios)
+# Kitchen: final test matrix (tests * scenarios * arch)
 # ----------------------------------------------
 
-kitchen_debian_install_script_agent-a6:
+kitchen_debian_install_script_agent-a6_x64:
   extends:
     - .kitchen_scenario_debian_a6_x64
     - .kitchen_test_install_script_agent
 
-kitchen_debian_install_script_agent-a7:
+kitchen_debian_install_script_agent-a6_arm64:
+  extends:
+    - .kitchen_scenario_debian_a6_arm64
+    - .kitchen_test_install_script_agent
+
+kitchen_debian_install_script_agent-a7_x64:
   # Run install script test on branches, on a reduced number of platforms
   rules:
     !reference [.on_default_kitchen_tests_a7]
   extends:
     - .kitchen_scenario_debian_a7_x64
+    - .kitchen_test_install_script_agent
+
+kitchen_debian_install_script_agent-a7_arm64:
+  # Run install script test on branches, on a reduced number of platforms
+  rules:
+    !reference [.on_default_kitchen_tests_a7]
+  extends:
+    - .kitchen_scenario_debian_a7_arm64
     - .kitchen_test_install_script_agent
 
 kitchen_debian_install_script_iot_agent-a7:
