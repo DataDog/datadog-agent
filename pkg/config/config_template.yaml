@@ -1601,6 +1601,14 @@ api_key:
 #
 # dogstatsd_origin_detection: false
 
+## @param dogstatsd_origin_detection_udp - boolean - optional - default: false
+## @env DD_DOGSTATSD_ORIGIN_DETECTION_UDP - boolean - optional - default: false
+## When using UDP, a DogStatsD client can send its container ID.
+## Enabling this parameter will instruct the Agent to use the container ID to enrich the metrics with container tags.
+## Note: This requires using a compatible DogStatsD client version.
+#
+# dogstatsd_origin_detection_udp: false
+
 ## @param dogstatsd_buffer_size - integer - optional - default: 8192
 ## @env DD_DOGSTATSD_BUFFER_SIZE - integer - optional - default: 8192
 ## The buffer size use to receive statsd packets, in bytes.

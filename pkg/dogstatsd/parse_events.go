@@ -8,6 +8,7 @@ package dogstatsd
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,6 +38,8 @@ type dogstatsdEvent struct {
 	sourceType     string
 	alertType      alertType
 	tags           []string
+	// containerID represents the container ID of the sender (optional).
+	containerID string
 }
 
 type eventHeader struct {
@@ -162,6 +165,8 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
 		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
+	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):
+		newEvent.containerID = p.extractContainerID(optionalField)
 	}
 	if err != nil {
 		return event, err

@@ -29,6 +29,9 @@ var (
 	fieldSeparator = []byte("|")
 	colonSeparator = []byte(":")
 	commaSeparator = []byte(",")
+
+	// containerIDFieldPrefix is the prefix for a common field holding the sender's container ID
+	containerIDFieldPrefix = []byte("c:")
 )
 
 // parser parses dogstatsd messages
@@ -36,14 +39,20 @@ var (
 type parser struct {
 	interner    *stringInterner
 	float64List *float64ListPool
+
+	// dsdOriginEnabled controls whether the server should honor the container id sent by the
+	// client. Defaulting to false, this opt-in flag is used to avoid changing tags cardinality
+	// for existing installations.
+	dsdOriginEnabled bool
 }
 
 func newParser(float64List *float64ListPool) *parser {
 	stringInternerCacheSize := config.Datadog.GetInt("dogstatsd_string_interner_size")
 
 	return &parser{
-		interner:    newStringInterner(stringInternerCacheSize),
-		float64List: float64List,
+		interner:         newStringInterner(stringInternerCacheSize),
+		float64List:      float64List,
+		dsdOriginEnabled: config.Datadog.GetBool("dogstatsd_origin_detection_udp"),
 	}
 }
 
@@ -132,27 +141,32 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 
 	sampleRate := 1.0
 	var tags []string
+	var containerID string
 	var optionalField []byte
 	for message != nil {
 		optionalField, message = nextField(message)
-		if bytes.HasPrefix(optionalField, tagsFieldPrefix) {
+		switch {
+		case bytes.HasPrefix(optionalField, tagsFieldPrefix):
 			tags = p.parseTags(optionalField[1:])
-		} else if bytes.HasPrefix(optionalField, sampleRateFieldPrefix) {
+		case bytes.HasPrefix(optionalField, sampleRateFieldPrefix):
 			sampleRate, err = parseMetricSampleSampleRate(optionalField[1:])
 			if err != nil {
 				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd sample rate %q", optionalField)
 			}
+		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):
+			containerID = p.extractContainerID(optionalField)
 		}
 	}
 
 	return dogstatsdMetricSample{
-		name:       p.interner.LoadOrStore(name),
-		value:      value,
-		values:     values,
-		setValue:   string(setValue),
-		metricType: metricType,
-		sampleRate: sampleRate,
-		tags:       tags,
+		name:        p.interner.LoadOrStore(name),
+		value:       value,
+		values:      values,
+		setValue:    string(setValue),
+		metricType:  metricType,
+		sampleRate:  sampleRate,
+		tags:        tags,
+		containerID: containerID,
 	}, nil
 }
 
@@ -191,6 +205,11 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 		return nil, fmt.Errorf("no value found")
 	}
 	return values, nil
+}
+
+// extractContainerID parses the value of the container ID field.
+func (p *parser) extractContainerID(rawContainerIDField []byte) string {
+	return string(rawContainerIDField[len(containerIDFieldPrefix):])
 }
 
 // the std API does not have methods to do []byte => float parsing
