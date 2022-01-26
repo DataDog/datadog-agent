@@ -16,7 +16,7 @@
 #define FAKE_INODE_MSW 0xdeadc001UL
 
 #define DR_MAX_TAIL_CALL          30
-#define DR_MAX_ITERATION_DEPTH    49
+#define DR_MAX_ITERATION_DEPTH    46
 #define DR_MAX_SEGMENT_LENGTH     255
 
 struct path_leaf_t {

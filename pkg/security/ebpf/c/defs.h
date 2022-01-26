@@ -612,10 +612,15 @@ struct traced_inode_t {
     u64 inode;
 };
 
+struct traced_inode_params_t {
+    u64 first_sent;
+    u64 event_mask;
+};
+
 struct bpf_map_def SEC("maps/traced_inodes") traced_inodes = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(struct traced_inode_t),
-    .value_size = sizeof(u64),
+    .value_size = sizeof(struct traced_inode_params_t),
     .max_entries = 8192,
     .pinning = 0,
     .namespace = "",

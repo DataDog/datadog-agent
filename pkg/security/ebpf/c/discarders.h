@@ -190,27 +190,59 @@ struct is_discarded_by_inode_t {
 };
 
 int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
+    // is this process traced ?
     if (params->tgid_is_traced) {
+
+        // was this inode seen before ?
         struct traced_inode_t traced_key = {
             .tgid = params->tgid,
             .inode = params->discarder.path_key.ino,
             .mount_id = params->discarder.path_key.mount_id,
         };
-        u64 *last_sent = bpf_map_lookup_elem(&traced_inodes, &traced_key);
-        if (last_sent == NULL) {
-            bpf_map_update_elem(&traced_inodes, &traced_key, &params->now, BPF_ANY);
+        struct traced_inode_params_t *traced_inode_params = bpf_map_lookup_elem(&traced_inodes, &traced_key);
+
+        if (traced_inode_params == NULL) {
+
+            // this is the first time we see this inode, save the current time and add the event type to the event mask
+            struct traced_inode_params_t new_params = {
+                .first_sent = params->now,
+                .event_mask = 0,
+            };
+            add_event_to_mask(&new_params.first_sent, params->event_type);
+            bpf_map_update_elem(&traced_inodes, &traced_key, &new_params, BPF_ANY);
+
+            // do not discard this event
             return 0;
-        } else {
-            if (params->tgid_exec_ts > *last_sent || params->tgid_exec_ts == 0) {
-                // the tgid was reused, update the last_sent timestamp and do not discard
-                *last_sent = params->now;
-                return 0;
-            } else {
-                return 1;
-            }
+
         }
+
+        // Regardless of the event type, we want to check first that the process for which we sent the first event
+        // on this inode is still up.
+        if (params->tgid_exec_ts > traced_inode_params->first_sent || params->tgid_exec_ts == 0) {
+
+            // the tgid was reused, update the last_sent timestamp and do not discard
+            traced_inode_params->first_sent = params->now;
+            traced_inode_params->event_mask = 0;
+            add_event_to_mask(&traced_inode_params->event_mask, params->event_type);
+
+            // do not discard this event
+            return 0;
+
+        }
+
+        // have we seen this event type before ?
+        if (mask_has_event(traced_inode_params->event_mask, params->event_type)) {
+            // yes, discard this inode
+            return 1;
+        }
+
+        // no, add the event type to the mask of event type
+        add_event_to_mask(&traced_inode_params->event_mask, params->event_type);
+        // do not discard this event
+        return 0;
     }
 
+    // fall back to the "normal" discarder check
     struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &params->discarder, params->event_type, params->now);
     if (!inode_params) {
         return 0;

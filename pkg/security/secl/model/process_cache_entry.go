@@ -18,12 +18,26 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 
 // GetNextAncestorNoFork returns the first ancestor that is not a fork entry
 func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
-	if pc.Ancestor != nil {
-		if (pc.Ancestor.ExitTime == pc.ExecTime || pc.Ancestor.ExitTime == time.Time{}) && pc.Tid == pc.Ancestor.Tid {
-			return pc.Ancestor.Ancestor
-		}
+	if pc.Ancestor == nil {
+		return nil
 	}
-	return pc.Ancestor
+
+	ancestor := pc.Ancestor
+	// make sure we don't loop forever
+	for i := 0; i < 1000; i++ {
+		if ancestor.Ancestor == nil {
+			break
+		}
+		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime == time.Time{}) && ancestor.Tid == ancestor.Ancestor.Tid {
+			// this is a fork entry, move on to the next ancestor
+			ancestor = ancestor.Ancestor
+			continue
+		}
+
+		// this is the first true exec
+		break
+	}
+	return ancestor
 }
 
 // Exit a process

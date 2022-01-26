@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -130,12 +131,10 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.DumpActivityParams) (st
 	}
 
 	// loop through the process cache entry tree and push traced pids if necessary
-	adm.probe.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback)
+	adm.probe.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback(newDump))
 
-	// Snapshot the processes in each activity dump
-	for _, ad := range adm.activeDumps {
-		_ = ad.Snapshot()
-	}
+	// Snapshot the processes in the activity dump
+	_ = newDump.Snapshot()
 
 	seclog.Infof("profiling started for %s", newDump.GetSelectorStr())
 
@@ -197,23 +196,22 @@ func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
 }
 
 // SearchTracedProcessCacheEntryCallback inserts traced pids if necessary
-func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(entry *model.ProcessCacheEntry) {
-	// compute the list of ancestors, we need to start inserting them from the root
-	ancestors := []*model.ProcessCacheEntry{entry}
-	parent := entry.GetNextAncestorNoFork()
-	for parent != nil {
-		ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
-		parent = parent.GetNextAncestorNoFork()
-	}
+func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *ActivityDump) func(entry *model.ProcessCacheEntry) {
+	return func(entry *model.ProcessCacheEntry) {
+		// compute the list of ancestors, we need to start inserting them from the root
+		ancestors := []*model.ProcessCacheEntry{entry}
+		parent := entry.GetNextAncestorNoFork()
+		for parent != nil {
+			ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
+			parent = parent.GetNextAncestorNoFork()
+		}
 
-	for _, d := range adm.activeDumps {
 		for _, parent = range ancestors {
-			if node := d.FindOrCreateProcessActivityNode(parent, Snapshot); node != nil {
-				_ = d.tracedPIDs.Put(node.Process.Pid, uint64(0))
+			if node := ad.FindOrCreateProcessActivityNode(parent, Snapshot); node != nil {
+				_ = ad.tracedPIDs.Put(node.Process.Pid, uint64(0))
 			}
 		}
 	}
-	return
 }
 
 var profileTmpl = `---

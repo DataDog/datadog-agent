@@ -481,15 +481,15 @@ type ProcessCacheEntry struct {
 }
 
 // Reset the entry
-func (e *ProcessCacheEntry) Reset() {
-	e.ProcessContext = zeroProcessContext
-	e.refCount = 0
-	e.releaseCb = nil
+func (pc *ProcessCacheEntry) Reset() {
+	pc.ProcessContext = zeroProcessContext
+	pc.refCount = 0
+	pc.releaseCb = nil
 }
 
 // Retain increment ref counter
-func (e *ProcessCacheEntry) Retain() {
-	e.refCount++
+func (pc *ProcessCacheEntry) Retain() {
+	pc.refCount++
 }
 
 // SetReleaseCallback set the callback called when the entry is released
@@ -498,14 +498,14 @@ func (e *ProcessCacheEntry) SetReleaseCallback(callback func()) {
 }
 
 // Release decrement and eventually release the entry
-func (e *ProcessCacheEntry) Release() {
-	e.refCount--
-	if e.refCount > 0 {
+func (pc *ProcessCacheEntry) Release() {
+	pc.refCount--
+	if pc.refCount > 0 {
 		return
 	}
 
-	if e.onRelease != nil {
-		e.onRelease(e)
+	if pc.onRelease != nil {
+		pc.onRelease(pc)
 	}
 
 	if e.releaseCb != nil {

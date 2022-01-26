@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -128,7 +129,7 @@ func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix
 	fileID := fmt.Sprintf("%s_%s_%s", processID, f.Name, prefix+f.Name)
 	fn := node{
 		ID:    generateNodeID(fileID),
-		Label: f.Name,
+		Label: f.getNodeLabel(),
 		Size:  30,
 		Color: fileColor,
 	}
