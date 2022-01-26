@@ -306,10 +306,10 @@ int kprobe__stream_open(struct pt_regs* ctx) {
         bpf_probe_read(&socket, sizeof(socket), file + status->offset_file_private);
         status->socket = socket;
 
-        log_debug("stream  %x %x %d\n", socket, SOCKET_I((struct inode*)inode), status->offset_socket_i);
+//        log_debug("stream  %x %x %d\n", socket, SOCKET_I((struct inode*)inode), status->offset_socket_i);
         u64 r;
         bpf_probe_read(&r, sizeof(r), ((char*)inode) - status->offset_socket_i);
-        log_debug("stream  %x %c\n", r);
+//        log_debug("stream  %x %c\n", r);
 
         guess_offsets(status, (char*)inode);
         return 0;

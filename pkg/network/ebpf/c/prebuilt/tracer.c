@@ -641,10 +641,10 @@ int kprobe__fd_install(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     void *private_data;
-    bpf_probe_read(&private_data, sizeof(private_data), file + offsetof(struct file, private_data));
+    bpf_probe_read(&private_data, sizeof(private_data), file + offset_file_private());
     struct inode *inode;
-    bpf_probe_read(&inode, sizeof(inode), file + offsetof(struct file, f_inode));
-    struct socket *socket = SOCKET_I(inode);
+    bpf_probe_read(&inode, sizeof(inode), file + offset_file_inode());
+    struct socket *socket = (struct socket *)((char*)inode - offset_socket_i()); //SOCKET_I(inode)
     if (!private_data || (private_data != socket)) {
         return 0;
     }
