@@ -38,9 +38,9 @@ var ContainersLogsDir = "/var/log/containers"
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
 const DefaultSleepDuration = 1 * time.Second
 
-// Scanner checks all files provided by fileProvider and create new tailers
+// Launcher checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
-type Scanner struct {
+type Launcher struct {
 	pipelineProvider    pipeline.Provider
 	addedSources        chan *config.LogSource
 	removedSources      chan *config.LogSource
@@ -58,10 +58,10 @@ type Scanner struct {
 	scanPeriod             time.Duration
 }
 
-// NewScanner returns a new scanner.
-func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry,
-	tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Scanner {
-	return &Scanner{
+// NewLauncher returns a new launcher.
+func NewLauncher(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry,
+	tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
+	return &Launcher{
 		pipelineProvider:       pipelineProvider,
 		tailingLimit:           tailingLimit,
 		addedSources:           sources.GetAddedForType(config.FileType),
@@ -77,19 +77,19 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 }
 
 // Start starts the Scanner
-func (s *Scanner) Start() {
+func (s *Launcher) Start() {
 	go s.run()
 }
 
 // Stop stops the Scanner and its tailers in parallel,
 // this call returns only when all the tailers are stopped
-func (s *Scanner) Stop() {
+func (s *Launcher) Stop() {
 	s.stop <- struct{}{}
 	s.cleanup()
 }
 
 // run checks periodically if there are new files to tail and the state of its tailers until stop
-func (s *Scanner) run() {
+func (s *Launcher) run() {
 	scanTicker := time.NewTicker(s.scanPeriod)
 	defer scanTicker.Stop()
 	for {
@@ -109,7 +109,7 @@ func (s *Scanner) run() {
 }
 
 // cleanup all tailers
-func (s *Scanner) cleanup() {
+func (s *Launcher) cleanup() {
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range s.tailers {
 		stopper.Add(tailer)
@@ -122,7 +122,7 @@ func (s *Scanner) cleanup() {
 // and triggeres the required updates.
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
-func (s *Scanner) scan() {
+func (s *Launcher) scan() {
 	files := s.fileProvider.filesToTail(s.activeSources)
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
@@ -186,13 +186,13 @@ func (s *Scanner) scan() {
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
-func (s *Scanner) addSource(source *config.LogSource) {
+func (s *Launcher) addSource(source *config.LogSource) {
 	s.activeSources = append(s.activeSources, source)
 	s.launchTailers(source)
 }
 
 // removeSource removes the source from cache.
-func (s *Scanner) removeSource(source *config.LogSource) {
+func (s *Launcher) removeSource(source *config.LogSource) {
 	for i, src := range s.activeSources {
 		if src == source {
 			// no need to stop the tailer here, it will be stopped in the next iteration of scan.
@@ -203,7 +203,7 @@ func (s *Scanner) removeSource(source *config.LogSource) {
 }
 
 // launch launches new tailers for a new source.
-func (s *Scanner) launchTailers(source *config.LogSource) {
+func (s *Launcher) launchTailers(source *config.LogSource) {
 	files, err := s.fileProvider.collectFiles(source)
 	if err != nil {
 		source.Status.Error(err)
@@ -233,13 +233,13 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
 // returns true if the operation succeeded, false otherwise.
-func (s *Scanner) startNewTailer(file *tailer.File, m config.TailingMode) bool {
+func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool {
 	if file == nil {
 		log.Debug("startNewTailer called with a nil file")
 		return false
 	}
 
-	// We also use the file scanner to look for containers and pods logs file, because of that
+	// We also use the file launcher to look for containers and pods logs file, because of that
 	// we have to make sure that the file we just detected is tagged with the correct
 	// container ID. Enabled through `logs_config.validate_pod_container_id`.
 	// The way k8s is storing files in /var/log/pods doesn't let us do that properly
@@ -280,7 +280,7 @@ func (s *Scanner) startNewTailer(file *tailer.File, m config.TailingMode) bool {
 
 // shouldIgnore resolves symlinks in /var/log/containers in order to use that redirection
 // to validate that we will be reading a file for the correct container.
-func (s *Scanner) shouldIgnore(file *tailer.File) bool {
+func (s *Launcher) shouldIgnore(file *tailer.File) bool {
 	// this method needs a source config to detect whether we should ignore that file or not
 	if file == nil || file.Source == nil || file.Source.Config == nil {
 		return false
@@ -346,7 +346,7 @@ func (s *Scanner) shouldIgnore(file *tailer.File) bool {
 // "end" (2). If the tailing mode is set to forceEnd or forceBeginning it will remain unchanged.
 // If (1) then the resulting tailing mode if "beginning" in order to honor existing offset to avoid duplicated lines to be sent.
 // If (2) then the resulting tailing mode is "forceEnd" to drop any saved offset and tail from the end of the file.
-func (s *Scanner) handleTailingModeChange(tailerID string, currentTailingMode config.TailingMode) config.TailingMode {
+func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode config.TailingMode) config.TailingMode {
 	if currentTailingMode == config.ForceBeginning || currentTailingMode == config.ForceEnd {
 		return currentTailingMode
 	}
@@ -364,14 +364,14 @@ func (s *Scanner) handleTailingModeChange(tailerID string, currentTailingMode co
 }
 
 // stopTailer stops the tailer
-func (s *Scanner) stopTailer(tailer *tailer.Tailer) {
+func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 	go tailer.Stop()
 	delete(s.tailers, tailer.File.GetScanKey())
 }
 
 // restartTailer safely stops tailer and starts a new one
 // returns true if the new tailer is up and running, false if an error occurred
-func (s *Scanner) restartTailerAfterFileRotation(tailer *tailer.Tailer, file *tailer.File) bool {
+func (s *Launcher) restartTailerAfterFileRotation(tailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
 	tailer.StopAfterFileRotation()
 	tailer = s.createRotatedTailer(file, tailer.OutputChan, tailer.GetDetectedPattern())
@@ -386,10 +386,10 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *tailer.Tailer, file *ta
 }
 
 // createTailer returns a new initialized tailer
-func (s *Scanner) createTailer(file *tailer.File, outputChan chan *message.Message) *tailer.Tailer {
+func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message) *tailer.Tailer {
 	return tailer.NewTailer(outputChan, file, s.tailerSleepDuration, decoder.NewDecoderFromSource(file.Source))
 }
 
-func (s *Scanner) createRotatedTailer(file *tailer.File, outputChan chan *message.Message, pattern *regexp.Regexp) *tailer.Tailer {
+func (s *Launcher) createRotatedTailer(file *tailer.File, outputChan chan *message.Message, pattern *regexp.Regexp) *tailer.Tailer {
 	return tailer.NewTailer(outputChan, file, s.tailerSleepDuration, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern))
 }

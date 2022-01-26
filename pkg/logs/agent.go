@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
@@ -27,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/docker"
+	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -94,8 +94,8 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 
 	// setup the inputs
 	inputs := []restart.Restartable{
-		file.NewScanner(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor,
-			file.DefaultSleepDuration, validatePodContainerID, time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second))),
+		filelauncher.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor,
+			filelauncher.DefaultSleepDuration, validatePodContainerID, time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second))),
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),
