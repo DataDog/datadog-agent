@@ -7,6 +7,7 @@ package agent
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredSpan"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -245,15 +246,15 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Extra sanitization steps of the trace.
 		for _, span := range chunk.Spans {
-			if span.Meta[tagInferredSpanTagSource] != "self" {
-				// Inferred spans are spans generated from within a serverless function, but refer to a managed service (e.g. DyanmoDB or something).
-				// Optionally, they can be marked with tag_source=self, which indicates they should not receive the same tags as the rest of the spans in this trace payload.
-				for k, v := range a.conf.GlobalTags {
-					if k == tagOrigin {
-						chunk.Origin = v
-					} else {
-						traceutil.SetMeta(span, k, v)
-					}
+			tagsToAdd := a.conf.GlobalTags
+			if inferredSpan.Check(span) {
+				tagsToAdd = inferredSpan.FilterTags(span, tagsToAdd)
+			}
+			for k, v := range tagsToAdd {
+				if k == tagOrigin {
+					chunk.Origin = v
+				} else {
+					traceutil.SetMeta(span, k, v)
 				}
 			}
 			if a.ModifySpan != nil {
