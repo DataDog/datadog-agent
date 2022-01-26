@@ -656,7 +656,6 @@ int kprobe__fd_install(struct pt_regs* ctx) {
         .pid = pid_tgid >> 32,
         .fd = sockfd,
     };
-    log_debug("=fd_install pid fd %d %d \n", pid_fd.pid, pid_fd.fd);
 
     // These entries are cleaned up by tcp_close
     bpf_map_update_elem(&pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
