@@ -1,0 +1,27 @@
+==============================
+Process Agent ({{ .Version }})
+==============================
+
+ Status date: {{ .StatusDate }}
+ Process Agent Start: {{ .Uptime }}
+ Pid: {{ .Pid }}
+ Go Version: {{ .GoVersion }}
+ Python Version: {{ .PythonVersion }}
+ Build arch: {{ .Arch }}
+ Log Level: {{ .LogLevel }}
+ Enabled Checks: {{ .EnabledChecks }}
+
+=========
+Collector
+=========
+
+  Last collection time: {{.LastCollectTime}}
+  Docker socket: {{.DockerSocket}}
+  Number of processes: {{.ProcessCount}}
+  Number of containers: {{.ContainerCount}}
+  Process Queue length: {{.ProcessQueueSize}}
+  RTProcess Queue length: {{.RTProcessQueueSize}}
+  Pod Queue length: {{.PodQueueSize}}
+  Process Bytes enqueued: {{.ProcessQueueBytes}}
+  RTProcess Bytes enqueued: {{.RTProcessQueueBytes}}
+  Pod Bytes enqueued: {{.PodQueueBytes}}

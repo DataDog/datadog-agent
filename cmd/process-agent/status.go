@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -17,7 +19,6 @@ var statusCmd = &cobra.Command{
 }
 
 type statusResponse struct {
-	Pid           int    `json:"process.Pid"`
 	AgentVersion  string `json:"version"`
 	GoVersion     string `json:"go_version"`
 	PythonVersion string `json:"python_version"`
@@ -33,9 +34,34 @@ type statusResponse struct {
 	Endpoints map[string][]string `json:"endpointsInfos"`
 }
 
+func getProcessInfo() (info *StatusInfo, err error) {
+	b, err := makeRequest("/debug/vars", ddconfig.Datadog.GetInt("process_config.expvar_port"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to reach process-agent: %v", err)
+	}
+
+	err = json.Unmarshal(b, info)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response from process-agent: %v", err)
+	}
+	return
+}
+
+func getProcessStatus() (status *statusResponse, err error) {
+	b, err := makeRequest("/agent/status", ddconfig.Datadog.GetInt("process_config.cmd_port"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to reach process-agent: %v", err)
+	}
+
+	err = json.Unmarshal(b, &status)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response from process-agent: %v", err)
+	}
+	return
+}
+
 func runStatus(cmd *cobra.Command, args []string) error {
 	// Set up the config so we can get the port later
-	// We set this up differently from the main process-agent because this way is quieter
 	cfg := config.NewDefaultAgentConfig(false)
 	if opts.configPath != "" {
 		if err := config.LoadConfigIfExists(opts.configPath); err != nil {
@@ -47,55 +73,50 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ipcAddress, err := ddconfig.GetIPCAddress()
+	status, err := getProcessStatus()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get status from process-agent: %v", err)
 	}
 
-	statusURI := fmt.Sprintf("http://%v:%v/agent/status", ipcAddress, ddconfig.Datadog.GetInt("process_config.cmd_port"))
-	b, err := makeRequest(statusURI)
+	info, err := getProcessInfo()
 	if err != nil {
-		return fmt.Errorf("failed to reach process-agent: %v", err)
+		return fmt.Errorf("failed to get info from process-agent: %v", err)
 	}
 
-	fmt.Println("Response from agent")
-	fmt.Printf("%s\n\n", b)
-
-	var status statusResponse
-	err = json.Unmarshal(b, &status)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal response from process-agent: %v", err)
-	}
-
-	fmt.Println("output:")
-	b, _ = json.MarshalIndent(status, "", "  ")
-	fmt.Printf("%s\n", b)
+	fmt.Println(fmtStatus(*status, *info))
 	return nil
 }
 
-func makeRequest(url string) ([]byte, error) {
-	var e error
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+func fmtBanner(str string) string {
+	banner := strings.Repeat("=", len(str))
 
-	// Set session token
-	//e = util.SetAuthToken()
-	//if e != nil {
-	//	return nil, e
-	//}
+	var b strings.Builder
+	_, _ = fmt.Fprintf(&b, "%s\n%s\n%[1]s\n", banner, str)
 
-	r, e := util.DoGet(c, url)
-	if e != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap) //nolint:errcheck
-		// If the error has been marshalled into a json object, check it and return it properly
-		if err, found := errMap["error"]; found {
-			e = fmt.Errorf(err)
-		}
+	return b.String()
+}
 
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
-		return nil, e
+func fmtStatus(status statusResponse, info StatusInfo) string {
+	var b strings.Builder
+
+	_, _ = fmt.Fprintln(&b, fmtBanner("Process Agent  	"))
+
+	return b.String()
+}
+
+func makeRequest(path string, port int) ([]byte, error) {
+	c := util.GetClient(false)
+
+	ipcAddress, err := ddconfig.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+	url := fmt.Sprintf("http://%v:%v%s", ipcAddress, port, path)
+
+	r, err := util.DoGet(c, url)
+	if err != nil {
+		return nil, fmt.Errorf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", err)
 	}
 
 	return r, nil
-
 }

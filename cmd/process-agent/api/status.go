@@ -3,20 +3,10 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-type processStatus struct {
-	Pid int
-}
-
-func getProcessStatus() (p processStatus) {
-	p.Pid = os.Getpid()
-	return
-}
 
 func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	log.Trace("Received status request from process agent")
@@ -25,7 +15,6 @@ func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	if err != nil {
 		_ = log.Warn("failed to get status from agent:", agentStatus)
 	}
-	agentStatus["process"] = getProcessStatus()
 
 	b, err := json.Marshal(agentStatus)
 	if err != nil {
