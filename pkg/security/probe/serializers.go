@@ -357,27 +357,9 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	}
 }
 
-func scrubArgs(pr *model.Process, e *Event) ([]string, bool) {
-	return e.resolvers.ProcessResolver.GetScrubbedProcessArgv(pr)
-}
-
-func scrubEnvs(pr *model.Process, e *Event) ([]string, bool) {
-	envs, truncated := e.resolvers.ProcessResolver.GetProcessEnvs(pr)
-	if envs == nil {
-		return nil, false
-	}
-
-	result := make([]string, 0, len(envs))
-	for key := range envs {
-		result = append(result, key)
-	}
-
-	return result, truncated
-}
-
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *ProcessCacheEntrySerializer {
-	argv, argvTruncated := scrubArgs(&pce.Process, e)
-	envs, EnvsTruncated := scrubEnvs(&pce.Process, e)
+	argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessArgv(&pce.Process)
+	envs, EnvsTruncated := e.resolvers.ProcessResolver.GetProcessEnvs(&pce.Process)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
 		ForkTime: getTimeIfNotZero(pce.ForkTime),

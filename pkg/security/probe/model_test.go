@@ -60,7 +60,7 @@ func TestProcessArgsFlags(t *testing.T) {
 		},
 	}
 
-	resolver, _ := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
+	resolver, _ := NewProcessResolver(&Probe{}, nil, nil, NewProcessResolverOpts(10000))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}
@@ -119,7 +119,7 @@ func TestProcessArgsOptions(t *testing.T) {
 		},
 	}
 
-	resolver, _ := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
+	resolver, _ := NewProcessResolver(&Probe{}, nil, nil, NewProcessResolverOpts(10000))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}

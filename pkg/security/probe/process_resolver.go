@@ -45,6 +45,12 @@ const (
 
 const procResolveMaxDepth = 16
 
+var (
+	envsValuesToKeep = map[string]bool{
+		"DD_SERVICE": true,
+	}
+)
+
 func getAttr2(probe *Probe) uint64 {
 	if probe.kernelVersion.IsRH7Kernel() {
 		return 1
@@ -645,36 +651,17 @@ func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 		return nil, false
 	}
 
-	argv, truncated := pr.ArgsEntry.ToArray()
+	var scrub func(values []string) []string
+	if p.probe.scrubber != nil {
+		scrub = func(values []string) []string {
+			values, _ = p.probe.scrubber.ScrubCommand(values)
+			return values
+		}
+	}
+
+	argv, truncated := pr.ArgsEntry.ToArray(scrub)
 
 	return argv, pr.ArgsTruncated || truncated
-}
-
-// GetScrubbedProcessArgv returns the scrubbed args of the event as an array
-func (p *ProcessResolver) GetScrubbedProcessArgv(pr *model.Process) ([]string, bool) {
-	if pr.ArgsEntry == nil {
-		return nil, false
-	}
-
-	if len(pr.Args) != 0 {
-		return pr.Argv, pr.ArgsTruncated
-	}
-
-	argv, truncated := pr.ArgsEntry.ToArray()
-
-	pr.ArgsTruncated = pr.ArgsTruncated || truncated
-
-	if p.probe.scrubber != nil {
-		if newArgv, changed := p.probe.scrubber.ScrubCommand(argv); changed {
-			pr.Argv = newArgv
-		} else {
-			pr.Argv = argv
-		}
-	} else {
-		pr.Argv = argv
-	}
-
-	return pr.Argv, pr.ArgsTruncated
 }
 
 // SetProcessEnvs set envs to cache entry
@@ -682,6 +669,7 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		pce.EnvsEntry = &model.EnvsEntry{
 			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
+			ValuesToKeep:       envsValuesToKeep,
 		}
 
 		// attach to a process thus retain the head of the chain
@@ -695,14 +683,14 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 }
 
 // GetProcessEnvs returns the envs of the event
-func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) (map[string]string, bool) {
+func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	if pr.EnvsEntry == nil {
 		return nil, false
 	}
 
-	envs, truncated := pr.EnvsEntry.ToMap()
+	keys, truncated := pr.EnvsEntry.Keys()
 
-	return envs, pr.EnvsTruncated || truncated
+	return keys, pr.ArgsTruncated || truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result
