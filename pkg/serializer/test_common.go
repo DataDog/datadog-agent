@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package serializer
@@ -76,4 +77,9 @@ func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hos
 // SendContainerLifecycleEvent serializes & send container lifecycle event payloads
 func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostname string) error {
 	return s.Called(msgs, hostname).Error(0)
+}
+
+// SendOrchestratorManifests serializes & send orchestrator manifest payloads
+func (s *MockSerializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error {
+	return s.Called(msgs, hostName, clusterID).Error(0)
 }

@@ -74,6 +74,7 @@ type Forwarder interface {
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
 	SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error
+	SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error)
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -553,6 +554,10 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	bumpOrchestratorPayload(payloadType)
 
+	return f.submitProcessLikePayload(endpoints.OrchestratorEndpoint, payload, extra, true)
+}
+
+func (f *DefaultForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.OrchestratorEndpoint, payload, extra, true)
 }
 

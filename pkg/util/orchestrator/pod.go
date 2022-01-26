@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build orchestrator
 // +build orchestrator
 
 package orchestrator
@@ -42,6 +43,7 @@ const (
 func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID string, cfg *config.OrchestratorConfig) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
+	manifestMsgs := make([]*model.Manifest, 0, len(podList))
 
 	for _, p := range podList {
 		redact.RemoveLastAppliedConfigurationAnnotation(p.Annotations)
@@ -106,6 +108,14 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		}
 		podModel.Yaml = jsonPod
 
+		manifestMsgs = append(manifestMsgs, &model.Manifest{
+			Orchestrator: "k8s",
+			Type:         "pod",
+			Uid:          podModel.Metadata.Uid,
+			Content:      jsonPod,
+			ContentType:  "json",
+		})
+
 		podMsgs = append(podMsgs, podModel)
 	}
 
@@ -114,7 +124,8 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		groupSize++
 	}
 	chunked := chunkPods(podMsgs, groupSize, cfg.MaxPerMessage)
-	messages := make([]model.MessageBody, 0, groupSize)
+	totalSize := groupSize * 2
+	messages := make([]model.MessageBody, 0, totalSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorPod{
 			HostName:    hostName,
@@ -124,6 +135,16 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
 			Tags:        cfg.ExtraTags,
+		})
+	}
+
+	manifestschunked := ChunkManifests(manifestMsgs, groupSize, cfg.MaxPerMessage)
+	for i := groupSize; i < totalSize; i++ {
+		messages = append(messages, &model.CollectorManifest{
+			ClusterName: cfg.KubeClusterName,
+			Manifests:   manifestschunked[i],
+			GroupSize:   int32(groupSize),
+			ClusterId:   clusterID,
 		})
 	}
 
@@ -148,6 +169,18 @@ func extractTags(p *v1.Pod) []string {
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.
 func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
 	chunks := make([][]*model.Pod, 0, chunkCount)
+
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(pods), chunkCount, chunkSize, counter)
+		chunks = append(chunks, pods[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+// ChunkManifests formats and chunks the manifest into a slice of chunks using a specific number of chunks.
+func ChunkManifests(pods []*model.Manifest, chunkCount, chunkSize int) [][]*model.Manifest {
+	chunks := make([][]*model.Manifest, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
 		chunkStart, chunkEnd := orchestrator.ChunkRange(len(pods), chunkCount, chunkSize, counter)

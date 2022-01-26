@@ -42,13 +42,14 @@ const defaultProxyPort = 3128
 
 // Name for check performed by process-agent or system-probe
 const (
-	ProcessCheckName     = "process"
-	RTProcessCheckName   = "rtprocess"
-	ContainerCheckName   = "container"
-	RTContainerCheckName = "rtcontainer"
-	ConnectionsCheckName = "connections"
-	PodCheckName         = "pod"
-	DiscoveryCheckName   = "process_discovery"
+	ProcessCheckName      = "process"
+	RTProcessCheckName    = "rtprocess"
+	ContainerCheckName    = "container"
+	RTContainerCheckName  = "rtcontainer"
+	ConnectionsCheckName  = "connections"
+	PodCheckName          = "pod"
+	PodManifestsCheckName = "podmanifests"
+	DiscoveryCheckName    = "process_discovery"
 
 	NetworkCheckName        = "Network"
 	OOMKillCheckName        = "OOM Kill"

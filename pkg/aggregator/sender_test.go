@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package aggregator
@@ -20,14 +21,15 @@ import (
 )
 
 type senderWithChans struct {
-	senderMetricSampleChan chan senderMetricSample
-	serviceCheckChan       chan metrics.ServiceCheck
-	eventChan              chan metrics.Event
-	bucketChan             chan senderHistogramBucket
-	orchestratorChan       chan senderOrchestratorMetadata
-	eventPlatformEventChan chan senderEventPlatformEvent
-	contlcycleOut          chan senderContainerLifecycleEvent
-	sender                 *checkSender
+	senderMetricSampleChan   chan senderMetricSample
+	serviceCheckChan         chan metrics.ServiceCheck
+	eventChan                chan metrics.Event
+	bucketChan               chan senderHistogramBucket
+	orchestratorChan         chan senderOrchestratorMetadata
+	orchestratorManifestChan chan senderOrchestratorManifest
+	eventPlatformEventChan   chan senderEventPlatformEvent
+	contlcycleOut            chan senderContainerLifecycleEvent
+	sender                   *checkSender
 }
 
 func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
@@ -36,9 +38,10 @@ func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
 	s.eventChan = make(chan metrics.Event, 10)
 	s.bucketChan = make(chan senderHistogramBucket, 10)
 	s.orchestratorChan = make(chan senderOrchestratorMetadata, 10)
+	s.orchestratorManifestChan = make(chan senderOrchestratorManifest, 10)
 	s.eventPlatformEventChan = make(chan senderEventPlatformEvent, 10)
 	s.contlcycleOut = make(chan senderContainerLifecycleEvent, 10)
-	s.sender = newCheckSender(id, defaultHostname, s.senderMetricSampleChan, s.serviceCheckChan, s.eventChan, s.bucketChan, s.orchestratorChan, s.eventPlatformEventChan, s.contlcycleOut)
+	s.sender = newCheckSender(id, defaultHostname, s.senderMetricSampleChan, s.serviceCheckChan, s.eventChan, s.bucketChan, s.orchestratorChan, s.orchestratorManifestChan, s.eventPlatformEventChan, s.contlcycleOut)
 	return s
 }
 
@@ -144,9 +147,10 @@ func TestGetAndSetSender(t *testing.T) {
 	eventChan := make(chan metrics.Event, 10)
 	bucketChan := make(chan senderHistogramBucket, 10)
 	orchestratorChan := make(chan senderOrchestratorMetadata, 10)
+	orchestratorManifestChan := make(chan senderOrchestratorManifest, 10)
 	eventPlatformChan := make(chan senderEventPlatformEvent, 10)
 	contlcycleChan := make(chan senderContainerLifecycleEvent, 10)
-	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan, orchestratorChan, eventPlatformChan, contlcycleChan)
+	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan, contlcycleChan)
 
 	err := demux.SetSender(testCheckSender, checkID1)
 	assert.Nil(t, err)

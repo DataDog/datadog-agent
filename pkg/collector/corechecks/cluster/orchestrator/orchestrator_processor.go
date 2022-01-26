@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
 package orchestrator
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	orchutil "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
@@ -191,9 +193,10 @@ func chunkCronJobs(cronJobs []*model.CronJob, chunkCount, chunkSize int) [][]*mo
 	return chunks
 }
 
-func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, []model.MessageBody, error) {
 	start := time.Now()
 	deployMsgs := make([]*model.Deployment, 0, len(deploymentList))
+	manifestMsgs := make([]*model.Manifest, 0, len(deploymentList))
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
@@ -222,13 +225,24 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		}
 		deployModel.Yaml = jsonDeploy
 
+		manifestMsgs = append(manifestMsgs, &model.Manifest{
+			Orchestrator: "k8s",
+			Type:         "deployment",
+			Uid:          deployModel.Metadata.Uid,
+			Content:      jsonDeploy,
+			ContentType:  "json",
+		})
+
 		deployMsgs = append(deployMsgs, deployModel)
 	}
 
 	groupSize := orchestrator.GroupSize(len(deployMsgs), cfg.MaxPerMessage)
 
 	chunked := chunkDeployments(deployMsgs, groupSize, cfg.MaxPerMessage)
+	manifestsChunked := orchutil.ChunkManifests(manifestMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
+	manifestMessages := make([]model.MessageBody, 0, groupSize)
+
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorDeployment{
 			ClusterName: cfg.KubeClusterName,
@@ -238,12 +252,19 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 			ClusterId:   clusterID,
 			Tags:        cfg.ExtraTags,
 		})
+		manifestMessages = append(messages, &model.CollectorManifest{
+			ClusterName: cfg.KubeClusterName,
+			Manifests:   manifestsChunked[i],
+			GroupSize:   int32(groupSize),
+			ClusterId:   clusterID,
+		})
+
 	}
 
 	orchestrator.SetCacheStats(len(deploymentList), len(deployMsgs), orchestrator.K8sDeployment)
 
 	log.Debugf("Collected & enriched %d out of %d Deployments in %s", len(deployMsgs), len(deploymentList), time.Since(start))
-	return messages, nil
+	return messages, manifestMessages, nil
 }
 
 // chunkDeployments formats and chunks the deployments into a slice of chunks using a specific number of chunks.

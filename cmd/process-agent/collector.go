@@ -187,8 +187,14 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		return
 	}
 
+	var manifestPayloads []checkPayload
 	payloads := make([]checkPayload, 0, len(messages))
+	if name == config.PodCheckName {
+		payloads = make([]checkPayload, 0, len(messages)/2)
+		manifestPayloads = make([]checkPayload, 0, len(messages)/2)
+	}
 	sizeInBytes := 0
+	manifestSizeInBytes := 0
 
 	for _, m := range messages {
 		body, err := api.EncodePayload(m)
@@ -209,12 +215,24 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 			}
 		}
 
-		payloads = append(payloads, checkPayload{
-			body:    body,
-			headers: extraHeaders,
-		})
+		msgType, err := model.DetectMessageType(m)
+		if err != nil {
+			log.Warnf("unable to detect message type: %s", err)
+		}
+		if msgType == model.TypeCollectorManifest {
+			manifestPayloads = append(manifestPayloads, checkPayload{
+				body:    body,
+				headers: extraHeaders,
+			})
+			manifestSizeInBytes += len(body)
+		} else {
+			payloads = append(payloads, checkPayload{
+				body:    body,
+				headers: extraHeaders,
+			})
+			sizeInBytes += len(body)
+		}
 
-		sizeInBytes += len(body)
 	}
 
 	result := &checkResult{
@@ -223,6 +241,14 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		sizeInBytes: int64(sizeInBytes),
 	}
 	results.Add(result)
+	if len(manifestPayloads) != 0 {
+		result = &checkResult{
+			name:        config.PodManifestsCheckName,
+			payloads:    manifestPayloads,
+			sizeInBytes: int64(manifestSizeInBytes),
+		}
+		results.Add(result)
+	}
 	// update proc and container count for info
 	updateProcContainerCount(messages)
 }
@@ -456,6 +482,8 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+			case config.PodManifestsCheckName:
+				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
 				updateRTStatus = false

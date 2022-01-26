@@ -69,7 +69,7 @@ func (s *senders) ChangeAllSendersDefaultHostname(hostname string) {
 	}
 }
 
-// getDefaultSender returns a default sender.
+// GetDefaultSender returns a default sender.
 func (s *senders) GetDefaultSender() (Sender, error) {
 	s.senderInit.Do(func() {
 		var defaultCheckID check.ID          // the default value is the zero value
@@ -81,6 +81,7 @@ func (s *senders) GetDefaultSender() (Sender, error) {
 			s.agg.eventIn,
 			s.agg.checkHistogramBucketIn,
 			s.agg.orchestratorMetadataIn,
+			s.agg.orchestratorManifestIn,
 			s.agg.eventPlatformIn,
 			s.agg.contLcycleIn,
 		)

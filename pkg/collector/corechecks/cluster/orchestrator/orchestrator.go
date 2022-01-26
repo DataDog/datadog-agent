@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
+//go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
 package orchestrator
@@ -349,13 +350,14 @@ func (o *OrchestratorCheck) processDeploys(sender aggregator.Sender) {
 		return
 	}
 
-	messages, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
+	messages, manifests, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
 	if err != nil {
 		_ = o.Warnf("Unable to process deployment list: %v", err)
 		return
 	}
 
 	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sDeployment))
+	sender.OrchestratorManifest(manifests, o.orchestratorConfig.KubeClusterName, o.clusterID)
 }
 
 func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {
@@ -536,7 +538,8 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 		return
 	}
 
-	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sPod))
+	sender.OrchestratorMetadata(messages[:len(messages)/2], o.clusterID, int(orchestrator.K8sPod))
+	sender.OrchestratorManifest(messages[len(messages)/2:], o.orchestratorConfig.KubeClusterName, o.clusterID)
 }
 
 func (o *OrchestratorCheck) processPersistentVolumes(sender aggregator.Sender) {
