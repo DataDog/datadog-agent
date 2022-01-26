@@ -151,7 +151,7 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		podResults:       podResults,
 
 		forwarderRetryQueueMaxBytes: queueBytes,
-
+		
 		runRealTime: runRealTime,
 	}
 }

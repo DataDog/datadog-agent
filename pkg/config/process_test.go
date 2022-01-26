@@ -47,6 +47,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: 4 * time.Hour,
 		},
 		{
+			<<<<<<< HEAD
 			key:          "process_config.process_collection.enabled",
 			defaultValue: false,
 		},
@@ -179,6 +180,7 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: true,
 		},
 		{
+			<<<<<<< HEAD
 			key:      "process_config.enabled",
 			env:      "DD_PROCESS_CONFIG_ENABLED",
 			value:    "true",
