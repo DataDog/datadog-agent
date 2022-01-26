@@ -10,6 +10,7 @@ package journald
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,7 +21,7 @@ type Launcher struct {
 	sources          chan *config.LogSource
 	pipelineProvider pipeline.Provider
 	registry         auditor.Registry
-	tailers          map[string]*Tailer
+	tailers          map[string]*tailer.Tailer
 	stop             chan struct{}
 }
 
@@ -30,7 +31,7 @@ func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider,
 		sources:          sources.GetAddedForType(config.JournaldType),
 		pipelineProvider: pipelineProvider,
 		registry:         registry,
-		tailers:          make(map[string]*Tailer),
+		tailers:          make(map[string]*tailer.Tailer),
 		stop:             make(chan struct{}),
 	}
 }
@@ -75,8 +76,8 @@ func (l *Launcher) Stop() {
 
 // setupTailer configures and starts a new tailer,
 // returns the tailer or an error.
-func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
-	tailer := NewTailer(source, l.pipelineProvider.NextPipelineChan())
+func (l *Launcher) setupTailer(source *config.LogSource) (*tailer.Tailer, error) {
+	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan())
 	cursor := l.registry.GetOffset(tailer.Identifier())
 	err := tailer.Start(cursor)
 	if err != nil {
