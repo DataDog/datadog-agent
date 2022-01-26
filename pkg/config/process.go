@@ -18,14 +18,18 @@ const (
 	// DefaultGRPCConnectionTimeoutSecs sets the default value for timeout when connecting to the agent
 	DefaultGRPCConnectionTimeoutSecs = 60
 
-	// DefaultCheckQueueSize is the max amount of checks that can be buffered in memory if the forwarder can't consume them fast enough (e.g. due to network disruption).
+	// DefaultCheckQueueSize is the defatul max amount of checks that can be buffered in memory if the forwarder can't consume them fast enough (e.g. due to network disruption)
 	// This can be fairly high as the input should get throttled by queue bytes first.
 	// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
 	DefaultCheckQueueSize = 256
 
-	// DefaultRTCheckQueueSize is the max amount of realtime checks that can be buffered in memory
+	// DefaultRTCheckQueueSize is the default max amount of realtime checks that can be buffered in memory
 	// We set a small queue size for real-time message because they get staled very quickly, thus we only keep the latest several payloads
 	DefaultRTCheckQueueSize = 5
+
+	// DefaultProcessQueueBytes is the default amount of check data (in bytes) that can be buffered in memory
+	// Allow buffering up to 60 megabytes of payload data in total
+	DefaultProcessQueueBytes = 60 * 1000 * 1000
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -74,6 +78,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.enabled")
 	config.SetKnown("process_config.intervals.process_realtime")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultCheckQueueSize)
+	procBindEnvAndSetDefault(config, "process_config.process_queue_bytes", DefaultProcessQueueBytes)
 	procBindEnvAndSetDefault(config, "process_config.rt_queue_size", DefaultRTCheckQueueSize)
 	config.SetKnown("process_config.max_per_message")
 	config.SetKnown("process_config.max_ctr_procs_per_message")

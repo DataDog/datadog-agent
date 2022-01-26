@@ -98,7 +98,6 @@ type AgentConfig struct {
 	Enabled                   bool
 	HostName                  string
 	APIEndpoints              []apicfg.Endpoint
-	ProcessQueueBytes         int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
 	Blacklist                 []*regexp.Regexp
 	Scrubber                  *DataScrubber
 	MaxPerMessage             int
@@ -184,9 +183,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	ac := &AgentConfig{
 		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
-
-		// Allow buffering up to 60 megabytes of payload data in total
-		ProcessQueueBytes: 60 * 1000 * 1000,
 
 		MaxPerMessage:             maxMessageBatch,
 		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,

@@ -125,12 +125,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.Scrubber.StripAllArguments = true
 	}
 
-	if k := key(ns, "process_queue_bytes"); config.Datadog.IsSet(k) {
-		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
-			a.ProcessQueueBytes = queueBytes
-		}
-	}
-
 	// The maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	if k := key(ns, "max_per_message"); config.Datadog.IsSet(k) {
 		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
