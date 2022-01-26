@@ -17,7 +17,7 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -86,7 +86,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 		collectAll:         collectAll,
 		pendingRetries:     make(map[string]*retryOps),
 		retryOperations:    make(chan *retryOps),
-		serviceNameFunc:    input.ServiceNameFromTags,
+		serviceNameFunc:    util.ServiceNameFromTags,
 	}
 	launcher.addedServices = services.GetAllAddedServices()
 	launcher.removedServices = services.GetAllRemovedServices()

@@ -16,8 +16,8 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/docker"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -92,7 +92,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		erroredContainerID:     make(chan string),
 		lock:                   &sync.Mutex{},
 		readTimeout:            readTimeout,
-		serviceNameFunc:        input.ServiceNameFromTags,
+		serviceNameFunc:        util.ServiceNameFromTags,
 		sources:                sources,
 		forceTailingFromFile:   forceTailingFromFile,
 		tailFromFile:           tailFromFile,
