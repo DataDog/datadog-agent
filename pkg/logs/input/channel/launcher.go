@@ -7,6 +7,7 @@ package channel
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
@@ -14,7 +15,7 @@ import (
 type Launcher struct {
 	pipelineProvider pipeline.Provider
 	sources          chan *config.LogSource
-	tailers          []*Tailer
+	tailers          []*tailer.Tailer
 	stop             chan struct{}
 }
 
@@ -34,7 +35,7 @@ func (l *Launcher) Start() {
 
 func (l *Launcher) startNewTailer(source *config.LogSource) {
 	outputChan := l.pipelineProvider.NextPipelineChan()
-	tailer := NewTailer(source, source.Config.Channel, outputChan)
+	tailer := tailer.NewTailer(source, source.Config.Channel, outputChan)
 	l.tailers = append(l.tailers, tailer)
 	tailer.Start()
 }
