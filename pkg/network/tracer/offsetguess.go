@@ -77,7 +77,10 @@ var whatString = map[netebpf.GuessWhat]string{
 	netebpf.GuessSPortFl6: "source port flowi6",
 	netebpf.GuessDPortFl6: "destination port flowi6",
 
-	netebpf.GuessSocketSK: "sk field on struct socket",
+	netebpf.GuessSocketSK:          "sk field on struct socket",
+	netebpf.GuessFilePrivateSocket: "private_data field on struct file",
+	netebpf.GuessFileInode:         "f_inode field on struct file",
+	netebpf.GuessSocketI:           "struct socket_alloc SOCKET_I(inode) macro",
 }
 
 const (
@@ -127,6 +130,10 @@ var offsetProbes = map[probes.ProbeName]string{
 	probes.IP6MakeSkb:         "kprobe__ip6_make_skb",
 	probes.IP6MakeSkbPre470:   "kprobe__ip6_make_skb__pre_4_7_0",
 	probes.TCPv6ConnectReturn: "kretprobe__tcp_v6_connect",
+	probes.SockFDInstall:      "kprobe__fd_install",
+	probes.SockCreate:         "kprobe____sock_create",
+	probes.SockCreateReturn:   "kretprobe____sock_create",
+	probes.StreamOpen:         "kprobe__stream_open",
 }
 
 func idPair(name probes.ProbeName) manager.ProbeIdentificationPair {
@@ -141,6 +148,7 @@ func newOffsetManager() *manager.Manager {
 	return &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: "connectsock_ipv6"},
+			{Name: "sock_create_args"},
 			{Name: string(probes.TracerStatusMap)},
 		},
 		PerfMaps: []*manager.PerfMap{},
@@ -152,6 +160,10 @@ func newOffsetManager() *manager.Manager {
 			{ProbeIdentificationPair: idPair(probes.IP6MakeSkb)},
 			{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
 			{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
+			{ProbeIdentificationPair: idPair(probes.SockFDInstall)},
+			{ProbeIdentificationPair: idPair(probes.SockCreate)},
+			{ProbeIdentificationPair: idPair(probes.SockCreateReturn)},
+			{ProbeIdentificationPair: idPair(probes.StreamOpen)},
 		},
 	}
 }
@@ -264,20 +276,26 @@ func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
 
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, err
+	}
 	if c.CollectIPv6Conns {
 		enableProbe(p, probes.TCPv6Connect)
 		enableProbe(p, probes.TCPv6ConnectReturn)
-
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return nil, err
-		}
 
 		if kv < kernel.VersionCode(4, 7, 0) {
 			enableProbe(p, probes.IP6MakeSkbPre470)
 		} else {
 			enableProbe(p, probes.IP6MakeSkb)
 		}
+	}
+	/* new connect/accept syscall */
+	if kv >= kernel.VersionCode(5, 5, 0) {
+		enableProbe(p, probes.SockFDInstall)
+		enableProbe(p, probes.SockCreate)
+		enableProbe(p, probes.SockCreateReturn)
+		enableProbe(p, probes.StreamOpen)
 	}
 	return p, nil
 }
@@ -538,10 +556,31 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 
 	case netebpf.GuessSocketSK:
 		if status.Sport_via_sk == htons(expected.sport) && status.Dport_via_sk == htons(expected.dport) {
-			logAndAdvance(status, status.Offset_socket_sk, netebpf.GuessDAddrIPv6)
+			logAndAdvance(status, status.Offset_socket_sk, netebpf.GuessFilePrivateSocket)
 			break
 		}
 		status.Offset_socket_sk++
+
+	case netebpf.GuessFilePrivateSocket:
+		if status.Socket == status.File_private {
+			logAndAdvance(status, status.Offset_file_private, netebpf.GuessFileInode)
+			break
+		}
+		status.Offset_file_private++
+
+	case netebpf.GuessFileInode:
+		if status.Inode == status.File_inode {
+			logAndAdvance(status, status.Offset_file_inode, netebpf.GuessSocketI)
+			break
+		}
+		status.Offset_file_inode++
+
+	case netebpf.GuessSocketI:
+		if status.Socket_i == status.Socket {
+			logAndAdvance(status, status.Offset_socket_i, netebpf.GuessDAddrIPv6)
+			break
+		}
+		status.Offset_socket_i++
 
 	case netebpf.GuessDAddrIPv6:
 		if compareIPv6(status.Daddr_ipv6, expected.daddrIPv6) {
@@ -681,7 +720,8 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 			status.Offset_sport >= thresholdInetSock || status.Offset_dport >= threshold ||
 			status.Offset_netns >= threshold || status.Offset_family >= threshold ||
 			status.Offset_daddr_ipv6 >= threshold || status.Offset_rtt >= thresholdInetSock ||
-			status.Offset_socket_sk >= threshold {
+			status.Offset_socket_sk >= threshold || status.Offset_file_private >= threshold ||
+			status.Offset_file_inode >= threshold || status.Offset_socket_i >= threshold {
 			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[netebpf.GuessWhat(status.What)])
 		}
 	}
@@ -713,6 +753,9 @@ func getConstantEditors(status *netebpf.TracerStatus) []manager.ConstantEditor {
 		{Name: "offset_dport_fl6", Value: status.Offset_dport_fl6},
 		{Name: "fl6_offsets", Value: uint64(status.Fl6_offsets)},
 		{Name: "offset_socket_sk", Value: status.Offset_socket_sk},
+		{Name: "offset_file_private", Value: status.Offset_file_private},
+		{Name: "offset_file_inode", Value: status.Offset_file_inode},
+		{Name: "offset_socket_i", Value: status.Offset_socket_i},
 	}
 }
 
@@ -778,6 +821,13 @@ func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {
 // Generate an event for offset guessing
 func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldValues) error {
 	// Are we guessing the IPv6 field?
+	if netebpf.GuessWhat(status.What) == netebpf.GuessFilePrivateSocket ||
+		netebpf.GuessWhat(status.What) == netebpf.GuessFileInode ||
+		netebpf.GuessWhat(status.What) == netebpf.GuessSocketI {
+		if conn, err := net.DialTimeout("tcp", "127.0.0.1:9092", 10*time.Millisecond); err == nil {
+			conn.Close()
+		}
+	}
 	if netebpf.GuessWhat(status.What) == netebpf.GuessDAddrIPv6 {
 		// For ipv6, we don't need the source port because we already guessed it doing ipv4 connections so
 		// we use a random destination address and try to connect to it.

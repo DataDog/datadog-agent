@@ -116,6 +116,11 @@ const (
 
 	// DoSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
 	DoSendfileRet ProbeName = "kretprobe/do_sendfile"
+
+	SockCreate       ProbeName = "kprobe/__sock_create"
+	SockCreateReturn ProbeName = "kretprobe/__sock_create"
+
+	StreamOpen ProbeName = "kprobe/stream_open"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info

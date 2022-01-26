@@ -33,6 +33,9 @@ type TracerStatus struct {
 	Offset_sport_fl6       uint64
 	Offset_dport_fl6       uint64
 	Offset_socket_sk       uint64
+	Offset_file_private    uint64
+	Offset_file_inode      uint64
+	Offset_socket_i        uint64
 	Err                    uint64
 	Daddr_ipv6             [4]uint32
 	Netns                  uint32
@@ -53,6 +56,11 @@ type TracerStatus struct {
 	Daddr_fl6              [4]uint32
 	Sport_fl6              uint16
 	Dport_fl6              uint16
+	File_private           uint64
+	File_inode             uint64
+	Socket_i               uint64
+	Socket                 uint64
+	Inode                  uint64
 	Ipv6_enabled           uint8
 	Fl4_offsets            uint8
 	Fl6_offsets            uint8
@@ -85,11 +93,14 @@ const (
 	GuessSPortFl4 GuessWhat = 10.000000
 	GuessDPortFl4 GuessWhat = 11.000000
 
-	GuessSAddrFl6 GuessWhat = 12.000000
-	GuessDAddrFl6 GuessWhat = 13.000000
-	GuessSPortFl6 GuessWhat = 14.000000
-	GuessDPortFl6 GuessWhat = 15.000000
-	GuessSocketSK GuessWhat = 16.000000
+	GuessSAddrFl6          GuessWhat = 12.000000
+	GuessDAddrFl6          GuessWhat = 13.000000
+	GuessSPortFl6          GuessWhat = 14.000000
+	GuessDPortFl6          GuessWhat = 15.000000
+	GuessSocketSK          GuessWhat = 16.000000
+	GuessFilePrivateSocket GuessWhat = 17.000000
+	GuessFileInode         GuessWhat = 18.000000
+	GuessSocketI           GuessWhat = 19.000000
 
 	GuessNotApplicable GuessWhat = 99999
 )

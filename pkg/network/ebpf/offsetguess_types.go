@@ -47,11 +47,14 @@ const (
 	GuessDPortFl4 GuessWhat = C.GUESS_DPORT_FL4
 	// Following values are associated with an UDPv6 connection, used for guessing offsets
 	// in the flowi6 data structure
-	GuessSAddrFl6 GuessWhat = C.GUESS_SADDR_FL6
-	GuessDAddrFl6 GuessWhat = C.GUESS_DADDR_FL6
-	GuessSPortFl6 GuessWhat = C.GUESS_SPORT_FL6
-	GuessDPortFl6 GuessWhat = C.GUESS_DPORT_FL6
-	GuessSocketSK GuessWhat = C.GUESS_SOCKET_SK
+	GuessSAddrFl6          GuessWhat = C.GUESS_SADDR_FL6
+	GuessDAddrFl6          GuessWhat = C.GUESS_DADDR_FL6
+	GuessSPortFl6          GuessWhat = C.GUESS_SPORT_FL6
+	GuessDPortFl6          GuessWhat = C.GUESS_DPORT_FL6
+	GuessSocketSK          GuessWhat = C.GUESS_SOCKET_SK
+	GuessFilePrivateSocket GuessWhat = C.GUESS_FILE_PRIVATE_SOCKET
+	GuessFileInode         GuessWhat = C.GUESS_FILE_INODE
+	GuessSocketI           GuessWhat = C.GUESS_SOCKET_I
 
 	GuessNotApplicable GuessWhat = 99999
 )

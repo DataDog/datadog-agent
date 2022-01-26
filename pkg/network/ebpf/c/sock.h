@@ -155,6 +155,24 @@ static __always_inline __u64 offset_socket_sk() {
      return val;
 }
 
+static __always_inline __u64 offset_file_private() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_file_private", val);
+     return val;
+}
+
+static __always_inline __u64 offset_file_inode() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_file_inode", val);
+     return val;
+}
+
+static __always_inline __u64 offset_socket_i() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_socket_i", val);
+     return val;
+}
+
 static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
     void* skc_net = NULL;
     __u32 net_ns_inum = 0;

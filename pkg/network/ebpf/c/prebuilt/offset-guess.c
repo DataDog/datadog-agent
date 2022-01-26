@@ -21,6 +21,24 @@ struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/sock_create_args") sock_create_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(void*),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/sock_alloc_file_args") sock_alloc_file_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(void*),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct bpf_map_def SEC("maps/tracer_status") tracer_status = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
@@ -148,6 +166,20 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         bpf_probe_read(&new_status.sport_via_sk, sizeof(new_status.sport_via_sk), subject + status->offset_sport);
         bpf_probe_read(&new_status.dport_via_sk, sizeof(new_status.dport_via_sk), subject + status->offset_dport);
         break;
+    case GUESS_FILE_PRIVATE_SOCKET:
+        bpf_probe_read(&new_status.file_private, sizeof(new_status.file_private), subject + status->offset_file_private);
+        break;
+    case GUESS_FILE_INODE:
+        bpf_probe_read(&new_status.file_inode, sizeof(new_status.file_inode), subject + status->offset_file_inode);
+        break;
+    case GUESS_SOCKET_I:
+    {
+        /* guess the offset from socket_alloc struct include/net/sock.h#L1414 */
+        /* socket is defined before inode */
+        u64 socket = (u64)subject - status->offset_socket_i;
+        bpf_probe_read(&new_status.socket_i, sizeof(new_status.socket_i), &socket);
+        break;
+    }
     default:
         // not for us
         return 0;
@@ -155,6 +187,133 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
 
     bpf_map_update_elem(&tracer_status, &zero, &new_status, BPF_ANY);
 
+    return 0;
+}
+
+SEC("kprobe/__sock_create")
+int kprobe____sock_create(struct pt_regs* ctx) {
+// int __sock_create(struct net *net, int family, int type, int protocol, struct socket **res, int kern)
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL || status->what != GUESS_FILE_PRIVATE_SOCKET) {
+        return 0;
+    }
+
+    void *ppsocket = (void *)PT_REGS_PARM5(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (ppsocket == NULL) {
+        return 0;
+    }
+
+    bpf_map_update_elem(&sock_create_args, &pid_tgid, &ppsocket, BPF_ANY);
+    return 0;
+}
+
+SEC("kretprobe/__sock_create")
+int kretprobe____sock_create(struct pt_regs* ctx) {
+    if (PT_REGS_RC(ctx) != 0) {
+        return 0;
+    }
+
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL || status->what != GUESS_FILE_PRIVATE_SOCKET) {
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *ppsocket = bpf_map_lookup_elem(&sock_create_args, &pid_tgid);
+    if (ppsocket == NULL) {
+        goto cleanup;
+    }
+    void *psocket;
+    bpf_probe_read(&psocket, sizeof(psocket), ppsocket);
+    if (psocket == NULL) {
+        goto cleanup;
+    }
+    u64 socket;
+    bpf_probe_read(&socket, sizeof(socket), psocket);
+    if (socket == 0) {
+        goto cleanup;
+    }
+
+    status->socket = socket;
+cleanup:
+    bpf_map_delete_elem(&sock_create_args, &pid_tgid);
+    return 0;
+}
+    
+SEC("kprobe/fd_install")
+int kprobe__fd_install(struct pt_regs* ctx) {
+// void fd_install(unsigned int fd, struct file *file)
+    void *file = (void *)PT_REGS_PARM2(ctx);
+
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL || status->what != GUESS_FILE_PRIVATE_SOCKET) {
+        return 0;
+    }
+
+    guess_offsets(status, (char*)file);
+    return 0;
+}
+SEC("kprobe/sock_alloc_file")
+int kprobe__sock_alloc_file(struct pt_regs* ctx) {
+// struct file *sock_alloc_file(struct socket *sock, int flags, const char *dname)
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL || status->what != GUESS_FILE_INODE) {
+        return 0;
+    }
+//    log_debug("sock_alloc_file\n");
+    return 0;
+}
+SEC("kretprobe/sock_alloc_file")
+int kretprobe__sock_alloc_file(struct pt_regs* ctx) {
+    void *file = (void*)PT_REGS_RC(ctx);
+    if (file == NULL) {
+        return 0;
+    }
+
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL || status->what != GUESS_FILE_INODE) {
+        return 0;
+    }
+    log_debug("sock_alloc_file ret\n");
+    return 0;
+}
+    
+SEC("kprobe/stream_open")
+int kprobe__stream_open(struct pt_regs* ctx) {
+    //int stream_open(struct inode *inode, struct file *filp)
+    u64 inode = (u64)PT_REGS_PARM1(ctx);
+    void *file = (void *)PT_REGS_PARM2(ctx);
+
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
+
+    if (status->what == GUESS_FILE_INODE) {
+        status->inode = inode;
+        guess_offsets(status, (char*)file);
+        return 0;
+    }
+    if (status->what == GUESS_SOCKET_I) {
+        u64 socket;
+        bpf_probe_read(&socket, sizeof(socket), file + status->offset_file_private);
+        status->socket = socket;
+
+        log_debug("stream  %x %x %d\n", socket, SOCKET_I((struct inode*)inode), status->offset_socket_i);
+        u64 r;
+        bpf_probe_read(&r, sizeof(r), ((char*)inode) - status->offset_socket_i);
+        log_debug("stream  %x %c\n", r);
+
+        guess_offsets(status, (char*)inode);
+        return 0;
+    }
     return 0;
 }
 
