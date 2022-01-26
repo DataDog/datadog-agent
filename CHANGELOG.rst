@@ -2,6 +2,225 @@
 Release Notes
 =============
 
+.. _Release Notes_7.33.0:
+
+7.33.0 / 6.33.0
+======
+
+.. _Release Notes_7.33.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-01-26
+
+- Please refer to the `7.33.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7330>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.33.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- APM: The `apm_config.max_traces_per_second` setting no longer affects error sampling.
+  To change the TPS for errors, use `apm_config.error_traces_per_second` instead.
+
+- Starting from this version of the Agent, the Agent does not run on SLES 11. 
+  The new minimum requirement is SLES >= 12 or OpenSUSE >= 15 (including OpenSUSE 42).
+
+- Changed the default value of `logs_config.docker_container_use_file` to `true`.
+  The agent will now prefer to use files for collecting docker logs and fall back
+  to the docker socket when files are not available.
+
+- Upgrade Docker base image to ubuntu:21.10 as new stable release.
+
+
+.. _Release Notes_7.33.0_New Features:
+
+New Features
+------------
+
+- Autodiscovery of integrations now works with containerd.
+
+- Metadata information sent by the Agent are now part of the flares. This will allow for easier troubleshooting of
+  issues related to metadata.
+
+- APM: Added credit card obfuscation. It is off by default and can be enabled using the
+  env. var. DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED or `apm_config.obfuscation.credit_cards.enabled`.
+  There is also an option to enable an additional Luhn checksum check in order to eliminate
+  false negatives, but it comes with a performance cost and should not be used unless absolutely
+  needed. The option is DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN or `apm_config.obfuscation.credit_cards.luhn`.
+
+- APM: The rare sampler can now be disabled using the environment variable DD_APM_DISABLE_RARE_SAMPLER
+  or the `apm_config.disable_rare_sampler` configuration. By default the rare sampler catches 5 extra trace chunks
+  per second on top of the head base sampling.
+  The TPS is spread to catch all combinations of service, name, resource, http.status, error.type missed by 
+  head base sampling.
+
+- APM: The error sampler TPS can be configured using the environment variable DD_APM_ERROR_TPS
+  or the `apm_config.error_traces_per_second` configuration. It defaults to 10 extra trace chunks sampled 
+  per second on top of the base head sampling.
+  The TPS is spread to catch all combinations of service, name, resource, http.status, and error.type.
+
+- Add a generic `container` check. It generates `container.*` metrics based on all running containers, regardless of the container runtime used (among the supported ones).
+
+- Added new option "container_labels_as_tags" that allows the Agent to
+  extract container label values and set them as metric tags values. It's
+  equivalent to the existing "docker_labels_as_tags", but it also works with
+  containerd.
+
+- CSPM: enable the usage of the print function in Rego rules.
+
+- CSPM: add option to dump reports to file, when running checks manually.
+  CSPM: constants can now be defined in rego rules and will be usable from rego rules.
+
+- CWS: SECL expressions can now make use of predefined variables.
+  `${process.pid}` variable refers to the pid of the process that
+  trigger the event. 
+
+- Enable NPM DNS domain collection by default.
+
+- Exposed additional *experimental* configuration for OTLP metrics
+  translation via ``experimental.otlp.metrics``.
+
+- Add two options under a new config prefix to send metrics
+  to Vector instead of Datadog. `vector.metrics.enabled`
+  must be set to true, along with `vector.metrics.url` that
+  should be set to point to a Vector configured accordingly.
+
+- The bpf syscall is now monitored by CWS; rules can be written on BPF commands.
+
+- Add runtime settings support to the security-agent. Currenlty only the log-level
+  is supported.
+
+- APM: A new intake endpoint was added as /v0.6/traces, which accepts a new, more compact and efficient payload format.
+  For more details, check: https://github.com/DataDog/datadog-agent/blob/7.33.0/pkg/trace/api/version.go#L78.
+
+
+.. _Release Notes_7.33.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Adds Nomad namespace and datacenter to list of env vars extracted from Docker containers.
+
+- Add a new `On-disk storage` section to `agent status` command.
+
+- Run CSPM commands as a configurable user.
+  Defaults to 'nobody'.
+
+- CSPM: the findings query now defaults to `data.datadog.findings`
+
+- The ``docker.exit`` service check has a new tag ``exit_code``.
+  The ``143`` exit code is considered OK by default, in addition to ``0``.
+  The Docker check supports a parameter ``ok_exit_codes`` to allow choosing exit codes that are considered OK.
+
+- Allow dogstatsd replay files to be fully loaded into memory as opposed
+  to relying on MMAP. We still default to MMAPing replay targets.
+
+- ``kubernetes_state.node.*`` metrics are tagged with ``kubelet_version``,
+  ``container_runtime_version``, ``kernel_version``, and ``os_image``.
+
+- The Kube State Metrics Core check uses ksm v2.1.
+
+- Lowercase the cluster names discovered from cloud providers
+  to ease moving between different Datadog products.
+
+- On Windows, allow enabling process discovery in the process agent by providing PROCESS_DISCOVERY_ENABLED=true to the msiexec command.
+
+- Automatically extract the ``org.opencontainers.image.revision`` container label into the ``git.commit.sha`` tag.
+
+- The experimental OTLP endpoint now can be configured through the ``experimental.otlp.receiver`` section and supports the same settings as the OpenTelemetry Collector OTLP receiver v0.38.0.
+
+- The Process, APM, and Security agent now use the remote tagger introduced
+  in Agent 7.26 by default. To disable it in the respective agent, the following
+  settings need to be set to `false`:
+  
+  - apm_config.remote_tagger
+  - process_config.remote_tagger
+  - security_agent.remote_tagger
+
+- Allows the remote tagger timeout at startup to be configured by setting the
+  `remote_tagger_timeout_seconds` config value. It also now defaults to 30
+  seconds instead of 5 minutes.
+
+- Calls to cloud metadata APIs for metadata like hostnames and IP addresses
+  are now cached and the existing values used when the metadata service
+  returns an error.  This will prevent such metadata from temporarily
+  "disappearing" from hosts.
+
+- Datadog Process Agent Service is started automatically by the core agent on Windows when process discovery is enabled in the config.
+
+- All packages - datadog-agent, datadog-iot-agent and datadog-dogstatsd -
+  now support AlmaLinux and Rocky Linux distributions.
+
+- If unrecognized ``DD_..`` environment variables are set, the agent will now log a warning at startup, to help catch deployment typos.
+
+- Update the embedded ``pip`` version to 21.3.1 on Python 3 to
+  allow the use of newer build backends.
+
+- Metric series can now be submitted using the V2 API by setting
+  `use_v2_api.series` to true.  This value defaults to false, and
+  should only be set to true in internal testing scenarios.  The
+  default will change in a future release.
+
+- Add support for Windows 20H2 in published Docker images
+
+- Add a new agent command to dump the content of the workloadmeta store ``agent workload-list``.
+  The output of ``agent workload-list --verbose`` is included in the agent flare.
+
+
+.. _Release Notes_7.33.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Strip special characters (\n, \r and \t) from OctetString
+
+- APM: Fix bug where obfuscation fails for autovacuum sql text. 
+  For example, SQL text like `autovacuum: VACUUM ANALYZE fake.table` will no longer fail obfuscation. 
+
+- APM: Fix SQL obfuscation failures on queries with literals that include non alpha-numeric characters
+
+- APM: Fix obfuscation error on SQL queries using the '!' operator.
+
+- Fixed Windows Dockerfile scripts to make the ECS Fargate Python check run
+  when the agent is deployed in ECS Fargate Windows.
+
+- Fixing deadlock when stopping the agent righ when a metadata provider is scheduled.
+
+- Fix a bug where container_include/exclude_metrics was applied on Autodiscovery when using Docker, preventing logs collection configured through container_include/exclude_logs.
+
+- Fix inclusion of ``registry.json`` file in flare
+
+- Fixes an issue where the agent would remove tags from pods or containers
+  around 5 minutes after startup of either the agent itself, or the pods or
+  containers themselves.
+
+- APM: SQL query obfuscation doesn't drop redacted literals from the obfuscated query when they are preceded by a SQL comment.
+
+- The Kube State Metrics Core check supports VerticalPodAutoscaler metrics.
+
+- The experimental OTLP endpoint now uses the StartTimestamp field for reset detection on cumulative metrics transformations.
+
+- Allow configuring process discovery check in the process agent when both regular process and container checks are off.
+
+- Fix disk check reporting /dev/root instead of the actual
+  block device path and missing its tags when tag_by_label
+  is enabled.
+
+- Remove occasionally hanging autodiscovery errors 
+  from the agent status once a pod is deleted.
+
+
+.. _Release Notes_7.33.0_Other Notes:
+
+Other Notes
+-----------
+
+- The Windows installer only creates the datadog.yaml file on new installs.
+
+
 .. _Release Notes_7.32.4:
 
 7.32.4 / 6.32.4
