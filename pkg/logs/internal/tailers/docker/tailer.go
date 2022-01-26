@@ -41,7 +41,7 @@ type Tailer struct {
 	decoder     *decoder.Decoder
 	reader      *safeReader
 	dockerutil  dockerContainerLogInterface
-	source      *config.LogSource
+	Source      *config.LogSource
 	tagProvider tag.Provider
 
 	readTimeout        time.Duration
@@ -61,7 +61,7 @@ func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *config.Lo
 		ContainerID:        containerID,
 		outputChan:         outputChan,
 		decoder:            InitializeDecoder(source, containerID),
-		source:             source,
+		Source:             source,
 		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToTaggerEntityName(containerID)),
 		dockerutil:         cli,
 		readTimeout:        readTimeout,
@@ -81,13 +81,13 @@ func (t *Tailer) Identifier() string {
 // Stop stops the tailer from reading new container logs,
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
-	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
+	log.Infof("Stop tailing container: %v", dockerutil.ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
 
 	t.reader.Close()
 	// no-op if already closed because of a timeout
 	t.cancelFunc()
-	t.source.RemoveInput(t.ContainerID)
+	t.Source.RemoveInput(t.ContainerID)
 	// wait for the decoder to be flushed
 	<-t.done
 }
@@ -97,7 +97,7 @@ func (t *Tailer) Stop() {
 // start from now if the container has been created before the agent started
 // start from oldest log otherwise
 func (t *Tailer) Start(since time.Time) error {
-	log.Debugf("Start tailing container: %v", ShortContainerID(t.ContainerID))
+	log.Debugf("Start tailing container: %v", dockerutil.ShortContainerID(t.ContainerID))
 	return t.tail(since.Format(config.DateFormat))
 }
 
@@ -141,11 +141,11 @@ func (t *Tailer) setupReader() error {
 }
 
 func (t *Tailer) tryRestartReader(reason string) error {
-	log.Debugf("%s for container %v", reason, ShortContainerID(t.ContainerID))
+	log.Debugf("%s for container %v", reason, dockerutil.ShortContainerID(t.ContainerID))
 	t.wait()
 	err := t.setupReader()
 	if err != nil {
-		log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
+		log.Warnf("Could not restart the docker reader for container %v: %v:", dockerutil.ShortContainerID(t.ContainerID), err)
 		t.erroredContainerID <- t.ContainerID
 	}
 	return err
@@ -157,11 +157,11 @@ func (t *Tailer) tail(since string) error {
 	err := t.setupReader()
 	if err != nil {
 		// could not start the tailer
-		t.source.Status.Error(err)
+		t.Source.Status.Error(err)
 		return err
 	}
-	t.source.Status.Success()
-	t.source.AddInput(t.ContainerID)
+	t.Source.Status.Success()
+	t.Source.AddInput(t.ContainerID)
 
 	go t.forwardMessages()
 	t.decoder.Start()
@@ -185,10 +185,10 @@ func (t *Tailer) readForever() {
 
 			// Since `container_collect_all` reports all docker logs as a single source (even though the source is overridden internally),
 			// we need to report the byte count to the parent source used to populate the status page.
-			if t.source.ParentSource != nil {
-				t.source.ParentSource.BytesRead.Add(int64(n))
+			if t.Source.ParentSource != nil {
+				t.Source.ParentSource.BytesRead.Add(int64(n))
 			} else {
-				t.source.BytesRead.Add(int64(n))
+				t.Source.BytesRead.Add(int64(n))
 			}
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
@@ -218,19 +218,19 @@ func (t *Tailer) readForever() {
 					// * when the container has not started to output logs yet.
 					// * during a file rotation.
 					// restart the reader (restartReader() include 1second wait)
-					t.source.Status.Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart, container: %v", ShortContainerID(t.ContainerID)))
+					t.Source.Status.Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart, container: %v", dockerutil.ShortContainerID(t.ContainerID)))
 					if err := t.tryRestartReader("log decoder returns an EOF error that will trigger a Reader restart"); err != nil {
 						return
 					}
 					continue
 				default:
-					t.source.Status.Error(err)
-					log.Errorf("Could not tail logs for container %v: %v", ShortContainerID(t.ContainerID), err)
+					t.Source.Status.Error(err)
+					log.Errorf("Could not tail logs for container %v: %v", dockerutil.ShortContainerID(t.ContainerID), err)
 					t.erroredContainerID <- t.ContainerID
 					return
 				}
 			}
-			t.source.Status.Success()
+			t.Source.Status.Success()
 			if n == 0 {
 				// wait for new data to come
 				t.wait()
@@ -277,7 +277,7 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		if len(output.Content) > 0 {
-			origin := message.NewOrigin(t.source)
+			origin := message.NewOrigin(t.Source)
 			origin.Offset = output.Timestamp
 			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
