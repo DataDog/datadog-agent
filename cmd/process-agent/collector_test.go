@@ -151,7 +151,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 		{
 			name:              "default queue size",
 			override:          false,
-			queueSize:         ddconfig.DefaultCheckQueueSize,
+			queueSize:         42,
 			expectedQueueSize: ddconfig.DefaultCheckQueueSize,
 		},
 		{
