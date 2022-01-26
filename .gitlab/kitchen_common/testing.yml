@@ -131,66 +131,65 @@
     KITCHEN_EC2_SUBNET: subnet-c18341ed
     KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
 
+.kitchen_ec2_arm64:
+  variables:
+    KITCHEN_ARCH: arm64
+    KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
+  extends:
+    - .kitchen_ec2_location_us_east_1
+    - .kitchen_ec2_spot_instances
 
-# Kitchen: Test types (test suite * agent flavor + azure location)
+# Kitchen: Test types (test suite * agent flavor)
+# Don't specify location for the jobs as they can be ran either
+# in Azure or EC2, e.g. for ARM tests.
 # -------------------------------
 
 .kitchen_test_chef_agent:
   extends:
     - .kitchen_test_chef
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_north_central_us
 
 .kitchen_test_step_by_step_agent:
   extends:
     - .kitchen_test_step_by_step
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_central_us
 
 .kitchen_test_install_script_agent:
   extends:
     - .kitchen_test_install_script
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_south_central_us
 
 .kitchen_test_install_script_iot_agent:
   extends:
     - .kitchen_test_install_script
     - .kitchen_datadog_iot_agent_flavor
-    - .kitchen_azure_location_west_central_us
 
 .kitchen_test_install_script_heroku_agent:
   extends:
     - .kitchen_test_install_script
     - .kitchen_datadog_heroku_agent_flavor
-    - .kitchen_azure_location_west_central_us
 
 .kitchen_test_install_script_dogstatsd:
   extends:
     - .kitchen_test_install_script
     - .kitchen_datadog_dogstatsd_flavor
-    - .kitchen_azure_location_west_central_us
 
 .kitchen_test_upgrade5_agent:
   extends:
     - .kitchen_test_upgrade5
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_central_us
 
 .kitchen_test_upgrade6_agent:
   extends:
     - .kitchen_test_upgrade6
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_south_central_us
 
 .kitchen_test_upgrade7_agent:
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_west_central_us
 
 .kitchen_test_upgrade7_iot_agent:
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_iot_agent_flavor
-    - .kitchen_azure_location_south_central_us

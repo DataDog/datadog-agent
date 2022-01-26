@@ -26,12 +26,14 @@
   extends:
     - .kitchen_agent_a6
     - .kitchen_os_suse
+    - .kitchen_azure_location_west_central_us
   needs: ["deploy_suse_rpm_testing-a6"]
 
 .kitchen_scenario_suse_a7:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_suse
+    - .kitchen_azure_location_west_central_us
   needs: ["deploy_suse_rpm_testing-a7"]
 
 # Kitchen: final test matrix (tests * scenarios)

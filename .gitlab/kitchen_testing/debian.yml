@@ -19,20 +19,36 @@
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-# Kitchen: scenarios (os * agent)
+# Kitchen: scenarios (os * agent * arch)
 # -------------------------------
 
-.kitchen_scenario_debian_a6:
+.kitchen_scenario_debian_a6_x64:
   extends:
     - .kitchen_agent_a6
     - .kitchen_os_debian
-  needs: ["deploy_deb_testing-a6"]
+    - .kitchen_azure_location_south_central_us
+  needs: ["deploy_deb_testing-a6_x64"]
 
-.kitchen_scenario_debian_a7:
+.kitchen_scenario_debian_a7_x64:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_debian
-  needs: ["deploy_deb_testing-a7"]
+    - .kitchen_azure_location_south_central_us
+  needs: ["deploy_deb_testing-a7_x64"]
+
+.kitchen_scenario_debian_a6_arm64:
+  extends:
+    - .kitchen_agent_a6
+    - .kitchen_os_debian
+    - .kitchen_ec2_arm64
+  needs: ["deploy_deb_testing-a6_arm64"]
+
+.kitchen_scenario_debian_a7_arm64:
+  extends:
+    - .kitchen_agent_a7
+    - .kitchen_os_debian
+    - .kitchen_ec2_arm64
+  needs: ["deploy_deb_testing-a7_arm64"]
 
 # Kitchen: final test matrix (tests * scenarios)
 # ----------------------------------------------

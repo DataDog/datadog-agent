@@ -36,17 +36,21 @@
   - filename=$(ls datadog-signing-keys*.deb); mv $filename datadog-signing-keys_${DD_PIPELINE_ID}.deb
   - popd
 
-deploy_deb_testing-a6:
+.deploy_deb_testing-a6:
   rules:
     !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  needs: ["agent_deb-x64-a6", "agent_heroku_deb-x64-a6", "tests_deb-x64-py2", "tests_deb-x64-py3"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+
+deploy_deb_testing-a6_x64:
+  extends:
+    - .deploy_deb_testing-a6
+  needs: ["agent_deb-x64-a6", "agent_heroku_deb-x64-a6", "tests_deb-x64-py2", "tests_deb-x64-py3"]
   script:
     - *setup_apt_signing_key
     - set +x  # make sure we don't output the creds to the build log
@@ -58,18 +62,34 @@ deploy_deb_testing-a6:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
+deploy_deb_testing-a6_arm64:
+  extends:
+    - .deploy_deb_testing-a6
+  needs: ["agent_deb-arm64-a6", "tests_deb-arm64-py2", "tests_deb-arm64-py3"]
+  script:
+    - *setup_apt_signing_key
+    - set +x  # make sure we don't output the creds to the build log
 
-deploy_deb_testing-a7:
+    - *setup_signing_keys_package
+
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*arm64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+
+.deploy_deb_testing-a7:
   rules:
     !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  needs: ["agent_deb-x64-a7", "agent_heroku_deb-x64-a7", "iot_agent_deb-x64", "dogstatsd_deb-x64", "tests_deb-x64-py3"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+
+deploy_deb_testing-a7_x64:
+  extends:
+    - .deploy_deb_testing-a7
+  needs: ["agent_deb-x64-a7", "agent_heroku_deb-x64-a7", "iot_agent_deb-x64", "dogstatsd_deb-x64", "tests_deb-x64-py3"]
   script:
     - *setup_apt_signing_key
     - set +x  # make sure we don't output the creds to the build log
@@ -80,6 +100,19 @@ deploy_deb_testing-a7:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+
+deploy_deb_testing-a7_arm64:
+  extends:
+    - .deploy_deb_testing-a7
+  needs: ["agent_deb-arm64-a7", "tests_deb-arm64-py2", "tests_deb-arm64-py3"]
+  script:
+    - *setup_apt_signing_key
+    - set +x  # make sure we don't output the creds to the build log
+
+    - *setup_signing_keys_package
+
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 deploy_rpm_testing-a6:
   rules:
