@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
@@ -17,7 +18,7 @@ import (
 type Launcher struct {
 	sources          chan *config.LogSource
 	pipelineProvider pipeline.Provider
-	tailers          map[string]*Tailer
+	tailers          map[string]*tailer.Tailer
 	stop             chan struct{}
 }
 
@@ -26,7 +27,7 @@ func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider)
 	return &Launcher{
 		sources:          sources.GetAddedForType(config.WindowsEventType),
 		pipelineProvider: pipelineProvider,
-		tailers:          make(map[string]*Tailer),
+		tailers:          make(map[string]*tailer.Tailer),
 		stop:             make(chan struct{}),
 	}
 }
@@ -47,7 +48,7 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
-			identifier := Identifier(source.Config.ChannelPath, source.Config.Query)
+			identifier := tailer.Identifier(source.Config.ChannelPath, source.Config.Query)
 			if _, exists := l.tailers[identifier]; exists {
 				// tailer already setup
 				continue
@@ -76,8 +77,11 @@ func (l *Launcher) Stop() {
 }
 
 // sanitizedConfig sets default values for the config
-func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *Config {
-	config := &Config{sourceConfig.ChannelPath, sourceConfig.Query}
+func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *tailer.Config {
+	config := &tailer.Config{
+		ChannelPath: sourceConfig.ChannelPath,
+		Query:       sourceConfig.Query,
+	}
 	if config.Query == "" {
 		config.Query = "*"
 	}
@@ -85,10 +89,13 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *Config {
 }
 
 // setupTailer configures and starts a new tailer
-func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
+func (l *Launcher) setupTailer(source *config.LogSource) (*tailer.Tailer, error) {
 	sanitizedConfig := l.sanitizedConfig(source.Config)
-	config := &Config{sanitizedConfig.ChannelPath, sanitizedConfig.Query}
-	tailer := NewTailer(source, config, l.pipelineProvider.NextPipelineChan())
+	config := &tailer.Config{
+		ChannelPath: sanitizedConfig.ChannelPath,
+		Query:       sanitizedConfig.Query,
+	}
+	tailer := tailer.NewTailer(source, config, l.pipelineProvider.NextPipelineChan())
 	tailer.Start()
 	return tailer, nil
 }
