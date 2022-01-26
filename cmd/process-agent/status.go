@@ -3,12 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/cobra"
+	"html/template"
+	"strings"
+	"time"
 )
 
 var statusCmd = &cobra.Command{
@@ -18,7 +20,7 @@ var statusCmd = &cobra.Command{
 	RunE:  runStatus,
 }
 
-type statusResponse struct {
+type StatusResponse struct {
 	AgentVersion  string `json:"version"`
 	GoVersion     string `json:"go_version"`
 	PythonVersion string `json:"python_version"`
@@ -34,28 +36,28 @@ type statusResponse struct {
 	Endpoints map[string][]string `json:"endpointsInfos"`
 }
 
-func getProcessInfo() (info *StatusInfo, err error) {
-	b, err := makeRequest("/debug/vars", ddconfig.Datadog.GetInt("process_config.expvar_port"))
+func getProcessInfo(expvarPort int) (info StatusInfo, err error) {
+	b, err := makeRequest("/debug/vars", expvarPort)
 	if err != nil {
-		return nil, fmt.Errorf("failed to reach process-agent: %v", err)
+		return StatusInfo{}, fmt.Errorf("failed to reach process-agent: %v", err)
 	}
 
-	err = json.Unmarshal(b, info)
+	err = json.Unmarshal(b, &info)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response from process-agent: %v", err)
+		return StatusInfo{}, fmt.Errorf("failed to unmarshal response from process-agent: %v", err)
 	}
 	return
 }
 
-func getProcessStatus() (status *statusResponse, err error) {
+func getProcessStatus() (status StatusResponse, err error) {
 	b, err := makeRequest("/agent/status", ddconfig.Datadog.GetInt("process_config.cmd_port"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to reach process-agent: %v", err)
+		return StatusResponse{}, fmt.Errorf("failed to reach process-agent: %v", err)
 	}
 
 	err = json.Unmarshal(b, &status)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response from process-agent: %v", err)
+		return StatusResponse{}, fmt.Errorf("failed to unmarshal response from process-agent: %v", err)
 	}
 	return
 }
@@ -78,30 +80,33 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get status from process-agent: %v", err)
 	}
 
-	info, err := getProcessInfo()
+	info, err := getProcessInfo(cfg.ProcessExpVarPort)
 	if err != nil {
 		return fmt.Errorf("failed to get info from process-agent: %v", err)
 	}
 
-	fmt.Println(fmtStatus(*status, *info))
+	printStatus(status, info)
 	return nil
 }
 
-func fmtBanner(str string) string {
-	banner := strings.Repeat("=", len(str))
+func printStatus(status StatusResponse, info StatusInfo) {
+	files := template.Must(template.ParseFiles("./status.tmpl"))
 
+	fmt.Printf("%#v\n\n%#v\n", status, info)
 	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "%s\n%s\n%[1]s\n", banner, str)
-
-	return b.String()
-}
-
-func fmtStatus(status statusResponse, info StatusInfo) string {
-	var b strings.Builder
-
-	_, _ = fmt.Fprintln(&b, fmtBanner("Process Agent  	"))
-
-	return b.String()
+	err := files.Execute(&b, struct {
+		StatusDate string
+		StatusResponse
+		StatusInfo
+	}{
+		StatusDate:     time.Now().Format(time.UnixDate),
+		StatusResponse: status,
+		StatusInfo:     info,
+	})
+	if err != nil {
+		_ = log.Warn(err)
+	}
+	fmt.Println(b.String())
 }
 
 func makeRequest(path string, port int) ([]byte, error) {

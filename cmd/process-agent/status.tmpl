@@ -1,15 +1,15 @@
 ==============================
-Process Agent ({{ .Version }})
+Process Agent ({{ .AgentVersion }})
 ==============================
 
  Status date: {{ .StatusDate }}
- Process Agent Start: {{ .Uptime }}
+ Process Agent Start: {{ .StatusDate }}
  Pid: {{ .Pid }}
  Go Version: {{ .GoVersion }}
  Python Version: {{ .PythonVersion }}
  Build arch: {{ .Arch }}
- Log Level: {{ .LogLevel }}
- Enabled Checks: {{ .EnabledChecks }}
+ Log Level: {{ .StatusResponse.Config.LogLevel }}
+ Enabled Checks: {{ .StatusInfo.Config.EnabledChecks }}
 
 =========
 Collector
