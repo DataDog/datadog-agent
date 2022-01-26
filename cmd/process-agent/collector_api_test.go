@@ -7,6 +7,7 @@ package main
 
 import (
 	"fmt"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"io/ioutil"
 	"net"
 	"net/http"

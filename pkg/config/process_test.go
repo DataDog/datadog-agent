@@ -70,6 +70,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.rt_queue_size",
 			defaultValue: DefaultCheckQueueSize,
 		},
+		{
+			key:          "process_config.process_queue_bytes",
+			defaultValue: DefaultProcessQueueBytes,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
