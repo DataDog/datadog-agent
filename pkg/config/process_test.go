@@ -60,7 +60,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.rt_queue_size",
-			defaultValue: DefaultCheckQueueSize,
+			defaultValue: DefaultRTCheckQueueSize,
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
