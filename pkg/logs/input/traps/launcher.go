@@ -7,6 +7,7 @@ package traps
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 )
@@ -15,7 +16,7 @@ import (
 type Launcher struct {
 	pipelineProvider pipeline.Provider
 	sources          chan *config.LogSource
-	tailer           *Tailer
+	tailer           *tailer.Tailer
 	stop             chan interface{}
 }
 
@@ -35,7 +36,7 @@ func (l *Launcher) Start() {
 
 func (l *Launcher) startNewTailer(source *config.LogSource, inputChan chan *traps.SnmpPacket) {
 	outputChan := l.pipelineProvider.NextPipelineChan()
-	l.tailer = NewTailer(source, inputChan, outputChan)
+	l.tailer = tailer.NewTailer(source, inputChan, outputChan)
 	l.tailer.Start()
 }
 
