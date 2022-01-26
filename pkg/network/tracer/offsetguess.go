@@ -556,7 +556,17 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 
 	case netebpf.GuessSocketSK:
 		if status.Sport_via_sk == htons(expected.sport) && status.Dport_via_sk == htons(expected.dport) {
-			logAndAdvance(status, status.Offset_socket_sk, netebpf.GuessFilePrivateSocket)
+			next := netebpf.GuessFilePrivateSocket
+			kv, err := kernel.HostVersion()
+			if err != nil {
+				return nil
+			}
+			if kv < kernel.VersionCode(5, 5, 0) {
+				/* skip FilePrivateSocket, FileInode, SocketI guessing on old kernel */
+				next = netebpf.GuessDAddrIPv6
+			}
+
+			logAndAdvance(status, status.Offset_socket_sk, next)
 			break
 		}
 		status.Offset_socket_sk++
