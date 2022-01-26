@@ -155,7 +155,7 @@ func NewArgsEnvsCacheEntry(onRelease func(_ *ArgsEnvsCacheEntry)) *ArgsEnvsCache
 	return entry
 }
 
-func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
+func (p *ArgsEnvsCacheEntry) toArray(scrub func([]string) []string) ([]string, bool) {
 	entry := p
 
 	var values []string
@@ -176,6 +176,10 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 		entry = entry.next
 	}
 
+	if scrub != nil {
+		values = scrub(values)
+	}
+
 	return values, truncated
 }
 
@@ -190,11 +194,11 @@ type ArgsEntry struct {
 }
 
 // ToArray returns args as array
-func (p *ArgsEntry) ToArray() ([]string, bool) {
+func (p *ArgsEntry) ToArray(scrub func([]string) []string) ([]string, bool) {
 	if len(p.Values) > 0 || p.parsed {
 		return p.Values, p.Truncated
 	}
-	p.Values, p.Truncated = p.toArray()
+	p.Values, p.Truncated = p.toArray(scrub)
 	p.parsed = true
 
 	// now we have the cache we can free
@@ -213,6 +217,8 @@ type EnvsEntry struct {
 	Values    map[string]string
 	Truncated bool
 
+	ValuesToKeep map[string]bool
+
 	parsed bool
 }
 
@@ -222,15 +228,19 @@ func (p *EnvsEntry) ToMap() (map[string]string, bool) {
 		return p.Values, p.Truncated
 	}
 
-	values, truncated := p.toArray()
+	values, truncated := p.toArray(nil)
 
 	envs := make(map[string]string, len(values))
 
 	for _, env := range values {
 		if els := strings.SplitN(env, "=", 2); len(els) == 2 {
 			key := els[0]
-			value := els[1]
-			envs[key] = value
+			if _, exists := p.ValuesToKeep[key]; exists {
+				value := els[1]
+				envs[key] = value
+			} else {
+				envs[key] = ""
+			}
 		}
 	}
 	p.Values, p.Truncated = envs, truncated
@@ -245,9 +255,26 @@ func (p *EnvsEntry) ToMap() (map[string]string, bool) {
 	return p.Values, p.Truncated
 }
 
+// Keys returns only keys
+func (p *EnvsEntry) Keys() ([]string, bool) {
+	if !p.parsed {
+		p.ToMap()
+	}
+
+	keys := make([]string, len(p.Values))
+
+	var i int
+	for key := range p.Values {
+		keys[i] = key
+		i++
+	}
+
+	return keys, p.Truncated
+}
+
 // Get returns the value for the given key
 func (p *EnvsEntry) Get(key string) string {
-	if p.Values == nil {
+	if !p.parsed {
 		p.ToMap()
 	}
 	return p.Values[key]
