@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/socket"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
@@ -25,7 +26,7 @@ type TCPListener struct {
 	idleTimeout      time.Duration
 	frameSize        int
 	listener         net.Listener
-	tailers          []*Tailer
+	tailers          []*tailer.Tailer
 	mu               sync.Mutex
 	stop             chan struct{}
 }
@@ -47,7 +48,7 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *config.LogSource
 		source:           source,
 		idleTimeout:      idleTimeout,
 		frameSize:        frameSize,
-		tailers:          []*Tailer{},
+		tailers:          []*tailer.Tailer{},
 		stop:             make(chan struct{}, 1),
 	}
 }
@@ -123,12 +124,12 @@ func (l *TCPListener) startListener() error {
 }
 
 // read reads data from connection, returns an error if it failed and stop the tailer.
-func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
+func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, error) {
 	if l.idleTimeout > 0 {
-		tailer.conn.SetReadDeadline(time.Now().Add(l.idleTimeout)) //nolint:errcheck
+		tailer.Conn.SetReadDeadline(time.Now().Add(l.idleTimeout)) //nolint:errcheck
 	}
 	frame := make([]byte, l.frameSize)
-	n, err := tailer.conn.Read(frame)
+	n, err := tailer.Conn.Read(frame)
 	if err != nil {
 		l.source.Status.Error(err)
 		go l.stopTailer(tailer)
@@ -141,13 +142,13 @@ func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
 func (l *TCPListener) startTailer(conn net.Conn) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	tailer := NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
+	tailer := tailer.NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
 	l.tailers = append(l.tailers, tailer)
 	tailer.Start()
 }
 
 // stopTailer stops the tailer.
-func (l *TCPListener) stopTailer(tailer *Tailer) {
+func (l *TCPListener) stopTailer(tailer *tailer.Tailer) {
 	tailer.Stop()
 	l.mu.Lock()
 	defer l.mu.Unlock()

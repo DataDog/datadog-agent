@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package listener
+package socket
 
 import (
 	"errors"
@@ -59,7 +59,7 @@ func TestReadShouldFailWithError(t *testing.T) {
 
 func read(tailer *Tailer) ([]byte, error) {
 	inBuf := make([]byte, 4096)
-	n, err := tailer.conn.Read(inBuf)
+	n, err := tailer.Conn.Read(inBuf)
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package listener
+package socket
 
 import (
 	"io"
@@ -17,10 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
-// Tailer reads data from a connection
+// Tailer reads data from a net.Conn.  It uses a `read` callback to be generic
+// over types of connections.
 type Tailer struct {
 	source     *config.LogSource
-	conn       net.Conn
+	Conn       net.Conn
 	outputChan chan *message.Message
 	read       func(*Tailer) ([]byte, error)
 	decoder    *decoder.Decoder
@@ -32,7 +33,7 @@ type Tailer struct {
 func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
 	return &Tailer{
 		source:     source,
-		conn:       conn,
+		Conn:       conn,
 		outputChan: outputChan,
 		read:       read,
 		decoder:    decoder.InitializeDecoder(source, parser.Noop),
@@ -51,7 +52,7 @@ func (t *Tailer) Start() {
 // Stop stops the tailer and waits for the decoder to be flushed
 func (t *Tailer) Stop() {
 	t.stop <- struct{}{}
-	t.conn.Close()
+	t.Conn.Close()
 	<-t.done
 }
 
@@ -71,7 +72,7 @@ func (t *Tailer) forwardMessages() {
 // readForever reads the data from conn.
 func (t *Tailer) readForever() {
 	defer func() {
-		t.conn.Close()
+		t.Conn.Close()
 		t.decoder.Stop()
 	}()
 	for {

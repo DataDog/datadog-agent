@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/socket"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
@@ -31,7 +32,7 @@ type UDPListener struct {
 	pipelineProvider pipeline.Provider
 	source           *config.LogSource
 	frameSize        int
-	tailer           *Tailer
+	tailer           *tailer.Tailer
 }
 
 // NewUDPListener returns an initialized UDPListener
@@ -67,7 +68,7 @@ func (l *UDPListener) startNewTailer() error {
 	if err != nil {
 		return err
 	}
-	l.tailer = NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
+	l.tailer = tailer.NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
 	l.tailer.Start()
 	return nil
 }
@@ -83,9 +84,9 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 }
 
 // read reads data from the tailer connection, returns an error if it failed and reset the tailer.
-func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
+func (l *UDPListener) read(tailer *tailer.Tailer) ([]byte, error) {
 	frame := make([]byte, l.frameSize+1)
-	n, err := tailer.conn.Read(frame)
+	n, err := tailer.Conn.Read(frame)
 	switch {
 	case err != nil && isClosedConnError(err):
 		return nil, err
