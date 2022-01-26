@@ -16,15 +16,21 @@ import (
 )
 
 var (
-	processColor = "#8fbbff"
-	fileColor    = "#77bf77"
+	processColor         = "#8fbbff"
+	processRuntimeColor  = "#edf3ff"
+	processSnapshotColor = "white"
+
+	fileColor         = "#77bf77"
+	fileRuntimeColor  = "#e9f3e7"
+	fileSnapshotColor = "white"
 )
 
 type node struct {
-	ID    string
-	Label string
-	Size  int
-	Color string
+	ID        string
+	Label     string
+	Size      int
+	Color     string
+	FillColor string
 }
 
 type edge struct {
@@ -57,7 +63,7 @@ func (ad *ActivityDump) generateGraph(title string) error {
 		edge [penwidth=2]
 
 		{{ range .Nodes }}
-		{{ .ID }} [label="{{ .Label }}", fontsize={{ .Size }}, shape=record, fontname = "arial", color="{{ .Color }}"]{{ end }}
+		{{ .ID }} [label="{{ .Label }}", fontsize={{ .Size }}, shape=record, fontname = "arial", color="{{ .Color }}", fillcolor="{{ .FillColor }}", style="filled"]{{ end }}
 
 		{{ range .Edges }}
 		{{ .Link }} [arrowhead=none, color="{{ .Color }}"]
@@ -86,12 +92,20 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	processID := fmt.Sprintf("%s_%s_%d", p.Process.PathnameStr, p.Process.ExecTime, p.Process.Tid)
 	var args []string
 	args, _ = ad.resolvers.ProcessResolver.GetProcessArgv(&p.Process)
-	data.Nodes[processID] = node{
+	pan := node{
 		ID:    generateNodeID(processID),
 		Label: fmt.Sprintf("%s %s", p.Process.PathnameStr, strings.Join(args, " ")),
 		Size:  60,
 		Color: processColor,
 	}
+	switch p.GenerationType {
+	case Runtime:
+		pan.FillColor = processRuntimeColor
+	case Snapshot:
+		pan.FillColor = processSnapshotColor
+	}
+	data.Nodes[processID] = pan
+
 	for _, f := range p.Files {
 		fileID := fmt.Sprintf("%s_%s_%s", processID, f.Name, f.Name)
 		data.Edges = append(data.Edges, edge{
@@ -112,12 +126,20 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 
 func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix string, processID string) {
 	fileID := fmt.Sprintf("%s_%s_%s", processID, f.Name, prefix+f.Name)
-	data.Nodes[fileID] = node{
+	fn := node{
 		ID:    generateNodeID(fileID),
 		Label: f.Name,
 		Size:  30,
 		Color: fileColor,
 	}
+	switch f.GenerationType {
+	case Runtime:
+		fn.FillColor = fileRuntimeColor
+	case Snapshot:
+		fn.FillColor = fileSnapshotColor
+	}
+	data.Nodes[fileID] = fn
+
 	for _, child := range f.Children {
 		childID := fmt.Sprintf("%s_%s_%s", processID, child.Name, prefix+f.Name+child.Name)
 		data.Edges = append(data.Edges, edge{

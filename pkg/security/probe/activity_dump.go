@@ -32,6 +32,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+type NodeGenerationType string
+
+var (
+	// Runtime is a node that was added at runtime
+	Runtime NodeGenerationType = "runtime"
+	// Snapshot is a node that was added during the snapshot
+	Snapshot NodeGenerationType = "snapshot"
+)
+
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags
 type ActivityDump struct {
 	Tags                []string                        `json:"tags,omitempty"`
@@ -50,9 +59,10 @@ type ActivityDump struct {
 	resolvers  *Resolvers
 	scrubber   *config.DataScrubber
 
-	differentiateArgs bool
-	processedCount    map[model.EventType]*uint64
-	addedCount        map[model.EventType]*uint64
+	differentiateArgs  bool
+	processedCount     map[model.EventType]*uint64
+	addedRuntimeCount  map[model.EventType]*uint64
+	addedSnapshotCount map[model.EventType]*uint64
 }
 
 // NewActivityDump returns a new instance of an ActivityDump
@@ -60,25 +70,28 @@ func NewActivityDump(params *api.DumpActivityParams, tracedPIDs *ebpf.Map, resol
 	var err error
 
 	ad := ActivityDump{
-		Tags:              params.Tags,
-		Comm:              params.Comm,
-		CookiesNode:       make(map[uint32]*ProcessActivityNode),
-		Start:             time.Now(),
-		Timeout:           time.Duration(params.Timeout) * time.Minute,
-		tracedPIDs:        tracedPIDs,
-		resolvers:         resolvers,
-		scrubber:          scrubber,
-		differentiateArgs: params.DifferentiateArgs,
-		processedCount:    make(map[model.EventType]*uint64),
-		addedCount:        make(map[model.EventType]*uint64),
+		Tags:               params.Tags,
+		Comm:               params.Comm,
+		CookiesNode:        make(map[uint32]*ProcessActivityNode),
+		Start:              time.Now(),
+		Timeout:            time.Duration(params.Timeout) * time.Minute,
+		tracedPIDs:         tracedPIDs,
+		resolvers:          resolvers,
+		scrubber:           scrubber,
+		differentiateArgs:  params.DifferentiateArgs,
+		processedCount:     make(map[model.EventType]*uint64),
+		addedRuntimeCount:  make(map[model.EventType]*uint64),
+		addedSnapshotCount: make(map[model.EventType]*uint64),
 	}
 
 	// generate counters
 	for i := model.EventType(0); i < model.MaxEventType; i++ {
 		processed := uint64(0)
 		ad.processedCount[i] = &processed
-		added := uint64(0)
-		ad.addedCount[i] = &added
+		runtime := uint64(0)
+		ad.addedRuntimeCount[i] = &runtime
+		snapshot := uint64(0)
+		ad.addedSnapshotCount[i] = &snapshot
 	}
 
 	// generate random output file
@@ -207,31 +220,35 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	}
 
 	// metrics
-	atomic.AddUint64(ad.processedCount[event.GetEventType()], 1)
 	defer func() {
 		if newEntry {
-			atomic.AddUint64(ad.addedCount[event.GetEventType()], 1)
+			// this doesn't count the exec events which are counted separately
+			atomic.AddUint64(ad.addedRuntimeCount[event.GetEventType()], 1)
 		}
 	}()
 
 	// find the node where the event should be inserted
-	node := ad.FindOrCreateProcessActivityNode(event.ResolveProcessCacheEntry())
+	node := ad.FindOrCreateProcessActivityNode(event.ResolveProcessCacheEntry(), Runtime)
 	if node == nil {
 		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
 		return false
 	}
 
+	// the count of processed events is the count of events that matched the activity dump selector = the events for
+	// which we successfully found a process activity node
+	atomic.AddUint64(ad.processedCount[event.GetEventType()], 1)
+
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
-		return node.InsertOpen(event)
+		return node.InsertOpen(event, Runtime)
 	}
 	return false
 }
 
 // FindOrCreateProcessActivityNode finds or a create a new process activity node in the activity dump if the entry
 // matches the activity dump selector.
-func (ad *ActivityDump) FindOrCreateProcessActivityNode(entry *model.ProcessCacheEntry) *ProcessActivityNode {
+func (ad *ActivityDump) FindOrCreateProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) *ProcessActivityNode {
 	var node *ProcessActivityNode
 
 	if entry == nil {
@@ -249,7 +266,7 @@ func (ad *ActivityDump) FindOrCreateProcessActivityNode(entry *model.ProcessCach
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
-	parentNode := ad.FindOrCreateProcessActivityNode(entry.GetNextAncestorNoFork())
+	parentNode := ad.FindOrCreateProcessActivityNode(entry.GetNextAncestorNoFork(), Snapshot)
 
 	// if parentNode is nil, the parent of the current node is out of tree (either because the parent is null, or it
 	// doesn't match the dump tags).
@@ -267,7 +284,7 @@ func (ad *ActivityDump) FindOrCreateProcessActivityNode(entry *model.ProcessCach
 			}
 		}
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
-		node = NewProcessActivityNode(entry)
+		node = NewProcessActivityNode(entry, generationType)
 		// insert in the list of root entries
 		ad.ProcessActivityTree = append(ad.ProcessActivityTree, node)
 
@@ -283,7 +300,7 @@ func (ad *ActivityDump) FindOrCreateProcessActivityNode(entry *model.ProcessCach
 		}
 
 		// if none of them matched, create a new ProcessActivityNode for the input processCacheEntry
-		node = NewProcessActivityNode(entry)
+		node = NewProcessActivityNode(entry, generationType)
 		// insert in the list of root entries
 		parentNode.Children = append(parentNode.Children, node)
 	}
@@ -291,6 +308,14 @@ func (ad *ActivityDump) FindOrCreateProcessActivityNode(entry *model.ProcessCach
 	// insert new cookie shortcut
 	if entry.Cookie > 0 {
 		ad.CookiesNode[entry.Cookie] = node
+	}
+
+	// count new entry
+	switch generationType {
+	case Runtime:
+		atomic.AddUint64(ad.addedRuntimeCount[model.ExecEventType], 1)
+	case Snapshot:
+		atomic.AddUint64(ad.addedSnapshotCount[model.ExecEventType], 1)
 	}
 
 	// set the pid of the input ProcessCacheEntry as traced
@@ -429,8 +454,17 @@ func (ad *ActivityDump) SendStats(client *statsd.Client) error {
 		}
 	}
 
-	for evtType, count := range ad.addedCount {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
+	for evtType, count := range ad.addedRuntimeCount {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Runtime)}
+		if value := atomic.LoadUint64(count); value > 0 {
+			if err := client.Gauge(metrics.MetricActivityDumpAdded, float64(value), tags, 1.0); err != nil {
+				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpAdded)
+			}
+		}
+	}
+
+	for evtType, count := range ad.addedSnapshotCount {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Snapshot)}
 		if value := atomic.LoadUint64(count); value > 0 {
 			if err := client.Gauge(metrics.MetricActivityDumpAdded, float64(value), tags, 1.0); err != nil {
 				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpAdded)
@@ -443,8 +477,8 @@ func (ad *ActivityDump) SendStats(client *statsd.Client) error {
 
 // Snapshot snapshots the processes in the activity dump to capture all the
 func (ad *ActivityDump) Snapshot() error {
-	for _, node := range ad.ProcessActivityTree {
-		if err := node.snapshot(ad.resolvers, ad.scrubber); err != nil {
+	for _, pan := range ad.ProcessActivityTree {
+		if err := pan.snapshot(ad); err != nil {
 			return err
 		}
 		// iterate slowly
@@ -455,16 +489,18 @@ func (ad *ActivityDump) Snapshot() error {
 
 // ProcessActivityNode holds the activity of a process
 type ProcessActivityNode struct {
-	Process model.Process `json:"process"`
+	Process        model.Process      `json:"process"`
+	GenerationType NodeGenerationType `json:"creation_type"`
 
 	Files    []*FileActivityNode    `json:"files"`
 	Children []*ProcessActivityNode `json:"children"`
 }
 
 // NewProcessActivityNode returns a new ProcessActivityNode instance
-func NewProcessActivityNode(entry *model.ProcessCacheEntry) *ProcessActivityNode {
+func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) *ProcessActivityNode {
 	pan := ProcessActivityNode{
-		Process: entry.Process,
+		Process:        entry.Process,
+		GenerationType: generationType,
 	}
 	pan.retain()
 	return &pan
@@ -563,7 +599,7 @@ func extractFirstParent(path string) (string, int) {
 
 // InsertOpen inserts the provided file open event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pan *ProcessActivityNode) InsertOpen(event *Event) bool {
+func (pan *ProcessActivityNode) InsertOpen(event *Event, generationType NodeGenerationType) bool {
 	prefix, prefixLen := extractFirstParent(event.ResolveFilePath(&event.Open.File))
 	if prefixLen == 0 {
 		return false
@@ -571,27 +607,27 @@ func (pan *ProcessActivityNode) InsertOpen(event *Event) bool {
 
 	for _, child := range pan.Files {
 		if child.Name == prefix {
-			return child.InsertOpen(&event.Open, event.Open.File.PathnameStr[prefixLen:])
+			return child.InsertOpen(&event.Open, event.Open.File.PathnameStr[prefixLen:], generationType)
 		}
 		// TODO: look for patterns / merge algo
 	}
 
 	// create new child
 	if len(event.Open.File.PathnameStr) <= prefixLen+1 {
-		pan.Files = append(pan.Files, NewFileActivityNode(&event.Open, prefix))
+		pan.Files = append(pan.Files, NewFileActivityNode(&event.Open, prefix, generationType))
 	} else {
-		child := NewFileActivityNode(nil, prefix)
-		child.InsertOpen(&event.Open, event.Open.File.PathnameStr[prefixLen:])
+		child := NewFileActivityNode(nil, prefix, generationType)
+		child.InsertOpen(&event.Open, event.Open.File.PathnameStr[prefixLen:], generationType)
 		pan.Files = append(pan.Files, child)
 	}
 	return true
 }
 
 // snapshot uses procfs to retrieve information about the current process
-func (pan *ProcessActivityNode) snapshot(resolvers *Resolvers, scrubber *config.DataScrubber) error {
+func (pan *ProcessActivityNode) snapshot(ad *ActivityDump) error {
 	// call snapshot for all the children of the current node
 	for _, child := range pan.Children {
-		if err := child.snapshot(resolvers, scrubber); err != nil {
+		if err := child.snapshot(ad); err != nil {
 			return err
 		}
 		// iterate slowly
@@ -630,6 +666,8 @@ func (pan *ProcessActivityNode) snapshot(resolvers *Resolvers, scrubber *config.
 	}
 
 	// insert files
+	var fileinfo os.FileInfo
+	var resolvedPath string
 	for _, f := range files {
 		if len(f) == 0 {
 			continue
@@ -637,7 +675,7 @@ func (pan *ProcessActivityNode) snapshot(resolvers *Resolvers, scrubber *config.
 
 		// fetch the file user, group and mode
 		fullPath := filepath.Join(utils.RootPath(int32(pan.Process.Pid)), f)
-		fileinfo, err := os.Stat(fullPath)
+		fileinfo, err = os.Stat(fullPath)
 		if err != nil {
 			continue
 		}
@@ -645,34 +683,44 @@ func (pan *ProcessActivityNode) snapshot(resolvers *Resolvers, scrubber *config.
 		if !ok {
 			continue
 		}
-		evt := NewEvent(resolvers, scrubber)
+		evt := NewEvent(ad.resolvers, ad.scrubber)
 
 		evt.Open.Mode = stat.Mode
-		evt.Open.File.PathnameStr = f
-		evt.Open.File.BasenameStr = path.Base(f)
+		resolvedPath, err = filepath.EvalSymlinks(f)
+		if err != nil {
+			evt.Open.File.PathnameStr = resolvedPath
+		} else {
+			evt.Open.File.PathnameStr = f
+		}
+		evt.Open.File.BasenameStr = path.Base(evt.Open.File.PathnameStr)
 		evt.Open.File.FileFields.Mode = uint16(stat.Mode)
 		evt.Open.File.FileFields.Inode = stat.Ino
 		evt.Open.File.FileFields.UID = stat.Uid
 		evt.Open.File.FileFields.GID = stat.Gid
-		evt.Open.File.FileFields.MTime = uint64(resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)))
-		evt.Open.File.FileFields.CTime = uint64(resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Ctim.Sec, stat.Ctim.Nsec)))
-		pan.InsertOpen(evt)
+		evt.Open.File.FileFields.MTime = uint64(ad.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)))
+		evt.Open.File.FileFields.CTime = uint64(ad.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Ctim.Sec, stat.Ctim.Nsec)))
+		if pan.InsertOpen(evt, Snapshot) {
+			// count this new entry
+			atomic.AddUint64(ad.addedSnapshotCount[model.FileOpenEventType], 1)
+		}
 	}
 	return nil
 }
 
 // FileActivityNode holds a tree representation of a list of files
 type FileActivityNode struct {
-	Name string           `json:"name"`
-	Open *model.OpenEvent `json:"open,omitempty"`
+	Name           string             `json:"name"`
+	Open           *model.OpenEvent   `json:"open,omitempty"`
+	GenerationType NodeGenerationType `json:"generation_type"`
 
 	Children []*FileActivityNode `json:"children"`
 }
 
 // NewFileActivityNode returns a new FileActivityNode instance
-func NewFileActivityNode(event *model.OpenEvent, name string) *FileActivityNode {
+func NewFileActivityNode(event *model.OpenEvent, name string, generationType NodeGenerationType) *FileActivityNode {
 	fan := &FileActivityNode{
-		Name: name,
+		Name:           name,
+		GenerationType: generationType,
 	}
 	if event != nil {
 		open := *event
@@ -683,7 +731,7 @@ func NewFileActivityNode(event *model.OpenEvent, name string) *FileActivityNode 
 
 // InsertOpen inserts an open event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fan *FileActivityNode) InsertOpen(event *model.OpenEvent, remainingPath string) bool {
+func (fan *FileActivityNode) InsertOpen(event *model.OpenEvent, remainingPath string, generationType NodeGenerationType) bool {
 	prefix, prefixLen := extractFirstParent(remainingPath)
 	if prefixLen == 0 {
 		return false
@@ -691,17 +739,17 @@ func (fan *FileActivityNode) InsertOpen(event *model.OpenEvent, remainingPath st
 
 	for _, child := range fan.Children {
 		if child.Name == prefix {
-			return child.InsertOpen(event, remainingPath[prefixLen:])
+			return child.InsertOpen(event, remainingPath[prefixLen:], generationType)
 		}
 		// TODO: look for patterns / merge algo
 	}
 
 	// create new child
 	if len(remainingPath) <= prefixLen {
-		fan.Children = append(fan.Children, NewFileActivityNode(event, prefix))
+		fan.Children = append(fan.Children, NewFileActivityNode(event, prefix, generationType))
 	} else {
-		child := NewFileActivityNode(nil, prefix)
-		child.InsertOpen(event, remainingPath[prefixLen:])
+		child := NewFileActivityNode(nil, prefix, generationType)
+		child.InsertOpen(event, remainingPath[prefixLen:], generationType)
 		fan.Children = append(fan.Children, child)
 	}
 	return true

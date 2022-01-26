@@ -208,7 +208,7 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(entry *mod
 
 	for _, d := range adm.activeDumps {
 		for _, parent = range ancestors {
-			if node := d.FindOrCreateProcessActivityNode(parent); node != nil {
+			if node := d.FindOrCreateProcessActivityNode(parent, Snapshot); node != nil {
 				_ = d.tracedPIDs.Put(node.Process.Pid, uint64(0))
 			}
 		}
