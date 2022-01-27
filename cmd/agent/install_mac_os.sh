@@ -254,7 +254,7 @@ if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
     if [ "$retry" -ge 5 ]; then
         printf "\n\033[33mCould not restart the agent.
 You may have to restart it manually using the systray app or the
-\"launchctl start com.datadoghq.agent\" command.\n\033[0m\n"
+\"launchctl start $service_name\" command.\n\033[0m\n"
     fi
 
     $cmd_launchctl start $service_name
