@@ -137,6 +137,7 @@ func TestOnlyEnvConfig(t *testing.T) {
 
 	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
 	os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "false")
+	_, _ = config.Load() // Deprecated environment variables won't have their transforms applied until the config is reloaded
 	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
 	assert.False(t, agentConfig.Enabled)
@@ -577,27 +578,6 @@ func TestSystemProbeNoNetwork(t *testing.T) {
 	assert.ElementsMatch(t, []string{OOMKillCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
 }
 
-func TestIsAffirmative(t *testing.T) {
-	value, err := isAffirmative("yes")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	value, err = isAffirmative("True")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	value, err = isAffirmative("1")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	_, err = isAffirmative("")
-	assert.NotNil(t, err)
-
-	value, err = isAffirmative("ok")
-	assert.Nil(t, err)
-	assert.False(t, value)
-}
-
 func TestGetHostnameFromGRPC(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
@@ -700,19 +680,17 @@ func TestGetHostnameShellCmd(t *testing.T) {
 func TestProcessDiscoveryConfig(t *testing.T) {
 	assert := assert.New(t)
 
-	procConfigEnabledValues := []string{"true", "false", "disabled"}
-	procDiscoveryEnabledValues := []bool{true, false}
-	for _, procConfigEnabled := range procConfigEnabledValues {
-		for _, procDiscoveryEnabled := range procDiscoveryEnabledValues {
-			config.Datadog.Set("process_config.enabled", procConfigEnabled)
+	for _, procCollectionEnabled := range []bool{true, false} {
+		for _, procDiscoveryEnabled := range []bool{true, false} {
+			config.Datadog.Set("process_config.process_collection.enabled", procCollectionEnabled)
 			config.Datadog.Set("process_config.process_discovery.enabled", procDiscoveryEnabled)
 			config.Datadog.Set("process_config.process_discovery.interval", time.Hour)
 			cfg := AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
 			cfg.initProcessDiscoveryCheck()
 
-			// Make sure that the process discovery check is only enabled when both the process-agent is not set to true,
+			// Make sure that the process discovery check is only enabled when process collection is disabled,
 			// and procDiscoveryEnabled isn't overridden.
-			if procDiscoveryEnabled == true && procConfigEnabled != "true" {
+			if procDiscoveryEnabled && !procCollectionEnabled {
 				assert.ElementsMatch([]string{DiscoveryCheckName}, cfg.EnabledChecks)
 
 				// Interval Tests:
