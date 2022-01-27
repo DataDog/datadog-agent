@@ -64,6 +64,13 @@ const (
 	// UDPRecvMsgReturn traces the return value for the udp_recvmsg() system call
 	UDPRecvMsgReturn ProbeName = "kretprobe/udp_recvmsg"
 
+	// UDPv6RecvMsg traces the udpv6_recvmsg() system call
+	UDPv6RecvMsg ProbeName = "kprobe/udpv6_recvmsg"
+	// UDPv6RecvMsgPre410 traces the udpv6_recvmsg() system call on kernels prior to 4.1.0
+	UDPv6RecvMsgPre410 ProbeName = "kprobe/udpv6_recvmsg/pre_4_1_0"
+	// UDPv6RecvMsgReturn traces the return value for the udpv6_recvmsg() system call
+	UDPv6RecvMsgReturn ProbeName = "kretprobe/udpv6_recvmsg"
+
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeName = "kprobe/udp_destroy_sock"
 	// UDPDestroySockrReturn traces the return of the udp_destroy_sock() system call
