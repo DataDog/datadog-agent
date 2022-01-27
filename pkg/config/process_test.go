@@ -56,11 +56,11 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.queue_size",
-			defaultValue: DefaultCheckQueueSize,
+			defaultValue: DefaultProcessQueueSize,
 		},
 		{
 			key:          "process_config.rt_queue_size",
-			defaultValue: DefaultRTCheckQueueSize,
+			defaultValue: DefaultProcessRTQueueSize,
 		},
 		{
 			key:          "process_config.process_queue_bytes",

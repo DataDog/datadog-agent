@@ -110,14 +110,14 @@ func isRealTimeCheck(checkName string) bool {
 func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runRealTime bool) Collector {
 	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
 	if queueSize <= 0 {
-		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultCheckQueueSize)
-		queueSize = ddconfig.DefaultCheckQueueSize
+		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
+		queueSize = ddconfig.DefaultProcessQueueSize
 	}
 
 	rtQueueSize := ddconfig.Datadog.GetInt("process_config.rt_queue_size")
 	if rtQueueSize <= 0 {
-		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultRTCheckQueueSize)
-		rtQueueSize = ddconfig.DefaultRTCheckQueueSize
+		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultProcessRTQueueSize)
+		rtQueueSize = ddconfig.DefaultProcessRTQueueSize
 	}
 
 	queueBytes := ddconfig.Datadog.GetInt("process_config.process_queue_bytes")

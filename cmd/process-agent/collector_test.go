@@ -152,7 +152,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			name:              "default queue size",
 			override:          false,
 			queueSize:         42,
-			expectedQueueSize: ddconfig.DefaultCheckQueueSize,
+			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
 		},
 		{
 			name:              "valid queue size override",
@@ -164,7 +164,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			name:              "invalid queue size override",
 			override:          true,
 			queueSize:         -10,
-			expectedQueueSize: ddconfig.DefaultCheckQueueSize,
+			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
 		},
 	}
 
@@ -197,7 +197,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 			name:              "default queue size",
 			override:          false,
 			queueSize:         2,
-			expectedQueueSize: ddconfig.DefaultRTCheckQueueSize,
+			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
 		},
 		{
 			name:              "valid queue size override",
@@ -209,7 +209,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 			name:              "invalid queue size override",
 			override:          true,
 			queueSize:         -2,
-			expectedQueueSize: ddconfig.DefaultRTCheckQueueSize,
+			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
 		},
 	}
 
