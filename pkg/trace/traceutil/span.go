@@ -58,6 +58,16 @@ func SetMetric(s *pb.Span, key string, val float64) {
 	s.Metrics[key] = val
 }
 
+// SetMetaTags sets the tag map for a span
+func SetMetaTags(s *pb.Span, tags map[string]string) {
+	s.Meta = tags
+}
+
+// GetMetaTags gets the tag map for a span
+func GetMetaTags(s *pb.Span) map[string]string {
+	return s.Meta
+}
+
 // SetMeta sets the metadata at key to the val on the span s.
 func SetMeta(s *pb.Span, key, val string) {
 	if s.Meta == nil {
