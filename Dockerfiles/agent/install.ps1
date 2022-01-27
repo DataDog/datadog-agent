@@ -54,7 +54,7 @@ $Env:DOCKER_DD_AGENT="true"
 Write-Output @"
 ---
 install_method:
-  tool: docker
-  tool_version: docker-win-$env:VARIANT
-  installer_version: docker-win-$env:VARIANT
+  tool: docker-win
+  tool_version: docker-win-$env:INSTALL_INFO
+  installer_version: docker-win-$env:INSTALL_INFO
 "@ > C:/ProgramData/Datadog/install_info

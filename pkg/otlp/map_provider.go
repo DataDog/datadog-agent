@@ -8,41 +8,19 @@
 package otlp
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configmapprovider"
+	"go.opentelemetry.io/collector/service"
+	"go.uber.org/multierr"
+
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
 )
 
 // buildKey creates a key for use in the config.Map.Set function.
 func buildKey(keys ...string) string {
 	return strings.Join(keys, config.KeyDelimiter)
-}
-
-var _ configmapprovider.Provider = (*mapProvider)(nil)
-var _ configmapprovider.Retrieved = (*mapProvider)(nil)
-
-type mapProvider config.Map
-
-// TODO: In v0.42.0, direct implementation of Retrieved won't be allowed.
-// The new configmapprovider.NewRetrieved helper should be used instead.
-// See: https://github.com/open-telemetry/opentelemetry-collector/pull/4577
-func (p mapProvider) Get(context.Context) (*config.Map, error) {
-	return (*config.Map)(&p), nil
-}
-
-func (p mapProvider) Close(context.Context) error {
-	return nil
-}
-
-func (p mapProvider) Retrieve(context.Context, func(*configmapprovider.ChangeEvent)) (configmapprovider.Retrieved, error) {
-	return &p, nil
-}
-
-func (p mapProvider) Shutdown(context.Context) error {
-	return nil
 }
 
 // defaultTracesConfig is the base traces OTLP pipeline configuration.
@@ -65,13 +43,17 @@ service:
       exporters: [otlp]
 `
 
-func newTracesMapProvider(tracePort uint) configmapprovider.Provider {
-	configMap := config.NewMap()
-	configMap.Set(buildKey("exporters", "otlp", "endpoint"), fmt.Sprintf("%s:%d", "localhost", tracePort))
-	return configmapprovider.NewMerge(
-		configmapprovider.NewInMemory(strings.NewReader(defaultTracesConfig)),
-		mapProvider(*configMap),
-	)
+func buildTracesMap(tracePort uint) (*config.Map, error) {
+	baseMap, err := configutils.NewMapFromYAMLString(defaultTracesConfig)
+	if err != nil {
+		return nil, err
+	}
+	{
+		configMap := config.NewMap()
+		configMap.Set(buildKey("exporters", "otlp", "endpoint"), fmt.Sprintf("%s:%d", "localhost", tracePort))
+		err = baseMap.Merge(configMap)
+	}
+	return baseMap, err
 }
 
 // defaultMetricsConfig is the metrics OTLP pipeline configuration.
@@ -95,36 +77,54 @@ service:
       exporters: [serializer]
 `
 
-func newMetricsMapProvider(cfg PipelineConfig) configmapprovider.Provider {
-	configMap := config.NewMap()
+func buildMetricsMap(cfg PipelineConfig) (*config.Map, error) {
+	baseMap, err := configutils.NewMapFromYAMLString(defaultMetricsConfig)
+	if err != nil {
+		return nil, err
+	}
 
-	configMap.Set(
-		buildKey("exporters", "serializer", "metrics"),
-		cfg.Metrics,
-	)
-
-	return configmapprovider.NewMerge(
-		configmapprovider.NewInMemory(strings.NewReader(defaultMetricsConfig)),
-		mapProvider(*configMap),
-	)
+	{
+		configMap := config.NewMap()
+		configMap.Set(buildKey("exporters", "serializer", "metrics"), cfg.Metrics)
+		err = baseMap.Merge(configMap)
+	}
+	return baseMap, err
 }
 
-func newReceiverProvider(otlpReceiverConfig map[string]interface{}) configmapprovider.Provider {
-	configMap := config.NewMapFromStringMap(map[string]interface{}{
+func buildReceiverMap(otlpReceiverConfig map[string]interface{}) *config.Map {
+	return config.NewMapFromStringMap(map[string]interface{}{
 		"receivers": map[string]interface{}{"otlp": otlpReceiverConfig},
 	})
-	return mapProvider(*configMap)
 }
 
-// newMapProvider creates a config.MapProvider with the fixed configuration.
-func newMapProvider(cfg PipelineConfig) configmapprovider.Provider {
-	var providers []configmapprovider.Provider
+func buildMap(cfg PipelineConfig) (*config.Map, error) {
+	retMap := config.NewMap()
+	var errs []error
 	if cfg.TracesEnabled {
-		providers = append(providers, newTracesMapProvider(cfg.TracePort))
+		traceMap, err := buildTracesMap(cfg.TracePort)
+		errs = append(errs, err)
+
+		err = retMap.Merge(traceMap)
+		errs = append(errs, err)
 	}
 	if cfg.MetricsEnabled {
-		providers = append(providers, newMetricsMapProvider(cfg))
+		metricsMap, err := buildMetricsMap(cfg)
+		errs = append(errs, err)
+
+		err = retMap.Merge(metricsMap)
+		errs = append(errs, err)
 	}
-	providers = append(providers, newReceiverProvider(cfg.OTLPReceiverConfig))
-	return configmapprovider.NewMerge(providers...)
+	err := retMap.Merge(buildReceiverMap(cfg.OTLPReceiverConfig))
+	errs = append(errs, err)
+
+	return retMap, multierr.Combine(errs...)
+}
+
+// newMapProvider creates a service.ConfigProvider with the fixed configuration.
+func newMapProvider(cfg PipelineConfig) (service.ConfigProvider, error) {
+	cfgMap, err := buildMap(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return configutils.NewConfigProviderFromMap(cfgMap), nil
 }

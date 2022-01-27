@@ -1189,7 +1189,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:unknown"},
-				status:  metrics.ServiceCheckUnknown,
+				status:  metrics.ServiceCheckWarning,
 				message: "foo is currently reporting Ready = unknown",
 			},
 			expectedMetric: &metricsExpected{
