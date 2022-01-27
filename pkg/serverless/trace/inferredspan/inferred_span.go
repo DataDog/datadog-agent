@@ -1,41 +1,39 @@
 package inferredspan
 
 import (
-	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	// tagInferredSpanTagSource is the key to the meta tag that lets us know whether this span should inherit its tags.
+	// tagInferredSpanTagSource is the key to the meta tag
+	// that lets us know whether this span should inherit its tags.
 	// Expected options are "lambda" and "self"
 	tagInferredSpanTagSource = "_inferred_span.tag_source"
+	functionVersionTagKey    = "function_version"
+	coldStartTagKey          = "cold_start"
 )
 
-var globalTagsToFilter map[string]struct{}
-
-func populateGlobalTagsToFilter() {
-	if globalTagsToFilter != nil {
-		return
-	}
-	globalTagsToFilter = make(map[string]struct{})
-	ddTagsStr := os.Getenv("DD_TAGS")
-	separator := " "
-	if strings.Contains(ddTagsStr, ",") {
-		separator = ","
-	}
-	rawDdTags := strings.Split(ddTagsStr, separator)
-	for _, tag := range rawDdTags {
-		colonIdx := strings.Index(tag, ":")
-		if colonIdx != 0 {
-			tagKey := tag[:colonIdx]
-			globalTagsToFilter[tagKey] = struct{}{}
-		}
-	}
+var globalTagsToFilter map[string]bool
+var functionTagsToIgnore = [...]string{
+	tags.FunctionARNKey,
+	tags.FunctionNameKey,
+	tags.ExecutedVersionKey,
+	tags.EnvKey,
+	tags.VersionKey,
+	tags.ServiceKey,
+	tags.RuntimeKey,
+	tags.MemorySizeKey,
+	tags.ArchitectureKey,
+	functionVersionTagKey,
+	coldStartTagKey,
 }
 
-// Check determines if a span is an inferred span or not. Returns true if so, false otherwise.
+// Check determines if a span is an inferred span or not.
 func Check(span *pb.Span) bool {
 	if _, ok := span.Meta[tagInferredSpanTagSource]; ok {
 		return true
@@ -43,26 +41,22 @@ func Check(span *pb.Span) bool {
 	return false
 }
 
-// FilterTags takes a map of tags and filters out the tags that we do not want to set on an inferred span.
-// It does this by lazily initializing a singleton set of tags to filter out, and then re-uses this set in future invocations.
-func FilterTags(span *pb.Span, input map[string]string) map[string]string {
-	isInferred := Check(span)
-	if !isInferred {
-		return input
-	}
+// FilterFunctionTags filters out function specific tags
+func FilterFunctionTags(span *pb.Span, input *map[string]string) {
+	ddTags := config.GetConfiguredTags(false)
 
-	if span.Meta[tagInferredSpanTagSource] == "lambda" {
-		return input
-	}
-
-	output := make(map[string]string)
-	populateGlobalTagsToFilter()
-
-	for k, v := range input {
-		_, filterOut := globalTagsToFilter[k]
-		if !filterOut {
-			output[k] = v
+	for _, tag := range ddTags {
+		tagParts := strings.SplitN(tag, ":", 2)
+		if len(tagParts) != 2 {
+			log.Warnf("Cannot split tag %s", tag)
+			continue
 		}
+		tagKey := tagParts[0]
+		delete(*input, tagKey)
+		delete(*input, "sometag")
 	}
-	return output
+
+	for _, tagKey := range functionTagsToIgnore {
+		delete(*input, tagKey)
+	}
 }
