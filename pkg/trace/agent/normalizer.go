@@ -147,10 +147,18 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 // * populates Origin field if it wasn't populated
 // * populates Priority field if it wasn't populated
 func normalizeChunk(chunk *pb.TraceChunk, root *pb.Span) {
-	if chunk.Priority == int32(sampler.PriorityNone) && root.Metrics != nil {
+	// check if priority is already populated
+	if chunk.Priority == int32(sampler.PriorityNone) {
 		// Older tracers set sampling priority in the root span.
 		if p, ok := root.Metrics[tagSamplingPriority]; ok {
 			chunk.Priority = int32(p)
+		} else {
+			for _, s := range chunk.Spans {
+				if p, ok := s.Metrics[tagSamplingPriority]; ok {
+					chunk.Priority = int32(p)
+					break
+				}
+			}
 		}
 	}
 	if chunk.Origin == "" && root.Meta != nil {
