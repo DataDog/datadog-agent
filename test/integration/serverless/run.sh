@@ -59,10 +59,10 @@ fi
 
 cd $SERVERLESS_INTEGRATION_TESTS_DIR
 
-# ./build_recorder.sh
-# ./build_go_functions.sh
-# ./build_java_functions.sh
-# ./build_csharp_functions.sh
+./build_recorder.sh
+./build_go_functions.sh
+./build_java_functions.sh
+./build_csharp_functions.sh
 
 if [ -z "$NODE_LAYER_VERSION" ]; then
     export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION
@@ -97,31 +97,31 @@ NODE_LAYER_VERSION=${NODE_LAYER_VERSION} \
     serverless deploy --stage "${stage}"
 
 metric_functions=(
-    "metric-java"
     "metric-node"
     "metric-python"
-    "metric-csharp"
+    "metric-java"
     "metric-go"
-    "timeout-python"
+    "metric-csharp"
     "timeout-node"
-    "timeout-go"
+    "timeout-python"
     "timeout-java"
-    "error-python"
+    "timeout-go"
     "error-node"
+    "error-python"
     "error-java"
 )
 log_functions=(
     "log-node"
     "log-python"
-    "log-csharp"
-    "log-go"
     "log-java"
+    "log-go"
+    "log-csharp"
 )
 trace_functions=(
     "trace-node"
     "trace-python"
-    "trace-go"
     "trace-java"
+    "trace-go"
 )
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
@@ -130,8 +130,6 @@ all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions
 # This should only be used temporarily while we investigate and fix the test
 functions_to_skip=(
     # Not currently skipping any functions
-    "error-node",
-    "trace-java"
 )
 
 echo "Invoking functions for the first time..."
@@ -281,17 +279,17 @@ if [ "$UPDATE_SNAPSHOTS" == "true" ]; then
     exit 0
 fi
 
-if [ ${#functions_to_skip[@]} > 0 ]; then
-    echo "⚠️ The following function(s) were skipped:"
+if [ ${#functions_to_skip[@]} -gt 0 ]; then
+    echo "🟨 The following function(s) were skipped:"
     for function_name in "${functions_to_skip[@]}"; do
         echo "- $function_name"
     done
     echo
 fi
 
-if [ ${#failed_functions[@]} > 0 ]; then
+if [ ${#failed_functions[@]} -gt 0 ]; then
     echo "❌ The following function(s) did not match their snapshots:"
-    for function_name in "${all_functions[@]}"; do
+    for function_name in "${failed_functions[@]}"; do
         echo "- $function_name"
     done
     echo
