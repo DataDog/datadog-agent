@@ -10,7 +10,7 @@
 
 # Optional environment variables:
 
-# UPDATE_SNAPSHOTS [true|false] - When updating snapshots, the tests will always pass. The default is false.
+# UPDATE_SNAPSHOTS [true|false] - Use this when you want to update snapshots instead of running tests. The default is false.
 # BUILD_EXTENSION [true|false] - Whether to build the extension or re-use the previous build. The default is true.
 # NODE_LAYER_VERSION [number] - A specific layer version of datadog-lambda-js to use.
 # PYTHON_LAYER_VERSION [number] - A specific layer version of datadog-lambda-py to use.
