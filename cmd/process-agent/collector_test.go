@@ -234,8 +234,8 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 	tests := []struct {
 		name              string
 		override          bool
-		queueBytes        int64
-		expectedQueueSize int64
+		queueBytes        int
+		expectedQueueSize int
 	}{
 		{
 			name:              "default queue size",
@@ -269,9 +269,9 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 
 			c, err := NewCollector(cfg)
 			assert.NoError(err)
-			assert.Equal(tc.expectedQueueSize, c.processResults.MaxWeight())
-			assert.Equal(tc.expectedQueueSize, c.rtProcessResults.MaxWeight())
-			assert.Equal(tc.expectedQueueSize, c.forwarderMaxQueueBytes)
+			assert.Equal(int64(tc.expectedQueueSize), c.processResults.MaxWeight())
+			assert.Equal(int64(tc.expectedQueueSize), c.rtProcessResults.MaxWeight())
+			assert.Equal(tc.expectedQueueSize, c.forwarderRetryQueueMaxBytes)
 		})
 	}
 }

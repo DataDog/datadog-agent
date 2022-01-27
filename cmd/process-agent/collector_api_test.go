@@ -7,7 +7,6 @@ package main
 
 import (
 	"fmt"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
