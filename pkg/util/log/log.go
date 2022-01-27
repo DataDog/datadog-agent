@@ -785,8 +785,3 @@ func ChangeLogLevel(l seelog.LoggerInterface, level string) error {
 	// need to return something, just set to Info (expected default)
 	return errors.New("cannot change loglevel: logger not initialized")
 }
-
-// isServerless returns whether or not the agent is running in a serverless context
-func isServerless() bool {
-	return false
-}

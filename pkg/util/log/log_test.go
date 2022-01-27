@@ -374,22 +374,3 @@ func TestCriticalcNotNil(t *testing.T) {
 
 	assert.NotNil(t, Criticalc("test", "key", "val"))
 }
-
-func TestServerlessLoggingNotInServerlessContext(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
-	assert.Nil(t, err)
-
-	SetupLogger(l, "debug")
-	assert.NotNil(t, logger)
-
-	DebugfServerless("%s %d", "foo", 10)
-	DebugServerless("Not in serverless mode")
-	w.Flush()
-
-	// Nothing is logged since we are not in a serverless context
-	assert.Equal(t, 0, len(b.String()))
-}
