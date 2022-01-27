@@ -24,7 +24,7 @@ jobs:
           node-version: 14
       
       - name: Install Serverless Framework 
-        run: sudo yarn global add serverless@2.72.2 --prefix /usr/local
+        run: sudo yarn global add serverless@^2.72.2 --prefix /usr/local
 
       - name: Checkout the datadog-lambda-extension repository
         uses: actions/checkout@v2
