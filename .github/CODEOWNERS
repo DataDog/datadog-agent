@@ -189,6 +189,8 @@
 /pkg/logs/                              @DataDog/agent-core
 /pkg/logs/input/traps/                  @DataDog/infrastructure-integrations @DataDog/agent-core
 /pkg/process/                           @DataDog/processes
+/pkg/process/address*                   @DataDog/agent-network
+/pkg/process/netns*                     @DataDog/agent-network
 /pkg/process/checks/net*                @DataDog/agent-network
 /pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/process/net/                       @DataDog/processes @DataDog/agent-network
