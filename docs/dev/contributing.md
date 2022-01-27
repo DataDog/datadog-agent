@@ -89,11 +89,27 @@ If your commit is only shipping documentation changes or example files, and is a
 complete no-op for the test suite, please add **[skip ci]** in the commit message
 body to skip the build and give that slot to someone else who does need it.
 
-### Squash your commits
+### Pull request workflow
 
-Please rebase your changes on `main` and squash your commits whenever possible,
-it keeps history cleaner and it's easier to revert things. It also makes developers
-happier!
+The goals ordered by priority are:
+- Make PR reviews (both initial and follow-up reviews) easy for reviewers using GitHub
+- On the `main` branch, have a meaningful commit history that allows understanding (even years later) what each commit does, and why. 
+
+#### Before the first in-depth PR review
+
+Before the first in-depth PR review, meaningful commits are best: logically-encapsulated commits help the reviews go quicker and make the job for the reviewer easier. Conflicts with `main` can be resolved with a `git rebase origin/main` and a force push if it makes the review easier.
+
+#### After the first in-depth review
+
+After the first in-depth review, to make follow-up reviews easier:
+- Avoid force pushes (in particular rewriting the history that was already reviewed, which makes follow up reviews painful)
+- Resolve merge conflicts with `main` using `git merge origin/main` (AFAIK Github handles that well in the history and the diff)
+
+#### How to merge to `main`
+
+Once reviews are complete, the merge to `main` should be done with either:
+- the squash-merge option, to keep the history of `main` clean (even though some context/details are lost in the squash). The commit message for this squash should always be edited to concisely describe the commit without extraneous “address review comments” text. 
+- the “rebase-merge” option, after manually rewriting the PR’s commit history and force-pushing to the branch. 
 
 ### Reno
 
