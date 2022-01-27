@@ -50,10 +50,10 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 	defer compiledOutput.Close()
 
 	probes := []*manager.Probe{
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_recvmsg", EBPFFuncName: "kprobe__tcp_recvmsg"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_recvmsg", EBPFFuncName: "kretprobe__tcp_recvmsg"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_sendmsg", EBPFFuncName: "kprobe__tcp_sendmsg"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_sendmsg", EBPFFuncName: "kretprobe__tcp_sendmsg"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_recvmsg", EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_recvmsg", EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_sendmsg", EBPFFuncName: "kprobe__tcp_sendmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_sendmsg", EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "tcpq"}},
 	}
 
 	maps := []*manager.Map{
@@ -113,9 +113,9 @@ func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
 	statsValue := make([]C.struct_stats_value, nbCpus)
 	it := t.statsMap.Iterate()
 	for it.Next(unsafe.Pointer(&statsKey), unsafe.Pointer(&statsValue[0])) {
-		containerID := C.GoString(&statsKey.cgroup_name[0])
+		cgroupName := C.GoString(&statsKey.cgroup_name[0])
 		// This cannot happen because statsKey.cgroup_name is filled by bpf_probe_read_str which ensures a NULL-terminated string
-		if len(containerID) >= C.sizeof_struct_stats_key {
+		if len(cgroupName) >= C.sizeof_struct_stats_key {
 			log.Critical("statsKey.cgroup_name wasn’t properly NULL-terminated")
 			break
 		}
@@ -129,7 +129,7 @@ func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
 				max.WriteBufferMaxUsage = uint32(statsValue[cpu].write_buffer_max_usage)
 			}
 		}
-		result[containerID] = max
+		result[cgroupName] = max
 
 		if err := t.statsMap.Delete(unsafe.Pointer(&statsKey)); err != nil {
 			log.Warnf("failed to delete stat: %s", err)

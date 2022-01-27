@@ -248,6 +248,81 @@ var (
 		"CAP_WAKE_ALARM":         1 << unix.CAP_WAKE_ALARM,
 	}
 
+	ptraceConstants = map[string]uint32{
+		"PTRACE_TRACEME":    unix.PTRACE_TRACEME,
+		"PTRACE_PEEKTEXT":   unix.PTRACE_PEEKTEXT,
+		"PTRACE_PEEKDATA":   unix.PTRACE_PEEKDATA,
+		"PTRACE_PEEKUSR":    unix.PTRACE_PEEKUSR,
+		"PTRACE_POKETEXT":   unix.PTRACE_POKETEXT,
+		"PTRACE_POKEDATA":   unix.PTRACE_POKEDATA,
+		"PTRACE_POKEUSR":    unix.PTRACE_POKEUSR,
+		"PTRACE_CONT":       unix.PTRACE_CONT,
+		"PTRACE_KILL":       unix.PTRACE_KILL,
+		"PTRACE_SINGLESTEP": unix.PTRACE_SINGLESTEP,
+		"PTRACE_ATTACH":     unix.PTRACE_ATTACH,
+		"PTRACE_DETACH":     unix.PTRACE_DETACH,
+		"PTRACE_SYSCALL":    unix.PTRACE_SYSCALL,
+
+		"PTRACE_SETOPTIONS":           unix.PTRACE_SETOPTIONS,
+		"PTRACE_GETEVENTMSG":          unix.PTRACE_GETEVENTMSG,
+		"PTRACE_GETSIGINFO":           unix.PTRACE_GETSIGINFO,
+		"PTRACE_SETSIGINFO":           unix.PTRACE_SETSIGINFO,
+		"PTRACE_GETREGSET":            unix.PTRACE_GETREGSET,
+		"PTRACE_SETREGSET":            unix.PTRACE_SETREGSET,
+		"PTRACE_SEIZE":                unix.PTRACE_SEIZE,
+		"PTRACE_INTERRUPT":            unix.PTRACE_INTERRUPT,
+		"PTRACE_LISTEN":               unix.PTRACE_LISTEN,
+		"PTRACE_PEEKSIGINFO":          unix.PTRACE_PEEKSIGINFO,
+		"PTRACE_GETSIGMASK":           unix.PTRACE_GETSIGMASK,
+		"PTRACE_SETSIGMASK":           unix.PTRACE_SETSIGMASK,
+		"PTRACE_SECCOMP_GET_FILTER":   unix.PTRACE_SECCOMP_GET_FILTER,
+		"PTRACE_SECCOMP_GET_METADATA": unix.PTRACE_SECCOMP_GET_METADATA,
+		"PTRACE_GET_SYSCALL_INFO":     unix.PTRACE_GET_SYSCALL_INFO,
+	}
+
+	protConstants = map[string]int{
+		"PROT_NONE":      unix.PROT_NONE,
+		"PROT_READ":      unix.PROT_READ,
+		"PROT_WRITE":     unix.PROT_WRITE,
+		"PROT_EXEC":      unix.PROT_EXEC,
+		"PROT_GROWSDOWN": unix.PROT_GROWSDOWN,
+		"PROT_GROWSUP":   unix.PROT_GROWSUP,
+	}
+
+	mmapFlagConstants = map[string]int{
+		"MAP_SHARED":          unix.MAP_SHARED,          /* Share changes */
+		"MAP_PRIVATE":         unix.MAP_PRIVATE,         /* Changes are private */
+		"MAP_SHARED_VALIDATE": unix.MAP_SHARED_VALIDATE, /* share + validate extension flags */
+		"MAP_ANON":            unix.MAP_ANON,
+		"MAP_ANONYMOUS":       unix.MAP_ANONYMOUS,       /* don't use a file */
+		"MAP_DENYWRITE":       unix.MAP_DENYWRITE,       /* ETXTBSY */
+		"MAP_EXECUTABLE":      unix.MAP_EXECUTABLE,      /* mark it as an executable */
+		"MAP_FIXED":           unix.MAP_FIXED,           /* Interpret addr exactly */
+		"MAP_FIXED_NOREPLACE": unix.MAP_FIXED_NOREPLACE, /* MAP_FIXED which doesn't unmap underlying mapping */
+		"MAP_GROWSDOWN":       unix.MAP_GROWSDOWN,       /* stack-like segment */
+		"MAP_HUGETLB":         unix.MAP_HUGETLB,         /* create a huge page mapping */
+		"MAP_LOCKED":          unix.MAP_LOCKED,          /* pages are locked */
+		"MAP_NONBLOCK":        unix.MAP_NONBLOCK,        /* do not block on IO */
+		"MAP_NORESERVE":       unix.MAP_NORESERVE,       /* don't check for reservations */
+		"MAP_POPULATE":        unix.MAP_POPULATE,        /* populate (prefault) pagetables */
+		"MAP_STACK":           unix.MAP_STACK,           /* give out an address that is best suited for process/thread stacks */
+		"MAP_SYNC":            unix.MAP_SYNC,            /* perform synchronous page faults for the mapping */
+		"MAP_UNINITIALIZED":   0x4000000,                /* For anonymous mmap, memory could be uninitialized */
+		"MAP_HUGE_16KB":       14 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_64KB":       16 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_512KB":      19 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_1MB":        20 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_2MB":        21 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_8MB":        23 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_16MB":       24 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_32MB":       25 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_256MB":      28 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_512MB":      29 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_1GB":        30 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_2GB":        31 << unix.MAP_HUGE_SHIFT,
+		"MAP_HUGE_16GB":       34 << unix.MAP_HUGE_SHIFT,
+	}
+
 	unlinkFlagsConstants = map[string]int{
 		"AT_REMOVEDIR": unix.AT_REMOVEDIR,
 	}

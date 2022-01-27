@@ -290,20 +290,36 @@ snmp_traps_config:
     - 'password1'
     - 'password2'
 other_config: 1
+other_config_with_list: [abc]
 `,
 		`snmp_traps_config:
   community_strings: ********
 other_config: 1
+other_config_with_list: [abc]
 `)
 	assertClean(t,
 		`
 snmp_traps_config:
   community_strings: ['password1', 'password2']
 other_config: 1
+other_config_with_list: [abc]
 `,
 		`snmp_traps_config:
   community_strings: ********
 other_config: 1
+other_config_with_list: [abc]
+`)
+	assertClean(t,
+		`
+snmp_traps_config:
+  community_strings: []
+other_config: 1
+other_config_with_list: [abc]
+`,
+		`snmp_traps_config:
+  community_strings: ********
+other_config: 1
+other_config_with_list: [abc]
 `)
 	assertClean(t,
 		`
@@ -312,10 +328,12 @@ snmp_traps_config:
    'password1',
    'password2']
 other_config: 1
+other_config_with_list: [abc]
 `,
 		`snmp_traps_config:
   community_strings: ********
 other_config: 1
+other_config_with_list: [abc]
 `)
 	assertClean(t,
 		`community: password`,

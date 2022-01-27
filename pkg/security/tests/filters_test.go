@@ -234,7 +234,7 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 	}
 }
 
-func TestOpenParentDiscarderFilter(t *testing.T) {
+func testOpenParentDiscarderFilter(t *testing.T, parents ...string) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -251,7 +251,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	var fd int
 	var testFile string
 
-	testFile, _, err = test.Path("a", "test-obd-2")
+	testFile, _, err = test.Path(append(parents, "test-obd-2")...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +288,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
-	testFile, _, err = test.Path("a", "test-obd-3")
+	testFile, _, err = test.Path(append(parents, "test-obd-3")...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,6 +306,14 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	}, testFile); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
+}
+
+func TestOpenParentDiscarderFilter(t *testing.T) {
+	testOpenParentDiscarderFilter(t, "parent")
+}
+
+func TestOpenGrandParentDiscarderFilter(t *testing.T) {
+	testOpenParentDiscarderFilter(t, "grandparent", "parent")
 }
 
 func TestDiscarderFilterMask(t *testing.T) {

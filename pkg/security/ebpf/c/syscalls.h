@@ -142,6 +142,28 @@ struct syscall_cache_t {
             u64 helpers[3];
             union bpf_attr_def *attr;
         } bpf;
+
+        struct {
+            u32 request;
+            u32 pid;
+            u64 addr;
+        } ptrace;
+
+        struct {
+            u64 offset;
+            u32 len;
+            int protection;
+            int flags;
+            struct file_t file;
+            struct dentry *dentry;
+        } mmap;
+
+        struct {
+            u64 vm_start;
+            u64 vm_end;
+            u64 vm_protection;
+            u64 req_protection;
+        } mprotect;
     };
 };
 

@@ -206,6 +206,11 @@ if [ -n "$DD_UPGRADE" ]; then
   upgrade=$DD_UPGRADE
 fi
 
+agent_flavor="datadog-agent"
+if [ -n "$DD_AGENT_FLAVOR" ]; then
+    agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
+fi
+
 agent_major_version=6
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
@@ -214,7 +219,12 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   fi
   agent_major_version=$DD_AGENT_MAJOR_VERSION
 else
-  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
+  if [ "$agent_flavor" != "datadog-iot-agent" ]; then
+    echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
+  else
+    echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing IoT Agent version 7 by default.\033[0m"
+    agent_major_version=7
+  fi
 fi
 
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
@@ -223,11 +233,6 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   #  - 20.0 = sets explicit patch version x.20.0
   # Note: Specifying an invalid minor version will terminate the script.
   agent_minor_version=$DD_AGENT_MINOR_VERSION
-fi
-
-agent_flavor="datadog-agent"
-if [ -n "$DD_AGENT_FLAVOR" ]; then
-    agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
 fi
 
 agent_dist_channel=stable

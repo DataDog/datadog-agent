@@ -38,7 +38,6 @@ type Service struct {
 	firstUpdate bool
 
 	refreshInterval time.Duration
-	remoteConfigKey remoteConfigKey
 
 	ctx      context.Context
 	clock    clock.Clock
@@ -86,15 +85,15 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 	backendURL := config.Datadog.GetString("remote_configuration.endpoint")
-	http := api.NewHTTPClient(backendURL, apiKey, remoteConfigKey.appKey)
+	http := api.NewHTTPClient(backendURL, apiKey, remoteConfigKey.AppKey)
 
 	dbPath := path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 	db, err := openCacheDB(dbPath)
 	if err != nil {
 		return nil, err
 	}
-	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.datacenter, remoteConfigKey.orgID)
-	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.orgID)
+	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgID)
+	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +108,6 @@ func NewService() (*Service, error) {
 		ctx:             context.Background(),
 		firstUpdate:     true,
 		refreshInterval: refreshInterval,
-		remoteConfigKey: remoteConfigKey,
 		products:        make(map[rdata.Product]struct{}),
 		newProducts:     make(map[rdata.Product]struct{}),
 		hostname:        hostname,

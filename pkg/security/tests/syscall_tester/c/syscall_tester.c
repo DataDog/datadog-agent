@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/ptrace.h>
 #include <sys/syscall.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <string.h>
 #include <stdint.h>
 #include <sys/ioctl.h>
@@ -125,6 +128,18 @@ int span_open(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int ptrace_traceme() {
+    int child = fork();
+    if(child == 0) {
+        ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+        raise(SIGSTOP);
+    } else {
+        wait(NULL);
+        ptrace(PTRACE_CONT, child, 42, NULL);
+    }
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -137,6 +152,8 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     } else if (strcmp(cmd, "span-exec") == 0) {
         return span_exec(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "ptrace-traceme") == 0) {
+        return ptrace_traceme();
     } else if (strcmp(cmd, "span-open") == 0) {
         return span_open(argc - 1, argv + 1);
     } else {

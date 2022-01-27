@@ -110,6 +110,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
+		deviceMetadataTags = append(deviceMetadataTags, common.GetAgentVersionTag())
 
 		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
@@ -206,7 +207,7 @@ func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(common.CopyStrings(tags), snmpLoaderTag)
+	newTags := append(common.CopyStrings(tags), snmpLoaderTag, common.GetAgentVersionTag())
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
 

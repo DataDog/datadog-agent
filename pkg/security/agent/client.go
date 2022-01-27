@@ -21,10 +21,10 @@ type RuntimeSecurityClient struct {
 }
 
 // DumpProcessCache send a dump request
-func (c *RuntimeSecurityClient) DumpProcessCache() (string, error) {
+func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
 
-	response, err := apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{})
+	response, err := apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs})
 	if err != nil {
 		return "", err
 	}

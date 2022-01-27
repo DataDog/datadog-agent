@@ -541,6 +541,27 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode bpf event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.PTraceEventType:
+		if _, err = event.PTrace.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode ptrace event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		// resolve tracee process context
+		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
+		if cacheEntry != nil {
+			event.PTrace.TraceeProcessCacheEntry = cacheEntry
+			event.PTrace.Tracee = cacheEntry.ProcessContext
+		}
+	case model.MMapEventType:
+		if _, err = event.MMap.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode mmap event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case model.MProtectEventType:
+		if _, err = event.MProtect.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode mprotect event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return

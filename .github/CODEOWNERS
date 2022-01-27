@@ -166,6 +166,7 @@
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
 /pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
+/pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
 /pkg/config/system_probe.go             @DataDog/agent-network
 /pkg/config/remote/                     @DataDog/remote-config

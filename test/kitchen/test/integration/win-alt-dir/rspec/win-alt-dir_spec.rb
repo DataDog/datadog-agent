@@ -12,11 +12,7 @@ shared_examples_for 'a correctly created configuration root' do
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
   let(:configuration_path) {
-    if os == :windows
-      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
-    else
-      dna_json_path = "/tmp/kitchen/dna.json"
-    end
+    dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('APPLICATIONDATADIRECTORY')
   }
   it 'has the proper configuration root' do
@@ -30,11 +26,7 @@ shared_examples_for 'a correctly created binary root' do
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
   let(:binary_path) {
-    if os == :windows
-      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
-    else
-      dna_json_path = "/tmp/kitchen/dna.json"
-    end
+    dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('PROJECTLOCATION')
   }
   it 'has the proper binary root' do
@@ -45,19 +37,11 @@ end
 
 shared_examples_for 'an Agent with valid permissions' do
   let(:configuration_path) {
-    if os == :windows
-      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
-    else
-      dna_json_path = "/tmp/kitchen/dna.json"
-    end
+    dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('APPLICATIONDATADIRECTORY')
   }
   let(:binary_path) {
-    if os == :windows
-      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
-    else
-      dna_json_path = "/tmp/kitchen/dna.json"
-    end
+    dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('PROJECTLOCATION')
   }
   dd_user_sid = get_user_sid('ddagentuser')

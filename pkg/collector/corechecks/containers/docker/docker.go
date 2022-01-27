@@ -55,23 +55,28 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *contai
 	var err error
 
 	// Containers that are not running (either pending or stopped) are not
-	// collected by the tagger, so they won't have any tags and will cause
-	// an expensive tagger fetch.  To have *some* tags for stopped
-	// containers, we treat them as excluded containers and make a
-	// synthetic list of tags from basic container information.
+	// collected by the tagger, so they won't have any tags. To have *some*
+	// tags for stopped containers, we treat them as excluded containers
+	// and make a synthetic list of tags from parsing the container's
+	// image. Note that this parsing is different from the one done by the
+	// workloadmeta, and this may result in more containers without image
+	// tags. Since this only applies to stopped containers, we consider
+	// this to be acceptable. This could be fixed if we use workloadmeta as
+	// the source of truth on containers for the docker check.
 	if c.Excluded || c.State != containers.ContainerRunningState {
-		// TODO we can do SplitImageName because we are in the docker corecheck and the image name is not a sha[...]
-		// We should resolve the image tags in the tagger as a real entity.
-		long, short, tag, err := containers.SplitImageName(c.Image)
-		if err != nil {
-			log.Errorf("Cannot split the image name %s: %v", c.Image, err)
-			return
-		}
 		containerTags = []string{
 			fmt.Sprintf("docker_image:%s", c.Image),
-			fmt.Sprintf("image_name:%s", long),
-			fmt.Sprintf("image_tag:%s", tag),
-			fmt.Sprintf("short_image:%s", short),
+		}
+
+		long, short, tag, err := containers.SplitImageName(c.Image)
+		if err != nil {
+			log.Debugf("Cannot split the image name %s: %v", c.Image, err)
+		} else {
+			containerTags = append(containerTags, []string{
+				fmt.Sprintf("image_name:%s", long),
+				fmt.Sprintf("image_tag:%s", tag),
+				fmt.Sprintf("short_image:%s", short),
+			}...)
 		}
 	} else {
 		containerTags, err = tagger.Tag(c.EntityID, collectors.LowCardinality)

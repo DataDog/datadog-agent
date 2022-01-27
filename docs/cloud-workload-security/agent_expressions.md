@@ -39,7 +39,10 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `mkdir` | File | A directory was created | 7.27 |
+| `mmap` | Kernel | [Experimental] A mmap command was executed | 7.34 |
+| `mprotect` | Kernel | [Experimental] A mprotect command was executed | 7.34 |
 | `open` | File | A file was opened | 7.27 |
+| `ptrace` | Kernel | [Experimental] A ptrace command was executed | 7.34 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
 | `rmdir` | File | A directory was removed | 7.27 |
@@ -75,10 +78,12 @@ SECL operators are used to combine event attributes together into a full express
 ## Patterns and regular expressions
 Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.
 
-| Format           |  Example             | Agent Version |
-|------------------|----------------------|---------------|
-| `~"pattern"`     | `~"/etc/*"`          | 7.27          |
-| `r"regexp"`      | `r"/etc/rc[0-9]+"`   | 7.27          |
+| Format           |  Example             | Supported Fields   | Agent Version |
+|------------------|----------------------|--------------------|---------------|
+| `~"pattern"`     | `~"httpd.*"`         | All                | 7.27          |
+| `r"regexp"`      | `r"rc[0-9]+"`        | All except `.path` | 7.27          |
+
+Patterns on `.path` fields will be used as Glob. `*` will match files and folders at the same level. `**`, introduced in 7.34, can be used at the end of a path in order to match all the files and subfolders.
 
 ## Variables
 SECL variables are predefined variables that can be used as values or as part of values.
@@ -396,6 +401,44 @@ A directory was created
 | `mkdir.file.user` | string | User of the file's owner |
 | `mkdir.retval` | int | Return value of the syscall |
 
+### Event `mmap`
+
+_This event type is experimental and may change in the future._
+
+A mmap command was executed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `mmap.file.change_time` | int | Change time of the file |
+| `mmap.file.filesystem` | string | File's filesystem |
+| `mmap.file.gid` | int | GID of the file's owner |
+| `mmap.file.group` | string | Group of the file's owner |
+| `mmap.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `mmap.file.inode` | int | Inode of the file |
+| `mmap.file.mode` | int | Mode/rights of the file |
+| `mmap.file.modification_time` | int | Modification time of the file |
+| `mmap.file.mount_id` | int | Mount ID of the file |
+| `mmap.file.name` | string | File's basename |
+| `mmap.file.path` | string | File's path |
+| `mmap.file.rights` | int | Mode/rights of the file |
+| `mmap.file.uid` | int | UID of the file's owner |
+| `mmap.file.user` | string | User of the file's owner |
+| `mmap.flags` | int |  |
+| `mmap.protection` | int |  |
+| `mmap.retval` | int | Return value of the syscall |
+
+### Event `mprotect`
+
+_This event type is experimental and may change in the future._
+
+A mprotect command was executed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `mprotect.req_protection` | int |  |
+| `mprotect.retval` | int | Return value of the syscall |
+| `mprotect.vm_protection` | int |  |
+
 ### Event `open`
 
 A file was opened
@@ -419,6 +462,103 @@ A file was opened
 | `open.file.user` | string | User of the file's owner |
 | `open.flags` | int | Flags used when opening the file |
 | `open.retval` | int | Return value of the syscall |
+
+### Event `ptrace`
+
+_This event type is experimental and may change in the future._
+
+A ptrace command was executed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `ptrace.request` | int |  |
+| `ptrace.retval` | int | Return value of the syscall |
+| `ptrace.tracee.ancestors.args` | string | Arguments of the process (as a string) |
+| `ptrace.tracee.ancestors.args_flags` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.ancestors.args_options` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.ancestors.args_truncated` | bool | Indicator of arguments truncation |
+| `ptrace.tracee.ancestors.argv` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.ancestors.cap_effective` | int | Effective capability set of the process |
+| `ptrace.tracee.ancestors.cap_permitted` | int | Permitted capability set of the process |
+| `ptrace.tracee.ancestors.comm` | string | Comm attribute of the process |
+| `ptrace.tracee.ancestors.container.id` | string | Container ID |
+| `ptrace.tracee.ancestors.cookie` | int | Cookie of the process |
+| `ptrace.tracee.ancestors.created_at` | int | Timestamp of the creation of the process |
+| `ptrace.tracee.ancestors.egid` | int | Effective GID of the process |
+| `ptrace.tracee.ancestors.egroup` | string | Effective group of the process |
+| `ptrace.tracee.ancestors.envs` | string | Environment variables of the process |
+| `ptrace.tracee.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
+| `ptrace.tracee.ancestors.euid` | int | Effective UID of the process |
+| `ptrace.tracee.ancestors.euser` | string | Effective user of the process |
+| `ptrace.tracee.ancestors.file.change_time` | int | Change time of the file |
+| `ptrace.tracee.ancestors.file.filesystem` | string | FileSystem of the process executable |
+| `ptrace.tracee.ancestors.file.gid` | int | GID of the file's owner |
+| `ptrace.tracee.ancestors.file.group` | string | Group of the file's owner |
+| `ptrace.tracee.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `ptrace.tracee.ancestors.file.inode` | int | Inode of the file |
+| `ptrace.tracee.ancestors.file.mode` | int | Mode/rights of the file |
+| `ptrace.tracee.ancestors.file.modification_time` | int | Modification time of the file |
+| `ptrace.tracee.ancestors.file.mount_id` | int | Mount ID of the file |
+| `ptrace.tracee.ancestors.file.name` | string | Basename of the path of the process executable |
+| `ptrace.tracee.ancestors.file.path` | string | Path of the process executable |
+| `ptrace.tracee.ancestors.file.rights` | int | Mode/rights of the file |
+| `ptrace.tracee.ancestors.file.uid` | int | UID of the file's owner |
+| `ptrace.tracee.ancestors.file.user` | string | User of the file's owner |
+| `ptrace.tracee.ancestors.fsgid` | int | FileSystem-gid of the process |
+| `ptrace.tracee.ancestors.fsgroup` | string | FileSystem-group of the process |
+| `ptrace.tracee.ancestors.fsuid` | int | FileSystem-uid of the process |
+| `ptrace.tracee.ancestors.fsuser` | string | FileSystem-user of the process |
+| `ptrace.tracee.ancestors.gid` | int | GID of the process |
+| `ptrace.tracee.ancestors.group` | string | Group of the process |
+| `ptrace.tracee.ancestors.pid` | int | Process ID of the process (also called thread group ID) |
+| `ptrace.tracee.ancestors.ppid` | int | Parent process ID |
+| `ptrace.tracee.ancestors.tid` | int | Thread ID of the thread |
+| `ptrace.tracee.ancestors.tty_name` | string | Name of the TTY associated with the process |
+| `ptrace.tracee.ancestors.uid` | int | UID of the process |
+| `ptrace.tracee.ancestors.user` | string | User of the process |
+| `ptrace.tracee.args` | string | Arguments of the process (as a string) |
+| `ptrace.tracee.args_flags` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.args_options` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.args_truncated` | bool | Indicator of arguments truncation |
+| `ptrace.tracee.argv` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.cap_effective` | int | Effective capability set of the process |
+| `ptrace.tracee.cap_permitted` | int | Permitted capability set of the process |
+| `ptrace.tracee.comm` | string | Comm attribute of the process |
+| `ptrace.tracee.container.id` | string | Container ID |
+| `ptrace.tracee.cookie` | int | Cookie of the process |
+| `ptrace.tracee.created_at` | int | Timestamp of the creation of the process |
+| `ptrace.tracee.egid` | int | Effective GID of the process |
+| `ptrace.tracee.egroup` | string | Effective group of the process |
+| `ptrace.tracee.envs` | string | Environment variables of the process |
+| `ptrace.tracee.envs_truncated` | bool | Indicator of environment variables truncation |
+| `ptrace.tracee.euid` | int | Effective UID of the process |
+| `ptrace.tracee.euser` | string | Effective user of the process |
+| `ptrace.tracee.file.change_time` | int | Change time of the file |
+| `ptrace.tracee.file.filesystem` | string | FileSystem of the process executable |
+| `ptrace.tracee.file.gid` | int | GID of the file's owner |
+| `ptrace.tracee.file.group` | string | Group of the file's owner |
+| `ptrace.tracee.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `ptrace.tracee.file.inode` | int | Inode of the file |
+| `ptrace.tracee.file.mode` | int | Mode/rights of the file |
+| `ptrace.tracee.file.modification_time` | int | Modification time of the file |
+| `ptrace.tracee.file.mount_id` | int | Mount ID of the file |
+| `ptrace.tracee.file.name` | string | Basename of the path of the process executable |
+| `ptrace.tracee.file.path` | string | Path of the process executable |
+| `ptrace.tracee.file.rights` | int | Mode/rights of the file |
+| `ptrace.tracee.file.uid` | int | UID of the file's owner |
+| `ptrace.tracee.file.user` | string | User of the file's owner |
+| `ptrace.tracee.fsgid` | int | FileSystem-gid of the process |
+| `ptrace.tracee.fsgroup` | string | FileSystem-group of the process |
+| `ptrace.tracee.fsuid` | int | FileSystem-uid of the process |
+| `ptrace.tracee.fsuser` | string | FileSystem-user of the process |
+| `ptrace.tracee.gid` | int | GID of the process |
+| `ptrace.tracee.group` | string | Group of the process |
+| `ptrace.tracee.pid` | int | Process ID of the process (also called thread group ID) |
+| `ptrace.tracee.ppid` | int | Parent process ID |
+| `ptrace.tracee.tid` | int | Thread ID of the thread |
+| `ptrace.tracee.tty_name` | string | Name of the TTY associated with the process |
+| `ptrace.tracee.uid` | int | UID of the process |
+| `ptrace.tracee.user` | string | User of the process |
 
 ### Event `removexattr`
 

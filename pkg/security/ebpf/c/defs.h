@@ -213,7 +213,12 @@ enum event_type
     EVENT_MOUNT_RELEASED,
     EVENT_SELINUX,
     EVENT_BPF,
+    EVENT_PTRACE,
+    EVENT_MMAP,
+    EVENT_MPROTECT,
     EVENT_MAX, // has to be the last one
+
+    EVENT_ALL = 0xffffffffffffffff // used as a mask for all the events
 };
 
 struct kevent_t {
@@ -522,7 +527,11 @@ static __attribute__((always_inline)) int is_event_enabled(enum event_type event
 }
 
 static __attribute__((always_inline)) void add_event_to_mask(u64 *mask, enum event_type event) {
-    *mask |= 1 << (event - EVENT_FIRST_DISCARDER);
+    if (event == EVENT_ALL) {
+        *mask = event;
+    } else {
+        *mask |= 1 << (event - EVENT_FIRST_DISCARDER);
+    }
 }
 
 #define VFS_ARG_POSITION1 1

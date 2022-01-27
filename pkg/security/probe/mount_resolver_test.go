@@ -374,8 +374,14 @@ func TestGetParentPath(t *testing.T) {
 }
 
 func BenchmarkGetParentPath(b *testing.B) {
+	parentPathCache, err := simplelru.NewLRU(256, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+
 	mr := &MountResolver{
-		mounts: make(map[uint32]*model.MountEvent),
+		mounts:          make(map[uint32]*model.MountEvent),
+		parentPathCache: parentPathCache,
 	}
 
 	var parentID uint32
