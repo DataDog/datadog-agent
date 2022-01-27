@@ -29,11 +29,15 @@ replace (
 
 // pinned to grpc v1.28.0 - this pin is required due to k8s.io/apiserver (and other) pins being set to v0.21.5
 //                          the kubernetes pins are required at this time. We will bump grpc once k8s releases
-//                          v1.24 or v1.25.
+//                          v1.24 or v1.25. Keep in sync with the version in internal/patch/grpc-go-insecure.
 replace (
 	github.com/grpc-ecosystem/grpc-gateway => github.com/grpc-ecosystem/grpc-gateway v1.12.2
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.28.0
 )
+
+// HACK: Add `insecure` package (added on grpc-go v1.34) to support packages using it (notably go.opentelemetry/collector)
+// See internal/patch/grpc-go-insecure/README.md for more details.
+replace google.golang.org/grpc/credentials/insecure => ./internal/patch/grpc-go-insecure
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
@@ -201,7 +205,7 @@ require (
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.305.1
 	go.opentelemetry.io/collector v0.41.0
-	go.opentelemetry.io/collector/model v0.41.0
+	go.opentelemetry.io/collector/model v0.43.1
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/multierr v1.7.0
 	go.uber.org/zap v1.19.1
@@ -215,7 +219,7 @@ require (
 	golang.org/x/tools v0.1.8
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08
-	google.golang.org/grpc v1.42.0
+	google.golang.org/grpc v1.43.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.34.0
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
