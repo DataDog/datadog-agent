@@ -34,8 +34,15 @@ var subservices = []Servicedef{
 		serviceInit: apmInit,
 	},
 	{
-		name:        "process",
-		configKeys:  []string{"process_config.enabled", "process_config.process_discovery.enabled", "network_config.enabled", "system_probe_config.enabled"},
+		name: "process",
+		configKeys: []string{
+			"process_config.enabled",
+			"process_config.process_collection.enabled",
+			"process_config.container_collection.enabled",
+			"process_config.process_discovery.enabled",
+			"network_config.enabled",
+			"system_probe_config.enabled",
+		},
 		serviceName: "datadog-process-agent",
 		serviceInit: processInit,
 	},
