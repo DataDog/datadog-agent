@@ -47,11 +47,11 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
         exit 1;
     fi
     if ! echo "$systemdaemon_user_group" | grep "^[^:]\+:[^:]\+$" > /dev/null; then
-        printf "\033[31mDD_SYSTEDAEMON_USER_GROUP must be in format UID:GID or UserName:GroupName\033[0m\n"
+        printf "\033[31mDD_SYSTEMDAEMON_USER_GROUP must be in format UID:GID or UserName:GroupName\033[0m\n"
         exit 1;
     fi
     if echo "$systemdaemon_user_group" | grep ">\|<" > /dev/null; then
-        printf "\033[31mDD_SYSTEDAEMON_USER_GROUP can't contain '>' or '<', because it will be used in XML file\033[0m\n"
+        printf "\033[31mDD_SYSTEMDAEMON_USER_GROUP can't contain '>' or '<', because it will be used in XML file\033[0m\n"
         exit 1;
     fi
 fi
