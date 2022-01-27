@@ -149,10 +149,6 @@ func TestOnlyEnvConfig(t *testing.T) {
 	// Process discovery enabled by default enables the process agent
 	assert.True(t, agentConfig.Enabled)
 
-	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
-	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
-	assert.Equal(t, 99, agentConfig.MaxPerMessage)
-
 	_ = os.Setenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "1234")
 	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, 1234, agentConfig.MaxCtrProcessesPerMessage)

@@ -100,7 +100,6 @@ type AgentConfig struct {
 	APIEndpoints              []apicfg.Endpoint
 	Blacklist                 []*regexp.Regexp
 	Scrubber                  *DataScrubber
-	MaxPerMessage             int
 	MaxCtrProcessesPerMessage int // The maximum number of processes that belong to a container for a given message
 	MaxConnsPerMessage        int
 	Transport                 *http.Transport `json:"-"`
@@ -184,7 +183,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
 
-		MaxPerMessage:             maxMessageBatch,
 		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
 		MaxConnsPerMessage:        600,
 		HostName:                  "",
@@ -375,7 +373,6 @@ func loadEnvVariables() {
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
-		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS", "process_config.windows.use_perf_counters"},

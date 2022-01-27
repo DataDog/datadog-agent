@@ -141,12 +141,11 @@ func TestBasicProcessMessages(t *testing.T) {
 				bl = append(bl, regexp.MustCompile(s))
 			}
 			cfg.Blacklist = bl
-			cfg.MaxPerMessage = tc.maxSize
 			networks := make(map[int32][]*model.Connection)
 
 			procs := fmtProcesses(cfg, tc.cur, tc.last, containersByPid(tc.containers), syst2, syst1, lastRun, networks)
 			containers := fmtContainers(tc.containers, lastCtrRates, lastRun)
-			messages, totalProcs, totalContainers := createProcCtrMessages(procs, containers, cfg, sysInfo, int32(i), "nid")
+			messages, totalProcs, totalContainers := createProcCtrMessages(procs, containers, cfg, tc.maxSize, sysInfo, int32(i), "nid")
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
 			assert.Equal(t, tc.totalProcs, totalProcs)
@@ -328,13 +327,12 @@ func TestContainerProcessChunking(t *testing.T) {
 			cfg := config.NewDefaultAgentConfig(false)
 			sysInfo := &model.SystemInfo{}
 			lastCtrRates := util.ExtractContainerRateMetric(ctrs)
-			cfg.MaxPerMessage = tc.maxSize
 			cfg.MaxCtrProcessesPerMessage = tc.maxCtrProcSize
 			cfg.ContainerHostType = tc.containerHostType
 
 			processes := fmtProcesses(cfg, procsByPid, procsByPid, ctrIDForPID(ctrs), syst2, syst1, lastRun, networks)
 			containers := fmtContainers(ctrs, lastCtrRates, lastRun)
-			messages, totalProcs, totalContainers := createProcCtrMessages(processes, containers, cfg, sysInfo, int32(i), "nid")
+			messages, totalProcs, totalContainers := createProcCtrMessages(processes, containers, cfg, tc.maxSize, sysInfo, int32(i), "nid")
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
 			assert.Equal(t, tc.expectedCtrCount, totalContainers)

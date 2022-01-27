@@ -30,6 +30,9 @@ const (
 	// DefaultProcessQueueBytes is the default amount of process-agent check data (in bytes) that can be buffered in memory
 	// Allow buffering up to 60 megabytes of payload data in total
 	DefaultProcessQueueBytes = 60 * 1000 * 1000
+
+	// DefaultProcessMaxMessageBatch is the default maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
+	DefaultProcessMaxMessageBatch = 100
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -80,7 +83,7 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.process_queue_bytes", DefaultProcessQueueBytes)
 	procBindEnvAndSetDefault(config, "process_config.rt_queue_size", DefaultProcessRTQueueSize)
-	config.SetKnown("process_config.max_per_message")
+	procBindEnvAndSetDefault(config, "process_config.max_per_message", DefaultProcessMaxMessageBatch)
 	config.SetKnown("process_config.max_ctr_procs_per_message")
 	config.SetKnown("process_config.cmd_port")
 	config.SetKnown("process_config.intervals.process")
@@ -136,4 +139,15 @@ func loadProcessTransforms(config Config) {
 			config.Set("process_config.container_collection.enabled", true)
 		}
 	}
+}
+
+// GetProcessBatchSize the value of process_config.max_per_message. The setting should be in (0,maxBatchSize]. Otherwise, matchBachSize is returned
+func GetProcessBatchSize(config Config, maxBatchSize int) int {
+	batchSize := config.GetInt("process_config.max_per_message")
+	if batchSize <= 0 || batchSize > maxBatchSize {
+		log.Warnf("Invalid item count per message: %d. Using default value: %d", batchSize, maxBatchSize)
+		batchSize = maxBatchSize
+	}
+
+	return batchSize
 }

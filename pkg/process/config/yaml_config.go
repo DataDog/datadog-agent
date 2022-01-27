@@ -124,18 +124,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	if config.Datadog.GetBool(key(ns, "strip_proc_arguments")) {
 		a.Scrubber.StripAllArguments = true
 	}
-
-	// The maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
-	if k := key(ns, "max_per_message"); config.Datadog.IsSet(k) {
-		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
-			log.Warn("Invalid item count per message (<= 0), ignoring...")
-		} else if maxPerMessage <= maxMessageBatch {
-			a.MaxPerMessage = maxPerMessage
-		} else if maxPerMessage > 0 {
-			log.Warn("Overriding the configured item count per message limit because it exceeds maximum")
-		}
-	}
-
+	
 	// The maximum number of processes belonging to a container per message. Note: Only change if the defaults are causing issues.
 	if k := key(ns, "max_ctr_procs_per_message"); config.Datadog.IsSet(k) {
 		if maxCtrProcessesPerMessage := config.Datadog.GetInt(k); maxCtrProcessesPerMessage <= 0 {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -37,6 +38,8 @@ type ContainerCheck struct {
 	lastCtrIDForPID map[int32]string
 	networkID       string
 
+	maxBatchSize int
+
 	containerFailedLogLimit *util.LogLimit
 }
 
@@ -51,6 +54,8 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.networkID = networkID
 
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
+
+	c.maxBatchSize = ddconfig.GetProcessBatchSize(ddconfig.Datadog, ddconfig.DefaultProcessMaxMessageBatch)
 }
 
 // Name returns the name of the ProcessCheck.
@@ -95,11 +100,11 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, nil
 	}
 
-	groupSize := len(ctrList) / cfg.MaxPerMessage
-	if len(ctrList)%cfg.MaxPerMessage != 0 {
+	groupSize := len(ctrList) / c.maxBatchSize
+	if len(ctrList)%c.maxBatchSize != 0 {
 		groupSize++
 	}
-	chunked := chunkContainers(ctrList, c.lastRates, c.lastRun, groupSize, cfg.MaxPerMessage)
+	chunked := chunkContainers(ctrList, c.lastRates, c.lastRun, groupSize, c.maxBatchSize)
 	messages := make([]model.MessageBody, 0, groupSize)
 	totalContainers := float64(0)
 	for i := 0; i < groupSize; i++ {
