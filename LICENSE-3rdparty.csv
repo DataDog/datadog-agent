@@ -336,6 +336,7 @@ core,github.com/go-kit/log,MIT,Go kit
 core,github.com/go-kit/log/level,MIT,Go kit
 core,github.com/go-logfmt/logfmt,MIT,go-logfmt
 core,github.com/go-logr/logr,Apache-2.0,The logr Authors
+core,github.com/go-logr/stdr,Apache-2.0,The logr Authors
 core,github.com/go-ole/go-ole,MIT,"Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
 core,github.com/go-ole/go-ole/oleutil,MIT,"Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
 core,github.com/go-openapi/jsonpointer,Apache-2.0,sigu-399 ( https://github.com/sigu-399 )
@@ -754,12 +755,12 @@ core,go.opentelemetry.io/collector/component/componenterror,Apache-2.0,Open Tele
 core,go.opentelemetry.io/collector/component/componenthelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configauth,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configcompression,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configgrpc,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/confighttp,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configmapprovider,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/collector/config/configtest,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configunmarshaler,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/experimental/configsource,Apache-2.0,Open Telemetry Maintainers
@@ -843,10 +844,8 @@ core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Open Telemetry Main
 core,go.opentelemetry.io/otel/sdk/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/aggregator,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/otel/sdk/metric/aggregator/exact,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/aggregator/histogram,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/aggregator/lastvalue,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/otel/sdk/metric/aggregator/minmaxsumcount,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/aggregator/sum,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/controller/basic,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/controller/time,Apache-2.0,Open Telemetry Maintainers
@@ -867,6 +866,7 @@ core,go.uber.org/zap/internal/bufferpool,MIT,"Uber Technologies, Inc"
 core,go.uber.org/zap/internal/color,MIT,"Uber Technologies, Inc"
 core,go.uber.org/zap/internal/exit,MIT,"Uber Technologies, Inc"
 core,go.uber.org/zap/zapcore,MIT,"Uber Technologies, Inc"
+core,go.uber.org/zap/zapgrpc,MIT,"Uber Technologies, Inc"
 core,go4.org/intern,BSD-3-Clause,Brad Fitzpatrick
 core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,Brad Fitzpatrick
 core,golang.org/x/crypto/cast5,BSD-3-Clause,The Go Authors
@@ -987,6 +987,7 @@ core,google.golang.org/grpc/binarylog/grpc_binarylog_v1,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/codes,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/connectivity,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/credentials,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/credentials/insecure,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/credentials/internal,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/encoding,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/encoding/gzip,Apache-2.0,gRPC authors
