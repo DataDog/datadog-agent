@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.etcd.io/bbolt"
 )
@@ -31,13 +32,24 @@ const (
 	defaultClientsTTL      = 10 * time.Second
 )
 
+// Constraints on the maximum backoff time when errors occur
+const (
+	minimalMaxBackoffTime = 2 * time.Minute
+	maximalMaxBackoffTime = 5 * time.Minute
+)
+
 // Service defines the remote config management service responsible for fetching, storing
 // and dispatching the configurations
 type Service struct {
 	sync.Mutex
 	firstUpdate bool
 
-	refreshInterval time.Duration
+	defaultRefreshInterval time.Duration
+
+	// The backoff policy used for retries when errors are encountered
+	backoffPolicy backoff.Policy
+	// The number of errors we're currently tracking within the context of our backoff policy
+	backoffErrorCount int
 
 	ctx      context.Context
 	clock    clock.Clock
@@ -68,6 +80,32 @@ func NewService() (*Service, error) {
 		log.Warnf("remote_configuration.refresh_interval is set to %v which is bellow the minimum of %v", refreshInterval, minimalRefreshInterval)
 		refreshInterval = minimalRefreshInterval
 	}
+
+	maxBackoffTime := config.Datadog.GetDuration("remote_configuration.max_backoff_interval")
+	if maxBackoffTime < minimalMaxBackoffTime {
+		log.Warnf("remote_configuration.max_backoff_time is set to %v which is below the minimum of %v", maxBackoffTime, minimalMaxBackoffTime)
+		maxBackoffTime = minimalMaxBackoffTime
+	} else if maxBackoffTime > maximalMaxBackoffTime {
+		log.Warnf("remote_configuration.max_backoff_time is set to %v which is above the maximum of %v", maxBackoffTime, maximalMaxBackoffTime)
+		maxBackoffTime = maximalMaxBackoffTime
+	}
+
+	// A backoff is calculated as a range from which a random value will be selected. The formula is as follows.
+	//
+	// min = baseBackoffTime * 2^<NumErrors> / minBackoffFactor
+	// max = min(maxBackoffTime, baseBackoffTime * 2 ^<NumErrors>)
+	//
+	// The following values mean each range will always be [30*2^<NumErrors-1>, min(maxBackoffTime, 30*2^<NumErrors>)].
+	// Every success will cause numErrors to shrink by 2.
+	// This is a sensible default backoff pattern, and there isn't really any need to
+	// let clients configure this at this time.
+	minBackoffFactor := 2.0
+	baseBackoffTime := 30.0
+	recoveryInterval := 2
+	recoveryReset := false
+
+	backoffPolicy := backoff.NewPolicy(minBackoffFactor, baseBackoffTime,
+		maxBackoffTime.Seconds(), recoveryInterval, recoveryReset)
 
 	rawRemoteConfigKey := config.Datadog.GetString("remote_configuration.key")
 	remoteConfigKey, err := parseRemoteConfigKey(rawRemoteConfigKey)
@@ -105,17 +143,19 @@ func NewService() (*Service, error) {
 	}
 	clock := clock.New()
 	return &Service{
-		ctx:             context.Background(),
-		firstUpdate:     true,
-		refreshInterval: refreshInterval,
-		products:        make(map[rdata.Product]struct{}),
-		newProducts:     make(map[rdata.Product]struct{}),
-		hostname:        hostname,
-		clock:           clock,
-		db:              db,
-		api:             http,
-		uptane:          uptaneClient,
-		clients:         newClients(clock, clientsTTL),
+		ctx:                    context.Background(),
+		firstUpdate:            true,
+		defaultRefreshInterval: refreshInterval,
+		backoffErrorCount:      0,
+		backoffPolicy:          backoffPolicy,
+		products:               make(map[rdata.Product]struct{}),
+		newProducts:            make(map[rdata.Product]struct{}),
+		hostname:               hostname,
+		clock:                  clock,
+		db:                     db,
+		api:                    http,
+		uptane:                 uptaneClient,
+		clients:                newClients(clock, clientsTTL),
 	}, nil
 }
 
@@ -126,8 +166,10 @@ func (s *Service) Start(ctx context.Context) error {
 		defer cancel()
 
 		for {
+			refreshInterval := s.calculateRefreshInterval()
+
 			select {
-			case <-s.clock.After(s.refreshInterval):
+			case <-s.clock.After(refreshInterval):
 				err := s.refresh()
 				if err != nil {
 					log.Errorf("could not refresh remote-config: %v", err)
@@ -138,6 +180,12 @@ func (s *Service) Start(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+func (s *Service) calculateRefreshInterval() time.Duration {
+	backoffTime := s.backoffPolicy.GetBackoffDuration(s.backoffErrorCount)
+
+	return s.defaultRefreshInterval + backoffTime
 }
 
 func (s *Service) refresh() error {
@@ -154,10 +202,12 @@ func (s *Service) refresh() error {
 	}
 	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts))
 	if err != nil {
+		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
 	}
 	err = s.uptane.Update(response)
 	if err != nil {
+		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
 	}
 	s.firstUpdate = false
@@ -165,6 +215,9 @@ func (s *Service) refresh() error {
 		s.products[product] = struct{}{}
 	}
 	s.newProducts = make(map[rdata.Product]struct{})
+
+	s.backoffErrorCount = s.backoffPolicy.DecError(s.backoffErrorCount)
+
 	return nil
 }
 
