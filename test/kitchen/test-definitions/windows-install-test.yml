@@ -58,9 +58,6 @@ suites:
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
@@ -94,9 +91,6 @@ suites:
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
@@ -122,9 +116,6 @@ suites:
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
@@ -151,9 +142,6 @@ suites:
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
@@ -178,9 +166,6 @@ suites:
     run_list:
         - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
@@ -206,9 +191,6 @@ suites:
     run_list:
         - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
-      apt:
-        unattended_upgrades:
-          enable: false
       datadog:
         <% dd_agent_config.each do |key, value| %>
         <%= key %>: <%= value %>
