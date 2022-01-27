@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
@@ -30,6 +31,9 @@ import (
 )
 
 const (
+	// tagInferredSpanTagSource is the key to the meta tag that lets us know whether this span should inherit its tags.
+	// Expected options are "lambda" and "self"
+	tagInferredSpanTagSource = "_inferred_span.tag_source"
 	// tagHostname specifies the hostname of the tracer.
 	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
 	tagHostname = "_dd.hostname"
@@ -242,7 +246,11 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Extra sanitization steps of the trace.
 		for _, span := range chunk.Spans {
-			for k, v := range a.conf.GlobalTags {
+			tagsToAdd := a.conf.GlobalTags
+			if inferredspan.Check(span) {
+				tagsToAdd = inferredspan.FilterTags(span, tagsToAdd)
+			}
+			for k, v := range tagsToAdd {
 				if k == tagOrigin {
 					chunk.Origin = v
 				} else {
