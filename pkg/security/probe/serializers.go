@@ -125,6 +125,7 @@ type ProcessCacheEntrySerializer struct {
 	Credentials         *ProcessCredentialsSerializer `json:"credentials,omitempty" jsonschema_description:"Credentials associated with the process"`
 	Executable          *FileSerializer               `json:"executable,omitempty" jsonschema_description:"File information of the executable"`
 	Container           *ContainerContextSerializer   `json:"container,omitempty" jsonschema_description:"Container context"`
+	Argv0               string                        `json:"argv0,omitempty" jsonschema_description:"First command line argument"`
 	Args                []string                      `json:"args,omitempty" jsonschema_description:"Command line arguments"`
 	ArgsTruncated       bool                          `json:"args_truncated,omitempty" jsonschema_description:"Indicator of arguments truncation"`
 	Envs                []string                      `json:"envs,omitempty" jsonschema_description:"Environment variables of the process"`
@@ -358,8 +359,9 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 }
 
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *ProcessCacheEntrySerializer {
-	argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessArgv(&pce.Process)
+	argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessScrubbedArgv(&pce.Process)
 	envs, EnvsTruncated := e.resolvers.ProcessResolver.GetProcessEnvs(&pce.Process)
+	argv0, _ := e.resolvers.ProcessResolver.GetProcessArgv0(&pce.Process)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
 		ForkTime: getTimeIfNotZero(pce.ForkTime),
@@ -372,6 +374,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		Comm:          pce.Process.Comm,
 		TTY:           pce.Process.TTYName,
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
+		Argv0:         argv0,
 		Args:          argv,
 		ArgsTruncated: argvTruncated,
 		Envs:          envs,

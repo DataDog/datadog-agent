@@ -911,6 +911,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(in *jle
 				}
 				(*out.Container).UnmarshalEasyJSON(in)
 			}
+		case "argv0":
+			out.Argv0 = string(in.String())
 		case "args":
 			if in.IsNull() {
 				in.Skip()
@@ -1104,6 +1106,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(out *jw
 		out.RawString(prefix)
 		(*in.Container).MarshalEasyJSON(out)
 	}
+	if in.Argv0 != "" {
+		const prefix string = ",\"argv0\":"
+		out.RawString(prefix)
+		out.String(string(in.Argv0))
+	}
 	if len(in.Args) != 0 {
 		const prefix string = ",\"args\":"
 		out.RawString(prefix)
@@ -1259,6 +1266,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jle
 				}
 				(*out.Container).UnmarshalEasyJSON(in)
 			}
+		case "argv0":
+			out.Argv0 = string(in.String())
 		case "args":
 			if in.IsNull() {
 				in.Skip()
@@ -1418,6 +1427,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jw
 		const prefix string = ",\"container\":"
 		out.RawString(prefix)
 		(*in.Container).MarshalEasyJSON(out)
+	}
+	if in.Argv0 != "" {
+		const prefix string = ",\"argv0\":"
+		out.RawString(prefix)
+		out.String(string(in.Argv0))
 	}
 	if len(in.Args) != 0 {
 		const prefix string = ",\"args\":"

@@ -155,7 +155,7 @@ func NewArgsEnvsCacheEntry(onRelease func(_ *ArgsEnvsCacheEntry)) *ArgsEnvsCache
 	return entry
 }
 
-func (p *ArgsEnvsCacheEntry) toArray(scrub func([]string) []string) ([]string, bool) {
+func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 	entry := p
 
 	var values []string
@@ -176,10 +176,6 @@ func (p *ArgsEnvsCacheEntry) toArray(scrub func([]string) []string) ([]string, b
 		entry = entry.next
 	}
 
-	if scrub != nil {
-		values = scrub(values)
-	}
-
 	return values, truncated
 }
 
@@ -194,11 +190,11 @@ type ArgsEntry struct {
 }
 
 // ToArray returns args as array
-func (p *ArgsEntry) ToArray(scrub func([]string) []string) ([]string, bool) {
+func (p *ArgsEntry) ToArray() ([]string, bool) {
 	if len(p.Values) > 0 || p.parsed {
 		return p.Values, p.Truncated
 	}
-	p.Values, p.Truncated = p.toArray(scrub)
+	p.Values, p.Truncated = p.toArray()
 	p.parsed = true
 
 	// now we have the cache we can free
@@ -217,9 +213,8 @@ type EnvsEntry struct {
 	Values    map[string]string
 	Truncated bool
 
-	ValuesToKeep map[string]bool
-
 	parsed bool
+	keys   []string
 }
 
 // ToMap returns envs as map
@@ -228,19 +223,14 @@ func (p *EnvsEntry) ToMap() (map[string]string, bool) {
 		return p.Values, p.Truncated
 	}
 
-	values, truncated := p.toArray(nil)
+	values, truncated := p.toArray()
 
 	envs := make(map[string]string, len(values))
 
 	for _, env := range values {
 		if els := strings.SplitN(env, "=", 2); len(els) == 2 {
 			key := els[0]
-			if _, exists := p.ValuesToKeep[key]; exists {
-				value := els[1]
-				envs[key] = value
-			} else {
-				envs[key] = ""
-			}
+			envs[key] = els[1]
 		}
 	}
 	p.Values, p.Truncated = envs, truncated
@@ -257,19 +247,23 @@ func (p *EnvsEntry) ToMap() (map[string]string, bool) {
 
 // Keys returns only keys
 func (p *EnvsEntry) Keys() ([]string, bool) {
+	if len(p.keys) > 0 {
+		return p.keys, p.Truncated
+	}
+
 	if !p.parsed {
 		p.ToMap()
 	}
 
-	keys := make([]string, len(p.Values))
+	p.keys = make([]string, len(p.Values))
 
 	var i int
 	for key := range p.Values {
-		keys[i] = key
+		p.keys[i] = key
 		i++
 	}
 
-	return keys, p.Truncated
+	return p.keys, p.Truncated
 }
 
 // Get returns the value for the given key

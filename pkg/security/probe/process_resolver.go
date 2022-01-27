@@ -46,12 +46,6 @@ const (
 
 const procResolveMaxDepth = 16
 
-var (
-	envsValuesToKeep = map[string]bool{
-		"DD_SERVICE": true,
-	}
-)
-
 func getAttr2(probe *Probe) uint64 {
 	if probe.kernelVersion.IsRH7Kernel() {
 		return 1
@@ -652,17 +646,45 @@ func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 		return nil, false
 	}
 
-	var scrub func(values []string) []string
-	if p.probe.scrubber != nil {
-		scrub = func(values []string) []string {
-			values, _ = p.probe.scrubber.ScrubCommand(values)
-			return values
-		}
+	argv, truncated := pr.ArgsEntry.ToArray()
+	if len(argv) > 0 {
+		argv = argv[1:]
 	}
 
-	argv, truncated := pr.ArgsEntry.ToArray(scrub)
-
 	return argv, pr.ArgsTruncated || truncated
+}
+
+// GetProcessArgv0 returns the first arg of the event
+func (p *ProcessResolver) GetProcessArgv0(pr *model.Process) (string, bool) {
+	if pr.ArgsEntry == nil {
+		return "", false
+	}
+
+	argv, truncated := pr.ArgsEntry.ToArray()
+	if len(argv) > 0 {
+		return argv[0], pr.ArgsTruncated || truncated
+	}
+
+	return "", pr.ArgsTruncated || truncated
+}
+
+// GetProcessScrubbedArgv returns the scrubbed args of the event as an array
+func (p *ProcessResolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
+	if pr.ScrubbedArgvResolved {
+		return pr.ScrubbedArgv, pr.ScrubbedArgsTruncated
+	}
+
+	argv, truncated := p.GetProcessArgv(pr)
+
+	if p.probe.scrubber != nil {
+		argv, _ = p.probe.scrubber.ScrubCommand(argv)
+	}
+
+	pr.ScrubbedArgv = argv
+	pr.ScrubbedArgsTruncated = truncated
+	pr.ScrubbedArgvResolved = true
+
+	return argv, truncated
 }
 
 // SetProcessEnvs set envs to cache entry
@@ -670,7 +692,6 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		pce.EnvsEntry = &model.EnvsEntry{
 			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
-			ValuesToKeep:       envsValuesToKeep,
 		}
 
 		// attach to a process thus retain the head of the chain
@@ -878,7 +899,7 @@ func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheE
 			}
 
 			if withArgs {
-				argv, _ := p.GetScrubbedProcessArgv(&entry.Process)
+				argv, _ := p.GetProcessScrubbedArgv(&entry.Process)
 				fmt.Fprintf(writer, `"%d:%s" [label="%s", comment="%s"];`, entry.Pid, entry.Comm, label, strings.Join(argv, " "))
 			} else {
 				fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)

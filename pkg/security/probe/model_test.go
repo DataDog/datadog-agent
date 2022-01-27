@@ -50,7 +50,7 @@ func TestProcessArgsFlags(t *testing.T) {
 				Process: model.Process{
 					ArgsEntry: &model.ArgsEntry{
 						Values: []string{
-							"-abc", "--verbose", "test",
+							"cmd", "-abc", "--verbose", "test",
 							"-v=1", "--host=myhost",
 							"-9", "-", "--",
 						},
@@ -109,7 +109,7 @@ func TestProcessArgsOptions(t *testing.T) {
 				Process: model.Process{
 					ArgsEntry: &model.ArgsEntry{
 						Values: []string{
-							"--config", "/etc/myfile", "--host=myhost", "--verbose",
+							"cmd", "--config", "/etc/myfile", "--host=myhost", "--verbose",
 							"-c", "/etc/myfile", "-e", "", "-h=myhost", "-v",
 							"--", "---", "-9",
 						},
