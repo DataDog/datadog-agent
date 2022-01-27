@@ -15,7 +15,7 @@ const (
 	// Expected options are "lambda" and "self"
 	tagInferredSpanTagSource = "_inferred_span.tag_source"
 
-	// additional function keys to ignore
+	// additional function specific tag keys to ignore
 	functionVersionTagKey = "function_version"
 	coldStartTagKey       = "cold_start"
 )
@@ -34,7 +34,9 @@ var functionTagsToIgnore = [...]string{
 	coldStartTagKey,
 }
 
-// Check determines if a span is an inferred span or not.
+// Check determines if a span belongs to a managed service or not
+// _inferred_span.tag_source = "self" => managed service span
+// _inferred_span.tag_source = "lambda" or missing => lambda related span
 func Check(span *pb.Span) bool {
 	if strings.Compare(span.Meta[tagInferredSpanTagSource], "self") == 0 {
 		return true
@@ -47,7 +49,6 @@ func FilterFunctionTags(input *map[string]string) {
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
 	ddTags := config.GetConfiguredTags(false)
-
 	for _, tag := range ddTags {
 		tagParts := strings.SplitN(tag, ":", 2)
 		if len(tagParts) != 2 {

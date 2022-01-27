@@ -17,34 +17,34 @@ import (
 )
 
 const (
-	// Environment variables for Unified service tagging
+	// Environment variables for Unified Service Tagging
 	envEnvVar     = "DD_ENV"
 	versionEnvVar = "DD_VERSION"
 	serviceEnvVar = "DD_SERVICE"
 
-	// Environment variables for Lambda execution environment
+	// Environment variables for the Lambda execution environment info
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
 
-	// FunctionARNKey is the key for a function's arn
+	// FunctionARNKey is the tag key for a function's arn
 	FunctionARNKey = "function_arn"
-	// FunctionNameKey is the key for a function's name
+	// FunctionNameKey is the tag key for a function's name
 	FunctionNameKey = "functionname"
-	// ExecutedVersionKey is the key for a function's executed version
+	// ExecutedVersionKey is the tag key for a function's executed version
 	ExecutedVersionKey = "executedversion"
-	// RuntimeKey is the key for a function's runtime (e.g node, python)
+	// RuntimeKey is the tag key for a function's runtime (e.g node, python)
 	RuntimeKey = "runtime"
-	// MemorySizeKey is the key for a function's allocated memory size
+	// MemorySizeKey is the tag key for a function's allocated memory size
 	MemorySizeKey = "memorysize"
-	// ArchitectureKey is the key for a function's architecture (e.g. amd64, arm64)
+	// ArchitectureKey is the tag key for a function's architecture (e.g. amd64, arm64)
 	ArchitectureKey = "architecture"
 
-	// EnvKey is the key for a function's env environment variable
+	// EnvKey is the tag key for a function's env environment variable
 	EnvKey = "env"
-	// VersionKey is the key for a function's version environment variable
+	// VersionKey is the tag key for a function's version environment variable
 	VersionKey = "version"
-	// ServiceKey is the key for a function's service environment variable
+	// ServiceKey is the tag key for a function's service environment variable
 	ServiceKey = "service"
 
 	traceOriginMetadataKey   = "_dd.origin"

@@ -243,8 +243,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Extra sanitization steps of the trace.
 		for _, span := range chunk.Spans {
-			tagsToAdd := a.conf.GlobalTags
-			for k, v := range tagsToAdd {
+			for k, v := range a.conf.GlobalTags {
 				if k == tagOrigin {
 					chunk.Origin = v
 				} else {
