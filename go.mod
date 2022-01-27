@@ -208,7 +208,7 @@ require (
 	go.opentelemetry.io/collector/model v0.41.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/multierr v1.7.0
-	go.uber.org/zap v1.19.1
+	go.uber.org/zap v1.20.0
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20211111083644-e5c967477495
