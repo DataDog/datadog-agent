@@ -269,7 +269,7 @@ func LoadConfigIfExists(path string) error {
 
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string, canAccessContainers bool) (*AgentConfig, error) {
+func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config, canAccessContainers bool) (*AgentConfig, error) {
 	var err error
 
 	cfg := NewDefaultAgentConfig(canAccessContainers)
@@ -289,11 +289,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string, 
 		return nil, err
 	}
 
-	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.Merge(netYamlPath)
-	if err != nil {
-		return nil, err
-	}
 	if syscfg.Enabled {
 		cfg.EnableSystemProbe = true
 		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
@@ -351,13 +346,11 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string, 
 		}
 	}
 
-	initRuntimeSettings()
-
 	return cfg, nil
 }
 
-// initRuntimeSettings registers settings to be added to the runtime config.
-func initRuntimeSettings() {
+// InitRuntimeSettings registers settings to be added to the runtime config.
+func InitRuntimeSettings() {
 	// NOTE: Any settings you want to register should simply be added here
 	var processRuntimeSettings = []settings.RuntimeSetting{
 		settings.LogLevelRuntimeSetting{},

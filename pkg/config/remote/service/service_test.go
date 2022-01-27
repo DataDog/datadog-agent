@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"encoding/base32"
 	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
+	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/benbjohnson/clock"
@@ -59,15 +61,20 @@ func (m *mockUptane) TargetsMeta() ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-const (
-	testRCKey = "dd.com/2/fake_key"
+var (
+	testRCKey = msgpgo.RemoteConfigKey{
+		AppKey:     "fake_key",
+		OrgID:      2,
+		Datacenter: "dd.com",
+	}
 )
 
 func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.Clock) *Service {
 	dir, err := os.MkdirTemp("", "testdbdir")
 	assert.NoError(t, err)
 	config.Datadog.Set("run_path", dir)
-	config.Datadog.Set("remote_configuration.key", testRCKey)
+	serializedKey, _ := testRCKey.MarshalMsg(nil)
+	config.Datadog.Set("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
 	service, err := NewService()
 	assert.NoError(t, err)
 	service.api = api

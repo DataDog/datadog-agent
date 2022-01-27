@@ -74,7 +74,7 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 // Start runs and block on the Sampler main loop
 func (s *PrioritySampler) Start() {
 	if s.remoteRates != nil {
-		s.Start()
+		s.remoteRates.Start()
 	}
 	go func() {
 		updateRates := time.NewTicker(decayPeriod)
@@ -236,11 +236,11 @@ func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signa
 
 // ratesByService returns all rates by service, this information is useful for
 // agents to pick the right service rate.
-func (s *PrioritySampler) ratesByService() map[ServiceSignature]float64 {
-	var remoteRates map[Signature]float64
+func (s *PrioritySampler) ratesByService() map[ServiceSignature]rm {
+	var remoteRates map[Signature]rm
 	if s.remoteRates != nil {
-		remoteRates = s.remoteRates.GetAllSignatureSampleRates()
+		remoteRates = s.remoteRates.getAllSignatureSampleRates()
 	}
-	localRates := s.localRates.GetAllSignatureSampleRates()
+	localRates := s.localRates.getAllSignatureSampleRates()
 	return s.catalog.ratesByService(s.agentEnv, localRates, remoteRates, s.localRates.GetDefaultSampleRate())
 }

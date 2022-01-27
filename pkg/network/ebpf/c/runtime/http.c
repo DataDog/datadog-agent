@@ -276,19 +276,30 @@ int uprobe__gnutls_record_send(struct pt_regs* ctx) {
     return 0;
 }
 
-// int gnutls_bye (gnutls_session_t session, gnutls_close_request_t how)
-SEC("uprobe/gnutls_bye")
-int uprobe__gnutls_bye(struct pt_regs* ctx) {
-    void *ssl_session = (void *)PT_REGS_PARM1(ctx);
-
+static __always_inline void gnutls_goodbye(void *ssl_session) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
-        return 0;
+        return;
     }
 
     https_finish(t);
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
+}
+
+// int gnutls_bye (gnutls_session_t session, gnutls_close_request_t how)
+SEC("uprobe/gnutls_bye")
+int uprobe__gnutls_bye(struct pt_regs* ctx) {
+    void *ssl_session = (void *)PT_REGS_PARM1(ctx);
+    gnutls_goodbye(ssl_session);
+    return 0;
+}
+
+// void gnutls_deinit (gnutls_session_t session)
+SEC("uprobe/gnutls_deinit")
+int uprobe__gnutls_deinit(struct pt_regs* ctx) {
+    void *ssl_session = (void *)PT_REGS_PARM1(ctx);
+    gnutls_goodbye(ssl_session);
     return 0;
 }
 

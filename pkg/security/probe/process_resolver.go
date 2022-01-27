@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -880,7 +881,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 	return entry, true
 }
 
-func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool) {
+func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
 	for entry != nil {
 		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
 		if _, exists := already[label]; !exists {
@@ -888,7 +889,12 @@ func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheE
 				label = "[" + label + "]"
 			}
 
-			fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)
+			if withArgs {
+				argv, _ := p.GetScrubbedProcessArgv(&entry.Process)
+				fmt.Fprintf(writer, `"%d:%s" [label="%s", comment="%s"];`, entry.Pid, entry.Comm, label, strings.Join(argv, " "))
+			} else {
+				fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)
+			}
 			fmt.Fprintln(writer)
 
 			already[label] = true
@@ -908,7 +914,7 @@ func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheE
 }
 
 // Dump create a temp file and dump the cache
-func (p *ProcessResolver) Dump() (string, error) {
+func (p *ProcessResolver) Dump(withArgs bool) (string, error) {
 	dump, err := ioutil.TempFile("/tmp", "process-cache-dump-")
 	if err != nil {
 		return "", err
@@ -926,7 +932,7 @@ func (p *ProcessResolver) Dump() (string, error) {
 
 	already := make(map[string]bool)
 	for _, entry := range p.entryCache {
-		p.dumpEntry(dump, entry, already)
+		p.dumpEntry(dump, entry, already, withArgs)
 	}
 
 	fmt.Fprintf(dump, `}`)

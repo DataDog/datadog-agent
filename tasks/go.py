@@ -291,7 +291,9 @@ def deps(ctx, verbose=False):
     print("downloading dependencies")
     start = datetime.datetime.now()
     verbosity = ' -x' if verbose else ''
-    ctx.run(f"go mod download{verbosity}")
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            ctx.run(f"go mod download{verbosity}")
     dep_done = datetime.datetime.now()
     print(f"go mod download, elapsed: {dep_done - start}")
 
@@ -436,6 +438,9 @@ def generate_protobuf(ctx):
             print(f"{mockgen_out} folder already exists")
 
         ctx.run(f"mockgen -source={pbgo_dir}/api.pb.go -destination={mockgen_out}/api_mockgen.pb.go")
+
+    # generate messagepack marshallers
+    ctx.run("msgp -file pkg/proto/msgpgo/key.go -o=pkg/proto/msgpgo/key_gen.go")
 
 
 @task

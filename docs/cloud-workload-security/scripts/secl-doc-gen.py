@@ -19,13 +19,16 @@ class EventType:
     kind: str
     definition: str
     min_agent_version: str
+    experimental: bool
     properties: List[EventTypeProperty]
 
 
 def build_event_types(json_top_node):
     event_types = []
     for et in json_top_node["secl"]:
-        event_type = EventType(et["name"], et["type"], et["definition"], et["from_agent_version"], [])
+        event_type = EventType(
+            et["name"], et["type"], et["definition"], et["from_agent_version"], et["experimental"], []
+        )
         for p in et["properties"]:
             prop = EventTypeProperty(p["name"], p["type"], p["definition"])
             event_type.properties.append(prop)

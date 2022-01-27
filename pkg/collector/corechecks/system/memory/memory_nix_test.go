@@ -50,6 +50,8 @@ func SwapMemory() (*mem.SwapMemoryStat, error) {
 		UsedPercent: 40,
 		Sin:         21,
 		Sout:        22,
+		PgIn:        23,
+		PgOut:       24,
 	}, nil
 }
 
@@ -80,6 +82,8 @@ func TestMemoryCheckLinux(t *testing.T) {
 	mock.On("Gauge", "system.swap.used", 40000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.cached", 25000000000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Rate", "system.swap.swap_in", 21.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Rate", "system.swap.swap_out", 22.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 
 	err := memCheck.Run()
@@ -87,6 +91,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 18)
+	mock.AssertNumberOfCalls(t, "Rate", 2)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
@@ -109,12 +114,15 @@ func TestMemoryCheckFreebsd(t *testing.T) {
 	mock.On("Gauge", "system.swap.free", 60000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.used", 40000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
+	mock.On("Rate", "system.swap.swap_in", 21.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Rate", "system.swap.swap_out", 22.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 	err := memCheck.Run()
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 10)
+	mock.AssertNumberOfCalls(t, "Rate", 2)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
@@ -136,12 +144,15 @@ func TestMemoryCheckDarwin(t *testing.T) {
 	mock.On("Gauge", "system.swap.free", 60000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.used", 40000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
+	mock.On("Rate", "system.swap.swap_in", 21.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Rate", "system.swap.swap_out", 22.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 	err := memCheck.Run()
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 9)
+	mock.AssertNumberOfCalls(t, "Rate", 2)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
@@ -207,11 +218,14 @@ func TestVirtualMemoryError(t *testing.T) {
 	mock.On("Gauge", "system.swap.free", 60000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.used", 40000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
+	mock.On("Rate", "system.swap.swap_in", 21.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Rate", "system.swap.swap_out", 22.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 	err := memCheck.Run()
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 4)
+	mock.AssertNumberOfCalls(t, "Rate", 2)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }

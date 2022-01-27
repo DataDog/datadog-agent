@@ -29,6 +29,15 @@ CWS logs have the following JSON schema:
         "bpf": {
             "$ref": "#/definitions/BPFEvent"
         },
+        "mmap": {
+            "$ref": "#/definitions/MMapEvent"
+        },
+        "mprotect": {
+            "$ref": "#/definitions/MProtectEvent"
+        },
+        "ptrace": {
+            "$ref": "#/definitions/PTraceEvent"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -58,6 +67,9 @@ CWS logs have the following JSON schema:
 | `file` | $ref | Please see [FileEvent](#fileevent) |
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
 | `bpf` | $ref | Please see [BPFEvent](#bpfevent) |
+| `mmap` | $ref | Please see [MMapEvent](#mmapevent) |
+| `mprotect` | $ref | Please see [MProtectEvent](#mprotectevent) |
+| `ptrace` | $ref | Please see [PTraceEvent](#ptraceevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -508,6 +520,145 @@ CWS logs have the following JSON schema:
 | References |
 | ---------- |
 | [File](#file) |
+
+## `MMapEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "address",
+        "offset",
+        "length",
+        "protection",
+        "flags"
+    ],
+    "properties": {
+        "address": {
+            "type": "string",
+            "description": "memory segment address"
+        },
+        "offset": {
+            "type": "integer",
+            "description": "file offset"
+        },
+        "length": {
+            "type": "integer",
+            "description": "memory segment length"
+        },
+        "protection": {
+            "type": "string",
+            "description": "memory segment protection"
+        },
+        "flags": {
+            "type": "string",
+            "description": "memory segment flags"
+        },
+        "file": {
+            "$ref": "#/definitions/File",
+            "description": "mmaped file"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `address` | memory segment address |
+| `offset` | file offset |
+| `length` | memory segment length |
+| `protection` | memory segment protection |
+| `flags` | memory segment flags |
+| `file` | mmaped file |
+
+| References |
+| ---------- |
+| [File](#file) |
+
+## `MProtectEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "vm_start",
+        "vm_end",
+        "vm_protection",
+        "new_protection"
+    ],
+    "properties": {
+        "vm_start": {
+            "type": "string",
+            "description": "memory segment start address"
+        },
+        "vm_end": {
+            "type": "string",
+            "description": "memory segment end address"
+        },
+        "vm_protection": {
+            "type": "string",
+            "description": "memory segment protection"
+        },
+        "new_protection": {
+            "type": "string",
+            "description": "new memory segment protection"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `vm_start` | memory segment start address |
+| `vm_end` | memory segment end address |
+| `vm_protection` | memory segment protection |
+| `new_protection` | new memory segment protection |
+
+
+## `PTraceEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "request",
+        "address"
+    ],
+    "properties": {
+        "request": {
+            "type": "string",
+            "description": "ptrace request"
+        },
+        "address": {
+            "type": "string",
+            "description": "address at which the ptrace request was executed"
+        },
+        "tracee": {
+            "$ref": "#/definitions/ProcessContext",
+            "description": "process context of the tracee"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `request` | ptrace request |
+| `address` | address at which the ptrace request was executed |
+| `tracee` | process context of the tracee |
+
+| References |
+| ---------- |
+| [ProcessContext](#processcontext) |
 
 ## `ProcessCacheEntry`
 

@@ -48,7 +48,7 @@ func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 
 	probes := []*manager.Probe{
 		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/oom_kill_process", EBPFFuncName: "kprobe__oom_kill_process"},
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/oom_kill_process", EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"},
 		},
 	}
 
@@ -113,7 +113,7 @@ func (k *OOMKillProbe) GetAndFlush() (results []OOMKillStats) {
 }
 
 func convertStats(in C.struct_oom_stats) (out OOMKillStats) {
-	out.ContainerID = C.GoString(&in.cgroup_name[0])
+	out.CgroupName = C.GoString(&in.cgroup_name[0])
 	out.Pid = uint32(in.pid)
 	out.TPid = uint32(in.tpid)
 	out.FComm = C.GoString(&in.fcomm[0])

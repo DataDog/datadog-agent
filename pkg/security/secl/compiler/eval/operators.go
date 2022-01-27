@@ -5,10 +5,6 @@
 
 package eval
 
-import (
-	"regexp"
-)
-
 // OpOverrides defines operator override functions
 type OpOverrides struct {
 	StringEquals         func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error)
@@ -81,13 +77,13 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 
 	var arrayOp func(a string, b string) bool
 
-	if a.regexp != nil {
+	if a.stringMatcher != nil {
 		arrayOp = func(as string, bs string) bool {
-			return a.regexp.MatchString(bs)
+			return a.stringMatcher.Matches(bs)
 		}
-	} else if b.regexp != nil {
+	} else if b.stringMatcher != nil {
 		arrayOp = func(as string, bs string) bool {
-			return b.regexp.MatchString(as)
+			return b.stringMatcher.Matches(as)
 		}
 	} else {
 		arrayOp = func(as string, bs string) bool {
@@ -123,7 +119,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		ea, eb := a.EvalFnc, b.Value
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.ValueType, Regexp: b.regexp}); err != nil {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.ValueType, StringMatcher: b.stringMatcher}); err != nil {
 				return nil, err
 			}
 		}
@@ -142,7 +138,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, Regexp: a.regexp}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, StringMatcher: a.stringMatcher}); err != nil {
 			return nil, err
 		}
 	}
@@ -246,9 +242,9 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 		return false
 	}
 
-	reArrayOp := func(re *regexp.Regexp, b []string) bool {
+	smArrayOp := func(pm StringMatcher, b []string) bool {
 		for _, bs := range b {
-			if re.MatchString(bs) {
+			if pm.Matches(bs) {
 				return true
 			}
 		}
@@ -271,11 +267,11 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
-		if a.regexp != nil {
-			ea, eb := a.regexp, b.Values
+		if a.stringMatcher != nil {
+			ea, eb := a.stringMatcher, b.Values
 
 			return &BoolEvaluator{
-				Value:     reArrayOp(ea, eb),
+				Value:     smArrayOp(ea, eb),
 				Weight:    a.Weight + InArrayWeight*len(eb),
 				isPartial: isPartialLeaf,
 			}, nil
@@ -314,7 +310,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, Regexp: a.regexp}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, StringMatcher: a.stringMatcher}); err != nil {
 			return nil, err
 		}
 	}
@@ -322,9 +318,9 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	evalFnc := func(ctx *Context) bool {
 		return arrayOp(ea, eb(ctx))
 	}
-	if a.regexp != nil {
+	if a.stringMatcher != nil {
 		evalFnc = func(ctx *Context) bool {
-			return reArrayOp(a.regexp, eb(ctx))
+			return smArrayOp(a.stringMatcher, eb(ctx))
 		}
 	}
 
@@ -352,7 +348,7 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 
 		evalFnc := func(ctx *Context) bool {
 			values := eb(ctx)
-			return values.Match(ea(ctx))
+			return values.Matches(ea(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -366,7 +362,7 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
-			Value:     eb.Match(ea),
+			Value:     eb.Matches(ea),
 			Weight:    a.Weight + InArrayWeight*len(eb.fieldValues),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -384,7 +380,7 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return eb.Match(ea(ctx))
+			return eb.Matches(ea(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -398,7 +394,7 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, opts *Op
 
 	evalFnc := func(ctx *Context) bool {
 		values := eb(ctx)
-		return values.Match(ea)
+		return values.Matches(ea)
 	}
 
 	return &BoolEvaluator{
@@ -422,7 +418,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, opts 
 
 	arrayOp := func(a []string, b *StringValues) bool {
 		for _, as := range a {
-			if b.Match(as) {
+			if b.Matches(as) {
 				return true
 			}
 		}

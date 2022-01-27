@@ -1,6 +1,7 @@
 ARG BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-1809
 ARG WITH_JMX="false"
 ARG VARIANT="unknown"
+ARG INSTALL_INFO="unknown"
 
 # Extract the embedded3.7z in a separate stage
 FROM mcr.microsoft.com/powershell:lts-windowsservercore-${VARIANT} as unzipper
