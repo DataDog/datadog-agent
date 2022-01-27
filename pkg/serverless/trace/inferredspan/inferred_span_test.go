@@ -44,10 +44,10 @@ func TestFilterFunctionTags(t *testing.T) {
 	assert.Equal(t, tagsToFilter["extra"], "tag")
 	assert.Equal(t, tagsToFilter["tag1"], "value1")
 
-	FilterFunctionTags(&tagsToFilter)
+	filteredTags := FilterFunctionTags(tagsToFilter)
 
-	assert.Equal(t, tagsToFilter, map[string]string{"_inferred_span.tag_source": "self"})
-	assert.NotEqual(t, tagsToFilter["functionname"], "lambda")
-	assert.NotEqual(t, tagsToFilter["extra"], "tag")
-	assert.NotEqual(t, tagsToFilter["tag1"], "value1")
+	assert.Equal(t, filteredTags, map[string]string{"_inferred_span.tag_source": "self"})
+	assert.NotEqual(t, filteredTags["functionname"], "lambda")
+	assert.NotEqual(t, filteredTags["extra"], "tag")
+	assert.NotEqual(t, filteredTags["tag1"], "value1")
 }

@@ -38,14 +38,17 @@ var functionTagsToIgnore = [...]string{
 // _inferred_span.tag_source = "self" => managed service span
 // _inferred_span.tag_source = "lambda" or missing => lambda related span
 func Check(span *pb.Span) bool {
-	if strings.Compare(span.Meta[tagInferredSpanTagSource], "self") == 0 {
-		return true
-	}
-	return false
+	return strings.Compare(span.Meta[tagInferredSpanTagSource], "self") == 0
 }
 
 // FilterFunctionTags filters out DD tags & function specific tags
-func FilterFunctionTags(input *map[string]string) {
+func FilterFunctionTags(input map[string]string) map[string]string {
+
+	if input == nil {
+		return nil
+	}
+
+	output := input
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
 	ddTags := config.GetConfiguredTags(false)
@@ -56,12 +59,13 @@ func FilterFunctionTags(input *map[string]string) {
 			continue
 		}
 		tagKey := tagParts[0]
-		delete(*input, tagKey)
-		delete(*input, "sometag")
+		delete(output, tagKey)
 	}
 
 	// filter out function specific tags
 	for _, tagKey := range functionTagsToIgnore {
-		delete(*input, tagKey)
+		delete(output, tagKey)
 	}
+
+	return output
 }

@@ -44,31 +44,6 @@ func TestSetMeta(t *testing.T) {
 	}
 }
 
-func TestSetMetaTags(t *testing.T) {
-	for _, s := range []*pb.Span{
-		{},
-		{Meta: map[string]string{"A": "B", "C": "D"}},
-	} {
-		SetMetaTags(s, map[string]string{"X": "Y", "P": "Q"})
-		assert.NotNil(t, s.Meta)
-		assert.Equal(t, s.Meta["X"], s.Meta["Y"])
-		assert.Equal(t, s.Meta["P"], s.Meta["Q"])
-		assert.NotEqual(t, s.Meta["A"], "B")
-		assert.NotEqual(t, s.Meta["C"], "D")
-	}
-}
-
-func TestGetMetaTags(t *testing.T) {
-	for _, s := range []*pb.Span{
-		{},
-		{Meta: map[string]string{"A": "B", "C": "D"}},
-	} {
-		metaTags := GetMetaTags(s)
-		assert.NotNil(t, metaTags)
-		assert.Equal(t, s.Meta["X"], metaTags["X"])
-	}
-}
-
 func TestTopLevelSingle(t *testing.T) {
 	assert := assert.New(t)
 

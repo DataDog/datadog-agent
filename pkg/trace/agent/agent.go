@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
@@ -249,14 +248,6 @@ func (a *Agent) Process(p *api.Payload) {
 				} else {
 					traceutil.SetMeta(span, k, v)
 				}
-			}
-			if inferredspan.Check(span) {
-				log.Debug("Detected a managed service span, filtering out function tags")
-
-				// filter out existing function tags inside span metadata
-				spanMetadataTags := traceutil.GetMetaTags(span)
-				inferredspan.FilterFunctionTags(&spanMetadataTags)
-				traceutil.SetMetaTags(span, spanMetadataTags)
 			}
 			if a.ModifySpan != nil {
 				a.ModifySpan(span)
