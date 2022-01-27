@@ -135,6 +135,8 @@
   variables:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
+    # we need chef >= 15 for arm64 and for the arm? helper
+    CHEF_VERSION: 15.16.4
   extends:
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2_spot_instances
