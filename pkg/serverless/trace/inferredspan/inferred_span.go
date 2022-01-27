@@ -14,11 +14,12 @@ const (
 	// that lets us know whether this span should inherit its tags.
 	// Expected options are "lambda" and "self"
 	tagInferredSpanTagSource = "_inferred_span.tag_source"
-	functionVersionTagKey    = "function_version"
-	coldStartTagKey          = "cold_start"
+
+	// additional function keys to ignore
+	functionVersionTagKey = "function_version"
+	coldStartTagKey       = "cold_start"
 )
 
-var globalTagsToFilter map[string]bool
 var functionTagsToIgnore = [...]string{
 	tags.FunctionARNKey,
 	tags.FunctionNameKey,
@@ -35,14 +36,16 @@ var functionTagsToIgnore = [...]string{
 
 // Check determines if a span is an inferred span or not.
 func Check(span *pb.Span) bool {
-	if _, ok := span.Meta[tagInferredSpanTagSource]; ok {
+	if strings.Compare(span.Meta[tagInferredSpanTagSource], "self") == 0 {
 		return true
 	}
 	return false
 }
 
-// FilterFunctionTags filters out function specific tags
-func FilterFunctionTags(span *pb.Span, input *map[string]string) {
+// FilterFunctionTags filters out DD tags & function specific tags
+func FilterFunctionTags(input *map[string]string) {
+
+	// filter out DD_TAGS & DD_EXTRA_TAGS
 	ddTags := config.GetConfiguredTags(false)
 
 	for _, tag := range ddTags {
@@ -56,6 +59,7 @@ func FilterFunctionTags(span *pb.Span, input *map[string]string) {
 		delete(*input, "sometag")
 	}
 
+	// filter out function specific tags
 	for _, tagKey := range functionTagsToIgnore {
 		delete(*input, tagKey)
 	}
