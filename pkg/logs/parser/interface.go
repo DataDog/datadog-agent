@@ -10,14 +10,33 @@
 // before further processing and aggregation of log messages.
 package parser
 
+// Message represents a message parsed from a single line of log data
+type Message struct {
+	// Content is the message content.  If this is nil then the message
+	// should be considered empty and ignored.
+	Content []byte
+
+	// Status is the status parsed from the message, if any.
+	Status string
+
+	// Timestamp is the message timestamp from the source, if any, as an
+	// ISO-8601-formatted string (./pkg/logs/config.DateFormat).  Log sources
+	// which do not contain a timestamp (such as files) leave this set to "".
+	Timestamp string
+
+	// IsPartial indicates that this is a partial message.  If the parser
+	// supports partial lines, then this is true only for the message returned
+	// from the last parsed line in a multi-line message.
+	IsPartial bool
+}
+
 // Parser parses messages, given as a raw byte sequence, into content and metadata.
 type Parser interface {
-	// Parse parses a line of log input.  It returns 1. message content, 2.
-	// severity, 3. timestamp, 4. partial, 5. error.
-	Parse([]byte) ([]byte, string, string, bool, error)
+	// Parse parses a line of log input.
+	Parse([]byte) (Message, error)
 
 	// SupportsPartialLine returns true for sources that can have partial
-	// lines. If SupportsPartialLine is true, Parse can return true for the
-	// partial return value
+	// lines. If SupportsPartialLine is true, Parse can return messages with
+	// IsPartial: true
 	SupportsPartialLine() bool
 }

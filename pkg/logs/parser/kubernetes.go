@@ -21,9 +21,8 @@ var KubernetesFormat Parser = &kubernetesFormat{}
 type kubernetesFormat struct{}
 
 // Parse implements Parser#Parse
-func (p *kubernetesFormat) Parse(msg []byte) ([]byte, string, string, bool, error) {
-	content, status, timestamp, flag, err := parseKubernetes(msg)
-	return content, status, timestamp, isPartial(flag), err
+func (p *kubernetesFormat) Parse(msg []byte) (Message, error) {
+	return parseKubernetes(msg)
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine
@@ -31,14 +30,19 @@ func (p *kubernetesFormat) SupportsPartialLine() bool {
 	return true
 }
 
-func parseKubernetes(msg []byte) ([]byte, string, string, string, error) {
+func parseKubernetes(msg []byte) (Message, error) {
 	var status = message.StatusInfo
 	var flag string
 	var timestamp string
 	// split '<timestamp> <stream> <flag> <content>' into its components
 	components := bytes.SplitN(msg, spaceByte, 4)
 	if len(components) < 3 {
-		return msg, status, timestamp, flag, errors.New("cannot parse the log line")
+		return Message{
+			Content:   msg,
+			Status:    status,
+			Timestamp: timestamp,
+			IsPartial: isPartial(flag),
+		}, errors.New("cannot parse the log line")
 	}
 	var content []byte
 	if len(components) > 3 {
@@ -47,7 +51,12 @@ func parseKubernetes(msg []byte) ([]byte, string, string, string, error) {
 	status = getStatus(components[1])
 	timestamp = string(components[0])
 	flag = string(components[2])
-	return content, status, timestamp, flag, nil
+	return Message{
+		Content:   content,
+		Status:    status,
+		Timestamp: timestamp,
+		IsPartial: isPartial(flag),
+	}, nil
 }
 
 func isPartial(flag string) bool {

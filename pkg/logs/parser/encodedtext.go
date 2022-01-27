@@ -32,9 +32,9 @@ type EncodedText struct {
 }
 
 // Parse implements Parser#Parse
-func (p *EncodedText) Parse(msg []byte) ([]byte, string, string, bool, error) {
+func (p *EncodedText) Parse(msg []byte) (Message, error) {
 	decoded, _, err := transform.Bytes(p.decoder, msg)
-	return decoded, "", "", false, err
+	return Message{Content: decoded}, err
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine

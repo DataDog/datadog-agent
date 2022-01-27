@@ -11,8 +11,8 @@ var Noop *noop
 type noop struct{}
 
 // Parse implements Parser#Parse
-func (p *noop) Parse(msg []byte) ([]byte, string, string, bool, error) {
-	return msg, "", "", false, nil
+func (p *noop) Parse(msg []byte) (Message, error) {
+	return Message{Content: msg}, nil
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine

@@ -44,16 +44,19 @@ func NewMockFailingParser(header string) parser.Parser {
 
 // Parse removes header from line, returns a message if its header matches the Parser header
 // or returns an error and flags the line as partial if it does not end up by \n
-func (u *MockFailingParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
+func (u *MockFailingParser) Parse(msg []byte) (parser.Message, error) {
 	if bytes.HasPrefix(msg, u.header) {
 		msg := bytes.Replace(msg, u.header, []byte(""), 1)
 		l := len(msg)
 		if l > 1 && msg[l-2] == '\\' && msg[l-1] == 'n' {
-			return msg[:l-2], "", "", false, nil
+			return parser.Message{Content: msg[:l-2]}, nil
 		}
-		return msg, "", "", true, nil
+		return parser.Message{
+			Content:   msg,
+			IsPartial: true,
+		}, nil
 	}
-	return msg, "", "", false, fmt.Errorf("error")
+	return parser.Message{Content: msg}, fmt.Errorf("error")
 }
 
 func (u *MockFailingParser) SupportsPartialLine() bool {

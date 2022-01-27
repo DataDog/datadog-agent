@@ -40,7 +40,7 @@ func NewDockerStreamFormat(containerID string) *DockerStreamFormat {
 }
 
 // Parse implements Parser#Parse
-func (p *DockerStreamFormat) Parse(msg []byte) ([]byte, string, string, bool, error) {
+func (p *DockerStreamFormat) Parse(msg []byte) (Message, error) {
 	return parseDockerStream(msg, p.containerID)
 }
 
@@ -49,12 +49,17 @@ func (p *DockerStreamFormat) SupportsPartialLine() bool {
 	return false
 }
 
-func parseDockerStream(msg []byte, containerID string) ([]byte, string, string, bool, error) {
+func parseDockerStream(msg []byte, containerID string) (Message, error) {
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return msg, message.StatusInfo, "", false, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", containerID)
+		return Message{
+			Content:   msg,
+			Status:    message.StatusInfo,
+			Timestamp: "",
+			IsPartial: false,
+		}, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", containerID)
 	}
 
 	// Read the first byte to get the status
@@ -83,10 +88,15 @@ func parseDockerStream(msg []byte, containerID string) ([]byte, string, string, 
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 || isEmptyMessage(msg[idx+1:]) {
 		// Nothing after the timestamp: empty message
-		return nil, "", "", false, nil
+		return Message{}, nil
 	}
 
-	return msg[idx+1:], status, string(msg[:idx]), false, nil
+	return Message{
+		Content:   msg[idx+1:],
+		Status:    status,
+		Timestamp: string(msg[:idx]),
+		IsPartial: false,
+	}, nil
 }
 
 // getDockerSeverity returns the status of the message based on the value of the
