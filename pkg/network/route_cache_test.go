@@ -22,6 +22,7 @@ func TestRouteCacheGet(t *testing.T) {
 	defer ctrl.Finish()
 
 	m := NewMockRouter(ctrl)
+	m.EXPECT().Close()
 
 	tests := []struct {
 		source, dest string
@@ -67,6 +68,7 @@ func TestRouteCacheTTL(t *testing.T) {
 	defer ctrl.Finish()
 
 	m := NewMockRouter(ctrl)
+	m.EXPECT().Close()
 
 	route := Route{Gateway: util.AddressFromString("1.1.1.1"), IfIndex: 0}
 	m.EXPECT().Route(gomock.Any(), gomock.Any(), gomock.Any()).Return(route, true).Times(2)
