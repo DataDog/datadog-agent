@@ -85,14 +85,18 @@ __attribute__((always_inline)) void save_obj_fd(struct syscall_cache_t *syscall)
         .fd = syscall->bpf.retval,
     };
 
+    u32 id = 0;
+
     switch (syscall->bpf.cmd) {
     case BPF_MAP_CREATE:
     case BPF_MAP_GET_FD_BY_ID:
-        bpf_map_update_elem(&tgid_fd_map_id, &key, &syscall->bpf.map_id, BPF_ANY);
+        id = syscall->bpf.map_id;
+        bpf_map_update_elem(&tgid_fd_map_id, &key, &id, BPF_ANY);
         break;
     case BPF_PROG_LOAD:
     case BPF_PROG_GET_FD_BY_ID:
-        bpf_map_update_elem(&tgid_fd_prog_id, &key, &syscall->bpf.prog_id, BPF_ANY);
+        id = syscall->bpf.prog_id;
+        bpf_map_update_elem(&tgid_fd_prog_id, &key, &id, BPF_ANY);
         break;
     }
 }
@@ -224,9 +228,12 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
+    u32 id = 0;
+
     // select map if applicable
     if (syscall->bpf.map_id != 0) {
-        struct bpf_map_t *map = bpf_map_lookup_elem(&bpf_maps, &syscall->bpf.map_id);
+        id = syscall->bpf.map_id;
+        struct bpf_map_t *map = bpf_map_lookup_elem(&bpf_maps, &id);
         if (map != NULL) {
             event.map = *map;
         }
@@ -234,7 +241,8 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
 
     // select prog if applicable
     if (syscall->bpf.prog_id != 0) {
-        struct bpf_prog_t *prog = bpf_map_lookup_elem(&bpf_progs, &syscall->bpf.prog_id);
+        id = syscall->bpf.prog_id;
+        struct bpf_prog_t *prog = bpf_map_lookup_elem(&bpf_progs, &id);
         if (prog != NULL) {
             event.prog = *prog;
         }
