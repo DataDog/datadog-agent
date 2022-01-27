@@ -244,23 +244,20 @@ func (a *Agent) Process(p *api.Payload) {
 		// Extra sanitization steps of the trace.
 		for _, span := range chunk.Spans {
 			tagsToAdd := a.conf.GlobalTags
-			if inferredspan.Check(span) {
-				log.Debug("Detected a managed service span, filtering out function tags")
-
-				// filter out existing function tags inside span metadata
-				spanMetadataTags := traceutil.GetMetaTags(span)
-				inferredspan.FilterFunctionTags(span, &spanMetadataTags)
-				traceutil.SetMetaTags(span, spanMetadataTags)
-
-				// filter out function tags from additional tags to be added
-				inferredspan.FilterFunctionTags(span, &tagsToAdd)
-			}
 			for k, v := range tagsToAdd {
 				if k == tagOrigin {
 					chunk.Origin = v
 				} else {
 					traceutil.SetMeta(span, k, v)
 				}
+			}
+			if inferredspan.Check(span) {
+				log.Debug("Detected a managed service span, filtering out function tags")
+
+				// filter out existing function tags inside span metadata
+				spanMetadataTags := traceutil.GetMetaTags(span)
+				inferredspan.FilterFunctionTags(&spanMetadataTags)
+				traceutil.SetMetaTags(span, spanMetadataTags)
 			}
 			if a.ModifySpan != nil {
 				a.ModifySpan(span)
