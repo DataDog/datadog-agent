@@ -36,5 +36,5 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }} 
-        run: BUILD_EXTENSION=true ./test/integration/serverless/run.sh
+        run: ./test/integration/serverless/run.sh
         working-directory: go/src/github.com/DataDog/datadog-agent
