@@ -31,9 +31,6 @@ import (
 )
 
 const (
-	// tagInferredSpanTagSource is the key to the meta tag that lets us know whether this span should inherit its tags.
-	// Expected options are "lambda" and "self"
-	tagInferredSpanTagSource = "_inferred_span.tag_source"
 	// tagHostname specifies the hostname of the tracer.
 	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
 	tagHostname = "_dd.hostname"
