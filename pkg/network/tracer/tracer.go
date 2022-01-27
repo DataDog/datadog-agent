@@ -110,7 +110,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
+	needsOffsets := (!config.EnableRuntimeCompiler ||
+		config.AllowPrecompiledFallback ||
+		// hotfix: always force offset guessing for kernel < 4.6 when HTTPS monitoring is enabled
+		(config.EnableHTTPSMonitoring && currKernelVersion < kernel.VersionCode(4, 6, 0)))
+
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
 		for i := 0; i < 5; i++ {

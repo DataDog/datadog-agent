@@ -289,6 +289,20 @@ api_key:
 #
 # forwarder_requeue_buffer_size: 100
 
+## @param forwarder_backoff_base - int - optional - default: 2
+## @env DD_FORWARDER_BACKOFF_BASE - integer - optional - default: 2
+## Defines the rate of exponential growth, and the first retry interval range.
+## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
+## higher rate of exponential growth.
+# forwarder_backoff_base: 2
+
+## @param forwarder_backoff_max - int - optional - default: 64
+## @env DD_FORWARDER_BACKOFF_MAX - integer - optional - default: 64
+## Defines the maximum number of seconds to wait for a retry.
+## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
+## higher maximum backoff time.
+# forwarder_backoff_max: 64
+
 ## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle"]
 ## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle
 ## This option restricts which cloud provider endpoint will be used by the

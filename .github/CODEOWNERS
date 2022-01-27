@@ -166,6 +166,7 @@
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
 /pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
+/pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
 /pkg/config/system_probe.go             @DataDog/agent-network
 /pkg/config/remote/                     @DataDog/remote-config
@@ -188,6 +189,8 @@
 /pkg/logs/                              @DataDog/agent-core
 /pkg/logs/input/traps/                  @DataDog/infrastructure-integrations @DataDog/agent-core
 /pkg/process/                           @DataDog/processes
+/pkg/process/address*                   @DataDog/agent-network
+/pkg/process/netns*                     @DataDog/agent-network
 /pkg/process/checks/net*                @DataDog/agent-network
 /pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/process/net/                       @DataDog/processes @DataDog/agent-network

@@ -429,6 +429,7 @@ func InitConfig(config Config) {
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
+	config.BindEnvAndSetDefault("serializer_max_series_points_per_payload", 100000)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", false)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1623,7 +1624,7 @@ func GetVectorURL(datatype DataType) (string, error) {
 func GetInventoriesMinInterval() time.Duration {
 	minInterval := time.Duration(Datadog.GetInt("inventories_min_interval")) * time.Second
 	if minInterval == 0 {
-		minInterval = DefaultInventoriesMinInterval
+		minInterval = DefaultInventoriesMinInterval * time.Second
 	}
 	return minInterval
 }
@@ -1632,7 +1633,7 @@ func GetInventoriesMinInterval() time.Duration {
 func GetInventoriesMaxInterval() time.Duration {
 	maxInterval := time.Duration(Datadog.GetInt("inventories_max_interval")) * time.Second
 	if maxInterval == 0 {
-		maxInterval = DefaultInventoriesMaxInterval
+		maxInterval = DefaultInventoriesMaxInterval * time.Second
 	}
 	return maxInterval
 }

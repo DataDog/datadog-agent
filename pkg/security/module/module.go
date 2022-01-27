@@ -265,7 +265,7 @@ func (m *Module) Reload() error {
 	var opts rules.Opts
 	opts.
 		WithConstants(model.SECLConstants).
-		WithVariables(sprobe.SECLVariables).
+		WithVariables(model.SECLVariables).
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(m.getEventTypeEnabled()).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
@@ -275,6 +275,9 @@ func (m *Module) Reload() error {
 	model := &model.Model{}
 	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
 	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
+
+	// switch SECLVariables to use the real Event structure and not the mock model.Event one
+	opts.WithVariables(sprobe.SECLVariables)
 
 	ruleSet := m.probe.NewRuleSet(&opts)
 	loadErr := rules.LoadPolicies(policiesDir, ruleSet)

@@ -126,6 +126,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 
 // fmtContainers loops through container list and converts them to a list of container objects
 func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.ContainerRateMetrics, lastRun time.Time) []*model.Container {
+	currentTime := time.Now()
 	containersList := make([]*model.Container, 0, len(ctrList))
 	for _, ctr := range ctrList {
 		lastCtr, ok := lastRates[ctr.ID]
@@ -157,13 +158,13 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 		cpus := system.HostCPUCount()
 		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
 
-		userPct := calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun)
-		systemPct := calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+		userPct := calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, currentTime, lastRun)
+		systemPct := calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, currentTime, lastRun)
 		var totalPct float32
 		if userPct == -1 || systemPct == -1 {
 			totalPct = -1
 		} else {
-			totalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+			totalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, currentTime, lastRun)
 		}
 
 		containersList = append(containersList, &model.Container{
