@@ -146,7 +146,6 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 
 const (
 	defaultProcessEndpoint         = "https://process.datadoghq.com"
-	maxMessageBatch                = 100
 	defaultMaxCtrProcsMessageBatch = 10000
 	maxCtrProcsMessageBatch        = 30000
 )
