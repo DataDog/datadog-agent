@@ -3,23 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package parser
+package dockerfile
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func TestDockerFileFormat(t *testing.T) {
 	var (
-		msg Message
+		msg parsers.Message
 		err error
 	)
 
-	parser := DockerFileFormat
+	parser := New()
 
 	msg, err = parser.Parse([]byte(`{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`))
 	assert.Nil(t, err)

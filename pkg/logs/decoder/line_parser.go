@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,13 +23,13 @@ type LineParser interface {
 // SingleLineParser makes sure that multiple lines from a same content
 // are properly put together.
 type SingleLineParser struct {
-	parser      parser.Parser
+	parser      parsers.Parser
 	inputChan   chan *DecodedInput
 	lineHandler LineHandler
 }
 
 // NewSingleLineParser returns a new SingleLineParser.
-func NewSingleLineParser(parser parser.Parser, lineHandler LineHandler) *SingleLineParser {
+func NewSingleLineParser(parser parsers.Parser, lineHandler LineHandler) *SingleLineParser {
 	return &SingleLineParser{
 		parser:      parser,
 		inputChan:   make(chan *DecodedInput),
@@ -76,7 +76,7 @@ type MultiLineParser struct {
 	flushTimeout time.Duration
 	inputChan    chan *DecodedInput
 	lineHandler  LineHandler
-	parser       parser.Parser
+	parser       parsers.Parser
 	rawDataLen   int
 	lineLimit    int
 	status       string
@@ -84,7 +84,7 @@ type MultiLineParser struct {
 }
 
 // NewMultiLineParser returns a new MultiLineParser.
-func NewMultiLineParser(flushTimeout time.Duration, parser parser.Parser, lineHandler LineHandler, lineLimit int) *MultiLineParser {
+func NewMultiLineParser(flushTimeout time.Duration, parser parsers.Parser, lineHandler LineHandler, lineLimit int) *MultiLineParser {
 	return &MultiLineParser{
 		inputChan:    make(chan *DecodedInput),
 		buffer:       bytes.NewBuffer(nil),

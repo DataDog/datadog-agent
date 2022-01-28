@@ -3,25 +3,35 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package parser
+package kubernetes
 
 import (
 	"bytes"
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// KubernetesFormat parses Kubernetes-formatted log lines.  Kubernetes log
-// lines follow the pattern '<timestamp> <stream> <flag> <content>'; see
+var (
+	// one-space delimiter, created outside of a hot loop
+	spaceByte = []byte{' '}
+)
+
+// New creates a new parser that parses Kubernetes-formatted log lines.
+//
+// Kubernetes log lines follow the pattern '<timestamp> <stream> <flag> <content>'; see
 // https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/kuberuntime/logs/logs.go.
+//
 // For example: `2018-09-20T11:54:11.753589172Z stdout F This is my message`
-var KubernetesFormat Parser = &kubernetesFormat{}
+func New() parsers.Parser {
+	return &kubernetesFormat{}
+}
 
 type kubernetesFormat struct{}
 
 // Parse implements Parser#Parse
-func (p *kubernetesFormat) Parse(msg []byte) (Message, error) {
+func (p *kubernetesFormat) Parse(msg []byte) (parsers.Message, error) {
 	return parseKubernetes(msg)
 }
 
@@ -30,14 +40,14 @@ func (p *kubernetesFormat) SupportsPartialLine() bool {
 	return true
 }
 
-func parseKubernetes(msg []byte) (Message, error) {
+func parseKubernetes(msg []byte) (parsers.Message, error) {
 	var status = message.StatusInfo
 	var flag string
 	var timestamp string
 	// split '<timestamp> <stream> <flag> <content>' into its components
 	components := bytes.SplitN(msg, spaceByte, 4)
 	if len(components) < 3 {
-		return Message{
+		return parsers.Message{
 			Content:   msg,
 			Status:    status,
 			Timestamp: timestamp,
@@ -51,7 +61,7 @@ func parseKubernetes(msg []byte) (Message, error) {
 	status = getStatus(components[1])
 	timestamp = string(components[0])
 	flag = string(components[2])
-	return Message{
+	return parsers.Message{
 		Content:   content,
 		Status:    status,
 		Timestamp: timestamp,
@@ -68,9 +78,9 @@ func isPartial(flag string) bool {
 // returns the status INFO by default
 func getStatus(streamType []byte) string {
 	switch string(streamType) {
-	case stdout:
+	case "stdout":
 		return message.StatusInfo
-	case stderr:
+	case "stderr":
 		return message.StatusError
 	default:
 		return message.StatusInfo

@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package parser supports transforming raw log "lines" into messages with some
+// Package parsers supports transforming raw log "lines" into messages with some
 // associated metadata (timestamp, severity, etc.).
 //
 // This parsing comes after "line parsing" (breaking input into multiple lines) and
 // before further processing and aggregation of log messages.
-package parser
+package parsers
 
 // Message represents a message parsed from a single line of log data
 type Message struct {

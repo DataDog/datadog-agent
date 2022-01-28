@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package parser
+package encodedtext
 
 import (
 	"testing"
@@ -12,7 +12,7 @@ import (
 )
 
 func TestUTF16LEParserHandleMessages(t *testing.T) {
-	parser := NewEncodedText(UTF16LE)
+	parser := New(UTF16LE)
 	testMsg := []byte{'F', 0x0, 'o', 0x0, 'o', 0x0}
 	msg, err := parser.Parse(testMsg)
 	assert.Nil(t, err)
@@ -32,7 +32,7 @@ func TestUTF16LEParserHandleMessages(t *testing.T) {
 }
 
 func TestUTF16BEParserHandleMessages(t *testing.T) {
-	parser := NewEncodedText(UTF16BE)
+	parser := New(UTF16BE)
 	testMsg := []byte{0x0, 'F', 0x0, 'o', 0x0, 'o'}
 	msg, err := parser.Parse(testMsg)
 	assert.Nil(t, err)
@@ -52,7 +52,7 @@ func TestUTF16BEParserHandleMessages(t *testing.T) {
 }
 
 func TestSHIFTJISParserHandleMessages(t *testing.T) {
-	parser := NewEncodedText(SHIFTJIS)
+	parser := New(SHIFTJIS)
 	testMsg := []byte{0x93, 0xfa, 0x96, 0x7b}
 	msg, err := parser.Parse(testMsg)
 	assert.Nil(t, err)

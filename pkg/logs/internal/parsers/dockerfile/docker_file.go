@@ -3,22 +3,35 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package parser
+// Package dockerfile implements a Parser for the JSON-per-line format found in
+// Docker logfiles.
+package dockerfile
 
 import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// DockerFileFormat parses a raw JSON lines as found in docker log files, or
-// returns an error if it failed.
+// New returns a new parser which will parse raw JSON lines as found in docker log files.
+//
 // For example:
-// `{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`
+//
+//     `{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`
+//
 // returns:
-// `"a message", "error", "2019-06-06T16:35:55.930852911Z", false, nil`
-var DockerFileFormat Parser = &dockerFileFormat{}
+//
+//     parsers.Message {
+//         Content: []byte("a message"),
+//         Status: "error",
+//         Timestamp: "2019-06-06T16:35:55.930852911Z",
+//         IsPartial: false,
+//     }
+func New() parsers.Parser {
+	return &dockerFileFormat{}
+}
 
 type logLine struct {
 	Log    string
@@ -29,11 +42,11 @@ type logLine struct {
 type dockerFileFormat struct{}
 
 // Parse implements Parser#Parse
-func (p *dockerFileFormat) Parse(data []byte) (Message, error) {
+func (p *dockerFileFormat) Parse(data []byte) (parsers.Message, error) {
 	var log *logLine
 	err := json.Unmarshal(data, &log)
 	if err != nil {
-		return Message{
+		return parsers.Message{
 			Content:   data,
 			Status:    message.StatusInfo,
 			Timestamp: "",
@@ -43,9 +56,9 @@ func (p *dockerFileFormat) Parse(data []byte) (Message, error) {
 
 	var status string
 	switch log.Stream {
-	case stderr:
+	case "stderr":
 		status = message.StatusError
-	case stdout:
+	case "stdout":
 		status = message.StatusInfo
 	default:
 		status = ""
@@ -61,7 +74,7 @@ func (p *dockerFileFormat) Parse(data []byte) (Message, error) {
 			partial = true
 		}
 	}
-	return Message{
+	return parsers.Message{
 		Content:   content,
 		Status:    status,
 		Timestamp: log.Time,
