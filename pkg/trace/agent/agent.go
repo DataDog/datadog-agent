@@ -339,9 +339,10 @@ func (a *Agent) Process(p *api.Payload) {
 var _ api.StatsProcessor = (*Agent)(nil)
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
-	if features.Has("disable_cid_stats") || a.conf.FargateOrchestrator == fargate.Unknown {
-		// this functionality is disabled by the disable_cid_stats feature flag
-		// or we're not in a Fargate instance.
+	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != fargate.Unknown)
+	if !enableContainers || features.Has("disable_cid_stats") {
+		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
+		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
 		in.ContainerID = ""
 		in.Tags = nil
 	}

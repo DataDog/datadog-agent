@@ -15,24 +15,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/stretchr/testify/assert"
 )
 
 type testProcessorResponseValid struct{}
 
-func (tp *testProcessorResponseValid) OnInvokeStart(startDetails *InvocationStartDetails) {
+func (tp *testProcessorResponseValid) OnInvokeStart(startDetails *invocationlifecycle.InvocationStartDetails) {
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if len(startDetails.InvokeHeaders) != 3 {
-		panic("headers")
-	}
-	if !strings.HasSuffix(startDetails.InvokeEventPayload, "ok") {
+	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
 		panic("payload")
 	}
 }
 
-func (tp *testProcessorResponseValid) OnInvokeEnd(endDetails *InvocationEndDetails) {
+func (tp *testProcessorResponseValid) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails) {
 	if endDetails.IsError != false {
 		panic("isError")
 	}
@@ -43,19 +41,16 @@ func (tp *testProcessorResponseValid) OnInvokeEnd(endDetails *InvocationEndDetai
 
 type testProcessorResponseError struct{}
 
-func (tp *testProcessorResponseError) OnInvokeStart(startDetails *InvocationStartDetails) {
+func (tp *testProcessorResponseError) OnInvokeStart(startDetails *invocationlifecycle.InvocationStartDetails) {
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if len(startDetails.InvokeHeaders) != 3 {
-		panic("headers")
-	}
-	if !strings.HasSuffix(startDetails.InvokeEventPayload, "ok") {
+	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
 		panic("payload")
 	}
 }
 
-func (tp *testProcessorResponseError) OnInvokeEnd(endDetails *InvocationEndDetails) {
+func (tp *testProcessorResponseError) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails) {
 	if endDetails.IsError != true {
 		panic("isError")
 	}
