@@ -79,6 +79,7 @@ type Collector struct {
 	runRealTime bool
 }
 
+// initProcessChecksRuntime initializes global variables that are shared across pkg/process/checks
 func initProcessChecksRuntime() {
 	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
 	if batchSize <= 0 {

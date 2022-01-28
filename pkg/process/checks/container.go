@@ -37,8 +37,6 @@ type ContainerCheck struct {
 	lastCtrIDForPID map[int32]string
 	networkID       string
 
-	maxBatchSize int
-
 	containerFailedLogLimit *util.LogLimit
 }
 
