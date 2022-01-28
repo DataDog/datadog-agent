@@ -185,7 +185,7 @@ def kitchen_prepare(ctx, windows=is_windows):
     for pkg in TEST_PACKAGES_LIST:
         target_packages += (
             check_output(
-                f"go list -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
+                f"go list -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
                 shell=True,
             )
             .decode('utf-8')
