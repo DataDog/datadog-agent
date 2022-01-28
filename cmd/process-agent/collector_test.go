@@ -6,6 +6,8 @@
 package main
 
 import (
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -111,31 +113,29 @@ func TestDisableRealTime(t *testing.T) {
 		{
 			name:            "true",
 			disableRealtime: true,
-			expectedChecks:  []checks.Check{checks.Process, checks.Container},
+			expectedChecks:  []checks.Check{checks.Container},
 		},
 		{
 			name:            "false",
 			disableRealtime: false,
-			expectedChecks:  []checks.Check{checks.Process, checks.Container, checks.RTContainer},
+			expectedChecks:  []checks.Check{checks.Container, checks.RTContainer},
 		},
 	}
 
 	assert := assert.New(t)
 	cfg := config.NewDefaultAgentConfig()
-	enabledChecks := []checks.Check{
-		checks.Process,
-		checks.Container,
-		checks.RTContainer,
-	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock()
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
+			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
+
+			enabledChecks := getChecks(&sysconfig.Config{}, &oconfig.OrchestratorConfig{}, true)
+			assert.EqualValues(tc.expectedChecks, enabledChecks)
 
 			c, err := NewCollector(cfg, enabledChecks)
 			assert.NoError(err)
-			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
 		})
 	}

@@ -63,7 +63,7 @@ type ProcessCheck struct {
 	// Create times by PID used in the network check
 	createTimes atomic.Value
 
-	// sysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged proces stats
+	// sysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
 	sysprobeProcessModuleEnabled bool
 }
 
