@@ -1258,19 +1258,19 @@ api_key:
 
   ## @param queue_size - integer - optional - default: 256
   ## @env DD_PROCESS_CONFIG_QUEUE_SIZE - integer - optional - default: 256
-  ## How many check results to buffer in memory when POST fails.
+  ## The number of check results to buffer in memory when a POST fails.
   #
   # queue_size: 256
 
   ## @param process_queue_bytes - integer - optional - default: 60000000
   ## @env DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES - integer - optional - default: 60000000
-  ## How much check data (in bytes) to buffer in memory when POST fails.
+  ## The amount of data (in bytes) to buffer in memory when a POST fails.
   #
   # process_queue_bytes: 60000000
 
   ## @param rt_queue_size - integer - optional - default: 5
   ## @env DD_PROCESS_CONFIG_RT_QUEUE_SIZE - integer - optional - default: 5
-  ## How many realtime check results to buffer in memory when POST fails.
+  ## The number of realtime check results to buffer in memory when a POST fails.
   #
   # rt_queue_size: 5
 
