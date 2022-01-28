@@ -680,6 +680,8 @@ type UnloadModuleEvent struct {
 type SignalEvent struct {
 	SyscallEvent
 
-	Type uint32 `field:"type"` // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
-	PID  uint32 `field:"pid"`  // Target PID
+	Type                    uint32             `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+	PID                     uint32             `field:"pid"`    // Target PID
+	Target                  ProcessContext     `field:"target"` // Target process context
+	TargetProcessCacheEntry *ProcessCacheEntry `field:"-"`
 }

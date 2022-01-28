@@ -833,6 +833,10 @@
         "pid": {
           "type": "integer",
           "description": "signal target pid"
+        },
+        "target": {
+          "$ref": "#/definitions/ProcessContext",
+          "description": "process context of the signal target"
         }
       },
       "additionalProperties": false,

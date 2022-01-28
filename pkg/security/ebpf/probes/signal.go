@@ -10,8 +10,7 @@ package probes
 import manager "github.com/DataDog/ebpf-manager"
 
 // signalProbes holds the list of probes used to track signal events
-var signalProbes = []*manager.Probe{
-}
+var signalProbes []*manager.Probe
 
 func getSignalProbes() []*manager.Probe {
 	signalProbes = append(signalProbes, ExpandSyscallProbes(&manager.Probe{

@@ -243,8 +243,9 @@ type PTraceEventSerializer struct {
 
 // SignalSerializer serializes a signal event to JSON
 type SignalEventSerializer struct {
-	Type string `json:"type" jsonschema_description:"signal type"`
-	PID  uint32 `json:"pid" jsonschema_description:"signal target pid"`
+	Type   string                    `json:"type" jsonschema_description:"signal type"`
+	PID    uint32                    `json:"pid" jsonschema_description:"signal target pid"`
+	Target *ProcessContextSerializer `json:"target,omitempty" jsonschema_description:"process context of the signal target"`
 }
 
 // DDContextSerializer serializes a span context to JSON
@@ -576,10 +577,15 @@ func newUnloadModuleEventSerializer(e *Event) *ModuleEventSerializer {
 }
 
 func newSignalEventSerializer(e *Event) *SignalEventSerializer {
-	return &SignalEventSerializer{
+	ses := &SignalEventSerializer{
 		Type: model.Signal(e.Signal.Type).String(),
 		PID:  e.Signal.PID,
 	}
+	if e.Signal.TargetProcessCacheEntry != nil {
+		pcs := newProcessContextSerializer(e.Signal.TargetProcessCacheEntry, e, e.resolvers)
+		ses.Target = &pcs
+	}
+	return ses
 }
 
 func serializeSyscallRetval(retval int64) string {

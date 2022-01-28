@@ -590,6 +590,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode signal event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		// resolve target process context
+		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
+		if cacheEntry != nil {
+			event.Signal.TargetProcessCacheEntry = cacheEntry
+			event.Signal.Target = cacheEntry.ProcessContext
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
