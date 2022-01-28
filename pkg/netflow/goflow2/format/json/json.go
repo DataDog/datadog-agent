@@ -71,6 +71,13 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 		log.Debugf("DNS lookup error for addr `%s`:", srcAddr, err)
 	}
 
+	var direction string
+	if flowmsg.FlowDirection == 0 {
+		direction = "ingress"
+	} else {
+		direction = "egress"
+	}
+
 	tags := []string{
 		fmt.Sprintf("sampler_addr:%s", net.IP(flowmsg.SamplerAddress).String()),
 		fmt.Sprintf("flow_type:%s", flowmsg.Type.String()),
@@ -84,6 +91,7 @@ func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
 		fmt.Sprintf("icmp_type:%s", icmpType),
 		fmt.Sprintf("in_if:%d", flowmsg.InIf),
 		fmt.Sprintf("out_if:%d", flowmsg.OutIf),
+		fmt.Sprintf("direction:%s", direction),
 	}
 	if dstL7ProtoName != "" {
 		tags = append(tags, fmt.Sprintf("dst_l7_proto_name:%s", dstL7ProtoName))
