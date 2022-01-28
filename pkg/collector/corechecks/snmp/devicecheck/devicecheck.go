@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
@@ -77,7 +78,7 @@ func (d *DeviceCheck) GetIDTags() []string {
 func (d *DeviceCheck) GetDeviceHostname() string {
 	if d.config.UseDeviceIDAsHostname {
 		hostname := deviceHostnamePrefix + d.config.DeviceID
-		normalizedHostname := common.NormalizeHost(hostname)
+		normalizedHostname := util.NormalizeHost(hostname)
 		if hostname != normalizedHostname {
 			log.Warnf("Invalid namespace, device hostname %s normalized to: %s", hostname, normalizedHostname)
 		}

@@ -7,7 +7,6 @@ package common
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -106,21 +105,4 @@ func Test_CopyStrings(t *testing.T) {
 	assert.Equal(t, tags, newTags)
 	assert.NotEqual(t, fmt.Sprintf("%p", tags), fmt.Sprintf("%p", newTags))
 	assert.NotEqual(t, fmt.Sprintf("%p", &tags[0]), fmt.Sprintf("%p", &newTags[0]))
-}
-
-func TestNormalizeHost(t *testing.T) {
-	assert := assert.New(t)
-	long := strings.Repeat("a", 256)
-	assert.Len(NormalizeHost(long), 0, "long host should be dropped")
-	assert.Equal("a-b", NormalizeHost("a<b"), "< defanged")
-	assert.Equal("a-b", NormalizeHost("a>b"), "> defanged")
-	assert.Equal("example.com", NormalizeHost("example.com\r\n"), "NL/CR dropped")
-
-	// Invalid host name as bytes that would look like this: 9cbef2d1-8c20-4bf2-97a5-7d70��
-	b := []byte{
-		57, 99, 98, 101, 102, 50, 100, 49, 45, 56, 99, 50, 48, 45,
-		52, 98, 102, 50, 45, 57, 55, 97, 53, 45, 55, 100, 55, 48,
-		0, 0, 0, 0, 239, 191, 189, 239, 191, 189, 1, // these are bad bytes
-	}
-	assert.Equal("", NormalizeHost(string(b)))
 }
