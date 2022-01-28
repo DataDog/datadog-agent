@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -29,8 +31,8 @@ const (
 	// Allow buffering up to 60 megabytes of payload data in total
 	DefaultProcessQueueBytes = 60 * 1000 * 1000
 
-	// DefaultProcessMaxMessageBatch is the default maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
-	DefaultProcessMaxMessageBatch = 100
+	// DefaultProcessMaxPerMessage is the default maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
+	DefaultProcessMaxPerMessage = 100
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -81,7 +83,7 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.process_queue_bytes", DefaultProcessQueueBytes)
 	procBindEnvAndSetDefault(config, "process_config.rt_queue_size", DefaultProcessRTQueueSize)
-	procBindEnvAndSetDefault(config, "process_config.max_per_message", DefaultProcessMaxMessageBatch)
+	procBindEnvAndSetDefault(config, "process_config.max_per_message", DefaultProcessMaxPerMessage)
 	config.SetKnown("process_config.max_ctr_procs_per_message")
 	config.SetKnown("process_config.cmd_port")
 	config.SetKnown("process_config.intervals.process")

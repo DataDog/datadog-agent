@@ -56,9 +56,9 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 
 	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
-	if batchSize <= 0 || batchSize > ddconfig.DefaultProcessMaxMessageBatch {
-		log.Warnf("Invalid item count per message: %d. Using default value: %d", batchSize, ddconfig.DefaultProcessMaxMessageBatch)
-		batchSize = ddconfig.DefaultProcessMaxMessageBatch
+	if batchSize <= 0 || batchSize > ddconfig.DefaultProcessMaxPerMessage {
+		log.Warnf("Invalid item count per message: %d. Using default value: %d", batchSize, ddconfig.DefaultProcessMaxPerMessage)
+		batchSize = ddconfig.DefaultProcessMaxPerMessage
 	}
 	c.maxBatchSize = batchSize
 }

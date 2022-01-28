@@ -56,3 +56,59 @@ func TestProcessDiscoveryChunking(t *testing.T) {
 		assert.Len(t, chunkedProcs, test.expectedChunks)
 	}
 }
+
+func TestProcessDiscoveryCheckInit(t *testing.T) {
+	tests := []struct {
+		name                 string
+		override             bool
+		maxPerMessage        int
+		expectedMaxBatchSize int
+	}{
+		{
+			name:                 "default batch size",
+			override:             false,
+			maxPerMessage:        50,
+			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+		},
+		{
+			name:                 "valid batch size override",
+			override:             true,
+			maxPerMessage:        50,
+			expectedMaxBatchSize: 50,
+		},
+		{
+			name:                 "negative max batch size",
+			override:             true,
+			maxPerMessage:        -1,
+			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+		},
+		{
+			name:                 "0 max batch size",
+			override:             true,
+			maxPerMessage:        0,
+			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+		},
+		{
+			name:                 "big max batch size",
+			override:             true,
+			maxPerMessage:        2000,
+			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+		},
+	}
+
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig(false)
+	sysInfo := &model.SystemInfo{}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock()
+			if tc.override {
+				mockConfig.Set("process_config.max_per_message", tc.maxPerMessage)
+			}
+
+			ProcessDiscovery.Init(cfg, sysInfo)
+			assert.Equal(tc.expectedMaxBatchSize, ProcessDiscovery.maxBatchSize)
+		})
+	}
+}

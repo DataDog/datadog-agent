@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -154,4 +156,63 @@ func TestCalculateCtrPct(t *testing.T) {
 
 	// prev=-1 because of missing cgroup file in last run
 	assert.Equal(t, float32(-1), calculateCtrPct(3, -1, 0, 0, 1, currentTime, emptyTime))
+}
+
+func TestContainerCheckInit(t *testing.T) {
+	tests := []struct {
+		name                 string
+		override             bool
+		maxPerMessage        int
+		expectedMaxBatchSize int
+	}{
+		{
+			name:                 "default batch size",
+			override:             false,
+			maxPerMessage:        50,
+			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+		},
+		{
+			name:                 "valid batch size override",
+			override:             true,
+			maxPerMessage:        50,
+			expectedMaxBatchSize: 50,
+		},
+		{
+			name:                 "negative max batch size",
+			override:             true,
+			maxPerMessage:        -1,
+			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+		},
+		{
+			name:                 "0 max batch size",
+			override:             true,
+			maxPerMessage:        0,
+			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+		},
+		{
+			name:                 "big max batch size",
+			override:             true,
+			maxPerMessage:        2000,
+			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+		},
+	}
+
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig(false)
+	sysInfo := &model.SystemInfo{}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock()
+			if tc.override {
+				mockConfig.Set("process_config.max_per_message", tc.maxPerMessage)
+			}
+
+			Container.Init(cfg, sysInfo)
+			assert.Equal(tc.expectedMaxBatchSize, Container.maxBatchSize)
+
+			RTContainer.Init(cfg, sysInfo)
+			assert.Equal(tc.expectedMaxBatchSize, RTContainer.maxBatchSize)
+		})
+	}
 }
