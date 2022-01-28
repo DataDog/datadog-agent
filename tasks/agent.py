@@ -13,8 +13,10 @@ import shutil
 import sys
 from distutils.dir_util import copy_tree
 
+import toml
 from invoke import task
 from invoke.exceptions import Exit, ParseError
+from packaging.specifiers import SpecifierSet
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .docker import pull_base_images
@@ -627,22 +629,42 @@ def omnibus_manifest(
 
 
 @task
-def check_supports_python_version(_, filename, python):
+def check_supports_python_version(_, check_dir, python):
     """
-    Check if a setup.py file states support for a given major Python version.
+    Check if a Python project states support for a given major Python version.
     """
     if python not in ['2', '3']:
         raise Exit("invalid Python version", code=2)
 
-    with open(filename, 'r') as f:
-        tree = ast.parse(f.read(), filename=filename)
+    project_file = os.path.join(check_dir, 'pyproject.toml')
+    setup_file = os.path.join(check_dir, 'setup.py')
+    if os.path.isfile(project_file):
+        with open(project_file, 'r') as f:
+            data = toml.loads(f.read())
 
-    prefix = f'Programming Language :: Python :: {python}'
-    for node in ast.walk(tree):
-        if isinstance(node, ast.keyword) and node.arg == "classifiers":
-            classifiers = ast.literal_eval(node.value)
-            print(any(cls.startswith(prefix) for cls in classifiers), end="")
+        project_metadata = data['project']
+        if 'requires-python' not in project_metadata:
             return
+
+        specifier = SpecifierSet(project_metadata['requires-python'])
+        # It might be e.g. `>=3.8` which would not immediatelly contain `3`
+        for minor_version in range(100):
+            if specifier.contains(f'{python}.{minor_version}'):
+                break
+        else:
+            print('False', end='')
+    elif os.path.isfile(setup_file):
+        with open(setup_file, 'r') as f:
+            tree = ast.parse(f.read(), filename=setup_file)
+
+        prefix = f'Programming Language :: Python :: {python}'
+        for node in ast.walk(tree):
+            if isinstance(node, ast.keyword) and node.arg == "classifiers":
+                classifiers = ast.literal_eval(node.value)
+                print(any(cls.startswith(prefix) for cls in classifiers), end="")
+                return
+    else:
+        raise Exit("not a Python project", code=1)
 
 
 @task

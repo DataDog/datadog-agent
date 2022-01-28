@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Update Omnibus tooling to support Python checks defined by
+    a ``pyproject.toml`` file.
