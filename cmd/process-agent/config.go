@@ -35,7 +35,7 @@ func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAc
 
 	if sysCfg.Enabled {
 		if _, ok := sysCfg.EnabledModules[sysconfig.ProcessModule]; ok {
-			checks.Process.NotifySysprobeProcessModuleEnabled()
+			checks.Process.SysprobeProcessModuleEnabled = true
 		}
 		if _, ok := sysCfg.EnabledModules[sysconfig.NetworkTracerModule]; ok {
 			checkCfg = append(checkCfg, checks.Connections)

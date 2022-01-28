@@ -37,7 +37,7 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 	var sysProbeUtil *net.RemoteSysProbeUtil
 	// if the Process module is disabled, we allow Probe to collect
 	// fields that require elevated permission to collect with best effort
-	if !p.sysprobeProcessModuleEnabled {
+	if !p.SysprobeProcessModuleEnabled {
 		procutil.WithPermission(true)(p.probe)
 	} else {
 		procutil.WithPermission(false)(p.probe)

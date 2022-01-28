@@ -6,14 +6,14 @@
 package main
 
 import (
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
