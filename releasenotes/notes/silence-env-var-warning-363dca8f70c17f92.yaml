@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    The Agent no longer logs purious warnings regarding environment variables
+    The Agent no longer logs spurious warnings regarding proxy-related environment variables
     ``DD_PROXY_NO_PROXY``, ``DD_PROXY_HTTP``, and ``DD_PROXY_HTTPS``.
