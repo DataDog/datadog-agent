@@ -50,12 +50,6 @@ func (g *KeyGenerator) Generate(name, hostname string, tags *tagset.Tags) Contex
 	return ContextKey(hash)
 }
 
-// GenerateWithTags returns the ContextKey and TagsKey hashes for the given parameters.
-// tagsBuf is re-arranged in place and truncated to only contain unique tags.
-func (g *KeyGenerator) GenerateWithTags(name, hostname string, tags *tagset.Tags) (ContextKey, TagsKey) {
-	return g.Generate(name, hostname, tags), TagsKey(tags.Hash())
-}
-
 // Equals returns whether the two context keys are equal or not.
 func Equals(a, b ContextKey) bool {
 	return a == b
