@@ -34,7 +34,7 @@ func key(pieces ...string) string {
 }
 
 // LoadProcessYamlConfig load Process-specific configuration
-func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
+func (a *AgentConfig) LoadProcessYamlConfig(path string, canAccessContainers bool) error {
 	loadEnvVariables()
 
 	// Resolve any secrets
@@ -58,7 +58,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 
 	if config.Datadog.GetBool("process_config.process_collection.enabled") {
 		a.EnabledChecks = append(a.EnabledChecks, processChecks...)
-	} else if config.Datadog.GetBool("process_config.container_collection.enabled") {
+	} else if config.Datadog.GetBool("process_config.container_collection.enabled") && canAccessContainers {
 		// Container checks are enabled only when process checks are not (since they automatically collect container data).
 		a.EnabledChecks = append(a.EnabledChecks, containerChecks...)
 	}

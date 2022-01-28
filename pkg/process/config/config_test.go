@@ -271,7 +271,7 @@ func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
 
 func TestGetHostname(t *testing.T) {
 	ctx := context.Background()
-	_ = NewDefaultAgentConfig(false)
+	_ = NewDefaultAgentConfig()
 	h, err := getHostname(ctx, config.Datadog.GetString("process_config.dd_agent_bin"), 0)
 	assert.Nil(t, err)
 	// verify we fall back to getting os hostname
@@ -281,14 +281,14 @@ func TestGetHostname(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	assert := assert.New(t)
-	agentConfig := NewDefaultAgentConfig(false)
+	agentConfig := NewDefaultAgentConfig()
 
 	// assert that some sane defaults are set
 	assert.Equal("info", config.Datadog.GetString("log_level"))
 	assert.Equal(true, agentConfig.Scrubber.Enabled)
 
 	os.Setenv("DOCKER_DD_AGENT", "yes")
-	agentConfig = NewDefaultAgentConfig(false)
+	agentConfig = NewDefaultAgentConfig()
 	assert.Equal(os.Getenv("HOST_PROC"), "")
 	assert.Equal(os.Getenv("HOST_SYS"), "")
 	os.Setenv("DOCKER_DD_AGENT", "no")

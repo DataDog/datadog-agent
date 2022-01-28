@@ -170,16 +170,11 @@ func NewDefaultTransport() *http.Transport {
 }
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
-func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
+func NewDefaultAgentConfig() *AgentConfig {
 	processEndpoint, err := url.Parse(defaultProcessEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail
 		panic(err)
-	}
-
-	var enabledChecks []string
-	if canAccessContainers {
-		enabledChecks = containerChecks
 	}
 
 	ac := &AgentConfig{
@@ -208,7 +203,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
 
 		// Check config
-		EnabledChecks: enabledChecks,
+		EnabledChecks: nil,
 		CheckIntervals: map[string]time.Duration{
 			ProcessCheckName:     ProcessCheckDefaultInterval,
 			RTProcessCheckName:   RTProcessCheckDefaultInterval,
@@ -270,9 +265,9 @@ func LoadConfigIfExists(path string) error {
 func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config, canAccessContainers bool) (*AgentConfig, error) {
 	var err error
 
-	cfg := NewDefaultAgentConfig(canAccessContainers)
+	cfg := NewDefaultAgentConfig()
 
-	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
+	if err := cfg.LoadProcessYamlConfig(yamlPath, canAccessContainers); err != nil {
 		return nil, err
 	}
 
