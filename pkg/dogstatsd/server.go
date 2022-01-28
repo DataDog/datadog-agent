@@ -720,7 +720,7 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	ms.Count++
 	ms.LastSeen = now
 	ms.Name = sample.Name
-	ms.Tags = tags.String()
+	ms.Tags = strings.Join(tags.Sorted(), " ")
 	s.Debug.Stats[key] = ms
 
 	s.Debug.metricsCounts.metricChan <- struct{}{}
