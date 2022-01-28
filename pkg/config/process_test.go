@@ -67,14 +67,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: DefaultProcessQueueBytes,
 		},
 		{
-			key:          "process_config.rt_queue_size",
-			defaultValue: DefaultProcessQueueSize,
-		},
-		{
-			key:          "process_config.process_queue_bytes",
-			defaultValue: DefaultProcessQueueBytes,
-		},
-		{
 			key:          "process_config.max_per_message",
 			defaultValue: DefaultProcessMaxPerMessage,
 		},
@@ -195,7 +187,6 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: true,
 		},
 		{
-			<<<<<<< HEAD
 			key:      "process_config.enabled",
 			env:      "DD_PROCESS_CONFIG_ENABLED",
 			value:    "true",

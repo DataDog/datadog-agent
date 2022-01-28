@@ -37,7 +37,7 @@ const (
 	// DefaultProcessMaxCtrProcsPerMessage is the default maximum number of processes belonging to a container per message. Note: Only change if the defaults are causing issues.
 	DefaultProcessMaxCtrProcsPerMessage = 10000
 
-	// ProcessMaxCtrProcsPerMessageLimit is the max allowed value for process_config.max_ctr_procs_per_message.
+	// ProcessMaxCtrProcsPerMessageLimit is the maximum allowed value for process_config.max_ctr_procs_per_message.
 	ProcessMaxCtrProcsPerMessageLimit = 30000
 )
 
