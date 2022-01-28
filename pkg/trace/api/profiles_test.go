@@ -63,6 +63,9 @@ func TestProfileProxy(t *testing.T) {
 		if v := req.Header.Get("X-Datadog-Additional-Tags"); v != "key:val" {
 			t.Fatalf("got invalid X-Datadog-Additional-Tags: %q", v)
 		}
+		if v := req.Close; v != true {
+			t.Fatalf("proxied connection was not closed after request: %t", v)
+		}
 		_, err = w.Write([]byte("OK"))
 		if err != nil {
 			t.Fatal(err)

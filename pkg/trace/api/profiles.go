@@ -146,6 +146,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		r.Host = u.Host
 		r.URL = u
 		r.Header.Set("DD-API-KEY", apiKey)
+		r.Close = true
 	}
 	defer func() {
 		// Hack for backwards-compatibility
