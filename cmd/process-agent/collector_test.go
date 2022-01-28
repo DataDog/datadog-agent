@@ -175,7 +175,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -226,7 +226,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -276,7 +276,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
