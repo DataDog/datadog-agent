@@ -644,13 +644,15 @@ def check_supports_python_version(_, check_dir, python):
 
         project_metadata = data['project']
         if 'requires-python' not in project_metadata:
+            print('True', end='')
             return
 
         specifier = SpecifierSet(project_metadata['requires-python'])
         # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):
-                break
+                print('True', end='')
+                return
         else:
             print('False', end='')
     elif os.path.isfile(setup_file):
@@ -659,12 +661,14 @@ def check_supports_python_version(_, check_dir, python):
 
         prefix = f'Programming Language :: Python :: {python}'
         for node in ast.walk(tree):
-            if isinstance(node, ast.keyword) and node.arg == "classifiers":
+            if isinstance(node, ast.keyword) and node.arg == 'classifiers':
                 classifiers = ast.literal_eval(node.value)
-                print(any(cls.startswith(prefix) for cls in classifiers), end="")
+                print(any(cls.startswith(prefix) for cls in classifiers), end='')
                 return
+        else:
+            print('False', end='')
     else:
-        raise Exit("not a Python project", code=1)
+        raise Exit('not a Python project', code=1)
 
 
 @task
