@@ -3,8 +3,12 @@ import tempfile
 
 import requests
 from datadog_api_client.v2 import ApiClient, ApiException, Configuration
-from datadog_api_client.v2.api import logs_api, security_monitoring_api
+from datadog_api_client.v2.api import cloud_workload_security_api, logs_api, security_monitoring_api
 from datadog_api_client.v2.models import (
+    CloudWorkloadSecurityAgentRuleCreateAttributes,
+    CloudWorkloadSecurityAgentRuleCreateData,
+    CloudWorkloadSecurityAgentRuleCreateRequest,
+    CloudWorkloadSecurityAgentRuleType,
     LogsListRequest,
     LogsListRequestPage,
     LogsQueryFilter,
@@ -20,7 +24,6 @@ from datadog_api_client.v2.models import (
     SecurityMonitoringRuleQueryCreate,
     SecurityMonitoringRuleSeverity,
     SecurityMonitoringRuleTypeCreate,
-    SecurityMonitoringRuntimeAgentRule,
     SecurityMonitoringSignalListRequest,
     SecurityMonitoringSignalListRequestFilter,
     SecurityMonitoringSignalListRequestPage,
@@ -82,7 +85,7 @@ class App:
     def __exit__(self):
         self.api_client.rest_client.pool_manager.clear()
 
-    def create_cws_rule(self, name, msg, agent_rule_id, secl, tags=None):
+    def create_cws_signal_rule(self, name, msg, agent_rule_id, tags=None):
         if not tags:
             tags = []
 
@@ -106,12 +109,8 @@ class App:
             ),
             queries=[
                 SecurityMonitoringRuleQueryCreate(
-                    agent_rule=SecurityMonitoringRuntimeAgentRule(
-                        agent_rule_id=agent_rule_id,
-                        expression=secl,
-                    ),
                     aggregation=SecurityMonitoringRuleQueryAggregation("count"),
-                    query="a > 0",
+                    query="@agent.rule_id:" + agent_rule_id,
                     name="a",
                 ),
             ],
@@ -121,13 +120,41 @@ class App:
         response = api_instance.create_security_monitoring_rule(body)
         return response.id
 
-    def delete_rule(self, rule_id):
+    def create_cws_agent_rule(self, name, msg, secl, tags=None):
+        if not tags:
+            tags = []
+
+        api_instance = cloud_workload_security_api.CloudWorkloadSecurityApi(self.api_client)
+        body = CloudWorkloadSecurityAgentRuleCreateRequest(
+            data=CloudWorkloadSecurityAgentRuleCreateData(
+                attributes=CloudWorkloadSecurityAgentRuleCreateAttributes(
+                    description=msg,
+                    enabled=True,
+                    expression=secl,
+                    name=name,
+                ),
+                type=CloudWorkloadSecurityAgentRuleType("agent_rule"),
+            ),
+        )
+
+        api_response = api_instance.create_cloud_workload_security_agent_rule(body)
+        return api_response.data.id
+
+    def delete_signal_rule(self, rule_id):
         api_instance = security_monitoring_api.SecurityMonitoringApi(self.api_client)
 
         try:
             api_instance.delete_security_monitoring_rule(rule_id)
         except ApiException as e:
             print(f"Exception when calling SecurityMonitoringApi->delete_security_monitoring_rule: {e}")
+
+    def delete_agent_rule(self, rule_id):
+        api_instance = cloud_workload_security_api.CloudWorkloadSecurityApi(self.api_client)
+
+        try:
+            api_instance.delete_cloud_workload_security_agent_rule(rule_id)
+        except ApiException as e:
+            print(f"Exception when calling CloudWorkloadSecurityApi->delete_cloud_workload_security_agent_rule: {e}")
 
     def download_policies(self):
         site = os.environ["DD_SITE"]

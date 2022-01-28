@@ -99,6 +99,10 @@ func parseReleaseString(releaseString string) (Version, error) {
 	if major == 4 && minor == 14 && patch >= 252 {
 		patch = 255
 	}
+	// https://github.com/torvalds/linux/commit/a256aac5b7000bdf1232ed2bbd674582c0ab27ec
+	if major == 4 && minor == 19 && patch >= 222 {
+		patch = 255
+	}
 
 	return VersionCode(byte(major), byte(minor), byte(patch)), nil
 }

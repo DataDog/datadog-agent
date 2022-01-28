@@ -681,6 +681,39 @@ func TestHandleContainer(t *testing.T) {
 			},
 		},
 		{
+			name: "docker container with image that has no tag",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				Runtime: workloadmeta.ContainerRuntimeDocker,
+				Image: workloadmeta.ContainerImage{
+					RawName:   "redis",
+					Name:      "redis",
+					ShortName: "redis",
+					Tag:       "",
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source: containerSource,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"docker_image:redis", // Notice that there's no tag
+						"image_name:redis",
+						"short_image:redis",
+					}),
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "nomad container",
 			container: workloadmeta.Container{
 				EntityID: entityID,

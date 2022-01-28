@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -238,7 +239,9 @@ func (r *Resolvers) snapshot() error {
 		}
 
 		// Sync the process cache
-		cacheModified = r.ProcessResolver.SyncCache(proc)
+		if r.ProcessResolver.SyncCache(proc) {
+			cacheModified = true
+		}
 	}
 
 	// There is a possible race condition when a process starts right after we called process.AllProcesses

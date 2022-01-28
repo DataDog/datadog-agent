@@ -36,7 +36,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.remote_tagger",
-			defaultValue: true,
+			defaultValue: false,
 		},
 		{
 			key:          "process_config.process_discovery.enabled",
@@ -45,6 +45,14 @@ func TestProcessDefaultConfig(t *testing.T) {
 		{
 			key:          "process_config.process_discovery.interval",
 			defaultValue: 4 * time.Hour,
+		},
+		{
+			key:          "process_config.process_collection.enabled",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.container_collection.enabled",
+			defaultValue: true,
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
@@ -137,8 +145,8 @@ func TestEnvVarOverride(t *testing.T) {
 		{
 			key:      "process_config.remote_tagger",
 			env:      "DD_PROCESS_CONFIG_REMOTE_TAGGER",
-			value:    "false",
-			expected: false,
+			value:    "true",
+			expected: true,
 		},
 		{
 			key:      "process_config.process_discovery.enabled",
@@ -157,6 +165,30 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_DISABLE_REALTIME_CHECKS",
 			value:    "true",
 			expected: true,
+		},
+		{
+			key:      "process_config.enabled",
+			env:      "DD_PROCESS_CONFIG_ENABLED",
+			value:    "true",
+			expected: "true",
+		},
+		{
+			key:      "process_config.process_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.container_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.enabled",
+			env:      "DD_PROCESS_CONFIG_ENABLED",
+			value:    "false",
+			expected: "disabled",
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
@@ -194,4 +226,62 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 
 	// Make sure the default is set properly
 	assert.Equal(t, "asdf", cfg.GetString("process_config.foo.bar"))
+}
+
+func TestProcBindEnv(t *testing.T) {
+	cfg := setupConf()
+	procBindEnv(cfg, "process_config.foo.bar")
+
+	envs := map[string]struct{}{}
+	for _, env := range cfg.GetEnvVars() {
+		envs[env] = struct{}{}
+	}
+
+	_, ok := envs["DD_PROCESS_CONFIG_FOO_BAR"]
+	assert.True(t, ok)
+
+	_, ok = envs["DD_PROCESS_AGENT_FOO_BAR"]
+	assert.True(t, ok)
+
+	// Make sure that DD_PROCESS_CONFIG_FOO_BAR shows up as unset by default
+	assert.False(t, cfg.IsSet("process_config.foo.bar"))
+
+	// Try and set DD_PROCESS_CONFIG_FOO_BAR and make sure it shows up in the config
+	reset := setEnvForTest("DD_PROCESS_CONFIG_FOO_BAR", "baz")
+	assert.True(t, cfg.IsSet("process_config.foo.bar"))
+	assert.Equal(t, "baz", cfg.GetString("process_config.foo.bar"))
+	reset()
+}
+
+func TestProcConfigEnabledTransform(t *testing.T) {
+	for _, tc := range []struct {
+		procConfigEnabled                                      string
+		expectedContainerCollection, expectedProcessCollection bool
+	}{
+		{
+			procConfigEnabled:           "true",
+			expectedContainerCollection: false,
+			expectedProcessCollection:   true,
+		},
+		{
+			procConfigEnabled:           "false",
+			expectedContainerCollection: true,
+			expectedProcessCollection:   false,
+		},
+		{
+			procConfigEnabled:           "disabled",
+			expectedContainerCollection: false,
+			expectedProcessCollection:   false,
+		},
+	} {
+		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
+			cfg := setupConf()
+			cfg.Set("process_config.enabled", tc.procConfigEnabled)
+			loadProcessTransforms(cfg)
+
+			assert.Equal(t, tc.expectedContainerCollection, cfg.GetBool("process_config.container_collection.enabled"))
+			assert.Equal(t, tc.expectedProcessCollection, cfg.GetBool("process_config.process_collection.enabled"))
+		})
+	}
+
 }

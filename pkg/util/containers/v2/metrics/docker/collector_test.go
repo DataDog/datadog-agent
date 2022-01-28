@@ -4,7 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker && (linux || windows)
-// +build docker,linux docker,windows
+// +build docker
+// +build linux windows
 
 package docker
 
