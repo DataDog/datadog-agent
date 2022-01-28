@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package aggregator
@@ -36,7 +37,7 @@ func benchWithTagsStore(t *testing.B, test func(*testing.B, *tags.Store)) {
 func assertContext(t *testing.T, cx *Context, name string, tags []string, host string) {
 	assert.Equal(t, cx.Name, name)
 	assert.Equal(t, cx.Host, host)
-	assert.Equal(t, tagset.NewTags(cx.Tags()).String(), tagset.NewTags(tags).String())
+	assert.Equal(t, tagset.NewTags(cx.Tags()).Sorted(), tagset.NewTags(tags).Sorted())
 }
 
 func TestGenerateContextKey(t *testing.T) {
