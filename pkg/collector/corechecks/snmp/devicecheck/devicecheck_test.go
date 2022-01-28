@@ -6,6 +6,7 @@
 package devicecheck
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -326,4 +327,47 @@ community_string: public
 	deviceCk.SetSender(report.NewMetricSender(sender, "device:123"))
 	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4"})
+}
+
+func TestDeviceCheck_GetHostname(t *testing.T) {
+	checkconfig.SetConfdPathAndCleanProfiles()
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession)
+	assert.Nil(t, err)
+
+	assert.Equal(t, "", deviceCk.GetDeviceHostname())
+
+	deviceCk.config.UseDeviceIDAsHostname = true
+	assert.Equal(t, "device:default:1.2.3.4", deviceCk.GetDeviceHostname())
+
+	deviceCk.config.UseDeviceIDAsHostname = false
+	assert.Equal(t, "", deviceCk.GetDeviceHostname())
+
+	deviceCk.config.UseDeviceIDAsHostname = true
+	deviceCk.config.Namespace = "a>b"
+	deviceCk.config.UpdateDeviceIDAndTags()
+	assert.Equal(t, "device:a-b:1.2.3.4", deviceCk.GetDeviceHostname())
+
+	deviceCk.config.Namespace = "a<b"
+	deviceCk.config.UpdateDeviceIDAndTags()
+	assert.Equal(t, "device:a-b:1.2.3.4", deviceCk.GetDeviceHostname())
+
+	deviceCk.config.Namespace = "a\n\r\tb"
+	deviceCk.config.UpdateDeviceIDAndTags()
+	assert.Equal(t, "device:ab:1.2.3.4", deviceCk.GetDeviceHostname())
+
+	deviceCk.config.Namespace = strings.Repeat("a", 256)
+	deviceCk.config.UpdateDeviceIDAndTags()
+	assert.Equal(t, "", deviceCk.GetDeviceHostname())
 }

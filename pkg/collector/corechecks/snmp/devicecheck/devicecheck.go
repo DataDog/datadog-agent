@@ -76,7 +76,12 @@ func (d *DeviceCheck) GetIDTags() []string {
 // GetDeviceHostname returns DeviceID as hostname if UseDeviceIDAsHostname is true
 func (d *DeviceCheck) GetDeviceHostname() string {
 	if d.config.UseDeviceIDAsHostname {
-		return deviceHostnamePrefix + d.config.DeviceID
+		hostname := deviceHostnamePrefix + d.config.DeviceID
+		normalizedHostname := common.NormalizeHost(hostname)
+		if hostname != normalizedHostname {
+			log.Warnf("Invalid namespace, device hostname %s normalized to: %s", hostname, normalizedHostname)
+		}
+		return normalizedHostname
 	}
 	return ""
 }
