@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build windows
 // +build windows
 
 package file
@@ -18,7 +19,7 @@ import (
 
 // setup sets up the file tailer
 func (t *Tailer) setup(offset int64, whence int) error {
-	fullpath, err := filepath.Abs(t.file.Path)
+	fullpath, err := filepath.Abs(t.File.Path)
 	if err != nil {
 		return err
 	}
@@ -88,7 +89,7 @@ func (t *Tailer) read() (int, error) {
 	if err == io.EOF || os.IsNotExist(err) {
 		return n, nil
 	} else if err != nil {
-		t.file.Source.Status.Error(err)
+		t.File.Source.Status.Error(err)
 		return n, log.Error("Err: ", err)
 	}
 	return n, nil
