@@ -42,3 +42,27 @@ func CopyStrings(tags []string) []string {
 func GetAgentVersionTag() string {
 	return "agent_version:" + version.AgentVersion
 }
+
+// ValidateNamespace applies
+func ValidateNamespace(namespace string) error {
+	if namespace == "" {
+		// Can only happen if snmp_listener.namespace config is set to empty string in `datadog.yaml`
+		return fmt.Errorf("namespace cannot be empty")
+	}
+
+	// namespace longer than 100 characters are illegal
+	if len(namespace) > 100 {
+		return fmt.Errorf("namespace too long (> 100)")
+	}
+
+	// using NormalizeHost rune policy
+	for _, r := range namespace {
+		switch r {
+		// has null rune just toss the whole thing
+		case '\x00', '\n', '\r', '\t', '>', '<':
+			return fmt.Errorf("namespace cannot contain [%v], only alphanumeric characters allowed", r)
+		}
+	}
+
+	return nil
+}
