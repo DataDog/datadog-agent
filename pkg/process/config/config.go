@@ -40,6 +40,7 @@ import (
 // This mirrors the configuration for the infrastructure agent.
 const defaultProxyPort = 3128
 
+// Name for check performed by process-agent or system-probe
 const (
 	ProcessCheckName     = "process"
 	RTProcessCheckName   = "rtprocess"
