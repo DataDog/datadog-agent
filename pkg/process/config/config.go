@@ -95,15 +95,14 @@ type WindowsConfig struct {
 //
 // Deprecated. Use `pkg/config` directly.
 type AgentConfig struct {
-	Enabled                   bool
-	HostName                  string
-	APIEndpoints              []apicfg.Endpoint
-	Blacklist                 []*regexp.Regexp
-	Scrubber                  *DataScrubber
-	MaxCtrProcessesPerMessage int // The maximum number of processes that belong to a container for a given message
-	MaxConnsPerMessage        int
-	Transport                 *http.Transport `json:"-"`
-	ProcessExpVarPort         int
+	Enabled            bool
+	HostName           string
+	APIEndpoints       []apicfg.Endpoint
+	Blacklist          []*regexp.Regexp
+	Scrubber           *DataScrubber
+	MaxConnsPerMessage int
+	Transport          *http.Transport `json:"-"`
+	ProcessExpVarPort  int
 
 	// profiling settings, or nil if profiling is not enabled
 	ProfilingSettings *profiling.Settings
@@ -182,12 +181,11 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
 
-		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
-		MaxConnsPerMessage:        600,
-		HostName:                  "",
-		Transport:                 NewDefaultTransport(),
-		ProcessExpVarPort:         6062,
-		ContainerHostType:         model.ContainerHostType_notSpecified,
+		MaxConnsPerMessage: 600,
+		HostName:           "",
+		Transport:          NewDefaultTransport(),
+		ProcessExpVarPort:  6062,
+		ContainerHostType:  model.ContainerHostType_notSpecified,
 
 		// System probe collection configuration
 		EnableSystemProbe:  false,
@@ -372,7 +370,6 @@ func loadEnvVariables() {
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
-		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS", "process_config.windows.use_perf_counters"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},

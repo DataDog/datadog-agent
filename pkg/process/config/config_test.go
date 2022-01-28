@@ -148,11 +148,6 @@ func TestOnlyEnvConfig(t *testing.T) {
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
 	// Process discovery enabled by default enables the process agent
 	assert.True(t, agentConfig.Enabled)
-
-	_ = os.Setenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "1234")
-	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
-	assert.Equal(t, 1234, agentConfig.MaxCtrProcessesPerMessage)
-	_ = os.Unsetenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE")
 }
 
 // TestEnvGrpcConnectionTimeoutSecs tests DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS.

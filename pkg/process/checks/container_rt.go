@@ -35,8 +35,11 @@ func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo
 	r.sysInfo = sysInfo
 
 	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
-	if batchSize <= 0 || batchSize > ddconfig.DefaultProcessMaxPerMessage {
-		log.Warnf("Invalid item count per message: %d. Using default value: %d", batchSize, ddconfig.DefaultProcessMaxPerMessage)
+	if batchSize <= 0 {
+		log.Warnf("Invalid rt container count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxPerMessage)
+		batchSize = ddconfig.DefaultProcessMaxPerMessage
+	} else if batchSize > ddconfig.DefaultProcessMaxPerMessage {
+		log.Warnf("Overriding the configured max of rt container count per message because it exceeds maximum limit of %d", ddconfig.DefaultProcessMaxPerMessage)
 		batchSize = ddconfig.DefaultProcessMaxPerMessage
 	}
 	r.maxBatchSize = batchSize

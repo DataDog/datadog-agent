@@ -78,6 +78,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.max_per_message",
 			defaultValue: DefaultProcessMaxPerMessage,
 		},
+		{
+			key:          "process_config.max_ctr_procs_per_message",
+			defaultValue: DefaultProcessMaxCtrProcsPerMessage,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -238,6 +242,12 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_MAX_PER_MESSAGE",
 			value:    "10",
 			expected: 10,
+		},
+		{
+			key:      "process_config.max_ctr_procs_per_message",
+			env:      "DD_PROCESS_CONFIG_MAX_CTR_PROCS_PER_MESSAGE",
+			value:    "20",
+			expected: 20,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {

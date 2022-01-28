@@ -64,7 +64,8 @@ type ProcessCheck struct {
 	// Create times by PID used in the network check
 	createTimes atomic.Value
 
-	maxBatchSize int
+	maxBatchSize         int
+	maxCtrProcsBatchSize int
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -81,11 +82,24 @@ func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	p.networkID = networkID
 
 	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
-	if batchSize <= 0 || batchSize > ddconfig.DefaultProcessMaxPerMessage {
-		log.Warnf("Invalid item count per message: %d. Using default value: %d", batchSize, ddconfig.DefaultProcessMaxPerMessage)
+	if batchSize <= 0 {
+		log.Warnf("Invalid process count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxPerMessage)
+		batchSize = ddconfig.DefaultProcessMaxPerMessage
+	} else if batchSize > ddconfig.DefaultProcessMaxPerMessage {
+		log.Warnf("Overriding the configured max of processes count per message because it exceeds maximum limit of %d", ddconfig.DefaultProcessMaxPerMessage)
 		batchSize = ddconfig.DefaultProcessMaxPerMessage
 	}
 	p.maxBatchSize = batchSize
+
+	ctrProcsBatchSize := ddconfig.Datadog.GetInt("process_config.max_ctr_procs_per_message")
+	if ctrProcsBatchSize <= 0 {
+		log.Warnf("Invalid max container processes count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxCtrProcsPerMessage)
+		ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
+	} else if ctrProcsBatchSize > ddconfig.ProcessMaxCtrProcsPerMessageLimit {
+		log.Warnf("Overriding the configured max of container processes count per message because it exceeds maximum limit of %d", ddconfig.ProcessMaxCtrProcsPerMessageLimit)
+		ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
+	}
+	p.maxCtrProcsBatchSize = ctrProcsBatchSize
 }
 
 // Name returns the name of the ProcessCheck.
@@ -182,7 +196,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.maxBatchSize, p.sysInfo, groupID, p.networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.maxBatchSize, p.maxCtrProcsBatchSize, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -262,6 +276,7 @@ func createProcCtrMessages(
 	containers []*model.Container,
 	cfg *config.AgentConfig,
 	maxBatchSize int,
+	maxCtrProcsBatchSize int,
 	sysInfo *model.SystemInfo,
 	groupID int32,
 	networkID string,
@@ -282,7 +297,7 @@ func createProcCtrMessages(
 		})
 	}
 
-	procCtrMessages := packProcCtrMessages(cfg.MaxCtrProcessesPerMessage, procsByCtr, containers,
+	procCtrMessages := packProcCtrMessages(maxCtrProcsBatchSize, procsByCtr, containers,
 		func(p []*model.Process, c ...*model.Container) *model.CollectorProc {
 			return &model.CollectorProc{
 				HostName:          cfg.HostName,
