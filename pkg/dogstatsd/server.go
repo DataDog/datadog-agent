@@ -401,11 +401,20 @@ func (s *Server) handleMessages() {
 		go l.Listen()
 	}
 
-	// Run min(2, GoMaxProcs-2) workers, we dedicate a core to the
-	// listener goroutine and another to aggregator + forwarder
-	workersCount := runtime.GOMAXPROCS(-1) - 2
+	// We let available:
+	// - a core to the listener goroutine
+	// - one per aggregation pipeline (time sampler)
+	// But we want at minimum 2 workers.
+	pc := config.Datadog.GetInt("dogstatsd_pipeline_count")
+	workersCount := runtime.GOMAXPROCS(-1) - 1 - pc
 	if workersCount < 2 {
 		workersCount = 2
+	}
+
+	// undocumented configuration field to force the amount of dogstatsd workers
+	// mainly used for benchmarks or some very specific use-case.
+	if configWC := config.Datadog.GetInt("dogstatsd_workers_count"); configWC != 0 {
+		workersCount = configWC
 	}
 
 	for i := 0; i < workersCount; i++ {
