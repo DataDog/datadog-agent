@@ -1,4 +1,5 @@
 #!/bin/bash
+# Trigger tests
 
 echo "Building Java Lambda Functions"
 java_test_dirs=("metric" "trace" "log" "timeout" "error")
