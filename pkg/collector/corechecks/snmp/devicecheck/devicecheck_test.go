@@ -346,28 +346,42 @@ community_string: public
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession)
 	assert.Nil(t, err)
 
-	assert.Equal(t, "", deviceCk.GetDeviceHostname())
+	hostname, err := deviceCk.GetDeviceHostname()
+	assert.Nil(t, err)
+	assert.Equal(t, "", hostname)
 
 	deviceCk.config.UseDeviceIDAsHostname = true
-	assert.Equal(t, "device:default:1.2.3.4", deviceCk.GetDeviceHostname())
+	hostname, err = deviceCk.GetDeviceHostname()
+	assert.Nil(t, err)
+	assert.Equal(t, "device:default:1.2.3.4", hostname)
 
 	deviceCk.config.UseDeviceIDAsHostname = false
-	assert.Equal(t, "", deviceCk.GetDeviceHostname())
+	hostname, err = deviceCk.GetDeviceHostname()
+	assert.Nil(t, err)
+	assert.Equal(t, "", hostname)
 
 	deviceCk.config.UseDeviceIDAsHostname = true
 	deviceCk.config.Namespace = "a>b"
 	deviceCk.config.UpdateDeviceIDAndTags()
-	assert.Equal(t, "device:a-b:1.2.3.4", deviceCk.GetDeviceHostname())
+	hostname, err = deviceCk.GetDeviceHostname()
+	assert.Nil(t, err)
+	assert.Equal(t, "device:a-b:1.2.3.4", hostname)
 
 	deviceCk.config.Namespace = "a<b"
 	deviceCk.config.UpdateDeviceIDAndTags()
-	assert.Equal(t, "device:a-b:1.2.3.4", deviceCk.GetDeviceHostname())
+	hostname, err = deviceCk.GetDeviceHostname()
+	assert.Nil(t, err)
+	assert.Equal(t, "device:a-b:1.2.3.4", hostname)
 
 	deviceCk.config.Namespace = "a\n\r\tb"
 	deviceCk.config.UpdateDeviceIDAndTags()
-	assert.Equal(t, "device:ab:1.2.3.4", deviceCk.GetDeviceHostname())
+	hostname, err = deviceCk.GetDeviceHostname()
+	assert.Nil(t, err)
+	assert.Equal(t, "device:ab:1.2.3.4", hostname)
 
 	deviceCk.config.Namespace = strings.Repeat("a", 256)
 	deviceCk.config.UpdateDeviceIDAndTags()
-	assert.Equal(t, "", deviceCk.GetDeviceHostname())
+	hostname, err = deviceCk.GetDeviceHostname()
+	assert.NotNil(t, err)
+	assert.Equal(t, "", hostname)
 }

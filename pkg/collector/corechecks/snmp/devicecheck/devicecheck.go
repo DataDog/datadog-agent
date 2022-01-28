@@ -75,16 +75,19 @@ func (d *DeviceCheck) GetIDTags() []string {
 }
 
 // GetDeviceHostname returns DeviceID as hostname if UseDeviceIDAsHostname is true
-func (d *DeviceCheck) GetDeviceHostname() string {
+func (d *DeviceCheck) GetDeviceHostname() (string, error) {
 	if d.config.UseDeviceIDAsHostname {
 		hostname := deviceHostnamePrefix + d.config.DeviceID
 		normalizedHostname := util.NormalizeHost(hostname)
-		if hostname != normalizedHostname {
-			log.Warnf("Invalid namespace, device hostname %s normalized to: %s", hostname, normalizedHostname)
+		if normalizedHostname == "" {
+			return "", fmt.Errorf("invalid hostname: %s", hostname)
 		}
-		return normalizedHostname
+		if hostname != normalizedHostname {
+			log.Warnf("Invalid hostname %s, normalized to: %s", hostname, normalizedHostname)
+		}
+		return normalizedHostname, nil
 	}
-	return ""
+	return "", nil
 }
 
 // Run executes the check
@@ -127,8 +130,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 }
 
 func (d *DeviceCheck) setDeviceHostExternalTags() {
-	deviceHostname := d.GetDeviceHostname()
-	if deviceHostname == "" {
+	deviceHostname, err := d.GetDeviceHostname()
+	if deviceHostname == "" || err != nil {
 		return
 	}
 	agentTags := config.GetConfiguredTags(false)
