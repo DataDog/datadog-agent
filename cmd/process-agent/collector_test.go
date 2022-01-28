@@ -19,7 +19,7 @@ import (
 
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	c, err := NewCollector(cfg)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -55,7 +55,7 @@ func TestUpdateRTStatus(t *testing.T) {
 
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	c, err := NewCollector(cfg)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -120,7 +120,7 @@ func TestDisableRealTime(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	cfg.EnabledChecks = []string{
 		config.ProcessCheckName,
 		config.RTProcessCheckName,
