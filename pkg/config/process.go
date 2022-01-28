@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -139,15 +137,4 @@ func loadProcessTransforms(config Config) {
 			config.Set("process_config.container_collection.enabled", true)
 		}
 	}
-}
-
-// GetProcessBatchSize the value of process_config.max_per_message. The setting should be in (0,maxBatchSize]. Otherwise, matchBachSize is returned
-func GetProcessBatchSize(config Config, maxBatchSize int) int {
-	batchSize := config.GetInt("process_config.max_per_message")
-	if batchSize <= 0 || batchSize > maxBatchSize {
-		log.Warnf("Invalid item count per message: %d. Using default value: %d", batchSize, maxBatchSize)
-		batchSize = maxBatchSize
-	}
-
-	return batchSize
 }

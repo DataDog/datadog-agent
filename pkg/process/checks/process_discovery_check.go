@@ -13,6 +13,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProcessDiscovery is a ProcessDiscoveryCheck singleton. ProcessDiscovery should not be instantiated elsewhere.
@@ -35,7 +36,12 @@ func (d *ProcessDiscoveryCheck) Init(cfg *config.AgentConfig, info *model.System
 	d.initCalled = true
 	d.probe = getProcessProbe(cfg)
 
-	d.maxBatchSize = ddconfig.GetProcessBatchSize(ddconfig.Datadog, ddconfig.DefaultProcessMaxMessageBatch)
+	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
+	if batchSize <= 0 || batchSize > ddconfig.DefaultProcessMaxMessageBatch {
+		log.Warnf("Invalid item count per message: %d. Using default value: %d", batchSize, ddconfig.DefaultProcessMaxMessageBatch)
+		batchSize = ddconfig.DefaultProcessMaxMessageBatch
+	}
+	d.maxBatchSize = batchSize
 }
 
 // Name returns the name of the ProcessDiscoveryCheck.

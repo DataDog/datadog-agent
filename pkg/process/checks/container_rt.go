@@ -34,7 +34,12 @@ type RTContainerCheck struct {
 func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) {
 	r.sysInfo = sysInfo
 
-	r.maxBatchSize = ddconfig.GetProcessBatchSize(ddconfig.Datadog, ddconfig.DefaultProcessMaxMessageBatch)
+	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
+	if batchSize <= 0 || batchSize > ddconfig.DefaultProcessMaxMessageBatch {
+		log.Warnf("Invalid item count per message: %d. Using default value: %d", batchSize, ddconfig.DefaultProcessMaxMessageBatch)
+		batchSize = ddconfig.DefaultProcessMaxMessageBatch
+	}
+	r.maxBatchSize = batchSize
 }
 
 // Name returns the name of the RTContainerCheck.

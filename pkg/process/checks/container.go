@@ -55,7 +55,12 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 
-	c.maxBatchSize = ddconfig.GetProcessBatchSize(ddconfig.Datadog, ddconfig.DefaultProcessMaxMessageBatch)
+	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
+	if batchSize <= 0 || batchSize > ddconfig.DefaultProcessMaxMessageBatch {
+		log.Warnf("Invalid item count per message: %d. Using default value: %d", batchSize, ddconfig.DefaultProcessMaxMessageBatch)
+		batchSize = ddconfig.DefaultProcessMaxMessageBatch
+	}
+	c.maxBatchSize = batchSize
 }
 
 // Name returns the name of the ProcessCheck.
