@@ -33,6 +33,10 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/ModuleEvent"
     },
+    "signal": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/SignalEvent"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -811,6 +815,24 @@
           "$schema": "http://json-schema.org/draft-04/schema#",
           "$ref": "#/definitions/SELinuxBoolCommit",
           "description": "SELinux boolean commit"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SignalEvent": {
+      "required": [
+        "type",
+        "pid"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "signal type"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "signal target pid"
         }
       },
       "additionalProperties": false,

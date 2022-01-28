@@ -584,6 +584,10 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
+		}
+	case model.SignalEventType:
+		if _, err = event.Signal.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode signal event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	default:

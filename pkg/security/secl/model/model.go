@@ -147,6 +147,7 @@ type Event struct {
 	SetUID SetuidEvent `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
+	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
 
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
 	BPF          BPFEvent          `field:"bpf" event:"bpf"`                     // [7.33] [Kernel] A BPF command was executed
@@ -673,4 +674,12 @@ type UnloadModuleEvent struct {
 	SyscallEvent
 
 	Name string `field:"name"` // Name of the kernel module that was deleted
+}
+
+// SignalEvent represents a signal event
+type SignalEvent struct {
+	SyscallEvent
+
+	Type uint32 `field:"type"` // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+	PID  uint32 `field:"pid"`  // Target PID
 }

@@ -73,6 +73,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("setxattr"),
 
+		eval.EventType("signal"),
+
 		eval.EventType("unlink"),
 
 		eval.EventType("unload_module"),
@@ -6705,6 +6707,36 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "signal.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.PID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Signal.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "unlink.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7972,6 +8004,12 @@ func (e *Event) GetFields() []eval.Field {
 		"setxattr.file.user",
 
 		"setxattr.retval",
+
+		"signal.pid",
+
+		"signal.retval",
+
+		"signal.type",
 
 		"unlink.file.change_time",
 
@@ -11546,6 +11584,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.SetXAttr.SyscallEvent.Retval), nil
 
+	case "signal.pid":
+
+		return int(e.Signal.PID), nil
+
+	case "signal.retval":
+
+		return int(e.Signal.SyscallEvent.Retval), nil
+
+	case "signal.type":
+
+		return int(e.Signal.Type), nil
+
 	case "unlink.file.change_time":
 
 		return int(e.Unlink.File.FileFields.CTime), nil
@@ -13091,6 +13141,15 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "setxattr.retval":
 		return "setxattr", nil
+
+	case "signal.pid":
+		return "signal", nil
+
+	case "signal.retval":
+		return "signal", nil
+
+	case "signal.type":
+		return "signal", nil
 
 	case "unlink.file.change_time":
 		return "unlink", nil
@@ -15073,6 +15132,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 
 	case "setxattr.retval":
+
+		return reflect.Int, nil
+
+	case "signal.pid":
+
+		return reflect.Int, nil
+
+	case "signal.retval":
+
+		return reflect.Int, nil
+
+	case "signal.type":
 
 		return reflect.Int, nil
 
@@ -20649,6 +20720,39 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.SyscallEvent.Retval"}
 		}
 		e.SetXAttr.SyscallEvent.Retval = int64(v)
+
+		return nil
+
+	case "signal.pid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.PID"}
+		}
+		e.Signal.PID = uint32(v)
+
+		return nil
+
+	case "signal.retval":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.SyscallEvent.Retval"}
+		}
+		e.Signal.SyscallEvent.Retval = int64(v)
+
+		return nil
+
+	case "signal.type":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Type"}
+		}
+		e.Signal.Type = uint32(v)
 
 		return nil
 

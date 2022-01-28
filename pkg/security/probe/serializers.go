@@ -241,6 +241,12 @@ type PTraceEventSerializer struct {
 	Tracee  *ProcessContextSerializer `json:"tracee,omitempty" jsonschema_description:"process context of the tracee"`
 }
 
+// SignalSerializer serializes a signal event to JSON
+type SignalEventSerializer struct {
+	Type string `json:"type" jsonschema_description:"signal type"`
+	PID  uint32 `json:"pid" jsonschema_description:"signal target pid"`
+}
+
 // DDContextSerializer serializes a span context to JSON
 // easyjson:json
 type DDContextSerializer struct {
@@ -265,6 +271,7 @@ type EventSerializer struct {
 	*MProtectEventSerializer   `json:"mprotect,omitempty"`
 	*PTraceEventSerializer     `json:"ptrace,omitempty"`
 	*ModuleEventSerializer     `json:"module,omitempty"`
+	*SignalEventSerializer     `json:"signal,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
 	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
@@ -568,6 +575,13 @@ func newUnloadModuleEventSerializer(e *Event) *ModuleEventSerializer {
 	}
 }
 
+func newSignalEventSerializer(e *Event) *SignalEventSerializer {
+	return &SignalEventSerializer{
+		Type: model.Signal(e.Signal.Type).String(),
+		PID:  e.Signal.PID,
+	}
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
 	case syscall.Errno(retval) == syscall.EACCES || syscall.Errno(retval) == syscall.EPERM:
@@ -786,6 +800,9 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.UnloadModuleEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.UnloadModule.Retval)
 		s.ModuleEventSerializer = newUnloadModuleEventSerializer(event)
+	case model.SignalEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Signal.Retval)
+		s.SignalEventSerializer = newSignalEventSerializer(event)
 	}
 
 	return s

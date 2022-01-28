@@ -180,6 +180,11 @@ struct syscall_cache_t {
         struct {
             char *name;
         } delete_module;
+
+        struct {
+            u32 pid;
+            u32 type;
+        } signal;
     };
 };
 

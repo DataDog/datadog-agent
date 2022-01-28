@@ -2531,6 +2531,30 @@
       ]
     },
     {
+      "name": "signal",
+      "definition": "A signal was sent",
+      "type": "Process",
+      "from_agent_version": "7.35",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "signal.pid",
+          "type": "int",
+          "definition": "Target PID"
+        },
+        {
+          "name": "signal.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        },
+        {
+          "name": "signal.type",
+          "type": "int",
+          "definition": "Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)"
+        }
+      ]
+    },
+    {
       "name": "unlink",
       "definition": "A file was deleted",
       "type": "File",

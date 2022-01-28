@@ -51,6 +51,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `setgid` | Process | A process changed its effective gid | 7.27 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
+| `signal` | Process | A signal was sent | 7.35 |
 | `unlink` | File | A file was deleted | 7.27 |
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
@@ -748,6 +749,16 @@ Set exteneded attributes
 | `setxattr.file.uid` | int | UID of the file's owner |
 | `setxattr.file.user` | string | User of the file's owner |
 | `setxattr.retval` | int | Return value of the syscall |
+
+### Event `signal`
+
+A signal was sent
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `signal.pid` | int | Target PID |
+| `signal.retval` | int | Return value of the syscall |
+| `signal.type` | int | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
 
 ### Event `unlink`
 

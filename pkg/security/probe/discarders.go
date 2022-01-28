@@ -620,4 +620,5 @@ func init() {
 	allDiscarderHandlers["ptrace"] = processDiscarderWrapper(model.PTraceEventType, nil)
 	allDiscarderHandlers["load_module"] = processDiscarderWrapper(model.LoadModuleEventType, nil)
 	allDiscarderHandlers["unload_module"] = processDiscarderWrapper(model.UnloadModuleEventType, nil)
+	allDiscarderHandlers["signal"] = processDiscarderWrapper(model.SignalEventType, nil)
 }
