@@ -187,65 +187,43 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		return
 	}
 
-	var manifestPayloads []checkPayload
-	payloads := make([]checkPayload, 0, len(messages))
 	if name == config.PodCheckName {
-		payloads = make([]checkPayload, 0, len(messages)/2)
-		manifestPayloads = make([]checkPayload, 0, len(messages)/2)
-	}
-	sizeInBytes := 0
-	manifestSizeInBytes := 0
+		podtMessagesToResults(l, start, name, messages, results)
+	} else {
+		payloads := make([]checkPayload, 0, len(messages))
+		sizeInBytes := 0
 
-	for _, m := range messages {
-		body, err := api.EncodePayload(m)
-		if err != nil {
-			log.Errorf("Unable to encode message: %s", err)
-			continue
-		}
-
-		extraHeaders := make(http.Header)
-		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
-		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
-		extraHeaders.Set(headers.ProcessVersionHeader, Version)
-		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
-
-		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
-			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-				extraHeaders.Set(headers.ClusterIDHeader, cid)
+		for _, m := range messages {
+			body, err := api.EncodePayload(m)
+			if err != nil {
+				log.Errorf("Unable to encode message: %s", err)
+				continue
 			}
-		}
 
-		msgType, err := model.DetectMessageType(m)
-		if err != nil {
-			log.Warnf("unable to detect message type: %s", err)
-		}
-		if msgType == model.TypeCollectorManifest {
-			manifestPayloads = append(manifestPayloads, checkPayload{
-				body:    body,
-				headers: extraHeaders,
-			})
-			manifestSizeInBytes += len(body)
-		} else {
+			extraHeaders := make(http.Header)
+			extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
+			extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
+			extraHeaders.Set(headers.ProcessVersionHeader, Version)
+			extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+
+			if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
+				if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
+					extraHeaders.Set(headers.ClusterIDHeader, cid)
+				}
+			}
+
 			payloads = append(payloads, checkPayload{
 				body:    body,
 				headers: extraHeaders,
 			})
 			sizeInBytes += len(body)
+
 		}
 
-	}
-
-	result := &checkResult{
-		name:        name,
-		payloads:    payloads,
-		sizeInBytes: int64(sizeInBytes),
-	}
-	results.Add(result)
-	if len(manifestPayloads) != 0 {
-		result = &checkResult{
-			name:        config.PodManifestsCheckName,
-			payloads:    manifestPayloads,
-			sizeInBytes: int64(manifestSizeInBytes),
+		result := &checkResult{
+			name:        name,
+			payloads:    payloads,
+			sizeInBytes: int64(sizeInBytes),
 		}
 		results.Add(result)
 	}
@@ -599,4 +577,67 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 	}
 
 	return statuses
+}
+
+// podtMessagesToResults split pod metadata and manifest from messages and add them to the queue
+func podtMessagesToResults(l *Collector, start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
+
+	metadataPayloads := make([]checkPayload, 0, len(messages)/2)
+	manifestPayloads := make([]checkPayload, 0, len(messages)/2)
+	metadataSizeInBytes := 0
+	manifestSizeInBytes := 0
+
+	for _, m := range messages {
+		body, err := api.EncodePayload(m)
+		if err != nil {
+			log.Errorf("Unable to encode message: %s", err)
+			continue
+		}
+
+		extraHeaders := make(http.Header)
+		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
+		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
+		extraHeaders.Set(headers.ProcessVersionHeader, Version)
+		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+
+		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
+			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
+				extraHeaders.Set(headers.ClusterIDHeader, cid)
+			}
+		}
+
+		msgType, err := model.DetectMessageType(m)
+		if err != nil {
+			log.Warnf("unable to detect message type: %s", err)
+		}
+		if msgType == model.TypeCollectorManifest {
+			manifestPayloads = append(manifestPayloads, checkPayload{
+				body:    body,
+				headers: extraHeaders,
+			})
+			manifestSizeInBytes += len(body)
+		} else {
+			metadataPayloads = append(metadataPayloads, checkPayload{
+				body:    body,
+				headers: extraHeaders,
+			})
+			metadataSizeInBytes += len(body)
+		}
+
+	}
+
+	result := &checkResult{
+		name:        name,
+		payloads:    metadataPayloads,
+		sizeInBytes: int64(metadataSizeInBytes),
+	}
+	results.Add(result)
+	if len(manifestPayloads) != 0 {
+		result = &checkResult{
+			name:        config.PodManifestsCheckName,
+			payloads:    manifestPayloads,
+			sizeInBytes: int64(manifestSizeInBytes),
+		}
+		results.Add(result)
+	}
 }

@@ -124,8 +124,12 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		groupSize++
 	}
 	chunked := chunkPods(podMsgs, groupSize, cfg.MaxPerMessage)
+
+	// messages contain pod metadata and pod manifest therefore the size needs to be doubled
 	totalSize := groupSize * 2
 	messages := make([]model.MessageBody, 0, totalSize)
+
+	// messages[:groupSize] are metadata
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorPod{
 			HostName:    hostName,
@@ -138,6 +142,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		})
 	}
 
+	// messages[groupSize:totalSize] are manifests
 	manifestschunked := ChunkManifests(manifestMsgs, groupSize, cfg.MaxPerMessage)
 	for i := groupSize; i < totalSize; i++ {
 		messages = append(messages, &model.CollectorManifest{

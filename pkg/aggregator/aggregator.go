@@ -767,12 +767,12 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 	}
 }
 
-// senderOrchestratorManifest
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
 	agg.manifests = append(agg.manifests, manifests)
 }
 
-func (agg *BufferedAggregator) GetOrchestratorManifests() []*senderOrchestratorManifest {
+// getOrchestratorManifests grabs the manifests from the queue and clears it
+func (agg *BufferedAggregator) getOrchestratorManifests() []*senderOrchestratorManifest {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	manifests := agg.manifests
@@ -792,6 +792,7 @@ func (agg *BufferedAggregator) sendOrchestratorManifests(start time.Time, sender
 			aggregatorOrchestratorMetadataErrors.Add(1)
 		} else {
 			aggregatorOrchestratorManifest.Add(1)
+			addFlushTime("Manifests", int64(time.Since(start)))
 		}
 	}
 }
@@ -799,7 +800,7 @@ func (agg *BufferedAggregator) sendOrchestratorManifests(start time.Time, sender
 // flushOrchestratorManifests serializes and forwards events in a separate goroutine
 func (agg *BufferedAggregator) flushOrchestratorManifests(start time.Time, waitForSerializer bool) {
 	// Serialize and forward in a separate goroutine
-	manifests := agg.GetOrchestratorManifests()
+	manifests := agg.getOrchestratorManifests()
 	if len(manifests) == 0 {
 		return
 	}
