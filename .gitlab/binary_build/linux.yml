@@ -10,6 +10,7 @@ build_dogstatsd_static-binary_x64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
+    - python3 -m pip install -r requirements.txt
   script:
     - inv -e dogstatsd.build --static --major-version 7
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
@@ -30,6 +31,7 @@ build_dogstatsd_static-binary_arm64:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
+    - python3 -m pip install -r requirements.txt
   script:
     - inv -e dogstatsd.build --static --major-version 7
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH
@@ -44,6 +46,7 @@ build_dogstatsd-binary_x64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
+    - python3 -m pip install -r requirements.txt
   script:
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
@@ -64,6 +67,7 @@ build_dogstatsd-binary_arm64:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
+    - python3 -m pip install -r requirements.txt
   script:
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
@@ -78,6 +82,7 @@ build_iot_agent-binary_x64:
   needs: ["tests_deb-x64-py3", "go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
+    - python3 -m pip install -r requirements.txt
   script:
     - inv -e agent.build --flavor iot --major-version 7
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
@@ -97,5 +102,6 @@ build_iot_agent-binary_arm64:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
+    - python3 -m pip install -r requirements.txt
   script:
     - inv -e agent.build --flavor iot --major-version 7

@@ -91,6 +91,7 @@ tests_ebpf_arm64:
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
     - !reference [.retrieve_sysprobe_deps]
+    - python3 -m pip install wheel
     - python3 -m pip install -r requirements.txt
   script:
     - !reference [.build_sysprobe_artifacts]

@@ -3,6 +3,7 @@
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.retrieve_linux_go_deps]
+    - python3 -m pip install -r requirements.txt
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -116,6 +117,7 @@ agent_rpm-arm64-a7:
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
     - !reference [.retrieve_linux_go_deps]
+    - python3 -m pip install -r requirements.txt
     - echo "Detected host architecture $(uname -m)"
     # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
     - echo "Target architecture ${DD_TARGET_ARCH:=amd64}"
@@ -179,6 +181,7 @@ dogstatsd_rpm-x64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
+    - python3 -m pip install -r requirements.txt
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
