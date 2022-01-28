@@ -255,7 +255,7 @@ func LoadConfigIfExists(path string) error {
 
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewAgentConfig(loggerName config.LoggerName, yamlPath string) (*AgentConfig, error) {
+func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config) (*AgentConfig, error) {
 	var err error
 
 	cfg := NewDefaultAgentConfig()
@@ -303,6 +303,12 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string) (*AgentConfig
 	if cfg.Windows.ArgsRefreshInterval == 0 {
 		log.Warnf("invalid configuration: windows_collect_skip_new_args was set to 0.  Disabling argument collection")
 		cfg.Windows.ArgsRefreshInterval = -1
+	}
+
+	if syscfg.Enabled {
+		cfg.EnableSystemProbe = true
+		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
+		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}
 
 	return cfg, nil

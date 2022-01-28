@@ -203,7 +203,7 @@ func runAgent(exit chan struct{}) {
 
 	config.InitRuntimeSettings()
 
-	cfg, err := config.NewAgentConfig(loggerName, opts.configPath)
+	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, syscfg)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
