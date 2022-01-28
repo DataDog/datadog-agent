@@ -78,30 +78,18 @@ type Collector struct {
 }
 
 // NewCollector creates a new Collector
-func NewCollector(cfg *config.AgentConfig) (Collector, error) {
+func NewCollector(cfg *config.AgentConfig, enabledChecks []checks.Check) (Collector, error) {
 	sysInfo, err := checks.CollectSystemInfo(cfg)
 	if err != nil {
 		return Collector{}, err
 	}
 
-	enabledChecks := make([]checks.Check, 0)
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
-	for _, c := range checks.All {
-		if !runRealTime && isRealTimeCheck(c.Name()) {
-			log.Infof("Skip enabling check '%s': realtime disabled", c.Name())
-			continue
-		}
-		if cfg.CheckIsEnabled(c.Name()) {
-			c.Init(cfg, sysInfo)
-			enabledChecks = append(enabledChecks, c)
-		}
+	for _, c := range enabledChecks {
+		c.Init(cfg, sysInfo)
 	}
 
 	return NewCollectorWithChecks(cfg, enabledChecks, runRealTime), nil
-}
-
-func isRealTimeCheck(checkName string) bool {
-	return checkName == config.RTProcessCheckName || checkName == config.RTContainerCheckName
 }
 
 // NewCollectorWithChecks creates a new Collector
@@ -236,7 +224,18 @@ func (l *Collector) run(exit chan struct{}) error {
 	for _, e := range l.cfg.Orchestrator.OrchestratorEndpoints {
 		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
 	}
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
+
+	var checkNames []string
+	for _, check := range l.enabledChecks {
+		checkNames = append(checkNames, check.Name())
+
+		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
+		// process_rt doesn't show up in the enabled checks
+		if check.Name() == checks.Process.Name() && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+			checkNames = append(checkNames, checks.Process.RealTimeName())
+		}
+	}
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
 

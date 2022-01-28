@@ -86,7 +86,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 			return nil, err
 		}
 	}
-	err := cfg.LoadProcessYamlConfig(opts.configPath, false)
+	err := cfg.LoadProcessYamlConfig(opts.configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -203,11 +203,7 @@ func runAgent(exit chan struct{}) {
 
 	config.InitRuntimeSettings()
 
-	// Note: This only considers container sources that are already setup. It's possible that container sources may
-	//       need a few minutes to be ready on newly provisioned hosts.
-	_, err = util.GetContainers()
-	canAccessContainers := err == nil
-	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, syscfg, canAccessContainers)
+	cfg, err := config.NewAgentConfig(loggerName, opts.configPath)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
@@ -253,8 +249,15 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	// Note: This only considers container sources that are already setup. It's possible that container sources may
+	//       need a few minutes to be ready on newly provisioned hosts.
+	_, err = util.GetContainers()
+	canAccessContainers := err == nil
+
+	enabledChecks := getChecks(syscfg, cfg.Orchestrator, canAccessContainers)
+
 	// Exit if agent is not enabled and we're not debugging a check.
-	if len(cfg.EnabledChecks) == 0 && opts.check == "" {
+	if len(enabledChecks) == 0 && opts.check == "" {
 		log.Infof(agent6DisabledMessage)
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
@@ -320,7 +323,7 @@ func runAgent(exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(cfg)
+	cl, err := NewCollector(cfg, enabledChecks)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
 		cleanupAndExit(1)

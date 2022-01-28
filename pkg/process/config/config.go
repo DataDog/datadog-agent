@@ -122,7 +122,6 @@ type AgentConfig struct {
 	Orchestrator *oconfig.OrchestratorConfig
 
 	// Check config
-	EnabledChecks  []string
 	CheckIntervals map[string]time.Duration
 
 	// Internal store of a proxy used for generating the Transport
@@ -130,11 +129,6 @@ type AgentConfig struct {
 
 	// Windows-specific config
 	Windows WindowsConfig
-}
-
-// CheckIsEnabled returns a bool indicating if the given check name is enabled.
-func (a AgentConfig) CheckIsEnabled(checkName string) bool {
-	return util.StringInSlice(a.EnabledChecks, checkName)
 }
 
 // CheckInterval returns the interval for the given check name, defaulting to 10s if not found.
@@ -203,7 +197,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
 
 		// Check config
-		EnabledChecks: nil,
 		CheckIntervals: map[string]time.Duration{
 			ProcessCheckName:     ProcessCheckDefaultInterval,
 			RTProcessCheckName:   RTProcessCheckDefaultInterval,
@@ -262,12 +255,12 @@ func LoadConfigIfExists(path string) error {
 
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config, canAccessContainers bool) (*AgentConfig, error) {
+func NewAgentConfig(loggerName config.LoggerName, yamlPath string) (*AgentConfig, error) {
 	var err error
 
 	cfg := NewDefaultAgentConfig()
 
-	if err := cfg.LoadProcessYamlConfig(yamlPath, canAccessContainers); err != nil {
+	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
 		return nil, err
 	}
 
@@ -280,19 +273,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 	if err := setupLogger(loggerName, logFile, cfg); err != nil {
 		log.Errorf("failed to setup configured logger: %s", err)
 		return nil, err
-	}
-
-	if syscfg.Enabled {
-		cfg.EnableSystemProbe = true
-		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
-		cfg.SystemProbeAddress = syscfg.SocketAddress
-
-		// enable corresponding checks to system-probe modules
-		for mod := range syscfg.EnabledModules {
-			if checks, ok := moduleCheckMap[mod]; ok {
-				cfg.EnabledChecks = append(cfg.EnabledChecks, checks...)
-			}
-		}
 	}
 
 	// TODO: Once proxies have been moved to common config util, remove this
@@ -323,15 +303,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 	if cfg.Windows.ArgsRefreshInterval == 0 {
 		log.Warnf("invalid configuration: windows_collect_skip_new_args was set to 0.  Disabling argument collection")
 		cfg.Windows.ArgsRefreshInterval = -1
-	}
-
-	// activate the pod collection if enabled and we have the cluster name set
-	if cfg.Orchestrator.OrchestrationCollectionEnabled {
-		if cfg.Orchestrator.KubeClusterName != "" {
-			cfg.EnabledChecks = append(cfg.EnabledChecks, PodCheckName)
-		} else {
-			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
-		}
 	}
 
 	return cfg, nil

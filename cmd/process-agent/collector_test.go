@@ -20,7 +20,7 @@ import (
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
 	cfg := config.NewDefaultAgentConfig()
-	c, err := NewCollector(cfg)
+	c, err := NewCollector(cfg, []checks.Check{checks.Process})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -56,7 +56,7 @@ func TestUpdateRTStatus(t *testing.T) {
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
 	cfg := config.NewDefaultAgentConfig()
-	c, err := NewCollector(cfg)
+	c, err := NewCollector(cfg, []checks.Check{checks.Process})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -122,11 +122,10 @@ func TestDisableRealTime(t *testing.T) {
 
 	assert := assert.New(t)
 	cfg := config.NewDefaultAgentConfig()
-	cfg.EnabledChecks = []string{
-		config.ProcessCheckName,
-		config.RTProcessCheckName,
-		config.ContainerCheckName,
-		config.RTContainerCheckName,
+	enabledChecks := []checks.Check{
+		checks.Process,
+		checks.Container,
+		checks.RTContainer,
 	}
 
 	for _, tc := range tests {
@@ -134,7 +133,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig := ddconfig.Mock()
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 
-			c, err := NewCollector(cfg)
+			c, err := NewCollector(cfg, enabledChecks)
 			assert.NoError(err)
 			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)

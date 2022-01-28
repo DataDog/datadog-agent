@@ -62,6 +62,9 @@ type ProcessCheck struct {
 
 	// Create times by PID used in the network check
 	createTimes atomic.Value
+
+	// sysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged proces stats
+	sysprobeProcessModuleEnabled bool
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -117,7 +120,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	var sysProbeUtil *net.RemoteSysProbeUtil
 	// if the Process module is disabled, we allow Probe to collect
 	// fields that require elevated permission to collect with best effort
-	if !cfg.CheckIsEnabled(config.ProcessModuleCheckName) {
+	if !p.sysprobeProcessModuleEnabled {
 		procutil.WithPermission(true)(p.probe)
 	} else {
 		procutil.WithPermission(false)(p.probe)
@@ -245,6 +248,12 @@ func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, nextGroupID func(
 		return p.runRealtime(cfg, nextGroupID())
 	}
 	return nil, errors.New("invalid run options for check")
+}
+
+// NotifySysprobeProcessModuleEnabled tells the process check that the sysprobe process module is enabled.
+// This means that the process check should ask the system probe for privileged process stats.
+func (p *ProcessCheck) NotifySysprobeProcessModuleEnabled() {
+	p.sysprobeProcessModuleEnabled = true
 }
 
 func createProcCtrMessages(
