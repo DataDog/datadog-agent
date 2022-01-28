@@ -126,6 +126,9 @@ func statusForCondition(status string, positiveEvent bool) metrics.ServiceCheckS
 		}
 		return metrics.ServiceCheckOK
 	case "unknown":
+		if positiveEvent {
+			return metrics.ServiceCheckWarning
+		}
 		return metrics.ServiceCheckUnknown
 	default:
 		log.Tracef("Unknown 'status' label: '%s'", status)

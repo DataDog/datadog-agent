@@ -445,14 +445,6 @@ func IsBlacklisted(cmdline []string, blacklist []*regexp.Regexp) bool {
 	return false
 }
 
-func isAffirmative(value string) (bool, error) {
-	if value == "" {
-		return false, fmt.Errorf("value is empty")
-	}
-	v := strings.ToLower(value)
-	return v == "true" || v == "yes" || v == "1", nil
-}
-
 // getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
 // via cli and lastly falling back to os.Hostname() if it is unavailable
 func getHostname(ctx context.Context, ddAgentBin string, grpcConnectionTimeout time.Duration) (string, error) {

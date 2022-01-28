@@ -127,7 +127,8 @@ func startMetadataController(ctx ControllerContext, c chan error) {
 // startAutoscalersController starts the informers needed for autoscaling.
 // The synchronization of the informers is handled by the controller.
 func startAutoscalersController(ctx ControllerContext, c chan error) {
-	dogCl, err := autoscalers.NewDatadogClient()
+	var err error
+	dogCl, err = autoscalers.NewDatadogClient()
 	if err != nil {
 		c <- err
 		return

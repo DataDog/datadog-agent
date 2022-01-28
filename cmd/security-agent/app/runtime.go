@@ -65,6 +65,10 @@ var (
 		Short: "Dump security module information",
 	}
 
+	dumpProcessArgs = struct {
+		withArgs bool
+	}{}
+
 	dumpProcessCacheCmd = &cobra.Command{
 		Use:   "process-cache",
 		Short: "process cache",
@@ -85,6 +89,7 @@ var (
 )
 
 func init() {
+	dumpProcessCacheCmd.Flags().BoolVar(&dumpProcessArgs.withArgs, "with-args", false, "add process arguments to the dump")
 	dumpCmd.AddCommand(dumpProcessCacheCmd)
 	runtimeCmd.AddCommand(dumpCmd)
 
@@ -102,7 +107,7 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
-	filename, err := client.DumpProcessCache()
+	filename, err := client.DumpProcessCache(dumpProcessArgs.withArgs)
 	if err != nil {
 		return errors.Wrap(err, "unable to get a process cache dump")
 	}
@@ -127,7 +132,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	var opts rules.Opts
 	opts.
 		WithConstants(model.SECLConstants).
-		WithVariables(sprobe.SECLVariables).
+		WithVariables(model.SECLVariables).
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
