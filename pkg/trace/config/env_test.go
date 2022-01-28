@@ -426,7 +426,7 @@ func TestLoadEnv(t *testing.T) {
 		defer os.Unsetenv(env)
 		_, err = Load("./testdata/full.yaml")
 		assert.NoError(err)
-		assert.Equal(50061, config.Datadog.GetInt(config.ExperimentalOTLPHTTPPort))
+		assert.Equal(50061, config.Datadog.GetInt(config.OTLPHTTPPort))
 	})
 
 	env = "DD_OTLP_GRPC_PORT"
@@ -438,7 +438,7 @@ func TestLoadEnv(t *testing.T) {
 		defer os.Unsetenv(env)
 		_, err = Load("./testdata/full.yaml")
 		assert.NoError(err)
-		assert.Equal(50066, config.Datadog.GetInt(config.ExperimentalOTLPgRPCPort))
+		assert.Equal(50066, config.Datadog.GetInt(config.OTLPgRPCPort))
 	})
 
 	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED"

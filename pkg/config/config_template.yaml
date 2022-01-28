@@ -2828,3 +2828,24 @@ api_key:
   # stop_timeout: 5.0
 
 {{end -}}
+{{- if .OpenTelemetry }}
+
+###################################
+## OpenTelemetry Configuration   ##
+###################################
+
+## @param otlp - custom object - optional
+## This section configures the OpenTelemetry OTLP receiver.
+#
+# otlp:
+
+  ## @param receiver - custom object - optional
+  ## The receiver configuration. It is an exact copy of the current OpenTelemetry Collector Receiver Configuration:
+  ## https://github.com/open-telemetry/opentelemetry-collector/blob/47a899d/receiver/otlpreceiver/config.md
+  ## Because this configuration is marked as "Beta" by OpenTelemetry, it is subject to change. See also:
+  ## https://github.com/open-telemetry/opentelemetry-collector#status.
+  #
+  # receiver:
+  #   <RECEIVER_CONFIGURATION>
+
+{{end -}}

@@ -1,5 +1,4 @@
-experimental:
-  otlp:
-    receiver:
-      protocols:
-        htttp:
+otlp:
+  receiver:
+    protocols:
+      htttp:

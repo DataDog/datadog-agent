@@ -5,36 +5,36 @@
 
 package config
 
-// Experimental OTLP configuration paths.
+// OTLP configuration paths.
 const (
-	ExperimentalOTLPSection           = "experimental.otlp"
-	ExperimentalOTLPHTTPPort          = ExperimentalOTLPSection + ".http_port"
-	ExperimentalOTLPgRPCPort          = ExperimentalOTLPSection + ".grpc_port"
-	ExperimentalOTLPTracePort         = ExperimentalOTLPSection + ".internal_traces_port"
-	ExperimentalOTLPMetricsEnabled    = ExperimentalOTLPSection + ".metrics_enabled"
-	ExperimentalOTLPTracesEnabled     = ExperimentalOTLPSection + ".traces_enabled"
-	ReceiverSubSectionKey             = "receiver"
-	ExperimentalOTLPReceiverSection   = ExperimentalOTLPSection + "." + ReceiverSubSectionKey
-	ExperimentalOTLPMetrics           = ExperimentalOTLPSection + ".metrics"
-	ExperimentalOTLPTagCardinalityKey = ExperimentalOTLPMetrics + ".tag_cardinality"
+	OTLPSection               = "otlp"
+	OTLPHTTPPort              = OTLPSection + ".http_port"
+	OTLPgRPCPort              = OTLPSection + ".grpc_port"
+	OTLPTracePort             = OTLPSection + ".internal_traces_port"
+	OTLPMetricsEnabled        = OTLPSection + ".metrics_enabled"
+	OTLPTracesEnabled         = OTLPSection + ".traces_enabled"
+	OTLPReceiverSubSectionKey = "receiver"
+	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
+	OTLPMetrics               = OTLPSection + ".metrics"
+	OTLPTagCardinalityKey     = OTLPMetrics + ".tag_cardinality"
 )
 
 // SetupOTLP related configuration.
 func SetupOTLP(config Config) {
-	config.BindEnvAndSetDefault(ExperimentalOTLPTracePort, 5003)
-	config.BindEnvAndSetDefault(ExperimentalOTLPMetricsEnabled, true)
-	config.BindEnvAndSetDefault(ExperimentalOTLPTracesEnabled, true)
-	config.BindEnv(ExperimentalOTLPHTTPPort, "DD_OTLP_HTTP_PORT")
-	config.BindEnv(ExperimentalOTLPgRPCPort, "DD_OTLP_GRPC_PORT")
+	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
+	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
+	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
+	config.BindEnv(OTLPHTTPPort, "DD_OTLP_HTTP_PORT")
+	config.BindEnv(OTLPgRPCPort, "DD_OTLP_GRPC_PORT")
 
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in pkg/otlp/config.go
-	config.BindEnvAndSetDefault(ExperimentalOTLPTagCardinalityKey, "low", "DD_OTLP_TAG_CARDINALITY")
+	config.BindEnvAndSetDefault(OTLPTagCardinalityKey, "low", "DD_OTLP_TAG_CARDINALITY")
 
-	config.SetKnown(ExperimentalOTLPMetrics)
-	// Set all subkeys of experimental.otlp.metrics as known
-	config.SetKnown(ExperimentalOTLPMetrics + ".*")
-	config.SetKnown(ExperimentalOTLPReceiverSection)
-	// Set all subkeys of experimental.otlp.receiver as known
-	config.SetKnown(ExperimentalOTLPReceiverSection + ".*")
+	config.SetKnown(OTLPMetrics)
+	// Set all subkeys of otlp.metrics as known
+	config.SetKnown(OTLPMetrics + ".*")
+	config.SetKnown(OTLPReceiverSection)
+	// Set all subkeys of otlp.receiver as known
+	config.SetKnown(OTLPReceiverSection + ".*")
 }

@@ -1,6 +1,5 @@
-experimental:
-  otlp:
-    receiver:
-      protocols:
-        http:
-        grpc:
+otlp:
+  receiver:
+    protocols:
+      http:
+      grpc:
