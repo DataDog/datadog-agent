@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !benchmarking
 // +build !benchmarking
 
 // Package metrics exposes utilities for setting up and using a sub-set of Datadog's dogstatsd

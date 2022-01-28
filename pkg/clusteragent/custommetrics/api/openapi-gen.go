@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build codegen
 // +build codegen
 
 // This is a stub to ensure that k8s.io/kube-openapi/cmd/openapi-gen is tracked by go.mod
