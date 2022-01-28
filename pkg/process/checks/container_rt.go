@@ -9,7 +9,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -26,23 +25,11 @@ type RTContainerCheck struct {
 	sysInfo   *model.SystemInfo
 	lastRates map[string]util.ContainerRateMetrics
 	lastRun   time.Time
-
-	maxBatchSize int
 }
 
 // Init initializes a RTContainerCheck instance.
 func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) {
 	r.sysInfo = sysInfo
-
-	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
-	if batchSize <= 0 {
-		log.Warnf("Invalid rt container count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxPerMessage)
-		batchSize = ddconfig.DefaultProcessMaxPerMessage
-	} else if batchSize > ddconfig.DefaultProcessMaxPerMessage {
-		log.Warnf("Overriding the configured max of rt container count per message because it exceeds maximum limit of %d", ddconfig.DefaultProcessMaxPerMessage)
-		batchSize = ddconfig.DefaultProcessMaxPerMessage
-	}
-	r.maxBatchSize = batchSize
 }
 
 // Name returns the name of the RTContainerCheck.
@@ -76,8 +63,8 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		return nil, nil
 	}
 
-	groupSize := len(ctrList) / r.maxBatchSize
-	if len(ctrList)%r.maxBatchSize != 0 {
+	groupSize := len(ctrList) / MaxBatchSize
+	if len(ctrList)%MaxBatchSize != 0 {
 		groupSize++
 	}
 	chunked := fmtContainerStats(ctrList, r.lastRates, r.lastRun, groupSize)

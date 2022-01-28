@@ -72,7 +72,7 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 
 	connsByPID := Connections.getLastConnectionsByPID()
 
-	chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, procs, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+	chunkedStats := fmtProcessStats(cfg, MaxBatchSize, procs, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := fmtContainerStats(ctrList, p.realtimeLastCtrRates, p.realtimeLastRun, groupSize)
 

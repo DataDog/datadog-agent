@@ -9,16 +9,13 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestProcessDiscoveryCheck(t *testing.T) {
-	maxBatchSize := 10
-	mockConfig := ddconfig.Mock()
-	mockConfig.Set("process_config.max_per_message", maxBatchSize)
 	cfg := &config.AgentConfig{}
+	MaxBatchSize = 10
 	ProcessDiscovery.Init(cfg, &model.SystemInfo{
 		Cpus:        []*model.CPUInfo{{Number: 0}},
 		TotalMemory: 0,
@@ -35,9 +32,9 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 		for _, proc := range collectorProcDiscovery.ProcessDiscoveries {
 			assert.Empty(t, proc.Host)
 		}
-		if len(collectorProcDiscovery.ProcessDiscoveries) > maxBatchSize {
+		if len(collectorProcDiscovery.ProcessDiscoveries) > MaxBatchSize {
 			t.Errorf("Expected less than %d messages in chunk, got %d",
-				maxBatchSize, len(collectorProcDiscovery.ProcessDiscoveries))
+				MaxBatchSize, len(collectorProcDiscovery.ProcessDiscoveries))
 		}
 	}
 }
@@ -54,61 +51,5 @@ func TestProcessDiscoveryChunking(t *testing.T) {
 		procs := make([]*model.ProcessDiscovery, test.procs)
 		chunkedProcs := chunkProcessDiscoveries(procs, test.chunkSize)
 		assert.Len(t, chunkedProcs, test.expectedChunks)
-	}
-}
-
-func TestProcessDiscoveryCheckInit(t *testing.T) {
-	tests := []struct {
-		name                 string
-		override             bool
-		maxPerMessage        int
-		expectedMaxBatchSize int
-	}{
-		{
-			name:                 "default batch size",
-			override:             false,
-			maxPerMessage:        50,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
-		},
-		{
-			name:                 "valid batch size override",
-			override:             true,
-			maxPerMessage:        50,
-			expectedMaxBatchSize: 50,
-		},
-		{
-			name:                 "negative max batch size",
-			override:             true,
-			maxPerMessage:        -1,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
-		},
-		{
-			name:                 "0 max batch size",
-			override:             true,
-			maxPerMessage:        0,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
-		},
-		{
-			name:                 "big max batch size",
-			override:             true,
-			maxPerMessage:        2000,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
-		},
-	}
-
-	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
-	sysInfo := &model.SystemInfo{}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
-			if tc.override {
-				mockConfig.Set("process_config.max_per_message", tc.maxPerMessage)
-			}
-
-			ProcessDiscovery.Init(cfg, sysInfo)
-			assert.Equal(tc.expectedMaxBatchSize, ProcessDiscovery.maxBatchSize)
-		})
 	}
 }

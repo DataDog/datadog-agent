@@ -10,10 +10,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProcessDiscovery is a ProcessDiscoveryCheck singleton. ProcessDiscovery should not be instantiated elsewhere.
@@ -26,8 +24,6 @@ type ProcessDiscoveryCheck struct {
 	probe      procutil.Probe
 	info       *model.SystemInfo
 	initCalled bool
-
-	maxBatchSize int
 }
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
@@ -35,16 +31,6 @@ func (d *ProcessDiscoveryCheck) Init(cfg *config.AgentConfig, info *model.System
 	d.info = info
 	d.initCalled = true
 	d.probe = getProcessProbe(cfg)
-
-	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
-	if batchSize <= 0 {
-		log.Warnf("Invalid process discovery count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxPerMessage)
-		batchSize = ddconfig.DefaultProcessMaxPerMessage
-	} else if batchSize > ddconfig.DefaultProcessMaxPerMessage {
-		log.Warnf("Overriding the configured max of process discovery count per message because it exceeds maximum limit of %d", ddconfig.DefaultProcessMaxPerMessage)
-		batchSize = ddconfig.DefaultProcessMaxPerMessage
-	}
-	d.maxBatchSize = batchSize
 }
 
 // Name returns the name of the ProcessDiscoveryCheck.
@@ -71,7 +57,7 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 		NumCpus:     calculateNumCores(d.info),
 		TotalMemory: d.info.TotalMemory,
 	}
-	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs), d.maxBatchSize)
+	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs), MaxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 	for i, procDiscoveryChunk := range procDiscoveryChunks {
 		payload[i] = &model.CollectorProcDiscovery{

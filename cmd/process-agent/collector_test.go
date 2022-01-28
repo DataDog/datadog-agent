@@ -293,3 +293,111 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 		})
 	}
 }
+
+func TestInitChecksRuntime(t *testing.T) {
+	t.Run("max batch size", func(t *testing.T) {
+		tests := []struct {
+			name                 string
+			override             bool
+			maxPerMessage        int
+			expectedMaxBatchSize int
+		}{
+			{
+				name:                 "default batch size",
+				override:             false,
+				maxPerMessage:        50,
+				expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+			},
+			{
+				name:                 "valid batch size override",
+				override:             true,
+				maxPerMessage:        50,
+				expectedMaxBatchSize: 50,
+			},
+			{
+				name:                 "negative max batch size",
+				override:             true,
+				maxPerMessage:        -1,
+				expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+			},
+			{
+				name:                 "0 max batch size",
+				override:             true,
+				maxPerMessage:        0,
+				expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+			},
+			{
+				name:                 "big max batch size",
+				override:             true,
+				maxPerMessage:        2000,
+				expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+			},
+		}
+
+		assert := assert.New(t)
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				mockConfig := ddconfig.Mock()
+				if tc.override {
+					mockConfig.Set("process_config.max_per_message", tc.maxPerMessage)
+				}
+
+				initProcessChecksRuntime()
+				assert.Equal(tc.expectedMaxBatchSize, checks.MaxBatchSize)
+			})
+		}
+	})
+
+	t.Run("max process container batch size", func(t *testing.T) {
+		tests := []struct {
+			name                         string
+			override                     bool
+			maxCtrProcsPerMessage        int
+			expectedMaxCtrProcsBatchSize int
+		}{
+			{
+				name:                         "default batch size",
+				override:                     false,
+				maxCtrProcsPerMessage:        50,
+				expectedMaxCtrProcsBatchSize: ddconfig.DefaultProcessMaxCtrProcsPerMessage,
+			},
+			{
+				name:                         "valid batch size override",
+				override:                     true,
+				maxCtrProcsPerMessage:        50,
+				expectedMaxCtrProcsBatchSize: 50,
+			},
+			{
+				name:                         "negative max batch size",
+				override:                     true,
+				maxCtrProcsPerMessage:        -1,
+				expectedMaxCtrProcsBatchSize: ddconfig.DefaultProcessMaxCtrProcsPerMessage,
+			},
+			{
+				name:                         "0 max batch size",
+				override:                     true,
+				maxCtrProcsPerMessage:        0,
+				expectedMaxCtrProcsBatchSize: ddconfig.DefaultProcessMaxCtrProcsPerMessage,
+			},
+			{
+				name:                         "big max batch size",
+				override:                     true,
+				maxCtrProcsPerMessage:        50000,
+				expectedMaxCtrProcsBatchSize: ddconfig.DefaultProcessMaxCtrProcsPerMessage,
+			},
+		}
+
+		assert := assert.New(t)
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				mockConfig := ddconfig.Mock()
+				if tc.override {
+					mockConfig.Set("process_config.max_ctr_procs_per_message", tc.maxCtrProcsPerMessage)
+				}
+
+				initProcessChecksRuntime()
+				assert.Equal(tc.expectedMaxCtrProcsBatchSize, checks.MaxCtrProcsBatchSize)
+			})
+		}
+	})
+}

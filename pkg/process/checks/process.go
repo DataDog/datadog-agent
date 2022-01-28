@@ -12,7 +12,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -63,9 +62,6 @@ type ProcessCheck struct {
 
 	// Create times by PID used in the network check
 	createTimes atomic.Value
-
-	maxBatchSize         int
-	maxCtrProcsBatchSize int
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -80,26 +76,6 @@ func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	p.networkID = networkID
-
-	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
-	if batchSize <= 0 {
-		log.Warnf("Invalid process count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxPerMessage)
-		batchSize = ddconfig.DefaultProcessMaxPerMessage
-	} else if batchSize > ddconfig.DefaultProcessMaxPerMessage {
-		log.Warnf("Overriding the configured max of processes count per message because it exceeds maximum limit of %d", ddconfig.DefaultProcessMaxPerMessage)
-		batchSize = ddconfig.DefaultProcessMaxPerMessage
-	}
-	p.maxBatchSize = batchSize
-
-	ctrProcsBatchSize := ddconfig.Datadog.GetInt("process_config.max_ctr_procs_per_message")
-	if ctrProcsBatchSize <= 0 {
-		log.Warnf("Invalid max container processes count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxCtrProcsPerMessage)
-		ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
-	} else if ctrProcsBatchSize > ddconfig.ProcessMaxCtrProcsPerMessageLimit {
-		log.Warnf("Overriding the configured max of container processes count per message because it exceeds maximum limit of %d", ddconfig.ProcessMaxCtrProcsPerMessageLimit)
-		ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
-	}
-	p.maxCtrProcsBatchSize = ctrProcsBatchSize
 }
 
 // Name returns the name of the ProcessCheck.
@@ -196,7 +172,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.maxBatchSize, p.maxCtrProcsBatchSize, p.sysInfo, groupID, p.networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, MaxBatchSize, MaxCtrProcsBatchSize, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -215,7 +191,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, stats, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+			chunkedStats := fmtProcessStats(cfg, MaxBatchSize, stats, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := fmtContainerStats(ctrList, p.realtimeLastCtrRates, p.realtimeLastRun, groupSize)
 
