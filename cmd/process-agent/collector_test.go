@@ -161,9 +161,15 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			expectedQueueSize: 42,
 		},
 		{
-			name:              "invalid queue size override",
+			name:              "invalid negative queue size override",
 			override:          true,
 			queueSize:         -10,
+			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
+		},
+		{
+			name:              "invalid 0 queue size override",
+			override:          true,
+			queueSize:         0,
 			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
 		},
 	}
@@ -206,9 +212,15 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 			expectedQueueSize: 2,
 		},
 		{
-			name:              "invalid queue size override",
+			name:              "invalid negative size override",
 			override:          true,
 			queueSize:         -2,
+			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
+		},
+		{
+			name:              "invalid 0 queue size override",
+			override:          true,
+			queueSize:         0,
 			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
 		},
 	}
@@ -250,9 +262,15 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			expectedQueueSize: 42000,
 		},
 		{
-			name:              "invalid queue size override",
+			name:              "invalid negative queue size override",
 			override:          true,
 			queueBytes:        -2,
+			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
+		},
+		{
+			name:              "invalid 0 queue size override",
+			override:          true,
+			queueBytes:        0,
 			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
 		},
 	}
