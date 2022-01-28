@@ -11,6 +11,7 @@ import (
 	"math"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 }
 
 func testTimeSampler() *TimeSampler {
-	return NewTimeSampler(TimeSamplerID(0), 10, metrics.NewMetricSamplePool(32), 100,
+	return NewTimeSampler(TimeSamplerID(0), 10, 15*time.Second, metrics.NewMetricSamplePool(32), 100,
 		&serializer.MockSerializer{}, tags.NewStore(false, "test"), flushAndSerializeInParallel{enabled: false})
 }
 

@@ -29,6 +29,7 @@ type TimeSamplerID int
 // TimeSampler aggregates metrics by buckets of 'interval' seconds
 type TimeSampler struct {
 	interval                    int64
+	flushInterval               time.Duration
 	contextResolver             *timestampContextResolver
 	metricsByTimestamp          map[int64]metrics.ContextMetrics
 	counterLastSampledByContext map[ckey.ContextKey]float64
@@ -63,7 +64,7 @@ type FlushCommand struct {
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, metricSamplePool *metrics.MetricSamplePool, bufferSize int, serializer serializer.MetricSerializer, cache *tags.Store, parallelSerialization flushAndSerializeInParallel) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, flushInterval time.Duration, metricSamplePool *metrics.MetricSamplePool, bufferSize int, serializer serializer.MetricSerializer, cache *tags.Store, parallelSerialization flushAndSerializeInParallel) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -72,6 +73,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, metricSamplePool *metrics.
 
 	ts := &TimeSampler{
 		interval:                    interval,
+		flushInterval:               flushInterval,
 		contextResolver:             newTimestampContextResolver(cache),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
@@ -85,7 +87,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, metricSamplePool *metrics.
 		parallelSerialization:       parallelSerialization,
 	}
 
-	go ts.processLoop(time.Second * time.Duration(interval))
+	go ts.processLoop(flushInterval)
 
 	return ts
 }
@@ -149,8 +151,8 @@ func (s *TimeSampler) Stop() {
 // not sampler level).
 // If we want to move to a design where we can flush while we are processing samples,
 // we could consider implementing double-buffering or locking for every sample reception.
-func (s *TimeSampler) processLoop(interval time.Duration) {
-	ticker := time.NewTicker(interval)
+func (s *TimeSampler) processLoop(flushInterval time.Duration) {
+	ticker := time.NewTicker(flushInterval)
 	for {
 		select {
 		case <-s.stopChan:

@@ -222,7 +222,7 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 		// could probably be considered
 		statsdSerializers[i] = serializer.NewSerializer(sharedForwarder, orchestratorForwarder,
 			containerLifecycleForwarder)
-		statsdSamplers[i] = NewTimeSampler(TimeSamplerID(i), bucketSize, metricSamplePool,
+		statsdSamplers[i] = NewTimeSampler(TimeSamplerID(i), bucketSize, options.FlushInterval, metricSamplePool,
 			bufferSize, statsdSerializers[i], tagsStore, agg.flushAndSerializeInParallel)
 	}
 
@@ -483,7 +483,7 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	aggregator := InitAggregator(serializer, nil, hostname)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize)
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
-	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, metricSamplePool, bufferSize,
+	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, DefaultFlushInterval, metricSamplePool, bufferSize,
 		serializer, tagsStore, flushAndSerializeInParallel{enabled: false})
 
 	demux := &ServerlessDemultiplexer{
