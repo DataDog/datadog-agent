@@ -152,7 +152,7 @@ func TestUnknownVarsWarning(t *testing.T) {
 	t.Run("DD_API_KEY", test("DD_API_KEY", false))
 	t.Run("DD_SITE", test("DD_SITE", false))
 	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true))
-	t.Run("UNKOWN", test("UNKOWN", false)) // no DD_ prefix
+	t.Run("UNKNOWN", test("UNKNOWN", false)) // no DD_ prefix
 	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
 	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
 	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
