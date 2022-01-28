@@ -8,6 +8,7 @@
 package util
 
 import (
+	"bytes"
 	"context"
 	"expvar"
 	"fmt"
@@ -374,4 +375,32 @@ func getValidEC2Hostname(ctx context.Context, ec2Provider hostname.Provider) (st
 		return "", fmt.Errorf("EC2 instance ID is not a valid hostname: %s", err)
 	}
 	return "", fmt.Errorf("Unable to determine hostname from EC2: %s", err)
+}
+
+// NormalizeHost applies a liberal policy on host names.
+func NormalizeHost(host string) string {
+	var buf bytes.Buffer
+
+	// hosts longer than 253 characters are illegal
+	if len(host) > 253 {
+		return ""
+	}
+
+	for _, r := range host {
+		switch r {
+		// has null rune just toss the whole thing
+		case '\x00':
+			return ""
+		// drop these characters entirely
+		case '\n', '\r', '\t':
+			continue
+		// replace characters that are generally used for xss with '-'
+		case '>', '<':
+			buf.WriteByte('-')
+		default:
+			buf.WriteRune(r)
+		}
+	}
+
+	return buf.String()
 }
