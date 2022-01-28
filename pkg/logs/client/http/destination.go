@@ -172,14 +172,14 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 	for p := range input {
 		idle := float64(time.Since(startIdle) / time.Millisecond)
 		d.expVars.AddFloat(expVarIdleMsMapKey, idle)
-		tlmIdle.Add(idle, "sender", d.telemetryName)
+		tlmIdle.Add(idle, d.telemetryName)
 		var startInUse = time.Now()
 
 		d.sendConcurrent(p, output, isRetrying)
 
 		inUse := float64(time.Since(startInUse) / time.Millisecond)
 		d.expVars.AddFloat(expVarInUseMsMapKey, inUse)
-		tlmInUse.Add(inUse, "sender", d.telemetryName)
+		tlmInUse.Add(inUse, d.telemetryName)
 		startIdle = time.Now()
 	}
 	// Wait for any pending concurrent sends to finish or terminate
