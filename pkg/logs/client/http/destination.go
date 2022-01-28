@@ -39,6 +39,8 @@ var (
 	errClient = errors.New("client error")
 	errServer = errors.New("server error")
 	tlmSend   = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	tlmInUse  = telemetry.NewCounter("logs_client_http_destination", "in_use_ms", []string{}, "Time spent sending payloads in ms")
+	tlmIdle   = telemetry.NewCounter("logs_client_http_destination", "idle_ms", []string{}, "Time spent idle while not sending payloads in ms")
 
 	expVarIdleMsMapKey  = "idleMs"
 	expVarInUseMsMapKey = "inUseMs"
@@ -166,12 +168,16 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 	var startIdle = time.Now()
 
 	for p := range input {
-		d.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
+		idle := float64(time.Since(startIdle) / time.Millisecond)
+		d.expVars.AddFloat(expVarIdleMsMapKey, idle)
+		tlmIdle.Add(idle)
 		var startInUse = time.Now()
 
 		d.sendConcurrent(p, output, isRetrying)
 
-		d.expVars.AddFloat(expVarInUseMsMapKey, float64(time.Since(startInUse)/time.Millisecond))
+		inUse := float64(time.Since(startInUse) / time.Millisecond)
+		d.expVars.AddFloat(expVarInUseMsMapKey, inUse)
+		tlmInUse.Add(inUse)
 		startIdle = time.Now()
 	}
 	// Wait for any pending concurrent sends to finish or terminate
