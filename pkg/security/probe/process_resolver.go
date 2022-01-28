@@ -725,6 +725,17 @@ func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	return keys, pr.ArgsTruncated || truncated
 }
 
+// GetProcessEnvp returns the envs of the event with their values
+func (p *ProcessResolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
+	if pr.EnvsEntry == nil {
+		return nil, false
+	}
+
+	envp, truncated := pr.EnvsEntry.ToArray()
+
+	return envp, pr.ArgsTruncated || truncated
+}
+
 // SetProcessTTY resolves TTY and cache the result
 func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	if pce.TTYName == "" {

@@ -88,9 +88,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "process.ancestors.envs",
+          "name": "process.ancestors.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "process.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "process.ancestors.envs_truncated",
@@ -308,9 +313,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "process.envs",
+          "name": "process.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "process.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "process.envs_truncated",
@@ -808,9 +818,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "exec.envs",
+          "name": "exec.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "exec.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "exec.envs_truncated",
@@ -1507,9 +1522,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "ptrace.tracee.ancestors.envs",
+          "name": "ptrace.tracee.ancestors.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "ptrace.tracee.ancestors.envs_truncated",
@@ -1727,9 +1747,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "ptrace.tracee.envs",
+          "name": "ptrace.tracee.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "ptrace.tracee.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "ptrace.tracee.envs_truncated",

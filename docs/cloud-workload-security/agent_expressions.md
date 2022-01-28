@@ -159,7 +159,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.created_at` | int | Timestamp of the creation of the process |
 | `process.ancestors.egid` | int | Effective GID of the process |
 | `process.ancestors.egroup` | string | Effective group of the process |
-| `process.ancestors.envs` | string | Environment variables of the process |
+| `process.ancestors.envp` | string | Environment variables of the process |
+| `process.ancestors.envs` | string | Environment variable names of the process |
 | `process.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
 | `process.ancestors.euid` | int | Effective UID of the process |
 | `process.ancestors.euser` | string | Effective user of the process |
@@ -203,7 +204,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.created_at` | int | Timestamp of the creation of the process |
 | `process.egid` | int | Effective GID of the process |
 | `process.egroup` | string | Effective group of the process |
-| `process.envs` | string | Environment variables of the process |
+| `process.envp` | string | Environment variables of the process |
+| `process.envs` | string | Environment variable names of the process |
 | `process.envs_truncated` | bool | Indicator of environment variables truncation |
 | `process.euid` | int | Effective UID of the process |
 | `process.euser` | string | Effective user of the process |
@@ -329,7 +331,8 @@ A process was executed or forked
 | `exec.created_at` | int | Timestamp of the creation of the process |
 | `exec.egid` | int | Effective GID of the process |
 | `exec.egroup` | string | Effective group of the process |
-| `exec.envs` | string | Environment variables of the process |
+| `exec.envp` | string | Environment variables of the process |
+| `exec.envs` | string | Environment variable names of the process |
 | `exec.envs_truncated` | bool | Indicator of environment variables truncation |
 | `exec.euid` | int | Effective UID of the process |
 | `exec.euser` | string | Effective user of the process |
@@ -506,7 +509,8 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.created_at` | int | Timestamp of the creation of the process |
 | `ptrace.tracee.ancestors.egid` | int | Effective GID of the process |
 | `ptrace.tracee.ancestors.egroup` | string | Effective group of the process |
-| `ptrace.tracee.ancestors.envs` | string | Environment variables of the process |
+| `ptrace.tracee.ancestors.envp` | string | Environment variables of the process |
+| `ptrace.tracee.ancestors.envs` | string | Environment variable names of the process |
 | `ptrace.tracee.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
 | `ptrace.tracee.ancestors.euid` | int | Effective UID of the process |
 | `ptrace.tracee.ancestors.euser` | string | Effective user of the process |
@@ -550,7 +554,8 @@ A ptrace command was executed
 | `ptrace.tracee.created_at` | int | Timestamp of the creation of the process |
 | `ptrace.tracee.egid` | int | Effective GID of the process |
 | `ptrace.tracee.egroup` | string | Effective group of the process |
-| `ptrace.tracee.envs` | string | Environment variables of the process |
+| `ptrace.tracee.envp` | string | Environment variables of the process |
+| `ptrace.tracee.envs` | string | Environment variable names of the process |
 | `ptrace.tracee.envs_truncated` | bool | Indicator of environment variables truncation |
 | `ptrace.tracee.euid` | int | Effective UID of the process |
 | `ptrace.tracee.euser` | string | Effective user of the process |
