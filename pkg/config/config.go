@@ -1115,7 +1115,13 @@ func findUnknownKeys(config Config) []string {
 func findUnknownEnvVars(config Config) []string {
 	var unknownVars []string
 
-	knownVars := map[string]struct{}{}
+	knownVars := map[string]struct{}{
+		// these variables are used by the agent, but not via the Config struct,
+		// so must be listed separately.
+		"DD_PROXY_NO_PROXY": {},
+		"DD_PROXY_HTTP":     {},
+		"DD_PROXY_HTTPS":    {},
+	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
 	}
