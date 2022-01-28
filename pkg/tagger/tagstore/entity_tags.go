@@ -50,7 +50,11 @@ func (e *EntityTags) getStandard() []string {
 }
 
 func (e *EntityTags) get(cardinality collectors.TagCardinality) []string {
-	return e.getHashedTags(cardinality).UnsafeReadOnlySlice()
+	tags := e.getHashedTags(cardinality).UnsafeReadOnlySlice()
+	// copy this slice, to avoid aliasing issues (TODO: use *Tags)
+	rv := make([]string, len(tags))
+	copy(rv, tags)
+	return rv
 }
 
 func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) *tagset.Tags {
