@@ -12,8 +12,6 @@
 .deploy-a6-base:
   extends: .docker_publish_job_definition
   stage: deploy6
-  rules:
-    !reference [.on_deploy_a6_manual_auto_on_rc]
   dependencies: []
   before_script:
     - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv -e agent.version --major-version 6 --url-safe)"; fi
@@ -28,10 +26,15 @@
 
 deploy-a6:
   extends: .deploy-a6-base
+  rules:
+    !reference [.on_deploy_a6_manual_auto_on_rc]
+
 
 
 deploy-a6-rc:
   extends: .deploy-a6-base
+  rules:
+    !reference [.on_deploy_a6_rc]
   variables:
     VERSION: 6-rc
 

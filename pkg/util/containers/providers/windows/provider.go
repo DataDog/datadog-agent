@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inmetrics.
 
-// +build windows
-// +build docker
+//go:build windows && docker
+// +build windows,docker
 
 package windows
 

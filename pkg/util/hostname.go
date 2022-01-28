@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package util
@@ -338,10 +339,10 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	// If at this point we don't have a name, bail out
 	if hostName == "" {
 		err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
-	} else {
-		// we got a hostname, residual errors are irrelevant now
-		err = nil
+		return HostnameData{}, err
 	}
+	// we got a hostname, residual errors are irrelevant now
+	err = nil
 
 	hostnameData := saveHostnameData(cacheHostnameKey, hostName, provider)
 	if err != nil {

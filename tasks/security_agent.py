@@ -128,6 +128,8 @@ def build(
     if not skip_assets:
         dist_folder = os.path.join(BIN_DIR, "agent", "dist")
         generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
+        if not os.path.exists(dist_folder):
+            os.makedirs(dist_folder)
         shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
 
@@ -244,7 +246,9 @@ def build_functional_tests(
         golangci_lint(ctx, targets=targets, build_tags=[build_tags], arch=arch)
         staticcheck(ctx, targets=targets, build_tags=[build_tags], arch=arch)
 
-    ldflags, _, env = get_build_flags(ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path)
+    ldflags, _, env = get_build_flags(
+        ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
+    )
 
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)
@@ -258,8 +262,10 @@ def build_functional_tests(
         build_tags = "ebpf_bindata," + build_tags
 
     if static:
-        ldflags += '-extldflags "-static"'
         build_tags += ',osusergo,netgo'
+        if "CGO_CPPFLAGS" not in env:
+            env["CGO_CPPFLAGS"] = ""
+        env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
     if nikos_embedded_path:
         build_tags += ",dnf"

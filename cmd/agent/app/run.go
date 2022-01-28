@@ -203,7 +203,6 @@ func StartAgent() error {
 		if loggerSetupErr == nil {
 			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
-				config.Datadog.GetString("log_level"),
 				jmxLogFile,
 				syslogURI,
 				config.Datadog.GetBool("syslog_rfc"),
@@ -227,7 +226,6 @@ func StartAgent() error {
 		if loggerSetupErr == nil {
 			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
-				config.Datadog.GetString("log_level"),
 				"", // no log file on android
 				"", // no syslog on android,
 				false,
@@ -379,9 +377,10 @@ func StartAgent() error {
 		common.DSD, err = dogstatsd.NewServer(demux, nil)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
+		} else {
+			log.Debugf("dogstatsd started")
 		}
 	}
-	log.Debugf("statsd started")
 
 	// Start OTLP intake
 	if otlp.IsEnabled(config.Datadog) {
@@ -389,9 +388,10 @@ func StartAgent() error {
 		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog, demux.Serializer())
 		if err != nil {
 			log.Errorf("Could not start OTLP: %s", err)
+		} else {
+			log.Debug("OTLP pipeline started")
 		}
 	}
-	log.Debug("OTLP pipeline started")
 
 	// Start SNMP trap server
 	if traps.IsEnabled() {

@@ -77,14 +77,14 @@ func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, p
 		protoNumber = unix.IPPROTO_TCP
 	}
 
-	srcBuf := util.IPBufferPool.Get().([]byte)
-	dstBuf := util.IPBufferPool.Get().([]byte)
+	srcBuf := util.IPBufferPool.Get().(*[]byte)
+	dstBuf := util.IPBufferPool.Get().(*[]byte)
 	defer func() {
 		util.IPBufferPool.Put(srcBuf)
 		util.IPBufferPool.Put(dstBuf)
 	}()
 
-	srcAddr, dstAddr := util.NetIPFromAddress(c.Source, srcBuf), util.NetIPFromAddress(c.Dest, dstBuf)
+	srcAddr, dstAddr := util.NetIPFromAddress(c.Source, *srcBuf), util.NetIPFromAddress(c.Dest, *dstBuf)
 	srcPort, dstPort := c.SPort, c.DPort
 
 	conn := netlink.Con{

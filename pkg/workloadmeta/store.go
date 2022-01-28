@@ -198,7 +198,13 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 
 	var events []Event
 
+	// lock the store and only unlock once the subscriber has been added,
+	// otherwise the subscriber can lose events. adding the subscriber
+	// before locking the store can cause deadlocks if the store sends
+	// events before this function returns.
 	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
 	for kind, entitiesOfKind := range s.store {
 		if !sub.filter.MatchKind(kind) {
 			continue
@@ -217,7 +223,6 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 			})
 		}
 	}
-	s.storeMut.RUnlock()
 
 	// sort events by kind and ID for deterministic ordering
 	sort.Slice(events, func(i, j int) bool {
@@ -235,15 +240,13 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 	// the subscriber is not ready to receive events yet
 	notifyChannel(sub.name, sub.ch, events, false)
 
-	// From the moment we add the subscriber to the list, the store can try to
-	// send it events, that's why it's important that we do this after the line
-	// above. Otherwise, it can cause a deadlock.
 	s.subscribersMut.Lock()
+	defer s.subscribersMut.Unlock()
+
 	s.subscribers = append(s.subscribers, sub)
 	sort.SliceStable(s.subscribers, func(i, j int) bool {
 		return s.subscribers[i].priority < s.subscribers[j].priority
 	})
-	s.subscribersMut.Unlock()
 
 	telemetry.Subscribers.Inc()
 

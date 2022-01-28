@@ -46,6 +46,7 @@ var gnuTLSProbes = map[string]string{
 	"uretprobe/gnutls_record_recv":     "uretprobe__gnutls_record_recv",
 	"uprobe/gnutls_record_send":        "uprobe__gnutls_record_send",
 	"uprobe/gnutls_bye":                "uprobe__gnutls_bye",
+	"uprobe/gnutls_deinit":             "uprobe__gnutls_deinit",
 }
 
 const (

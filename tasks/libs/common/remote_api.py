@@ -8,7 +8,7 @@ errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
 class APIError(Exception):
     def __init__(self, request, api_name):
-        super(APIError, self).__init__(f"{api_name} says: {request.json()}")
+        super(APIError, self).__init__(f"{api_name} says: {request.content}")
         self.status_code = request.status_code
         self.request = request
 
