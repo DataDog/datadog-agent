@@ -32,6 +32,7 @@ dev_branch-dogstatsd:
     !reference [.on_a7_manual]
   needs:
     - docker_build_dogstatsd_amd64
+    - docker_build_dogstatsd_arm64
   variables:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
@@ -102,6 +103,7 @@ dev_branch_multiarch-dogstatsd:
     !reference [.on_a7_manual]
   needs:
     - docker_build_dogstatsd_amd64
+    - docker_build_dogstatsd_arm64
   variables:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
@@ -149,6 +151,7 @@ dev_master-dogstatsd:
     !reference [.on_main_a7]
   needs:
     - docker_build_dogstatsd_amd64
+    - docker_build_dogstatsd_arm64
   variables:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
@@ -236,6 +239,7 @@ dev_nightly-dogstatsd:
     !reference [.on_deploy_nightly_repo_branch_a7]
   needs:
     - docker_build_dogstatsd_amd64
+    - docker_build_dogstatsd_arm64
   variables:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64

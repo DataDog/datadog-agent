@@ -19,7 +19,7 @@
         },
         {
             "properties": {
-                "bpf": {
+                "ptrace": {
                     "type": "object",
                     "required": [
                         "request"
@@ -32,11 +32,14 @@
                             "type": "string"
                         },
                         "tracee": {
-                            "$ref": "/schemas/process_context.json"
+                            "$ref": "/schemas/process.json"
                         }
                     }
                 }
-            }
+            },
+            "required": [
+                "ptrace"
+            ]
         }
     ]
 }
