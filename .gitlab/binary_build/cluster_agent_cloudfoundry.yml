@@ -15,6 +15,7 @@ cluster_agent_cloudfoundry-build_amd64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
+    - python3 -m pip install -r requirements.txt
   script:
     - inv -e cluster-agent-cloudfoundry.build
     - cd $SRC_PATH/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR

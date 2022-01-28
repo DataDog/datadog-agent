@@ -10,6 +10,7 @@
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.retrieve_linux_go_deps]
+    - python3 -m pip install -r requirements.txt
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.

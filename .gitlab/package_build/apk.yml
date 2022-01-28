@@ -10,10 +10,10 @@ agent_android_apk:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
+    - python3 -m pip install -r requirements.txt
     - inv -e install-tools
     - inv -e deps-vendored
     - cd $SRC_PATH
-    - python3 -m pip install -r requirements.txt
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
