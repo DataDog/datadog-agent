@@ -74,7 +74,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
 	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
 	tags = setIfNotEmpty(tags, functionARNKey, arn)
-	tags = setIfNotEmpty(tags, extensionVersionKey, currentExtensionVersion)
+	tags = setIfNotEmpty(tags, extensionVersionKey, GetExtensionVersion())
 
 	parts := strings.Split(arn, ":")
 	if len(parts) < 6 {
@@ -132,6 +132,11 @@ func BuildTracerTags(tags map[string]string) map[string]string {
 func AddColdStartTag(tags []string, coldStart bool) []string {
 	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
 	return tags
+}
+
+// GetExtensionVersion returns the extension version which is fed at build time
+func GetExtensionVersion() string {
+	return currentExtensionVersion
 }
 
 func setIfNotEmpty(tagMap map[string]string, key string, value string) map[string]string {
