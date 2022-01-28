@@ -40,7 +40,6 @@ import (
 // This mirrors the configuration for the infrastructure agent.
 const defaultProxyPort = 3128
 
-// Name for check performed by process-agent or system-probe
 const (
 	ProcessCheckName     = "process"
 	RTProcessCheckName   = "rtprocess"
@@ -50,11 +49,6 @@ const (
 	PodCheckName         = "pod"
 	DiscoveryCheckName   = "process_discovery"
 
-	NetworkCheckName        = "Network"
-	OOMKillCheckName        = "OOM Kill"
-	TCPQueueLengthCheckName = "TCP queue length"
-	ProcessModuleCheckName  = "Process Module"
-
 	ProcessCheckDefaultInterval          = 10 * time.Second
 	RTProcessCheckDefaultInterval        = 2 * time.Second
 	ContainerCheckDefaultInterval        = 10 * time.Second
@@ -62,18 +56,6 @@ const (
 	ConnectionsCheckDefaultInterval      = 30 * time.Second
 	PodCheckDefaultInterval              = 10 * time.Second
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
-)
-
-var (
-	processChecks   = []string{ProcessCheckName, RTProcessCheckName}
-	containerChecks = []string{ContainerCheckName, RTContainerCheckName}
-
-	moduleCheckMap = map[sysconfig.ModuleName][]string{
-		sysconfig.NetworkTracerModule:        {ConnectionsCheckName, NetworkCheckName},
-		sysconfig.OOMKillProbeModule:         {OOMKillCheckName},
-		sysconfig.TCPQueueLengthTracerModule: {TCPQueueLengthCheckName},
-		sysconfig.ProcessModule:              {ProcessModuleCheckName},
-	}
 )
 
 type proxyFunc func(*http.Request) (*url.URL, error)
@@ -298,17 +280,17 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 		cfg.Transport.Proxy = cfg.proxy
 	}
 
+	if syscfg.Enabled {
+		cfg.EnableSystemProbe = true
+		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
+		cfg.SystemProbeAddress = syscfg.SocketAddress
+	}
+
 	// sanity check. This element is used with the modulo operator (%), so it can't be zero.
 	// if it is, log the error, and assume the config was attempting to disable
 	if cfg.Windows.ArgsRefreshInterval == 0 {
 		log.Warnf("invalid configuration: windows_collect_skip_new_args was set to 0.  Disabling argument collection")
 		cfg.Windows.ArgsRefreshInterval = -1
-	}
-
-	if syscfg.Enabled {
-		cfg.EnableSystemProbe = true
-		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
-		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}
 
 	return cfg, nil
