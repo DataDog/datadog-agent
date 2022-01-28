@@ -297,7 +297,7 @@ profiles:
 	assert.Len(t, deviceCk.config.MetricTags, len(firstRunMetricsTags))
 }
 
-func TestDeviceCheck_GetHostname(t *testing.T) {
+func TestDeviceCheck_Hostname(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -323,7 +323,6 @@ community_string: public
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", []string{"snmp_device:1.2.3.4"})
 
 	// with hostname
-	deviceCk.config.UseDeviceIDAsHostname = true
 	deviceCk.SetSender(report.NewMetricSender(sender, "device:123"))
 	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4"})
