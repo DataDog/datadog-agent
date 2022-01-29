@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -105,6 +106,10 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// Only try to start the container launchers if Docker or Kubernetes is available
 	if coreConfig.IsFeaturePresent(coreConfig.Docker) || coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
 		inputs = append(inputs, container.NewLauncher(containerLaunchables))
+	}
+
+	if err := metrics.InitDogStatsdClient(coreConfig.Datadog); err != nil {
+		log.Warnf("initialize DogStatsd client for logs agent: %v", err)
 	}
 
 	return &Agent{
