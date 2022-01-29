@@ -25,6 +25,15 @@ type Payload struct {
 	UnencodedSize int
 }
 
+// Size gets the total size of message contents.
+func (p *Payload) Size() int {
+	size := 0
+	for _, m := range p.Messages {
+		size += len(m.Content)
+	}
+	return size
+}
+
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
 	Content            []byte
