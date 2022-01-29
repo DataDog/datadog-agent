@@ -1,0 +1,25 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Send logs agent metrics via DogStatsd.
+    - datadog.logs_agent.http.bytes_sent
+    - datadog.logs_agent.http.encoded_bytes_sent
+    - datadog.logs_agent.http.dropped
+    - datadog.logs_agent.http.network_errors
+    - datadog.logs_agent.http.retries
+    - datadog.logs_agent.http.sent
+    - datadog.logs_agent.http.sender_latency
+    - datadog.logs_agent.tcp.bytes_sent
+    - datadog.logs_agent.tcp.encoded_bytes_sent
+    - datadog.logs_agent.tcp.dropped
+    - datadog.logs_agent.tcp.network_errors
+    - datadog.logs_agent.tcp.sent
+    - datadog.logs_agent.processor.decoded
+    - datadog.logs_agent.processor.processed
