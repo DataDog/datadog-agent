@@ -7,6 +7,7 @@ package tcp
 
 import (
 	"expvar"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -91,6 +92,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			if d.shouldRetry {
 				d.updateRetryState(err, isRetrying)
 				d.incrementErrors(false)
+				metrics.Count("datadog.logs_agent.tcp.retries", 1, nil, 1)
 				// retry (will try to open a new connection)
 				continue
 			}
@@ -105,6 +107,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		metrics.TlmBytesSent.Add(float64(len(payload.Encoded)))
 		metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
 		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)))
+		metrics.Count("datadog.logs_agent.tcp.sent", 1, nil, 1)
+		metrics.Count("datadog.logs_agent.tcp.bytes_sent", int64(payload.Size()), nil, 1)
+		metrics.Count("datadog.logs_agent.tcp.encoded_bytes_sent", int64(len(payload.Encoded)), nil, 1)
 		output <- payload
 
 		if d.connManager.ShouldReset(d.connCreationTime) {
@@ -121,9 +126,11 @@ func (d *Destination) incrementErrors(drop bool) {
 		host := d.connManager.endpoint.Host
 		metrics.DestinationLogsDropped.Add(host, 1)
 		metrics.TlmLogsDropped.Inc(host)
+		metrics.Count("datadog.logs_agent.tcp.dropped", 1, []string{fmt.Sprintf("host:%s", host)}, 1)
 	}
 	metrics.DestinationErrors.Add(1)
 	metrics.TlmDestinationErrors.Inc()
+	metrics.Count("datadog.logs_agent.tcp.network_errors", 1, nil, 1)
 }
 
 func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
