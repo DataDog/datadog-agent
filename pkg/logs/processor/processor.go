@@ -86,9 +86,11 @@ func (p *Processor) run() {
 func (p *Processor) processMessage(msg *message.Message) {
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
+	metrics.Count("datadog.logs_agent.processor.decoded", 1, nil, 1)
 	if shouldProcess, redactedMsg := p.applyRedactingRules(msg); shouldProcess {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
+		metrics.Count("datadog.logs_agent.processor.processed", 1, nil, 1)
 
 		p.diagnosticMessageReceiver.HandleMessage(*msg, redactedMsg)
 
