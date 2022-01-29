@@ -210,10 +210,12 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
+			metrics.Count("datadog.logs_agent.http.network_errors", 1, nil, 1)
 		}
 
 		if err == context.Canceled {
 			d.updateRetryState(nil, isRetrying)
+			metrics.Count("datadog.logs_agent.http.dropped", 1, []string{fmt.Sprintf("host:%s", d.host)}, 1)
 			log.Warnf("Could not send payload: %v", err)
 			return
 		}
@@ -221,12 +223,16 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if d.shouldRetry {
 			d.updateRetryState(err, isRetrying)
 			if d.lastRetryError != nil {
+				metrics.Count("datadog.logs_agent.http.retries", 1, nil, 1)
 				continue
 			}
 		}
 
 		metrics.LogsSent.Add(int64(len(payload.Messages)))
 		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
+		metrics.Count("datadog.logs_agent.http.sent", 1, nil, 1)
+		metrics.Count("datadog.logs_agent.http.bytes_sent", int64(payload.Size()), nil, 1)
+		metrics.Count("datadog.logs_agent.http.encoded_bytes_sent", int64(len(payload.Encoded)), nil, 1)
 		output <- payload
 		return
 	}
@@ -268,6 +274,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 
 	latency := time.Since(then).Milliseconds()
 	metrics.TlmSenderLatency.Observe(float64(latency))
+	metrics.Histogram("datadog.logs_agent.http.sender_latency", float64(latency), nil, 1)
 	metrics.SenderLatency.Set(latency)
 
 	if err != nil {
