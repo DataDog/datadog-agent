@@ -294,9 +294,15 @@ func runAgent(exit chan struct{}) {
 		return
 	}
 
+	expVarPort := ddconfig.Datadog.GetInt("process_config.expvar_port")
+	if expVarPort <= 0 {
+		log.Errorf("Invalid process_config.expvar_port -- %d, exiting", expVarPort)
+		cleanupAndExit(1)
+	}
+
 	if opts.info {
 		// using the debug port to get info to work
-		url := fmt.Sprintf("http://localhost:%d/debug/vars", cfg.ProcessExpVarPort)
+		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
 		if err := Info(os.Stdout, cfg, url); err != nil {
 			cleanupAndExit(1)
 		}
@@ -308,9 +314,9 @@ func runAgent(exit chan struct{}) {
 		if ddconfig.Datadog.GetBool("telemetry.enabled") {
 			http.Handle("/telemetry", telemetry.Handler())
 		}
-		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil)
+		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", expVarPort), nil)
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", cfg.ProcessExpVarPort, err)
+			log.Errorf("Error creating expvar server on port %v: %v", expVarPort, err)
 		}
 	}()
 

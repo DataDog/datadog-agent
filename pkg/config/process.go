@@ -39,6 +39,9 @@ const (
 
 	// ProcessMaxCtrProcsPerMessageLimit is the maximum allowed value for process_config.max_ctr_procs_per_message.
 	ProcessMaxCtrProcsPerMessageLimit = 30000
+
+	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
+	DefaultProcessExpVarPort = 6062
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -106,7 +109,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
-	config.SetKnown("process_config.expvar_port")
+	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	config.SetKnown("process_config.internal_profiling.enabled")
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)

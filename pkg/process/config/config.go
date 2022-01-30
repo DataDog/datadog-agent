@@ -101,7 +101,6 @@ type AgentConfig struct {
 	Scrubber           *DataScrubber
 	MaxConnsPerMessage int
 	Transport          *http.Transport `json:"-"`
-	ProcessExpVarPort  int
 
 	// profiling settings, or nil if profiling is not enabled
 	ProfilingSettings *profiling.Settings
@@ -175,7 +174,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 		MaxConnsPerMessage: 600,
 		HostName:           "",
 		Transport:          NewDefaultTransport(),
-		ProcessExpVarPort:  6062,
 		ContainerHostType:  model.ContainerHostType_notSpecified,
 
 		// System probe collection configuration

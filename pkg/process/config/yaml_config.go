@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -99,14 +97,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string, canAccessContainers boo
 			}
 			a.Blacklist = append(a.Blacklist, r)
 		}
-	}
-
-	if k := key(ns, "expvar_port"); config.Datadog.IsSet(k) {
-		port := config.Datadog.GetInt(k)
-		if port <= 0 {
-			return errors.Errorf("invalid %s -- %d", k, port)
-		}
-		a.ProcessExpVarPort = port
 	}
 
 	// Enable/Disable the DataScrubber to obfuscate process args
