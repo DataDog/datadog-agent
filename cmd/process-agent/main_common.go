@@ -93,7 +93,13 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 
 	httpClient := apiutil.GetClient(false)
 	ipcAddress, err := ddconfig.GetIPCAddress()
-	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, ddconfig.Datadog.GetInt("process_config.cmd_port"))
+
+	port := ddconfig.Datadog.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		return nil, fmt.Errorf("invalid process_config.cmd_port -- %d", port)
+	}
+
+	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, port)
 	if err != nil {
 		return nil, err
 	}

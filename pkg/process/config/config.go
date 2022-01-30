@@ -354,7 +354,6 @@ func loadEnvVariables() {
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
-		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS", "process_config.windows.use_perf_counters"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
