@@ -11,7 +11,6 @@ package network
 import (
 	"fmt"
 	"math"
-	"net"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -275,90 +274,83 @@ func (di *DriverInterface) setFlowParams() error {
 }
 
 func (di *DriverInterface) createFlowHandleFilters() ([]driver.FilterDefinition, error) {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return nil, fmt.Errorf("error getting interfaces: %s", err.Error())
-	}
 
 	var filters []driver.FilterDefinition
-	for _, iface := range ifaces {
-		log.Debugf("Creating filters for interface: %s [%+v]", iface.Name, iface)
-		if di.cfg.CollectTCPConns {
+	if di.cfg.CollectTCPConns {
+		filters = append(filters, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionOutbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: 0,
+			Af:             windows.AF_INET,
+			Protocol:       windows.IPPROTO_TCP,
+		}, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionInbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: 0,
+			Af:             windows.AF_INET,
+			Protocol:       windows.IPPROTO_TCP,
+		})
+		if di.cfg.CollectIPv6Conns {
 			filters = append(filters, driver.FilterDefinition{
 				FilterVersion:  driver.Signature,
 				Size:           driver.FilterDefinitionSize,
 				Direction:      driver.DirectionOutbound,
 				FilterLayer:    driver.LayerTransport,
-				InterfaceIndex: uint64(iface.Index),
-				Af:             windows.AF_INET,
+				InterfaceIndex: 0,
+				Af:             windows.AF_INET6,
 				Protocol:       windows.IPPROTO_TCP,
 			}, driver.FilterDefinition{
 				FilterVersion:  driver.Signature,
 				Size:           driver.FilterDefinitionSize,
 				Direction:      driver.DirectionInbound,
 				FilterLayer:    driver.LayerTransport,
-				InterfaceIndex: uint64(iface.Index),
-				Af:             windows.AF_INET,
+				InterfaceIndex: 0,
+				Af:             windows.AF_INET6,
 				Protocol:       windows.IPPROTO_TCP,
 			})
-			if di.cfg.CollectIPv6Conns {
-				filters = append(filters, driver.FilterDefinition{
-					FilterVersion:  driver.Signature,
-					Size:           driver.FilterDefinitionSize,
-					Direction:      driver.DirectionOutbound,
-					FilterLayer:    driver.LayerTransport,
-					InterfaceIndex: uint64(iface.Index),
-					Af:             windows.AF_INET6,
-					Protocol:       windows.IPPROTO_TCP,
-				}, driver.FilterDefinition{
-					FilterVersion:  driver.Signature,
-					Size:           driver.FilterDefinitionSize,
-					Direction:      driver.DirectionInbound,
-					FilterLayer:    driver.LayerTransport,
-					InterfaceIndex: uint64(iface.Index),
-					Af:             windows.AF_INET6,
-					Protocol:       windows.IPPROTO_TCP,
-				})
-			}
 		}
+	}
 
-		if di.cfg.CollectUDPConns {
+	if di.cfg.CollectUDPConns {
+		filters = append(filters, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionOutbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: 0,
+			Af:             windows.AF_INET,
+			Protocol:       windows.IPPROTO_UDP,
+		}, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionInbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: 0,
+			Af:             windows.AF_INET,
+			Protocol:       windows.IPPROTO_UDP,
+		})
+		if di.cfg.CollectIPv6Conns {
 			filters = append(filters, driver.FilterDefinition{
 				FilterVersion:  driver.Signature,
 				Size:           driver.FilterDefinitionSize,
 				Direction:      driver.DirectionOutbound,
 				FilterLayer:    driver.LayerTransport,
-				InterfaceIndex: uint64(iface.Index),
-				Af:             windows.AF_INET,
+				InterfaceIndex: 0,
+				Af:             windows.AF_INET6,
 				Protocol:       windows.IPPROTO_UDP,
 			}, driver.FilterDefinition{
 				FilterVersion:  driver.Signature,
 				Size:           driver.FilterDefinitionSize,
 				Direction:      driver.DirectionInbound,
 				FilterLayer:    driver.LayerTransport,
-				InterfaceIndex: uint64(iface.Index),
-				Af:             windows.AF_INET,
+				InterfaceIndex: 0,
+				Af:             windows.AF_INET6,
 				Protocol:       windows.IPPROTO_UDP,
 			})
-			if di.cfg.CollectIPv6Conns {
-				filters = append(filters, driver.FilterDefinition{
-					FilterVersion:  driver.Signature,
-					Size:           driver.FilterDefinitionSize,
-					Direction:      driver.DirectionOutbound,
-					FilterLayer:    driver.LayerTransport,
-					InterfaceIndex: uint64(iface.Index),
-					Af:             windows.AF_INET6,
-					Protocol:       windows.IPPROTO_UDP,
-				}, driver.FilterDefinition{
-					FilterVersion:  driver.Signature,
-					Size:           driver.FilterDefinitionSize,
-					Direction:      driver.DirectionInbound,
-					FilterLayer:    driver.LayerTransport,
-					InterfaceIndex: uint64(iface.Index),
-					Af:             windows.AF_INET6,
-					Protocol:       windows.IPPROTO_UDP,
-				})
-			}
 		}
 	}
 

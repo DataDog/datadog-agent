@@ -12,12 +12,13 @@ package dns
 import "C"
 import (
 	"fmt"
-	"net"
 	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 )
@@ -135,32 +136,34 @@ func (d *dnsDriver) Close() error {
 
 func createDNSFilters() ([]driver.FilterDefinition, error) {
 	var filters []driver.FilterDefinition
-	ifaces, err := net.Interfaces()
+	filterport := uint16(53)
+	servent, err := windows.GetServByName("domain", "udp")
 	if err != nil {
-		return nil, err
+		log.Infof("Error getting servent %v, using default port \n", err)
+	}
+	if err == nil && servent.Port != 0 {
+		filterport = iphelper.Ntohs(servent.Port)
 	}
 
-	for _, iface := range ifaces {
-		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			FilterLayer:    driver.LayerTransport,
-			Af:             windows.AF_INET,
-			RemotePort:     53,
-			InterfaceIndex: uint64(iface.Index),
-			Direction:      driver.DirectionOutbound,
-		})
+	filters = append(filters, driver.FilterDefinition{
+		FilterVersion:  driver.Signature,
+		Size:           driver.FilterDefinitionSize,
+		FilterLayer:    driver.LayerTransport,
+		Af:             windows.AF_INET,
+		RemotePort:     uint64(filterport),
+		InterfaceIndex: 0,
+		Direction:      driver.DirectionOutbound,
+	})
 
-		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			FilterLayer:    driver.LayerTransport,
-			Af:             windows.AF_INET,
-			RemotePort:     53,
-			InterfaceIndex: uint64(iface.Index),
-			Direction:      driver.DirectionInbound,
-		})
-	}
+	filters = append(filters, driver.FilterDefinition{
+		FilterVersion:  driver.Signature,
+		Size:           driver.FilterDefinitionSize,
+		FilterLayer:    driver.LayerTransport,
+		Af:             windows.AF_INET,
+		RemotePort:     uint64(filterport),
+		InterfaceIndex: 0,
+		Direction:      driver.DirectionInbound,
+	})
 
 	return filters, nil
 }
