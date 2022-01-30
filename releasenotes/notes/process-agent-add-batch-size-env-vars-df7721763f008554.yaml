@@ -1,4 +1,4 @@
 enhancements:
   - |
-    Add DD_PROCESS_CONFIG_MAX_PER_MESSAGE env variable to set process_config.max_per_message
-    Add DD_PROCESS_CONFIG_MAX_CTR_PROCS_PER_MESSAGE env variable to set process_config.max_ctr_procs_per_message
+    Add the ``DD_PROCESS_CONFIG_MAX_PER_MESSAGE`` env variable to set the ``process_config.max_per_message``.
+    Add the ``DD_PROCESS_CONFIG_MAX_CTR_PROCS_PER_MESSAGE`` env variable to set the ``process_config.max_ctr_procs_per_message``.
