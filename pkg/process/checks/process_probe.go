@@ -9,8 +9,7 @@ import (
 	"runtime"
 	"sync"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,10 +20,10 @@ var (
 	defaultWindowsProbe procutil.Probe
 )
 
-func getProcessProbe(cfg *config.AgentConfig) procutil.Probe {
+func getProcessProbe() procutil.Probe {
 	processProbeOnce.Do(func() {
 		if runtime.GOOS == "windows" {
-			if !ddconfig.Datadog.GetBool("process_config.windows.use_perf_counters") {
+			if !config.Datadog.GetBool("process_config.windows.use_perf_counters") {
 				log.Info("Using toolhelp API probe for process data collection")
 				processProbe = defaultWindowsProbe
 				return

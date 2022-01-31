@@ -65,9 +65,9 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
-	p.probe = getProcessProbe(cfg)
+	p.probe = getProcessProbe()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
 
