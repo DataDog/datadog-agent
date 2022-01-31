@@ -1210,6 +1210,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
+	promoteExperimentalOTLP(config) // TODO(gbbr): remove after 7.34.0 is released
 	return &warnings, nil
 }
 

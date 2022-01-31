@@ -5,6 +5,10 @@
 
 package config
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
 // OTLP configuration paths.
 const (
 	OTLPSection               = "otlp"
@@ -37,4 +41,18 @@ func SetupOTLP(config Config) {
 	config.SetKnown(OTLPReceiverSection)
 	// Set all subkeys of otlp.receiver as known
 	config.SetKnown(OTLPReceiverSection + ".*")
+}
+
+// promoteExperimentalOTLP checks if "experimental.otlp" is set and promotes it to the top level
+// "otlp" configuration if unset.
+//
+// TODO(gbbr): This is to keep backwards compatibility while we've gone public beta and should
+// be completely removed once 7.34.0 is out.
+func promoteExperimentalOTLP(cfg Config) {
+	if !cfg.IsSet("experimental.otlp") {
+		return
+	}
+	log.Warn(`OpenTelemetry OTLP receiver configuration is now public beta and has been moved out of the "experimental" section. ` +
+		`This section will be deprecated in the next Datadog Agent release. Please use the same configuration as part of the top level "otlp" section instead.`)
+	cfg.Set("otlp", cfg.Get("experimental.otlp"))
 }
