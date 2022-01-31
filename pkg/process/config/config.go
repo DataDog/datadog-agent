@@ -82,8 +82,6 @@ type cmdFunc = func(name string, arg ...string) *exec.Cmd
 
 // WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
 type WindowsConfig struct {
-	// Number of checks runs between refreshes of command-line arguments
-	ArgsRefreshInterval int
 	// UsePerfCounters enables new process check using performance counters for process collection
 	UsePerfCounters bool
 }
