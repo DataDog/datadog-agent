@@ -580,6 +580,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "exec.argv0":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Exec.Process.Argv0
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+
 	case "exec.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1919,6 +1929,31 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "process.ancestors.argv0":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Argv0
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -2923,6 +2958,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "process.argv0":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ProcessContext.Process.Argv0
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+
 	case "process.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -3450,6 +3495,31 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "ptrace.tracee.ancestors.argv0":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Argv0
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 
 	case "ptrace.tracee.ancestors.cap_effective":
@@ -4454,6 +4524,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "ptrace.tracee.argv0":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.Argv0
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 
 	case "ptrace.tracee.cap_effective":
@@ -6185,6 +6265,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"exec.argv",
 
+		"exec.argv0",
+
 		"exec.cap_effective",
 
 		"exec.cap_permitted",
@@ -6437,6 +6519,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.argv",
 
+		"process.ancestors.argv0",
+
 		"process.ancestors.cap_effective",
 
 		"process.ancestors.cap_permitted",
@@ -6522,6 +6606,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.args_truncated",
 
 		"process.argv",
+
+		"process.argv0",
 
 		"process.cap_effective",
 
@@ -6613,6 +6699,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"ptrace.tracee.ancestors.argv",
 
+		"ptrace.tracee.ancestors.argv0",
+
 		"ptrace.tracee.ancestors.cap_effective",
 
 		"ptrace.tracee.ancestors.cap_permitted",
@@ -6698,6 +6786,8 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.args_truncated",
 
 		"ptrace.tracee.argv",
+
+		"ptrace.tracee.argv0",
 
 		"ptrace.tracee.cap_effective",
 
@@ -7227,6 +7317,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.argv":
 
 		return e.Exec.Process.Argv, nil
+
+	case "exec.argv0":
+
+		return e.Exec.Process.Argv0, nil
 
 	case "exec.cap_effective":
 
@@ -7816,6 +7910,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			result := element.ProcessContext.Process.Argv
 
 			values = append(values, result...)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.argv0":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Argv0
+
+			values = append(values, result)
 
 			ptr = iterator.Next()
 		}
@@ -8678,6 +8794,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ProcessContext.Process.Argv, nil
 
+	case "process.argv0":
+
+		return e.ProcessContext.Process.Argv0, nil
+
 	case "process.cap_effective":
 
 		return int(e.ProcessContext.Process.Credentials.CapEffective), nil
@@ -8942,6 +9062,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			result := element.ProcessContext.Process.Argv
 
 			values = append(values, result...)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "ptrace.tracee.ancestors.argv0":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Argv0
+
+			values = append(values, result)
 
 			ptr = iterator.Next()
 		}
@@ -9804,6 +9946,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.PTrace.Tracee.Process.Argv, nil
 
+	case "ptrace.tracee.argv0":
+
+		return e.PTrace.Tracee.Process.Argv0, nil
+
 	case "ptrace.tracee.cap_effective":
 
 		return int(e.PTrace.Tracee.Process.Credentials.CapEffective), nil
@@ -10610,6 +10756,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.argv":
 		return "exec", nil
 
+	case "exec.argv0":
+		return "exec", nil
+
 	case "exec.cap_effective":
 		return "exec", nil
 
@@ -10988,6 +11137,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.argv":
 		return "*", nil
 
+	case "process.ancestors.argv0":
+		return "*", nil
+
 	case "process.ancestors.cap_effective":
 		return "*", nil
 
@@ -11115,6 +11267,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.argv":
+		return "*", nil
+
+	case "process.argv0":
 		return "*", nil
 
 	case "process.cap_effective":
@@ -11252,6 +11407,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.ancestors.argv":
 		return "ptrace", nil
 
+	case "ptrace.tracee.ancestors.argv0":
+		return "ptrace", nil
+
 	case "ptrace.tracee.ancestors.cap_effective":
 		return "ptrace", nil
 
@@ -11379,6 +11537,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 
 	case "ptrace.tracee.argv":
+		return "ptrace", nil
+
+	case "ptrace.tracee.argv0":
 		return "ptrace", nil
 
 	case "ptrace.tracee.cap_effective":
@@ -12075,6 +12236,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "exec.argv0":
+
+		return reflect.String, nil
+
 	case "exec.cap_effective":
 
 		return reflect.Int, nil
@@ -12579,6 +12744,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "process.ancestors.argv0":
+
+		return reflect.String, nil
+
 	case "process.ancestors.cap_effective":
 
 		return reflect.Int, nil
@@ -12748,6 +12917,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Bool, nil
 
 	case "process.argv":
+
+		return reflect.String, nil
+
+	case "process.argv0":
 
 		return reflect.String, nil
 
@@ -12931,6 +13104,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "ptrace.tracee.ancestors.argv0":
+
+		return reflect.String, nil
+
 	case "ptrace.tracee.ancestors.cap_effective":
 
 		return reflect.Int, nil
@@ -13100,6 +13277,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Bool, nil
 
 	case "ptrace.tracee.argv":
+
+		return reflect.String, nil
+
+	case "ptrace.tracee.argv0":
 
 		return reflect.String, nil
 
@@ -14297,6 +14478,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
 		}
 		e.Exec.Process.Argv = append(e.Exec.Process.Argv, str)
+
+		return nil
+
+	case "exec.argv0":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv0"}
+		}
+		e.Exec.Process.Argv0 = str
 
 		return nil
 
@@ -15682,6 +15874,21 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "process.ancestors.argv0":
+
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv0"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.Argv0 = str
+
+		return nil
+
 	case "process.ancestors.cap_effective":
 
 		if e.ProcessContext.Ancestor == nil {
@@ -16298,6 +16505,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "process.argv0":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv0"}
+		}
+		e.ProcessContext.Process.Argv0 = str
+
+		return nil
+
 	case "process.cap_effective":
 
 		var ok bool
@@ -16801,6 +17019,21 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv"}
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, str)
+
+		return nil
+
+	case "ptrace.tracee.ancestors.argv0":
+
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0 = str
 
 		return nil
 
@@ -17417,6 +17650,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv"}
 		}
 		e.PTrace.Tracee.Process.Argv = append(e.PTrace.Tracee.Process.Argv, str)
+
+		return nil
+
+	case "ptrace.tracee.argv0":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv0"}
+		}
+		e.PTrace.Tracee.Process.Argv0 = str
 
 		return nil
 

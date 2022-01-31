@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -280,8 +281,9 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
+	mockConfig := ddconfig.Mock()
+	mockConfig.Set("process_config.process_queue_bytes", 1)
 	cfg := config.NewDefaultAgentConfig()
-	cfg.ProcessQueueBytes = 1
 
 	runCollectorTest(t, check, cfg, &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		select {
@@ -310,8 +312,9 @@ func TestQueueSpaceReleased(t *testing.T) {
 		data: [][]process.MessageBody{{m1}, {m2}},
 	}
 
+	mockConfig := ddconfig.Mock()
+	mockConfig.Set("process_config.process_queue_bytes", 50) // This should be enough for one message, but not both if the space isn't released
 	cfg := config.NewDefaultAgentConfig()
-	cfg.ProcessQueueBytes = 50 // This should be enough for one message, but not both if the space isn't released
 
 	runCollectorTest(t, check, cfg, &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests

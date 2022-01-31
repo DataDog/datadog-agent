@@ -73,6 +73,8 @@ type Collector struct {
 	rtProcessResults *api.WeightedQueue
 	podResults       *api.WeightedQueue
 
+	forwarderRetryQueueMaxBytes int
+
 	// Enables running realtime checks
 	runRealTime bool
 }
@@ -106,6 +108,34 @@ func isRealTimeCheck(checkName string) bool {
 
 // NewCollectorWithChecks creates a new Collector
 func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runRealTime bool) Collector {
+	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
+	if queueSize <= 0 {
+		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
+		queueSize = ddconfig.DefaultProcessQueueSize
+	}
+
+	rtQueueSize := ddconfig.Datadog.GetInt("process_config.rt_queue_size")
+	if rtQueueSize <= 0 {
+		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultProcessRTQueueSize)
+		rtQueueSize = ddconfig.DefaultProcessRTQueueSize
+	}
+
+	queueBytes := ddconfig.Datadog.GetInt("process_config.process_queue_bytes")
+	if queueBytes <= 0 {
+		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
+		queueBytes = ddconfig.DefaultProcessQueueBytes
+	}
+
+	processResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
+	log.Debugf("Creating process check queue with max_size=%d and max_weight=%d", processResults.MaxSize(), processResults.MaxWeight())
+
+	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
+	rtProcessResults := api.NewWeightedQueue(rtQueueSize, int64(queueBytes))
+	log.Debugf("Creating rt process check queue with max_size=%d and max_weight=%d", rtProcessResults.MaxSize(), rtProcessResults.MaxWeight())
+
+	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
+	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
+
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
@@ -115,6 +145,12 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  0,
+
+		processResults:   processResults,
+		rtProcessResults: rtProcessResults,
+		podResults:       podResults,
+
+		forwarderRetryQueueMaxBytes: queueBytes,
 
 		runRealTime: runRealTime,
 	}
@@ -240,11 +276,6 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	go util.HandleSignals(exit)
 
-	l.processResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
-	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
-	l.rtProcessResults = api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
-	l.podResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
-
 	go func() {
 		<-exit
 		l.processResults.Stop()
@@ -294,7 +325,7 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.APIEndpoints)))
 	processForwarderOpts.DisableAPIKeyChecking = true
-	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
+	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
 	// rt forwarder can reuse processForwarder's config
@@ -302,7 +333,7 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	podForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
-	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
+	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 
 	if err := processForwarder.Start(); err != nil {
