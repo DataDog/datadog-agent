@@ -242,6 +242,11 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 // Since it has its own unique object, we need to handle loading in the check config differently separately
 // from the other checks.
 func (a *AgentConfig) initProcessDiscoveryCheck() {
+	if config.IsECSFargate() {
+		log.Debug("Process discovery is not supported on ECS Fargate")
+		return
+	}
+
 	root := key(ns, "process_discovery")
 
 	// Discovery check can only be enabled when regular process collection is not enabled.
