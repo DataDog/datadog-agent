@@ -123,26 +123,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.Scrubber.StripAllArguments = true
 	}
 
-	// How many check results to buffer in memory when POST fails. The default is usually fine.
-	if k := key(ns, "queue_size"); config.Datadog.IsSet(k) {
-		if queueSize := config.Datadog.GetInt(k); queueSize > 0 {
-			a.QueueSize = queueSize
-		}
-	}
-
-	if k := key(ns, "process_queue_bytes"); config.Datadog.IsSet(k) {
-		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
-			a.ProcessQueueBytes = queueBytes
-		}
-	}
-
-	// How many check results to buffer in memory when POST fails. The default is usually fine.
-	if k := key(ns, "rt_queue_size"); config.Datadog.IsSet(k) {
-		if rtqueueSize := config.Datadog.GetInt(k); rtqueueSize > 0 {
-			a.RTQueueSize = rtqueueSize
-		}
-	}
-
 	// The maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	if k := key(ns, "max_per_message"); config.Datadog.IsSet(k) {
 		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
