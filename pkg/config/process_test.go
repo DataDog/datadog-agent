@@ -54,6 +54,18 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.container_collection.enabled",
 			defaultValue: true,
 		},
+		{
+			key:          "process_config.queue_size",
+			defaultValue: DefaultProcessQueueSize,
+		},
+		{
+			key:          "process_config.rt_queue_size",
+			defaultValue: DefaultProcessRTQueueSize,
+		},
+		{
+			key:          "process_config.process_queue_bytes",
+			defaultValue: DefaultProcessQueueBytes,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -189,6 +201,24 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_ENABLED",
 			value:    "false",
 			expected: "disabled",
+		},
+		{
+			key:      "process_config.queue_size",
+			env:      "DD_PROCESS_CONFIG_QUEUE_SIZE",
+			value:    "42",
+			expected: 42,
+		},
+		{
+			key:      "process_config.rt_queue_size",
+			env:      "DD_PROCESS_CONFIG_RT_QUEUE_SIZE",
+			value:    "10",
+			expected: 10,
+		},
+		{
+			key:      "process_config.process_queue_bytes",
+			env:      "DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES",
+			value:    "20000",
+			expected: 20000,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
