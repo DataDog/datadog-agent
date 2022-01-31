@@ -313,7 +313,7 @@ func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 	return false
 }
 
-// GetBufferedChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
+// GetBufferedChannels returns a channel which can be subsequently used to send Event or ServiceCheck.
 func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
 	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -38,13 +37,14 @@ type batcher struct {
 	pipelineCount int
 }
 
-// Use fastrange instead of a modulo for better performances.
+// Use fastrange instead of a modulo for better performance.
 // See http://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/.
 //
 // Note that we shift the context key because it is an actual 64 bits, and
 // the fast range has to operate on 32 bits values, so, we shift it in order
-// to "reduce" its size to 32 bits, we don't mind using only half of the context
-// key for the shard key, it will be unique enough for such a purpose.
+// to "reduce" its size to 32 bits (i.e. the `key>>32`), we don't mind using
+// only half of the context key for the shard key, it will be unique enough
+// for such purpose.
 func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
 	// return uint32(uint64(key) % uint64(pipelineCount))
 	return uint32((uint64(key>>32) * uint64(pipelineCount)) >> 32)
@@ -53,11 +53,9 @@ func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
 func newBatcher(demux aggregator.Demultiplexer) *batcher {
 	agg := demux.Aggregator()
 
+	pipelineCount := demux.GetDogStatsDPipelinesCount()
+
 	e, sc := agg.GetBufferedChannels()
-	pipelineCount := config.Datadog.GetInt("dogstatsd_pipeline_count")
-	if pipelineCount <= 0 {
-		pipelineCount = 1
-	}
 	samples := make([][]metrics.MetricSample, pipelineCount)
 	samplesCount := make([]int, pipelineCount)
 
