@@ -78,7 +78,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		if ok {
 			a.Enabled, a.EnabledChecks = true, processChecks
 		} else if enabled == "disabled" {
-			a.Enabled = false
+			a.Enabled, a.EnabledChecks = false, nil
 		} else if !ok && err == nil {
 			a.Enabled, a.EnabledChecks = true, containerChecks
 		}
