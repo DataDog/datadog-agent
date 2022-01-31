@@ -217,7 +217,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
 
-			c, err := NewCollector(cfg)
+			c, err := NewCollector(cfg, []checks.Check{checks.Process, checks.Pod})
 			assert.NoError(err)
 			assert.Equal(tc.expectedQueueSize, c.processResults.MaxSize())
 			assert.Equal(tc.expectedQueueSize, c.podResults.MaxSize())
@@ -268,7 +268,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
 
-			c, err := NewCollector(cfg)
+			c, err := NewCollector(cfg, []checks.Check{checks.Process})
 			assert.NoError(err)
 			assert.Equal(tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
@@ -318,7 +318,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
 
-			c, err := NewCollector(cfg)
+			c, err := NewCollector(cfg, []checks.Check{checks.Process})
 			assert.NoError(err)
 			assert.Equal(int64(tc.expectedQueueSize), c.processResults.MaxWeight())
 			assert.Equal(int64(tc.expectedQueueSize), c.rtProcessResults.MaxWeight())
