@@ -432,22 +432,31 @@ func TestTCPCollectionDisabled(t *testing.T) {
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
-	// incoming.MonotonicSentBytes is 0, when it should be 512
+	t.Run("v4", func(t *testing.T) {
+		testUDPSendAndReceive(t, "127.0.0.1:8001")
+	})
+	t.Run("v6", func(t *testing.T) {
+		testUDPSendAndReceive(t, "[::1]:8001")
+	})
+}
 
-	// Enable BPF-based system probe
+func testUDPSendAndReceive(t *testing.T, addr string) {
 	cfg := testConfig()
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
-	defer tr.Stop()
+	t.Cleanup(tr.Stop)
 
-	server := NewUDPServerOnAddress("127.0.0.1:8001", func(buf []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
+	server := &UDPServer{
+		address: addr,
+		onMessage: func(buf []byte, n int) []byte {
+			return genPayload(serverMessageSize)
+		},
+	}
 
 	doneChan := make(chan struct{})
 	err = server.Run(doneChan, clientMessageSize)
 	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(func() { close(doneChan) })
 
 	// Connect to server
 	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
@@ -465,21 +474,23 @@ func TestUDPSendAndReceive(t *testing.T) {
 	connections := getConnections(t, tr)
 
 	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	require.True(t, ok)
-	require.Equal(t, network.INCOMING, incoming.Direction)
+	if assert.True(t, ok, "unable to find incoming connection") {
+		assert.Equal(t, network.INCOMING, incoming.Direction)
+
+		// make sure the inverse values are seen for the other message
+		assert.Equal(t, serverMessageSize, int(incoming.MonotonicSentBytes), "incoming sent")
+		assert.Equal(t, clientMessageSize, int(incoming.MonotonicRecvBytes), "incoming recv")
+		assert.True(t, incoming.IntraHost, "incoming intrahost")
+	}
 
 	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
-	require.Equal(t, network.OUTGOING, outgoing.Direction)
+	if assert.True(t, ok, "unable to find outgoing connection") {
+		assert.Equal(t, network.OUTGOING, outgoing.Direction)
 
-	require.Equal(t, clientMessageSize, int(outgoing.MonotonicSentBytes))
-	require.Equal(t, serverMessageSize, int(outgoing.MonotonicRecvBytes))
-	require.True(t, outgoing.IntraHost)
-
-	// make sure the inverse values are seen for the other message
-	require.Equal(t, serverMessageSize, int(incoming.MonotonicSentBytes))
-	require.Equal(t, clientMessageSize, int(incoming.MonotonicRecvBytes))
-	require.True(t, incoming.IntraHost)
+		assert.Equal(t, clientMessageSize, int(outgoing.MonotonicSentBytes), "outgoing sent")
+		assert.Equal(t, serverMessageSize, int(outgoing.MonotonicRecvBytes), "outgoing recv")
+		assert.True(t, outgoing.IntraHost, "outgoing intrahost")
+	}
 }
 
 func TestUDPDisabled(t *testing.T) {
@@ -494,9 +505,11 @@ func TestUDPDisabled(t *testing.T) {
 	defer tr.Stop()
 
 	// Create UDP Server which sends back serverMessageSize bytes
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
+	server := &UDPServer{
+		onMessage: func(b []byte, n int) []byte {
+			return genPayload(serverMessageSize)
+		},
+	}
 
 	doneChan := make(chan struct{})
 	err = server.Run(doneChan, clientMessageSize)
@@ -748,7 +761,7 @@ func benchEchoUDP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := NewUDPServer(echoOnMessage)
+		server := &UDPServer{onMessage: echoOnMessage}
 		err := server.Run(end, size)
 		require.NoError(b, err)
 		defer close(end)
@@ -920,23 +933,18 @@ func (s *TCPServer) Run(done chan struct{}) error {
 }
 
 type UDPServer struct {
+	network   string
 	address   string
 	onMessage func(b []byte, n int) []byte
 }
 
-func NewUDPServer(onMessage func(b []byte, n int) []byte) *UDPServer {
-	return NewUDPServerOnAddress("127.0.0.1:0", onMessage)
-}
-
-func NewUDPServerOnAddress(addr string, onMessage func(b []byte, n int) []byte) *UDPServer {
-	return &UDPServer{
-		address:   addr,
-		onMessage: onMessage,
-	}
-}
-
 func (s *UDPServer) Run(done chan struct{}, payloadSize int) error {
-	ln, err := net.ListenPacket("udp", s.address)
+	network := "udp"
+	if s.network != "" {
+		network = s.network
+	}
+
+	ln, err := net.ListenPacket(network, s.address)
 	if err != nil {
 		return err
 	}

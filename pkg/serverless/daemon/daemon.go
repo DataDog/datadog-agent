@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -34,8 +35,7 @@ const shutdownDelay time.Duration = 1 * time.Second
 // FlushTimeout is the amount of time to wait for a flush to complete.
 const FlushTimeout time.Duration = 5 * time.Second
 
-// Daemon is the communcation server for between the runtime and the serverless Agent.
-// The name "daemon" is just in order to avoid serverless.StartServer ...
+// Daemon is the communication server between the runtime and the serverless agent and coordinates the flushing of telemetry.
 type Daemon struct {
 	httpServer *http.Server
 	mux        *http.ServeMux
@@ -62,6 +62,9 @@ type Daemon struct {
 	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
 	LambdaLibraryDetected bool
 
+	// runtimeStateMutex is used to ensure that modifying the state of the runtime is thread-safe
+	runtimeStateMutex sync.Mutex
+
 	// RuntimeWg is used to keep track of whether the runtime is currently handling an invocation.
 	// It should be reset when we start a new invocation, as we may start a new invocation before hearing that the last one finished.
 	RuntimeWg *sync.WaitGroup
@@ -87,12 +90,13 @@ type Daemon struct {
 
 	// logsFlushMutex ensures that only one logs flush can be underway at a given time
 	logsFlushMutex sync.Mutex
+
+	// InvocationProcessor is used to handle lifecycle events, either using the proxy or the lifecycle API
+	InvocationProcessor invocationlifecycle.InvocationProcessor
 }
 
-// StartDaemon starts an HTTP server to receive messages from the runtime.
-// The DogStatsD server is provided when ready (slightly later), to have the
-// hello route available as soon as possible. However, the HELLO route is blocking
-// to have a way for the runtime function to know when the Serverless Agent is ready.
+// StartDaemon starts an HTTP server to receive messages from the runtime and coordinate
+// the flushing of telemetry.
 func StartDaemon(addr string) *Daemon {
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
@@ -114,6 +118,9 @@ func StartDaemon(addr string) *Daemon {
 
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
+	mux.Handle("/lambda/start-invocation", &StartInvocation{daemon})
+	mux.Handle("/lambda/end-invocation", &EndInvocation{daemon})
+	mux.Handle("/trace-context", &TraceContext{})
 
 	// start the HTTP server used to communicate with the runtime and the Lambda platform
 	go func() {
@@ -121,29 +128,6 @@ func StartDaemon(addr string) *Daemon {
 	}()
 
 	return daemon
-}
-
-// Hello is a route called by the Datadog Lambda Library when it starts.
-// It is used to detect the Datadog Lambda Library in the environment.
-type Hello struct {
-	daemon *Daemon
-}
-
-// ServeHTTP - see type Hello comment.
-func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Debug("Hit on the serverless.Hello route.")
-	h.daemon.LambdaLibraryDetected = true
-}
-
-// Flush is a route called by the Datadog Lambda Library when the runtime is done handling an invocation.
-// It is no longer used, but the route is maintained for backwards compatibility.
-type Flush struct {
-	daemon *Daemon
-}
-
-// ServeHTTP - see type Flush comment.
-func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Debug("Hit on the serverless.Flush route.")
 }
 
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
@@ -158,7 +142,7 @@ func (d *Daemon) HandleRuntimeDone() {
 	log.Debugf("The flush strategy %s has decided to flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
-	if !d.MetricAgent.IsReady() {
+	if d.MetricAgent != nil && !d.MetricAgent.IsReady() {
 		log.Debug("The metric agent wasn't ready, skipping flush.")
 		d.TellDaemonRuntimeDone()
 		return
@@ -329,6 +313,8 @@ func (d *Daemon) Stop() {
 func (d *Daemon) TellDaemonRuntimeStarted() {
 	// Reset the RuntimeWg on every new invocation.
 	// We might receive a new invocation before we learn that the previous invocation has finished.
+	d.runtimeStateMutex.Lock()
+	defer d.runtimeStateMutex.Unlock()
 	d.RuntimeWg = &sync.WaitGroup{}
 	d.TellDaemonRuntimeDoneOnce = &sync.Once{}
 	d.RuntimeWg.Add(1)
@@ -336,6 +322,8 @@ func (d *Daemon) TellDaemonRuntimeStarted() {
 
 // TellDaemonRuntimeDone tells the daemon that the runtime finished handling an invocation
 func (d *Daemon) TellDaemonRuntimeDone() {
+	d.runtimeStateMutex.Lock()
+	defer d.runtimeStateMutex.Unlock()
 	d.TellDaemonRuntimeDoneOnce.Do(func() {
 		d.RuntimeWg.Done()
 	})

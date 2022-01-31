@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
-	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 
 	"github.com/stretchr/testify/assert"
@@ -28,9 +27,9 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 
 	endInvocationTime := time.Now()
-	endDetails := proxy.InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
@@ -58,10 +57,11 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return false }
 
+	eventPayload := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startInvocationTime := time.Now()
-	startDetails := proxy.InvocationStartDetails{StartTime: startInvocationTime}
+	startDetails := InvocationStartDetails{StartTime: startInvocationTime, InvokeEventRawPayload: eventPayload}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
@@ -70,7 +70,8 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	testProcessor.OnInvokeStart(&startDetails)
 
 	assert.NotEqual(t, uint64(0), currentExecutionInfo.spanID)
-	assert.NotEqual(t, uint64(0), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
 	assert.Equal(t, startInvocationTime, currentExecutionInfo.startTime)
 }
 
@@ -85,9 +86,9 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	startInvocationTime := time.Now()
-	startDetails := proxy.InvocationStartDetails{StartTime: startInvocationTime}
+	startDetails := InvocationStartDetails{StartTime: startInvocationTime}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
@@ -95,8 +96,8 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
-	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
-	assert.Equal(t, uint64(0), currentExecutionInfo.traceID)
+	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+	assert.NotEqual(t, 0, currentExecutionInfo.traceID)
 	assert.NotEqual(t, startInvocationTime, currentExecutionInfo.startTime)
 }
 
@@ -117,15 +118,16 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	startInvocationTime := time.Now()
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
-	endDetails := proxy.InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
 
 	currentExecutionInfo = executionStartInfo{
 		startTime: startInvocationTime,
 		traceID:   123,
 		spanID:    1,
+		parentID:  3,
 	}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
@@ -140,6 +142,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	assert.Equal(t, "serverless", executionSpan.Type)
 	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
+	assert.Equal(t, currentExecutionInfo.parentID, executionSpan.ParentID)
 	assert.Equal(t, startInvocationTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }
@@ -158,7 +161,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	startInvocationTime := time.Now()
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
-	endDetails := proxy.InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
 
 	currentExecutionInfo = executionStartInfo{
 		startTime: startInvocationTime,
@@ -166,7 +169,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 		spanID:    1,
 	}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,

@@ -173,7 +173,7 @@ func runJmxCommandConsole(command string) error {
 		return err
 	}
 
-	err = config.SetupJMXLogger(jmxLoggerName, logLevel, logFile, "", false, true, false)
+	err = config.SetupJMXLogger(jmxLoggerName, logFile, "", false, true, false)
 	if err != nil {
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
 	}

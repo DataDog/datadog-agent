@@ -203,7 +203,6 @@ func StartAgent() error {
 		if loggerSetupErr == nil {
 			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
-				config.Datadog.GetString("log_level"),
 				jmxLogFile,
 				syslogURI,
 				config.Datadog.GetBool("syslog_rfc"),
@@ -227,7 +226,6 @@ func StartAgent() error {
 		if loggerSetupErr == nil {
 			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
-				config.Datadog.GetString("log_level"),
 				"", // no log file on android
 				"", // no syslog on android,
 				false,

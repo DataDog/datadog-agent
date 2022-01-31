@@ -429,6 +429,7 @@ func InitConfig(config Config) {
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
+	config.BindEnvAndSetDefault("serializer_max_series_points_per_payload", 10000)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", false)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1113,15 +1114,21 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
-func findUnknownEnvVars(config Config) []string {
+func findUnknownEnvVars(config Config, environ []string) []string {
 	var unknownVars []string
 
-	knownVars := map[string]struct{}{}
+	knownVars := map[string]struct{}{
+		// these variables are used by the agent, but not via the Config struct,
+		// so must be listed separately.
+		"DD_PROXY_NO_PROXY": {},
+		"DD_PROXY_HTTP":     {},
+		"DD_PROXY_HTTPS":    {},
+	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
 	}
 
-	for _, equality := range os.Environ() {
+	for _, equality := range environ {
 		key := strings.SplitN(equality, "=", 2)[0]
 		if !strings.HasPrefix(key, "DD_") {
 			continue
@@ -1176,7 +1183,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		log.Warnf("Unknown key in config file: %v", key)
 	}
 
-	for _, v := range findUnknownEnvVars(config) {
+	for _, v := range findUnknownEnvVars(config, os.Environ()) {
 		log.Warnf("Unknown environment variable: %v", v)
 	}
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package proxy
+package invocationlifecycle
 
 import (
 	"time"
@@ -12,14 +12,14 @@ import (
 // InvocationStartDetails stores information about the start of an invocation.
 // This structure is passed to the onInvokeStart method of the invocationProcessor interface
 type InvocationStartDetails struct {
-	StartTime          time.Time
-	InvokeHeaders      map[string][]string
-	InvokeEventPayload string
+	StartTime             time.Time
+	InvokeEventRawPayload string
 }
 
 // InvocationEndDetails stores information about the end of an invocation.
 // This structure is passed to the onInvokeEnd method of the invocationProcessor interface
 type InvocationEndDetails struct {
-	EndTime time.Time
-	IsError bool
+	EndTime   time.Time
+	IsError   bool
+	RequestID string
 }

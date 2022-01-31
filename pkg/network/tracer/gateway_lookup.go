@@ -83,11 +83,11 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 		return nil
 	}
 
-	buf := util.IPBufferPool.Get().([]byte)
+	buf := util.IPBufferPool.Get().(*[]byte)
 	defer util.IPBufferPool.Put(buf)
 	// if there is no gateway, we don't need to add subnet info
 	// for gateway resolution in the backend
-	if util.NetIPFromAddress(r.Gateway, buf).IsUnspecified() {
+	if util.NetIPFromAddress(r.Gateway, *buf).IsUnspecified() {
 		return nil
 	}
 
@@ -116,8 +116,9 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 			return nil
 		}
 
-		g.subnetCache.Add(r.IfIndex, s)
-		v = s
+		via := &network.Via{Subnet: s}
+		g.subnetCache.Add(r.IfIndex, via)
+		v = via
 	} else if v == nil {
 		return nil
 	}
@@ -128,8 +129,8 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 			g.subnetCache.Remove(r.IfIndex)
 		}
 		return nil
-	case network.Subnet:
-		return &network.Via{Subnet: cv}
+	case *network.Via:
+		return cv
 	default:
 		return nil
 	}

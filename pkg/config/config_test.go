@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -133,6 +134,26 @@ unknown_key.unknown_subkey: true
 
 	confWithUnknownKeys.SetKnown("unknown_key.*")
 	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 0)
+}
+
+func TestUnknownVarsWarning(t *testing.T) {
+	test := func(v string, unknown bool) func(*testing.T) {
+		return func(t *testing.T) {
+			env := []string{fmt.Sprintf("%s=foo", v)}
+			var exp []string
+			if unknown {
+				exp = append(exp, v)
+			}
+			assert.Equal(t, exp, findUnknownEnvVars(Mock(), env))
+		}
+	}
+	t.Run("DD_API_KEY", test("DD_API_KEY", false))
+	t.Run("DD_SITE", test("DD_SITE", false))
+	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true))
+	t.Run("UNKNOWN", test("UNKNOWN", false)) // no DD_ prefix
+	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
+	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
+	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
 }
 
 func TestSiteEnvVar(t *testing.T) {

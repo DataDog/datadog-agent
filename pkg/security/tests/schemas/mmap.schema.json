@@ -19,7 +19,7 @@
         },
         {
             "properties": {
-                "bpf": {
+                "mmap": {
                     "type": "object",
                     "required": [
                         "address",
@@ -38,7 +38,10 @@
                         }
                     }
                 }
-            }
+            },
+            "required": [
+                "mmap"
+            ]
         }
     ]
 }

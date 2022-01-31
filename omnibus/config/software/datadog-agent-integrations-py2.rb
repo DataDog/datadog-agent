@@ -401,10 +401,6 @@ build do
         patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/tuf/client/updater.py"
       end
 
-      if linux?
-        patch :source => "psutil-pr2000.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/psutil/_pslinux.py"
-      end
-
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
       if windows?
         command "#{python} -m pip check"

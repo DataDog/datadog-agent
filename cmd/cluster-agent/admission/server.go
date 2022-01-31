@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package admission
@@ -107,6 +108,12 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 // It supports both v1 and v1beta1 requests.
 func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc, dc dynamic.Interface) {
 	metrics.WebhooksReceived.Inc()
+
+	start := time.Now()
+	defer func() {
+		metrics.WebhooksResponseDuration.Observe(time.Since(start).Seconds())
+	}()
+
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		log.Warnf("Invalid method %s, only POST requests are allowed", r.Method)
