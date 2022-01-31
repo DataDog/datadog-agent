@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -38,11 +39,7 @@ func TestSpan(t *testing.T) {
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
-		if _, ok := err.(ErrUnsupportedArch); ok {
-			t.Skip(err)
-		} else {
-			t.Fatal(err)
-		}
+		t.Fatal(err)
 	}
 
 	test.Run(t, "open", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {

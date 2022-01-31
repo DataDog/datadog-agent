@@ -19,7 +19,8 @@ class TestE2EDocker(unittest.TestCase):
         warnings.simplefilter("ignore", category=ResourceWarning)
         warnings.simplefilter("ignore", category=UserWarning)
 
-        self.rule_id = None
+        self.signal_rule_id = None
+        self.agent_rule_id = None
         self.policies = None
 
         self.App = App()
@@ -27,8 +28,11 @@ class TestE2EDocker(unittest.TestCase):
         self.policy_loader = PolicyLoader()
 
     def tearDown(self):
-        if self.rule_id:
-            self.App.delete_rule(self.rule_id)
+        if self.agent_rule_id:
+            self.App.delete_agent_rule(self.agent_rule_id)
+
+        if self.signal_rule_id:
+            self.App.delete_signal_rule(self.signal_rule_id)
 
         if self.policies:
             os.remove(self.policies)
@@ -45,13 +49,20 @@ class TestE2EDocker(unittest.TestCase):
         test_id = str(uuid.uuid4())[:4]
         desc = f"e2e test rule {test_id}"
         data = None
+        agent_rule_name = f"e2e_agent_rule_{test_id}"
 
-        with Step(msg=f"check rule({test_id}) creation", emoji=":straight_ruler:"):
-            self.rule_id = self.App.create_cws_rule(
+        with Step(msg=f"check agent rule({test_id}) creation", emoji=":straight_ruler:"):
+            self.agent_rule_id = self.App.create_cws_agent_rule(
+                agent_rule_name,
                 desc,
-                "rule for e2e testing",
-                f"e2e_{test_id}",
                 f'open.file.path == "{filename}"',
+            )
+
+        with Step(msg=f"check signal rule({test_id}) creation", emoji=":straight_ruler:"):
+            self.signal_rule_id = self.App.create_cws_signal_rule(
+                desc,
+                "signal rule for e2e testing",
+                agent_rule_name,
             )
 
         with Step(msg="check policies download", emoji=":file_folder:"):
@@ -62,6 +73,7 @@ class TestE2EDocker(unittest.TestCase):
         with Step(msg="check rule presence in policies", emoji=":bullseye:"):
             rule = self.policy_loader.get_rule_by_desc(desc)
             self.assertIsNotNone(rule, msg="unable to find e2e rule")
+            self.assertEqual(rule["id"], agent_rule_name)
 
         with Step(msg="check agent start", emoji=":man_running:"):
             image = os.getenv("DD_AGENT_IMAGE")
@@ -90,31 +102,27 @@ class TestE2EDocker(unittest.TestCase):
         with Step(msg="check agent event", emoji=":check_mark_button:"):
             os.system(f"touch {filename}")
 
-            rule_id = rule["id"]
-
             wait_agent_log(
                 "system-probe",
                 self.docker_helper,
-                f"Sending event message for rule `{rule_id}`",
+                f"Sending event message for rule `{agent_rule_name}`",
             )
 
         with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):
-            rule_id = rule["id"]
-            event = self.App.wait_app_log(f"rule_id:{rule_id}")
+            event = self.App.wait_app_log(f"rule_id:{agent_rule_name}")
             attributes = event["data"][0]["attributes"]
 
             self.assertIn("tag1", attributes["tags"], "unable to find tag")
             self.assertIn("tag2", attributes["tags"], "unable to find tag")
 
         with Step(msg="check app signal", emoji=":1st_place_medal:"):
-            rule_id = rule["id"]
-            tag = f"rule_id:{rule_id}"
+            tag = f"rule_id:{agent_rule_name}"
             signal = self.App.wait_app_signal(tag)
             attributes = signal["data"][0]["attributes"]
 
             self.assertIn(tag, attributes["tags"], "unable to find rule_id tag")
             self.assertEqual(
-                rule["id"],
+                agent_rule_name,
                 attributes["attributes"]["agent"]["rule_id"],
                 "unable to find rule_id tag attribute",
             )

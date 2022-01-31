@@ -8,7 +8,6 @@ package config
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -35,7 +34,7 @@ func key(pieces ...string) string {
 }
 
 // LoadProcessYamlConfig load Process-specific configuration
-func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
+func (a *AgentConfig) LoadProcessYamlConfig(path string, canAccessContainers bool) error {
 	loadEnvVariables()
 
 	// Resolve any secrets
@@ -57,33 +56,12 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.HostName = config.Datadog.GetString("hostname")
 	}
 
-	// Note: The enabled environment flag operates differently than that of our YAML configuration
-	if v, ok := os.LookupEnv("DD_PROCESS_AGENT_ENABLED"); ok {
-		// DD_PROCESS_AGENT_ENABLED: true - Process + Container checks enabled
-		//                           false - No checks enabled
-		//                           (none) - Container check enabled (by default)
-		if enabled, err := isAffirmative(v); enabled {
-			a.Enabled = true
-			a.EnabledChecks = processChecks
-		} else if !enabled && err == nil {
-			a.Enabled = false
-		}
-	} else if k := key(ns, "enabled"); config.Datadog.IsSet(k) {
-		// A string indicate the enabled state of the Agent.
-		//   If "false" (the default) we will only collect containers.
-		//   If "true" we will collect containers and processes.
-		//   If "disabled" the agent will be disabled altogether and won't start.
-		enabled := config.Datadog.GetString(k)
-		ok, err := isAffirmative(enabled)
-		if ok {
-			a.Enabled, a.EnabledChecks = true, processChecks
-		} else if enabled == "disabled" {
-			a.Enabled = false
-		} else if !ok && err == nil {
-			a.Enabled, a.EnabledChecks = true, containerChecks
-		}
+	if config.Datadog.GetBool("process_config.process_collection.enabled") {
+		a.EnabledChecks = append(a.EnabledChecks, processChecks...)
+	} else if config.Datadog.GetBool("process_config.container_collection.enabled") && canAccessContainers {
+		// Container checks are enabled only when process checks are not (since they automatically collect container data).
+		a.EnabledChecks = append(a.EnabledChecks, containerChecks...)
 	}
-
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
@@ -144,26 +122,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// Strips all process arguments
 	if config.Datadog.GetBool(key(ns, "strip_proc_arguments")) {
 		a.Scrubber.StripAllArguments = true
-	}
-
-	// How many check results to buffer in memory when POST fails. The default is usually fine.
-	if k := key(ns, "queue_size"); config.Datadog.IsSet(k) {
-		if queueSize := config.Datadog.GetInt(k); queueSize > 0 {
-			a.QueueSize = queueSize
-		}
-	}
-
-	if k := key(ns, "process_queue_bytes"); config.Datadog.IsSet(k) {
-		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
-			a.ProcessQueueBytes = queueBytes
-		}
-	}
-
-	// How many check results to buffer in memory when POST fails. The default is usually fine.
-	if k := key(ns, "rt_queue_size"); config.Datadog.IsSet(k) {
-		if rtqueueSize := config.Datadog.GetInt(k); rtqueueSize > 0 {
-			a.RTQueueSize = rtqueueSize
-		}
 	}
 
 	// The maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
@@ -284,15 +242,18 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 // Since it has its own unique object, we need to handle loading in the check config differently separately
 // from the other checks.
 func (a *AgentConfig) initProcessDiscoveryCheck() {
+	if config.IsECSFargate() {
+		log.Debug("Process discovery is not supported on ECS Fargate")
+		return
+	}
+
 	root := key(ns, "process_discovery")
 
 	// Discovery check can only be enabled when regular process collection is not enabled.
-	// (process_config.process_discovery.enabled = true and process_config.enabled is not set to "true")
-	processAgentEnabled := strings.ToLower(config.Datadog.GetString(key(ns, "enabled")))
-	checkEnabled := config.Datadog.GetBool(key(root, "enabled"))
-	if checkEnabled && processAgentEnabled != "true" {
+	processCheckEnabled := config.Datadog.GetBool("process_config.process_collection.enabled")
+	discoveryCheckEnabled := config.Datadog.GetBool(key(root, "enabled"))
+	if discoveryCheckEnabled && !processCheckEnabled {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
-		a.Enabled = true
 
 		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
 		// We use a minimum of 10 minutes for this value.

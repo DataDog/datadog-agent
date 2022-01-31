@@ -128,25 +128,9 @@ func TestOnlyEnvConfig(t *testing.T) {
 	// setting an API Key should be enough to generate valid config
 	os.Setenv("DD_API_KEY", "apikey_from_env")
 	defer os.Unsetenv("DD_API_KEY")
-	os.Setenv("DD_PROCESS_AGENT_ENABLED", "true")
-	defer os.Unsetenv("DD_PROCESS_AGENT_ENABLED")
 
 	agentConfig, _ := NewAgentConfig("test", "", syscfg, true)
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
-	assert.True(t, agentConfig.Enabled)
-
-	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
-	os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "false")
-	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
-	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
-	assert.False(t, agentConfig.Enabled)
-
-	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
-	os.Setenv("DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED", "true")
-	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
-	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
-	// Process discovery enabled by default enables the process agent
-	assert.True(t, agentConfig.Enabled)
 
 	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
 	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
@@ -287,7 +271,7 @@ func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
 
 func TestGetHostname(t *testing.T) {
 	ctx := context.Background()
-	_ = NewDefaultAgentConfig(false)
+	_ = NewDefaultAgentConfig()
 	h, err := getHostname(ctx, config.Datadog.GetString("process_config.dd_agent_bin"), 0)
 	assert.Nil(t, err)
 	// verify we fall back to getting os hostname
@@ -297,14 +281,14 @@ func TestGetHostname(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	assert := assert.New(t)
-	agentConfig := NewDefaultAgentConfig(false)
+	agentConfig := NewDefaultAgentConfig()
 
 	// assert that some sane defaults are set
 	assert.Equal("info", config.Datadog.GetString("log_level"))
 	assert.Equal(true, agentConfig.Scrubber.Enabled)
 
 	os.Setenv("DOCKER_DD_AGENT", "yes")
-	agentConfig = NewDefaultAgentConfig(false)
+	agentConfig = NewDefaultAgentConfig()
 	assert.Equal(os.Getenv("HOST_PROC"), "")
 	assert.Equal(os.Getenv("HOST_SYS"), "")
 	os.Setenv("DOCKER_DD_AGENT", "no")
@@ -333,8 +317,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	ep := agentConfig.APIEndpoints[0]
 	assert.Equal("apikey_20", ep.APIKey)
 	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
-	assert.Equal(10, agentConfig.QueueSize)
-	assert.Equal(true, agentConfig.Enabled)
+	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
@@ -349,8 +332,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal("apikey_20", ep.APIKey)
 	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
 	assert.Equal("server-01", agentConfig.HostName)
-	assert.Equal(10, agentConfig.QueueSize)
-	assert.Equal(true, agentConfig.Enabled)
+	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
@@ -366,8 +348,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 
 	assert.Equal("apikey_20", ep.APIKey)
 	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
-	assert.Equal(10, agentConfig.QueueSize)
-	assert.Equal(true, agentConfig.Enabled)
+	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
@@ -544,7 +525,6 @@ func TestNetworkConfig(t *testing.T) {
 		agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlOnly.yaml", "./testdata/TestDDAgentConfig-NetConfig.yaml")
 
 		assert.True(t, agentConfig.EnableSystemProbe)
-		assert.True(t, agentConfig.Enabled)
 		assert.ElementsMatch(t, []string{ConnectionsCheckName, NetworkCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
 	})
 
@@ -561,7 +541,6 @@ func TestNetworkConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, agentConfig.EnableSystemProbe)
-		assert.True(t, agentConfig.Enabled)
 		assert.ElementsMatch(t, []string{ConnectionsCheckName, NetworkCheckName, ContainerCheckName, RTContainerCheckName, DiscoveryCheckName}, agentConfig.EnabledChecks)
 	})
 }
@@ -573,29 +552,7 @@ func TestSystemProbeNoNetwork(t *testing.T) {
 	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlOnly.yaml", "./testdata/TestDDAgentConfig-OOMKillOnly.yaml")
 
 	assert.True(t, agentConfig.EnableSystemProbe)
-	assert.True(t, agentConfig.Enabled)
 	assert.ElementsMatch(t, []string{OOMKillCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
-}
-
-func TestIsAffirmative(t *testing.T) {
-	value, err := isAffirmative("yes")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	value, err = isAffirmative("True")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	value, err = isAffirmative("1")
-	assert.Nil(t, err)
-	assert.True(t, value)
-
-	_, err = isAffirmative("")
-	assert.NotNil(t, err)
-
-	value, err = isAffirmative("ok")
-	assert.Nil(t, err)
-	assert.False(t, value)
 }
 
 func TestGetHostnameFromGRPC(t *testing.T) {
@@ -700,19 +657,17 @@ func TestGetHostnameShellCmd(t *testing.T) {
 func TestProcessDiscoveryConfig(t *testing.T) {
 	assert := assert.New(t)
 
-	procConfigEnabledValues := []string{"true", "false", "disabled"}
-	procDiscoveryEnabledValues := []bool{true, false}
-	for _, procConfigEnabled := range procConfigEnabledValues {
-		for _, procDiscoveryEnabled := range procDiscoveryEnabledValues {
-			config.Datadog.Set("process_config.enabled", procConfigEnabled)
+	for _, procCollectionEnabled := range []bool{true, false} {
+		for _, procDiscoveryEnabled := range []bool{true, false} {
+			config.Datadog.Set("process_config.process_collection.enabled", procCollectionEnabled)
 			config.Datadog.Set("process_config.process_discovery.enabled", procDiscoveryEnabled)
 			config.Datadog.Set("process_config.process_discovery.interval", time.Hour)
 			cfg := AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
 			cfg.initProcessDiscoveryCheck()
 
-			// Make sure that the process discovery check is only enabled when both the process-agent is not set to true,
+			// Make sure that the process discovery check is only enabled when process collection is disabled,
 			// and procDiscoveryEnabled isn't overridden.
-			if procDiscoveryEnabled == true && procConfigEnabled != "true" {
+			if procDiscoveryEnabled && !procCollectionEnabled {
 				assert.ElementsMatch([]string{DiscoveryCheckName}, cfg.EnabledChecks)
 
 				// Interval Tests:

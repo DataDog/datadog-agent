@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-//go:build (docker && linux) || (docker && windows)
-// +build docker,linux docker,windows
+//go:build docker && (linux || windows)
+// +build docker
+// +build linux windows
 
 package docker
 

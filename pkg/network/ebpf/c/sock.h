@@ -209,16 +209,12 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
             return 0;
         }
 
-        if (t->saddr_h == 0) {
+        if (!(t->saddr_h || t->saddr_l)) {
             bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
-        }
-        if (t->saddr_l == 0) {
             bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
         }
-        if (t->daddr_h == 0) {
+        if (!(t->daddr_h || t->daddr_l)) {
             bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
-        }
-        if (t->daddr_l == 0) {
             bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
         }
 
