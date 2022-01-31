@@ -575,6 +575,7 @@ core,github.com/open-policy-agent/opa/topdown/builtins,Apache-2.0,The OPA Author
 core,github.com/open-policy-agent/opa/topdown/cache,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/copypropagation,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/print,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/tracing,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/types,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/util,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/version,Apache-2.0,The OPA Authors
