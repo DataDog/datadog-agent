@@ -358,7 +358,9 @@ func (d *DockerUtil) getECSMetadataURL(ctx context.Context, cID string) (string,
 		return "", err
 	}
 	for _, e := range i.Config.Env {
-		if strings.HasPrefix(e, "ECS_CONTAINER_METADATA_URI=") {
+		if strings.HasPrefix(e, "ECS_CONTAINER_METADATA_URI_V4=") {
+			return strings.Split(e, "=")[1], nil
+		} else if strings.HasPrefix(e, "ECS_CONTAINER_METADATA_URI=") {
 			return strings.Split(e, "=")[1], nil
 		}
 	}

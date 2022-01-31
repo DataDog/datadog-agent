@@ -1,12 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020-present Datadog, Inc.
+// Copyright 2022-present Datadog, Inc.
 
 //go:build docker
 // +build docker
 
-package v3
+package v3or4
 
 import (
 	"context"
@@ -22,20 +22,22 @@ import (
 )
 
 const (
-	// DefaultMetadataURIEnvVariable is the default environment variable used to hold the metadata endpoint URI.
-	DefaultMetadataURIEnvVariable = "ECS_CONTAINER_METADATA_URI"
+	// DefaultMetadataURIv3EnvVariable is the default environment variable used to hold the metadata endpoint URI v3.
+	DefaultMetadataURIv3EnvVariable = "ECS_CONTAINER_METADATA_URI"
+	// DefaultMetadataURIv4EnvVariable is the default environment variable used to hold the metadata endpoint URI v4.
+	DefaultMetadataURIv4EnvVariable = "ECS_CONTAINER_METADATA_URI_V4"
 
-	// Metadata v3 API paths
+	// Metadata v3 and v4 API paths. They're the same.
 	taskMetadataPath         = "/task"
 	taskMetadataWithTagsPath = "/taskWithTags"
 )
 
-// Client represents a client for a metadata v3 API endpoint.
+// Client represents a client for a metadata v3 or v4 API endpoint.
 type Client struct {
 	agentURL string
 }
 
-// NewClient creates a new client for the specified metadata v3 API endpoint.
+// NewClient creates a new client for the specified metadata v3 or v4 API endpoint.
 func NewClient(agentURL string) *Client {
 	return &Client{
 		agentURL: agentURL,
@@ -85,11 +87,11 @@ func (c *Client) get(ctx context.Context, path string, v interface{}) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Unexpected HTTP status code in metadata v3 reply: %d", resp.StatusCode)
+		return fmt.Errorf("Unexpected HTTP status code in metadata v3 or v4 reply: %d", resp.StatusCode)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return fmt.Errorf("Failed to decode metadata v3 JSON payload to type %s: %s", reflect.TypeOf(v), err)
+		return fmt.Errorf("Failed to decode metadata v3 or v4 JSON payload to type %s: %s", reflect.TypeOf(v), err)
 	}
 
 	return nil

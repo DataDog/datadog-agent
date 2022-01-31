@@ -19,7 +19,7 @@ import (
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
-	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
+	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/util"
 )
@@ -209,6 +209,7 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 	}
 
 	var metaURI string
+	var metaVersion string
 	for _, taskContainer := range entity.Containers {
 		container, err := c.store.GetContainer(taskContainer.ID)
 		if err != nil {
@@ -216,22 +217,30 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 			continue
 		}
 
-		uri, ok := container.EnvVars[v3.DefaultMetadataURIEnvVariable]
+		uri, ok := container.EnvVars[v3or4.DefaultMetadataURIv4EnvVariable]
 		if ok && uri != "" {
 			metaURI = uri
+			metaVersion = "v4"
+			break
+		}
+
+		uri, ok = container.EnvVars[v3or4.DefaultMetadataURIv3EnvVariable]
+		if ok && uri != "" {
+			metaURI = uri
+			metaVersion = "v3"
 			break
 		}
 	}
 
 	if metaURI == "" {
-		log.Errorf("failed to get client for metadata v3 API from task %q and the following containers: %v", entity.ID, entity.Containers)
+		log.Errorf("failed to get client for metadata v3 or v4 API from task %q and the following containers: %v", entity.ID, entity.Containers)
 		return rt
 	}
 
-	metaV3 := v3.NewClient(metaURI)
-	taskWithTags, err := metaV3.GetTaskWithTags(ctx)
+	metaV3orV4 := v3or4.NewClient(metaURI)
+	taskWithTags, err := metaV3orV4.GetTaskWithTags(ctx)
 	if err != nil {
-		log.Errorf("failed to get task with tags from metadata v3 API: %s", err)
+		log.Errorf("failed to get task with tags from metadata %s API: %s", metaVersion, err)
 		return rt
 	}
 
