@@ -149,7 +149,7 @@ require (
 	github.com/moby/sys/mountinfo v0.5.0
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/open-policy-agent/opa v0.35.0
+	github.com/open-policy-agent/opa v0.36.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.43.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
@@ -269,7 +269,7 @@ require (
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-kit/log v0.1.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.0 // indirect
-	github.com/go-logr/logr v1.2.1 // indirect
+	github.com/go-logr/logr v1.2.2 // indirect
 	github.com/go-logr/stdr v1.2.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.6 // indirect
