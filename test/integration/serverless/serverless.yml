@@ -105,10 +105,10 @@ functions:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       CORECLR_ENABLE_PROFILING: 1
-      CORECLR_PROFILER: “{846F5F1C-F9AE-4B07-969E-05C26BC060D8}”
-      CORECLR_PROFILER_PATH: “/opt/datadog/Datadog.Trace.ClrProfiler.Native.so”
-      DD_DOTNET_TRACER_HOME: “/opt/datadog”
-      DD_INTEGRATIONS: “/opt/datadog/integrations.json”
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
 
   error-node:
     runtime: nodejs14.x
@@ -161,10 +161,10 @@ functions:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       CORECLR_ENABLE_PROFILING: 1
-      CORECLR_PROFILER: “{846F5F1C-F9AE-4B07-969E-05C26BC060D8}”
-      CORECLR_PROFILER_PATH: “/opt/datadog/Datadog.Trace.ClrProfiler.Native.so”
-      DD_DOTNET_TRACER_HOME: “/opt/datadog”
-      DD_INTEGRATIONS: “/opt/datadog/integrations.json”
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
 
   timeout-node:
     runtime: nodejs14.x
@@ -221,10 +221,10 @@ functions:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       CORECLR_ENABLE_PROFILING: 1
-      CORECLR_PROFILER: “{846F5F1C-F9AE-4B07-969E-05C26BC060D8}”
-      CORECLR_PROFILER_PATH: “/opt/datadog/Datadog.Trace.ClrProfiler.Native.so”
-      DD_DOTNET_TRACER_HOME: “/opt/datadog”
-      DD_INTEGRATIONS: “/opt/datadog/integrations.json”
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
 
 
   log-node:
@@ -275,10 +275,10 @@ functions:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       CORECLR_ENABLE_PROFILING: 1
-      CORECLR_PROFILER: “{846F5F1C-F9AE-4B07-969E-05C26BC060D8}”
-      CORECLR_PROFILER_PATH: “/opt/datadog/Datadog.Trace.ClrProfiler.Native.so”
-      DD_DOTNET_TRACER_HOME: “/opt/datadog”
-      DD_INTEGRATIONS: “/opt/datadog/integrations.json”
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
 
   log-java:
     runtime: java8.al2
@@ -366,7 +366,7 @@ functions:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       CORECLR_ENABLE_PROFILING: 1
-      CORECLR_PROFILER: “{846F5F1C-F9AE-4B07-969E-05C26BC060D8}”
-      CORECLR_PROFILER_PATH: “/opt/datadog/Datadog.Trace.ClrProfiler.Native.so”
-      DD_DOTNET_TRACER_HOME: “/opt/datadog”
-      DD_INTEGRATIONS: “/opt/datadog/integrations.json”
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
