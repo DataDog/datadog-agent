@@ -384,17 +384,16 @@ func StartAgent() error {
 	}
 
 	// Start OTLP intake
-	if otlp.IsEnabled(config.Datadog) {
+	otlpEnabled := otlp.IsEnabled(config.Datadog)
+	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
+	if otlpEnabled {
 		var err error
-		inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, true)
 		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog, demux.Serializer())
 		if err != nil {
 			log.Errorf("Could not start OTLP: %s", err)
 		} else {
 			log.Debug("OTLP pipeline started")
 		}
-	} else {
-		inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, false)
 	}
 
 	// Start SNMP trap server
