@@ -205,11 +205,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 		// DataScrubber to hide command line sensitive words
 		Scrubber:  NewDefaultDataScrubber(),
 		Blacklist: make([]*regexp.Regexp, 0),
-
-		// Windows process config
-		Windows: WindowsConfig{
-			ArgsRefreshInterval: 15, // with default 20s check interval we refresh every 5m
-		},
 	}
 
 	// Set default values for proc/sys paths if unset.
@@ -303,13 +298,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 
 	if cfg.proxy != nil {
 		cfg.Transport.Proxy = cfg.proxy
-	}
-
-	// sanity check. This element is used with the modulo operator (%), so it can't be zero.
-	// if it is, log the error, and assume the config was attempting to disable
-	if cfg.Windows.ArgsRefreshInterval == 0 {
-		log.Warnf("invalid configuration: windows_collect_skip_new_args was set to 0.  Disabling argument collection")
-		cfg.Windows.ArgsRefreshInterval = -1
 	}
 
 	// activate the pod collection if enabled and we have the cluster name set
