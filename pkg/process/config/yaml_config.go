@@ -151,11 +151,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string, canAccessContainers boo
 		a.Windows.ArgsRefreshInterval = argRefresh
 	}
 
-	// Windows: Controls getting process arguments immediately when a new process is discovered
-	if addArgsKey := key(ns, "windows", "add_new_args"); config.Datadog.IsSet(addArgsKey) {
-		a.Windows.AddNewArgs = config.Datadog.GetBool(addArgsKey)
-	}
-
 	// Windows: Controls using the new check based on performance counters PDH APIs
 	if usePerfCountersKey := key(ns, "windows", "use_perf_counters"); config.Datadog.IsSet(usePerfCountersKey) {
 		a.Windows.UsePerfCounters = config.Datadog.GetBool(usePerfCountersKey)

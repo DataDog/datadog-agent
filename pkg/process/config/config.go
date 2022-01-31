@@ -84,8 +84,6 @@ type cmdFunc = func(name string, arg ...string) *exec.Cmd
 type WindowsConfig struct {
 	// Number of checks runs between refreshes of command-line arguments
 	ArgsRefreshInterval int
-	// Controls getting process arguments immediately when a new process is discovered
-	AddNewArgs bool
 	// UsePerfCounters enables new process check using performance counters for process collection
 	UsePerfCounters bool
 }
@@ -211,7 +209,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 		// Windows process config
 		Windows: WindowsConfig{
 			ArgsRefreshInterval: 15, // with default 20s check interval we refresh every 5m
-			AddNewArgs:          true,
 		},
 	}
 
