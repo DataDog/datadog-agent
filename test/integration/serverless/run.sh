@@ -59,9 +59,9 @@ fi
 
 cd $SERVERLESS_INTEGRATION_TESTS_DIR
 
-./build_recorder.sh
-./build_go_functions.sh
-./build_java_functions.sh
+# ./build_recorder.sh
+# ./build_go_functions.sh
+# ./build_java_functions.sh
 ./build_csharp_functions.sh
 
 if [ -z "$NODE_LAYER_VERSION" ]; then
@@ -106,9 +106,11 @@ metric_functions=(
     "timeout-python"
     "timeout-java"
     "timeout-go"
+    "timeout-csharp"
     "error-node"
     "error-python"
     "error-java"
+    "error-csharp"
 )
 log_functions=(
     "log-node"
@@ -122,6 +124,7 @@ trace_functions=(
     "trace-python"
     "trace-java"
     "trace-go"
+    "trace-csharp"
 )
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
