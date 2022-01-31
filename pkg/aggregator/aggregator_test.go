@@ -166,7 +166,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, "", event1.Host)
 	assert.NotZero(t, event1.Ts) // should be set to the current time, let's just check that it's not 0
 	assert.Zero(t, event1.Priority)
-	assert.Zero(t, event1.Tags)
+	assert.Zero(t, len(event1.Tags))
 	assert.Zero(t, event1.AlertType)
 	assert.Zero(t, event1.AggregationKey)
 	assert.Zero(t, event1.SourceTypeName)

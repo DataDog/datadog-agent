@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,7 +21,7 @@ func TestIsZero(t *testing.T) {
 func TestGenerateReproductible(t *testing.T) {
 	name := "metric.name"
 	hostname := "hostname"
-	tags := oldtagset.NewHashingTagsAccumulatorWithTags([]string{"bar", "foo", "key:value", "key:value2"})
+	tags := tagset.NewTags([]string{"bar", "foo", "key:value", "key:value2"})
 
 	generator := NewKeyGenerator()
 
@@ -50,32 +50,22 @@ func TestCompare(t *testing.T) {
 	assert.False(t, Equals(base, diff))
 }
 
-func genTags(count int, div int) ([]string, []string) {
-	var tags []string
-	uniqMap := make(map[string]struct{})
+func genTags(count int, div int) *tagset.Tags {
+	bldr := tagset.NewBuilder(count)
 	for i := 0; i < count; i++ {
-		tag := fmt.Sprintf("tag%d:value%d", i/div, i/div)
-		tags = append(tags, tag)
-		uniqMap[tag] = struct{}{}
+		bldr.Add(fmt.Sprintf("tag%d:value%d", i/div, i/div))
 	}
 
-	uniq := []string{}
-	for tag := range uniqMap {
-		uniq = append(uniq, tag)
-	}
-
-	return tags, uniq
+	return bldr.Close()
 }
 
 func BenchmarkKeyGeneration(b *testing.B) {
 	name := "testname"
 	host := "myhost"
 	for i := 1; i < 4096; i *= 2 {
-		tags, _ := genTags(i, 1)
-		tagsBuf := oldtagset.NewHashingTagsAccumulatorWithTags(tags)
+		tags := genTags(i, 1)
 		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 			generator := NewKeyGenerator()
-			tags := tagsBuf.Dup()
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
 				generator.Generate(name, host, tags)

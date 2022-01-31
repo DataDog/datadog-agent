@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // FakeTagger implements the Tagger interface
@@ -86,13 +86,15 @@ func (f *FakeTagger) Tag(entity string, cardinality collectors.TagCardinality) (
 }
 
 // AccumulateTagsFor fake implementation
-func (f *FakeTagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb oldtagset.TagAccumulator) error {
+func (f *FakeTagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb *tagset.Builder) error {
 	tags, err := f.Tag(entity, cardinality)
 	if err != nil {
 		return err
 	}
 
-	tb.Append(tags...)
+	for _, tag := range tags {
+		tb.Add(tag)
+	}
 	return nil
 }
 

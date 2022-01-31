@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -436,11 +436,13 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
-	tb := oldtagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
+	tb := tagset.NewBuilder(len(sc.Tags) * 2)
+	for _, tag := range sc.Tags {
+		tb.Add(tag)
+	}
 	tagger.EnrichTags(tb, sc.OriginID, sc.K8sOriginID, sc.Cardinality)
 
-	tb.SortUniq()
-	sc.Tags = tb.Get()
+	sc.Tags = tb.Close().UnsafeReadOnlySlice()
 
 	agg.serviceChecks = append(agg.serviceChecks, &sc)
 }
@@ -450,11 +452,13 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
-	tb := oldtagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
+	tb := tagset.NewBuilder(len(e.Tags) * 2)
+	for _, tag := range e.Tags {
+		tb.Add(tag)
+	}
 	tagger.EnrichTags(tb, e.OriginID, e.K8sOriginID, e.Cardinality)
 
-	tb.SortUniq()
-	e.Tags = tb.Get()
+	e.Tags = tb.Close().UnsafeReadOnlySlice()
 
 	agg.events = append(agg.events, &e)
 }

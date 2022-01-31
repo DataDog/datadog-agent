@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Helper functions to run tests and benchmarks for context resolver, time and check samplers.
@@ -36,7 +37,7 @@ func benchWithTagsStore(t *testing.B, test func(*testing.B, *tags.Store)) {
 func assertContext(t *testing.T, cx *Context, name string, tags []string, host string) {
 	assert.Equal(t, cx.Name, name)
 	assert.Equal(t, cx.Host, host)
-	assert.Equal(t, cx.Tags(), tags)
+	assert.Equal(t, tagset.NewTags(cx.Tags()).Sorted(), tagset.NewTags(tags).Sorted())
 }
 
 func TestGenerateContextKey(t *testing.T) {

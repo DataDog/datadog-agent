@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	oldtagset "github.com/DataDog/datadog-agent/pkg/tagset/old"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -265,25 +265,26 @@ func (s *TagStore) Prune() {
 	}
 }
 
-// LookupHashed gets tags from the store and returns them as a HashedTags instance. It
-// returns the source names in the second slice to allow the client to trigger manual
-// lookups on missing sources.
-func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) oldtagset.HashedTags {
+// LookupHashed gets tags from the store and returns them as a Tags instance.
+func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) *tagset.Tags {
 	s.RLock()
 	defer s.RUnlock()
 	storedTags, present := s.store[entity]
 
 	if present == false {
-		return oldtagset.HashedTags{}
+		return tagset.EmptyTags
 	}
 	return storedTags.getHashedTags(cardinality)
 }
 
-// Lookup gets tags from the store and returns them concatenated in a string slice. It
-// returns the source names in the second slice to allow the client to trigger manual
-// lookups on missing sources.
+// Lookup gets tags from the store and returns them concatenated in a string slice.
 func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) []string {
-	return s.LookupHashed(entity, cardinality).Get()
+	slice := s.LookupHashed(entity, cardinality).UnsafeReadOnlySlice() // TODO: Lookup does not return *tagset.Tags yet
+	// avoid aliasing issues by making a copy of this read-only slice, in case the caller
+	// wants to modify it, or is unaware that things like append(..) modify slices in-place
+	rv := make([]string, len(slice))
+	copy(rv, slice)
+	return rv
 }
 
 // LookupStandard returns the standard tags recorded for a given entity

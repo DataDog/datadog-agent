@@ -56,18 +56,18 @@ func (s *StoreTestSuite) TestLookup() {
 		{
 			Source:       "source1",
 			Entity:       "test",
-			LowCardTags:  []string{"tag"},
-			HighCardTags: []string{"tag"},
+			LowCardTags:  []string{"tag1"},
+			HighCardTags: []string{"tag2"},
 		},
 		{
 			Source:      "source2",
 			Entity:      "test",
-			LowCardTags: []string{"tag"},
+			LowCardTags: []string{"tag3"},
 		},
 		{
 			Source:               "source3",
 			Entity:               "test",
-			OrchestratorCardTags: []string{"tag"},
+			OrchestratorCardTags: []string{"tag4"},
 		},
 	})
 
@@ -108,7 +108,7 @@ func (s *StoreTestSuite) TestLookupStandard() {
 
 func (s *StoreTestSuite) TestLookupNotPresent() {
 	tags := s.store.Lookup("test", collectors.LowCardinality)
-	assert.Nil(s.T(), tags)
+	assert.Equal(s.T(), len(tags), 0)
 }
 
 func (s *StoreTestSuite) TestPrune__deletedEntities() {
@@ -117,20 +117,20 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 		{
 			Source:               "source1",
 			Entity:               "test1",
-			LowCardTags:          []string{"s1tag"},
-			OrchestratorCardTags: []string{"s1tag"},
-			HighCardTags:         []string{"s1tag"},
+			LowCardTags:          []string{"s1taga"},
+			OrchestratorCardTags: []string{"s1tagb"},
+			HighCardTags:         []string{"s1tagc"},
 		},
 		{
 			Source:       "source2",
 			Entity:       "test1",
-			HighCardTags: []string{"s2tag"},
+			HighCardTags: []string{"s2taga"},
 		},
 		{
 			Source:       "source1",
 			Entity:       "test2",
-			LowCardTags:  []string{"tag"},
-			HighCardTags: []string{"tag"},
+			LowCardTags:  []string{"taga"},
+			HighCardTags: []string{"tagb"},
 		},
 
 		// Deletion, to be batched
@@ -191,14 +191,14 @@ func (s *StoreTestSuite) TestPrune__emptyEntries() {
 		{
 			Source:               "source1",
 			Entity:               "test1",
-			LowCardTags:          []string{"s1tag"},
-			OrchestratorCardTags: []string{"s1tag"},
-			HighCardTags:         []string{"s1tag"},
+			LowCardTags:          []string{"s1taga"},
+			OrchestratorCardTags: []string{"s1tagb"},
+			HighCardTags:         []string{"s1tagc"},
 		},
 		{
 			Source:       "source2",
 			Entity:       "test2",
-			HighCardTags: []string{"s2tag"},
+			HighCardTags: []string{"s2taga"},
 		},
 		{
 			Source:      "emptySource1",
@@ -218,7 +218,7 @@ func (s *StoreTestSuite) TestPrune__emptyEntries() {
 		{
 			Source:      "source3",
 			Entity:      "test3",
-			LowCardTags: []string{"s3tag"},
+			LowCardTags: []string{"s3taga"},
 		},
 	})
 
