@@ -92,7 +92,6 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.scrub_args")
 	config.SetKnown("process_config.strip_proc_arguments")
 	config.SetKnown("process_config.windows.args_refresh_interval")
-	config.SetKnown("process_config.windows.add_new_args")
 	config.SetKnown("process_config.windows.use_perf_counters")
 	config.SetKnown("process_config.additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
