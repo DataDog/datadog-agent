@@ -104,7 +104,6 @@ func TestHasContainers(t *testing.T) {
 }
 
 func TestDisableRealTime(t *testing.T) {
-
 	tests := []struct {
 		name            string
 		disableRealtime bool
@@ -137,7 +136,40 @@ func TestDisableRealTime(t *testing.T) {
 			c, err := NewCollector(cfg, enabledChecks)
 			assert.NoError(err)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
+			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
 		})
 	}
+}
 
+func TestDisableRealTimeProcessCheck(t *testing.T) {
+	tests := []struct {
+		name            string
+		disableRealtime bool
+		expectedChecks  []checks.Check
+	}{
+		{
+			name:            "true",
+			disableRealtime: true,
+		},
+		{
+			name:            "false",
+			disableRealtime: false,
+		},
+	}
+
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig()
+	expectedChecks := []checks.Check{checks.Process}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock()
+			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
+
+			c, err := NewCollector(cfg, expectedChecks)
+			assert.NoError(err)
+			assert.Equal(!tc.disableRealtime, c.runRealTime)
+			assert.EqualValues(expectedChecks, c.enabledChecks)
+		})
+	}
 }

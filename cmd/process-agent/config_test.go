@@ -63,7 +63,6 @@ func TestContainerCheck(t *testing.T) {
 	assert.Contains(t, enabledChecks, checks.Process)
 	assert.NotContains(t, enabledChecks, checks.Container)
 	assert.NotContains(t, enabledChecks, checks.RTContainer)
-
 }
 
 func TestProcessCheck(t *testing.T) {
