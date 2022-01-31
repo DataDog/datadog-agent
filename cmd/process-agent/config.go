@@ -20,7 +20,11 @@ func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAc
 			}
 		}
 		if ddconfig.Datadog.GetBool("process_config.process_discovery.enabled") {
-			checkCfg = append(checkCfg, checks.ProcessDiscovery)
+			if ddconfig.IsECSFargate() {
+				log.Debug("Process discovery is not supported on ECS Fargate")
+			} else {
+				checkCfg = append(checkCfg, checks.ProcessDiscovery)
+			}
 		}
 	}
 
