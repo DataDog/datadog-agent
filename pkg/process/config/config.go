@@ -80,12 +80,6 @@ type proxyFunc func(*http.Request) (*url.URL, error)
 
 type cmdFunc = func(name string, arg ...string) *exec.Cmd
 
-// WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
-type WindowsConfig struct {
-	// UsePerfCounters enables new process check using performance counters for process collection
-	UsePerfCounters bool
-}
-
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 //
@@ -120,9 +114,6 @@ type AgentConfig struct {
 
 	// Internal store of a proxy used for generating the Transport
 	proxy proxyFunc
-
-	// Windows-specific config
-	Windows WindowsConfig
 }
 
 // CheckIsEnabled returns a bool indicating if the given check name is enabled.
