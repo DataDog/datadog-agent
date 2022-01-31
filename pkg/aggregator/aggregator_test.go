@@ -340,7 +340,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 				Host:      "",
 				Timestamp: timeNowNano() - 10000000,
 			}
-			demux.AddTimeSamples(0, []metrics.MetricSample{samp})
+			demux.AddTimeSample(samp)
 
 			time.Sleep(1 * time.Second)
 
@@ -522,9 +522,7 @@ func TestTimeSamplerFlush(t *testing.T) {
 
 	pc := config.Datadog.GetInt("dogstatsd_pipeline_count")
 	config.Datadog.Set("dogstatsd_pipeline_count", 1)
-	defer func() {
-		config.Datadog.Set("dogstatsd_pipeline_count", pc)
-	}()
+	defer config.Datadog.Set("dogstatsd_pipeline_count", pc)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -578,7 +576,7 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 		for i := 0; i < sampleCount; i++ {
 			name := fmt.Sprintf("serie%d", i)
 
-			demux.AddTimeSamples(0, []metrics.MetricSample{{Name: name, Value: value, Mtype: metrics.CountType, Timestamp: timestamp}})
+			demux.AddTimeSample(metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType, Timestamp: timestamp})
 
 			if _, found := expectedSeries[name]; !found {
 				expectedSeries[name] = &metrics.Serie{
@@ -591,7 +589,7 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 		}
 	}
 
-	// we have to wait here because AddTimeSamples is async and we want to be
+	// we have to wait here because AddTimeSample is async and we want to be
 	// sure all samples have been processed by the sampler
 	time.Sleep(1 * time.Second)
 

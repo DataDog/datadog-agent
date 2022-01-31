@@ -56,14 +56,14 @@ func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string
 		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
 	} else {
 		duration := end.Sub(start).Milliseconds()
-		demux.AddTimeSamples(0, []metrics.MetricSample{{
+		demux.AddTimeSample(metrics.MetricSample{
 			Name:       runtimeDurationMetric,
 			Value:      float64(duration),
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  float64(end.UnixNano()) / float64(time.Second),
-		}})
+		})
 	}
 }
 
@@ -131,7 +131,9 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 		enhancedMetrics = append(enhancedMetrics, initDurationMetric)
 	}
 
-	demux.AddTimeSamples(0, enhancedMetrics)
+	for _, metric := range enhancedMetrics {
+		demux.AddTimeSample(metric)
+	}
 }
 
 // SendOutOfMemoryEnhancedMetric sends an enhanced metric representing a function running out of memory at a given time
@@ -156,14 +158,14 @@ func SendInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer)
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
 func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer) {
-	demux.AddTimeSamples(0, []metrics.MetricSample{{
+	demux.AddTimeSample(metrics.MetricSample{
 		Name:       name,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}})
+	})
 }
 
 // calculateEstimatedCost returns the estimated cost in USD of a Lambda invocation

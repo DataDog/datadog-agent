@@ -101,7 +101,7 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 }
 
 // Add the metricSample to the correct bucket
-func (s *TimeSampler) addSamples(samples []metrics.MetricSample) {
+func (s *TimeSampler) addSamples(samples metrics.MetricSampleBatch) {
 	s.samples <- samples
 }
 

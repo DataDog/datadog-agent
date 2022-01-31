@@ -109,7 +109,7 @@ func (b *batcher) appendServiceCheck(serviceCheck *metrics.ServiceCheck) {
 func (b *batcher) flushSamples(shard uint32) {
 	if b.samplesCount[shard] > 0 {
 		t1 := time.Now()
-		b.demux.AddTimeSamples(shard, b.samples[shard][:b.samplesCount[shard]])
+		b.demux.AddTimeSampleBatch(aggregator.TimeSamplerID(shard), b.samples[shard][:b.samplesCount[shard]])
 		t2 := time.Now()
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "metrics")
 
