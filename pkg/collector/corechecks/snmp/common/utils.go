@@ -6,6 +6,7 @@
 package common
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -43,26 +44,35 @@ func GetAgentVersionTag() string {
 	return "agent_version:" + version.AgentVersion
 }
 
-// ValidateNamespace applies
-func ValidateNamespace(namespace string) error {
-	if namespace == "" {
-		// Can only happen if snmp_listener.namespace config is set to empty string in `datadog.yaml`
-		return fmt.Errorf("namespace cannot be empty")
-	}
+// NormalizeNamespace applies policy according to hostname rule
+func NormalizeNamespace(namespace string) (string, error) {
+	var buf bytes.Buffer
 
 	// namespace longer than 100 characters are illegal
 	if len(namespace) > 100 {
-		return fmt.Errorf("namespace too long (> 100)")
+		return "", fmt.Errorf("namespace is too long, should contain less than 253 characters")
 	}
 
-	// using NormalizeHost rune policy
 	for _, r := range namespace {
 		switch r {
 		// has null rune just toss the whole thing
-		case '\x00', '\n', '\r', '\t', '>', '<':
-			return fmt.Errorf("namespace cannot contain [%v], only alphanumeric characters allowed", r)
+		case '\x00':
+			return "", fmt.Errorf("namespace cannot contain null character")
+		// drop these characters entirely
+		case '\n', '\r', '\t':
+			continue
+		// replace characters that are generally used for xss with '-'
+		case '>', '<':
+			buf.WriteByte('-')
+		default:
+			buf.WriteRune(r)
 		}
 	}
 
-	return nil
+	normalizedNamespace := buf.String()
+	if normalizedNamespace == "" {
+		return "", fmt.Errorf("namespace cannot be empty")
+	}
+
+	return normalizedNamespace, nil
 }

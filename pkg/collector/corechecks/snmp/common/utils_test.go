@@ -111,9 +111,16 @@ func Test_CopyStrings(t *testing.T) {
 func TestValidateNamespace(t *testing.T) {
 	assert := assert.New(t)
 	long := strings.Repeat("a", 105)
-	assert.NotNil(ValidateNamespace(long), "namespace should not be too long")
-	assert.NotNil(ValidateNamespace("a<b"), "namespace should not contain symbols")
-	assert.NotNil(ValidateNamespace("a\nb"), "namespace should not contain symbols")
+	_, err := NormalizeNamespace(long)
+	assert.NotNil(err, "namespace should not be too long")
+
+	namespace, err := NormalizeNamespace("a<b")
+	assert.Nil(err, "namespace with symbols should be normalized")
+	assert.Equal("a-b", namespace, "namespace should not contain symbols")
+
+	namespace, err = NormalizeNamespace("a\nb")
+	assert.Nil(err, "namespace with symbols should be normalized")
+	assert.Equal("ab", namespace, "namespace should not contain symbols")
 
 	// Invalid namespace as bytes that would look like this: 9cbef2d1-8c20-4bf2-97a5-7d70��
 	b := []byte{
@@ -121,5 +128,6 @@ func TestValidateNamespace(t *testing.T) {
 		52, 98, 102, 50, 45, 57, 55, 97, 53, 45, 55, 100, 55, 48,
 		0, 0, 0, 0, 239, 191, 189, 239, 191, 189, 1, // these are bad bytes
 	}
-	assert.NotNil(ValidateNamespace(string(b)), "namespace should not contain bad bytes")
+	_, err = NormalizeNamespace(string(b))
+	assert.NotNil(err, "namespace should not contain bad bytes")
 }

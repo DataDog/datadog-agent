@@ -413,7 +413,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 	}
 
-	err = common.ValidateNamespace(c.Namespace)
+	c.Namespace, err = common.NormalizeNamespace(c.Namespace)
+	if err != nil {
+		return nil, err
+	}
+
 	if err != nil {
 		return nil, err
 	}
