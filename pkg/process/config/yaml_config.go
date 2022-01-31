@@ -73,7 +73,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		//   If "false" (the default) we will only collect containers.
 		//   If "true" we will collect containers and processes.
 		//   If "disabled" the agent will be disabled altogether and won't start.
-		enabled := config.Datadog.GetString(k)
+		enabled := strings.ToLower(config.Datadog.GetString(k))
 		ok, err := isAffirmative(enabled)
 		if ok {
 			a.Enabled, a.EnabledChecks = true, processChecks
