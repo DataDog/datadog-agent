@@ -95,6 +95,8 @@ The goals ordered by priority are:
 - Make PR reviews (both initial and follow-up reviews) easy for reviewers using GitHub
 - On the `main` branch, have a meaningful commit history that allows understanding (even years later) what each commit does, and why. 
 
+You must open the PR when the code is reviewable or you must set the PR as draft if you want to share code before it's ready for actual reviews.
+
 #### Before the first PR review
 
 Before the first PR review, meaningful commits are best: logically-encapsulated commits help the reviews go quicker and make the job for the reviewer easier. Conflicts with `main` can be resolved with a `git rebase origin/main` and a force push if it makes the review easier.
