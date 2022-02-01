@@ -209,6 +209,8 @@ for function_name in "${all_functions[@]}"; do
             echo "$raw_logs" |
                 grep -v "\[sketch\]" |
                 grep "\[log\]" |
+                # remove configuration log line from dd-trace-go
+                grep -v "DATADOG TRACER CONFIGURATION" |
                 perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
                 perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
