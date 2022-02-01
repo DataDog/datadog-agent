@@ -302,7 +302,7 @@ func runAgent(exit chan struct{}) {
 
 	expVarPort := ddconfig.Datadog.GetInt("process_config.expvar_port")
 	if expVarPort <= 0 {
-		log.Errorf("Invalid process_config.expvar_port -- %d, exiting", expVarPort)
+		log.Criticalf("Invalid process_config.expvar_port -- %d, exiting", expVarPort)
 		cleanupAndExit(1)
 	}
 
