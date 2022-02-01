@@ -22,22 +22,22 @@ func TestPerfCountersConfigSetting(t *testing.T) {
 		processProbeOnce = sync.Once{}
 	}
 
-	t.Run("enabled", func(t *testing.T) {
-		resetOnce()
-		defer resetOnce()
-
-		cfg := config.Mock()
-		cfg.Set("process_config.windows.use_perf_counters", true)
-		probe := getProcessProbe()
-		assert.Equal(t, probe, defaultWindowsProbe)
-	})
-
-	t.Run("disabled", func(t *testing.T) {
+	t.Run("use toolhelp API", func(t *testing.T) {
 		resetOnce()
 		defer resetOnce()
 
 		cfg := config.Mock()
 		cfg.Set("process_config.windows.use_perf_counters", false)
+		probe := getProcessProbe()
+		assert.Equal(t, probe, defaultWindowsProbe)
+	})
+
+	t.Run("use PDH api", func(t *testing.T) {
+		resetOnce()
+		defer resetOnce()
+
+		cfg := config.Mock()
+		cfg.Set("process_config.windows.use_perf_counters", true)
 		probe := getProcessProbe()
 		assert.NotEqual(t, probe, defaultWindowsProbe)
 	})
