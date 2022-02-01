@@ -517,8 +517,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// copy some of the field from the entry
 		event.Exec.Process = event.processCacheEntry.Process
 		event.Exec.FileFields = event.processCacheEntry.Process.FileFields
-	case model.ExitEventType:
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
@@ -586,6 +584,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		} else {
 			event.ProcessContext = event.processCacheEntry.ProcessContext
 		}
+	} else {
+		if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+			return
+		}
+
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
