@@ -32,7 +32,6 @@ import (
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"google.golang.org/grpc"
 )
 
@@ -104,9 +103,6 @@ type AgentConfig struct {
 	MaxConnsPerMessage        int
 	Transport                 *http.Transport `json:"-"`
 	ProcessExpVarPort         int
-
-	// profiling settings, or nil if profiling is not enabled
-	ProfilingSettings *profiling.Settings
 
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType

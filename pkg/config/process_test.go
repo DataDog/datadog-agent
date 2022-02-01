@@ -66,6 +66,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.process_queue_bytes",
 			defaultValue: DefaultProcessQueueBytes,
 		},
+		{
+			key:          "process_config.internal_profiling.enabled",
+			defaultValue: false,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -219,6 +223,12 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES",
 			value:    "20000",
 			expected: 20000,
+		},
+		{
+			key:      "process_config.process_queue_bytes",
+			env:      "DD_PROCESS_CONFIG.INTERNAL_PROFILING.ENABLED",
+			value:    "true",
+			expected: true,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
