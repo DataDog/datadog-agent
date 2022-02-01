@@ -67,9 +67,22 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 	}
 }
 
-// Decoder splits raw data into lines and passes them to a lineParser that passes them to
-// a lineHandler that emits outputs
-// Input->[decoder]->[parser]->[handler]->Message
+// Decoder wraps a collection of internal actors, joined by channels, representing the
+// whole as a single actor with InputChan of type *decoder.Input and OutputChan of type
+// *decoder.Message.
+//
+// Internally, it has three running actors:
+//
+// Decoder.run() takes data from InputChan, uses an EndlineMatcher to break it into lines,
+// and passes those to the next actor via lineParser.Handle, which internally uses a channel.
+//
+// LineParser.run() takes data from its input channel, invokes the parser to convert it to
+// parsers.Message, converts that to decoder.Message, and passes that to the next actor via
+// lineHandler.Handle, which internally uses a channel.
+//
+// LineHandler.run() takes data from its input channel, processes it as necessary (as single
+// lines, multiple lines, or auto-detecting the two), and sends the result to its output
+// channel, which is the same channel as decoder.OutputChan.
 type Decoder struct {
 	// The number of raw lines decoded from the input before they are processed.
 	// Needs to be first to ensure 64 bit alignment
