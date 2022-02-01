@@ -181,8 +181,7 @@ func (s *StressReport) Save(filename string, name string) error {
 	fmt.Printf("Writing reports in %s\n", filename)
 
 	j, _ := json.Marshal(reports)
-	err := os.WriteFile(filename, j, 0644)
-	return err
+	return os.WriteFile(filename, j, 0644)
 }
 
 // Load previous report

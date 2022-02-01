@@ -59,9 +59,7 @@ func BPFLoad() error {
 	}
 
 	if bpfClone {
-		if err := BPFClone(m); err != nil {
-			return err
-		}
+		return BPFClone(m)
 	}
 
 	return nil

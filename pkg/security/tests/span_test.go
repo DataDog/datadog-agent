@@ -57,7 +57,6 @@ func TestSpan(t *testing.T) {
 			out, err := cmd.CombinedOutput()
 
 			if err != nil {
-				//if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
 			}
 
