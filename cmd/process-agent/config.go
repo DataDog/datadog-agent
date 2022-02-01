@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -38,9 +43,9 @@ func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAc
 	}
 
 	if sysCfg.Enabled {
-		if _, ok := sysCfg.EnabledModules[sysconfig.ProcessModule]; ok {
-			checks.Process.SysprobeProcessModuleEnabled = true
-		}
+		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+		_, checks.Process.SysprobeProcessModuleEnabled = sysCfg.EnabledModules[sysconfig.ProcessModule]
+
 		if _, ok := sysCfg.EnabledModules[sysconfig.NetworkTracerModule]; ok {
 			checkCfg = append(checkCfg, checks.Connections)
 		}
