@@ -116,7 +116,7 @@ func genTags(count int, div int) ([]string, []string) {
 	return tags, uniq
 }
 
-func TestHash2Small(t *testing.T) {
+func TestDedup2Small(t *testing.T) {
 	g := NewHashGenerator()
 
 	cases := []struct {
@@ -140,8 +140,8 @@ func TestHash2Small(t *testing.T) {
 			b.Append(l.Get()...)
 			b.Append(r.Get()...)
 
-			hl, hr := g.Hash2(l, r)
-			got := hl ^ hr
+			g.Dedup2(l, r)
+			got := l.Hash() ^ r.Hash()
 			exp := g.Hash(b)
 
 			assert.EqualValues(t, exp, got)
@@ -151,7 +151,7 @@ func TestHash2Small(t *testing.T) {
 	}
 }
 
-func TestHash2Rand(t *testing.T) {
+func TestDedup2Rand(t *testing.T) {
 	g := NewHashGenerator()
 
 	for i := 1; i <= 1024; i *= 4 {
@@ -165,8 +165,8 @@ func TestHash2Rand(t *testing.T) {
 					r := NewHashingTagsAccumulatorWithTags(tags[n:])
 
 					h1 := g.Hash(b)
-					hl, hr := g.Hash2(l, r)
-					h2 := hl ^ hr
+					g.Dedup2(l, r)
+					h2 := l.Hash() ^ r.Hash()
 
 					assert.EqualValues(t, h1, h2)
 					l.AppendHashingAccumulator(r)
@@ -181,7 +181,7 @@ func TestHash2Rand(t *testing.T) {
 	}
 }
 
-func BenchmarkHash2(b *testing.B) {
+func BenchmarkDedup2(b *testing.B) {
 	tags, _ := genTags(2048, 1)
 	for i := 1; i < 4096; i *= 2 {
 		l := NewHashingTagsAccumulatorWithTags(tags[:i/2])
@@ -192,8 +192,7 @@ func BenchmarkHash2(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
-				hl, hr := hg.Hash2(l, r)
-				Hash = hl ^ hr
+				hg.Dedup2(l, r)
 			}
 		})
 	}

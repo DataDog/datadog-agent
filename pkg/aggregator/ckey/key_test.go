@@ -7,6 +7,7 @@ package ckey
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -82,5 +83,38 @@ func BenchmarkKeyGeneration(b *testing.B) {
 			}
 		})
 
+	}
+}
+
+func BenchmarkKeyGeneration2(b *testing.B) {
+	name := "testname"
+	host := "myhost"
+
+	variant := os.Getenv("VARIANT")
+	for i := 1; i < 4096; i *= 2 {
+		tags, _ := genTags(i, 1)
+		if variant == "2" {
+			l := tagset.NewHashingTagsAccumulatorWithTags(tags[:i/2])
+			r := tagset.NewHashingTagsAccumulatorWithTags(tags[i/2:])
+			b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
+				generator := NewKeyGenerator()
+				l := l.Dup()
+				r := r.Dup()
+				b.ResetTimer()
+				for n := 0; n < b.N; n++ {
+					generator.GenerateWithTags2(name, host, l, r)
+				}
+			})
+		} else {
+			tagsBuf := tagset.NewHashingTagsAccumulatorWithTags(tags)
+			b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
+				generator := NewKeyGenerator()
+				tags := tagsBuf.Dup()
+				b.ResetTimer()
+				for n := 0; n < b.N; n++ {
+					generator.GenerateWithTags(name, host, tags)
+				}
+			})
+		}
 	}
 }
