@@ -73,13 +73,13 @@ func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidit
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
+func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	stats, err := e.stats(containerID, cacheValidity, e.client.GetContainerStats)
 	if err != nil {
 		return nil, err
 	}
 
-	return convertNetworkStats(stats.Networks, networks), nil
+	return convertNetworkStats(stats.Networks), nil
 }
 
 // stats returns stats by container ID, it uses an in-memory cache to reduce the number of api calls.
@@ -180,15 +180,13 @@ func convertIOStats(ioStats *v2.IOStats) *provider.ContainerIOStats {
 	}
 }
 
-func convertNetworkStats(netStats v2.NetStatsMap, networks map[string]string) *provider.ContainerNetworkStats {
+func convertNetworkStats(netStats v2.NetStatsMap) *provider.ContainerNetworkStats {
+	// networks is not useful for ECS Fargate as the Fargate endpoint
+	// already reports a name (like `eth0`)
 	stats := &provider.ContainerNetworkStats{}
 	stats.Interfaces = make(map[string]provider.InterfaceNetStats)
 	var totalPacketsRcvd, totalPacketsSent, totalBytesRcvd, totalBytesSent uint64
 	for iface, statsPerInterface := range netStats {
-		if new, found := networks[iface]; found {
-			iface = new
-		}
-
 		iStats := provider.InterfaceNetStats{
 			BytesSent:   util.UIntToFloatPtr(statsPerInterface.TxBytes),
 			PacketsSent: util.UIntToFloatPtr(statsPerInterface.TxPackets),

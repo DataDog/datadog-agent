@@ -17,13 +17,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+type ctnDef struct {
+	ID    string
+	Name  string
+	Image string
+}
+
 func TestFilter(t *testing.T) {
 	containers := []struct {
-		c  Container
+		c  ctnDef
 		ns string
 	}{
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "1",
 				Name:  "secret-container-dd",
 				Image: "docker-dd-agent",
@@ -31,7 +37,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "2",
 				Name:  "webapp1-dd",
 				Image: "apache:2.2",
@@ -39,7 +45,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "3",
 				Name:  "mysql-dd",
 				Image: "mysql:5.3",
@@ -47,7 +53,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "4",
 				Name:  "linux-dd",
 				Image: "alpine:latest",
@@ -55,7 +61,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "5",
 				Name:  "k8s_superpause_kube-apiserver-mega-node_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "gcr.io/random-project/superpause:1.0",
@@ -63,7 +69,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "6",
 				Name:  "k8s_superpause_kube-apiserver-mega-node_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "gcr.io/random-project/pause:1.0",
@@ -71,7 +77,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "7",
 				Name:  "k8s_POD.f8120f_kube-proxy-gke-pool-1-2890-pv0",
 				Image: "gcr.io/google_containers/pause-amd64:3.0",
@@ -79,7 +85,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "8",
 				Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "k8s.gcr.io/pause-amd64:3.1",
@@ -87,7 +93,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "9",
 				Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "kubernetes/pause:latest",
@@ -95,7 +101,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "10",
 				Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "asia.gcr.io/google_containers/pause-amd64:3.0",
@@ -103,7 +109,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "11",
 				Name:  "k8s_POD_AZURE_pause",
 				Image: "k8s-gcrio.azureedge.net/pause-amd64:3.0",
@@ -111,7 +117,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "12",
 				Name:  "k8s_POD_AZURE_pause",
 				Image: "gcrio.azureedge.net/google_containers/pause-amd64",
@@ -119,7 +125,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "13",
 				Name:  "k8s_POD_rancher_pause",
 				Image: "rancher/pause-amd64:3.0",
@@ -127,7 +133,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "14",
 				Name:  "foo-dd",
 				Image: "foo:1.0",
@@ -135,7 +141,7 @@ func TestFilter(t *testing.T) {
 			ns: "foo",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "15",
 				Name:  "bar-dd",
 				Image: "bar:1.0",
@@ -143,7 +149,7 @@ func TestFilter(t *testing.T) {
 			ns: "bar",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "16",
 				Name:  "foo",
 				Image: "gcr.io/gke-release/pause-win:1.1.0",
@@ -151,7 +157,7 @@ func TestFilter(t *testing.T) {
 			ns: "bar",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "17",
 				Name:  "foo",
 				Image: "mcr.microsoft.com/k8s/core/pause:1.2.0",
@@ -159,7 +165,7 @@ func TestFilter(t *testing.T) {
 			ns: "bar",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "18",
 				Name:  "foo",
 				Image: "ecr.us-east-1.amazonaws.com/pause",
@@ -167,7 +173,7 @@ func TestFilter(t *testing.T) {
 			ns: "bar",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "19",
 				Name:  "k8s_POD_AKS_pause",
 				Image: "aksrepos.azurecr.io/mirror/pause-amd64:3.1",
@@ -175,7 +181,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "20",
 				Name:  "k8s_POD_OSE3",
 				Image: "registry.access.redhat.com/rhel7/pod-infrastructure:latest",
@@ -183,7 +189,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "23",
 				Name:  "k8s_POD_EKS_Win",
 				Image: "amazonaws.com/eks/pause-windows:latest",
@@ -191,7 +197,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "24",
 				Name:  "k8s_POD_AKS_Win",
 				Image: "kubeletwin/pause:latest",
@@ -199,7 +205,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "25",
 				Name:  "eu_gcr",
 				Image: "eu.gcr.io/k8s-artifacts-prod/pause:3.3",
@@ -207,7 +213,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "26",
 				Name:  "private_jfrog",
 				Image: "foo.jfrog.io/google_containers/pause",
@@ -215,7 +221,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "27",
 				Name:  "private_ecr_upstream",
 				Image: "2342834325.ecr.us-east-1.amazonaws.com/upstream/pause",
@@ -223,7 +229,7 @@ func TestFilter(t *testing.T) {
 			ns: "default",
 		},
 		{
-			c: Container{
+			c: ctnDef{
 				ID:    "28",
 				Name:  "cdk",
 				Image: "cdk/pause-amd64:3.1",
