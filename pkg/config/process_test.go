@@ -36,7 +36,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.remote_tagger",
-			defaultValue: true,
+			defaultValue: false,
 		},
 		{
 			key:          "process_config.process_discovery.enabled",
@@ -137,8 +137,8 @@ func TestEnvVarOverride(t *testing.T) {
 		{
 			key:      "process_config.remote_tagger",
 			env:      "DD_PROCESS_CONFIG_REMOTE_TAGGER",
-			value:    "false",
-			expected: false,
+			value:    "true",
+			expected: true,
 		},
 		{
 			key:      "process_config.process_discovery.enabled",

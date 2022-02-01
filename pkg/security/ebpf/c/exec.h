@@ -217,7 +217,7 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
             .args = {
                 .id = bpf_get_prandom_u32(),
                 .array = argv,
-                .index = 1,
+                .index = 0,
             },
             .envs = {
                 .id = bpf_get_prandom_u32(),
