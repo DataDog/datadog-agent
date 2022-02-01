@@ -418,10 +418,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
 	// profile configs
 	profile := instance.Profile
 	if profile != "" || len(c.Metrics) > 0 {
