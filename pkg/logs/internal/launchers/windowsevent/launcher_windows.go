@@ -49,7 +49,7 @@ func EnumerateChannels() (chans []string, err error) {
 		str, err = evtNextChannel(hEnum)
 		if err == nil {
 			chans = append(chans, str)
-		} else if err == error(ERROR_NO_MORE_ITEMS) {
+		} else if err == error(windows.ERROR_NO_MORE_ITEMS) {
 			err = nil
 			break
 		} else {

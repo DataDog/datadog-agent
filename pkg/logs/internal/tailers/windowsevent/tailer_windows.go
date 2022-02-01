@@ -15,7 +15,6 @@ package windowsevent
 import "C"
 
 import (
-	"syscall"
 	"unicode/utf16"
 	"unsafe"
 
@@ -202,8 +201,6 @@ const (
 	EvtRenderEventValues = 0 // Variants
 	EvtRenderEventXml    = 1 // XML
 	EvtRenderBookmark    = 2 // Bookmark
-
-	ERROR_NO_MORE_ITEMS syscall.Errno = 259
 
 	maxRunes      = 1<<17 - 1 // 128 kB
 	truncatedFlag = "...TRUNCATED..."
