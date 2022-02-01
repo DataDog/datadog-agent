@@ -37,14 +37,13 @@ func TestMMapEvent(t *testing.T) {
 
 	t.Run("mmap", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var data []byte
-			data, err = unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, unix.MAP_SHARED|unix.MAP_ANON)
+			data, err := unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, unix.MAP_SHARED|unix.MAP_ANON)
 			if err != nil {
-				return fmt.Errorf("couldn't memory segment: %v", err)
+				return fmt.Errorf("couldn't memory segment: %w", err)
 			}
 
-			if err = unix.Munmap(data); err != nil {
-				return fmt.Errorf("couldn't unmap memory segment: %v", err)
+			if err := unix.Munmap(data); err != nil {
+				return fmt.Errorf("couldn't unmap memory segment: %w", err)
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {

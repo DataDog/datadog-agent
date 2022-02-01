@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -772,7 +771,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return
 	}
 
-	tmpfile, err := ioutil.TempFile(path.Dir(output), "accessors")
+	tmpfile, err := os.CreateTemp(path.Dir(output), "accessors")
 	if err != nil {
 		log.Fatal(err)
 	}

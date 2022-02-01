@@ -8,7 +8,7 @@ package doc
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -92,7 +92,7 @@ func GenerateDocJSON(module *common.Module, outputPath string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(outputPath, res, 0644)
+	return os.WriteFile(outputPath, res, 0644)
 }
 
 var (
