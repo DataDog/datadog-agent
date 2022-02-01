@@ -92,26 +92,39 @@ body to skip the build and give that slot to someone else who does need it.
 ### Pull request workflow
 
 The goals ordered by priority are:
-- Make PR reviews (both initial and follow-up reviews) easy for reviewers using GitHub
-- On the `main` branch, have a meaningful commit history that allows understanding (even years later) what each commit does, and why. 
+- Make PR reviews (both initial and follow-up reviews) easy for reviewers using
+ GitHub
+- On the `main` branch, have a meaningful commit history that allows
+ understanding (even years later) what each commit does, and why. 
 
-You must open the PR when the code is reviewable or you must set the PR as draft if you want to share code before it's ready for actual reviews.
+You must open the PR when the code is reviewable or you must set the PR as
+ draft if you want to share code before it's ready for actual reviews.
 
 #### Before the first PR review
 
-Before the first PR review, meaningful commits are best: logically-encapsulated commits help the reviews go quicker and make the job for the reviewer easier. Conflicts with `main` can be resolved with a `git rebase origin/main` and a force push if it makes the review easier.
+Before the first PR review, meaningful commits are best: logically-encapsulated
+ commits help the reviews go quicker and make the job for the reviewer easier.
+ Conflicts with `main` can be resolved with a `git rebase origin/main` and a
+ force push if it makes the review easier.
 
 #### After the first review
 
 After the first review, to make follow-up reviews easier:
-- Avoid force pushes. In particular rewriting the history that was already reviewed, which makes follow up reviews painful as GitHub loses track of each comments.
+- Avoid force pushes. In particular rewriting the history that was already
+ reviewed, which makes follow up reviews painful as GitHub loses track of each
+ comments.
 - Resolve merge conflicts with `main` using `git merge origin/main`
 
 #### How to merge to `main`
 
 Once reviews are complete, the merge to `main` should be done with either:
-- the squash-merge option, to keep the history of `main` clean (even though some context/details are lost in the squash). The commit message for this squash should always be edited to concisely describe the commit without extraneous “address review comments” text. 
-- the “rebase-merge” option, after manually rewriting the PR’s commit history and force-pushing to the branch. When using this option, the branch must have a clean history. 
+- the squash-merge option, to keep the history of `main` clean (even though
+ some context/details are lost in the squash). The commit message for this
+ squash should always be edited to concisely describe the commit without
+ extraneous “address review comments” text. 
+- the “rebase-merge” option, after manually rewriting the PR’s commit history
+ and force-pushing to the branch. When using this option, the branch must have
+ a clean history. 
 
 ### Reno
 
