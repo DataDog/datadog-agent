@@ -323,7 +323,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			opts := demuxTestOptions()
 
 			demux := InitAndStartAgentDemultiplexer(opts, "")
-			demux.statsd.samplers[0].serializer = s
+			demux.statsd.samplers[0].worker.serializer = s
 
 			start := time.Now()
 
@@ -532,7 +532,7 @@ func TestTimeSamplerFlush(t *testing.T) {
 			s.On("IsIterableSeriesSupported", mock.Anything).Return(true).Maybe()
 			opts := demuxTestOptions()
 			demux := InitAndStartAgentDemultiplexer(opts, "")
-			demux.statsd.samplers[0].serializer = s
+			demux.statsd.samplers[0].worker.serializer = s
 			expectedSeries := flushSomeSamples(demux)
 			assertSeriesEqual(t, s.series, expectedSeries)
 			s.AssertExpectations(t)

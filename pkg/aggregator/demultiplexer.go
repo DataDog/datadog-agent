@@ -386,15 +386,9 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 		wg := sync.WaitGroup{}
 		for _, sampler := range d.statsd.samplers {
 			wg.Add(1)
-			// create a flush command
-			command := FlushCommand{
-				Time:      start,
-				BlockChan: make(chan struct{}),
-			}
 			// order the flush to the time sampler, and wait, in a different routine
 			go func(sampler *TimeSampler, wg *sync.WaitGroup) {
-				sampler.FlushChan <- command
-				<-command.BlockChan
+				sampler.Flush(start, true)
 				wg.Done()
 			}(sampler, &wg)
 		}
@@ -402,11 +396,7 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 		wg.Wait()
 	} else {
 		for _, sampler := range d.statsd.samplers {
-			command := FlushCommand{
-				Time:      start,
-				BlockChan: nil,
-			}
-			sampler.FlushChan <- command
+			sampler.Flush(start, false)
 		}
 	}
 
@@ -548,12 +538,7 @@ func (d *ServerlessDemultiplexer) Stop(flush bool) {
 func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
-	command := FlushCommand{
-		Time:      start,
-		BlockChan: make(chan struct{}),
-	}
-	d.statsdSampler.FlushChan <- command
-	<-command.BlockChan
+	d.statsdSampler.Flush(start, waitForSerializer)
 }
 
 // AddTimeSample send a MetricSample to the TimeSampler.
