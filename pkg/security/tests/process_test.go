@@ -196,6 +196,12 @@ func TestProcessContext(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			argv0, err := event.GetFieldValue("exec.argv0")
+			if err != nil {
+				t.Errorf("not able to get argv0")
+			}
+			assert.Equal(t, "ls", argv0, "incorrect argv0: %s", argv0)
+
 			// args
 			args, err := event.GetFieldValue("exec.args")
 			if err != nil || len(args.(string)) == 0 {
@@ -315,6 +321,12 @@ func TestProcessContext(t *testing.T) {
 			argv := strings.Split(args.(string), " ")
 			assert.Equal(t, 2, len(argv), "incorrect number of args: %s", argv)
 			assert.Equal(t, true, strings.HasSuffix(argv[1], "..."), "args not truncated")
+
+			argv0, err := event.GetFieldValue("exec.argv0")
+			if err != nil {
+				t.Errorf("not able to get argv0")
+			}
+			assert.Equal(t, "ls", argv0, "incorrect argv0: %s", argv0)
 		})
 
 		// number of args overflow

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -646,35 +647,44 @@ func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 	}
 
 	argv, truncated := pr.ArgsEntry.ToArray()
+	if len(argv) > 0 {
+		argv = argv[1:]
+	}
 
 	return argv, pr.ArgsTruncated || truncated
 }
 
-// GetScrubbedProcessArgv returns the scrubbed args of the event as an array
-func (p *ProcessResolver) GetScrubbedProcessArgv(pr *model.Process) ([]string, bool) {
+// GetProcessArgv0 returns the first arg of the event
+func (p *ProcessResolver) GetProcessArgv0(pr *model.Process) (string, bool) {
 	if pr.ArgsEntry == nil {
-		return nil, false
-	}
-
-	if len(pr.Args) != 0 {
-		return pr.Argv, pr.ArgsTruncated
+		return "", false
 	}
 
 	argv, truncated := pr.ArgsEntry.ToArray()
-
-	pr.ArgsTruncated = pr.ArgsTruncated || truncated
-
-	if p.probe.scrubber != nil {
-		if newArgv, changed := p.probe.scrubber.ScrubCommand(argv); changed {
-			pr.Argv = newArgv
-		} else {
-			pr.Argv = argv
-		}
-	} else {
-		pr.Argv = argv
+	if len(argv) > 0 {
+		return argv[0], pr.ArgsTruncated || truncated
 	}
 
-	return pr.Argv, pr.ArgsTruncated
+	return "", pr.ArgsTruncated || truncated
+}
+
+// GetProcessScrubbedArgv returns the scrubbed args of the event as an array
+func (p *ProcessResolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
+	if pr.ScrubbedArgvResolved {
+		return pr.ScrubbedArgv, pr.ScrubbedArgsTruncated
+	}
+
+	argv, truncated := p.GetProcessArgv(pr)
+
+	if p.probe.scrubber != nil {
+		argv, _ = p.probe.scrubber.ScrubCommand(argv)
+	}
+
+	pr.ScrubbedArgv = argv
+	pr.ScrubbedArgsTruncated = truncated
+	pr.ScrubbedArgvResolved = true
+
+	return argv, truncated
 }
 
 // SetProcessEnvs set envs to cache entry
@@ -695,14 +705,14 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 }
 
 // GetProcessEnvs returns the envs of the event
-func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) (map[string]string, bool) {
+func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	if pr.EnvsEntry == nil {
 		return nil, false
 	}
 
-	envs, truncated := pr.EnvsEntry.ToMap()
+	keys, truncated := pr.EnvsEntry.Keys()
 
-	return envs, pr.EnvsTruncated || truncated
+	return keys, pr.ArgsTruncated || truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result

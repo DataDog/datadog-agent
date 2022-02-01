@@ -737,6 +737,10 @@ CWS logs have the following JSON schema:
             "$ref": "#/definitions/ContainerContext",
             "description": "Container context"
         },
+        "argv0": {
+            "type": "string",
+            "description": "First command line argument"
+        },
         "args": {
             "items": {
                 "type": "string"
@@ -784,6 +788,7 @@ CWS logs have the following JSON schema:
 | `credentials` | Credentials associated with the process |
 | `executable` | File information of the executable |
 | `container` | Container context |
+| `argv0` | First command line argument |
 | `args` | Command line arguments |
 | `args_truncated` | Indicator of arguments truncation |
 | `envs` | Environment variables of the process |
@@ -872,6 +877,10 @@ CWS logs have the following JSON schema:
             "$ref": "#/definitions/ContainerContext",
             "description": "Container context"
         },
+        "argv0": {
+            "type": "string",
+            "description": "First command line argument"
+        },
         "args": {
             "items": {
                 "type": "string"
@@ -930,6 +939,7 @@ CWS logs have the following JSON schema:
 | `credentials` | Credentials associated with the process |
 | `executable` | File information of the executable |
 | `container` | Container context |
+| `argv0` | First command line argument |
 | `args` | Command line arguments |
 | `args_truncated` | Indicator of arguments truncation |
 | `envs` | Environment variables of the process |
