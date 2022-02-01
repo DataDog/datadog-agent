@@ -50,7 +50,7 @@ func NormalizeNamespace(namespace string) (string, error) {
 
 	// namespace longer than 100 characters are illegal
 	if len(namespace) > 100 {
-		return "", fmt.Errorf("namespace is too long, should contain less than 253 characters")
+		return "", fmt.Errorf("namespace is too long, should contain less than 100 characters")
 	}
 
 	for _, r := range namespace {
