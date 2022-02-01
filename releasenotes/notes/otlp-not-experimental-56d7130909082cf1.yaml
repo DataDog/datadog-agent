@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    OTLP Ingestion endpoint is now considered public beta to be on par with current OpenTelemetry
+    Collector Receiver status. The configuration for it needs no longer be part of the "experimental"
+    config section which will be deprecated in the next release.
