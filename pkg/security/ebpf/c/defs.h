@@ -183,6 +183,8 @@
 #define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
 #define IS_ERR(ptr)     ((unsigned long)(ptr) > (unsigned long)(-1000))
 
+#define IS_KTHREAD(ppid, pid) ppid == 2 || pid == 2
+
 enum event_type
 {
     EVENT_ANY = 0,
