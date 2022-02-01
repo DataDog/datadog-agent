@@ -102,7 +102,7 @@ Before the first in-depth PR review, meaningful commits are best: logically-enca
 #### After the first in-depth review
 
 After the first in-depth review, to make follow-up reviews easier:
-- Avoid force pushes (in particular rewriting the history that was already reviewed, which makes follow up reviews painful)
+- Avoid force pushes. In particular rewriting the history that was already reviewed, which makes follow up reviews painful as GitHub loose track of each comments.
 - Resolve merge conflicts with `main` using `git merge origin/main` (AFAIK Github handles that well in the history and the diff)
 
 #### How to merge to `main`
