@@ -290,5 +290,5 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
 	// NOTE: until otlp config stabilizes, we set AgentOTLPEnabled in cmd/agent/app/run.go
 	// Also note we can't import OTLP here, as it would trigger an import loop - if we see another
-	// case like that, we should introduce a register-a-callback mechanism to handle these cases.
+	// case like that, we should move otlp.IsEnabled to pkg/config/otlp
 }
