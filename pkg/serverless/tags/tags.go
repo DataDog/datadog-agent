@@ -37,7 +37,7 @@ const (
 	RuntimeKey = "runtime"
 	// MemorySizeKey is the tag key for a function's allocated memory size
 	MemorySizeKey = "memorysize"
-	// ArchitectureKey is the tag key for a function's architecture (e.g. amd64, arm64)
+	// ArchitectureKey is the tag key for a function's architecture (e.g. x86_64, arm64)
 	ArchitectureKey = "architecture"
 
 	// EnvKey is the tag key for a function's env environment variable

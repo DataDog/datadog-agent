@@ -20,7 +20,7 @@ const (
 	coldStartTagKey       = "cold_start"
 )
 
-var functionTagsToIgnore = [...]string{
+var functionTagsToIgnore = []string{
 	tags.FunctionARNKey,
 	tags.FunctionNameKey,
 	tags.ExecutedVersionKey,
@@ -34,10 +34,10 @@ var functionTagsToIgnore = [...]string{
 	coldStartTagKey,
 }
 
-// Check determines if a span belongs to a managed service or not
+// CheckIsInferredSpan determines if a span belongs to a managed service or not
 // _inferred_span.tag_source = "self" => managed service span
 // _inferred_span.tag_source = "lambda" or missing => lambda related span
-func Check(span *pb.Span) bool {
+func CheckIsInferredSpan(span *pb.Span) bool {
 	return strings.Compare(span.Meta[tagInferredSpanTagSource], "self") == 0
 }
 
@@ -48,7 +48,10 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 		return nil
 	}
 
-	output := input
+	output := make(map[string]string)
+	for k, v := range input {
+		output[k] = v
+	}
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
 	ddTags := config.GetConfiguredTags(false)

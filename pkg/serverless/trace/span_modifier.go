@@ -21,13 +21,13 @@ func (s *spanModifier) ModifySpan(span *pb.Span) {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
 		span.Service = s.tags["service"]
 	}
-	if inferredspan.Check(span) {
+	if inferredspan.CheckIsInferredSpan(span) {
 		log.Debug("Detected a managed service span, filtering out function tags")
 
 		// filter out existing function tags inside span metadata
 		spanMetadataTags := span.Meta
 		if spanMetadataTags != nil {
-			inferredspan.FilterFunctionTags(spanMetadataTags)
+			spanMetadataTags = inferredspan.FilterFunctionTags(spanMetadataTags)
 			span.Meta = spanMetadataTags
 		}
 	}
