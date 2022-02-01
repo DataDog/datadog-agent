@@ -14,23 +14,29 @@ type MessageBuffer struct {
 	messageBuffer    []*message.Message
 	contentSize      int
 	contentSizeLimit int
+	bufferSizeLimit  int
 }
 
 // NewMessageBuffer returns a new MessageBuffer.
-func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int) *MessageBuffer {
+func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int, bufferSizeLimit int) *MessageBuffer {
 	return &MessageBuffer{
 		messageBuffer:    make([]*message.Message, 0, batchSizeLimit),
 		contentSizeLimit: contentSizeLimit,
+		bufferSizeLimit:  bufferSizeLimit,
 	}
 }
 
 // AddMessage adds a message to the buffer if there is still some free space,
 // returns true if the message was added.
 func (p *MessageBuffer) AddMessage(message *message.Message) bool {
-	contentSize := len(message.Content)
-	if len(p.messageBuffer) < cap(p.messageBuffer) && p.contentSize+contentSize <= p.contentSizeLimit {
+	newMessageSize := len(message.Content)
+	if newMessageSize > p.contentSizeLimit {
+		return false
+	}
+
+	if len(p.messageBuffer) < cap(p.messageBuffer) && p.contentSize+newMessageSize <= p.bufferSizeLimit {
 		p.messageBuffer = append(p.messageBuffer, message)
-		p.contentSize += contentSize
+		p.contentSize += newMessageSize
 		return true
 	}
 	return false
@@ -50,7 +56,7 @@ func (p *MessageBuffer) GetMessages() []*message.Message {
 
 // IsFull returns true if the buffer is full.
 func (p *MessageBuffer) IsFull() bool {
-	return len(p.messageBuffer) == cap(p.messageBuffer) || p.contentSize == p.contentSizeLimit
+	return len(p.messageBuffer) == cap(p.messageBuffer) || p.contentSize == p.bufferSizeLimit
 }
 
 // IsEmpty returns true if the buffer is empty.

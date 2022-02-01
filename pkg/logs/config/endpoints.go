@@ -103,6 +103,7 @@ type Endpoints struct {
 	BatchMaxConcurrentSend int
 	BatchMaxSize           int
 	BatchMaxContentSize    int
+	BatchMaxPayloadSize    int
 }
 
 // GetStatus returns the endpoints status, one line per endpoint
@@ -128,6 +129,7 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 		BatchMaxConcurrentSend: config.DefaultBatchMaxConcurrentSend,
 		BatchMaxSize:           config.DefaultBatchMaxSize,
 		BatchMaxContentSize:    config.DefaultBatchMaxContentSize,
+		BatchMaxPayloadSize:    config.DefaultBatchMaxPayloadSize,
 	}
 }
 
@@ -139,7 +141,8 @@ func NewEndpointsWithBatchSettings(main Endpoint,
 	batchWait time.Duration,
 	batchMaxConcurrentSend int,
 	batchMaxSize int,
-	batchMaxContentSize int) *Endpoints {
+	batchMaxContentSize int,
+	batchMaxPayloadSize int) *Endpoints {
 
 	return &Endpoints{
 		Main:                   main,
@@ -150,6 +153,7 @@ func NewEndpointsWithBatchSettings(main Endpoint,
 		BatchMaxConcurrentSend: batchMaxConcurrentSend,
 		BatchMaxSize:           batchMaxSize,
 		BatchMaxContentSize:    batchMaxContentSize,
+		BatchMaxPayloadSize:    batchMaxPayloadSize,
 	}
 }
 

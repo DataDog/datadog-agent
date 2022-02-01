@@ -41,9 +41,10 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	batchWait time.Duration,
 	maxBatchSize int,
 	maxContentSize int,
+	maxPayloadSize int,
 	pipelineName string,
 	contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
+	return newBatchStrategyWithClock(inputChan, outputChan, serializer, batchWait, maxBatchSize, maxContentSize, maxPayloadSize, pipelineName, clock.New(), contentEncoding)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
@@ -52,6 +53,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	batchWait time.Duration,
 	maxBatchSize int,
 	maxContentSize int,
+	maxPayloadSize int,
 	pipelineName string,
 	clock clock.Clock,
 	contentEncoding ContentEncoding) Strategy {
@@ -59,7 +61,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	return &batchStrategy{
 		inputChan:        inputChan,
 		outputChan:       outputChan,
-		buffer:           NewMessageBuffer(maxBatchSize, maxContentSize),
+		buffer:           NewMessageBuffer(maxBatchSize, maxContentSize, maxPayloadSize),
 		serializer:       serializer,
 		batchWait:        batchWait,
 		contentEncoding:  contentEncoding,
