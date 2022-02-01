@@ -5,7 +5,7 @@ go 1.16
 replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.34.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.34.0-rc.6
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/kr/text v0.2.0 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
