@@ -358,7 +358,6 @@ func loadEnvVariables() {
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
-		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
