@@ -478,6 +478,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
+		BatchMaxPayloadSize:    coreConfig.DefaultBatchMaxPayloadSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
@@ -524,6 +525,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
+		BatchMaxPayloadSize:    coreConfig.DefaultBatchMaxPayloadSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
@@ -560,6 +562,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
+		BatchMaxPayloadSize:    coreConfig.DefaultBatchMaxPayloadSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
