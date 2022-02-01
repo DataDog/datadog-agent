@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Validate snmp namespace to ensure it does respect length and illegal characters rules
+    Validate SNMP namespace to ensure it respects length and illegal character rules.
