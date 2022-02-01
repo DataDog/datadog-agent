@@ -3,17 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package testutil
+package config
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfigChangeChecker(t *testing.T) {
-	checker := NewConfigChangeChecker()
+func TestChangeChecker(t *testing.T) {
+	checker := NewChangeChecker()
 	r := require.New(t)
 	r.False(checker.HasChanged())
 
@@ -25,9 +24,9 @@ func TestConfigChangeChecker(t *testing.T) {
 	assertConfigChangeDetected(r, checker, "kubernetes_node_labels_as_tags", m)
 }
 
-func assertConfigChangeDetected(r *require.Assertions, checker *ConfigChangeChecker, key string, value interface{}) {
-	config.Datadog.Set(key, value)
+func assertConfigChangeDetected(r *require.Assertions, checker *ChangeChecker, key string, value interface{}) {
+	Datadog.Set(key, value)
 	r.True(checker.HasChanged())
-	config.Datadog.Set(key, nil)
+	Datadog.Set(key, nil)
 	r.False(checker.HasChanged())
 }

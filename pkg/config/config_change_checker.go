@@ -3,18 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package testutil
+package config
 
 import (
 	"fmt"
 	"os"
 	"reflect"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// ConfigChangeChecker checks the state of `config.Datadog` did not change
-// between `NewConfigChangeChecker()`` and `HasChanged()`. It is
+// ChangeChecker checks the state of `config.Datadog` did not change
+// between `NewChangeChecker()`` and `HasChanged()`. It is
 // designed to be used in `TestMain` function as follow:
 //
 // 	func TestMain(m *testing.M) {
@@ -25,22 +23,22 @@ import (
 // 		}
 // 		os.Exit(exit)
 // 	}
-type ConfigChangeChecker struct {
+type ChangeChecker struct {
 	configSettings map[string]interface{}
 }
 
-// NewConfigChangeChecker creates a new instance of ConfigChangeChecker
-func NewConfigChangeChecker() *ConfigChangeChecker {
-	return &ConfigChangeChecker{
-		configSettings: config.Datadog.AllSettings(),
+// NewChangeChecker creates a new instance of ConfigChangeChecker
+func NewChangeChecker() *ChangeChecker {
+	return &ChangeChecker{
+		configSettings: Datadog.AllSettings(),
 	}
 }
 
 // HasChanged returns whether `config.Datadog` changed since
 // `NewConfigChangeChecker`. If some changes are detected
 // this function displays on the standard error what keys changed.
-func (c *ConfigChangeChecker) HasChanged() bool {
-	allSettingsAfter := config.Datadog.AllSettings()
+func (c *ChangeChecker) HasChanged() bool {
+	allSettingsAfter := Datadog.AllSettings()
 	stateHasChanged := false
 	for k, before := range c.configSettings {
 		after := allSettingsAfter[k]
