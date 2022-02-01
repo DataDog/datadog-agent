@@ -95,14 +95,14 @@ The goals ordered by priority are:
 - Make PR reviews (both initial and follow-up reviews) easy for reviewers using GitHub
 - On the `main` branch, have a meaningful commit history that allows understanding (even years later) what each commit does, and why. 
 
-#### Before the first in-depth PR review
+#### Before the first PR review
 
-Before the first in-depth PR review, meaningful commits are best: logically-encapsulated commits help the reviews go quicker and make the job for the reviewer easier. Conflicts with `main` can be resolved with a `git rebase origin/main` and a force push if it makes the review easier.
+Before the first PR review, meaningful commits are best: logically-encapsulated commits help the reviews go quicker and make the job for the reviewer easier. Conflicts with `main` can be resolved with a `git rebase origin/main` and a force push if it makes the review easier.
 
-#### After the first in-depth review
+#### After the first review
 
-After the first in-depth review, to make follow-up reviews easier:
-- Avoid force pushes. In particular rewriting the history that was already reviewed, which makes follow up reviews painful as GitHub loose track of each comments.
+After the first review, to make follow-up reviews easier:
+- Avoid force pushes. In particular rewriting the history that was already reviewed, which makes follow up reviews painful as GitHub loses track of each comments.
 - Resolve merge conflicts with `main` using `git merge origin/main`
 
 #### How to merge to `main`
