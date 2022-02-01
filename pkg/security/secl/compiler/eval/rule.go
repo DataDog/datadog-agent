@@ -7,7 +7,6 @@ package eval
 
 import (
 	"reflect"
-	"unsafe"
 
 	"github.com/pkg/errors"
 
@@ -132,6 +131,9 @@ func (r *Rule) Parse() error {
 	return nil
 }
 
+/*
+// NOTE: currently we use only array we random register. Only the iterator on array will be handled
+// properly we will uncomment the following lines
 func combineRegisters(combinations []Registers, regID RegisterID, values []unsafe.Pointer) []Registers {
 	var combined []Registers
 
@@ -214,6 +216,7 @@ func handleRegisters(evalFnc BoolEvalFnc, registersInfo map[RegisterID]*register
 		return false
 	}
 }
+*/
 
 func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
@@ -332,8 +335,9 @@ func (r *Rule) GenPartials() error {
 			}
 		}
 
+		// NOTE: currently we use only array we random register. Only the iterator on array will be handled
 		// rule uses register replace the original eval function with the one handling registers
-		if len(state.registersInfo) > 0 {
+		/*if len(state.registersInfo) > 0 {
 			// generate register map for the given field only
 			registersInfo := make(map[RegisterID]*registerInfo)
 			for regID, info := range state.registersInfo {
@@ -343,7 +347,7 @@ func (r *Rule) GenPartials() error {
 			}
 
 			pEvalBool.EvalFnc = handleRegisters(pEvalBool.EvalFnc, registersInfo)
-		}
+		}*/
 
 		r.evaluator.setPartial(field, pEvalBool.EvalFnc)
 	}

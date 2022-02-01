@@ -16,7 +16,7 @@ type RegisterID = string
 type Register struct {
 	Value unsafe.Pointer
 
-	iterator Iterator
+	//iterator Iterator
 }
 
 // Registers defines all available registers
