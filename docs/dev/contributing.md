@@ -111,7 +111,7 @@ After the first review, to make follow-up reviews easier:
 
 Once reviews are complete, the merge to `main` should be done with either:
 - the squash-merge option, to keep the history of `main` clean (even though some context/details are lost in the squash). The commit message for this squash should always be edited to concisely describe the commit without extraneous “address review comments” text. 
-- the “rebase-merge” option, after manually rewriting the PR’s commit history and force-pushing to the branch. 
+- the “rebase-merge” option, after manually rewriting the PR’s commit history and force-pushing to the branch. When using this option, the branch must have a clean history. 
 
 ### Reno
 
