@@ -187,7 +187,8 @@
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/agent-core
-/pkg/logs/input/traps/                  @DataDog/infrastructure-integrations @DataDog/agent-core
+/pkg/logs/internal/launchers/traps/     @DataDog/infrastructure-integrations @DataDog/agent-core
+/pkg/logs/internal/tailers/traps/       @DataDog/infrastructure-integrations @DataDog/agent-core
 /pkg/process/                           @DataDog/processes
 /pkg/process/address*                   @DataDog/agent-network
 /pkg/process/netns*                     @DataDog/agent-network
