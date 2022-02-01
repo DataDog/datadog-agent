@@ -21,6 +21,14 @@ import (
 	Windows related methods
 */
 
+var (
+	modWinEvtAPI = windows.NewLazyDLL("wevtapi.dll")
+
+	procEvtClose           = modWinEvtAPI.NewProc("EvtClose")
+	procEvtOpenChannelEnum = modWinEvtAPI.NewProc("EvtOpenChannelEnum")
+	procEvtNextChannelPath = modWinEvtAPI.NewProc("EvtNextChannelPath")
+)
+
 type evtEnumHandle uintptr
 
 // EnumerateChannels enumerates available log channels
