@@ -9,6 +9,7 @@
 package checks
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,8 +18,27 @@ import (
 )
 
 func TestPerfCountersConfigSetting(t *testing.T) {
-	cfg := config.Mock()
-	cfg.Set("process_config.windows.use_perf_counters", true)
-	probe := getProcessProbe()
-	assert.Equal(t, probe, defaultWindowsProbe)
+	resetOnce := func() {
+		processProbeOnce = sync.Once{}
+	}
+
+	t.Run("enabled", func(t *testing.T) {
+		resetOnce()
+		defer resetOnce()
+
+		cfg := config.Mock()
+		cfg.Set("process_config.windows.use_perf_counters", true)
+		probe := getProcessProbe()
+		assert.Equal(t, probe, defaultWindowsProbe)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		resetOnce()
+		defer resetOnce()
+
+		cfg := config.Mock()
+		cfg.Set("process_config.windows.use_perf_counters", false)
+		probe := getProcessProbe()
+		assert.NotEqual(t, probe, defaultWindowsProbe)
+	})
 }
