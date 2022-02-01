@@ -273,12 +273,18 @@ type Process struct {
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
 
-	// defined to generate accessors
+	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
+	Argv0         string   `field:"argv0,ResolveProcessArgv0:100"`                                                                                         // First argument of the process
 	Args          string   `field:"args,ResolveProcessArgs:100"`                                                                                           // Arguments of the process (as a string)
 	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags" field:"args_options,ResolveProcessArgsOptions"` // Arguments of the process (as an array)
 	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated"`                                                                            // Indicator of arguments truncation
 	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                                                                                           // Environment variables of the process
 	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"`                                                                            // Indicator of environment variables truncation
+
+	// cache version
+	ScrubbedArgvResolved  bool     `field:"-"`
+	ScrubbedArgv          []string `field:"-"`
+	ScrubbedArgsTruncated bool     `field:"-"`
 }
 
 // SpanContext describes a span context
