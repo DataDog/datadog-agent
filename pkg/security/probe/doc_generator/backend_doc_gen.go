@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package main
@@ -11,7 +12,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strings"
 
@@ -36,7 +37,7 @@ func generateBackendJSON(output string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(output, out.Bytes(), 0664)
+	return os.WriteFile(output, out.Bytes(), 0664)
 }
 
 func jsonTypeNamer(ty reflect.Type) string {

@@ -49,9 +49,12 @@ const (
 	downloadSuccess
 	hostVersionErr
 	downloadFailure
+	validationFailure
+	reposDirAccessFailure
 )
 
 var errLinuxTypesHMissing = errors.New("correctly versioned kernel headers found, but linux/types.h missing")
+var errReposDirInaccessible = errors.New("unable to access repos directory")
 
 // GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
 // to  download them to headerDownloadDir
@@ -108,14 +111,18 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumR
 	}
 
 	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
-	if err = d.downloadHeaders(headerDownloadDir); err == nil {
-		log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
-		if err = validateHeaderDirs(hv, dirs); err == nil {
-			return dirs, downloadSuccess, nil
+	if err = d.downloadHeaders(headerDownloadDir); err != nil {
+		if errors.Is(err, errReposDirInaccessible) {
+			return nil, reposDirAccessFailure, fmt.Errorf("unable to download kernel headers: %w", err)
 		}
-		return nil, downloadFailure, fmt.Errorf("downloaded headers are not valid: %w", err)
+		return nil, downloadFailure, fmt.Errorf("unable to download kernel headers: %w", err)
 	}
-	return nil, downloadFailure, fmt.Errorf("unable to download kernel headers: %w", err)
+
+	log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
+	if err = validateHeaderDirs(hv, dirs); err == nil {
+		return dirs, downloadSuccess, nil
+	}
+	return nil, validationFailure, fmt.Errorf("downloaded headers are not valid: %w", err)
 }
 
 // validateHeaderDirs verifies that the kernel headers in at least 1 directory matches the kernel version of the running host

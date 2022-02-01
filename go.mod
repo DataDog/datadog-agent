@@ -65,7 +65,7 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/BurntSushi/toml v0.4.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.8
+	github.com/DataDog/agent-payload/v5 v5.0.10
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.34.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.34.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/quantile v0.34.0-rc.4
@@ -185,7 +185,7 @@ require (
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil v3.21.9+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
-	github.com/shuLhan/go-bindata v4.0.0+incompatible
+	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/spf13/afero v1.6.0
 	github.com/spf13/cobra v1.3.0
 	github.com/spf13/pflag v1.0.5
@@ -216,7 +216,7 @@ require (
 	golang.org/x/sys v0.0.0-20211205182925-97ca703d548d
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	golang.org/x/tools v0.1.8
+	golang.org/x/tools v0.1.9
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
 	google.golang.org/grpc v1.43.0

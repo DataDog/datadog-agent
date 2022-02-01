@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	utilsystem "github.com/DataDog/datadog-agent/pkg/util/system"
+	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 const (
@@ -30,17 +30,17 @@ func init() {
 		Priority: 0,
 		Runtimes: provider.AllLinuxRuntimes,
 		Factory: func() (provider.Collector, error) {
-			return newCgroupCollector()
+			return newSystemCollector()
 		},
 	})
 }
 
-type cgroupCollector struct {
+type systemCollector struct {
 	reader   *cgroups.Reader
 	procPath string
 }
 
-func newCgroupCollector() (*cgroupCollector, error) {
+func newSystemCollector() (*systemCollector, error) {
 	var err error
 	var hostPrefix string
 
@@ -66,47 +66,52 @@ func newCgroupCollector() (*cgroupCollector, error) {
 		return nil, provider.ErrPermaFail
 	}
 
-	return &cgroupCollector{
+	return &systemCollector{
 		reader:   reader,
 		procPath: procPath,
 	}, nil
 }
 
-func (c *cgroupCollector) ID() string {
+func (c *systemCollector) ID() string {
 	return systemCollectorID
 }
 
-func (c *cgroupCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (c *systemCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
 	}
 
-	var stats cgroups.Stats
-	err = cg.GetStats(&stats)
-	if err != nil {
-		return nil, fmt.Errorf("cgroup parsing failed, incomplete data for containerID: %s, err: %w", containerID, err)
-	}
-
-	return c.buildContainerMetrics(stats), nil
+	return c.buildContainerMetrics(cg, cacheValidity)
 }
 
-func (c *cgroupCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
+func (c *systemCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
 	}
 
-	pidStats := &cgroups.PIDStats{}
-	err = cg.GetPIDStats(pidStats)
+	pids, err := cg.GetPIDs(cacheValidity)
 	if err != nil {
 		return nil, err
 	}
 
-	return buildNetworkStats(c.procPath, networks, pidStats)
+	return buildNetworkStats(c.procPath, pids)
 }
 
-func (c *cgroupCollector) getCgroup(containerID string, cacheValidity time.Duration) (cgroups.Cgroup, error) {
+func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	// Currently it does not consider cacheVadlity as no cache is used.
+	refs, err := cgroups.ReadCgroupReferences(c.procPath, pid)
+	if err != nil {
+		return "", err
+	}
+
+	// Returns first match in the file. We do expect all container IDs to be the same.
+	cID := cgroups.ContainerRegexp.FindString(refs)
+	return cID, nil
+}
+
+func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Duration) (cgroups.Cgroup, error) {
 	cg := c.reader.GetCgroup(containerID)
 	if cg == nil {
 		err := c.reader.RefreshCgroups(cacheValidity)
@@ -123,16 +128,38 @@ func (c *cgroupCollector) getCgroup(containerID string, cacheValidity time.Durat
 	return cg, nil
 }
 
-func (c *cgroupCollector) buildContainerMetrics(cgs cgroups.Stats) *provider.ContainerStats {
-	cs := &provider.ContainerStats{
-		Timestamp: time.Now(),
-		Memory:    buildMemoryStats(cgs.Memory),
-		CPU:       buildCPUStats(cgs.CPU),
-		IO:        buildIOStats(c.procPath, cgs.IO),
-		PID:       buildPIDStats(cgs.PID),
+func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+	var stats cgroups.Stats
+	if err := cg.GetStats(&stats); err != nil {
+		return nil, fmt.Errorf("cgroup parsing failed, incomplete data for containerID: %s, err: %w", cg.Identifier(), err)
 	}
 
-	return cs
+	cs := &provider.ContainerStats{
+		Timestamp: time.Now(),
+		Memory:    buildMemoryStats(stats.Memory),
+		CPU:       buildCPUStats(stats.CPU),
+		IO:        buildIOStats(c.procPath, stats.IO),
+		PID:       buildPIDStats(stats.PID),
+	}
+
+	if cs.PID == nil {
+		cs.PID = &provider.ContainerPIDStats{}
+	}
+
+	// Get PIDs
+	var err error
+	cs.PID.PIDs, err = cg.GetPIDs(cacheValidity)
+	if err != nil {
+		log.Debugf("Unable to get PIDs for cgroup id: %s. Metrics will be missing", cg.Identifier())
+	}
+
+	// Get OpenFDs
+	count, allFailed := systemutils.CountProcessesFileDescriptors(c.procPath, cs.PID.PIDs)
+	if !allFailed {
+		convertField(&count, &cs.PID.OpenFiles)
+	}
+
+	return cs, nil
 }
 
 func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
@@ -189,7 +216,7 @@ func computeCPULimitPct(cgs *cgroups.CPUStats) *float64 {
 	// If no limit is available, setting the limit to number of CPUs.
 	// Always reporting a limit allows to compute CPU % accurately.
 	if limitPct == 0 {
-		limitPct = float64(utilsystem.HostCPUCount()) * 100
+		limitPct = float64(systemutils.HostCPUCount()) * 100
 	}
 	return &limitPct
 }
@@ -200,7 +227,6 @@ func buildPIDStats(cgs *cgroups.PIDStats) *provider.ContainerPIDStats {
 	}
 	cs := &provider.ContainerPIDStats{}
 
-	cs.PIDs = cgs.PIDs
 	convertField(cgs.HierarchicalThreadCount, &cs.ThreadCount)
 	convertField(cgs.HierarchicalThreadLimit, &cs.ThreadLimit)
 

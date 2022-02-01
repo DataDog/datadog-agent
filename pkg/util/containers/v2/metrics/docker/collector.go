@@ -4,7 +4,8 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build docker && (linux || windows)
-// +build docker,linux docker,windows
+// +build docker
+// +build linux windows
 
 package docker
 
@@ -76,13 +77,13 @@ func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity ti
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
+func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	stats, err := d.stats(containerID, cacheValidity, d.du.GetContainerStats)
 	if err != nil {
 		return nil, err
 	}
 
-	return convertNetworkStats(stats.Networks, networks), nil
+	return convertNetworkStats(stats.Networks), nil
 }
 
 // stats returns stats by container ID, it uses an in-memory cache to reduce the number of api calls.
@@ -108,7 +109,7 @@ func (d *dockerCollector) stats(containerID string, cacheValidity time.Duration,
 	return stats, nil
 }
 
-func convertNetworkStats(networkStats map[string]types.NetworkStats, networks map[string]string) *provider.ContainerNetworkStats {
+func convertNetworkStats(networkStats map[string]types.NetworkStats) *provider.ContainerNetworkStats {
 	containerNetworkStats := &provider.ContainerNetworkStats{
 		BytesSent:   util.Float64Ptr(0),
 		BytesRcvd:   util.Float64Ptr(0),
@@ -118,10 +119,6 @@ func convertNetworkStats(networkStats map[string]types.NetworkStats, networks ma
 	}
 
 	for ifname, netStats := range networkStats {
-		if new, found := networks[ifname]; found {
-			ifname = new
-		}
-
 		*containerNetworkStats.BytesSent += float64(netStats.TxBytes)
 		*containerNetworkStats.BytesRcvd += float64(netStats.RxBytes)
 		*containerNetworkStats.PacketsSent += float64(netStats.TxPackets)

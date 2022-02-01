@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -483,6 +484,10 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
+		if IsKThread(event.processCacheEntry.PPid, event.processCacheEntry.Pid) {
+			return
+		}
+
 		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
@@ -492,6 +497,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
 		p.resolvers.ProcessResolver.SetProcessArgs(event.processCacheEntry)
 		p.resolvers.ProcessResolver.SetProcessEnvs(event.processCacheEntry)
 

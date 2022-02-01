@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build stresstests
 // +build stresstests
 
 package tests
@@ -11,7 +12,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -180,12 +181,7 @@ func (s *StressReport) Save(filename string, name string) error {
 	fmt.Printf("Writing reports in %s\n", filename)
 
 	j, _ := json.Marshal(reports)
-	err := ioutil.WriteFile(filename, j, 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return os.WriteFile(filename, j, 0644)
 }
 
 // Load previous report
@@ -196,20 +192,16 @@ func (s *StressReports) Load(filename string) error {
 	}
 	defer jsonFile.Close()
 
-	data, err := ioutil.ReadAll(jsonFile)
+	data, err := io.ReadAll(jsonFile)
 	if err != nil {
 		return err
 	}
 
-	if err := json.Unmarshal(data, s); err != nil {
-		return err
-	}
-
-	return nil
+	return json.Unmarshal(data, s)
 }
 
 func getTopData(filename string, from string, size int) ([]byte, error) {
-	topFile, err := ioutil.TempFile("/tmp", "stress-top-")
+	topFile, err := os.CreateTemp("/tmp", "stress-top-")
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +237,7 @@ func getTopData(filename string, from string, size int) ([]byte, error) {
 func StressIt(t *testing.T, pre, post, fnc func() error, opts StressOpts) (StressReport, error) {
 	var report StressReport
 
-	proCPUFile, err := ioutil.TempFile("/tmp", "stress-cpu-")
+	proCPUFile, err := os.CreateTemp("/tmp", "stress-cpu-")
 	if err != nil {
 		t.Error(err)
 		return report, err
@@ -300,7 +292,7 @@ LOOP:
 	proCPUFile.Close()
 
 	runtime.GC()
-	proMemFile, err := ioutil.TempFile("/tmp", "stress-mem-")
+	proMemFile, err := os.CreateTemp("/tmp", "stress-mem-")
 	if err != nil {
 		t.Error(err)
 		return report, err

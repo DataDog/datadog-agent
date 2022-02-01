@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-// +build !windows
-// +build !freebsd
+//go:build !windows && !freebsd
+// +build !windows,!freebsd
 
 package filehandles
 

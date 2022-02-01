@@ -25,7 +25,7 @@ func (d dummyCollector) GetContainerStats(string, time.Duration) (*ContainerStat
 	return nil, nil
 }
 
-func (d dummyCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*ContainerNetworkStats, error) {
+func (d dummyCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
 	return nil, nil
 }
 

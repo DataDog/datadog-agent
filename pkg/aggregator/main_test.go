@@ -3,18 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package aggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"os"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestMain(m *testing.M) {
-	checker := testutil.NewConfigChangeChecker()
+	checker := config.NewChangeChecker()
 	exit := m.Run()
 	if checker.HasChanged() {
 		os.Exit(1)

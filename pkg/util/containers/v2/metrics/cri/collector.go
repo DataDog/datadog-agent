@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cri
 // +build cri
 
 package cri
@@ -79,7 +80,7 @@ func (collector *criCollector) GetContainerStats(containerID string, cacheValidi
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (collector *criCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
+func (collector *criCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	// Not available
 	return nil, nil
 }
