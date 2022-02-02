@@ -907,6 +907,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
 	}
 
+	p.sanityChecks()
+
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse CPU count")
@@ -1041,6 +1043,13 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	eventZero.scrubber = p.scrubber
 
 	return p, nil
+}
+
+func (p *Probe) sanityChecks() {
+	// enable runtime compiled constants on COS by default
+	if !p.config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
+		p.config.EnableRuntimeCompiledConstants = true
+	}
 }
 
 // GetOffsetConstants returns the offsets and struct sizes constants
