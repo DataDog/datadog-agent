@@ -34,7 +34,7 @@ func key(pieces ...string) string {
 }
 
 // LoadProcessYamlConfig load Process-specific configuration
-func (a *AgentConfig) LoadProcessYamlConfig(path string, canAccessContainers bool) error {
+func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	loadEnvVariables()
 
 	// Resolve any secrets
@@ -56,12 +56,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string, canAccessContainers boo
 		a.HostName = config.Datadog.GetString("hostname")
 	}
 
-	if config.Datadog.GetBool("process_config.process_collection.enabled") {
-		a.EnabledChecks = append(a.EnabledChecks, processChecks...)
-	} else if config.Datadog.GetBool("process_config.container_collection.enabled") && canAccessContainers {
-		// Container checks are enabled only when process checks are not (since they automatically collect container data).
-		a.EnabledChecks = append(a.EnabledChecks, containerChecks...)
-	}
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
@@ -71,9 +65,14 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string, canAccessContainers boo
 	a.setCheckInterval(ns, "process_realtime", RTProcessCheckName)
 	a.setCheckInterval(ns, "connections", ConnectionsCheckName)
 
-	// We need another method to read in process discovery check configs because it is in its own object,
-	// and uses a different unit of time
-	a.initProcessDiscoveryCheck()
+	// We don't need to check if the key exists since we already bound it to a default in InitConfig.
+	// We use a minimum of 10 minutes for this value.
+	discoveryInterval := config.Datadog.GetDuration("process_config.process_discovery.interval")
+	if discoveryInterval < discoveryMinInterval {
+		discoveryInterval = discoveryMinInterval
+		_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
+	}
+	a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
 
 	if a.CheckIntervals[ProcessCheckName] < a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
 		// Process check interval must be greater or equal to RTProcess check interval and the intervals must be divisible
@@ -220,33 +219,5 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 	if interval := config.Datadog.GetInt(k); interval != 0 {
 		log.Infof("Overriding %s check interval to %ds", checkKey, interval)
 		a.CheckIntervals[checkKey] = time.Duration(interval) * time.Second
-	}
-}
-
-// Separate handler for initializing the process discovery check.
-// Since it has its own unique object, we need to handle loading in the check config differently separately
-// from the other checks.
-func (a *AgentConfig) initProcessDiscoveryCheck() {
-	if config.IsECSFargate() {
-		log.Debug("Process discovery is not supported on ECS Fargate")
-		return
-	}
-
-	root := key(ns, "process_discovery")
-
-	// Discovery check can only be enabled when regular process collection is not enabled.
-	processCheckEnabled := config.Datadog.GetBool("process_config.process_collection.enabled")
-	discoveryCheckEnabled := config.Datadog.GetBool(key(root, "enabled"))
-	if discoveryCheckEnabled && !processCheckEnabled {
-		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
-
-		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
-		// We use a minimum of 10 minutes for this value.
-		discoveryInterval := config.Datadog.GetDuration(key(root, "interval"))
-		if discoveryInterval < discoveryMinInterval {
-			discoveryInterval = discoveryMinInterval
-			_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
-		}
-		a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
 	}
 }
