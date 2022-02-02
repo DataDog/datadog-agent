@@ -448,3 +448,74 @@ instances:
 	require.NoError(t, err)
 	assert.Equal(t, redacted, string(got))
 }
+
+func TestZipFile(t *testing.T) {
+	srcDir, err := ioutil.TempDir("", "source")
+	require.NoError(t, err)
+	defer os.RemoveAll(srcDir)
+	dstDir, err := ioutil.TempDir("", "TestZipFile")
+	require.NoError(t, err)
+	defer os.RemoveAll(dstDir)
+
+	// create non-empty test.json file
+	file, err := os.Create(filepath.Join(srcDir, "test.json"))
+	require.NoError(t, err)
+	_, err = file.WriteString("{\"key\":\"value\"}")
+	require.NoError(t, err)
+	err = file.Close()
+	require.NoError(t, err)
+
+	err = zipFile(srcDir, dstDir, "test.json")
+	require.NoError(t, err)
+
+	// Check all the log files are in the destination path, at the right subdirectories
+	zippedFile := filepath.Join(dstDir, "test.json")
+	stat, err := os.Stat(zippedFile)
+	require.NoError(t, err)
+	require.Greater(t, stat.Size(), int64(0))
+
+	// // Opening zipped file should not return an error
+	// z, err := zip.OpenReader(zippedFile)
+	// require.NoError(t, err)
+
+	// // Check file contents are as expected
+	// for _, f := range z.File {
+	// 	content, err := ioutil.ReadFile(f.Name)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+
+	// 	// Convert []byte to string
+	// 	text := string(content)
+	// 	require.Equal(t, text, "{\"key\":\"value\"}")
+	// }
+}
+
+func TestZipVersionHistory(t *testing.T) {
+	srcDir, err := ioutil.TempDir("", "run")
+	require.NoError(t, err)
+	defer os.RemoveAll(srcDir)
+	dstDir, err := ioutil.TempDir("", "TestZipVersionHistory")
+	require.NoError(t, err)
+	defer os.RemoveAll(dstDir)
+
+	// create non-empty version-history.json file
+	file, err := os.Create(filepath.Join(srcDir, "version-history.json"))
+	require.NoError(t, err)
+	_, err = file.WriteString("{\"key\":\"value\"}")
+	require.NoError(t, err)
+	err = file.Close()
+	require.NoError(t, err)
+
+	tempRunPath := config.Datadog.GetString("run_path")
+	config.Datadog.Set("run_path", srcDir)
+	defer config.Datadog.Set("run_path", tempRunPath)
+
+	err = zipVersionHistory(dstDir, "test")
+	require.NoError(t, err)
+
+	// Check all the log files are in the destination path, at the right subdirectories
+	stat, err := os.Stat(filepath.Join(dstDir, "test", "version-history.json"))
+	require.NoError(t, err)
+	require.Greater(t, stat.Size(), int64(0))
+}
