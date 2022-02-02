@@ -225,7 +225,7 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: 20000,
 		},
 		{
-			key:      "process_config.process_queue_bytes",
+			key:      "process_config.internal_profiling.enabled",
 			env:      "DD_PROCESS_CONFIG.INTERNAL_PROFILING.ENABLED",
 			value:    "true",
 			expected: true,
