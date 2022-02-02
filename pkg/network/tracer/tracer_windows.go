@@ -134,10 +134,16 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	names := t.reverseDNS.Resolve(ips)
 	return &network.Connections{
-		BufferedData: delta.BufferedData,
-		DNS:          names,
-		DNSStats:     delta.DNSStats,
+		BufferedData:  delta.BufferedData,
+		DNS:           names,
+		DNSStats:      delta.DNSStats,
+		ConnTelemetry: t.getConnTelemetry(),
 	}, nil
+}
+
+func (t *Tracer) getConnTelemetry() map[string]int64 {
+	tm := map[string]int64{}
+	return tm
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
