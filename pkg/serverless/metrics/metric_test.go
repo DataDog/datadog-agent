@@ -8,8 +8,11 @@ package metrics
 import (
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStartDoesNotBlock(t *testing.T) {
@@ -156,4 +160,69 @@ func TestBuildMetricBlocklistForProxy(t *testing.T) {
 	}
 	result := buildMetricBlocklistForProxy(userProvidedBlocklist)
 	assert.Equal(t, expected, result)
+}
+
+func getAvailablePort(t *testing.T) uint16 {
+	conn, err := net.ListenPacket("udp", ":0")
+	require.NoError(t, err)
+	defer conn.Close()
+	return parsePort(t, conn.LocalAddr().String())
+}
+
+func parsePort(t *testing.T, addr string) uint16 {
+	_, portString, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+
+	port, err := strconv.ParseUint(portString, 10, 16)
+	require.NoError(t, err)
+
+	return uint16(port)
+}
+
+func TestRaceFlushVersusParsePacket(t *testing.T) {
+	port := getAvailablePort(t)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.FlushInterval = 10 * time.Millisecond
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+
+	metricOut, _, _ := demux.Aggregator().GetBufferedChannels()
+	s, err := dogstatsd.NewServer(demux, nil)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	conn, err := net.Dial("udp", url)
+	require.NoError(t, err, "cannot connect to DSD socket")
+	defer conn.Close()
+
+	finish := &sync.WaitGroup{}
+	finish.Add(2)
+
+	go func(wg *sync.WaitGroup) {
+		for i := 0; i < 1000; i++ {
+			conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+			select {
+			case res := <-metricOut:
+				assert.Equal(t, 1, len(res))
+				sample := res[0]
+				assert.NotNil(t, sample)
+			case <-time.After(2 * time.Second):
+				finish.Done()
+				assert.FailNow(t, "Timeout on receive channel")
+			}
+		}
+		finish.Done()
+	}(finish)
+
+	go func(wg *sync.WaitGroup) {
+		for i := 0; i < 1000; i++ {
+			s.ServerlessFlush()
+		}
+		finish.Done()
+	}(finish)
+
+	finish.Wait()
 }

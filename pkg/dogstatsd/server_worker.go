@@ -49,6 +49,8 @@ func (w *worker) run() {
 		case <-w.server.stopChan:
 			return
 		case <-w.server.health.C:
+		case <-w.server.serverlessFlushChan:
+			w.batcher.flush()
 		case packets := <-w.server.packetsIn:
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
