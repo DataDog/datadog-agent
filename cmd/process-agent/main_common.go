@@ -80,7 +80,7 @@ var (
 func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 	// Set up the config so we can get the port later
 	// We set this up differently from the main process-agent because this way is quieter
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	if opts.configPath != "" {
 		if err := config.LoadConfigIfExists(opts.configPath); err != nil {
 			return nil, err
@@ -151,9 +151,10 @@ func versionString(sep string) string {
 
 const (
 	agent6DisabledMessage = `process-agent not enabled.
-Set env var DD_PROCESS_AGENT_ENABLED=true or add
+Set env var DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED=true or add
 process_config:
-  enabled: "true"
+  process_collection:
+    enabled: true
 to your datadog.yaml file.
 Exiting.`
 )
@@ -202,11 +203,7 @@ func runAgent(exit chan struct{}) {
 
 	config.InitRuntimeSettings()
 
-	// Note: This only considers container sources that are already setup. It's possible that container sources may
-	//       need a few minutes to be ready on newly provisioned hosts.
-	_, err = util.GetContainers()
-	canAccessContainers := err == nil
-	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, syscfg, canAccessContainers)
+	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, syscfg)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
@@ -252,8 +249,15 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	// Note: This only considers container sources that are already setup. It's possible that container sources may
+	//       need a few minutes to be ready on newly provisioned hosts.
+	_, err = util.GetContainers()
+	canAccessContainers := err == nil
+
+	enabledChecks := getChecks(syscfg, cfg.Orchestrator, canAccessContainers)
+
 	// Exit if agent is not enabled and we're not debugging a check.
-	if !cfg.Enabled && opts.check == "" {
+	if len(enabledChecks) == 0 && opts.check == "" {
 		log.Infof(agent6DisabledMessage)
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
@@ -319,7 +323,7 @@ func runAgent(exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(cfg)
+	cl, err := NewCollector(cfg, enabledChecks)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
 		cleanupAndExit(1)

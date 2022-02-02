@@ -30,14 +30,15 @@ The first part has an architecture like this:
    │  └───────────┘   │  │ ┌────────┘      │
    │                  ▼  │ │ │ │           │
    │  ┌────────────────┐ │ │ │ │           │
-   ├──┤ file.Scanner   │ │ │ │ │           │
+   ├──┤ file.Launcher  │ │ │ │ │           │
    │  └────────────────┘ │ │ │ │           │
    │                     ▼ ▼ │ │           ▼
-   │  ┌─────────────────────┐│ │   ┌─────────────────────┐
-   ├──┤ docker.Launcher     ├┘ └───┤ kubernetes.Launcher │
-   │  └─────────────────────┘      └─────────────────────┘
-   │    ▲                            ▲
-   ▼    └──container labels          └──pod annotations
+   │  ┌────────────────────┐ │ │ ┌─────────────────────┐
+   ├──┤ docker.Launcher    ├─┘ └─┤ kubernetes.Launcher │
+   │  └────────────────────┘     └─────────────────────┘
+   │    ▲                          ▲
+   │    └──container labels        └──pod annotations
+   ▼
 tailers
 ```
 
@@ -54,7 +55,7 @@ The remaining components of the logs agent subscribe to these stores.
 
 #### Launchers
 
-Launchers are implemented in sub-packages of `pkg/input`.
+Launchers are implemented in sub-packages of `pkg/internal/launchers`.
 They are responsible for creating tailers, which contain pipelines -- see below.
 Each filters the sources, usually based on `source.Config.Type`, which comes from the `type` key in `logs_config` sections.
 
@@ -62,13 +63,13 @@ Several Launchers are quite simple, translating sources into a tailers.
 For example:
 
 * The listener launcher creates a new tailer for each configured UDP port, or for each incoming connection on a configured TCP port.
-* The "traps" launcher (`pkg/input/traps`) creates a tailer that produces logs messages for each SNMP trap from the configured SNMP device(s).
+* The "traps" launcher (`pkg/internal/launchers/traps`) creates a tailer that produces logs messages for each SNMP trap from the configured SNMP device(s).
 
 The launchers depicted separately in the diagram above have some additional behaviors.
 
-##### file.Scanner
+##### file.Launcher
 
-The file scanner acts as a launcher, but handles wild-card filenames and logfile rotation by creating multiple tailers for each source.
+The file launcher handles wild-card filenames and logfile rotation by creating multiple tailers for each source.
 
 ##### docker.Launcher
 
@@ -137,6 +138,8 @@ Each input is composed of a tailer and (sometimes) a decoder, as created by the 
 One such input exists for each source of logs -- potentially many in a single agent.
 
 In many cases, an input consists only of a tailer, so inputs are sometimes referred to as tailers.
+
+Tailers are defined in sub-packages of `pkg/logs/internal/tailers`.
 
 ### Pipelines
 

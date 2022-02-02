@@ -214,6 +214,7 @@ type EnvsEntry struct {
 	Truncated bool
 
 	parsed bool
+	keys   []string
 }
 
 // ToMap returns envs as map
@@ -229,8 +230,7 @@ func (p *EnvsEntry) ToMap() (map[string]string, bool) {
 	for _, env := range values {
 		if els := strings.SplitN(env, "=", 2); len(els) == 2 {
 			key := els[0]
-			value := els[1]
-			envs[key] = value
+			envs[key] = els[1]
 		}
 	}
 	p.Values, p.Truncated = envs, truncated
@@ -245,9 +245,30 @@ func (p *EnvsEntry) ToMap() (map[string]string, bool) {
 	return p.Values, p.Truncated
 }
 
+// Keys returns only keys
+func (p *EnvsEntry) Keys() ([]string, bool) {
+	if len(p.keys) > 0 {
+		return p.keys, p.Truncated
+	}
+
+	if !p.parsed {
+		p.ToMap()
+	}
+
+	p.keys = make([]string, len(p.Values))
+
+	var i int
+	for key := range p.Values {
+		p.keys[i] = key
+		i++
+	}
+
+	return p.keys, p.Truncated
+}
+
 // Get returns the value for the given key
 func (p *EnvsEntry) Get(key string) string {
-	if p.Values == nil {
+	if !p.parsed {
 		p.ToMap()
 	}
 	return p.Values[key]

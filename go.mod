@@ -65,7 +65,7 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/BurntSushi/toml v0.4.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.8
+	github.com/DataDog/agent-payload/v5 v5.0.10
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.34.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.34.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/quantile v0.34.0-rc.4
@@ -94,6 +94,7 @@ require (
 	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
+	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/aws/aws-sdk-go v1.42.20
 	github.com/beevik/ntp v0.3.0
@@ -173,7 +174,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/onsi/gomega v1.17.0 // indirect
 	github.com/open-policy-agent/opa v0.35.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.38.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.43.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/opencontainers/selinux v1.9.1 // indirect
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
@@ -185,7 +186,7 @@ require (
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil v3.21.9+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
-	github.com/shuLhan/go-bindata v4.0.0+incompatible
+	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/spf13/afero v1.6.0
 	github.com/spf13/cobra v1.3.0
 	github.com/spf13/pflag v1.0.5
@@ -204,8 +205,8 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.305.1
-	go.opentelemetry.io/collector v0.41.0
-	go.opentelemetry.io/collector/model v0.41.0
+	go.opentelemetry.io/collector v0.43.1
+	go.opentelemetry.io/collector/model v0.43.1
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/multierr v1.7.0
 	go.uber.org/zap v1.20.0
@@ -216,10 +217,12 @@ require (
 	golang.org/x/sys v0.0.0-20211205182925-97ca703d548d
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	golang.org/x/tools v0.1.8
+	golang.org/x/tools v0.1.9
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
-	google.golang.org/grpc v1.42.0
+	google.golang.org/grpc v1.43.0
+	// See internal/patch/grpc-go-insecure/README.md for more details.
+	google.golang.org/grpc/credentials/insecure v0.0.0 // indirect
 	gopkg.in/DataDog/dd-trace-go.v1 v1.34.0
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
@@ -253,3 +256,10 @@ exclude github.com/containerd/containerd v1.5.0-beta.1
 
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
 replace github.com/golang/glog v1.0.0 => github.com/paulcacheux/glog v1.0.1-0.20211019114809-ec0f43a655b9
+
+// k8s.io/component-base is incompatible with logr v1.x,
+// remove once k8s.io/* is upgrade to v0.23.x or above (https://github.com/kubernetes/kubernetes/commit/cb6a6537)
+replace (
+	github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
+	github.com/go-logr/stdr => github.com/go-logr/stdr v0.4.0
+)

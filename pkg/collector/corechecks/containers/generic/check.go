@@ -59,7 +59,7 @@ func (c *ContainerCheck) Configure(config, initConfig integration.Data, source s
 		return err
 	}
 
-	c.processor = NewProcessor(metrics.GetProvider(), MetadataContainerLister{}, GenericMetricsAdapter{}, filter)
+	c.processor = NewProcessor(metrics.GetProvider(), MetadataContainerAccessor{}, GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter})
 	return c.instance.Parse(config)
 }
 

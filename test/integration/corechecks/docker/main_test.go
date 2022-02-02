@@ -130,15 +130,16 @@ func setup() error {
 
 // Reset the state and trigger a new run
 func doRun(m *testing.M) int {
-	// Setup docker check
-	dockerCfg := []byte(dockerCfgString)
-	dockerInitCfg := []byte("")
 	dockerCheck = docker.DockerFactory()
-	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 
 	// Setup mock sender
 	sender = mocksender.NewMockSender(dockerCheck.ID())
 	sender.SetupAcceptAll()
+
+	// Setup docker check
+	dockerCfg := []byte(dockerCfgString)
+	dockerInitCfg := []byte("")
+	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 
 	dockerCheck.Run()
 	return m.Run()

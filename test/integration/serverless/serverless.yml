@@ -67,9 +67,9 @@ functions:
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       DD_LAMBDA_HANDLER: src/metricPython.metric
 
-  with-ddlambda-go:
+  metric-go:
     runtime: provided.al2
-    handler: src/bin/with-ddlambda
+    handler: src/bin/metric
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -77,22 +77,12 @@ functions:
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
-  without-ddlambda-go:
-    runtime: provided.al2
-    handler: src/bin/without-ddlambda
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-
-  with-ddlambda-java:
+  metric-java:
     runtime: java8.al2
     handler: Handler
     package:
       individually: true
-      artifact: src/java-tests/with-ddlambda/target/hello-dev.jar
+      artifact: src/java-tests/metric/target/hello-dev.jar
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -153,6 +143,7 @@ functions:
 
   timeout-node:
     runtime: nodejs14.x
+    timeout: 1
     handler: src/metric.timeoutMetricTest
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
@@ -161,6 +152,7 @@ functions:
 
   timeout-python:
     runtime: python3.8
+    timeout: 1
     handler: datadog_lambda.handler.handler
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38:${env:PYTHON_LAYER_VERSION}
@@ -171,7 +163,7 @@ functions:
 
   timeout-go:
     runtime: provided.al2
-    timeout: 3
+    timeout: 1
     handler: src/bin/timeout
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -180,7 +172,7 @@ functions:
   timeout-java:
     runtime: java8.al2
     handler: TimeoutHandler
-    timeout: 3
+    timeout: 1
     package:
       individually: true
       artifact: src/java-tests/timeout/target/timeout-dev.jar
@@ -196,7 +188,6 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_ENHANCED_METRICS: false
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
@@ -208,30 +199,17 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_ENHANCED_METRICS: false
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       DD_LAMBDA_HANDLER: src/logPython.log
 
-  log-go-with-ddlambda:
+  log-go:
     runtime: provided.al2
-    handler: src/bin/log-with-ddlambda
+    handler: src/bin/log
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_ENHANCED_METRICS: false
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-
-  log-go-without-ddlambda:
-    runtime: provided.al2
-    handler: src/bin/log-without-ddlambda
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_ENHANCED_METRICS: false
       DD_TAGS: tagA:valueA tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
@@ -274,7 +252,6 @@ functions:
       DD_LAMBDA_HANDLER: src/trace.simpleTest
       DD_TRACE_ENABLED: true
       DD_APM_DD_URL: http://127.0.0.1:3333
-      DD_ENHANCED_METRICS: false
       DD_TAGS: tagA:valueA,tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC,tagD:valueD
 
@@ -289,7 +266,6 @@ functions:
       DD_LAMBDA_HANDLER: src/tracePython.simple_test
       DD_TRACE_ENABLED: true
       DD_APM_DD_URL: http://127.0.0.1:3333
-      DD_ENHANCED_METRICS: false
       DD_TAGS: tagA:valueA,tagB:valueB
       DD_EXTRA_TAGS: tagC:valueC,tagD:valueD
 

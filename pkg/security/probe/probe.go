@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -104,6 +105,14 @@ func (p *Probe) detectKernelVersion() error {
 	}
 	p.kernelVersion = kernelVersion
 	return nil
+}
+
+// GetKernelVersion computes and returns the running kernel version
+func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
+	if err := p.detectKernelVersion(); err != nil {
+		return nil, err
+	}
+	return p.kernelVersion, nil
 }
 
 // VerifyOSVersion returns an error if the current kernel version is not supported
@@ -483,6 +492,10 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
+		if IsKThread(event.processCacheEntry.PPid, event.processCacheEntry.Pid) {
+			return
+		}
+
 		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
@@ -492,6 +505,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
 		p.resolvers.ProcessResolver.SetProcessArgs(event.processCacheEntry)
 		p.resolvers.ProcessResolver.SetProcessEnvs(event.processCacheEntry)
 
@@ -917,7 +931,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	constants, err := getOffsetConstants(config, p)
+	constants, err := GetOffsetConstants(config, p)
 	if err != nil {
 		log.Warnf("constant fetcher failed: %v", err)
 		return nil, err
@@ -1029,7 +1043,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	return p, nil
 }
 
-func getOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
+// GetOffsetConstants returns the offsets and struct sizes constants
+func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
 
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")

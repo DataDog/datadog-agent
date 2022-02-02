@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build stresstests
 // +build stresstests
 
 package tests
@@ -69,11 +70,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 			}
 		}
 
-		if err := f.Close(); err != nil {
-			return err
-		}
-
-		return nil
+		return f.Close()
 	}
 
 	opts := StressOpts{
@@ -204,11 +201,8 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	fnc := func() error {
 		cmd := exec.Command(executable, testFile)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			return err
-		}
-
-		return nil
+		_, err := cmd.CombinedOutput()
+		return err
 	}
 
 	opts := StressOpts{

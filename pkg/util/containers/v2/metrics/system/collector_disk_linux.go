@@ -45,7 +45,7 @@ func buildIOStats(procPath string, cgs *cgroups.IOStats) *provider.ContainerIOSt
 		return cs
 	}
 
-	csDevicesStats := make(map[string]provider.DeviceIOStats, len(deviceMapping))
+	csDevicesStats := make(map[string]provider.DeviceIOStats, len(cgs.Devices))
 	for deviceID, deviceStats := range cgs.Devices {
 		if deviceName, found := deviceMapping[deviceID]; found {
 			targetDeviceStats := provider.DeviceIOStats{}

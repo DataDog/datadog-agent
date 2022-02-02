@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package listeners
@@ -135,20 +136,26 @@ func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- S
 	log.Infof("%s initialized successfully", l.name)
 
 	go func() {
+		defer func() {
+			err := health.Deregister()
+			if err != nil {
+				log.Warnf("error de-registering health check: %s", err)
+			}
+		}()
+
 		for {
 			select {
-			case evBundle := <-ch:
+			case evBundle, ok := <-ch:
+				if !ok {
+					return
+				}
+
 				l.processEvents(evBundle, creationTime)
 				creationTime = integration.After
 
 			case <-health.C:
 
 			case <-l.stop:
-				err := health.Deregister()
-				if err != nil {
-					log.Warnf("error de-registering health check: %s", err)
-				}
-
 				l.store.Unsubscribe(ch)
 
 				return
