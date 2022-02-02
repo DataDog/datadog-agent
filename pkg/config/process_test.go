@@ -72,7 +72,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.process_dd_url",
-			defaultValue: defaultProcessEndpoint,
+			defaultValue: DefaultProcessEndpoint,
 		},
 		{
 			key:          "process_config.additional_endpoints",

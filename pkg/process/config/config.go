@@ -530,7 +530,7 @@ func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig)
 
 func getAPIEndpoints() (eps []apicfg.Endpoint, err error) {
 	// Setup main endpoint
-	mainEndpointURL, err := url.Parse(config.GetMainEndpoint("https://process.", key(ns, "process_dd_url")))
+	mainEndpointURL, err := url.Parse(config.GetMainEndpoint("https://process.", "process_config.process_dd_url"))
 	if err != nil {
 		return nil, fmt.Errorf("error parsing process_dd_url: %s", err)
 	}

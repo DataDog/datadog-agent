@@ -31,7 +31,7 @@ const (
 	// Allow buffering up to 60 megabytes of payload data in total
 	DefaultProcessQueueBytes = 60 * 1000 * 1000
 
-	defaultProcessEndpoint = "https://process.datadoghq.com"
+	DefaultProcessEndpoint = "https://process.datadoghq.com"
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -75,7 +75,7 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
-	procBindEnvAndSetDefault(config, "process_config.process_dd_url", defaultProcessEndpoint)
+	procBindEnvAndSetDefault(config, "process_config.process_dd_url", DefaultProcessEndpoint)
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.intervals.process_realtime")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
