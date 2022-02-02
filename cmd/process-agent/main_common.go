@@ -306,8 +306,6 @@ func runAgent(exit chan struct{}) {
 			log.Info("start profiling process-agent")
 		}
 		defer profiling.Stop()
-	} else {
-		log.Debug("Running process-agent without profiling enabled")
 	}
 
 	log.Debug("Running process-agent with DEBUG logging enabled")
