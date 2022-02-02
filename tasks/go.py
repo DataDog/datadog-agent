@@ -490,4 +490,4 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
 def tidy_all(ctx):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy")
+            ctx.run("go mod tidy -compat=1.17")
