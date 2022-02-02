@@ -229,6 +229,12 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 		return nil, err
 	}
 
+	if syscfg.Enabled {
+		cfg.EnableSystemProbe = true
+		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
+		cfg.SystemProbeAddress = syscfg.SocketAddress
+	}
+
 	// TODO: Once proxies have been moved to common config util, remove this
 	if cfg.proxy, err = proxyFromEnv(cfg.proxy); err != nil {
 		log.Errorf("error parsing environment proxy settings, not using a proxy: %s", err)
@@ -250,12 +256,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 
 	if cfg.proxy != nil {
 		cfg.Transport.Proxy = cfg.proxy
-	}
-
-	if syscfg.Enabled {
-		cfg.EnableSystemProbe = true
-		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
-		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}
 
 	return cfg, nil

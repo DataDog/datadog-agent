@@ -253,6 +253,9 @@ func runAgent(exit chan struct{}) {
 	//       need a few minutes to be ready on newly provisioned hosts.
 	_, err = util.GetContainers()
 	canAccessContainers := err == nil
+	if !canAccessContainers {
+		_ = log.Warn("Could not enable container check, most likely this feature is not included in your build of the process agent.")
+	}
 
 	enabledChecks := getChecks(syscfg, cfg.Orchestrator, canAccessContainers)
 
