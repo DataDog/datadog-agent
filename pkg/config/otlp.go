@@ -6,20 +6,22 @@
 package config
 
 import (
+	"net"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // OTLP configuration paths.
 const (
 	OTLPSection               = "otlp"
-	OTLPHTTPPort              = OTLPSection + ".http_port"
-	OTLPgRPCPort              = OTLPSection + ".grpc_port"
-	OTLPTracePort             = OTLPSection + ".internal_traces_port"
-	OTLPMetricsEnabled        = OTLPSection + ".metrics_enabled"
-	OTLPTracesEnabled         = OTLPSection + ".traces_enabled"
+	OTLPTracesSubSectionKey   = "traces"
+	OTLPTracePort             = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
+	OTLPTracesEnabled         = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
 	OTLPReceiverSubSectionKey = "receiver"
 	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
-	OTLPMetrics               = OTLPSection + ".metrics"
+	OTLPMetricsSubSectionKey  = "traces"
+	OTLPMetrics               = OTLPSection + "." + OTLPMetricsSubSectionKey
+	OTLPMetricsEnabled        = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
 	OTLPTagCardinalityKey     = OTLPMetrics + ".tag_cardinality"
 )
 
@@ -28,8 +30,6 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
-	config.BindEnv(OTLPHTTPPort, "DD_OTLP_HTTP_PORT")
-	config.BindEnv(OTLPgRPCPort, "DD_OTLP_GRPC_PORT")
 
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in pkg/otlp/config.go
@@ -47,12 +47,35 @@ func SetupOTLP(config Config) {
 // "otlp" configuration if unset.
 //
 // TODO(gbbr): This is to keep backwards compatibility while we've gone public beta and should
-// be completely removed once 7.34.0 is out.
+// be completely removed once 7.35.0 is out.
 func promoteExperimentalOTLP(cfg Config) {
 	if !cfg.IsSet("experimental.otlp") {
 		return
 	}
 	log.Warn(`OpenTelemetry OTLP receiver configuration is now public beta and has been moved out of the "experimental" section. ` +
 		`This section will be deprecated in a future Datadog Agent release. Please use the same configuration as part of the top level "otlp" section instead.`)
-	cfg.Set("otlp", cfg.Get("experimental.otlp"))
+	if v := cfg.GetString("experimental.otlp.http_port"); v != "" {
+		cfg.Set("otlp.receiver.protocols.http.endpoint", net.JoinHostPort(GetBindHost(), v))
+	}
+	if v := cfg.GetString("experimental.otlp.grpc_port"); v != "" {
+		cfg.Set("otlp.receiver.protocols.grpc.endpoint", net.JoinHostPort(GetBindHost(), v))
+	}
+	if k := "experimental.otlp.metrics"; cfg.IsSet(k) {
+		cfg.Set("otlp.metrics", cfg.GetStringMap(k))
+	}
+	if k := "experimental.otlp.metrics_enabled"; cfg.IsSet(k) {
+		cfg.Set("otlp.metrics.enabled", cfg.GetBool(k))
+	}
+	if k := "experimental.otlp.tag_cardinality"; cfg.IsSet(k) {
+		cfg.Set("otlp.metrics.tag_cardinality", cfg.GetString(k))
+	}
+	if k := "experimental.otlp.traces_enabled"; cfg.IsSet(k) {
+		cfg.Set("otlp.traces.enabled", cfg.GetBool(k))
+	}
+	if v := cfg.GetString("experimental.otlp.internal_traces_port"); v != "" {
+		cfg.Set("otlp.traces.internal_port", v)
+	}
+	if k := "experimental.otlp.receiver"; cfg.IsSet(k) {
+		cfg.Set("otlp.receiver", cfg.GetStringMap(k))
+	}
 }

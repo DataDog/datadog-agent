@@ -855,14 +855,11 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 
 func TestExperimentalOTLP(t *testing.T) {
 	checkConf := func(t *testing.T, conf Config) {
-		assert.Equal(t, 123, conf.GetInt("otlp.http_port"))
-		assert.Equal(t, 456, conf.GetInt("otlp.grpc_port"))
-		assert.Equal(t, 789, conf.GetInt("otlp.internal_traces_port"))
-		assert.False(t, conf.GetBool("otlp.metrics_enabled"))
-		assert.False(t, conf.GetBool("otlp.traces_enabled"))
+		assert.Equal(t, 789, conf.GetInt("otlp.traces.internal_port"))
 		assert.Equal(t, map[string]interface{}{"a": 1, "b": 2, "c": map[string]interface{}{"d": interface{}(nil)}}, conf.GetStringMap("otlp.receiver"))
-		assert.Equal(t, map[string]interface{}{"c": 3, "d": 4}, conf.GetStringMap("otlp.metrics"))
-		assert.Equal(t, "medium", conf.GetString("otlp.tag_cardinality"))
+		assert.Equal(t, map[string]interface{}{"c": 3, "d": 4, "enabled": false, "tag_cardinality": "medium"}, conf.GetStringMap("otlp.metrics"))
+		assert.False(t, conf.GetBool("otlp.metrics.enabled"))
+		assert.Equal(t, "medium", conf.GetString("otlp.metrics.tag_cardinality"))
 	}
 
 	t.Run("main", func(t *testing.T) {

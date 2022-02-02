@@ -1,15 +1,14 @@
 otlp:
-  http_port: 123
-  grpc_port: 456
-  internal_traces_port: 789
-  metrics_enabled: false
-  traces_enabled: false
   receiver: # StringMap
     a: 1
     b: 2
     c:
       d:
+  traces:
+    internal_port: 789
+    enabled: false
   metrics: # StringMap
+    enabled: false
     c: 3
     d: 4
-  tag_cardinality: medium
+    tag_cardinality: medium

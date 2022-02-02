@@ -1,6 +1,4 @@
 otlp:
-  http_port: 1234
-  grpc_port: 5678
   metrics:
     delta_ttl: 2400
     report_quantiles: false

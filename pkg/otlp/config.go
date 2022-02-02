@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	colConfig "go.opentelemetry.io/collector/config"
 	"go.uber.org/multierr"
 )
@@ -37,29 +36,9 @@ func getReceiverHost(cfg config.Config) (receiverHost string) {
 	return
 }
 
-// isSetPort checks if the port config is set.
-func isSetPort(cfg config.Config) bool {
-	return cfg.IsSet(config.OTLPHTTPPort) || cfg.IsSet(config.OTLPgRPCPort)
-}
-
-// isSetReceiver checks it the receiver section is set.
-func isSetReceiver(cfg config.Config) bool {
-	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
-	// from unmarshaling/validation done by the Collector code.
-	//
-	// IsSet won't work here: it will return false if the section is present but empty.
-	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
-	_, ok := cfg.GetStringMap(config.OTLPSection)[config.OTLPReceiverSubSectionKey]
-	return ok
-}
-
 // isSetMetrics checks if the metrics config is set.
 func isSetMetrics(cfg config.Config) bool {
 	return cfg.IsSet(config.OTLPMetrics)
-}
-
-func isSet(cfg config.Config) bool {
-	return isSetPort(cfg) || isSetReceiver(cfg)
 }
 
 func portToUint(v int) (port uint, err error) {
@@ -76,60 +55,10 @@ func fromReceiverSectionConfig(cfg config.Config) *colConfig.Map {
 	)
 }
 
-func fromPortReceiverConfig(cfg config.Config, otlpConfig *colConfig.Map) error {
-	var errs []error
-
-	httpPort, err := portToUint(cfg.GetInt(config.OTLPHTTPPort))
-	if err != nil {
-		errs = append(errs, fmt.Errorf("HTTP port is invalid: %w", err))
-	}
-
-	gRPCPort, err := portToUint(cfg.GetInt(config.OTLPgRPCPort))
-	if err != nil {
-		errs = append(errs, fmt.Errorf("gRPC port is invalid: %w", err))
-	}
-
-	if len(errs) == 0 {
-		log.Infoc(
-			"Overriding OTLP receiver endpoints with port-based configuration",
-			"grpc_port", gRPCPort,
-			"http_port", httpPort,
-		)
-	}
-
-	bindHost := getReceiverHost(cfg)
-
-	if gRPCPort > 0 {
-		otlpConfig.Set(
-			buildKey("protocols", "grpc", "endpoint"),
-			fmt.Sprintf("%s:%d", bindHost, gRPCPort),
-		)
-	}
-
-	if httpPort > 0 {
-		otlpConfig.Set(
-			buildKey("protocols", "http", "endpoint"),
-			fmt.Sprintf("%s:%d", bindHost, httpPort),
-		)
-	}
-
-	return multierr.Combine(errs...)
-}
-
 // fromConfig builds a PipelineConfig from the configuration.
 func fromConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
-	otlpConfig := colConfig.NewMap()
-
-	if isSetReceiver(cfg) {
-		otlpConfig = fromReceiverSectionConfig(cfg)
-	}
-	if isSetPort(cfg) {
-		err := fromPortReceiverConfig(cfg, otlpConfig)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("OTLP receiver port-based configuration is invalid: %w", err))
-		}
-	}
+	otlpConfig := fromReceiverSectionConfig(cfg)
 
 	tracePort, err := portToUint(cfg.GetInt(config.OTLPTracePort))
 	if err != nil {
@@ -147,11 +76,6 @@ func fromConfig(cfg config.Config) (PipelineConfig, error) {
 		metrics = cfg.GetStringMap(config.OTLPMetrics)
 	}
 
-	// HACK: Because of https://github.com/spf13/viper/issues/1012
-	// we need to manually get the nested setting to support the bound environment variable.
-	// The 'correct' solution would be to fix this in our Viper fork.
-	metrics["tag_cardinality"] = cfg.GetString(config.OTLPTagCardinalityKey)
-
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),
 		TracePort:          tracePort,
@@ -163,8 +87,13 @@ func fromConfig(cfg config.Config) (PipelineConfig, error) {
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Config) bool {
-	// TODO (AP-1267): Check stable config too
-	return isSet(cfg)
+	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
+	// from unmarshaling/validation done by the Collector code.
+	//
+	// IsSet won't work here: it will return false if the section is present but empty.
+	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
+	_, ok := cfg.GetStringMap(config.OTLPSection)[config.OTLPReceiverSubSectionKey]
+	return ok
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.

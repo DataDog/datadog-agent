@@ -1,7 +1,5 @@
 experimental:
   otlp:
-    http_port: 123
-    grpc_port: 456
     internal_traces_port: 789
     metrics_enabled: false
     traces_enabled: false
