@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <signal.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -147,6 +148,18 @@ int ptrace_traceme() {
     return EXIT_SUCCESS;
 }
 
+int signal_sigusr(void) {
+    int child = fork();
+
+    if (child == 0) {
+        wait(NULL);
+    } else {
+        kill(child, SIGUSR1);
+        wait(NULL);
+    }
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -163,6 +176,8 @@ int main(int argc, char **argv) {
         return ptrace_traceme();
     } else if (strcmp(cmd, "span-open") == 0) {
         return span_open(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "signal-sigusr") == 0) {
+        return signal_sigusr();
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;
