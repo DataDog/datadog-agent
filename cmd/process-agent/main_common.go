@@ -276,7 +276,7 @@ func runAgent(exit chan struct{}) {
 
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
-	if ddconfig.Datadog.IsSet("process_config.internal_profiling.enabled") {
+	if ddconfig.Datadog.GetBool("process_config.internal_profiling.enabled") {
 		// allow full url override for development use
 		site := ddconfig.Datadog.GetString("internal_profiling.profile_dd_url")
 		if site == "" {
@@ -306,6 +306,8 @@ func runAgent(exit chan struct{}) {
 			log.Info("start profiling process-agent")
 		}
 		defer profiling.Stop()
+	} else {
+		log.Debug("Running process-agent without profiling enabled")
 	}
 
 	log.Debug("Running process-agent with DEBUG logging enabled")
