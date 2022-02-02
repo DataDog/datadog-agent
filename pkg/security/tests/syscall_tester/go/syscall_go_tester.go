@@ -28,7 +28,7 @@ var ebpfProbe []byte
 
 func BPFClone(m *manager.Manager) error {
 	if _, err := m.CloneMap("cache", "cache_clone", manager.MapOptions{}); err != nil {
-		return fmt.Errorf("couldn't clone 'cache' map: %v", err)
+		return fmt.Errorf("couldn't clone 'cache' map: %w", err)
 	}
 	return nil
 }
@@ -55,11 +55,11 @@ func BPFLoad() error {
 	}()
 
 	if err := m.Init(bytes.NewReader(ebpfProbe)); err != nil {
-		return fmt.Errorf("failed to initialize manager: %v", err)
+		return fmt.Errorf("failed to initialize manager: %w", err)
 	}
 
-	if err := BPFClone(m); err != nil {
-		return err
+	if bpfClone {
+		return BPFClone(m)
 	}
 
 	return nil

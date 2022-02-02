@@ -63,16 +63,6 @@ type proxyFunc func(*http.Request) (*url.URL, error)
 
 type cmdFunc = func(name string, arg ...string) *exec.Cmd
 
-// WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
-type WindowsConfig struct {
-	// Number of checks runs between refreshes of command-line arguments
-	ArgsRefreshInterval int
-	// Controls getting process arguments immediately when a new process is discovered
-	AddNewArgs bool
-	// UsePerfCounters enables new process check using performance counters for process collection
-	UsePerfCounters bool
-}
-
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 //
@@ -106,9 +96,6 @@ type AgentConfig struct {
 
 	// Internal store of a proxy used for generating the Transport
 	proxy proxyFunc
-
-	// Windows-specific config
-	Windows WindowsConfig
 }
 
 // CheckInterval returns the interval for the given check name, defaulting to 10s if not found.
@@ -183,12 +170,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 		// DataScrubber to hide command line sensitive words
 		Scrubber:  NewDefaultDataScrubber(),
 		Blacklist: make([]*regexp.Regexp, 0),
-
-		// Windows process config
-		Windows: WindowsConfig{
-			ArgsRefreshInterval: 15, // with default 20s check interval we refresh every 5m
-			AddNewArgs:          true,
-		},
 	}
 
 	// Set default values for proc/sys paths if unset.
@@ -277,13 +258,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}
 
-	// sanity check. This element is used with the modulo operator (%), so it can't be zero.
-	// if it is, log the error, and assume the config was attempting to disable
-	if cfg.Windows.ArgsRefreshInterval == 0 {
-		log.Warnf("invalid configuration: windows_collect_skip_new_args was set to 0.  Disabling argument collection")
-		cfg.Windows.ArgsRefreshInterval = -1
-	}
-
 	return cfg, nil
 }
 
@@ -326,7 +300,6 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
-		{"DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS", "process_config.windows.use_perf_counters"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_BIND_HOST", "bind_host"},
