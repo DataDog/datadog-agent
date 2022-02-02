@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/security/secl
 
-go 1.16
+go 1.17
 
 require (
 	github.com/alecthomas/participle v0.7.1

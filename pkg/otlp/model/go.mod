@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/otlp/model
 
-go 1.16
+go 1.17
 
 replace github.com/DataDog/datadog-agent/pkg/quantile => ../../quantile
 

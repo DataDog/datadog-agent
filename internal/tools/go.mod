@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/internal/tools
 
-go 1.16
+go 1.17
 
 require (
 	github.com/client9/misspell v0.3.4

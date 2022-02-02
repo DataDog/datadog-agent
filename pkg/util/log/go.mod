@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/log
 
-go 1.16
+go 1.17
 
 replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
 
