@@ -7,7 +7,6 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -17,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -42,14 +40,10 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string, canAccessContainers boo
 		return err
 	}
 
-	URL, err := url.Parse(config.GetMainEndpoint("https://process.", key(ns, "process_dd_url")))
-	if err != nil {
-		return fmt.Errorf("error parsing process_dd_url: %s", err)
-	}
-	a.APIEndpoints[0].Endpoint = URL
-
-	if key := "api_key"; config.Datadog.IsSet(key) {
-		a.APIEndpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString(key))
+	if eps, err := getAPIEndpoints(); err != nil {
+		return err
+	} else {
+		a.APIEndpoints = eps
 	}
 
 	if config.Datadog.IsSet("hostname") {
@@ -146,21 +140,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string, canAccessContainers boo
 		}
 	}
 
-	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
-	if k := key(ns, "additional_endpoints"); config.Datadog.IsSet(k) {
-		for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
-			u, err := URL.Parse(endpointURL)
-			if err != nil {
-				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
-			}
-			for _, k := range apiKeys {
-				a.APIEndpoints = append(a.APIEndpoints, apicfg.Endpoint{
-					APIKey:   config.SanitizeAPIKey(k),
-					Endpoint: u,
-				})
-			}
-		}
-	}
 	if !config.Datadog.IsSet(key(ns, "cmd_port")) {
 		config.Datadog.Set(key(ns, "cmd_port"), 6162)
 	}

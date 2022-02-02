@@ -132,7 +132,6 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultProcessEndpoint         = "https://process.datadoghq.com"
 	maxMessageBatch                = 100
 	defaultMaxCtrProcsMessageBatch = 10000
 	maxCtrProcsMessageBatch        = 30000
@@ -155,15 +154,7 @@ func NewDefaultTransport() *http.Transport {
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
 func NewDefaultAgentConfig() *AgentConfig {
-	processEndpoint, err := url.Parse(defaultProcessEndpoint)
-	if err != nil {
-		// This is a hardcoded URL so parsing it should not fail
-		panic(err)
-	}
-
 	ac := &AgentConfig{
-		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
-
 		MaxPerMessage:             maxMessageBatch,
 		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
 		MaxConnsPerMessage:        600,
@@ -351,17 +342,6 @@ func loadEnvVariables() {
 		}
 	}
 
-	// Support API_KEY and DD_API_KEY but prefer DD_API_KEY.
-	apiKey, envKey := os.Getenv("DD_API_KEY"), "DD_API_KEY"
-	if apiKey == "" {
-		apiKey, envKey = os.Getenv("API_KEY"), "API_KEY"
-	}
-
-	if apiKey != "" { // We don't want to overwrite the API KEY provided as an environment variable
-		log.Infof("overriding API key from env %s value", envKey)
-		config.Datadog.Set("api_key", config.SanitizeAPIKey(strings.Split(apiKey, ",")[0]))
-	}
-
 	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
 		config.Datadog.Set("process_config.custom_sensitive_words", strings.Split(v, ","))
 	}
@@ -546,4 +526,31 @@ func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig)
 		config.Datadog.GetBool("log_to_console"),
 		config.Datadog.GetBool("log_format_json"),
 	)
+}
+
+func getAPIEndpoints() (eps []apicfg.Endpoint, err error) {
+	// Setup main endpoint
+	mainEndpointURL, err := url.Parse(config.GetMainEndpoint("https://process.", key(ns, "process_dd_url")))
+	if err != nil {
+		return nil, fmt.Errorf("error parsing process_dd_url: %s", err)
+	}
+	eps = append(eps, apicfg.Endpoint{
+		APIKey:   config.SanitizeAPIKey(config.Datadog.GetString("api_key")),
+		Endpoint: mainEndpointURL,
+	})
+
+	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
+	for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice("process_config.additional_endpoints") {
+		u, err := url.Parse(endpointURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
+		}
+		for _, k := range apiKeys {
+			eps = append(eps, apicfg.Endpoint{
+				APIKey:   config.SanitizeAPIKey(k),
+				Endpoint: u,
+			})
+		}
+	}
+	return
 }

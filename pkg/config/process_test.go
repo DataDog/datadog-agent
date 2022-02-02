@@ -70,6 +70,14 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.windows.use_perf_counters",
 			defaultValue: false,
 		},
+		{
+			key:          "process_config.process_dd_url",
+			defaultValue: defaultProcessEndpoint,
+		},
+		{
+			key:          "process_config.additional_endpoints",
+			defaultValue: make(map[string][]string),
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
