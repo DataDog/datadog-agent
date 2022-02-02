@@ -83,16 +83,17 @@ func (c *serializerConsumer) enrichTags(cardinality string) {
 	const origin = ""
 	const k8sOriginID = ""
 
+	tb := tagset.NewHashlessTagsAccumulator()
 	for i := range c.series {
-		tb := tagset.NewHashlessTagsAccumulatorFromSlice(c.series[i].Tags)
+		tb.Reset()
 		tagger.EnrichTags(tb, origin, k8sOriginID, cardinality)
-		c.series[i].Tags = tb.Get()
+		c.series[i].Tags.CombineWithSlice(tb.Copy())
 	}
 
 	for i := range c.sketches {
-		tb := tagset.NewHashlessTagsAccumulatorFromSlice(c.sketches[i].Tags)
+		tb.Reset()
 		tagger.EnrichTags(tb, origin, k8sOriginID, cardinality)
-		c.sketches[i].Tags = tb.Get()
+		c.sketches[i].Tags.CombineWithSlice(tb.Copy())
 	}
 }
 

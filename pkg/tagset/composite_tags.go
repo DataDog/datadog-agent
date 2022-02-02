@@ -43,6 +43,11 @@ func CombineCompositeTagsAndSlice(compositeTags CompositeTags, tags []string) Co
 	return NewCompositeTags(compositeTags.tags1, newTags)
 }
 
+// CombineWithSlice adds tags to the composite tags. Consumes the slice.
+func (t *CompositeTags) CombineWithSlice(tags []string) {
+	*t = CombineCompositeTagsAndSlice(*t, tags)
+}
+
 // ForEach applies `callback` to each tag
 func (t CompositeTags) ForEach(callback func(tag string)) {
 	for _, t := range t.tags1 {
