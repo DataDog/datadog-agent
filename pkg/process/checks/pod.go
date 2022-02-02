@@ -15,6 +15,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -35,7 +36,7 @@ type PodCheck struct {
 // Init initializes a PodCheck instance.
 func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
-	c.processor = processors.NewProcessor(new(processors.K8sPodHandlers))
+	c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
 	c.sysInfo = info
 }
 

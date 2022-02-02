@@ -20,8 +20,8 @@ func newMarshallingError(cause error) error {
 	return errors.WithMessage(cause, "unable to marshal resource to JSON")
 }
 
-// recoverOnPanic is used to recover panics triggered by processors.
-func recoverOnPanic() {
+// RecoverOnPanic is used to recover panics triggered by processors.
+func RecoverOnPanic() {
 	if r := recover(); r != nil {
 		log.Errorf("unable to process resources (panic!): %s", r)
 	}

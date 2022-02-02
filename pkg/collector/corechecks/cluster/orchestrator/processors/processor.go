@@ -95,7 +95,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages [
 	processed = -1
 
 	// Make sure to recover if a panic occurs.
-	defer recoverOnPanic()
+	defer RecoverOnPanic()
 
 	resourceList := p.h.ResourceList(ctx, list)
 	resourceModels := make([]interface{}, 0, len(resourceList))

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,7 +31,7 @@ type CollectorBundle struct {
 	check            *OrchestratorCheck
 	collectors       []collectors.Collector
 	extraSyncTimeout time.Duration
-	inventory        *collectors.CollectorInventory
+	inventory        *inventory.CollectorInventory
 	stopCh           chan struct{}
 	runCfg           *collectors.CollectorRunConfig
 }
@@ -48,7 +49,7 @@ type CollectorBundle struct {
 func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 	bundle := &CollectorBundle{
 		check:     chk,
-		inventory: collectors.NewCollectorInventory(),
+		inventory: inventory.NewCollectorInventory(),
 		runCfg: &collectors.CollectorRunConfig{
 			APIClient:   chk.apiClient,
 			ClusterID:   chk.clusterID,
