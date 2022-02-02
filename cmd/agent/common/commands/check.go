@@ -135,7 +135,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return err
 			}
 
-			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
+			// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 			opts := aggregator.DefaultDemultiplexerOptions(nil)
 			opts.FlushInterval = 0
 			opts.UseNoopEventPlatformForwarder = true

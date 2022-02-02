@@ -80,7 +80,13 @@ func (f *timeSamplerWorker) start() {
 // If we want to move to a design where we can flush while we are processing samples,
 // we could consider implementing double-buffering or locking for every sample reception.
 func (f *timeSamplerWorker) processLoop(flushInterval time.Duration) {
-	ticker := time.NewTicker(flushInterval)
+	var tickerChan <-chan time.Time
+	if flushInterval > 0 {
+		tickerChan = time.NewTicker(flushInterval).C
+	} else {
+		log.Debugf("Time Sampler #%d - flushInterval set to 0: it won't automatically flush", f.sampler.id)
+	}
+
 	for {
 		select {
 		case <-f.stopChan:
@@ -98,7 +104,7 @@ func (f *timeSamplerWorker) processLoop(flushInterval time.Duration) {
 			if trigger.blockChan != nil {
 				trigger.blockChan <- struct{}{}
 			}
-		case t := <-ticker.C:
+		case t := <-tickerChan:
 			f.triggerFlush(t, false)
 		}
 	}
@@ -108,7 +114,7 @@ func (f *timeSamplerWorker) triggerFlush(t time.Time, waitForSerializer bool) {
 	if f.parallelSerialization.enabled {
 		f.triggerFlushWithParallelSerialize(t, waitForSerializer)
 	} else {
-		log.Debugf("Time Sampler #%d Flushing series to the forwarder", f.sampler.id)
+		log.Debugf("Time Sampler #%d - Flushing series to the forwarder", f.sampler.id)
 
 		var series metrics.Series
 		sketches := f.sampler.flush(float64(t.Unix()), &series)
@@ -131,7 +137,7 @@ func (f *timeSamplerWorker) sendIterableSeries(
 	series *metrics.IterableSeries,
 	done chan<- struct{}) {
 	go func() {
-		log.Debugf("Time Sampler #%d Flushing series to the forwarder in parallel", f.sampler.id)
+		log.Debugf("Time Sampler #%d - Flushing series to the forwarder in parallel", f.sampler.id)
 
 		err := f.serializer.SendIterableSeries(series)
 		// if err == nil, SenderStopped was called and it is safe to read the number of series.
@@ -148,7 +154,7 @@ func (f *timeSamplerWorker) triggerFlushWithParallelSerialize(start time.Time, w
 	logPayloads := config.Datadog.GetBool("log_payloads")
 	series := metrics.NewIterableSeries(func(se *metrics.Serie) {
 		if logPayloads {
-			log.Debugf("Time Sampler #%d Flushing the following metrics: %s", f.sampler.id, se)
+			log.Debugf("Time Sampler #%d - Flushing the following metrics: %s", f.sampler.id, se)
 		}
 		tagsetTlm.updateHugeSerieTelemetry(se)
 	}, f.parallelSerialization.channelSize, f.parallelSerialization.bufferSize)
