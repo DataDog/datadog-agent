@@ -20,10 +20,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	corecfg "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
-	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -102,19 +100,14 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		return err
 	}
 
-	// loading agent level config
-	o.orchestratorConfig.OrchestrationCollectionEnabled = corecfg.Datadog.GetBool("orchestrator_explorer.enabled")
-	if !o.orchestratorConfig.OrchestrationCollectionEnabled {
-		return errors.New("orchestrator check is configured but the feature is disabled")
-	}
 	err = o.orchestratorConfig.Load()
 	if err != nil {
 		return err
 	}
 
-	// check if cluster name is set
-	hostname, _ := coreutil.GetHostname(context.TODO())
-	o.orchestratorConfig.KubeClusterName = clustername.GetClusterName(context.TODO(), hostname)
+	if !o.orchestratorConfig.OrchestrationCollectionEnabled {
+		return errors.New("orchestrator check is configured but the feature is disabled")
+	}
 	if o.orchestratorConfig.KubeClusterName == "" {
 		return errors.New("orchestrator check is configured but the cluster name is empty")
 	}
@@ -122,7 +115,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	// load instance level config
 	err = o.instance.parse(config)
 	if err != nil {
-		_ = log.Error("could not parse the config for the API server")
+		_ = log.Error("could not parse check instance config")
 		return err
 	}
 
@@ -137,8 +130,8 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	// We cannot wait forever as there's no way to be notified of shutdown
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
-	apiCl, err := apiserver.WaitForAPIClient(apiCtx)
-	o.apiClient = apiCl
+
+	o.apiClient, err = apiserver.WaitForAPIClient(apiCtx)
 	if err != nil {
 		return err
 	}
