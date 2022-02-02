@@ -145,7 +145,6 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 	tests := []struct {
 		name            string
 		disableRealtime bool
-		expectedChecks  []checks.Check
 	}{
 		{
 			name:            "true",
