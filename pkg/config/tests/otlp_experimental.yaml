@@ -8,6 +8,8 @@ experimental:
     receiver: # StringMap
       a: 1
       b: 2
+      c:
+        d:
     metrics: # StringMap
       c: 3
       d: 4

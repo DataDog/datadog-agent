@@ -8,6 +8,6 @@
 ---
 upgrade:
   - |
-    OTLP Ingestion endpoint is now considered public beta to be on par with current OpenTelemetry
+    The OTLP ingest endpoint is now considered public beta to be on par with current OpenTelemetry
     Collector Receiver status. The configuration for it needs no longer be part of the "experimental"
-    config section which will be deprecated in the next release.
+    config section.

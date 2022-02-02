@@ -860,7 +860,7 @@ func TestExperimentalOTLP(t *testing.T) {
 		assert.Equal(t, 789, conf.GetInt("otlp.internal_traces_port"))
 		assert.False(t, conf.GetBool("otlp.metrics_enabled"))
 		assert.False(t, conf.GetBool("otlp.traces_enabled"))
-		assert.Equal(t, map[string]interface{}{"a": 1, "b": 2}, conf.GetStringMap("otlp.receiver"))
+		assert.Equal(t, map[string]interface{}{"a": 1, "b": 2, "c": map[string]interface{}{"d": interface{}(nil)}}, conf.GetStringMap("otlp.receiver"))
 		assert.Equal(t, map[string]interface{}{"c": 3, "d": 4}, conf.GetStringMap("otlp.metrics"))
 		assert.Equal(t, "medium", conf.GetString("otlp.tag_cardinality"))
 	}
