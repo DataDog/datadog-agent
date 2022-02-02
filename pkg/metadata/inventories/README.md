@@ -1,3 +1,4 @@
+
 # Inventory Payload
 
 This package populates some of the agent-related fields in the `inventories` product in DataDog.
@@ -61,14 +62,17 @@ The payload is a JSON dict with the following fields
     enabled, otherwise the field is omitted.
   - `feature_cws_enabled` - **bool**: True if the Cloud Workload Security is enabled (see: `runtime_security_config.enabled`
     config option).
-  - `feature_process_enabled` - **bool**: True if the Process Agent is enabled (see: `process_config.enabled` config
-    option).
+  - `feature_process_enabled` - **bool**: True if the Process Agent has process collection enabled
+     (see: `process_config.process_collection.enabled` config option).
+  - `feature_container_processes_enabled` - **bool**: True if the Process Agent has container collection enabled
+     (see: `process_config.container_collection.enabled`)
   - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:
     `network_config.enabled` config option in `system-probe.yaml`).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
   - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
+  - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 

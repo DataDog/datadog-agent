@@ -133,9 +133,9 @@ variables:
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v6554889-f294eac
   DATADOG_AGENT_BUILDERS: v6554890-8eae026
-  DATADOG_AGENT_WINBUILDIMAGES: v6554889-f294eac
+  DATADOG_AGENT_WINBUILDIMAGES: v6763937-323fb78
   DATADOG_AGENT_ARMBUILDIMAGES: v6554889-f294eac
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v6554889-f294eac
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v6696733-b6f229b
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v6554889-f294eac
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
@@ -313,6 +313,18 @@ variables:
     when: never
   - <<: *if_deploy
 
+.on_deploy_a6_rc:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
 .on_deploy_a6_manual:
   - <<: *if_not_version_6
     when: never
@@ -383,6 +395,18 @@ variables:
   - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
+
+.on_deploy_a7_rc:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
 
 .on_deploy_a7_manual:
   - <<: *if_not_version_7

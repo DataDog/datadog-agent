@@ -162,6 +162,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}
 
+	outputDatadogEnvVariablesForDebugging()
+
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
 	err = serverlessDaemon.RestoreCurrentStateFromFile()
@@ -295,16 +297,20 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	wg.Wait()
 
-	// start the proxy if needed
+	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
+	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+		ExtraTags:           serverlessDaemon.ExtraTags,
+		MetricChannel:       serverlessDaemon.MetricAgent.GetMetricChannel(),
+		ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
+		DetectLambdaLibrary: func() bool { return serverlessDaemon.LambdaLibraryDetected },
+	}
+
+	// start the experimental proxy if enabled
 	_ = proxy.Start(
 		"127.0.0.1:9000",
 		"127.0.0.1:9001",
-		&invocationlifecycle.ProxyProcessor{
-			ExtraTags:           serverlessDaemon.ExtraTags,
-			MetricChannel:       serverlessDaemon.MetricAgent.GetMetricChannel(),
-			ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
-			DetectLambdaLibrary: func() bool { return serverlessDaemon.LambdaLibraryDetected },
-		})
+		serverlessDaemon.InvocationProcessor,
+	)
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on

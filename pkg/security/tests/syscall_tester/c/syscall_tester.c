@@ -16,7 +16,14 @@
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
 
-pid_t gettid(void);
+#ifndef SYS_gettid
+#error "SYS_gettid unavailable on this system"
+#endif
+
+pid_t gettid(void) {
+    pid_t tid = syscall(SYS_gettid);
+    return tid;
+}
 
 struct span_tls_t {
     uint64_t format;
@@ -38,7 +45,7 @@ void *register_tls() {
         return NULL;
     bzero(base, len);
 
-    struct span_tls_t *tls = (struct span_tls_t *) malloc(sizeof(struct span_tls_t));
+    struct span_tls_t *tls = (struct span_tls_t *)malloc(sizeof(struct span_tls_t));
     if (tls == NULL)
         return NULL;
     tls->max_threads = max_threads;
@@ -130,7 +137,7 @@ int span_open(int argc, char **argv) {
 
 int ptrace_traceme() {
     int child = fork();
-    if(child == 0) {
+    if (child == 0) {
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         raise(SIGSTOP);
     } else {

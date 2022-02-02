@@ -1,18 +1,6 @@
 ---
-.docker_hub_variables: &docker_hub_variables
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
-  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
-  DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
-  DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
-  DOCKER_REGISTRY_URL: docker.io
-  SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-  SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
-  SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
-
 .docker_build_windows_job_definition:
   stage: container_build
-  variables:
-    <<: *docker_hub_variables
   before_script:
     - $ErrorActionPreference = "Stop"
     - mkdir ci-scripts
@@ -66,7 +54,7 @@
   needs: ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-agent-7*-x86_64.zip"
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
 
 .docker_build_agent6_windows_common:
   extends:
@@ -76,20 +64,20 @@
   needs: ["windows_msi_x64-a6", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-agent-6*-x86_64.zip"
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
 
 .docker_build_agent6_windows_servercore_common:
   extends:
     - .docker_build_agent6_windows_common
   variables:
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=core-${VARIANT}"
     SERVERCORE: "-servercore"
 
 .docker_build_agent7_windows_servercore_common:
   extends:
     - .docker_build_agent7_windows_common
   variables:
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=core-${VARIANT}"
     SERVERCORE: "-servercore"
 
 include:

@@ -19,7 +19,7 @@ import (
 
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	c, err := NewCollector(cfg)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -55,7 +55,7 @@ func TestUpdateRTStatus(t *testing.T) {
 
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	c, err := NewCollector(cfg)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -102,7 +102,6 @@ func TestHasContainers(t *testing.T) {
 }
 
 func TestDisableRealTime(t *testing.T) {
-
 	tests := []struct {
 		name            string
 		disableRealtime bool
@@ -121,7 +120,7 @@ func TestDisableRealTime(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	cfg.EnabledChecks = []string{
 		config.ProcessCheckName,
 		config.RTProcessCheckName,
@@ -140,5 +139,157 @@ func TestDisableRealTime(t *testing.T) {
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
 		})
 	}
+}
 
+func TestNewCollectorQueueSize(t *testing.T) {
+	tests := []struct {
+		name              string
+		override          bool
+		queueSize         int
+		expectedQueueSize int
+	}{
+		{
+			name:              "default queue size",
+			override:          false,
+			queueSize:         42,
+			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
+		},
+		{
+			name:              "valid queue size override",
+			override:          true,
+			queueSize:         42,
+			expectedQueueSize: 42,
+		},
+		{
+			name:              "invalid negative queue size override",
+			override:          true,
+			queueSize:         -10,
+			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
+		},
+		{
+			name:              "invalid 0 queue size override",
+			override:          true,
+			queueSize:         0,
+			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
+		},
+	}
+
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock()
+			if tc.override {
+				mockConfig.Set("process_config.queue_size", tc.queueSize)
+			}
+
+			c, err := NewCollector(cfg)
+			assert.NoError(err)
+			assert.Equal(tc.expectedQueueSize, c.processResults.MaxSize())
+			assert.Equal(tc.expectedQueueSize, c.podResults.MaxSize())
+		})
+	}
+}
+
+func TestNewCollectorRTQueueSize(t *testing.T) {
+	tests := []struct {
+		name              string
+		override          bool
+		queueSize         int
+		expectedQueueSize int
+	}{
+		{
+			name:              "default queue size",
+			override:          false,
+			queueSize:         2,
+			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
+		},
+		{
+			name:              "valid queue size override",
+			override:          true,
+			queueSize:         2,
+			expectedQueueSize: 2,
+		},
+		{
+			name:              "invalid negative size override",
+			override:          true,
+			queueSize:         -2,
+			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
+		},
+		{
+			name:              "invalid 0 queue size override",
+			override:          true,
+			queueSize:         0,
+			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
+		},
+	}
+
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock()
+			if tc.override {
+				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
+			}
+
+			c, err := NewCollector(cfg)
+			assert.NoError(err)
+			assert.Equal(tc.expectedQueueSize, c.rtProcessResults.MaxSize())
+		})
+	}
+}
+
+func TestNewCollectorProcessQueueBytes(t *testing.T) {
+	tests := []struct {
+		name              string
+		override          bool
+		queueBytes        int
+		expectedQueueSize int
+	}{
+		{
+			name:              "default queue size",
+			override:          false,
+			queueBytes:        42000,
+			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
+		},
+		{
+			name:              "valid queue size override",
+			override:          true,
+			queueBytes:        42000,
+			expectedQueueSize: 42000,
+		},
+		{
+			name:              "invalid negative queue size override",
+			override:          true,
+			queueBytes:        -2,
+			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
+		},
+		{
+			name:              "invalid 0 queue size override",
+			override:          true,
+			queueBytes:        0,
+			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
+		},
+	}
+
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock()
+			if tc.override {
+				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
+			}
+
+			c, err := NewCollector(cfg)
+			assert.NoError(err)
+			assert.Equal(int64(tc.expectedQueueSize), c.processResults.MaxWeight())
+			assert.Equal(int64(tc.expectedQueueSize), c.rtProcessResults.MaxWeight())
+			assert.Equal(tc.expectedQueueSize, c.forwarderRetryQueueMaxBytes)
+		})
+	}
 }

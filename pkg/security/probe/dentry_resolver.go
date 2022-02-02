@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -737,6 +738,11 @@ func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32)
 	if err != nil && err != errTruncatedParentsERPC && dr.mapEnabled {
 		parentMountID, parentInode, err = dr.resolveParentFromMap(mountID, inode, pathID)
 	}
+
+	if parentInode == 0 {
+		return 0, 0, ErrEntryNotFound
+	}
+
 	return parentMountID, parentInode, err
 }
 

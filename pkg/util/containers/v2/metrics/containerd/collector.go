@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -21,19 +22,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
-	containerdCollectorID    = "containerd"
-	containerdCacheKeyPrefix = "containerd-stats-"
-	containerdCacheTTL       = 10 * time.Second
+	containerdCollectorID = "containerd"
 )
 
 func init() {
@@ -44,12 +40,12 @@ func init() {
 		Factory: func() (provider.Collector, error) {
 			return newContainerdCollector()
 		},
+		DelegateCache: true,
 	})
 }
 
 type containerdCollector struct {
 	client            cutil.ContainerdItf
-	lastScrapeTime    time.Time
 	workloadmetaStore workloadmeta.Store
 }
 
@@ -124,7 +120,7 @@ func (c *containerdCollector) GetContainerStats(containerID string, cacheValidit
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (c *containerdCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
+func (c *containerdCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	namespace, err := c.containerNamespace(containerID)
 	if err != nil {
 		return nil, err
@@ -138,7 +134,7 @@ func (c *containerdCollector) GetContainerNetworkStats(containerID string, cache
 
 	switch metricsVal := metrics.(type) {
 	case *v1.Metrics:
-		return getContainerdNetworkStatsLinux(metricsVal.Network, networks), nil
+		return getContainerdNetworkStatsLinux(metricsVal.Network), nil
 	case *wstats.Statistics:
 		// Network stats are not available on Windows
 		return nil, nil
@@ -151,13 +147,6 @@ func (c *containerdCollector) GetContainerNetworkStats(containerID string, cache
 // v1.Metrics (for Linux) or stats.Statistics (Windows) and they don't share a
 // common interface.
 func (c *containerdCollector) getContainerdMetrics(containerID string, cacheValidity time.Duration) (interface{}, error) {
-	refreshRequired := c.lastScrapeTime.Add(cacheValidity).Before(time.Now())
-	cacheKey := containerdCacheKeyPrefix + containerID
-	if cachedMetrics, found := cache.Cache.Get(cacheKey); found && !refreshRequired {
-		log.Debugf("Got containerd stats from cache for container %s", containerID)
-		return cachedMetrics, nil
-	}
-
 	container, err := c.client.Container(containerID)
 	if err != nil {
 		return nil, fmt.Errorf("could not get container with ID %s: %s", containerID, err)
@@ -172,9 +161,6 @@ func (c *containerdCollector) getContainerdMetrics(containerID string, cacheVali
 	if err != nil {
 		return nil, fmt.Errorf("could not convert the metrics data from container with ID %s: %s", containerID, err)
 	}
-
-	c.lastScrapeTime = time.Now()
-	cache.Cache.Set(cacheKey, metrics, containerdCacheTTL)
 
 	return metrics, nil
 }
@@ -295,12 +281,10 @@ func getContainerdIOStatsLinux(blkioStat *v1.BlkIOStat, processes []containerd.P
 		}
 	}
 
-	result.OpenFiles = util.Float64Ptr(float64(getOpenFileDescriptors(processes)))
-
 	return &result
 }
 
-func getContainerdNetworkStatsLinux(networkStats []*v1.NetworkStat, networksMapping map[string]string) *provider.ContainerNetworkStats {
+func getContainerdNetworkStatsLinux(networkStats []*v1.NetworkStat) *provider.ContainerNetworkStats {
 	containerNetworkStats := provider.ContainerNetworkStats{
 		BytesSent:   util.Float64Ptr(0),
 		BytesRcvd:   util.Float64Ptr(0),
@@ -315,12 +299,7 @@ func getContainerdNetworkStatsLinux(networkStats []*v1.NetworkStat, networksMapp
 		*containerNetworkStats.PacketsSent += float64(stats.TxPackets)
 		*containerNetworkStats.PacketsRcvd += float64(stats.RxPackets)
 
-		interfaceName := stats.Name
-		if customName, useCustomName := networksMapping[stats.Name]; useCustomName {
-			interfaceName = customName
-		}
-
-		containerNetworkStats.Interfaces[interfaceName] = provider.InterfaceNetStats{
+		containerNetworkStats.Interfaces[stats.Name] = provider.InterfaceNetStats{
 			BytesSent:   util.UIntToFloatPtr(stats.TxBytes),
 			BytesRcvd:   util.UIntToFloatPtr(stats.RxBytes),
 			PacketsSent: util.UIntToFloatPtr(stats.TxPackets),
@@ -400,22 +379,6 @@ func getContainerdIOStatsWindows(ioStats *wstats.WindowsContainerStorageStatisti
 		ReadOperations:  util.UIntToFloatPtr(ioStats.ReadCountNormalized),
 		WriteOperations: util.UIntToFloatPtr(ioStats.WriteCountNormalized),
 	}
-}
-
-func getOpenFileDescriptors(processes []containerd.ProcessInfo) int {
-	fileDescCount := 0
-
-	for _, p := range processes {
-		pid := p.Pid
-		fdCount, err := providers.ContainerImpl().GetNumFileDescriptors(int(pid))
-		if err != nil {
-			log.Debugf("Failed to get file desc length for pid %d: %s", pid, err)
-			continue
-		}
-		fileDescCount += fdCount
-	}
-
-	return fileDescCount
 }
 
 func (c *containerdCollector) containerNamespace(containerID string) (string, error) {

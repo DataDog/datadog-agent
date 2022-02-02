@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package autoscalers
@@ -184,8 +185,8 @@ func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]d
 			return series, nil
 		}
 
-		log.Infof("Failed to query metrics on %s: %#v", c.client.GetBaseUrl(), err)
-		errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
+		log.Infof("Failed to query metrics on %s: %s", c.client.GetBaseUrl(), err.Error())
+		errs = fmt.Errorf("%w, Failed to query metrics on %s: %s", errs, c.client.GetBaseUrl(), err.Error())
 	}
 
 	for _, c := range skippedClients {
@@ -225,8 +226,24 @@ func GetStatus(datadogClient DatadogClient) map[string]interface{} {
 			clientsStatus[i] = make(map[string]interface{})
 			clientsStatus[i]["url"] = individualClient.client.GetBaseUrl()
 			clientsStatus[i]["lastQuerySucceeded"] = individualClient.lastQuerySucceeded
-			clientsStatus[i]["lastFailure"] = individualClient.lastFailure
-			clientsStatus[i]["lastSuccess"] = individualClient.lastSuccess
+			if individualClient.lastFailure.IsZero() {
+				clientsStatus[i]["lastFailure"] = "Never"
+			} else {
+				clientsStatus[i]["lastFailure"] = individualClient.lastFailure
+			}
+			if individualClient.lastSuccess.IsZero() {
+				clientsStatus[i]["lastSuccess"] = "Never"
+			} else {
+				clientsStatus[i]["lastSuccess"] = individualClient.lastSuccess
+			}
+			if individualClient.lastFailure.IsZero() &&
+				individualClient.lastSuccess.IsZero() {
+				clientsStatus[i]["status"] = "Unknown"
+			} else if individualClient.lastQuerySucceeded {
+				clientsStatus[i]["status"] = "OK"
+			} else {
+				clientsStatus[i]["status"] = "Failed"
+			}
 			clientsStatus[i]["retryInterval"] = individualClient.retryInterval
 		}
 		status["clients"] = clientsStatus

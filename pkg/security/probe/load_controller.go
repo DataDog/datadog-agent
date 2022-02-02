@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -131,7 +132,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 	// push a temporary discarder on the noisiest process & event type tuple
 	seclog.Tracef("discarding events from pid %d for %s seconds", maxKey.Pid, lc.DiscarderTimeout)
-	if err := lc.probe.pidDiscarders.discardWithTimeout(0xffffffffffffffff, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
+	if err := lc.probe.pidDiscarders.discardWithTimeout(allEventTypes, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
 		log.Warnf("couldn't insert temporary discarder: %v", err)
 		return
 	}

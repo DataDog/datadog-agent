@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -50,7 +51,7 @@ func TestProcessArgsFlags(t *testing.T) {
 				Process: model.Process{
 					ArgsEntry: &model.ArgsEntry{
 						Values: []string{
-							"-abc", "--verbose", "test",
+							"cmd", "-abc", "--verbose", "test",
 							"-v=1", "--host=myhost",
 							"-9", "-", "--",
 						},
@@ -60,7 +61,7 @@ func TestProcessArgsFlags(t *testing.T) {
 		},
 	}
 
-	resolver, _ := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
+	resolver, _ := NewProcessResolver(&Probe{}, nil, nil, NewProcessResolverOpts(10000))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}
@@ -109,7 +110,7 @@ func TestProcessArgsOptions(t *testing.T) {
 				Process: model.Process{
 					ArgsEntry: &model.ArgsEntry{
 						Values: []string{
-							"--config", "/etc/myfile", "--host=myhost", "--verbose",
+							"cmd", "--config", "/etc/myfile", "--host=myhost", "--verbose",
 							"-c", "/etc/myfile", "-e", "", "-h=myhost", "-v",
 							"--", "---", "-9",
 						},
@@ -119,7 +120,7 @@ func TestProcessArgsOptions(t *testing.T) {
 		},
 	}
 
-	resolver, _ := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
+	resolver, _ := NewProcessResolver(&Probe{}, nil, nil, NewProcessResolverOpts(10000))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}

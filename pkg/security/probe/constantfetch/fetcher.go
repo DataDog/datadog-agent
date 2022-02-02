@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package constantfetch
@@ -149,6 +150,11 @@ func CreateConstantEditors(constants map[string]uint64) []manager.ConstantEditor
 }
 
 var constantsCache *cachedConstants
+
+// ClearConstantsCache clears the constants cache
+func ClearConstantsCache() {
+	constantsCache = nil
+}
 
 type cachedConstants struct {
 	constants map[string]uint64

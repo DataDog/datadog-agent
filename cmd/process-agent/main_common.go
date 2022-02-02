@@ -80,13 +80,13 @@ var (
 func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 	// Set up the config so we can get the port later
 	// We set this up differently from the main process-agent because this way is quieter
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	if opts.configPath != "" {
 		if err := config.LoadConfigIfExists(opts.configPath); err != nil {
 			return nil, err
 		}
 	}
-	err := cfg.LoadProcessYamlConfig(opts.configPath)
+	err := cfg.LoadProcessYamlConfig(opts.configPath, false)
 	if err != nil {
 		return nil, err
 	}
@@ -151,9 +151,10 @@ func versionString(sep string) string {
 
 const (
 	agent6DisabledMessage = `process-agent not enabled.
-Set env var DD_PROCESS_AGENT_ENABLED=true or add
+Set env var DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED=true or add
 process_config:
-  enabled: "true"
+  process_collection:
+    enabled: true
 to your datadog.yaml file.
 Exiting.`
 )
@@ -253,7 +254,7 @@ func runAgent(exit chan struct{}) {
 	}
 
 	// Exit if agent is not enabled and we're not debugging a check.
-	if !cfg.Enabled && opts.check == "" {
+	if len(cfg.EnabledChecks) == 0 && opts.check == "" {
 		log.Infof(agent6DisabledMessage)
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"

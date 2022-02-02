@@ -199,7 +199,19 @@ docker_build_dogstatsd_amd64:
   rules:
     !reference [.on_a7]
   needs:
-    - job: build_dogstatsd_static-deb_x64
+    - job: build_dogstatsd_static-binary_x64
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+    BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
+
+# build the dogstatsd image
+docker_build_dogstatsd_arm64:
+  extends: .docker_build_job_definition_arm64
+  rules:
+    !reference [.on_a7]
+  needs:
+    - job: build_dogstatsd_static-binary_arm64
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd

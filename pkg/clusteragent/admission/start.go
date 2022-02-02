@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package admission
@@ -89,8 +90,10 @@ func StartControllers(ctx ControllerContext) error {
 
 	if v1Enabled {
 		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
+		getWebhookStatus = getWebhookStatusV1
 	} else {
 		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer()
+		getWebhookStatus = getWebhookStatusV1beta1
 	}
 
 	return apiserver.SyncInformers(informers, 0)

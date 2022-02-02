@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package module
@@ -102,7 +103,7 @@ type RuleEvent struct {
 func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
 	resolvers := a.probe.GetResolvers()
 
-	filename, err := resolvers.ProcessResolver.Dump()
+	filename, err := resolvers.ProcessResolver.Dump(params.WithArgs)
 	if err != nil {
 		return nil, err
 	}

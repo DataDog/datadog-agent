@@ -120,7 +120,7 @@ dogstatsd_suse-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "build_dogstatsd-deb_x64", "go_deps"]
+  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:

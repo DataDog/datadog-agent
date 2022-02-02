@@ -51,7 +51,7 @@ func TestDNSNameEncoding(t *testing.T) {
 		"1.1.2.4": {Names: []string{"host4.domain.com"}},
 		"1.1.2.5": {Names: nil},
 	}
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil, nil)
 	assert.Equal(t, len(chunks), 1)
 
@@ -75,7 +75,7 @@ func TestDNSNameEncoding(t *testing.T) {
 }
 
 func TestNetworkConnectionBatching(t *testing.T) {
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 
 	for i, tc := range []struct {
 		cur, last      []*model.Connection
@@ -155,7 +155,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 		"1.1.2.3": {Names: []string{"datacat.edu"}},
 	}
 
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 1
 
 	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil, nil)
@@ -196,7 +196,7 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	p[4].Raddr.Ip = "1.2.3.4"
 	p[5].Raddr.Ip = "1.3.4.5"
 
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 2
 
 	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil, nil, nil, nil)
@@ -281,7 +281,7 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	}
 	dnsmap := map[string]*model.DNSEntry{}
 
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 1
 
 	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil, nil)
@@ -400,7 +400,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	}
 	dnsmap := map[string]*model.DNSEntry{}
 
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 1
 
 	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil, nil)
@@ -510,7 +510,7 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	conns[6].RouteIdx = 3
 	conns[7].RouteIdx = 2
 
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 4
 
 	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, routes, nil, nil)
@@ -579,7 +579,7 @@ func TestNetworkConnectionTags(t *testing.T) {
 	}
 	foundTags := []fakeConn{}
 
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 4
 
 	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, nil, tags, nil)

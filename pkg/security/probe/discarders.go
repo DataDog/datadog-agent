@@ -39,6 +39,9 @@ const (
 	// maxParentDiscarderDepth defines the maximum parent depth to find parent discarders
 	// the eBPF part need to be adapted accordingly
 	maxParentDiscarderDepth = 3
+
+	// allEventTypes is a mask to match all the events
+	allEventTypes = 0xffffffffffffffff
 )
 
 var (
@@ -414,10 +417,14 @@ func (id *inodeDiscarders) discardParentInode(rs *rules.RuleSet, eventType model
 	}
 
 	for i := 0; i < discarderDepth; i++ {
-		mountID, inode, err = id.dentryResolver.GetParent(mountID, inode, pathID)
-		if err != nil {
-			return false, 0, 0, err
+		parentMountID, parentInode, err := id.dentryResolver.GetParent(mountID, inode, pathID)
+		if err != nil || IsFakeInode(parentInode) {
+			if i == 0 {
+				return false, 0, 0, err
+			}
+			break
 		}
+		mountID, inode = parentMountID, parentInode
 	}
 
 	if err := id.discardInode(eventType, mountID, inode, false); err != nil {
@@ -457,11 +464,13 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(rs, eventType, field, filename, mountID, inode, pathID)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
-					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
+					if !IsFakeInode(inode) {
+						seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 
-					// not able to discard the parent then only discard the filename
-					if err = probe.inodeDiscarders.discardInode(eventType, mountID, inode, true); err == nil {
-						probe.countNewInodeDiscarder(eventType)
+						// not able to discard the parent then only discard the filename
+						if err = probe.inodeDiscarders.discardInode(eventType, mountID, inode, true); err == nil {
+							probe.countNewInodeDiscarder(eventType)
+						}
 					}
 				}
 			} else if !isDeleted {
