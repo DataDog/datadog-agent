@@ -90,7 +90,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
 	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
-	tags = setIfNotEmpty(tags, functionARNKey, arn)
+	tags = setIfNotEmpty(tags, FunctionARNKey, arn)
 	tags = setIfNotEmpty(tags, extensionVersionKey, currentExtensionVersion)
 
 	parts := strings.Split(arn, ":")
