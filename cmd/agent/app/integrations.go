@@ -145,7 +145,7 @@ func loadPythonInfo() error {
 		rootDir = parentDir
 	}
 
-	if err := common.SetupConfigIfExist(confFilePath); err != nil {
+	if err := common.SetupConfigIfExist(confFilePaths); err != nil {
 		fmt.Printf("Cannot setup config, exiting: %v\n", err)
 		return err
 	}
@@ -712,7 +712,6 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 
 	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integration))
 	output, err := pythonCmd.Output()
-
 	if err != nil {
 		errMsg := ""
 		if exitErr, ok := err.(*exec.ExitError); ok {

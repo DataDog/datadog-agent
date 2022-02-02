@@ -51,12 +51,11 @@ var flareCmd = &cobra.Command{
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		if flagNoColor {
 			color.NoColor = true
 		}
 
-		err := common.SetupConfig(confFilePath)
+		err := common.SetupConfig(confFilePaths)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}

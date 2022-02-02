@@ -638,7 +638,8 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 		&Proxy{
 			HTTP:    "http_url",
 			HTTPS:   "https_url",
-			NoProxy: []string{"a", "b", "c"}},
+			NoProxy: []string{"a", "b", "c"},
+		},
 		proxies)
 
 	os.Unsetenv("NO_PROXY")
@@ -660,7 +661,8 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 		&Proxy{
 			HTTP:    "http_url2",
 			HTTPS:   "https_url2",
-			NoProxy: []string{"1", "2", "3"}},
+			NoProxy: []string{"1", "2", "3"},
+		},
 		proxies)
 }
 
@@ -683,7 +685,8 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 		&Proxy{
 			HTTP:    "http_url",
 			HTTPS:   "https_url",
-			NoProxy: []string{"a", "b", "c"}},
+			NoProxy: []string{"a", "b", "c"},
+		},
 		proxies)
 }
 
@@ -712,7 +715,8 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 		&Proxy{
 			HTTP:    "dd_http_url",
 			HTTPS:   "dd_https_url",
-			NoProxy: []string{"a", "b", "c"}},
+			NoProxy: []string{"a", "b", "c"},
+		},
 		proxies)
 }
 
@@ -734,7 +738,8 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 		&Proxy{
 			HTTP:    "http_env",
 			HTTPS:   "",
-			NoProxy: []string{"d", "e", "f"}},
+			NoProxy: []string{"d", "e", "f"},
+		},
 		proxies)
 }
 
@@ -756,7 +761,8 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 		&Proxy{
 			HTTP:    "http_env",
 			HTTPS:   "",
-			NoProxy: []string{"d", "e", "f"}},
+			NoProxy: []string{"d", "e", "f"},
+		},
 		proxies)
 }
 
@@ -784,7 +790,8 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 		&Proxy{
 			HTTP:    "",
 			HTTPS:   "",
-			NoProxy: []string{"a", "b", "c"}},
+			NoProxy: []string{"a", "b", "c"},
+		},
 		proxies)
 }
 
@@ -840,9 +847,8 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 // Refer to https://github.com/DataDog/viper/pull/2 for more details.
 func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := setupConf()
-	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
-	_, err := load(conf, "datadog_secrets.yaml", true)
+	_, err := load(conf, "", []string{"./tests/datadog_secrets.yaml"}, "datadog_secrets.yaml", true, true)
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{
@@ -1059,4 +1065,25 @@ func TestGetInventoriesMaxIntervalInvalid(t *testing.T) {
 	// an invalid integer results in a value of 0 from Viper (with a logged warning)
 	Mock().Set("inventories_max_interval", 0)
 	assert.EqualValues(t, DefaultInventoriesMaxInterval*time.Second, GetInventoriesMaxInterval())
+}
+
+func TestMultipleConfigFiles(t *testing.T) {
+	conf := setupConf()
+
+	// load the configuration, fails due to first file not exist
+	_, err := load(conf, "", []string{"./tests/datadog_do_not_exist.yaml", "./tests/datadog_second.yaml"}, "datadog.yaml", true, false)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+
+	// load the configuration, fails due to first file not exist
+	_, err = load(conf, "", []string{"./tests/datadog_first.yaml", "./tests/datadog_do_not_exist.yaml", "./tests/datadog_second.yaml"}, "datadog.yaml", false, false)
+	assert.NoError(t, err)
+
+	// Values from `datadog-second.yaml`
+	assert.Equal(t, "apikey2", conf.GetString("api_key"))
+	assert.Equal(t, false, conf.GetBool("auto_exit.noprocess.enabled"))
+	assert.ElementsMatch(t, []string{"1", "2"}, conf.GetStringSlice("auto_exit.noprocess.excluded_processes"))
+
+	// Values from `datadog-first.yaml`
+	assert.Equal(t, 1, conf.GetInt("health_port"))
+	assert.Equal(t, 5, conf.GetInt("check_runners"))
 }

@@ -20,9 +20,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	filters diagnostic.Filters
-)
+var filters diagnostic.Filters
 
 func init() {
 	AgentCmd.AddCommand(troubleshootLogsCmd)
@@ -36,12 +34,11 @@ var troubleshootLogsCmd = &cobra.Command{
 	Short: "Stream the logs being processed by a running agent",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		if flagNoColor {
 			color.NoColor = true
 		}
 
-		err := common.SetupConfigWithoutSecrets(confFilePath, "")
+		err := common.SetupConfigWithoutSecrets(confFilePaths, "")
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
@@ -63,7 +60,6 @@ func connectAndStream() error {
 	}
 
 	body, err := json.Marshal(&filters)
-
 	if err != nil {
 		return err
 	}

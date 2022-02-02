@@ -1,0 +1,5 @@
+api_key: apikey2
+auto_exit:
+  noprocess:
+    enabled: false
+    excluded_processes: ["1", "2"]

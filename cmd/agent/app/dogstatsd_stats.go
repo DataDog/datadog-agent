@@ -22,9 +22,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	dsdStatsFilePath string
-)
+var dsdStatsFilePath string
 
 func init() {
 	AgentCmd.AddCommand(dogstatsdStatsCmd)
@@ -38,12 +36,11 @@ var dogstatsdStatsCmd = &cobra.Command{
 	Short: "Print basic statistics on the metrics processed by dogstatsd",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		if flagNoColor {
 			color.NoColor = true
 		}
 
-		err := common.SetupConfigWithoutSecrets(confFilePath, "")
+		err := common.SetupConfigWithoutSecrets(confFilePaths, "")
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
@@ -77,7 +74,7 @@ func requestDogstatsdStats() error {
 
 	r, e := util.DoGet(c, urlstr)
 	if e != nil {
-		var errMap = make(map[string]string)
+		errMap := make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if err, found := errMap["error"]; found {

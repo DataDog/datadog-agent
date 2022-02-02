@@ -51,12 +51,11 @@ var dogstatsdReplayCmd = &cobra.Command{
 	Short: "Replay dogstatsd traffic",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		if flagNoColor {
 			color.NoColor = true
 		}
 
-		err := common.SetupConfigWithoutSecrets(confFilePath, "")
+		err := common.SetupConfigWithoutSecrets(confFilePaths, "")
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
@@ -72,7 +71,6 @@ var dogstatsdReplayCmd = &cobra.Command{
 }
 
 func dogstatsdReplay() error {
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

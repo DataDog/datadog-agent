@@ -112,7 +112,7 @@ func init() {
 	jmxCmd.AddCommand(jmxListCmd)
 	jmxCmd.AddCommand(jmxCollectCmd)
 
-	//attach list commands to list root
+	// attach list commands to list root
 	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd, jmxListWithMetricsCmd, jmxListWithRateMetricsCmd)
 
 	jmxListCmd.PersistentFlags().StringSliceVar(&cliSelectedChecks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
@@ -167,7 +167,7 @@ func runJmxCommandConsole(command string) error {
 		jmxLogLevel = "debug"
 	}
 
-	logLevel, _, err := standalone.SetupCLI(loggerName, confFilePath, "", logFile, jmxLogLevel, "debug")
+	logLevel, _, err := standalone.SetupCLI(loggerName, confFilePaths, "", logFile, jmxLogLevel, "debug")
 	if err != nil {
 		fmt.Printf("Cannot initialize command: %v\n", err)
 		return err

@@ -22,14 +22,13 @@ import (
 )
 
 // Health returns a cobra command to report on the agent's health
-func Health(loggerName config.LoggerName, confPath *string, flagNoColor *bool) *cobra.Command {
+func Health(loggerName config.LoggerName, confPaths []string, flagNoColor *bool) *cobra.Command {
 	return &cobra.Command{
 		Use:          "health",
 		Short:        "Print the current agent health",
 		Long:         ``,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			if *flagNoColor {
 				color.NoColor = true
 			}
@@ -40,7 +39,7 @@ func Health(loggerName config.LoggerName, confPath *string, flagNoColor *bool) *
 
 			// Set up config without secrets so that running the health command (e.g. from container
 			// liveness probe script) does not trigger a secret backend command call.
-			err := common.SetupConfigWithoutSecrets(*confPath, "")
+			err := common.SetupConfigWithoutSecrets(confPaths, "")
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)
 			}
@@ -55,6 +54,7 @@ func Health(loggerName config.LoggerName, confPath *string, flagNoColor *bool) *
 		},
 	}
 }
+
 func requestHealth() error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
@@ -78,7 +78,7 @@ func requestHealth() error {
 
 	r, err := util.DoGet(c, urlstr)
 	if err != nil {
-		var errMap = make(map[string]string)
+		errMap := make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {

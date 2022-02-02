@@ -1081,13 +1081,13 @@ func loadProxyFromEnv(config Config) {
 }
 
 // Load reads configs files and initializes the config module
-func Load() (*Warnings, error) {
-	return load(Datadog, "datadog.yaml", true)
+func Load(configName string, confFilePaths []string, errorOnMissing bool) (*Warnings, error) {
+	return load(Datadog, configName, confFilePaths, "datadog.yaml", errorOnMissing, true)
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
-func LoadWithoutSecret() (*Warnings, error) {
-	return load(Datadog, "datadog.yaml", false)
+func LoadWithoutSecret(configName string, confFilePaths []string, errorOnMissing bool) (*Warnings, error) {
+	return load(Datadog, configName, confFilePaths, "datadog.yaml", errorOnMissing, false)
 }
 
 func findUnknownKeys(config Config) []string {
@@ -1157,7 +1157,7 @@ func useHostEtc(config Config) {
 	}
 }
 
-func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
+func load(config Config, configName string, confFilePaths []string, origin string, errOnMissing, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
@@ -1169,13 +1169,26 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		applyOverrideFuncs(config)
 	}()
 
-	if err := config.ReadInConfig(); err != nil {
-		if errors.Is(err, os.ErrPermission) {
-			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+	for _, confFilePath := range confFilePaths {
+		// Removes support for non-YAML files (at least in the name)
+		// A change in Datadog/viper could be done to still allow it.
+		if strings.HasSuffix(confFilePath, ".yaml") {
+			config.SetConfigFile(confFilePath)
 		} else {
-			log.Warnf("Error loading config: %v", err)
+			config.SetConfigFile(filepath.Join(confFilePath, configName, ".yaml"))
 		}
-		return &warnings, err
+
+		if err := config.MergeInConfig(); err != nil {
+			if errors.Is(err, os.ErrPermission) {
+				log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+			} else {
+				log.Warnf("Error loading config: %v", err)
+			}
+
+			if errOnMissing {
+				return &warnings, err
+			}
+		}
 	}
 
 	for _, key := range findUnknownKeys(config) {

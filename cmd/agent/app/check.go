@@ -10,5 +10,5 @@ import (
 )
 
 func init() {
-	AgentCmd.AddCommand(commands.Check(loggerName, &confFilePath, &flagNoColor))
+	AgentCmd.AddCommand(commands.Check(loggerName, confFilePaths, &flagNoColor))
 }

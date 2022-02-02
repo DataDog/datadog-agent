@@ -169,7 +169,7 @@ func StartAgent() error {
 	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Global Agent configuration
-	configSetupErr = common.SetupConfig(confFilePath)
+	configSetupErr = common.SetupConfig(confFilePaths)
 
 	// Setup logger
 	if runtime.GOOS != "android" {

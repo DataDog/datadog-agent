@@ -16,24 +16,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	launchCmd = &cobra.Command{
-		Use:          "launch-gui",
-		Short:        "starts the Datadog Agent GUI",
-		Long:         ``,
-		RunE:         launchGui,
-		SilenceUsage: true,
-	}
-)
+var launchCmd = &cobra.Command{
+	Use:          "launch-gui",
+	Short:        "starts the Datadog Agent GUI",
+	Long:         ``,
+	RunE:         launchGui,
+	SilenceUsage: true,
+}
 
 func init() {
 	// attach the command to the root
 	AgentCmd.AddCommand(launchCmd)
-
 }
 
 func launchGui(cmd *cobra.Command, args []string) error {
-	err := common.SetupConfigWithoutSecrets(confFilePath, "")
+	err := common.SetupConfigWithoutSecrets(confFilePaths, "")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
@@ -63,7 +60,7 @@ func launchGui(cmd *cobra.Command, args []string) error {
 
 	csrfToken, err := util.DoGet(c, urlstr)
 	if err != nil {
-		var errMap = make(map[string]string)
+		errMap := make(map[string]string)
 		json.Unmarshal(csrfToken, &errMap) //nolint:errcheck
 		if e, found := errMap["error"]; found {
 			err = fmt.Errorf(e)

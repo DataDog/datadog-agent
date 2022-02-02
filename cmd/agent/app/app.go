@@ -28,21 +28,23 @@ to Datadog on your behalf so that you can do something useful with your
 monitoring and performance data.`,
 		SilenceUsage: true,
 	}
-	// confFilePath holds the path to the folder containing the configuration
+	// confFilePaths holds the path to the folder containing the configuration
 	// file, to allow overrides from the command line
-	confFilePath string
-	flagNoColor  bool
+	confFilePaths []string
+	flagNoColor   bool
 	// sysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	sysProbeConfFilePath string
 )
 
 // loggerName is the name of the core agent logger
-const loggerName config.LoggerName = "CORE"
-const jmxLoggerName config.LoggerName = "JMXFETCH"
+const (
+	loggerName    config.LoggerName = "CORE"
+	jmxLoggerName config.LoggerName = "JMXFETCH"
+)
 
 func init() {
-	AgentCmd.PersistentFlags().StringVarP(&confFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	AgentCmd.PersistentFlags().StringSliceVarP(&confFilePaths, "cfgpath", "c", nil, "path to directory containing datadog.yaml")
 	AgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 	AgentCmd.PersistentFlags().StringVarP(&sysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 }

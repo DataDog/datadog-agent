@@ -18,14 +18,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	stopCmd = &cobra.Command{
-		Use:   "stop",
-		Short: "Stops a running Agent",
-		Long:  ``,
-		RunE:  stop,
-	}
-)
+var stopCmd = &cobra.Command{
+	Use:   "stop",
+	Short: "Stops a running Agent",
+	Long:  ``,
+	RunE:  stop,
+}
 
 func init() {
 	// attach the command to the root
@@ -34,7 +32,7 @@ func init() {
 
 func stop(*cobra.Command, []string) error {
 	// Global Agent configuration
-	err := common.SetupConfigWithoutSecrets(confFilePath, "")
+	err := common.SetupConfigWithoutSecrets(confFilePaths, "")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}

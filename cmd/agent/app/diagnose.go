@@ -29,7 +29,7 @@ var diagnoseCommand = &cobra.Command{
 
 func doDiagnose(cmd *cobra.Command, args []string) error {
 	// Global config setup
-	err := common.SetupConfig(confFilePath)
+	err := common.SetupConfig(confFilePaths)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}

@@ -56,6 +56,7 @@ type Config interface {
 	UnmarshalExact(rawVal interface{}) error
 
 	ReadInConfig() error
+	MergeInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
 	MergeConfigOverride(in io.Reader) error

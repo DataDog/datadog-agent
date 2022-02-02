@@ -85,7 +85,7 @@ func New(configPath string) (*Config, error) {
 	}
 	aconfig.Datadog.AddConfigPath(defaultConfigDir)
 
-	_, err := aconfig.LoadWithoutSecret()
+	_, err := aconfig.LoadWithoutSecret("system-probe", []string{configPath}, true)
 	var e viper.ConfigFileNotFoundError
 	if err != nil {
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {

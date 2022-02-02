@@ -7,7 +7,6 @@ package app
 
 import (
 	"fmt"
-
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -27,12 +26,11 @@ var reloadCheckCommand = &cobra.Command{
 	Short: "Reload a running check",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		if flagNoColor {
 			color.NoColor = true
 		}
 
-		err := common.SetupConfigWithoutSecrets(confFilePath, "")
+		err := common.SetupConfigWithoutSecrets(confFilePaths, "")
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}

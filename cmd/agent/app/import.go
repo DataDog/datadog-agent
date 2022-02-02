@@ -40,7 +40,7 @@ func doImport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("please provide all the required arguments")
 	}
 
-	if confFilePath != "" {
+	if len(confFilePaths) == 0 {
 		fmt.Fprintf(os.Stderr, "Please note configdir option has no effect\n")
 	}
 	oldConfigDir := args[0]

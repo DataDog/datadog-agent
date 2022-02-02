@@ -1,0 +1,7 @@
+api_key: apikey1
+auto_exit:
+  noprocess:
+    enabled: true
+    excluded_processes: ["foo", "bar", "baz"]
+health_port: 1
+check_runners: 5

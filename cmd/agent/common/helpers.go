@@ -8,7 +8,6 @@ package common
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -16,58 +15,48 @@ import (
 )
 
 // SetupConfig fires up the configuration system
-func SetupConfig(confFilePath string) error {
-	_, err := SetupConfigWithWarnings(confFilePath, "")
+func SetupConfig(confFilePaths []string) error {
+	_, err := SetupConfigWithWarnings(confFilePaths, "")
 	return err
 }
 
 // SetupConfigWithWarnings fires up the configuration system and returns warnings if any.
-func SetupConfigWithWarnings(confFilePath, configName string) (*config.Warnings, error) {
-	return setupConfig(confFilePath, configName, false, true)
+func SetupConfigWithWarnings(confFilePaths []string, configName string) (*config.Warnings, error) {
+	return setupConfig(confFilePaths, configName, false, true)
 }
 
 // SetupConfigWithoutSecrets fires up the configuration system without secrets support
-func SetupConfigWithoutSecrets(confFilePath string, configName string) error {
-	_, err := setupConfig(confFilePath, configName, true, true)
+func SetupConfigWithoutSecrets(confFilePaths []string, configName string) error {
+	_, err := setupConfig(confFilePaths, configName, true, true)
 	return err
 }
 
 // SetupConfigIfExist fires up the configuration system but
 // doesn't raise an error if the configuration file is the default one
 // and it doesn't exist.
-func SetupConfigIfExist(confFilePath string) error {
-	_, err := setupConfig(confFilePath, "", false, false)
+func SetupConfigIfExist(confFilePaths []string) error {
+	_, err := setupConfig(confFilePaths, "", false, false)
 	return err
 }
 
-func setupConfig(confFilePath string, configName string, withoutSecrets bool, failOnMissingFile bool) (*config.Warnings, error) {
-	if configName != "" {
-		config.Datadog.SetConfigName(configName)
+func setupConfig(confFilePaths []string, configName string, withoutSecrets bool, failOnMissingFile bool) (*config.Warnings, error) {
+	if len(confFilePaths) == 0 {
+		confFilePaths = append(confFilePaths, DefaultConfPath)
 	}
-	// set the paths where a config file is expected
-	if len(confFilePath) != 0 {
-		// if the configuration file path was supplied on the command line,
-		// add that first so it's first in line
-		config.Datadog.AddConfigPath(confFilePath)
-		// If they set a config file directly, let's try to honor that
-		if strings.HasSuffix(confFilePath, ".yaml") {
-			config.Datadog.SetConfigFile(confFilePath)
-		}
-	}
-	config.Datadog.AddConfigPath(DefaultConfPath)
+
 	// load the configuration
 	var err error
 	var warnings *config.Warnings
 
 	if withoutSecrets {
-		warnings, err = config.LoadWithoutSecret()
+		warnings, err = config.LoadWithoutSecret(configName, confFilePaths, failOnMissingFile)
 	} else {
-		warnings, err = config.Load()
+		warnings, err = config.Load(configName, confFilePaths, failOnMissingFile)
 	}
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
-	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
-		return warnings, fmt.Errorf("unable to load Datadog config file: %w", err)
+	if err != nil && (failOnMissingFile || !errors.As(err, &e) || len(confFilePaths) > 1 || confFilePaths[0] != DefaultConfPath) {
+		return warnings, fmt.Errorf("unable to load Datadog config files: %w", err)
 	}
 	return warnings, nil
 }

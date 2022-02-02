@@ -28,12 +28,11 @@ var secretInfoCommand = &cobra.Command{
 	Short: "Print information about decrypted secrets in configuration.",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		if flagNoColor {
 			color.NoColor = true
 		}
 
-		err := common.SetupConfigWithoutSecrets(confFilePath, "")
+		err := common.SetupConfigWithoutSecrets(confFilePaths, "")
 		if err != nil {
 			fmt.Printf("unable to set up global agent configuration: %v\n", err)
 			return nil
@@ -68,7 +67,7 @@ func showSecretInfo() error {
 
 	r, err := util.DoGet(c, apiConfigURL)
 	if err != nil {
-		var errMap = make(map[string]string)
+		errMap := make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {

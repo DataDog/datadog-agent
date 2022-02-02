@@ -333,6 +333,13 @@ func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
 }
 
 // ReadInConfig wraps Viper for concurrent access
+func (c *safeConfig) MergeInConfig() error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.MergeInConfig()
+}
+
+// ReadInConfig wraps Viper for concurrent access
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	defer c.Unlock()
