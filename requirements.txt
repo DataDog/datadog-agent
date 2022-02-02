@@ -6,4 +6,3 @@ docker-squash==1.0.9
 requests==2.27.1
 PyYAML==6.0
 toml==0.10.2
-packaging==21.3
