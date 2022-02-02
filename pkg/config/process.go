@@ -31,6 +31,7 @@ const (
 	// Allow buffering up to 60 megabytes of payload data in total
 	DefaultProcessQueueBytes = 60 * 1000 * 1000
 
+	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
 	DefaultProcessEndpoint = "https://process.datadoghq.com"
 )
 
