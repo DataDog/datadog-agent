@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 func TestPerfCountersConfigSetting(t *testing.T) {
@@ -29,7 +30,7 @@ func TestPerfCountersConfigSetting(t *testing.T) {
 		cfg := config.Mock()
 		cfg.Set("process_config.windows.use_perf_counters", false)
 		probe := getProcessProbe()
-		assert.Equal(t, probe, defaultWindowsProbe)
+		assert.IsType(t, procutil.NewWindowsToolhelpProbe(), probe)
 	})
 
 	t.Run("use PDH api", func(t *testing.T) {
@@ -39,6 +40,6 @@ func TestPerfCountersConfigSetting(t *testing.T) {
 		cfg := config.Mock()
 		cfg.Set("process_config.windows.use_perf_counters", true)
 		probe := getProcessProbe()
-		assert.NotEqual(t, probe, defaultWindowsProbe)
+		assert.IsType(t, procutil.NewProcessProbe(), probe)
 	})
 }
