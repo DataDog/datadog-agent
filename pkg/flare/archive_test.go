@@ -29,6 +29,40 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+func createTestDirStructure(
+	srcPrefix string,
+	filename string,
+) (string, string, error) {
+
+	srcDir, err := ioutil.TempDir("", srcPrefix)
+	if err != nil {
+		return "", "", err
+	}
+
+	dstDir, err := ioutil.TempDir("", "ArchiveTest")
+	if err != nil {
+		return "", "", err
+	}
+
+	// create non-empty file in the source directory
+	file, err := os.Create(filepath.Join(srcDir, filename))
+	if err != nil {
+		return "", "", err
+	}
+
+	_, err = file.WriteString("mockfilecontent")
+	if err != nil {
+		return "", "", err
+	}
+
+	err = file.Close()
+	if err != nil {
+		return "", "", err
+	}
+
+	return srcDir, dstDir, nil
+}
+
 func TestCreateArchive(t *testing.T) {
 	common.SetupConfig("./test")
 	mockConfig := config.Mock()
@@ -37,8 +71,8 @@ func TestCreateArchive(t *testing.T) {
 	zipFilePath := getArchivePath()
 	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
 
-	assert.Nil(t, err)
-	assert.Equal(t, zipFilePath, filePath)
+	require.Nil(t, err)
+	require.Equal(t, zipFilePath, filePath)
 
 	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
 		assert.Fail(t, "The Zip File was not created")
@@ -61,8 +95,8 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	zipFilePath := getArchivePath()
 	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
 
-	assert.Nil(t, err)
-	assert.Equal(t, zipFilePath, filePath)
+	require.Nil(t, err)
+	require.Equal(t, zipFilePath, filePath)
 
 	// Open a zip archive for reading.
 	z, err := zip.OpenReader(zipFilePath)
@@ -105,8 +139,8 @@ func TestCreateArchiveBadConfig(t *testing.T) {
 	zipFilePath := getArchivePath()
 	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
 
-	assert.Nil(t, err)
-	assert.Equal(t, zipFilePath, filePath)
+	require.Nil(t, err)
+	require.Equal(t, zipFilePath, filePath)
 
 	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
 		assert.Fail(t, "The Zip File was not created")
@@ -270,7 +304,7 @@ func TestZipLogFiles(t *testing.T) {
 	permsInfos := make(permissionsInfos)
 
 	err = zipLogFiles(dstDir, "test", filepath.Join(srcDir, "agent.log"), permsInfos)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check all the log files are in the destination path, at the right subdirectories
 	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "agent.log"))
@@ -282,32 +316,22 @@ func TestZipLogFiles(t *testing.T) {
 }
 
 func TestZipRegistryJSON(t *testing.T) {
-	srcDir, err := ioutil.TempDir("", "run")
+	srcDir, dstDir, err := createTestDirStructure("run", "registry.json")
 	require.NoError(t, err)
 	defer os.RemoveAll(srcDir)
-	dstDir, err := ioutil.TempDir("", "TestZipRegistryJSON")
-	require.NoError(t, err)
 	defer os.RemoveAll(dstDir)
-
-	// create non-empty registry.json file
-	file, err := os.Create(filepath.Join(srcDir, "registry.json"))
-	require.NoError(t, err)
-	_, err = file.WriteString("{\"key\":\"value\"}")
-	require.NoError(t, err)
-	err = file.Close()
-	require.NoError(t, err)
 
 	tempRunPath := config.Datadog.GetString("logs_config.run_path")
 	config.Datadog.Set("logs_config.run_path", srcDir)
 	defer config.Datadog.Set("logs_config.run_path", tempRunPath)
 
 	err = zipRegistryJSON(dstDir, "test")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	// Check all the log files are in the destination path, at the right subdirectories
-	stat, err := os.Stat(filepath.Join(dstDir, "test", "registry.json"))
-	assert.NoError(t, err)
-	assert.Greater(t, stat.Size(), int64(0))
+	targetPath := filepath.Join(dstDir, "test", "registry.json")
+	actualContent, err := ioutil.ReadFile(targetPath)
+	require.NoError(t, err)
+	require.Equal(t, "mockfilecontent", string(actualContent))
 }
 
 func TestZipTaggerList(t *testing.T) {
@@ -393,8 +417,8 @@ func TestPerformanceProfile(t *testing.T) {
 	zipFilePath := getArchivePath()
 	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, testProfile, nil)
 
-	assert.NoError(t, err)
-	assert.Equal(t, zipFilePath, filePath)
+	require.NoError(t, err)
+	require.Equal(t, zipFilePath, filePath)
 
 	// Open a zip archive for reading.
 	z, err := zip.OpenReader(zipFilePath)
@@ -450,62 +474,25 @@ instances:
 }
 
 func TestZipFile(t *testing.T) {
-	srcDir, err := ioutil.TempDir("", "source")
+	srcDir, dstDir, err := createTestDirStructure("source", "test.json")
 	require.NoError(t, err)
 	defer os.RemoveAll(srcDir)
-	dstDir, err := ioutil.TempDir("", "TestZipFile")
-	require.NoError(t, err)
 	defer os.RemoveAll(dstDir)
-
-	// create non-empty test.json file
-	file, err := os.Create(filepath.Join(srcDir, "test.json"))
-	require.NoError(t, err)
-	_, err = file.WriteString("{\"key\":\"value\"}")
-	require.NoError(t, err)
-	err = file.Close()
-	require.NoError(t, err)
 
 	err = zipFile(srcDir, dstDir, "test.json")
 	require.NoError(t, err)
 
-	// Check all the log files are in the destination path, at the right subdirectories
-	zippedFile := filepath.Join(dstDir, "test.json")
-	stat, err := os.Stat(zippedFile)
+	targetPath := filepath.Join(dstDir, "test.json")
+	actualContent, err := ioutil.ReadFile(targetPath)
 	require.NoError(t, err)
-	require.Greater(t, stat.Size(), int64(0))
-
-	// // Opening zipped file should not return an error
-	// z, err := zip.OpenReader(zippedFile)
-	// require.NoError(t, err)
-
-	// // Check file contents are as expected
-	// for _, f := range z.File {
-	// 	content, err := ioutil.ReadFile(f.Name)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-
-	// 	// Convert []byte to string
-	// 	text := string(content)
-	// 	require.Equal(t, text, "{\"key\":\"value\"}")
-	// }
+	require.Equal(t, "mockfilecontent", string(actualContent))
 }
 
 func TestZipVersionHistory(t *testing.T) {
-	srcDir, err := ioutil.TempDir("", "run")
+	srcDir, dstDir, err := createTestDirStructure("run", "version-history.json")
 	require.NoError(t, err)
 	defer os.RemoveAll(srcDir)
-	dstDir, err := ioutil.TempDir("", "TestZipVersionHistory")
-	require.NoError(t, err)
 	defer os.RemoveAll(dstDir)
-
-	// create non-empty version-history.json file
-	file, err := os.Create(filepath.Join(srcDir, "version-history.json"))
-	require.NoError(t, err)
-	_, err = file.WriteString("{\"key\":\"value\"}")
-	require.NoError(t, err)
-	err = file.Close()
-	require.NoError(t, err)
 
 	tempRunPath := config.Datadog.GetString("run_path")
 	config.Datadog.Set("run_path", srcDir)
@@ -514,8 +501,8 @@ func TestZipVersionHistory(t *testing.T) {
 	err = zipVersionHistory(dstDir, "test")
 	require.NoError(t, err)
 
-	// Check all the log files are in the destination path, at the right subdirectories
-	stat, err := os.Stat(filepath.Join(dstDir, "test", "version-history.json"))
+	targetPath := filepath.Join(dstDir, "test", "version-history.json")
+	actualContent, err := ioutil.ReadFile(targetPath)
 	require.NoError(t, err)
-	require.Greater(t, stat.Size(), int64(0))
+	require.Equal(t, "mockfilecontent", string(actualContent))
 }

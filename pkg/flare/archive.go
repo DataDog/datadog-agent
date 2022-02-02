@@ -607,21 +607,21 @@ func zipDiagnose(tempDir, hostname string) error {
 	return writeScrubbedFile(f, b.Bytes())
 }
 
-func zipFile(sourceDir, targetDir, fileBasename string) error {
-	original, err := os.Open(filepath.Join(sourceDir, fileBasename))
-	zippedPath := filepath.Join(targetDir, fileBasename)
+func zipFile(sourceDir, targetDir, filename string) error {
+	original, err := os.Open(filepath.Join(sourceDir, filename))
+	targetPath := filepath.Join(targetDir, filename)
 
 	if err != nil {
 		return err
 	}
 	defer original.Close()
 
-	err = ensureParentDirsExist(zippedPath)
+	err = ensureParentDirsExist(targetPath)
 	if err != nil {
 		return err
 	}
 
-	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	zipped, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -648,14 +648,14 @@ func zipFile(sourceDir, targetDir, fileBasename string) error {
 
 func zipRegistryJSON(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"))
-	zippedPath := filepath.Join(tempDir, hostname)
-	return zipFile(originalPath, zippedPath, "registry.json")
+	targetPath := filepath.Join(tempDir, hostname)
+	return zipFile(originalPath, targetPath, "registry.json")
 }
 
 func zipVersionHistory(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.Datadog.GetString("run_path"))
-	zippedPath := filepath.Join(tempDir, hostname)
-	return zipFile(originalPath, zippedPath, "version-history.json")
+	targetPath := filepath.Join(tempDir, hostname)
+	return zipFile(originalPath, targetPath, "version-history.json")
 }
 
 func zipConfigCheck(tempDir, hostname string) error {
@@ -778,8 +778,8 @@ func zipHealth(tempDir, hostname string) error {
 
 func zipInstallInfo(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.FileUsedDir())
-	zippedPath := filepath.Join(tempDir, hostname)
-	return zipFile(originalPath, zippedPath, "install_info")
+	targetPath := filepath.Join(tempDir, hostname)
+	return zipFile(originalPath, targetPath, "install_info")
 }
 
 func zipTelemetry(tempDir, hostname string) error {
