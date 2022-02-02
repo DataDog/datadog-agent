@@ -34,6 +34,10 @@ build do
     copy "#{ENV['SYSTEM_PROBE_BIN']}/conntrack.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/oom-kill.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tcp-queue-length.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/clang", "#{install_dir}/embedded/bin/clang"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-11", "#{install_dir}/embedded/bin/clang-11"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/llc", "#{install_dir}/embedded/bin/llc"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/stdarg.h", "#{install_dir}/embedded/include/stdarg.h"
   end
 
   copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
