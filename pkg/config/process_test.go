@@ -226,7 +226,7 @@ func TestEnvVarOverride(t *testing.T) {
 		},
 		{
 			key:      "process_config.internal_profiling.enabled",
-			env:      "DD_PROCESS_CONFIG.INTERNAL_PROFILING.ENABLED",
+			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
 			value:    "true",
 			expected: true,
 		},
