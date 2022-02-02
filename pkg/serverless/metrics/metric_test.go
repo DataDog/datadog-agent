@@ -209,7 +209,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 				assert.Equal(t, 1, len(res))
 				sample := res[0]
 				assert.NotNil(t, sample)
-			case <-time.After(2 * time.Second):
+			case <-time.After(30 * time.Second):
 				finish.Done()
 				assert.FailNow(t, "Timeout on receive channel")
 			}
