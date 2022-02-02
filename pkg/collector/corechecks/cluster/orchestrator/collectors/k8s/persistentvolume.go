@@ -35,7 +35,7 @@ type PersistentVolumeCollector struct {
 func NewPersistentVolumeCollector() *PersistentVolumeCollector {
 	return &PersistentVolumeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "persistentvolumes",
 			NodeType: orchestrator.K8sPersistentVolume,
 		},
