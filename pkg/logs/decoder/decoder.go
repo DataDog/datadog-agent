@@ -6,7 +6,6 @@
 package decoder
 
 import (
-	"bytes"
 	"regexp"
 	"sync/atomic"
 	"time"
@@ -73,7 +72,7 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 //
 // Internally, it has three running actors:
 //
-// Decoder.run() takes data from InputChan, uses an EndlineMatcher to break it into lines,
+// LineBreaker.run() takes data from InputChan, uses an EndlineMatcher to break it into lines,
 // and passes those to the next actor via lineParser.Handle, which internally uses a channel.
 //
 // LineParser.run() takes data from its input channel, invokes the parser to convert it to
@@ -84,17 +83,9 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 // lines, multiple lines, or auto-detecting the two), and sends the result to its output
 // channel, which is the same channel as decoder.OutputChan.
 type Decoder struct {
-	// The number of raw lines decoded from the input before they are processed.
-	// Needs to be first to ensure 64 bit alignment
-	linesDecoded int64
-
-	InputChan       chan *Input
-	OutputChan      chan *Message
-	matcher         EndLineMatcher
-	lineBuffer      *bytes.Buffer
-	lineParser      LineParser
-	contentLenLimit int
-	rawDataLen      int
+	InputChan   chan *Input
+	OutputChan  chan *Message
+	lineBreaker *LineBreaker
 
 	// The decoder holds on to an instace of DetectedPattern which is a thread safe container used to
 	// pass a multiline pattern up from the line handler in order to surface it to the tailer.
@@ -158,7 +149,9 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parse
 		lineParser = NewSingleLineParser(parser, lineHandler)
 	}
 
-	return New(inputChan, outputChan, lineParser, lineLimit, matcher, detectedPattern)
+	lineBreaker := NewLineBreaker(inputChan, matcher, lineParser, lineLimit)
+
+	return New(inputChan, outputChan, lineBreaker, detectedPattern)
 }
 
 func buildAutoMultilineHandlerFromConfig(outputChan chan *Message, lineLimit int, source *config.LogSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
@@ -195,23 +188,18 @@ func buildAutoMultilineHandlerFromConfig(outputChan chan *Message, lineLimit int
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Message, lineParser LineParser, contentLenLimit int, matcher EndLineMatcher, detectedPattern *DetectedPattern) *Decoder {
-	var lineBuffer bytes.Buffer
+func New(InputChan chan *Input, OutputChan chan *Message, lineBreaker *LineBreaker, detectedPattern *DetectedPattern) *Decoder {
 	return &Decoder{
 		InputChan:       InputChan,
 		OutputChan:      OutputChan,
-		lineBuffer:      &lineBuffer,
-		lineParser:      lineParser,
-		contentLenLimit: contentLenLimit,
-		matcher:         matcher,
+		lineBreaker:     lineBreaker,
 		detectedPattern: detectedPattern,
 	}
 }
 
 // Start starts the Decoder
 func (d *Decoder) Start() {
-	d.lineParser.Start()
-	go d.run()
+	d.lineBreaker.Start()
 }
 
 // Stop stops the Decoder
@@ -221,7 +209,7 @@ func (d *Decoder) Stop() {
 
 // GetLineCount returns the number of decoded lines
 func (d *Decoder) GetLineCount() int64 {
-	return atomic.LoadInt64(&d.linesDecoded)
+	return atomic.LoadInt64(&d.lineBreaker.linesDecoded)
 }
 
 // GetDetectedPattern returns a detected pattern (if any)
@@ -230,51 +218,4 @@ func (d *Decoder) GetDetectedPattern() *regexp.Regexp {
 		return nil
 	}
 	return d.detectedPattern.Get()
-}
-
-// run lets the Decoder handle data coming from InputChan
-func (d *Decoder) run() {
-	for data := range d.InputChan {
-		d.decodeIncomingData(data.content)
-	}
-	// finish to stop decoder
-	d.lineParser.Stop()
-}
-
-// decodeIncomingData splits raw data based on '\n', creates and processes new lines
-func (d *Decoder) decodeIncomingData(inBuf []byte) {
-	i, j := 0, 0
-	n := len(inBuf)
-	maxj := d.contentLenLimit - d.lineBuffer.Len()
-
-	for ; j < n; j++ {
-		if j == maxj {
-			// send line because it is too long
-			d.lineBuffer.Write(inBuf[i:j])
-			d.rawDataLen += (j - i)
-			d.sendLine()
-			i = j
-			maxj = i + d.contentLenLimit
-		} else if d.matcher.Match(d.lineBuffer.Bytes(), inBuf, i, j) {
-			d.lineBuffer.Write(inBuf[i:j])
-			d.rawDataLen += (j - i)
-			d.rawDataLen++ // account for the matching byte
-			d.sendLine()
-			i = j + 1 // skip the last bytes of the matched sequence
-			maxj = i + d.contentLenLimit
-		}
-	}
-	d.lineBuffer.Write(inBuf[i:j])
-	d.rawDataLen += (j - i)
-}
-
-// sendLine copies content from lineBuffer which is passed to lineHandler
-func (d *Decoder) sendLine() {
-	// Account for longer-than-1-byte line separator
-	content := make([]byte, d.lineBuffer.Len()-(d.matcher.SeparatorLen()-1))
-	copy(content, d.lineBuffer.Bytes())
-	d.lineBuffer.Reset()
-	d.lineParser.Handle(NewDecodedInput(content, d.rawDataLen))
-	d.rawDataLen = 0
-	atomic.AddInt64(&d.linesDecoded, 1)
 }
