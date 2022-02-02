@@ -23,7 +23,10 @@ func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAc
 			if rtChecksEnabled {
 				checkCfg = append(checkCfg, checks.RTContainer)
 			}
+		} else if !canAccessContainers {
+			_ = log.Warn("Disabled container check because a container provider could not be found")
 		}
+
 		if ddconfig.Datadog.GetBool("process_config.process_discovery.enabled") {
 			if ddconfig.IsECSFargate() {
 				log.Debug("Process discovery is not supported on ECS Fargate")
