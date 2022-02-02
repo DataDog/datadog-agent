@@ -1,0 +1,6 @@
+---
+enhancements:
+  - Added `DD_PROCESS_CONFIG_WINDOWS_USE_PERF_COUNTERS` and `DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS` environment variables
+deprecations:
+  - Removed unused `process_config.windows.args_refresh_interval` config setting
+  - Removed unused `process_config.windows.add_new_args` config setting

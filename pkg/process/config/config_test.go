@@ -321,8 +321,6 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
-	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
-	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.Equal(5065, agentConfig.ProcessExpVarPort)
 
@@ -335,8 +333,6 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
-	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
-	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	if runtime.GOOS != "windows" {
 		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
@@ -351,8 +347,6 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
-	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
-	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	if runtime.GOOS != "windows" {
 		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
