@@ -697,6 +697,8 @@ api_key:
   ## @param namespace - string - optional - default: default
   ## Namespace can be used to disambiguate devices with same IPs.
   ## Changing namespace will cause devices being recreated in NDM app.
+  ## It should contain less than 100 characters and should not contain any of
+  ## `<`, `>`, `\n`, `\t`, `\r` characters
   ## Only available using corecheck SNMP integration with `loader: core` config.
   #
   # namespace: default
