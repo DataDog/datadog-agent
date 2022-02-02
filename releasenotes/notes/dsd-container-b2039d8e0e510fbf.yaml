@@ -1,4 +1,5 @@
 ---
 enhancements:
   - |
-    DogstatsD origin detection on UDP supports container entities in addition to Kubernetes Pods.
+    The DogstatsD protocol now supports a new field to container the client's container ID.
+    This allows enriching DogstatsD metrics with container tags.
