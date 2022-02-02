@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
 // +build linux,linux_bpf
 
 package constantfetch
@@ -71,7 +72,6 @@ func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName,
 }
 
 const runtimeCompilationTemplate = `
-#include <linux/compiler.h>
 #include <linux/kconfig.h>
 {{ range .headers }}
 #include <{{ . }}>

@@ -58,7 +58,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
-					"tag_cardinality": "",
+					"tag_cardinality": "low",
 				},
 			},
 		},
@@ -70,7 +70,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
-					"tag_cardinality": "",
+					"tag_cardinality": "low",
 				},
 			},
 		},
@@ -94,7 +94,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
-					"tag_cardinality": "",
+					"tag_cardinality": "low",
 				},
 			},
 		},
@@ -110,7 +110,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
-					"tag_cardinality": "",
+					"tag_cardinality": "low",
 				},
 			},
 		},
@@ -122,7 +122,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
-					"tag_cardinality": "",
+					"tag_cardinality": "low",
 				},
 			},
 		},
@@ -139,7 +139,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				Metrics: map[string]interface{}{
-					"tag_cardinality": "",
+					"tag_cardinality": "low",
 				},
 			},
 		},
@@ -171,7 +171,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				Metrics: map[string]interface{}{
-					"tag_cardinality": "",
+					"tag_cardinality": "low",
 				},
 			},
 		},

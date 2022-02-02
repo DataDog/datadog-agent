@@ -1,0 +1,245 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build docker
+// +build docker
+
+package docker
+
+import (
+	"regexp"
+	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
+	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/stretchr/testify/assert"
+)
+
+func createContainerMeta(runtime, cID string) *workloadmeta.Container {
+	return &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   cID,
+		},
+		Runtime: workloadmeta.ContainerRuntime(runtime),
+		State: workloadmeta.ContainerState{
+			Running:   true,
+			StartedAt: time.Now(),
+		},
+	}
+}
+
+func TestDockerCheckGenericPart(t *testing.T) {
+	// Creating mocks
+	containersMeta := []*workloadmeta.Container{
+		// Container with full stats
+		createContainerMeta("docker", "cID100"),
+		// Should never been called as we are in the Docker check
+		createContainerMeta("containerd", "cID101"),
+	}
+
+	containersStats := map[string]metrics.MockContainerEntry{
+		"cID100": metrics.GetFullSampleContainerEntry(),
+		"cID101": metrics.GetFullSampleContainerEntry(),
+	}
+
+	// Inject mock processor in check
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, nil, containersStats, metricsAdapter{}, getProcessorFilter(nil))
+	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
+
+	// Create Docker check
+	check := DockerCheck{
+		instance: &DockerConfig{
+			CollectExitCodes:   true,
+			CollectImagesStats: true,
+			CollectImageSize:   true,
+			CollectDiskStats:   true,
+			CollectVolumeCount: true,
+			CollectEvent:       true,
+		},
+		processor:      *processor,
+		dockerHostname: "testhostname",
+	}
+
+	err := check.runProcessor(mockSender)
+	assert.NoError(t, err)
+
+	expectedTags := []string{"runtime:docker"}
+	mockSender.AssertNumberOfCalls(t, "Rate", 13)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 14)
+
+	mockSender.AssertMetricInRange(t, "Gauge", "docker.uptime", 0, 600, "", expectedTags)
+	mockSender.AssertMetric(t, "Rate", "docker.cpu.usage", 1e-5, "", expectedTags)
+	mockSender.AssertMetric(t, "Rate", "docker.cpu.user", 3e-5, "", expectedTags)
+	mockSender.AssertMetric(t, "Rate", "docker.cpu.system", 2e-5, "", expectedTags)
+	mockSender.AssertMetric(t, "Rate", "docker.cpu.throttled.time", 1e-5, "", expectedTags)
+	mockSender.AssertMetric(t, "Rate", "docker.cpu.throttled", 0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.cpu.limit", 50, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.cpu.shares", 400, "", expectedTags)
+
+	mockSender.AssertMetric(t, "Gauge", "docker.kmem.usage", 40, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.mem.limit", 42000, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.mem.soft_limit", 40000, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.mem.rss", 300, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.mem.cache", 200, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.mem.swap", 0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.mem.failed_count", 10, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.mem.in_use", 1, "", expectedTags)
+
+	expectedFooTags := taggerUtils.ConcatenateStringTags(expectedTags, "device:/dev/foo", "device_name:/dev/foo")
+	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", 100, "", expectedFooTags)
+	mockSender.AssertMetric(t, "Rate", "docker.io.read_operations", 10, "", expectedFooTags)
+	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", 200, "", expectedFooTags)
+	mockSender.AssertMetric(t, "Rate", "docker.io.write_operations", 20, "", expectedFooTags)
+	expectedBarTags := taggerUtils.ConcatenateStringTags(expectedTags, "device:/dev/bar", "device_name:/dev/bar")
+	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", 100, "", expectedBarTags)
+	mockSender.AssertMetric(t, "Rate", "docker.io.read_operations", 10, "", expectedBarTags)
+	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", 200, "", expectedBarTags)
+	mockSender.AssertMetric(t, "Rate", "docker.io.write_operations", 20, "", expectedBarTags)
+
+	mockSender.AssertMetric(t, "Gauge", "docker.thread.count", 10, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.thread.limit", 20, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.container.open_fds", 200, "", expectedTags)
+}
+
+func TestDockerCustomPart(t *testing.T) {
+	// Mocksender
+	mockSender := mocksender.NewMockSender(check.ID(t.Name()))
+	mockSender.SetupAcceptAll()
+
+	fakeTagger := local.NewFakeTagger()
+	fakeTagger.SetTags("container_id://e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45", "foo", []string{"image_name:datadog/agent", "short:agent", "tag:latest"}, nil, nil, nil)
+	fakeTagger.SetTags("container_id://b781900d227cf8d63a0922705018b66610f789644bf236cb72c8698b31383074", "foo", []string{"image_name:datadog/agent", "short:agent", "tag:7.32.0-rc.1"}, nil, nil, nil)
+	fakeTagger.SetTags("container_id://be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b90", "foo", []string{"app:foo"}, nil, nil, nil)
+	fakeTagger.SetTags("container_id://be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b91", "foo", []string{"excluded:true"}, nil, nil, nil)
+	tagger.SetDefaultTagger(fakeTagger)
+
+	// Mock client + fake data
+	dockerClient := dockerUtil.MockClient{}
+	dockerClient.FakeContainerList = []dockerTypes.Container{
+		{
+			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
+			Names:   []string{"agent"},
+			Image:   "datadog/agent",
+			ImageID: "sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6",
+			Labels: map[string]string{
+				"io.kubernetes.pod.namespace": "kubens",
+			},
+			State:      containers.ContainerRunningState,
+			SizeRw:     100,
+			SizeRootFs: 200,
+		},
+		{
+			ID:      "b781900d227cf8d63a0922705018b66610f789644bf236cb72c8698b31383074",
+			Names:   []string{"agent2"},
+			Image:   "datadog/agent:7.32.0-rc.1",
+			ImageID: "sha256:c7e83cf0566432c24ed909f52ea16c29281f6f30d0a27855e15ff79376efaed0", // Image missing in mapping
+			State:   containers.ContainerRunningState,
+		},
+		{
+			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b90",
+			Names:   []string{"agent3"},
+			Image:   "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+			ImageID: "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+			State:   containers.ContainerRunningState,
+		},
+		{
+			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b91",
+			Names:   []string{"agent-excluded"},
+			Image:   "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+			ImageID: "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+			State:   containers.ContainerRunningState,
+		},
+		{
+			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
+			Names:   []string{"agent-dead"},
+			Image:   "datadog/agent",
+			ImageID: "sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6",
+			Labels: map[string]string{
+				"io.kubernetes.pod.namespace": "kubens",
+			},
+			State:  containers.ContainerDeadState,
+			SizeRw: 100,
+		},
+	}
+	dockerClient.FakeAttachedVolumes = 10
+	dockerClient.FakeDandlingVolumes = 2
+	dockerClient.FakeImageNameMapping = map[string]string{
+		"sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6": "datadog/agent:latest",
+		"sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f": "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+	}
+	dockerClient.FakeImages = []dockerTypes.ImageSummary{
+		{
+			ID:          "sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6",
+			Size:        50,
+			VirtualSize: 100,
+		},
+		{
+			ID:          "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+			Size:        100,
+			VirtualSize: 200,
+		},
+		{
+			ID:          "sha256:c7e83cf0566432c24ed909f52ea16c29281f6f30d0a27855e15ff79376efaed0",
+			Size:        200,
+			VirtualSize: 400,
+		},
+	}
+
+	// Create Docker check
+	check := DockerCheck{
+		instance: &DockerConfig{
+			CollectExitCodes:   true,
+			CollectImagesStats: true,
+			CollectImageSize:   true,
+			CollectDiskStats:   true,
+			CollectVolumeCount: true,
+			CollectEvent:       true,
+		},
+		dockerHostname: "testhostname",
+		containerFilter: &containers.Filter{
+			Enabled:         true,
+			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
+		},
+	}
+
+	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
+	assert.NoError(t, err)
+
+	mockSender.AssertNumberOfCalls(t, "Gauge", 14)
+
+	mockSender.AssertMetric(t, "Gauge", "docker.container.size_rw", 100, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest"})
+	mockSender.AssertMetric(t, "Gauge", "docker.container.size_rootfs", 200, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest"})
+
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 1, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest"})
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 1, "", []string{"image_name:datadog/agent", "short:agent", "tag:7.32.0-rc.1"})
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 2, "", []string{"app:foo"})
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.stopped", 1, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest"})
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.running.total", 4, "", nil)
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.stopped.total", 1, "", nil)
+
+	// Tags between `docker.containers.running` and `docker.image.*` may be different because `docker.image.*` never uses the tagger
+	// while `docker.container.*` may use the tagger if the container is running.
+	mockSender.AssertMetric(t, "Gauge", "docker.image.virtual_size", 100, "", []string{"docker_image:datadog/agent:latest", "image_name:datadog/agent", "image_tag:latest", "short_image:agent"})
+	mockSender.AssertMetric(t, "Gauge", "docker.image.size", 50, "", []string{"docker_image:datadog/agent:latest", "image_name:datadog/agent", "image_tag:latest", "short_image:agent"})
+	mockSender.AssertMetric(t, "Gauge", "docker.images.available", 3, "", nil)
+	mockSender.AssertMetric(t, "Gauge", "docker.images.intermediate", 0, "", nil)
+
+	mockSender.AssertMetric(t, "Gauge", "docker.volume.count", 10, "", []string{"volume_state:attached"})
+	mockSender.AssertMetric(t, "Gauge", "docker.volume.count", 2, "", []string{"volume_state:dangling"})
+
+	mockSender.AssertServiceCheck(t, DockerServiceUp, coreMetrics.ServiceCheckOK, "", nil, "")
+}

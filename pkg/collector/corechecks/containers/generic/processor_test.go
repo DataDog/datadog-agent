@@ -10,51 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
 )
-
-type mockContainerLister struct {
-	containers []*workloadmeta.Container
-	err        error
-}
-
-func (l *mockContainerLister) List() ([]*workloadmeta.Container, error) {
-	return l.containers, l.err
-}
-
-func createTestProcessor(listerContainers []*workloadmeta.Container, listerError error, metricsContainers map[string]metrics.MockContainerEntry) (*mocksender.MockSender, *Processor) {
-	mockProvider := metrics.NewMockMetricsProvider()
-	mockCollector := metrics.NewMockCollector("testCollector")
-	mockProvider.RegisterConcreteCollector("docker", mockCollector)
-	mockProvider.RegisterConcreteCollector("containerd", mockCollector)
-	for cID, entry := range metricsContainers {
-		mockCollector.SetContainerEntry(cID, entry)
-	}
-
-	mockLister := mockContainerLister{
-		containers: listerContainers,
-		err:        listerError,
-	}
-
-	filter, _ := containers.GetSharedMetricFilter()
-
-	mockedSender := mocksender.NewMockSender("generic-container")
-	mockedSender.SetupAcceptAll()
-
-	p := &Processor{
-		metricsProvider: mockProvider,
-		ctrLister:       &mockLister,
-		metricsAdapter:  GenericMetricsAdapter{},
-		ctrFilter:       filter,
-	}
-
-	return mockedSender, p
-}
 
 func createContainerMeta(runtime, cID string) *workloadmeta.Container {
 	return &workloadmeta.Container{
@@ -77,79 +37,16 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 	}
 
 	containersStats := map[string]metrics.MockContainerEntry{
-		"cID100": {
-			Error: nil,
-			NetworkStats: metrics.ContainerNetworkStats{
-				BytesSent:   util.Float64Ptr(42),
-				BytesRcvd:   util.Float64Ptr(43),
-				PacketsSent: util.Float64Ptr(420),
-				PacketsRcvd: util.Float64Ptr(421),
-				Interfaces: map[string]metrics.InterfaceNetStats{
-					"eth42": {
-						BytesSent:   util.Float64Ptr(42),
-						BytesRcvd:   util.Float64Ptr(43),
-						PacketsSent: util.Float64Ptr(420),
-						PacketsRcvd: util.Float64Ptr(421),
-					},
-				},
-			},
-			ContainerStats: metrics.ContainerStats{
-				CPU: &metrics.ContainerCPUStats{
-					Total:            util.Float64Ptr(100),
-					System:           util.Float64Ptr(200),
-					User:             util.Float64Ptr(300),
-					Shares:           util.Float64Ptr(400),
-					Limit:            util.Float64Ptr(50),
-					ElapsedPeriods:   util.Float64Ptr(500),
-					ThrottledPeriods: util.Float64Ptr(0),
-					ThrottledTime:    util.Float64Ptr(100),
-				},
-				Memory: &metrics.ContainerMemStats{
-					UsageTotal:   util.Float64Ptr(100),
-					KernelMemory: util.Float64Ptr(40),
-					Limit:        util.Float64Ptr(42000),
-					Softlimit:    util.Float64Ptr(40000),
-					RSS:          util.Float64Ptr(300),
-					Cache:        util.Float64Ptr(200),
-					Swap:         util.Float64Ptr(0),
-					OOMEvents:    util.Float64Ptr(10),
-				},
-				IO: &metrics.ContainerIOStats{
-					Devices: map[string]metrics.DeviceIOStats{
-						"/dev/foo": {
-							ReadBytes:       util.Float64Ptr(100),
-							WriteBytes:      util.Float64Ptr(200),
-							ReadOperations:  util.Float64Ptr(10),
-							WriteOperations: util.Float64Ptr(20),
-						},
-						"/dev/bar": {
-							ReadBytes:       util.Float64Ptr(100),
-							WriteBytes:      util.Float64Ptr(200),
-							ReadOperations:  util.Float64Ptr(10),
-							WriteOperations: util.Float64Ptr(20),
-						},
-					},
-					ReadBytes:       util.Float64Ptr(200),
-					WriteBytes:      util.Float64Ptr(400),
-					ReadOperations:  util.Float64Ptr(20),
-					WriteOperations: util.Float64Ptr(40),
-				},
-				PID: &metrics.ContainerPIDStats{
-					PIDs:        []int{4, 2},
-					ThreadCount: util.Float64Ptr(10),
-					ThreadLimit: util.Float64Ptr(20),
-				},
-			},
-		},
+		"cID100": metrics.GetFullSampleContainerEntry(),
 	}
 
-	mockSender, processor := createTestProcessor(containersMeta, nil, containersStats)
+	mockSender, processor, _ := CreateTestProcessor(containersMeta, nil, containersStats, GenericMetricsAdapter{}, nil)
 	err := processor.Run(mockSender, 0)
 	assert.ErrorIs(t, err, nil)
 
 	expectedTags := []string{"runtime:docker"}
-	mockSender.AssertNumberOfCalls(t, "Rate", 13)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 12)
+	mockSender.AssertNumberOfCalls(t, "Rate", 17)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 13)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "container.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "container.cpu.usage", 100, "", expectedTags)
@@ -159,7 +56,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "container.cpu.throttled.periods", 0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.cpu.limit", 500000000, "", expectedTags)
 
-	mockSender.AssertMetric(t, "Gauge", "container.memory.usage", 100, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "container.memory.usage", 42000, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.memory.kernel", 40, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.memory.limit", 42000, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.memory.soft_limit", 40000, "", expectedTags)
@@ -168,12 +65,12 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "container.memory.swap", 0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.memory.oom_events", 10, "", expectedTags)
 
-	expectedFooTags := extraTags(expectedTags, "device_name:/dev/foo")
+	expectedFooTags := taggerUtils.ConcatenateStringTags(expectedTags, "device:/dev/foo", "device_name:/dev/foo")
 	mockSender.AssertMetric(t, "Rate", "container.io.read", 100, "", expectedFooTags)
 	mockSender.AssertMetric(t, "Rate", "container.io.read.operations", 10, "", expectedFooTags)
 	mockSender.AssertMetric(t, "Rate", "container.io.write", 200, "", expectedFooTags)
 	mockSender.AssertMetric(t, "Rate", "container.io.write.operations", 20, "", expectedFooTags)
-	expectedBarTags := extraTags(expectedTags, "device_name:/dev/bar")
+	expectedBarTags := taggerUtils.ConcatenateStringTags(expectedTags, "device:/dev/bar", "device_name:/dev/bar")
 	mockSender.AssertMetric(t, "Rate", "container.io.read", 100, "", expectedBarTags)
 	mockSender.AssertMetric(t, "Rate", "container.io.read.operations", 10, "", expectedBarTags)
 	mockSender.AssertMetric(t, "Rate", "container.io.write", 200, "", expectedBarTags)
@@ -181,6 +78,14 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 
 	mockSender.AssertMetric(t, "Gauge", "container.pid.thread_count", 10, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.pid.thread_limit", 20, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "container.pid.open_files", 200, "", expectedTags)
+
+	// Produced by default NetworkExtension
+	expectedEth42Tags := taggerUtils.ConcatenateStringTags(expectedTags, "interface:eth42")
+	mockSender.AssertMetric(t, "Rate", "container.net.sent", 42, "", expectedEth42Tags)
+	mockSender.AssertMetric(t, "Rate", "container.net.sent.packets", 420, "", expectedEth42Tags)
+	mockSender.AssertMetric(t, "Rate", "container.net.rcvd", 43, "", expectedEth42Tags)
+	mockSender.AssertMetric(t, "Rate", "container.net.rcvd.packets", 421, "", expectedEth42Tags)
 }
 
 func TestProcessorRunPartialStats(t *testing.T) {
@@ -197,7 +102,7 @@ func TestProcessorRunPartialStats(t *testing.T) {
 		},
 	}
 
-	mockSender, processor := createTestProcessor(containersMeta, nil, containersStats)
+	mockSender, processor, _ := CreateTestProcessor(containersMeta, nil, containersStats, GenericMetricsAdapter{}, nil)
 	err := processor.Run(mockSender, 0)
 	assert.ErrorIs(t, err, nil)
 

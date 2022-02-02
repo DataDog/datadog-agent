@@ -291,7 +291,9 @@ def deps(ctx, verbose=False):
     print("downloading dependencies")
     start = datetime.datetime.now()
     verbosity = ' -x' if verbose else ''
-    ctx.run(f"go mod download{verbosity}")
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            ctx.run(f"go mod download{verbosity}")
     dep_done = datetime.datetime.now()
     print(f"go mod download, elapsed: {dep_done - start}")
 

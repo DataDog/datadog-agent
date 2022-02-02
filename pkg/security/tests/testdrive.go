@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//+build functionaltests
+//go:build functionaltests
+// +build functionaltests
 
 package tests
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -48,7 +48,7 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 }
 
 func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
-	backingFile, err := ioutil.TempFile("", "secagent-testdrive-")
+	backingFile, err := os.CreateTemp("", "secagent-testdrive-")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create testdrive backing file")
 	}
@@ -58,7 +58,7 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 	}
 
 	if len(mountPoint) == 0 {
-		mountPoint, err = ioutil.TempDir("", "secagent-testdrive-")
+		mountPoint, err = os.MkdirTemp("", "secagent-testdrive-")
 		if err != nil {
 			os.Remove(backingFile.Name())
 			return nil, errors.Wrap(err, "failed to create testdrive mount point")

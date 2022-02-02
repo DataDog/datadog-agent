@@ -95,23 +95,29 @@ func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTag
 // tagger based on the events sent by the workloadmeta.
 func (c *WorkloadMetaCollector) Stream() error {
 	const name = "tagger-workloadmeta"
+
 	health := health.RegisterLiveness(name)
+	defer func() {
+		err := health.Deregister()
+		if err != nil {
+			log.Warnf("error de-registering health check: %s", err)
+		}
+	}()
 
 	ch := c.store.Subscribe(name, workloadmeta.TaggerPriority, nil)
 
 	for {
 		select {
-		case evBundle := <-ch:
+		case evBundle, ok := <-ch:
+			if !ok {
+				return nil
+			}
+
 			c.processEvents(evBundle)
 
 		case <-health.C:
 
 		case <-c.stop:
-			err := health.Deregister()
-			if err != nil {
-				log.Warnf("error de-registering health check: %s", err)
-			}
-
 			c.store.Unsubscribe(ch)
 
 			return nil

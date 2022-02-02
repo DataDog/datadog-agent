@@ -19,13 +19,13 @@
         },
         {
             "properties": {
-                "bpf": {
+                "mprotect": {
                     "type": "object",
                     "required": [
                         "vm_start",
                         "vm_end",
                         "vm_protection",
-                        "req_protection"
+                        "new_protection"
                     ],
                     "properties": {
                         "vm_start": {
@@ -42,7 +42,10 @@
                         }
                     }
                 }
-            }
+            },
+            "required": [
+                "mprotect"
+            ]
         }
     ]
 }

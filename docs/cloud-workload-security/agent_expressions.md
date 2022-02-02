@@ -85,6 +85,18 @@ Patterns or regular expressions can be used in SECL expressions. They can be use
 
 Patterns on `.path` fields will be used as Glob. `*` will match files and folders at the same level. `**`, introduced in 7.34, can be used at the end of a path in order to match all the files and subfolders.
 
+## Duration
+You can use SECL to write rules based on durations, which trigger on events that occur during a specific time period. For example, trigger on an event where a secret file is accessed more than a certain length of time after a process is created.
+Such a rule could be written as follows:
+
+
+{{< code-block lang="javascript" >}}
+open.file.path == "/etc/secret" && process.file.name == "java" && process.created_at > 5s
+
+{{< /code-block >}}
+
+Durations are numbers with a unit suffix. The supported suffixes are "s", "m", "h".
+
 ## Variables
 SECL variables are predefined variables that can be used as values or as part of values.
 
@@ -138,6 +150,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.args_options` | string | Arguments of the process (as an array) |
 | `process.ancestors.args_truncated` | bool | Indicator of arguments truncation |
 | `process.ancestors.argv` | string | Arguments of the process (as an array) |
+| `process.ancestors.argv0` | string | First argument of the process |
 | `process.ancestors.cap_effective` | int | Effective capability set of the process |
 | `process.ancestors.cap_permitted` | int | Permitted capability set of the process |
 | `process.ancestors.comm` | string | Comm attribute of the process |
@@ -181,6 +194,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.args_options` | string | Arguments of the process (as an array) |
 | `process.args_truncated` | bool | Indicator of arguments truncation |
 | `process.argv` | string | Arguments of the process (as an array) |
+| `process.argv0` | string | First argument of the process |
 | `process.cap_effective` | int | Effective capability set of the process |
 | `process.cap_permitted` | int | Permitted capability set of the process |
 | `process.comm` | string | Comm attribute of the process |
@@ -302,6 +316,7 @@ A process was executed or forked
 | `exec.args_options` | string | Arguments of the process (as an array) |
 | `exec.args_truncated` | bool | Indicator of arguments truncation |
 | `exec.argv` | string | Arguments of the process (as an array) |
+| `exec.argv0` | string | First argument of the process |
 | `exec.cap_effective` | int | Effective capability set of the process |
 | `exec.cap_permitted` | int | Permitted capability set of the process |
 | `exec.comm` | string | Comm attribute of the process |
@@ -478,6 +493,7 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.args_options` | string | Arguments of the process (as an array) |
 | `ptrace.tracee.ancestors.args_truncated` | bool | Indicator of arguments truncation |
 | `ptrace.tracee.ancestors.argv` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.ancestors.argv0` | string | First argument of the process |
 | `ptrace.tracee.ancestors.cap_effective` | int | Effective capability set of the process |
 | `ptrace.tracee.ancestors.cap_permitted` | int | Permitted capability set of the process |
 | `ptrace.tracee.ancestors.comm` | string | Comm attribute of the process |
@@ -521,6 +537,7 @@ A ptrace command was executed
 | `ptrace.tracee.args_options` | string | Arguments of the process (as an array) |
 | `ptrace.tracee.args_truncated` | bool | Indicator of arguments truncation |
 | `ptrace.tracee.argv` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.argv0` | string | First argument of the process |
 | `ptrace.tracee.cap_effective` | int | Effective capability set of the process |
 | `ptrace.tracee.cap_permitted` | int | Permitted capability set of the process |
 | `ptrace.tracee.comm` | string | Comm attribute of the process |

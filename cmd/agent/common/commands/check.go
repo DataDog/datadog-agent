@@ -142,7 +142,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			opts.UseOrchestratorForwarder = false
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
-			common.LoadComponents(config.Datadog.GetString("confd_path"))
+			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
@@ -154,7 +154,8 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				discoveryRetryInterval = discoveryTimeout
 			}
 
-			allConfigs := waitForConfigs(checkName, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second, discoveryMinInstances)
+			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
+				common.SelectedCheckMatcherBuilder([]string{checkName}, discoveryMinInstances))
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -169,11 +170,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 					fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 					selectedChecks := []string{checkName}
 					if checkRate {
-						if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel, allConfigs); err != nil {
 							return fmt.Errorf("while running the jmx check: %v", err)
 						}
 					} else {
-						if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel, allConfigs); err != nil {
 							return fmt.Errorf("while running the jmx check: %v", err)
 						}
 					}
@@ -721,46 +722,4 @@ func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
 	}
 
 	return nil
-}
-
-// checkReady returns true if the number of configs found for the check name is more or equal to min instances
-func checkReady(checkName string, minInstances uint, configs []integration.Config) bool {
-	var matchedConfigsCount uint
-	for _, cfg := range configs {
-		if cfg.Name == checkName {
-			matchedConfigsCount++
-		}
-	}
-	return matchedConfigsCount >= minInstances
-}
-
-// waitForConfigs retries the collection of Autodiscovery configs until a minimum number of config instances
-// for the check are discovered or the timeout is reached.
-// Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
-// depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
-// This function improves the resiliency of the check command.
-// Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
-func waitForConfigs(checkName string, retryInterval, timeout time.Duration, minInstances uint) []integration.Config {
-	allConfigs := common.AC.GetAllConfigs()
-	if checkReady(checkName, minInstances, allConfigs) {
-		return allConfigs
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	retryTicker := time.NewTicker(retryInterval)
-	defer retryTicker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return allConfigs
-		case <-retryTicker.C:
-			allConfigs = common.AC.GetAllConfigs()
-			if checkReady(checkName, minInstances, allConfigs) {
-				return allConfigs
-			}
-		}
-	}
 }

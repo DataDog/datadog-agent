@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
+//go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
 package orchestrator
@@ -151,11 +152,10 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	if !o.orchestratorConfig.OrchestrationCollectionEnabled {
 		return errors.New("orchestrator check is configured but the feature is disabled")
 	}
-	o.orchestratorConfig.IsScrubbingEnabled = corecfg.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
-	if corecfg.Datadog.IsSet("orchestrator_explorer.custom_sensitive_words") {
-		o.orchestratorConfig.Scrubber.AddCustomSensitiveWords(corecfg.Datadog.GetStringSlice("orchestrator_explorer.custom_sensitive_words"))
+	err = o.orchestratorConfig.Load()
+	if err != nil {
+		return err
 	}
-	o.orchestratorConfig.ExtraTags = corecfg.Datadog.GetStringSlice("orchestrator_explorer.extra_tags")
 
 	// check if cluster name is set
 	hostname, _ := coreutil.GetHostname(context.TODO())

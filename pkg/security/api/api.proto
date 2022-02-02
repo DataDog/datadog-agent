@@ -13,7 +13,9 @@ message SecurityEventMessage {
     string Service = 4;
 }
 
-message DumpProcessCacheParams{}
+message DumpProcessCacheParams{
+    bool WithArgs = 1;
+}
 
 message SecurityDumpProcessCacheMessage {
     string Filename = 1;
