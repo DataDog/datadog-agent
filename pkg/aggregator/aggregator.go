@@ -442,37 +442,40 @@ func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series met
 func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
 	log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
 	err := agg.serializer.SendSketch(sketches)
-	state := stateOk
-	if err != nil {
-		log.Warnf("Error flushing sketch: %v", err)
-		aggregatorSketchesFlushErrors.Add(1)
-		state = stateError
-	}
-	addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
-	aggregatorSketchesFlushed.Add(int64(len(sketches)))
-	tlmFlush.Add(float64(len(sketches)), "sketches", state)
-
+	updateSketchTelemetry(start, uint64(len(sketches)), "BufferedAggregator", err)
 	tagsetTlm.updateHugeSketchesTelemetry(&sketches)
 }
 
 func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
 	log.Debugf("Flushing %d series to the forwarder", len(series))
 	err := agg.serializer.SendSeries(series)
-	updateSerieTelemetry(start, len(series), err)
+	updateSerieTelemetry(start, uint64(len(series)), "BufferedAggregator", err)
 	tagsetTlm.updateHugeSeriesTelemetry(&series)
 }
 
-func updateSerieTelemetry(start time.Time, serieCount int, err error) {
+func updateSerieTelemetry(start time.Time, serieCount uint64, source string, err error) {
 	state := stateOk
 	if err != nil {
-		log.Warnf("Error flushing series: %v", err)
+		log.Warnf("%s: Error flushing series: %v", source, err)
 		aggregatorSeriesFlushErrors.Add(1)
 		state = stateError
 	}
+	// NOTE(remy): that's historical but this one actually contains both metric series + dsd series
 	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 	aggregatorSeriesFlushed.Add(int64(serieCount))
 	tlmFlush.Add(float64(serieCount), "series", state)
+}
 
+func updateSketchTelemetry(start time.Time, sketchesCount uint64, source string, err error) {
+	state := stateOk
+	if err != nil {
+		log.Warnf("%s: Error flushing sketch: %v", source, err)
+		aggregatorSketchesFlushErrors.Add(1)
+		state = stateError
+	}
+	addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
+	aggregatorSketchesFlushed.Add(int64(sketchesCount))
+	tlmFlush.Add(float64(sketchesCount), "sketches", state)
 }
 
 func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metrics.SerieSink) {
@@ -561,7 +564,7 @@ func (agg *BufferedAggregator) sendIterableSeries(
 		// if err == nil, SenderStopped was called and it is safe to read the number of series.
 		count := series.SeriesCount()
 		addFlushCount("Series", int64(count))
-		updateSerieTelemetry(start, int(count), err)
+		updateSerieTelemetry(start, count, "aggregator", err)
 		close(done)
 	}()
 }

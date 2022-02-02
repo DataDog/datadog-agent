@@ -434,7 +434,7 @@ func (d *AgentDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
 	panic("not implemented yet.")
 }
 
-// GetPipelinesCount returns how many sampling pipeline are running for
+// GetDogStatsDPipelinesCount returns how many sampling pipeline are running for
 // the DogStatsD samples.
 func (d *AgentDemultiplexer) GetDogStatsDPipelinesCount() int {
 	return d.statsd.pipelinesCount
@@ -560,7 +560,7 @@ func (d *ServerlessDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, sample
 	d.statsdSampler.addSamples(samples)
 }
 
-// GetPipelinesCount returns how many sampling pipeline are running for
+// GetDogStatsDPipelinesCount returns how many sampling pipeline are running for
 // the DogStatsD samples.
 func (d *ServerlessDemultiplexer) GetDogStatsDPipelinesCount() int {
 	return 1

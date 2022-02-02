@@ -86,8 +86,6 @@ func (f *timeSamplerWorker) processLoop(flushInterval time.Duration) {
 		case <-f.stopChan:
 			return
 		case ms := <-f.samplesChan:
-			// do this telemetry here and not in the samplers goroutines, this way
-			// they won't compete for the telemetry locks.
 			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
 			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
 			t := timeNowNano()
@@ -111,21 +109,16 @@ func (f *timeSamplerWorker) triggerFlush(t time.Time, waitForSerializer bool) {
 		f.triggerFlushWithParallelSerialize(t, waitForSerializer)
 	} else {
 		log.Debugf("Time Sampler #%d Flushing series to the forwarder", f.sampler.id)
+
 		var series metrics.Series
-		sketches := f.sampler.flush(float64(t.Unix()), &series) // XXX(remy): is this conversation correct? note that it is in second
-		// XXX(remy): better error management
+		sketches := f.sampler.flush(float64(t.Unix()), &series)
 		if f.serializer != nil {
-			//
-			// TODO(remy): restore all the telemetry
-			//
-			if err := f.serializer.SendSeries(series); err != nil {
-				log.Errorf("flushLoop: %+v", err)
-			}
+			err := f.serializer.SendSeries(series)
+			updateSerieTelemetry(t, uint64(len(series)), "timeSamplerWorker", err)
 			tagsetTlm.updateHugeSeriesTelemetry(&series)
 
-			if err := f.serializer.SendSketch(sketches); err != nil {
-				log.Errorf("flushLoop: %+v", err)
-			}
+			err = f.serializer.SendSketch(sketches)
+			updateSketchTelemetry(t, uint64(len(sketches)), "timeSamplerWorker", err)
 			tagsetTlm.updateHugeSketchesTelemetry(&sketches)
 		}
 	}
@@ -144,7 +137,7 @@ func (f *timeSamplerWorker) sendIterableSeries(
 		// if err == nil, SenderStopped was called and it is safe to read the number of series.
 		count := series.SeriesCount()
 		addFlushCount("Series", int64(count))
-		updateSerieTelemetry(start, int(count), err)
+		updateSerieTelemetry(start, count, "timeSamplerWorker", err)
 		close(done)
 	}()
 }

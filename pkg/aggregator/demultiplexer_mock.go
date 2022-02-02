@@ -21,7 +21,7 @@ type TestAgentDemultiplexer struct {
 	sync.Mutex
 }
 
-// AddTimeSamples implements a noop timesampler, appending the samples in an internal slice.
+// AddTimeSampleBatch implements a noop timesampler, appending the samples in an internal slice.
 func (a *TestAgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	a.Lock()
 	a.receivedSamples = append(a.receivedSamples, samples...)
