@@ -128,7 +128,7 @@ func TestOnlyEnvConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
-	agentConfig, _ = NewAgentConfig("test", "", syscfg)
+	agentConfig, _ := NewAgentConfig("test", "", syscfg)
 	assert.Equal(t, 99, agentConfig.MaxPerMessage)
 
 	_ = os.Setenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "1234")
