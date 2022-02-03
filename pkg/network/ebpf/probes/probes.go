@@ -58,9 +58,16 @@ const (
 	// UDPRecvMsgReturn traces the return value for the udp_recvmsg() system call
 	UDPRecvMsgReturn ProbeName = "kretprobe/udp_recvmsg"
 
+	// SKBConsumeUDP traces skb_consume_udp()
+	SKBConsumeUDP ProbeName = "kprobe/skb_consume_udp"
+	// SKBFreeDatagramLocked traces skb_free_datagram_locked()
+	SKBFreeDatagramLocked ProbeName = "kprobe/skb_free_datagram_locked"
+	// SKB__FreeDatagramLocked traces __skb_free_datagram_locked()
+	SKB__FreeDatagramLocked ProbeName = "kprobe/__skb_free_datagram_locked"
+
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeName = "kprobe/udp_destroy_sock"
-	// UDPDestroySockrReturn traces the return of the udp_destroy_sock() system call
+	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
 	UDPDestroySockReturn ProbeName = "kretprobe/udp_destroy_sock"
 
 	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call

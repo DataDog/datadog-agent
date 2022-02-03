@@ -99,7 +99,10 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(perfHandlerTCP, runtimeTracer)
+	m, err := newManager(perfHandlerTCP, runtimeTracer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ebpf manager: %s", err)
+	}
 	setupDumpHandler(m)
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types

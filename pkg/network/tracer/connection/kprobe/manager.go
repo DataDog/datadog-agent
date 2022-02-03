@@ -7,6 +7,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -16,7 +17,7 @@ const (
 	maxActive = 128
 )
 
-func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) (*manager.Manager, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
@@ -51,8 +52,6 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Section: string(probes.TCPSetState)},
 			{Section: string(probes.IPMakeSkb)},
 			{Section: string(probes.IP6MakeSkb)},
-			{Section: string(probes.UDPRecvMsg)},
-			{Section: string(probes.UDPRecvMsgReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.TCPRetransmit)},
 			{Section: string(probes.InetCskAcceptReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.InetCskListenStop)},
@@ -71,6 +70,30 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 		},
 	}
 
+	if runtimeTracer {
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return nil, err
+		}
+
+		if kv < kernel.VersionCode(4, 7, 0) {
+			mgr.Probes = append(mgr.Probes,
+				&manager.Probe{Section: string(probes.SKBFreeDatagramLocked)},
+				&manager.Probe{Section: string(probes.UDPRecvMsg)},
+				&manager.Probe{Section: string(probes.UDPRecvMsgReturn), KProbeMaxActive: maxActive},
+			)
+		} else if kv >= kernel.VersionCode(4, 7, 0) && kv < kernel.VersionCode(4, 10, 0) {
+			mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.SKB__FreeDatagramLocked)})
+		} else {
+			mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.SKBConsumeUDP)})
+		}
+	} else {
+		mgr.Probes = append(mgr.Probes,
+			&manager.Probe{Section: string(probes.UDPRecvMsg)},
+			&manager.Probe{Section: string(probes.UDPRecvMsgReturn), KProbeMaxActive: maxActive},
+		)
+	}
+
 	// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
 	// do that with #ifdefs inline. Thus, the following probes should only be declared as existing in the prebuilt
 	// tracer.
@@ -83,5 +106,5 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 		)
 	}
 
-	return mgr
+	return mgr, nil
 }

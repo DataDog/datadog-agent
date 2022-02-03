@@ -51,7 +51,6 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 	}
 
 	if c.CollectUDPConns {
-		enabled[probes.UDPRecvMsgReturn] = struct{}{}
 		enabled[probes.UDPDestroySock] = struct{}{}
 		enabled[probes.UDPDestroySockReturn] = struct{}{}
 		enabled[probes.IPMakeSkb] = struct{}{}
@@ -69,10 +68,23 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 			enabled[probes.Inet6BindRet] = struct{}{}
 		}
 
-		if !runtimeTracer && pre410Kernel {
-			enabled[probes.UDPRecvMsgPre410] = struct{}{}
+		if runtimeTracer {
+			if kv < kernel.VersionCode(4, 7, 0) {
+				enabled[probes.SKBFreeDatagramLocked] = struct{}{}
+				enabled[probes.UDPRecvMsg] = struct{}{}
+				enabled[probes.UDPRecvMsgReturn] = struct{}{}
+			} else if kv >= kernel.VersionCode(4, 7, 0) && kv < kernel.VersionCode(4, 10, 0) {
+				enabled[probes.SKB__FreeDatagramLocked] = struct{}{}
+			} else {
+				enabled[probes.SKBConsumeUDP] = struct{}{}
+			}
 		} else {
-			enabled[probes.UDPRecvMsg] = struct{}{}
+			if pre410Kernel {
+				enabled[probes.UDPRecvMsgPre410] = struct{}{}
+			} else {
+				enabled[probes.UDPRecvMsg] = struct{}{}
+			}
+			enabled[probes.UDPRecvMsgReturn] = struct{}{}
 		}
 	}
 
