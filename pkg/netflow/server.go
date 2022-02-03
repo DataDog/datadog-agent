@@ -8,17 +8,7 @@ package netflow
 import (
 	"context"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/json"
-	// import
-	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/json"
-	// import
-	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/protobuf"
-	// import
-	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/file"
-	// import
-	_ "github.com/DataDog/datadog-agent/pkg/netflow/goflow2/transport/metric"
 	"github.com/netsampler/goflow2/format"
-	"github.com/netsampler/goflow2/transport"
 	"net"
 	"time"
 
@@ -111,7 +101,7 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggreg
 	//}
 	//transport.RegisterTransportDriver("metric", d)
 
-	d := &json.Driver{
+	d := &Driver{
 		MetricChan: metricChan,
 	}
 	format.RegisterFormatDriver("json", d)
@@ -122,17 +112,10 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggreg
 		return nil, err
 	}
 
-	transporter, err := transport.FindTransport(ctx, "file")
-	if err != nil {
-		return nil, err
-	}
-	defer transporter.Close(ctx)
-
 	logger := logrus.StandardLogger()
 	logger.SetLevel(logrus.TraceLevel)
 	sNF := &utils.StateNetFlow{
 		Format:    formatter,
-		Transport: transporter,
 		Logger:    logger,
 	}
 	hostname := c.BindHost
