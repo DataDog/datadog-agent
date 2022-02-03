@@ -11,6 +11,7 @@
 #include "sockfd.h"
 #include "conn-tuple.h"
 #include "skb.h"
+#include "port.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
@@ -382,8 +383,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     port_binding_t pb = {};
     pb.netns = t.netns;
     pb.port = t.sport;
-    __u8 state = PORT_LISTENING;
-    bpf_map_update_elem(&port_bindings, &pb, &state, BPF_NOEXIST);
+    add_port_bind(&pb, &port_bindings);
 
     log_debug("kretprobe/inet_csk_accept: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
     return 0;
@@ -398,12 +398,12 @@ int kprobe__inet_csk_listen_stop(struct pt_regs* ctx) {
         return 0;
     }
 
-    port_binding_t t = { .netns = 0, .port = 0 };
-    t.netns = get_netns(&skp->sk_net);
-    t.port = lport;
-    bpf_map_delete_elem(&port_bindings, &t);
+    port_binding_t pb = { .netns = 0, .port = 0 };
+    pb.netns = get_netns(&skp->sk_net);
+    pb.port = lport;
+    remove_port_bind(&pb, &port_bindings);
 
-    log_debug("kprobe/inet_csk_listen_stop: net ns: %u, lport: %u\n", t.netns, t.port);
+    log_debug("kprobe/inet_csk_listen_stop: net ns: %u, lport: %u\n", pb.netns, pb.port);
     return 0;
 }
 
@@ -430,13 +430,10 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     // although we have net ns info, we don't use it in the key
     // since we don't have it everywhere for udp port bindings
     // (see sys_enter_bind/sys_exit_bind below)
-    port_binding_t t = {};
-    t.netns = 0;
-    t.port = lport;
-    bpf_map_delete_elem(&udp_port_bindings, &t);
-
-    log_debug("kprobe/udp_destroy_sock: port %d marked as closed\n", lport);
-
+    port_binding_t pb = {};
+    pb.netns = 0;
+    pb.port = lport;
+    remove_port_bind(&pb, &udp_port_bindings);
     return 0;
 }
 
@@ -528,11 +525,10 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     }
 
     __u16 sin_port = args->port;
-    __u8 port_state = PORT_LISTENING;
-    port_binding_t t = {};
-    t.netns = 0; // don't have net ns info in this context
-    t.port = sin_port;
-    bpf_map_update_elem(&udp_port_bindings, &t, &port_state, BPF_ANY);
+    port_binding_t pb = {};
+    pb.netns = 0; // don't have net ns info in this context
+    pb.port = sin_port;
+    add_port_bind(&pb, &udp_port_bindings);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
 
     return 0;

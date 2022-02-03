@@ -86,11 +86,4 @@ const (
 	Assured ConnFlags = 0x4
 )
 
-type PortState uint8
-
-const (
-	PortListening PortState = 0x1
-	PortClosed    PortState = 0x0
-)
-
 const BatchSize = 0x4
