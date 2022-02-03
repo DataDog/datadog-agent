@@ -13,7 +13,7 @@ import (
 
 // OTLP configuration paths.
 const (
-	OTLPSection               = "otlp"
+	OTLPSection               = "otlp_config"
 	OTLPTracesSubSectionKey   = "traces"
 	OTLPTracePort             = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
 	OTLPTracesEnabled         = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
@@ -56,34 +56,34 @@ func promoteExperimentalOTLP(cfg Config) {
 		`This section will be deprecated in a future Datadog Agent release. Please use the same configuration as part of the top level "otlp" section instead.`)
 	if k := "experimental.otlp.metrics"; cfg.IsSet(k) {
 		for key, val := range cfg.GetStringMap(k) {
-			cfg.Set("otlp.metrics."+key, val)
+			cfg.Set(OTLPMetrics+"."+key, val)
 		}
 	}
 	if k := "experimental.otlp.metrics_enabled"; cfg.IsSet(k) {
-		cfg.Set("otlp.metrics.enabled", cfg.GetBool(k))
+		cfg.Set(OTLPMetricsEnabled, cfg.GetBool(k))
 	}
 	if k := "experimental.otlp.tag_cardinality"; cfg.IsSet(k) {
-		cfg.Set("otlp.metrics.tag_cardinality", cfg.GetString(k))
+		cfg.Set(OTLPTagCardinalityKey, cfg.GetString(k))
 	}
 	if k := "experimental.otlp.traces_enabled"; cfg.IsSet(k) {
-		cfg.Set("otlp.traces.enabled", cfg.GetBool(k))
+		cfg.Set(OTLPTracesEnabled, cfg.GetBool(k))
 	}
 	if v := cfg.GetString("experimental.otlp.internal_traces_port"); v != "" {
-		cfg.Set("otlp.traces.internal_port", v)
+		cfg.Set(OTLPTracePort, v)
 	}
 	if v, ok := cfg.GetStringMap("experimental.otlp")[OTLPReceiverSubSectionKey]; ok {
 		if v == nil {
-			cfg.Set("otlp.receiver", nil)
+			cfg.Set(OTLPReceiverSection, nil)
 		} else {
 			for key, val := range cfg.GetStringMap("experimental.otlp.receiver") {
-				cfg.Set("otlp.receiver."+key, val)
+				cfg.Set(OTLPReceiverSection+"."+key, val)
 			}
 		}
 	}
 	if v := cfg.GetString("experimental.otlp.http_port"); v != "" {
-		cfg.Set("otlp.receiver.protocols.http.endpoint", net.JoinHostPort(getBindHost(cfg), v))
+		cfg.Set(OTLPReceiverSection+".protocols.http.endpoint", net.JoinHostPort(getBindHost(cfg), v))
 	}
 	if v := cfg.GetString("experimental.otlp.grpc_port"); v != "" {
-		cfg.Set("otlp.receiver.protocols.grpc.endpoint", net.JoinHostPort(getBindHost(cfg), v))
+		cfg.Set(OTLPReceiverSection+".protocols.grpc.endpoint", net.JoinHostPort(getBindHost(cfg), v))
 	}
 }

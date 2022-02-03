@@ -1,4 +1,4 @@
-otlp:
+otlp_config:
   receiver: # StringMap
     a: 1
     b: 2
