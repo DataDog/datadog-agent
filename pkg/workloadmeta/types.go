@@ -51,12 +51,31 @@ type Store interface {
 	// Unsubscribe reverses the effect of Subscribe.
 	Unsubscribe(ch chan EventBundle)
 
+	// GetContainer returns metadata about a container.  It fetches the entity
+	// with kind KindContainer and the given ID.
 	GetContainer(id string) (*Container, error)
+
+	// ListContainers returns metadata about all known containers, equivalent
+	// to all entities with kind KindContainer.
 	ListContainers() ([]*Container, error)
+
+	// GetKubernetesPod returns metadata about a Kubernetes pod.  It fetches
+	// the entity with kind KindKubernetesPod and the given ID.
 	GetKubernetesPod(id string) (*KubernetesPod, error)
+
+	// GetKubernetesPodForContainer searches all known KubernetesPod entities
+	// for one containing the given container.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
+
+	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
+	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)
+
+	// Notify notifies the store with a slice of events.  It should only be
+	// used by workloadmeta collectors.
 	Notify(events []CollectorEvent)
+
+	// Dump lists the content of the store, for debugging purposes.
 	Dump(verbose bool) WorkloadDumpResponse
 }
 
@@ -123,9 +142,9 @@ const (
 	// EventTypeSet indicates that an entity has been added or updated.
 	EventTypeSet EventType = iota
 
-	// EventTypeUnset indicates that an entity has been removed, or that one
-	// source of several sources provided information about an entity has
-	// stopped providing such information.
+	// EventTypeUnset indicates that an entity has been removed.  If multiple
+	// sources provide data for an entity, this message is only sent when the
+	// last source stops providing that data.
 	EventTypeUnset
 )
 
@@ -133,12 +152,10 @@ const (
 // the agent.
 //
 // This interface is implemented by several concrete types, and is typically
-// cast to that concrete type to get detailed information.  The concrete type
-// typically corresponds to the entity's type (GetID().Kind), except that
-// sometimes an EntityID itself is used as an Entity, especially when an entity
-// has been deleted and the information required to construct a full concrete
-// type is no longer available. Callers should always check the result of the
-// cast operation.
+// cast to that concrete type to get detailed information.  For EntityTypeSet
+// events, the concrete type corresponds to the entity's type (GetID().Kind),
+// and it is safe to make an unchecked cast.  For EntityTypeUnset, the entity
+// is an EntityID and such a cast will fail.
 type Entity interface {
 	// GetID gets the EntityID for this entity.
 	GetID() EntityID
@@ -618,15 +635,14 @@ type Event struct {
 	// When Type is EventTypeUnset, this represents a removed entity.
 	Type EventType
 
-	// Entity is the entity involved in this event.  For a set event, this may
-	// contain information "merged" from multiple sources, as listed in the
-	// Sources field.  For an unset event, it may contain incomplete information,
-	// perhaps only an EntityID.
+	// Entity is the entity involved in this event.  For an EventTypeSet event,
+	// this may contain information "merged" from multiple sources, as listed
+	// in the Sources field.  For an unset event it contains only an EntityID.
 	//
 	// For Type == EventTypeSet, this field can be cast unconditionally to the
 	// concrete type corresponding to its kind (Entity.GetID().Kind).  For Type
 	// == EventTypeUnset, only the Entity ID is available and such a cast will
-	// panic.
+	// fail.
 	Entity Entity
 }
 
@@ -655,6 +671,9 @@ const (
 // complete.  Other subscribers should close the channel immediately.
 // See the example for Store#Subscribe for details.
 type EventBundle struct {
+	// Events gives the events in this bundle.
 	Events []Event
-	Ch     chan struct{}
+
+	// Ch should be closed once the subscriber has handled the event.
+	Ch chan struct{}
 }

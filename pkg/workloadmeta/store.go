@@ -237,7 +237,7 @@ func (s *store) Unsubscribe(ch chan EventBundle) {
 	}
 }
 
-// GetContainer returns metadata about a container.
+// GetContainer implements Store#GetContainer.
 func (s *store) GetContainer(id string) (*Container, error) {
 	entity, err := s.getEntityByKind(KindContainer, id)
 	if err != nil {
@@ -247,7 +247,7 @@ func (s *store) GetContainer(id string) (*Container, error) {
 	return entity.(*Container), nil
 }
 
-// ListContainers returns metadata about all known containers.
+// ListContainers implements Store#ListContainers.
 func (s *store) ListContainers() ([]*Container, error) {
 	entities, err := s.listEntitiesByKind(KindContainer)
 	if err != nil {
@@ -263,7 +263,7 @@ func (s *store) ListContainers() ([]*Container, error) {
 	return containers, nil
 }
 
-// GetKubernetesPod returns metadata about a Kubernetes pod.
+// GetKubernetesPod implements Store#GetKubernetesPod
 func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 	entity, err := s.getEntityByKind(KindKubernetesPod, id)
 	if err != nil {
@@ -273,8 +273,7 @@ func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 	return entity.(*KubernetesPod), nil
 }
 
-// GetKubernetesPodForContainer returns a KubernetesPod that contains the
-// specified containerID.
+// GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer
 func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
 	entities, ok := s.store[KindKubernetesPod]
 	if !ok {
@@ -293,7 +292,7 @@ func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 	return nil, errors.NewNotFound(containerID)
 }
 
-// GetECSTask returns metadata about an ECS task.
+// GetECSTask implements Store#GetECSTask
 func (s *store) GetECSTask(id string) (*ECSTask, error) {
 	entity, err := s.getEntityByKind(KindECSTask, id)
 	if err != nil {
@@ -303,7 +302,7 @@ func (s *store) GetECSTask(id string) (*ECSTask, error) {
 	return entity.(*ECSTask), nil
 }
 
-// Notify notifies the store with a slice of events.
+// Notify implements Store#Notify
 func (s *store) Notify(events []CollectorEvent) {
 	if len(events) > 0 {
 		s.eventCh <- events

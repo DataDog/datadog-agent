@@ -40,8 +40,7 @@ func (wdr WorkloadDumpResponse) Write(writer io.Writer) {
 	}
 }
 
-// Dump lists the content of the store.
-// Useful for agent's CLI and Flare.
+// Dump implements Store#Dump
 func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 	workloadList := WorkloadDumpResponse{
 		Entities: make(map[string]WorkloadEntity),

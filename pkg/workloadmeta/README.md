@@ -15,8 +15,9 @@ Note that in this package, entities are always identified by EntityID (kind and 
 
 ## Sources
 
-The Workloadmeta Store monitors information from various _sources_. 
-Examples of sources include container runtimes and orchestrators.
+The Workloadmeta Store monitors information from various _sources_.
+Examples of sources include container runtimes and various orchestrators.
+The full list is in the documentation for the `Source` type.
 
 Multiple sources may generate events about the same entity.
 When this occurs, information from those sources is merged into one entity.
