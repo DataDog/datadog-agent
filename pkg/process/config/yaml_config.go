@@ -20,8 +20,6 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -162,33 +160,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	}
 	if !config.Datadog.IsSet(key(ns, "cmd_port")) {
 		config.Datadog.Set(key(ns, "cmd_port"), 6162)
-	}
-
-	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
-	// but use the configuration from main agent to fill the settings
-	if config.Datadog.IsSet(key(ns, "internal_profiling.enabled")) {
-		// allow full url override for development use
-		site := config.Datadog.GetString("internal_profiling.profile_dd_url")
-		if site == "" {
-			s := config.Datadog.GetString("site")
-			if s == "" {
-				s = config.DefaultSite
-			}
-			site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
-		}
-
-		v, _ := version.Agent()
-		a.ProfilingSettings = &profiling.Settings{
-			ProfilingURL:         site,
-			Env:                  config.Datadog.GetString("env"),
-			Service:              "process-agent",
-			Period:               config.Datadog.GetDuration("internal_profiling.period"),
-			CPUDuration:          config.Datadog.GetDuration("internal_profiling.cpu_duration"),
-			MutexProfileFraction: config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
-			BlockProfileRate:     config.Datadog.GetInt("internal_profiling.block_profile_rate"),
-			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-			Tags:                 []string{fmt.Sprintf("version:%v", v)},
-		}
 	}
 
 	// Used to override container source auto-detection
