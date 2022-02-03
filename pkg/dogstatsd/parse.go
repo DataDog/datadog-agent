@@ -22,10 +22,6 @@ const (
 	eventType
 )
 
-const (
-	originTypeClient = "client"
-)
-
 var (
 	eventPrefix        = []byte("_e{")
 	serviceCheckPrefix = []byte("_sc")
@@ -56,7 +52,7 @@ func newParser(float64List *float64ListPool) *parser {
 	return &parser{
 		interner:         newStringInterner(stringInternerCacheSize),
 		float64List:      float64List,
-		dsdOriginEnabled: config.Datadog.GetString("dogstatsd_origin_detection_type") == originTypeClient,
+		dsdOriginEnabled: config.Datadog.GetBool("dogstatsd_origin_detection_client"),
 	}
 }
 
