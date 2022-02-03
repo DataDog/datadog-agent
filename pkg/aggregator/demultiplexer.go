@@ -122,6 +122,7 @@ type statsd struct {
 	// every metric to distribute.
 	pipelinesCount int
 	samplers       []*TimeSampler
+	workers        []*timeSamplerWorker
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
 }
@@ -221,16 +222,22 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 	}
 
 	statsdSamplers := make([]*TimeSampler, statsdPipelinesCount)
+	statsdWorkers := make([]*timeSamplerWorker, statsdPipelinesCount)
 
 	for i := 0; i < statsdPipelinesCount; i++ {
+		// the sampler
 		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
+		statsdSamplers[i] = NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore)
+
+		// its worker (process loop + flush/serialization mechanism)
+
 		// NOTE(remy): we can consider that the orchestrator forwarder and the
 		// container lifecycle fwder aren't useful here and having them nil
 		// could probably be considered
 		serializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder,
 			containerLifecycleForwarder)
-		statsdSamplers[i] = NewTimeSampler(TimeSamplerID(i), bucketSize, options.FlushInterval, metricSamplePool,
-			bufferSize, serializer, tagsStore, agg.flushAndSerializeInParallel)
+		statsdWorkers[i] = newTimeSamplerWorker(statsdSamplers[i], options.FlushInterval,
+			bufferSize, metricSamplePool, serializer, agg.flushAndSerializeInParallel)
 	}
 
 	// --
@@ -260,6 +267,7 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 		statsd: statsd{
 			pipelinesCount:   statsdPipelinesCount,
 			samplers:         statsdSamplers,
+			workers:          statsdWorkers,
 			metricSamplePool: metricSamplePool,
 		},
 	}
@@ -334,6 +342,9 @@ func (d *AgentDemultiplexer) Run() {
 		d.aggregator.contLcycleDequeueOnce.Do(func() { go d.aggregator.dequeueContainerLifecycleEvents() })
 	}
 
+	for _, w := range d.statsd.workers {
+		go w.run()
+	}
 	d.aggregator.run() // this is the blocking call
 }
 
@@ -343,10 +354,21 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
+	if flush {
+		d.ForceFlushToSerializer(time.Now(), true)
+	}
+
+	// aggregated data
+
+	for _, worker := range d.statsd.workers {
+		worker.stop()
+	}
 	if d.aggregator != nil {
-		d.aggregator.Stop(flush)
+		d.aggregator.Stop(false)
 	}
 	d.aggregator = nil
+
+	// forwarders
 
 	if !d.options.DontStartForwarders {
 		if d.dataOutputs.forwarders.orchestrator != nil {
@@ -367,6 +389,8 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 		}
 	}
 
+	// misc
+
 	d.dataOutputs.sharedSerializer = nil
 	d.senders = nil
 	demultiplexerInstance = nil
@@ -384,19 +408,19 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 
 	if waitForSerializer {
 		wg := sync.WaitGroup{}
-		for _, sampler := range d.statsd.samplers {
+		for _, tsWorker := range d.statsd.workers {
 			wg.Add(1)
 			// order the flush to the time sampler, and wait, in a different routine
-			go func(sampler *TimeSampler, wg *sync.WaitGroup) {
-				sampler.Flush(start, true)
+			go func(worker *timeSamplerWorker, wg *sync.WaitGroup) {
+				worker.flush(start, true)
 				wg.Done()
-			}(sampler, &wg)
+			}(tsWorker, &wg)
 		}
 		// wait for all samplers to have finished their flush
 		wg.Wait()
 	} else {
-		for _, sampler := range d.statsd.samplers {
-			sampler.Flush(start, false)
+		for _, tsWorker := range d.statsd.workers {
+			tsWorker.flush(start, false)
 		}
 	}
 
@@ -419,14 +443,14 @@ func (d *AgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples met
 	// its buffering + the fact that it is another goroutine processing the samples,
 	// it should get back to the caller as fast as possible once the samples are
 	// in the channel.
-	d.statsd.samplers[shard].addSamples(samples)
+	d.statsd.workers[shard].samplesChan <- samples
 }
 
 // AddTimeSample adds a MetricSample in the first time sampler.
 func (d *AgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
 	batch := d.GetMetricSamplePool().GetBatch()
 	batch[0] = sample
-	d.statsd.samplers[0].addSamples(batch[:1])
+	d.statsd.workers[0].samplesChan <- batch[:1]
 }
 
 // AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
@@ -477,6 +501,7 @@ type ServerlessDemultiplexer struct {
 	serializer    *serializer.Serializer
 	forwarder     *forwarder.SyncForwarder
 	statsdSampler *TimeSampler
+	statsdWorker  *timeSamplerWorker
 
 	flushLock *sync.Mutex
 
@@ -492,23 +517,29 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	aggregator := InitAggregator(serializer, nil, hostname)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize)
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
-	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, DefaultFlushInterval, metricSamplePool, bufferSize,
-		serializer, tagsStore, flushAndSerializeInParallel{enabled: false})
+
+	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, serializer, flushAndSerializeInParallel{enabled: false})
 
 	demux := &ServerlessDemultiplexer{
 		aggregator:       aggregator,
 		serializer:       serializer,
 		forwarder:        forwarder,
 		statsdSampler:    statsdSampler,
+		statsdWorker:     statsdWorker,
 		metricSamplePool: metricSamplePool,
 		senders:          newSenders(aggregator),
 		flushLock:        &sync.Mutex{},
 	}
 
+	// set the global instance
 	demultiplexerInstance = demux
 
+	// start routines
+	go statsdWorker.run()
 	go demux.Run()
 
+	// we're done with the initialization
 	return demux
 }
 
@@ -527,7 +558,11 @@ func (d *ServerlessDemultiplexer) Run() {
 
 // Stop stops the wrapped aggregator and the forwarder.
 func (d *ServerlessDemultiplexer) Stop(flush bool) {
-	d.aggregator.Stop(flush)
+	d.statsdWorker.flush(time.Now(), flush == true)
+
+	// no need to flush the aggregator, it doesn't contain any data
+	// for the serverless agent
+	d.aggregator.Stop(false)
 
 	if d.forwarder != nil {
 		d.forwarder.Stop()
@@ -538,7 +573,7 @@ func (d *ServerlessDemultiplexer) Stop(flush bool) {
 func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
-	d.statsdSampler.Flush(start, waitForSerializer)
+	d.statsdWorker.flush(start, waitForSerializer)
 }
 
 // AddTimeSample send a MetricSample to the TimeSampler.
@@ -547,7 +582,7 @@ func (d *ServerlessDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
 	defer d.flushLock.Unlock()
 	batch := d.GetMetricSamplePool().GetBatch()
 	batch[0] = sample
-	d.statsdSampler.addSamples(batch[:1])
+	d.statsdWorker.samplesChan <- batch[:1]
 }
 
 // AddTimeSampleBatch send a MetricSampleBatch to the TimeSampler.
@@ -557,7 +592,7 @@ func (d *ServerlessDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
 func (d *ServerlessDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
-	d.statsdSampler.addSamples(samples)
+	d.statsdWorker.samplesChan <- samples
 }
 
 // GetDogStatsDPipelinesCount returns how many sampling pipeline are running for

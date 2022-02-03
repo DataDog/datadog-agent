@@ -68,9 +68,18 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 	}
 }
 
-// start starts the worker process loop in a goroutine.
-func (f *timeSamplerWorker) start() {
-	go f.processLoop(f.flushInterval)
+// flush flushes the TimeSampler data into the serializer.
+func (f *timeSamplerWorker) flush(start time.Time, waitForSerializer bool) {
+	trigger := flushTrigger{time: start}
+	if waitForSerializer {
+		trigger.blockChan = make(chan struct{})
+	}
+
+	f.flushChan <- trigger
+
+	if waitForSerializer {
+		<-trigger.blockChan
+	}
 }
 
 // We process all receivend samples in the `select`, but we also process a flush action,
@@ -79,10 +88,10 @@ func (f *timeSamplerWorker) start() {
 // not sampler level).
 // If we want to move to a design where we can flush while we are processing samples,
 // we could consider implementing double-buffering or locking for every sample reception.
-func (f *timeSamplerWorker) processLoop(flushInterval time.Duration) {
+func (f *timeSamplerWorker) run() {
 	var tickerChan <-chan time.Time
-	if flushInterval > 0 {
-		tickerChan = time.NewTicker(flushInterval).C
+	if f.flushInterval > 0 {
+		tickerChan = time.NewTicker(f.flushInterval).C
 	} else {
 		log.Debugf("Time Sampler #%d - flushInterval set to 0: it won't automatically flush", f.sampler.id)
 	}
@@ -108,6 +117,10 @@ func (f *timeSamplerWorker) processLoop(flushInterval time.Duration) {
 			f.triggerFlush(t, false)
 		}
 	}
+}
+
+func (f *timeSamplerWorker) stop() {
+	f.stopChan <- struct{}{}
 }
 
 func (f *timeSamplerWorker) triggerFlush(t time.Time, waitForSerializer bool) {

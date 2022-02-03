@@ -30,23 +30,24 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	return l.Generate(serie.Name, serie.Host, tagset.NewHashingTagsAccumulatorWithTags(serie.Tags))
 }
 
-func testTimeSampler() *TimeSampler {
-	return NewTimeSampler(TimeSamplerID(0), 10, 15*time.Second, metrics.NewMetricSamplePool(32), 100,
-		&serializer.MockSerializer{}, tags.NewStore(false, "test"), flushAndSerializeInParallel{enabled: false})
+func testTimeSampler() (*TimeSampler, *timeSamplerWorker) {
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"))
+	worker := newTimeSamplerWorker(sampler, 15*time.Second, 100, metrics.NewMetricSamplePool(32), &serializer.MockSerializer{}, flushAndSerializeInParallel{enabled: false})
+	go worker.run()
+	return sampler, worker
 }
 
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
-	sampler := testTimeSampler()
-	defer sampler.Stop()
+	sampler, _ := testTimeSampler()
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 }
 
 func testBucketSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
-	defer sampler.Stop()
+	sampler, worker := testTimeSampler()
+	defer worker.stop()
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -80,8 +81,8 @@ func TestBucketSampling(t *testing.T) {
 }
 
 func testContextSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
-	defer sampler.Stop()
+	sampler, worker := testTimeSampler()
+	defer worker.stop()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -148,8 +149,8 @@ func TestContextSampling(t *testing.T) {
 }
 
 func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
-	defer sampler.Stop()
+	sampler, worker := testTimeSampler()
+	defer worker.stop()
 
 	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
@@ -290,7 +291,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 	)
 
 	var (
-		sampler = testTimeSampler()
+		sampler, worker = testTimeSampler()
 
 		insert = func(t *testing.T, ts float64, name string, tags []string, host string, values ...float64) {
 			t.Helper()
@@ -307,7 +308,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 		}
 	)
 
-	defer sampler.Stop()
+	defer worker.stop()
 
 	assert.EqualValues(t, defaultBucketSize, sampler.interval,
 		"interval should default to 10")
@@ -360,9 +361,8 @@ func TestSketch(t *testing.T) {
 }
 
 func testSketchBucketSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
-
-	defer sampler.Stop()
+	sampler, worker := testTimeSampler()
+	defer worker.stop()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -408,8 +408,8 @@ func TestSketchBucketSampling(t *testing.T) {
 }
 
 func testSketchContextSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
-	defer sampler.Stop()
+	sampler, worker := testTimeSampler()
+	defer worker.stop()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -462,8 +462,8 @@ func TestSketchContextSampling(t *testing.T) {
 }
 
 func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
-	defer sampler.Stop()
+	sampler, worker := testTimeSampler()
+	defer worker.stop()
 
 	dSample1 := metrics.MetricSample{
 		Name:       "distribution.metric.name1",
@@ -522,8 +522,8 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
-	sampler := testTimeSampler()
-	defer sampler.Stop()
+	sampler, worker := testTimeSampler()
+	defer worker.stop()
 
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",

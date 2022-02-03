@@ -6,13 +6,10 @@
 package aggregator
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,12 +35,10 @@ type TimeSampler struct {
 	// id is a number to differentiate multiple time samplers
 	// since we start running more than one with the demultiplexer introduction
 	id TimeSamplerID
-
-	worker *timeSamplerWorker
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, flushInterval time.Duration, metricSamplePool *metrics.MetricSamplePool, bufferSize int, serializer serializer.MetricSerializer, cache *tags.Store, parallelSerialization flushAndSerializeInParallel) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -59,30 +54,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, flushInterval time.Duratio
 		id:                          id,
 	}
 
-	s.worker = newTimeSamplerWorker(s, flushInterval, bufferSize, metricSamplePool, serializer, parallelSerialization)
-	s.worker.start()
-
 	return s
-}
-
-// Flush flushes the TimeSampler data into its serializer.
-// It uses its embedded timeSamplerWorker to do so.
-func (s *TimeSampler) Flush(start time.Time, waitForSerializer bool) {
-	trigger := flushTrigger{time: start}
-	if waitForSerializer {
-		trigger.blockChan = make(chan struct{})
-	}
-
-	s.worker.flushChan <- trigger
-
-	if waitForSerializer {
-		<-trigger.blockChan
-	}
-}
-
-// Stop stops the running routine of the TimeSampler.
-func (s *TimeSampler) Stop() {
-	s.worker.stopChan <- struct{}{}
 }
 
 func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
@@ -91,11 +63,6 @@ func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
 
 func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) bool {
 	return bucketStartTimestamp+s.interval > timestamp
-}
-
-// Add the metricSample to the correct bucket
-func (s *TimeSampler) addSamples(samples metrics.MetricSampleBatch) {
-	s.worker.samplesChan <- samples
 }
 
 func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64) {
