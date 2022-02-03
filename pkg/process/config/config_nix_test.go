@@ -60,7 +60,7 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
-	_ := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc.yaml", "")
+	_ = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc.yaml", "")
 	assert.Equal(t, "secret-my_api_key", config.Datadog.GetString("api_key"))
 }
 
@@ -74,7 +74,7 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
-	_ := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc2.yaml", "")
+	_ = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc2.yaml", "")
 
 	assert.Equal(t, "secret-encrypted_key", config.Datadog.GetString("api_key"))
 	assert.Equal(t, "secret-burrito.com", config.Datadog.GetString("process_config.process_dd_url"))
