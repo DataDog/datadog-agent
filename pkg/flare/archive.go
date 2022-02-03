@@ -647,13 +647,13 @@ func zipFile(sourceDir, targetDir, filename string) error {
 }
 
 func zipRegistryJSON(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"))
+	originalPath := config.Datadog.GetString("logs_config.run_path")
 	targetPath := filepath.Join(tempDir, hostname)
 	return zipFile(originalPath, targetPath, "registry.json")
 }
 
 func zipVersionHistory(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("run_path"))
+	originalPath := config.Datadog.GetString("run_path")
 	targetPath := filepath.Join(tempDir, hostname)
 	return zipFile(originalPath, targetPath, "version-history.json")
 }
@@ -777,9 +777,8 @@ func zipHealth(tempDir, hostname string) error {
 }
 
 func zipInstallInfo(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.FileUsedDir())
 	targetPath := filepath.Join(tempDir, hostname)
-	return zipFile(originalPath, targetPath, "install_info")
+	return zipFile(config.FileUsedDir(), targetPath, "install_info")
 }
 
 func zipTelemetry(tempDir, hostname string) error {
