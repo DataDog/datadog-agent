@@ -238,6 +238,12 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "true",
 			expected: true,
 		},
+		{
+			key:      "process_config.process_dd_url",
+			env:      "DD_PROCESS_AGENT_URL",
+			value:    "datacat.com",
+			expected: "datacat.com",
+		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			reset := setEnvForTest(tc.env, tc.value)

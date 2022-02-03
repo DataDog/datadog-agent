@@ -60,9 +60,8 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
-	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc.yaml", "")
-	ep := agentConfig.APIEndpoints[0]
-	assert.Equal(t, "secret-my_api_key", ep.APIKey)
+	_ := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc.yaml", "")
+	assert.Equal(t, "secret-my_api_key", config.Datadog.GetString("api_key"))
 }
 
 // TestAgentConfigYamlEnc2 tests the secrets feature on the file TestDDAgentConfigYamlEnc2
@@ -75,11 +74,10 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 	config.InitConfig(config.Datadog)
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
-	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc2.yaml", "")
+	_ := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlEnc2.yaml", "")
 
-	ep := agentConfig.APIEndpoints[0]
-	assert.Equal(t, "secret-encrypted_key", ep.APIKey)
-	assert.Equal(t, "secret-burrito.com", ep.Endpoint.String())
+	assert.Equal(t, "secret-encrypted_key", config.Datadog.GetString("api_key"))
+	assert.Equal(t, "secret-burrito.com", config.Datadog.GetString("process_config.process_dd_url"))
 }
 
 func TestAgentEncryptedVariablesSecrets(t *testing.T) {
@@ -101,7 +99,5 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	agentConfig := loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-Enc.yaml", "")
 
 	assert.Equal(t, "secret-my_api_key", config.Datadog.Get("api_key"))
-	ep := agentConfig.APIEndpoints[0]
-	assert.Equal(t, "secret-my_api_key", ep.APIKey)
 	assert.Equal(t, "secret-my-host", agentConfig.HostName)
 }

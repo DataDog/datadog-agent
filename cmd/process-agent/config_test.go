@@ -6,6 +6,8 @@
 package main
 
 import (
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -186,4 +188,132 @@ func TestPodCheck(t *testing.T) {
 		enabledChecks := getChecks(&sysconfig.Config{}, ocfg, true)
 		assert.NotContains(t, enabledChecks, checks.Pod)
 	})
+}
+
+func TestGetAPIEndpoints(t *testing.T) {
+	mkurl := func(rawurl string) *url.URL {
+		urlResult, err := url.Parse(rawurl)
+		if err != nil {
+			panic(err)
+		}
+		return urlResult
+	}
+
+	for _, tc := range []struct {
+		name, apiKey, ddURL string
+		additionalEndpoints map[string][]string
+		expected            []apicfg.Endpoint
+		error               bool
+	}{
+		{
+			name:   "default",
+			apiKey: "test",
+			expected: []apicfg.Endpoint{
+				{
+					APIKey:   "test",
+					Endpoint: mkurl(config.DefaultProcessEndpoint),
+				},
+			},
+		},
+		{
+			name:   "invalid dd_url",
+			apiKey: "test",
+			ddURL:  "http://[fe80::%31%25en0]/", // from https://go.dev/src/net/url/url_test.go
+			error:  true,
+		},
+		{
+			name:   "multiple eps",
+			apiKey: "test",
+			additionalEndpoints: map[string][]string{
+				"https://mock.datadoghq.com": {
+					"key1",
+					"key2",
+				},
+				"https://mock2.datadoghq.com": {
+					"key1",
+					"key3",
+				},
+			},
+			expected: []apicfg.Endpoint{
+				{
+					Endpoint: mkurl(config.DefaultProcessEndpoint),
+					APIKey:   "test",
+				},
+				{
+					Endpoint: mkurl("https://mock.datadoghq.com"),
+					APIKey:   "key1",
+				},
+				{
+					Endpoint: mkurl("https://mock.datadoghq.com"),
+					APIKey:   "key2",
+				},
+				{
+					Endpoint: mkurl("https://mock2.datadoghq.com"),
+					APIKey:   "key1",
+				},
+				{
+					Endpoint: mkurl("https://mock2.datadoghq.com"),
+					APIKey:   "key3",
+				},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.Mock()
+			cfg.Set("api_key", tc.apiKey)
+			if tc.ddURL != "" {
+				cfg.Set("process_config.process_dd_url", tc.ddURL)
+			}
+			if tc.additionalEndpoints != nil {
+				cfg.Set("process_config.additional_endpoints", tc.additionalEndpoints)
+			}
+
+			if eps, err := getAPIEndpoints(); tc.error {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.EqualValues(t, tc.expected, eps)
+			}
+		})
+	}
+}
+
+// TestGetAPIEndpointsSite is a test for GetAPIEndpoints. It makes sure that the deprecated `site` setting still works
+func TestGetAPIEndpointsSite(t *testing.T) {
+	for _, tc := range []struct {
+		name, site, ddUrl, expectedHostname string
+	}{
+		{
+			name:             "site only",
+			site:             "datadoghq.io",
+			expectedHostname: "process.datadoghq.io",
+		},
+		{
+			name:             "dd_url only",
+			ddUrl:            "https://process.datadoghq.eu",
+			expectedHostname: "process.datadoghq.eu",
+		},
+		{
+			name:             "both site and dd_url",
+			site:             "datacathq.eu",
+			ddUrl:            "https://burrito.com",
+			expectedHostname: "burrito.com",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.Mock()
+			if tc.site != "" {
+				cfg.Set("site", tc.site)
+			}
+			if tc.ddUrl != "" {
+				cfg.Set("process_config.process_dd_url", tc.ddUrl)
+			}
+
+			eps, err := getAPIEndpoints()
+			assert.NoError(t, err)
+
+			mainEndpoint := eps[0]
+			assert.Equal(t, tc.expectedHostname, mainEndpoint.Endpoint.Hostname())
+		})
+	}
 }

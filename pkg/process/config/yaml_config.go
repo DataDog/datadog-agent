@@ -40,12 +40,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		return err
 	}
 
-	if eps, err := getAPIEndpoints(); err != nil {
-		return err
-	} else {
-		a.APIEndpoints = eps
-	}
-
 	if config.Datadog.IsSet("hostname") {
 		a.HostName = config.Datadog.GetString("hostname")
 	}

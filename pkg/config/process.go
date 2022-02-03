@@ -76,7 +76,11 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
-	procBindEnvAndSetDefault(config, "process_config.process_dd_url", DefaultProcessEndpoint)
+	config.BindEnv("process_config.process_dd_url",
+		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
+		"DD_PROCESS_AGENT_PROCESS_DD_URL",
+		"DD_PROCESS_AGENT_URL",
+	)
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.intervals.process_realtime")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)

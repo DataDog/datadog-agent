@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -69,7 +68,6 @@ type cmdFunc = func(name string, arg ...string) *exec.Cmd
 // Deprecated. Use `pkg/config` directly.
 type AgentConfig struct {
 	HostName                  string
-	APIEndpoints              []apicfg.Endpoint
 	Blacklist                 []*regexp.Regexp
 	Scrubber                  *DataScrubber
 	MaxPerMessage             int
@@ -286,7 +284,6 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"},
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
-		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
@@ -486,31 +483,4 @@ func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig)
 		config.Datadog.GetBool("log_to_console"),
 		config.Datadog.GetBool("log_format_json"),
 	)
-}
-
-func getAPIEndpoints() (eps []apicfg.Endpoint, err error) {
-	// Setup main endpoint
-	mainEndpointURL, err := url.Parse(config.GetMainEndpoint("https://process.", "process_config.process_dd_url"))
-	if err != nil {
-		return nil, fmt.Errorf("error parsing process_dd_url: %s", err)
-	}
-	eps = append(eps, apicfg.Endpoint{
-		APIKey:   config.SanitizeAPIKey(config.Datadog.GetString("api_key")),
-		Endpoint: mainEndpointURL,
-	})
-
-	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
-	for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice("process_config.additional_endpoints") {
-		u, err := url.Parse(endpointURL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
-		}
-		for _, k := range apiKeys {
-			eps = append(eps, apicfg.Endpoint{
-				APIKey:   config.SanitizeAPIKey(k),
-				Endpoint: u,
-			})
-		}
-	}
-	return
 }

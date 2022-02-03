@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -27,7 +26,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	mocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
@@ -309,9 +307,8 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 
 	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "")
 
-	ep := agentConfig.APIEndpoints[0]
-	assert.Equal("apikey_20", ep.APIKey)
-	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
+	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
+	assert.Equal("my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
@@ -321,8 +318,8 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	newConfig()
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")
 
-	assert.Equal("apikey_20", ep.APIKey)
-	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
+	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
+	assert.Equal("my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
 	assert.Equal("server-01", agentConfig.HostName)
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
@@ -335,8 +332,8 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	newConfig()
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-2.yaml")
 
-	assert.Equal("apikey_20", ep.APIKey)
-	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
+	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
+	assert.Equal("my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
@@ -405,60 +402,6 @@ func TestProxyEnv(t *testing.T) {
 	os.Unsetenv("PROXY_PASSWORD")
 }
 
-func TestEnvSiteConfig(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
-	assert := assert.New(t)
-
-	newConfig()
-	agentConfig := loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig.yaml", "")
-	assert.Equal("process.datadoghq.io", agentConfig.APIEndpoints[0].Endpoint.Hostname())
-
-	newConfig()
-	agentConfig = loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-2.yaml", "")
-	assert.Equal("process.datadoghq.eu", agentConfig.APIEndpoints[0].Endpoint.Hostname())
-
-	newConfig()
-	agentConfig = loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-3.yaml", "")
-	assert.Equal("burrito.com", agentConfig.APIEndpoints[0].Endpoint.Hostname())
-
-	newConfig()
-	os.Setenv("DD_PROCESS_AGENT_URL", "https://test.com")
-	agentConfig = loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-3.yaml", "")
-	assert.Equal("test.com", agentConfig.APIEndpoints[0].Endpoint.Hostname())
-	os.Unsetenv("DD_PROCESS_AGENT_URL")
-
-	newConfig()
-	err := os.Setenv("DD_PROCESS_AGENT_DISCOVERY_ENABLED", "true")
-	require.NoError(t, err)
-	agentConfig = loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-ProcessDiscovery.yaml", "")
-	require.NoError(t, err)
-	os.Unsetenv("DD_PROCESS_AGENT_DISCOVERY_ENABLED")
-}
-
-func TestEnvProcessAdditionalEndpoints(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
-	assert := assert.New(t)
-
-	expected := make(map[string]string)
-	expected["key1"] = "url1.com"
-	expected["key2"] = "url2.com"
-	expected["key3"] = "url2.com"
-	expected["apikey_20"] = "my-process-app.datadoghq.com" // from config file
-
-	os.Setenv("DD_PROCESS_ADDITIONAL_ENDPOINTS", `{"https://url1.com": ["key1"], "https://url2.com": ["key2", "key3"]}`)
-	defer os.Unsetenv("DD_PROCESS_ADDITIONAL_ENDPOINTS")
-
-	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")
-
-	for _, actual := range agentConfig.APIEndpoints {
-		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
-	}
-}
-
 func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
 	newConfig()
 	defer restoreGlobalConfig()
@@ -477,27 +420,6 @@ func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
 	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")
 
 	for _, actual := range agentConfig.Orchestrator.OrchestratorEndpoints {
-		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
-	}
-}
-
-func TestEnvAdditionalEndpointsMalformed(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
-	assert := assert.New(t)
-
-	expected := make(map[string]string)
-	expected["apikey_20"] = "my-process-app.datadoghq.com" // from config file
-
-	os.Setenv("DD_PROCESS_ADDITIONAL_ENDPOINTS", `"https://url1.com","key1"`)
-	defer os.Unsetenv("DD_PROCESS_ADDITIONAL_ENDPOINTS")
-
-	agentConfig := loadAgentConfigForTest(t,
-		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
-		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")
-
-	for _, actual := range agentConfig.APIEndpoints {
 		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
 	}
 }
@@ -661,94 +583,6 @@ func TestProcessDiscoveryInterval(t *testing.T) {
 			assert.NoError(t, agentCfg.LoadProcessYamlConfig(""))
 
 			assert.Equal(t, tc.expectedInterval, agentCfg.CheckIntervals[DiscoveryCheckName])
-		})
-	}
-}
-
-func TestGetAPIEndpoints(t *testing.T) {
-	mkurl := func(rawurl string) *url.URL {
-		urlResult, err := url.Parse(rawurl)
-		if err != nil {
-			panic(err)
-		}
-		return urlResult
-	}
-
-	for _, tc := range []struct {
-		name, apiKey, ddURL string
-		additionalEndpoints map[string][]string
-		expected            []apicfg.Endpoint
-		error               bool
-	}{
-		{
-			name:   "default",
-			apiKey: "test",
-			expected: []apicfg.Endpoint{
-				{
-					APIKey:   "test",
-					Endpoint: mkurl(config.DefaultProcessEndpoint),
-				},
-			},
-		},
-		{
-			name:   "invalid dd_url",
-			apiKey: "test",
-			ddURL:  "http://[fe80::%31%25en0]/", // from https://go.dev/src/net/url/url_test.go
-			error:  true,
-		},
-		{
-			name:   "multiple eps",
-			apiKey: "test",
-			additionalEndpoints: map[string][]string{
-				"https://mock.datadoghq.com": {
-					"key1",
-					"key2",
-				},
-				"https://mock2.datadoghq.com": {
-					"key1",
-					"key3",
-				},
-			},
-			expected: []apicfg.Endpoint{
-				{
-					Endpoint: mkurl(config.DefaultProcessEndpoint),
-					APIKey:   "test",
-				},
-				{
-					Endpoint: mkurl("https://mock.datadoghq.com"),
-					APIKey:   "key1",
-				},
-				{
-					Endpoint: mkurl("https://mock.datadoghq.com"),
-					APIKey:   "key2",
-				},
-				{
-					Endpoint: mkurl("https://mock2.datadoghq.com"),
-					APIKey:   "key1",
-				},
-				{
-					Endpoint: mkurl("https://mock2.datadoghq.com"),
-					APIKey:   "key3",
-				},
-			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock()
-			cfg.Set("api_key", tc.apiKey)
-			if tc.ddURL != "" {
-				cfg.Set("process_config.process_dd_url", tc.ddURL)
-			}
-			if tc.additionalEndpoints != nil {
-				cfg.Set("process_config.additional_endpoints", tc.additionalEndpoints)
-			}
-
-			if eps, err := getAPIEndpoints(); tc.error {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.EqualValues(t, tc.expected, eps)
-			}
 		})
 	}
 }
