@@ -67,6 +67,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: DefaultProcessQueueBytes,
 		},
 		{
+			key:          "process_config.windows.use_perf_counters",
+			defaultValue: false,
+		},
+		{
 			key:          "process_config.internal_profiling.enabled",
 			defaultValue: false,
 		},
@@ -223,6 +227,12 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES",
 			value:    "20000",
 			expected: 20000,
+		},
+		{
+			key:      "process_config.windows.use_perf_counters",
+			env:      "DD_PROCESS_CONFIG_WINDOWS_USE_PERF_COUNTERS",
+			value:    "true",
+			expected: true,
 		},
 		{
 			key:      "process_config.internal_profiling.enabled",

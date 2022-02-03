@@ -191,7 +191,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 

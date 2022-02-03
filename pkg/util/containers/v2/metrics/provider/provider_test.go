@@ -13,22 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type dummyCollector struct {
-	id string
-}
-
-func (d dummyCollector) ID() string {
-	return d.id
-}
-
-func (d dummyCollector) GetContainerStats(string, time.Duration) (*ContainerStats, error) {
-	return nil, nil
-}
-
-func (d dummyCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
-	return nil, nil
-}
-
 func TestMetricsProvider(t *testing.T) {
 	c := newProvider()
 	assert.Equal(t, nil, c.getCollector("foo"))

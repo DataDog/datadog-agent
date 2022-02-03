@@ -15,35 +15,28 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	ecsFargateCollectorID = "ecs_fargate"
-	statsCacheKey         = "ecs-stats-%s"
-	statsCacheExpiration  = 10 * time.Second
 )
 
 func init() {
 	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
-		ID:       ecsFargateCollectorID,
-		Priority: 0,
-		Runtimes: provider.AllLinuxRuntimes,
-		Factory:  func() (provider.Collector, error) { return newEcsFargateCollector() },
+		ID:            ecsFargateCollectorID,
+		Priority:      0,
+		Runtimes:      provider.AllLinuxRuntimes,
+		Factory:       func() (provider.Collector, error) { return newEcsFargateCollector() },
+		DelegateCache: true,
 	})
 }
 
 type ecsFargateCollector struct {
-	client         *v2.Client
-	lastScrapeTime time.Time
+	client *v2.Client
 }
-
-// ecsStatsFunc allows mocking the ecs api for testing.
-type ecsStatsFunc func(ctx context.Context, id string) (*v2.ContainerStats, error)
 
 // newEcsFargateCollector returns a new *ecsFargateCollector.
 func newEcsFargateCollector() (*ecsFargateCollector, error) {
@@ -64,7 +57,7 @@ func (e *ecsFargateCollector) ID() string { return ecsFargateCollectorID }
 
 // GetContainerStats returns stats by container ID.
 func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
-	stats, err := e.stats(containerID, cacheValidity, e.client.GetContainerStats)
+	stats, err := e.stats(containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +67,7 @@ func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidit
 
 // GetContainerNetworkStats returns network stats by container ID.
 func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
-	stats, err := e.stats(containerID, cacheValidity, e.client.GetContainerStats)
+	stats, err := e.stats(containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -84,23 +77,11 @@ func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cache
 
 // stats returns stats by container ID, it uses an in-memory cache to reduce the number of api calls.
 // Cache expires every 2 minutes and can also be invalidated using the cacheValidity argument.
-func (e *ecsFargateCollector) stats(containerID string, cacheValidity time.Duration, clientFunc ecsStatsFunc) (*v2.ContainerStats, error) {
-	refreshRequired := e.lastScrapeTime.Add(cacheValidity).Before(time.Now())
-	cacheKey := fmt.Sprintf(statsCacheKey, containerID)
-	if cacheStats, found := cache.Cache.Get(cacheKey); found && !refreshRequired {
-		stats := cacheStats.(*v2.ContainerStats)
-		log.Debugf("Got ecs stats from cache for container %s", containerID)
-		return stats, nil
-	}
-
-	stats, err := clientFunc(context.TODO(), containerID)
+func (e *ecsFargateCollector) stats(containerID string) (*v2.ContainerStats, error) {
+	stats, err := e.client.GetContainerStats(context.TODO(), containerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container stats for %s: %w", containerID, err)
 	}
-
-	log.Debugf("Got ecs stats from ECS API for container %s", containerID)
-	e.lastScrapeTime = time.Now()
-	cache.Cache.Set(cacheKey, stats, statsCacheExpiration)
 
 	return stats, nil
 }
