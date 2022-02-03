@@ -516,12 +516,12 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 func (d *ServerlessDemultiplexer) Run() {
 	if d.forwarder != nil {
 		d.forwarder.Start() //nolint:errcheck
+		log.Debug("Forwarder started")
 	} else {
 		log.Debug("not starting the forwarder")
 	}
-	log.Debug("Forwarder started")
 
-	log.Info("Demultiplexer started")
+	log.Debug("Demultiplexer started")
 	d.aggregator.run()
 }
 
