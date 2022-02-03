@@ -6,7 +6,6 @@
 package main
 
 import (
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"net/url"
 	"testing"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
 
 func TestProcessDiscovery(t *testing.T) {
