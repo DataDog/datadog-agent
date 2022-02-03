@@ -2834,10 +2834,10 @@ api_key:
 ## OpenTelemetry Configuration   ##
 ###################################
 
-## @param otlp - custom object - optional
+## @param otlp_config - custom object - optional
 ## This section configures the OpenTelemetry OTLP receiver.
 #
-# otlp:
+# otlp_config:
 
   ## @param receiver - custom object - optional
   ## The receiver configuration. It is an exact copy of the current OpenTelemetry Collector Receiver Configuration:
