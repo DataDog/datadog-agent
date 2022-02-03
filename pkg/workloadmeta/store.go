@@ -426,15 +426,19 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				continue
 			}
 
-			entityOfSource := s.store[entityID.Kind][entityID.ID]
-			filteredSources, _ := filter.SelectSources(entityOfSource.sources())
+			cachedEntity, ok := s.store[entityID.Kind][entityID.ID]
 
-			if ev.Type == EventTypeSet || len(filteredSources) > 0 {
+			var entity Entity
+			if ok {
+				entity = cachedEntity.get(filter.Source())
+			}
+
+			if entity != nil {
 				// setting an entity (EventTypeSet) or entity
 				// had one source removed, but others remain
 				filteredEvents = append(filteredEvents, Event{
 					Type:   EventTypeSet,
-					Entity: entityOfSource.get(filter.Source()),
+					Entity: entity,
 				})
 
 			} else {
