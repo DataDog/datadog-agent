@@ -267,8 +267,8 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 	}
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *KubeServiceService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeServiceService) GetServiceID() string {
 	return s.entity
 }
 

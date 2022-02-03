@@ -168,7 +168,7 @@
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
-/pkg/config/process.go                  @DataDog/processes
+/pkg/config/process*.go                 @DataDog/processes
 /pkg/config/system_probe.go             @DataDog/agent-network
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust

@@ -70,6 +70,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.windows.use_perf_counters",
 			defaultValue: false,
 		},
+		{
+			key:          "process_config.internal_profiling.enabled",
+			defaultValue: false,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -227,6 +231,12 @@ func TestEnvVarOverride(t *testing.T) {
 		{
 			key:      "process_config.windows.use_perf_counters",
 			env:      "DD_PROCESS_CONFIG_WINDOWS_USE_PERF_COUNTERS",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.internal_profiling.enabled",
+			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
 			value:    "true",
 			expected: true,
 		},
