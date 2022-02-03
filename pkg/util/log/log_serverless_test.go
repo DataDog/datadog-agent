@@ -20,8 +20,7 @@ func TestServerlessLoggingInServerlessContext(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
+	l, err := seelog.LoggerFromWriterWithMinLevel(w, seelog.DebugLvl)
 	assert.Nil(t, err)
 
 	SetupLogger(l, "debug")
@@ -31,5 +30,5 @@ func TestServerlessLoggingInServerlessContext(t *testing.T) {
 	DebugServerless("In serverless mode")
 	w.Flush()
 
-	assert.Equal(t, "[DEBUG] DebugfServerless: foo 10\n[DEBUG] DebugServerless: In serverless mode\n", b.String())
+	assert.Regexp(t, "^[0-9]+ \\[Debug\\] foo 10\n[0-9]+ \\[Debug\\] In serverless mode\n$", b.String())
 }

@@ -20,8 +20,7 @@ func TestServerlessLoggingNotInServerlessContext(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
+	l, err := seelog.LoggerFromWriterWithMinLevel(w, seelog.DebugLvl)
 	assert.Nil(t, err)
 
 	SetupLogger(l, "debug")
