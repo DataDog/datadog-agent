@@ -50,7 +50,7 @@ func TestProcessService(t *testing.T) {
 	}
 
 	svc := processService(ksvc, true)
-	assert.Equal(t, "kube_service://default/myservice", svc.GetEntity())
+	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 	assert.Equal(t, integration.Before, svc.GetCreationTime())
 
 	adID, err := svc.GetADIdentifiers(ctx)
