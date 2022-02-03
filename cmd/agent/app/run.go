@@ -8,7 +8,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/netflow"
 	"net/http"
 	"os"
 	"os/signal"
@@ -40,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/netflow"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -126,13 +126,13 @@ func run(cmd *cobra.Command, args []string) error {
 		// Set up the signals async so we can Start the agent
 		select {
 		case <-signals.Stopper:
-			log.Info("Received stop command, shutting down... (2)")
+			log.Info("Received stop command, shutting down...")
 			stopCh <- nil
 		case <-signals.ErrorStopper:
 			log.Critical("The Agent has encountered an error, shutting down...")
 			stopCh <- fmt.Errorf("shutting down because of an error")
 		case sig := <-signalCh:
-			log.Infof("Received signal '%s', shutting down... (2)", sig)
+			log.Infof("Received signal '%s', shutting down...", sig)
 			stopCh <- nil
 		}
 	}()
@@ -154,7 +154,6 @@ func run(cmd *cobra.Command, args []string) error {
 
 	select {
 	case err := <-stopCh:
-		log.Infof("Stop received: %s", err)
 		return err
 	}
 }
@@ -415,9 +414,7 @@ func StartAgent() error {
 
 	// Start SNMP trap server
 	if netflow.IsEnabled() {
-		log.Info("Before netflow.StartServer")
 		err = netflow.StartServer(demux)
-		log.Info("After netflow.StartServer")
 		if err != nil {
 			log.Errorf("Failed to start netflow server: %s", err)
 		}
@@ -473,7 +470,6 @@ func StartAgent() error {
 
 // StopAgent Tears down the agent process
 func StopAgent() {
-	log.Info("StopAgent called")
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -499,9 +495,7 @@ func StopAgent() {
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
-	log.Info("Stop Netflow")
 	netflow.StopServer()
-	log.Info("Finish Stop Netflow")
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
