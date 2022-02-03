@@ -19,7 +19,7 @@ const (
 	OTLPTracesEnabled         = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
 	OTLPReceiverSubSectionKey = "receiver"
 	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
-	OTLPMetricsSubSectionKey  = "traces"
+	OTLPMetricsSubSectionKey  = "metrics"
 	OTLPMetrics               = OTLPSection + "." + OTLPMetricsSubSectionKey
 	OTLPMetricsEnabled        = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
 	OTLPTagCardinalityKey     = OTLPMetrics + ".tag_cardinality"
@@ -54,14 +54,10 @@ func promoteExperimentalOTLP(cfg Config) {
 	}
 	log.Warn(`OpenTelemetry OTLP receiver configuration is now public beta and has been moved out of the "experimental" section. ` +
 		`This section will be deprecated in a future Datadog Agent release. Please use the same configuration as part of the top level "otlp" section instead.`)
-	if v := cfg.GetString("experimental.otlp.http_port"); v != "" {
-		cfg.Set("otlp.receiver.protocols.http.endpoint", net.JoinHostPort(GetBindHost(), v))
-	}
-	if v := cfg.GetString("experimental.otlp.grpc_port"); v != "" {
-		cfg.Set("otlp.receiver.protocols.grpc.endpoint", net.JoinHostPort(GetBindHost(), v))
-	}
 	if k := "experimental.otlp.metrics"; cfg.IsSet(k) {
-		cfg.Set("otlp.metrics", cfg.GetStringMap(k))
+		for key, val := range cfg.GetStringMap(k) {
+			cfg.Set("otlp.metrics."+key, val)
+		}
 	}
 	if k := "experimental.otlp.metrics_enabled"; cfg.IsSet(k) {
 		cfg.Set("otlp.metrics.enabled", cfg.GetBool(k))
@@ -75,7 +71,19 @@ func promoteExperimentalOTLP(cfg Config) {
 	if v := cfg.GetString("experimental.otlp.internal_traces_port"); v != "" {
 		cfg.Set("otlp.traces.internal_port", v)
 	}
-	if k := "experimental.otlp.receiver"; cfg.IsSet(k) {
-		cfg.Set("otlp.receiver", cfg.GetStringMap(k))
+	if v, ok := cfg.GetStringMap("experimental.otlp")[OTLPReceiverSubSectionKey]; ok {
+		if v == nil {
+			cfg.Set("otlp.receiver", nil)
+		} else {
+			for key, val := range cfg.GetStringMap("experimental.otlp.receiver") {
+				cfg.Set("otlp.receiver."+key, val)
+			}
+		}
+	}
+	if v := cfg.GetString("experimental.otlp.http_port"); v != "" {
+		cfg.Set("otlp.receiver.protocols.http.endpoint", net.JoinHostPort(getBindHost(cfg), v))
+	}
+	if v := cfg.GetString("experimental.otlp.grpc_port"); v != "" {
+		cfg.Set("otlp.receiver.protocols.grpc.endpoint", net.JoinHostPort(getBindHost(cfg), v))
 	}
 }

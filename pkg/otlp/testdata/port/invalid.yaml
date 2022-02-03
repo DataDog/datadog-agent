@@ -1,2 +1,5 @@
-otlp:
-  internal_traces_port: -1
+experimental:
+  otlp:
+    grpc_port: -1
+    http_port: -1
+    internal_traces_port: -1

@@ -1,10 +1,11 @@
 bind_host: "localhost"
 
-otlp:
-  grpc_port: 5679
-  receiver:
-    protocols:
-      http:
-        endpoint: "localhost:1234"
-      grpc:
-        endpoint: "bindhost:5678"
+experimental:
+  otlp:
+    grpc_port: 5679
+    receiver:
+      protocols:
+        http:
+          endpoint: "localhost:1234"
+        grpc:
+          endpoint: "bindhost:5678"
