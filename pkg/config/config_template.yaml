@@ -2436,6 +2436,7 @@ api_key:
 #
 # cri_query_timeout: 5
 
+## Deprecated - use `containerd_namespaces` instead
 ## @param containerd_namespace - list of strings - optional - default: ""
 ## @env DD_CONTAINERD_NAMESPACE - space separated list of strings - optional - default: ""
 ## Activating the Containerd check also activates the CRI check, as it contains an additional subset of useful metrics.
