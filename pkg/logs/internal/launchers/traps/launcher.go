@@ -34,7 +34,7 @@ func (l *Launcher) Start() {
 	go l.run()
 }
 
-func (l *Launcher) startNewTailer(source *config.LogSource, inputChan chan string) {
+func (l *Launcher) startNewTailer(source *config.LogSource, inputChan chan *traps.SnmpPacket) {
 	outputChan := l.pipelineProvider.NextPipelineChan()
 	l.tailer = tailer.NewTailer(source, inputChan, outputChan)
 	l.tailer.Start()

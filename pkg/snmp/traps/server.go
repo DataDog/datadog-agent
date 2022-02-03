@@ -6,12 +6,6 @@
 package traps
 
 import (
-	"context"
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflow2/format/logs"
-	"github.com/netsampler/goflow2/format"
-	"github.com/netsampler/goflow2/transport"
-	"github.com/netsampler/goflow2/utils"
-	"github.com/sirupsen/logrus"
 	"net"
 	"time"
 
@@ -26,13 +20,13 @@ type SnmpPacket struct {
 }
 
 // PacketsChannel is the type of channels of trap packets.
-type PacketsChannel = chan string
+type PacketsChannel = chan *SnmpPacket
 
 // TrapServer manages an SNMPv2 trap listener.
 type TrapServer struct {
 	Addr     string
 	config   *Config
-	listener *utils.StateNetFlow
+	listener *gosnmp.TrapListener
 	packets  PacketsChannel
 }
 
@@ -75,7 +69,7 @@ func NewTrapServer() (*TrapServer, error) {
 		return nil, err
 	}
 
-	packets := make(chan string, packetsChanSize)
+	packets := make(PacketsChannel, packetsChanSize)
 
 	listener, err := startSNMPv2Listener(config, packets)
 	if err != nil {
@@ -91,96 +85,45 @@ func NewTrapServer() (*TrapServer, error) {
 	return server, nil
 }
 
-func startSNMPv2Listener(c *Config, packets chan string) (*utils.StateNetFlow, error) {
-	log.Warn("Starting Netflow Server")
+func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListener, error) {
+	listener := gosnmp.NewTrapListener()
+	listener.Params = c.BuildV2Params()
 
-	//d := &metric.MetricDriver{
-	//	Lock: &sync.RWMutex{},
-	//	MetricChan: metricChan,
-	//}
-	//transport.RegisterTransportDriver("metric", d)
-
-	d := &logs.Driver{
-		PacketsChannel: packets,
-	}
-	format.RegisterFormatDriver("logs", d)
-
-	ctx := context.TODO()
-	formatter, err := format.FindFormat(ctx, "logs")
-	if err != nil {
-		return nil, err
+	listener.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
+		if err := validateCredentials(p, c); err != nil {
+			log.Warnf("Invalid credentials from %s on listener %s, dropping packet", u.String(), c.Addr())
+			trapsPacketsAuthErrors.Add(1)
+			return
+		}
+		log.Debugf("Packet received from %s on listener %s", u.String(), c.Addr())
+		trapsPackets.Add(1)
+		packets <- &SnmpPacket{Content: p, Addr: u}
 	}
 
-	transporter, err := transport.FindTransport(ctx, "file")
-	if err != nil {
-		return nil, err
-	}
-	defer transporter.Close(ctx)
+	errors := make(chan error, 1)
 
-	logger := logrus.StandardLogger()
-	logger.SetLevel(logrus.TraceLevel)
-	sNF := &utils.StateNetFlow{
-		Format:    formatter,
-		Transport: transporter,
-		Logger:    logger,
-	}
-	hostname := c.BindHost
-	port := c.Port
-	reusePort := false
+	// Start actually listening in the background.
 	go func() {
-		log.Errorf("Starting FlowRoutine...")
-		err = sNF.FlowRoutine(1, hostname, int(port), reusePort)
-		log.Errorf("Exited FlowRoutine")
+		log.Infof("Start listening for traps on %s", c.Addr())
+		err := listener.Listen(c.Addr())
 		if err != nil {
-			log.Errorf("Error exiting FlowRoutine: %s", err)
+			errors <- err
 		}
 	}()
 
+	select {
+	// Wait for listener to be started and listening to traps.
+	// See: https://godoc.org/github.com/gosnmp/gosnmp#TrapListener.Listening
+	case <-listener.Listening():
+		break
+	// If the listener failed to start (eg because it couldn't bind to a socket),
+	// we'll get an error here.
+	case err := <-errors:
+		close(errors)
+		return nil, err
+	}
 
-
-
-
-
-
-	//listener := gosnmp.NewTrapListener()
-	//listener.Params = c.BuildV2Params()
-	//
-	//listener.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-	//	if err := validateCredentials(p, c); err != nil {
-	//		log.Warnf("Invalid credentials from %s on listener %s, dropping packet", u.String(), c.Addr())
-	//		trapsPacketsAuthErrors.Add(1)
-	//		return
-	//	}
-	//	log.Debugf("Packet received from %s on listener %s", u.String(), c.Addr())
-	//	trapsPackets.Add(1)
-	//
-	//	packets <- &SnmpPacket{Content: p, Addr: u}
-	//}
-	//
-	//errors := make(chan error, 1)
-	//
-	//// Start actually listening in the background.
-	//go func() {
-	//	log.Infof("Start listening for traps on %s", c.Addr())
-	//	err := listener.Listen(c.Addr())
-	//	if err != nil {
-	//		errors <- err
-	//	}
-	//}()
-	//
-	//select {
-	//// Wait for listener to be started and listening to traps.
-	//// See: https://godoc.org/github.com/gosnmp/gosnmp#TrapListener.Listening
-	//case <-listener.Listening():
-	//	break
-	//// If the listener failed to start (eg because it couldn't bind to a socket),
-	//// we'll get an error here.
-	//case err := <-errors:
-	//	close(errors)
-	//	return nil, err
-	//}
-
-	return sNF, nil
+	return listener, nil
 }
 
 // Stop stops the TrapServer.
@@ -189,7 +132,7 @@ func (s *TrapServer) Stop() {
 
 	go func() {
 		log.Infof("Stop listening on %s", s.config.Addr())
-		s.listener.Shutdown()
+		s.listener.Close()
 		close(stopped)
 	}()
 
