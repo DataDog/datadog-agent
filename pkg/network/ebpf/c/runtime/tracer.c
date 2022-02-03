@@ -254,9 +254,6 @@ static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_bu
     flip_tuple(&t);
 
     log_debug("skb_consume_udp: bytes=%d\n", data_len);
-    print_ip(t->saddr_h, t->saddr_l, t->sport, t->metadata);
-    print_ip(t->daddr_h, t->daddr_l, t->dport, t->metadata);
-
     u64 pid_tgid = bpf_get_current_pid_tgid();
     t.pid = pid_tgid >> 32;
     t.netns = get_netns(&sk->sk_net);

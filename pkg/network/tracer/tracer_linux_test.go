@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
 )
 
 func dnsSupported(t *testing.T) bool {
@@ -1171,6 +1172,93 @@ func TestUDPPeekCount(t *testing.T) {
 	require.Equal(t, 0, int(incoming.MonotonicSentBytes))
 	require.Equal(t, len(msg), int(incoming.MonotonicRecvBytes))
 	require.True(t, incoming.IntraHost)
+}
+
+func TestUDPReusePort(t *testing.T) {
+	t.Run("v4", func(t *testing.T) {
+		testUDPReusePort(t, "udp4", "127.0.0.1")
+	})
+	t.Run("v6", func(t *testing.T) {
+		testUDPReusePort(t, "udp6", "[::1]")
+	})
+}
+
+func testUDPReusePort(t *testing.T, udpnet string, ip string) {
+	cfg := testConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	port := rand.Intn(32768) + 32768
+	createReuseServer := func(port int) *UDPServer {
+		return &UDPServer{
+			network: udpnet,
+			lc: &net.ListenConfig{
+				Control: func(network, address string, c syscall.RawConn) error {
+					var opErr error
+					err := c.Control(func(fd uintptr) {
+						opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+					})
+					if err != nil {
+						return err
+					}
+					return opErr
+				},
+			},
+			address: fmt.Sprintf("%s:%d", ip, port),
+			onMessage: func(buf []byte, n int) []byte {
+				return genPayload(serverMessageSize)
+			},
+		}
+	}
+
+	doneChan := make(chan struct{})
+	t.Cleanup(func() { close(doneChan) })
+	s1 := createReuseServer(port)
+	s2 := createReuseServer(port)
+	err = s1.Run(doneChan, clientMessageSize)
+	require.NoError(t, err)
+
+	err = s2.Run(doneChan, clientMessageSize)
+	require.NoError(t, err)
+
+	// Connect to server
+	c, err := net.DialTimeout(udpnet, s1.address, 50*time.Millisecond)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// Write clientMessageSize to server, and read response
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+
+	_, err = c.Read(make([]byte, serverMessageSize))
+	require.NoError(t, err)
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	t.Logf("port: %d", port)
+	connections := getConnections(t, tr)
+	for _, c := range connections.Conns {
+		t.Log(c)
+	}
+
+	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	if assert.True(t, ok, "unable to find incoming connection") {
+		assert.Equal(t, network.INCOMING, incoming.Direction)
+
+		// make sure the inverse values are seen for the other message
+		assert.Equal(t, serverMessageSize, int(incoming.MonotonicSentBytes), "incoming sent")
+		assert.Equal(t, clientMessageSize, int(incoming.MonotonicRecvBytes), "incoming recv")
+		assert.True(t, incoming.IntraHost, "incoming intrahost")
+	}
+
+	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	if assert.True(t, ok, "unable to find outgoing connection") {
+		assert.Equal(t, network.OUTGOING, outgoing.Direction)
+
+		assert.Equal(t, clientMessageSize, int(outgoing.MonotonicSentBytes), "outgoing sent")
+		assert.Equal(t, serverMessageSize, int(outgoing.MonotonicRecvBytes), "outgoing recv")
+		assert.True(t, outgoing.IntraHost, "outgoing intrahost")
+	}
 }
 
 func TestDNSStatsWithNAT(t *testing.T) {
