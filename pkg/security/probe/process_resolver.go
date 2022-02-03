@@ -21,7 +21,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"

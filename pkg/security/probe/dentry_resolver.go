@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	lib "github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
