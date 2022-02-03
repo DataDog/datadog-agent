@@ -13,6 +13,9 @@ ENV LD_LIBRARY_PATH /opt/datadog-agent/embedded/lib
 # are in the same directory
 COPY process-agent /opt/datadog-agent/embedded/bin/process-agent
 COPY system-probe /opt/datadog-agent/embedded/bin/system-probe
+COPY clang /opt/datadog-agent/embedded/bin/clang
+COPY clang-11 /opt/datadog-agent/embedded/bin/clang-11
+COPY llc /opt/datadog-agent/embedded/bin/llc
 
 # if you want to replace the base image's core agent binary, set $CORE_AGENT_DEST to 
 # /opt/datadog-agent/bin/agent/agent; otherwise, set it to /dev/null
@@ -20,3 +23,4 @@ COPY agent $CORE_AGENT_DEST
 
 COPY *.o /opt/datadog-agent/embedded/share/system-probe/ebpf/
 COPY *.c /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
+COPY stdarg.h /opt/datadog-agent/embedded/include/stdarg.h
