@@ -21,6 +21,31 @@ var (
 	CardinalityTagPrefix = "dd.internal.card:"
 )
 
+// extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
+//
+// The following tables explain how the origins are chosen.
+// originFromUDS is the origin discovered via UDS origin detection (container ID).
+// originFromTag is the origin sent by the client via the dd.internal.entity_id tag (non-prefixed pod uid).
+// originFromMsg is the origin sent by the client via the container field (non-prefixed container ID).
+// entityIDPrecedenceEnabled refers to the dogstatsd_entity_id_precedence parameter.
+//
+//  ---------------------------------------------------------------------------------
+// | originFromUDS | originFromTag | entityIDPrecedenceEnabled || Result: udsOrigin  |
+// |---------------|---------------|---------------------------||--------------------|
+// | any           | any           | false                     || originFromUDS      |
+// | any           | any           | true                      || empty              |
+// | any           | empty         | any                       || originFromUDS      |
+//  ---------------------------------------------------------------------------------
+//
+//  ---------------------------------------------------------------------------------
+// | originFromTag          | originFromMsg   || Result: originFromClient            |
+// |------------------------|-----------------||-------------------------------------|
+// | not empty && not none  | any             || pod prefix + originFromTag          |
+// | empty                  | empty           || empty                               |
+// | none                   | empty           || empty                               |
+// | empty                  | not empty       || container prefix + originFromMsg    |
+// | none                   | not empty       || container prefix + originFromMsg    |
+//  ---------------------------------------------------------------------------------
 func extractTagsMetadata(tags []string, defaultHostname, originFromUDS string, originFromMsg []byte, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
 	host := defaultHostname
 
