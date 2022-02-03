@@ -6,5 +6,5 @@ require (
 	go.opentelemetry.io/collector v0.40.0
 	go.opentelemetry.io/collector/model v0.40.0
 	go.uber.org/multierr v1.7.0
-	go.uber.org/zap v1.19.1
+	go.uber.org/zap v1.20.0
 )

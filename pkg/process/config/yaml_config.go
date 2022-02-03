@@ -8,7 +8,6 @@ package config
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -57,33 +56,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.HostName = config.Datadog.GetString("hostname")
 	}
 
-	// Note: The enabled environment flag operates differently than that of our YAML configuration
-	if v, ok := os.LookupEnv("DD_PROCESS_AGENT_ENABLED"); ok {
-		// DD_PROCESS_AGENT_ENABLED: true - Process + Container checks enabled
-		//                           false - No checks enabled
-		//                           (none) - Container check enabled (by default)
-		if enabled, err := isAffirmative(v); enabled {
-			a.Enabled = true
-			a.EnabledChecks = processChecks
-		} else if !enabled && err == nil {
-			a.Enabled = false
-		}
-	} else if k := key(ns, "enabled"); config.Datadog.IsSet(k) {
-		// A string indicate the enabled state of the Agent.
-		//   If "false" (the default) we will only collect containers.
-		//   If "true" we will collect containers and processes.
-		//   If "disabled" the agent will be disabled altogether and won't start.
-		enabled := config.Datadog.GetString(k)
-		ok, err := isAffirmative(enabled)
-		if ok {
-			a.Enabled, a.EnabledChecks = true, processChecks
-		} else if enabled == "disabled" {
-			a.Enabled = false
-		} else if !ok && err == nil {
-			a.Enabled, a.EnabledChecks = true, containerChecks
-		}
-	}
-
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
@@ -93,9 +65,14 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.setCheckInterval(ns, "process_realtime", RTProcessCheckName)
 	a.setCheckInterval(ns, "connections", ConnectionsCheckName)
 
-	// We need another method to read in process discovery check configs because it is in its own object,
-	// and uses a different unit of time
-	a.initProcessDiscoveryCheck()
+	// We don't need to check if the key exists since we already bound it to a default in InitConfig.
+	// We use a minimum of 10 minutes for this value.
+	discoveryInterval := config.Datadog.GetDuration("process_config.process_discovery.interval")
+	if discoveryInterval < discoveryMinInterval {
+		discoveryInterval = discoveryMinInterval
+		_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
+	}
+	a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
 
 	if a.CheckIntervals[ProcessCheckName] < a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
 		// Process check interval must be greater or equal to RTProcess check interval and the intervals must be divisible
@@ -146,26 +123,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.Scrubber.StripAllArguments = true
 	}
 
-	// How many check results to buffer in memory when POST fails. The default is usually fine.
-	if k := key(ns, "queue_size"); config.Datadog.IsSet(k) {
-		if queueSize := config.Datadog.GetInt(k); queueSize > 0 {
-			a.QueueSize = queueSize
-		}
-	}
-
-	if k := key(ns, "process_queue_bytes"); config.Datadog.IsSet(k) {
-		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
-			a.ProcessQueueBytes = queueBytes
-		}
-	}
-
-	// How many check results to buffer in memory when POST fails. The default is usually fine.
-	if k := key(ns, "rt_queue_size"); config.Datadog.IsSet(k) {
-		if rtqueueSize := config.Datadog.GetInt(k); rtqueueSize > 0 {
-			a.RTQueueSize = rtqueueSize
-		}
-	}
-
 	// The maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	if k := key(ns, "max_per_message"); config.Datadog.IsSet(k) {
 		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
@@ -186,21 +143,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		} else {
 			log.Warnf("Overriding the configured max container processes count per message limit because it exceeds maximum limit of %d", maxCtrProcsMessageBatch)
 		}
-	}
-
-	// Windows: Sets windows process table refresh rate (in number of check runs)
-	if argRefresh := config.Datadog.GetInt(key(ns, "windows", "args_refresh_interval")); argRefresh != 0 {
-		a.Windows.ArgsRefreshInterval = argRefresh
-	}
-
-	// Windows: Controls getting process arguments immediately when a new process is discovered
-	if addArgsKey := key(ns, "windows", "add_new_args"); config.Datadog.IsSet(addArgsKey) {
-		a.Windows.AddNewArgs = config.Datadog.GetBool(addArgsKey)
-	}
-
-	// Windows: Controls using the new check based on performance counters PDH APIs
-	if usePerfCountersKey := key(ns, "windows", "use_perf_counters"); config.Datadog.IsSet(usePerfCountersKey) {
-		a.Windows.UsePerfCounters = config.Datadog.GetBool(usePerfCountersKey)
 	}
 
 	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
@@ -277,30 +219,5 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 	if interval := config.Datadog.GetInt(k); interval != 0 {
 		log.Infof("Overriding %s check interval to %ds", checkKey, interval)
 		a.CheckIntervals[checkKey] = time.Duration(interval) * time.Second
-	}
-}
-
-// Separate handler for initializing the process discovery check.
-// Since it has its own unique object, we need to handle loading in the check config differently separately
-// from the other checks.
-func (a *AgentConfig) initProcessDiscoveryCheck() {
-	root := key(ns, "process_discovery")
-
-	// Discovery check can only be enabled when regular process collection is not enabled.
-	// (process_config.process_discovery.enabled = true and process_config.enabled is not set to "true")
-	processAgentEnabled := strings.ToLower(config.Datadog.GetString(key(ns, "enabled")))
-	checkEnabled := config.Datadog.GetBool(key(root, "enabled"))
-	if checkEnabled && processAgentEnabled != "true" {
-		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
-		a.Enabled = true
-
-		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
-		// We use a minimum of 10 minutes for this value.
-		discoveryInterval := config.Datadog.GetDuration(key(root, "interval"))
-		if discoveryInterval < discoveryMinInterval {
-			discoveryInterval = discoveryMinInterval
-			_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
-		}
-		a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
 	}
 }

@@ -18,7 +18,7 @@ const (
 )
 
 func TestHandleEvents(t *testing.T) {
-	s := newStore()
+	s := newTestStore()
 
 	container := &Container{
 		EntityID: EntityID{
@@ -377,11 +377,70 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 		},
+		{
+			// setting an entity from two different sources, and
+			// unsetting one of them, correctly generates a three
+			// sets and no unsets
+			name:   "sets and unsets an entity from different sources",
+			filter: nil,
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer.GetID(),
+					},
+				},
+				{
+					{
+						Type:   EventTypeSet,
+						Source: barSource,
+						Entity: fooContainer.GetID(),
+					},
+				},
+				{
+					{
+						Type:   EventTypeUnset,
+						Source: fooSource,
+						Entity: fooContainer.GetID(),
+					},
+				},
+			},
+			expected: []EventBundle{
+				{
+					Events: []Event{
+						{
+							Type:    EventTypeSet,
+							Sources: []Source{fooSource},
+							Entity:  fooContainer.GetID(),
+						},
+					},
+				},
+				{
+					Events: []Event{
+						{
+							Type:    EventTypeSet,
+							Sources: []Source{barSource, fooSource},
+							Entity:  fooContainer.GetID(),
+						},
+					},
+				},
+				{
+					Events: []Event{
+						{
+							Type:    EventTypeSet,
+							Sources: []Source{barSource},
+							Entity:  fooContainer.GetID(),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newStore()
+			s := newTestStore()
 
 			s.handleEvents(tt.preEvents)
 
@@ -416,7 +475,7 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
-func newStore() *store {
+func newTestStore() *store {
 	return &store{
 		store: make(map[Kind]map[string]sourceToEntity),
 	}

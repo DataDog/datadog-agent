@@ -15,6 +15,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -71,28 +72,58 @@ type Collector struct {
 	processResults   *api.WeightedQueue
 	rtProcessResults *api.WeightedQueue
 	podResults       *api.WeightedQueue
+
+	forwarderRetryQueueMaxBytes int
+
+	// Enables running realtime checks
+	runRealTime bool
 }
 
 // NewCollector creates a new Collector
-func NewCollector(cfg *config.AgentConfig) (Collector, error) {
+func NewCollector(cfg *config.AgentConfig, enabledChecks []checks.Check) (Collector, error) {
 	sysInfo, err := checks.CollectSystemInfo(cfg)
 	if err != nil {
 		return Collector{}, err
 	}
 
-	enabledChecks := make([]checks.Check, 0)
-	for _, c := range checks.All {
-		if cfg.CheckIsEnabled(c.Name()) {
-			c.Init(cfg, sysInfo)
-			enabledChecks = append(enabledChecks, c)
-		}
+	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+	for _, c := range enabledChecks {
+		c.Init(cfg, sysInfo)
 	}
 
-	return NewCollectorWithChecks(cfg, enabledChecks), nil
+	return NewCollectorWithChecks(cfg, enabledChecks, runRealTime), nil
 }
 
 // NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check) Collector {
+func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runRealTime bool) Collector {
+	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
+	if queueSize <= 0 {
+		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
+		queueSize = ddconfig.DefaultProcessQueueSize
+	}
+
+	rtQueueSize := ddconfig.Datadog.GetInt("process_config.rt_queue_size")
+	if rtQueueSize <= 0 {
+		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultProcessRTQueueSize)
+		rtQueueSize = ddconfig.DefaultProcessRTQueueSize
+	}
+
+	queueBytes := ddconfig.Datadog.GetInt("process_config.process_queue_bytes")
+	if queueBytes <= 0 {
+		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
+		queueBytes = ddconfig.DefaultProcessQueueBytes
+	}
+
+	processResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
+	log.Debugf("Creating process check queue with max_size=%d and max_weight=%d", processResults.MaxSize(), processResults.MaxWeight())
+
+	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
+	rtProcessResults := api.NewWeightedQueue(rtQueueSize, int64(queueBytes))
+	log.Debugf("Creating rt process check queue with max_size=%d and max_weight=%d", rtProcessResults.MaxSize(), rtProcessResults.MaxWeight())
+
+	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
+	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
+
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
@@ -102,6 +133,14 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check) Coll
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  0,
+
+		processResults:   processResults,
+		rtProcessResults: rtProcessResults,
+		podResults:       podResults,
+
+		forwarderRetryQueueMaxBytes: queueBytes,
+
+		runRealTime: runRealTime,
 	}
 }
 
@@ -221,14 +260,20 @@ func (l *Collector) run(exit chan struct{}) error {
 	for _, e := range l.cfg.Orchestrator.OrchestratorEndpoints {
 		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
 	}
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
+
+	var checkNames []string
+	for _, check := range l.enabledChecks {
+		checkNames = append(checkNames, check.Name())
+
+		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
+		// process_rt doesn't show up in the enabled checks
+		if check.Name() == checks.Process.Name() && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+			checkNames = append(checkNames, checks.Process.RealTimeName())
+		}
+	}
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
-
-	l.processResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
-	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
-	l.rtProcessResults = api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
-	l.podResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
 
 	go func() {
 		<-exit
@@ -279,7 +324,7 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.APIEndpoints)))
 	processForwarderOpts.DisableAPIKeyChecking = true
-	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
+	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
 	// rt forwarder can reuse processForwarder's config
@@ -287,7 +332,7 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	podForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
-	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
+	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 
 	if err := processForwarder.Start(); err != nil {
@@ -355,26 +400,28 @@ func (l *Collector) resultsQueueForCheck(name string) *api.WeightedQueue {
 func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), error) {
 	results := l.resultsQueueForCheck(c.Name())
 
-	if withRealTime, ok := c.(checks.CheckWithRealTime); ok {
-		rtResults := l.resultsQueueForCheck(withRealTime.RealTimeName())
-
-		return checks.NewRunnerWithRealTime(
-			checks.RunnerConfig{
-				CheckInterval: l.cfg.CheckInterval(withRealTime.Name()),
-				RtInterval:    l.cfg.CheckInterval(withRealTime.RealTimeName()),
-
-				ExitChan:       exit,
-				RtIntervalChan: l.rtIntervalCh,
-				RtEnabled: func() bool {
-					return atomic.LoadInt32(&l.realTimeEnabled) == 1
-				},
-				RunCheck: func(options checks.RunOptions) {
-					l.runCheckWithRealTime(withRealTime, results, rtResults, options)
-				},
-			},
-		)
+	withRealTime, ok := c.(checks.CheckWithRealTime)
+	if !l.runRealTime || !ok {
+		return l.basicRunner(c, results, exit), nil
 	}
-	return l.basicRunner(c, results, exit), nil
+
+	rtResults := l.resultsQueueForCheck(withRealTime.RealTimeName())
+
+	return checks.NewRunnerWithRealTime(
+		checks.RunnerConfig{
+			CheckInterval: l.cfg.CheckInterval(withRealTime.Name()),
+			RtInterval:    l.cfg.CheckInterval(withRealTime.RealTimeName()),
+
+			ExitChan:       exit,
+			RtIntervalChan: l.rtIntervalCh,
+			RtEnabled: func() bool {
+				return atomic.LoadInt32(&l.realTimeEnabled) == 1
+			},
+			RunCheck: func(options checks.RunOptions) {
+				l.runCheckWithRealTime(withRealTime, results, rtResults, options)
+			},
+		},
+	)
 }
 
 func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit chan struct{}) func() {
@@ -388,11 +435,12 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 		for {
 			select {
 			case <-ticker.C:
-				realTimeEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
+				realTimeEnabled := l.runRealTime && atomic.LoadInt32(&l.realTimeEnabled) == 1
 				if !c.RealTime() || realTimeEnabled {
 					l.runCheck(c, results)
 				}
 			case d := <-l.rtIntervalCh:
+
 				// Live-update the ticker.
 				if c.RealTime() {
 					ticker.Stop()
@@ -420,7 +468,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				forwarderPayload = forwarder.Payloads{&payload.body}
 				responses        chan forwarder.Response
 				err              error
-				updateRTStatus   = true
+				updateRTStatus   = l.runRealTime
 			)
 
 			switch result.name {

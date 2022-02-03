@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -24,11 +25,12 @@ import (
 
 // SyncInformers should be called after the instantiation of new informers.
 // It's blocking until the informers are synced or the timeout exceeded.
-func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
+// An extra timeout duration can be provided depending on the informer
+func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) error {
 	var g errgroup.Group
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
-	syncTimeout := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
+	syncTimeout := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds")*time.Second + extraWait
 	for name := range informers {
 		name := name // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {

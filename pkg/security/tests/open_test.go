@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -189,7 +190,7 @@ func TestOpen(t *testing.T) {
 				if err == unix.EINVAL {
 					return ErrSkipTest{"open_by_handle_at not supported"}
 				}
-				return fmt.Errorf("OpenByHandleAt: %v", err)
+				return fmt.Errorf("OpenByHandleAt: %w", err)
 			}
 			return unix.Close(fdInt)
 		}, func(event *sprobe.Event, r *rules.Rule) {

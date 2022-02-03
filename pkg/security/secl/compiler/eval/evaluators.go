@@ -7,7 +7,6 @@ package eval
 
 import (
 	"fmt"
-	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
@@ -97,8 +96,7 @@ type StringEvaluator struct {
 	// used during compilation
 	isPartial bool
 
-	// cached version
-	regexp *regexp.Regexp
+	stringMatcher StringMatcher
 }
 
 // Eval returns the result of the evaluation
@@ -132,18 +130,12 @@ func (s *StringEvaluator) GetValue(ctx *Context) string {
 // Compile compile internal object
 func (s *StringEvaluator) Compile() error {
 	switch s.ValueType {
-	case PatternValueType:
-		reg, err := PatternToRegexp(s.Value)
+	case PatternValueType, RegexpValueType:
+		matcher, err := NewStringMatcher(s.ValueType, s.Value)
 		if err != nil {
-			return fmt.Errorf("invalid pattern '%s': %s", s.Value, err)
+			return err
 		}
-		s.regexp = reg
-	case RegexpValueType:
-		reg, err := regexp.Compile(s.Value)
-		if err != nil {
-			return fmt.Errorf("invalid regexp '%s': %s", s.Value, err)
-		}
-		s.regexp = reg
+		s.stringMatcher = matcher
 	default:
 		return fmt.Errorf("invalid pattern or regexp '%s'", s.Value)
 	}

@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -270,6 +271,7 @@ tags:
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 	snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
 	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+	telemetryTags := append(common.CopyStrings(snmpGlobalTagsWithLoader), "agent_version:"+version.AgentVersion)
 	row1Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
 	row2Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
 	scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
@@ -283,9 +285,9 @@ tags:
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutErrors", float64(201), "", row1Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutErrors", float64(202), "", row2Tags)
 
-	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
-	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", snmpGlobalTagsWithLoader)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
+	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", telemetryTags)
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
@@ -598,7 +600,7 @@ profiles:
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
 
 	// language=json
-	event := []byte(`
+	event := []byte(fmt.Sprintf(`
 {
   "subnet": "127.0.0.0/30",
   "namespace":"default",
@@ -610,6 +612,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
         "device_vendor:f5",
@@ -658,7 +661,7 @@ profiles:
   ],
   "collect_timestamp":946684800
 }
-`)
+`, version.AgentVersion))
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
@@ -1211,7 +1214,7 @@ tags:
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 
 	// language=json
-	event := []byte(`
+	event := []byte(fmt.Sprintf(`
 {
   "subnet": "127.0.0.0/30",
   "namespace":"default",
@@ -1223,6 +1226,7 @@ tags:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
         "mytag:val1",
@@ -1262,7 +1266,7 @@ tags:
   ],
   "collect_timestamp":946684800
 }
-`)
+`, version.AgentVersion))
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
@@ -1326,7 +1330,7 @@ tags:
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 
 	// language=json
-	event := []byte(`
+	event := []byte(fmt.Sprintf(`
 {
   "subnet": "127.0.0.0/30",
   "namespace":"default",
@@ -1338,6 +1342,7 @@ tags:
         "snmp_device:1.2.3.5"
       ],
       "tags": [
+        "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
         "device_namespace:default",
         "mytag:val1",
@@ -1350,7 +1355,7 @@ tags:
   ],
   "collect_timestamp":946684800
 }
-`)
+`, version.AgentVersion))
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
@@ -1593,6 +1598,7 @@ metric_tags:
         "snmp_device:%s"
       ],
       "tags": [
+        "agent_version:%s",
         "autodiscovery_subnet:10.10.0.0/30",
         "device_namespace:default",
         "snmp_device:%s",
@@ -1630,7 +1636,7 @@ metric_tags:
   ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)

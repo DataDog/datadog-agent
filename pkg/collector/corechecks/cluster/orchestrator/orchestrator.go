@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
+//go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
 package orchestrator
@@ -77,7 +78,8 @@ type OrchestratorInstance struct {
 	// collectors:
 	//   - nodes
 	//   - services
-	Collectors []string `yaml:"collectors"`
+	Collectors              []string `yaml:"collectors"`
+	ExtraSyncTimeoutSeconds int      `yaml:"extra_sync_timeout_seconds"`
 }
 
 func (c *OrchestratorInstance) parse(data []byte) error {
@@ -150,11 +152,10 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	if !o.orchestratorConfig.OrchestrationCollectionEnabled {
 		return errors.New("orchestrator check is configured but the feature is disabled")
 	}
-	o.orchestratorConfig.IsScrubbingEnabled = corecfg.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
-	if corecfg.Datadog.IsSet("orchestrator_explorer.custom_sensitive_words") {
-		o.orchestratorConfig.Scrubber.AddCustomSensitiveWords(corecfg.Datadog.GetStringSlice("orchestrator_explorer.custom_sensitive_words"))
+	err = o.orchestratorConfig.Load()
+	if err != nil {
+		return err
 	}
-	o.orchestratorConfig.ExtraTags = corecfg.Datadog.GetStringSlice("orchestrator_explorer.extra_tags")
 
 	// check if cluster name is set
 	hostname, _ := coreutil.GetHostname(context.TODO())
@@ -185,6 +186,14 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	o.apiClient = apiCl
 	if err != nil {
 		return err
+	}
+
+	// Get the extra time we can wait for the informer cache sync
+	var extraTimeout time.Duration
+	if o.instance.ExtraSyncTimeoutSeconds == 0 {
+		extraTimeout = 60 * time.Second
+	} else {
+		extraTimeout = time.Duration(o.instance.ExtraSyncTimeoutSeconds) * time.Second
 	}
 
 	// Prepare the collectors for the resources specified in the configuration file.
@@ -275,7 +284,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		go informer.Run(o.stopCh)
 	}
 
-	return apiserver.SyncInformers(informersToSync)
+	return apiserver.SyncInformers(informersToSync, extraTimeout)
 }
 
 // Run runs the orchestrator check

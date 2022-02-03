@@ -38,7 +38,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | ---------- | ---- | ---------- | ------------- |
 {% for event_type in event_types %}
 {% if event_type.name != "*" %}
-| `{{ event_type.name }}` | {{ event_type.kind }} | {{ event_type.definition }} | {{ event_type.min_agent_version }} |
+| `{{ event_type.name }}` | {{ event_type.kind }} | {{ "[Experimental] " if event_type.experimental else "" }}{{ event_type.definition }} | {{ event_type.min_agent_version }} |
 {% endif %}
 {% endfor %}
 
@@ -67,10 +67,25 @@ SECL operators are used to combine event attributes together into a full express
 ## Patterns and regular expressions
 Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.
 
-| Format           |  Example             | Agent Version |
-|------------------|----------------------|---------------|
-| `~"pattern"`     | `~"/etc/*"`          | 7.27          |
-| `r"regexp"`      | `r"/etc/rc[0-9]+"`   | 7.27          |
+| Format           |  Example             | Supported Fields   | Agent Version |
+|------------------|----------------------|--------------------|---------------|
+| `~"pattern"`     | `~"httpd.*"`         | All                | 7.27          |
+| `r"regexp"`      | `r"rc[0-9]+"`        | All except `.path` | 7.27          |
+
+Patterns on `.path` fields will be used as Glob. `*` will match files and folders at the same level. `**`, introduced in 7.34, can be used at the end of a path in order to match all the files and subfolders.
+
+## Duration
+You can use SECL to write rules based on durations, which trigger on events that occur during a specific time period. For example, trigger on an event where a secret file is accessed more than a certain length of time after a process is created.
+Such a rule could be written as follows:
+
+{% raw %}
+{{< code-block lang="javascript" >}}
+open.file.path == "/etc/secret" && process.file.name == "java" && process.created_at > 5s
+
+{{< /code-block >}}
+{% endraw %}
+
+Durations are numbers with a unit suffix. The supported suffixes are "s", "m", "h".
 
 ## Variables
 SECL variables are predefined variables that can be used as values or as part of values.
@@ -121,6 +136,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 {% else %}
 ### Event `{{ event_type.name }}`
 
+{% if event_type.experimental %}
+_This event type is experimental and may change in the future._
+
+{% endif %}
 {{ event_type.definition }}
 {% endif %}
 

@@ -37,17 +37,18 @@ func TestReaderV1(t *testing.T) {
 		defaultBaseController: filepath.Join(fakeFsPath, defaultBaseController),
 	}
 
-	r, err := newReaderV1(fakeMountPoints, defaultBaseController, ContainerFilter)
+	r, err := newReaderV1("", fakeMountPoints, defaultBaseController, ContainerFilter)
+	r.pidMapper = nil
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
 
 	cgroups, err := r.parseCgroups()
 	assert.NoError(t, err)
 	assert.Empty(t, cmp.Diff(map[string]Cgroup{
-		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40": newCgroupV1("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40", paths[0], fakeMountPoints),
-		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41": newCgroupV1("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41", paths[1], fakeMountPoints),
-		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42": newCgroupV1("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42", paths[3], fakeMountPoints),
-		"1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503": newCgroupV1("1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503", paths[5], fakeMountPoints),
-		"6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2": newCgroupV1("6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", "libpod_parent/libpod-6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", fakeMountPoints),
+		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40": newCgroupV1("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40", paths[0], fakeMountPoints, r.pidMapper),
+		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41": newCgroupV1("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41", paths[1], fakeMountPoints, r.pidMapper),
+		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42": newCgroupV1("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42", paths[3], fakeMountPoints, r.pidMapper),
+		"1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503": newCgroupV1("1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503", paths[5], fakeMountPoints, r.pidMapper),
+		"6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2": newCgroupV1("6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", "libpod_parent/libpod-6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", fakeMountPoints, r.pidMapper),
 	}, cgroups, cmp.AllowUnexported(cgroupV1{})))
 }

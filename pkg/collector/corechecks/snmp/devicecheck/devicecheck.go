@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
@@ -74,11 +75,16 @@ func (d *DeviceCheck) GetIDTags() []string {
 }
 
 // GetDeviceHostname returns DeviceID as hostname if UseDeviceIDAsHostname is true
-func (d *DeviceCheck) GetDeviceHostname() string {
+func (d *DeviceCheck) GetDeviceHostname() (string, error) {
 	if d.config.UseDeviceIDAsHostname {
-		return deviceHostnamePrefix + d.config.DeviceID
+		hostname := deviceHostnamePrefix + d.config.DeviceID
+		normalizedHostname, err := util.NormalizeHost(hostname)
+		if err != nil {
+			return "", err
+		}
+		return normalizedHostname, nil
 	}
-	return ""
+	return "", nil
 }
 
 // Run executes the check
@@ -110,6 +116,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
+		deviceMetadataTags = append(deviceMetadataTags, common.GetAgentVersionTag())
 
 		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
@@ -120,8 +127,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 }
 
 func (d *DeviceCheck) setDeviceHostExternalTags() {
-	deviceHostname := d.GetDeviceHostname()
-	if deviceHostname == "" {
+	deviceHostname, err := d.GetDeviceHostname()
+	if deviceHostname == "" || err != nil {
 		return
 	}
 	agentTags := config.GetConfiguredTags(false)
@@ -206,7 +213,7 @@ func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(common.CopyStrings(tags), snmpLoaderTag)
+	newTags := append(common.CopyStrings(tags), snmpLoaderTag, common.GetAgentVersionTag())
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
 

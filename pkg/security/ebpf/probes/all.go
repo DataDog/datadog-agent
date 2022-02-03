@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
@@ -36,6 +37,9 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getIoctlProbes()...)
 	allProbes = append(allProbes, getSELinuxProbes()...)
 	allProbes = append(allProbes, getBPFProbes()...)
+	allProbes = append(allProbes, getPTraceProbes()...)
+	allProbes = append(allProbes, getMMapProbes()...)
+	allProbes = append(allProbes, getMProtectProbes()...)
 
 	allProbes = append(allProbes,
 		// Syscall monitor

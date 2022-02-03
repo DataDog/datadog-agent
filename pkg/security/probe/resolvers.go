@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -230,6 +231,15 @@ func (r *Resolvers) snapshot() error {
 	cacheModified := false
 
 	for _, proc := range processes {
+		ppid, err := proc.Ppid()
+		if err != nil {
+			continue
+		}
+
+		if IsKThread(uint32(ppid), uint32(proc.Pid)) {
+			continue
+		}
+
 		// Start with the mount resolver because the process resolver might need it to resolve paths
 		if err := r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {
@@ -238,7 +248,9 @@ func (r *Resolvers) snapshot() error {
 		}
 
 		// Sync the process cache
-		cacheModified = r.ProcessResolver.SyncCache(proc)
+		if r.ProcessResolver.SyncCache(proc) {
+			cacheModified = true
+		}
 	}
 
 	// There is a possible race condition when a process starts right after we called process.AllProcesses

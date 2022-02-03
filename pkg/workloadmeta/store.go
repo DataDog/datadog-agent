@@ -96,6 +96,10 @@ var _ Store = &store{}
 // each collector in the catalog. Call Start to start the store and its
 // collectors.
 func NewStore(catalog map[string]collectorFactory) Store {
+	return newStore(catalog)
+}
+
+func newStore(catalog map[string]collectorFactory) *store {
 	candidates := make(map[string]Collector)
 	for id, c := range catalog {
 		candidates[id] = c()
@@ -172,6 +176,10 @@ func (s *store) Start(ctx context.Context) {
 					log.Warnf("error de-registering health check: %s", err)
 				}
 
+				s.unsubscribeAll()
+
+				log.Infof("stopped workloadmeta store")
+
 				return
 			}
 		}
@@ -198,7 +206,13 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 
 	var events []Event
 
+	// lock the store and only unlock once the subscriber has been added,
+	// otherwise the subscriber can lose events. adding the subscriber
+	// before locking the store can cause deadlocks if the store sends
+	// events before this function returns.
 	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
 	for kind, entitiesOfKind := range s.store {
 		if !sub.filter.MatchKind(kind) {
 			continue
@@ -217,7 +231,6 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 			})
 		}
 	}
-	s.storeMut.RUnlock()
 
 	// sort events by kind and ID for deterministic ordering
 	sort.Slice(events, func(i, j int) bool {
@@ -235,15 +248,13 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 	// the subscriber is not ready to receive events yet
 	notifyChannel(sub.name, sub.ch, events, false)
 
-	// From the moment we add the subscriber to the list, the store can try to
-	// send it events, that's why it's important that we do this after the line
-	// above. Otherwise, it can cause a deadlock.
 	s.subscribersMut.Lock()
+	defer s.subscribersMut.Unlock()
+
 	s.subscribers = append(s.subscribers, sub)
 	sort.SliceStable(s.subscribers, func(i, j int) bool {
 		return s.subscribers[i].priority < s.subscribers[j].priority
 	})
-	s.subscribersMut.Unlock()
 
 	telemetry.Subscribers.Inc()
 
@@ -259,11 +270,10 @@ func (s *store) Unsubscribe(ch chan EventBundle) {
 		if sub.ch == ch {
 			s.subscribers = append(s.subscribers[:i], s.subscribers[i+1:]...)
 			telemetry.Subscribers.Dec()
-			break
+			close(ch)
+			return
 		}
 	}
-
-	close(ch)
 }
 
 // GetContainer returns metadata about a container.
@@ -457,20 +467,19 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				continue
 			}
 
-			entityOfSource, ok := s.store[entityID.Kind][entityID.ID]
-			entitySources, _ := filter.SelectSources(entityOfSource.sources())
+			entityOfSource := s.store[entityID.Kind][entityID.ID]
+			filteredSources, _ := filter.SelectSources(entityOfSource.sources())
 
-			if ev.Type == EventTypeSet && ok {
-				// setting an entity is straight forward
+			if ev.Type == EventTypeSet || len(filteredSources) > 0 {
+				// setting an entity (EventTypeSet) or entity
+				// had one source removed, but others remain
 				filteredEvents = append(filteredEvents, Event{
 					Type:    EventTypeSet,
-					Sources: entitySources,
-					Entity:  entityOfSource.merge(entitySources),
+					Sources: filteredSources,
+					Entity:  entityOfSource.merge(filteredSources),
 				})
-				continue
-			}
 
-			if !ok {
+			} else {
 				// entity has been removed entirely, unsetting
 				// is straight forward too
 				filteredEvents = append(filteredEvents, Event{
@@ -478,14 +487,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 					Sources: evSources,
 					Entity:  ev.Entity,
 				})
-				continue
 			}
-
-			filteredEvents = append(filteredEvents, Event{
-				Type:    EventTypeUnset,
-				Sources: evSources,
-				Entity:  ev.Entity,
-			})
 		}
 
 		notifyChannel(sub.name, sub.ch, filteredEvents, true)
@@ -524,6 +526,17 @@ func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
 	}
 
 	return entities, nil
+}
+
+func (s *store) unsubscribeAll() {
+	s.subscribersMut.Lock()
+	defer s.subscribersMut.Unlock()
+
+	for _, sub := range s.subscribers {
+		close(sub.ch)
+	}
+
+	telemetry.Subscribers.Set(0)
 }
 
 func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {

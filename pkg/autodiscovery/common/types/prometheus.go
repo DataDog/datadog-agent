@@ -68,7 +68,7 @@ type OpenmetricsInstance struct {
 	Metrics                       []string                    `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
 	PromPrefix                    string                      `mapstructure:"prometheus_metrics_prefix" yaml:"prometheus_metrics_prefix,omitempty" json:"prometheus_metrics_prefix,omitempty"`
 	HealthCheck                   *bool                       `mapstructure:"health_service_check" yaml:"health_service_check,omitempty" json:"health_service_check,omitempty"`
-	LabelToHostname               bool                        `mapstructure:"label_to_hostname" yaml:"label_to_hostname,omitempty" json:"label_to_hostname,omitempty"`
+	LabelToHostname               string                      `mapstructure:"label_to_hostname" yaml:"label_to_hostname,omitempty" json:"label_to_hostname,omitempty"`
 	LabelJoins                    map[string]LabelJoinsConfig `mapstructure:"label_joins" yaml:"label_joins,omitempty" json:"label_joins,omitempty"`
 	LabelsMapper                  map[string]string           `mapstructure:"labels_mapper" yaml:"labels_mapper,omitempty" json:"labels_mapper,omitempty"`
 	TypeOverride                  map[string]string           `mapstructure:"type_overrides" yaml:"type_overrides,omitempty" json:"type_overrides,omitempty"`
@@ -88,7 +88,7 @@ type OpenmetricsInstance struct {
 	SkipProxy                     bool                        `mapstructure:"skip_proxy" yaml:"skip_proxy,omitempty" json:"skip_proxy,omitempty"`
 	Username                      string                      `mapstructure:"username" yaml:"username,omitempty" json:"username,omitempty"`
 	Password                      string                      `mapstructure:"password" yaml:"password,omitempty" json:"password,omitempty"`
-	TLSVerify                     bool                        `mapstructure:"tls_verify" yaml:"tls_verify,omitempty" json:"tls_verify,omitempty"`
+	TLSVerify                     *bool                       `mapstructure:"tls_verify" yaml:"tls_verify,omitempty" json:"tls_verify,omitempty"`
 	TLSHostHeader                 bool                        `mapstructure:"tls_use_host_header" yaml:"tls_use_host_header,omitempty" json:"tls_use_host_header,omitempty"`
 	TLSIgnoreWarn                 bool                        `mapstructure:"tls_ignore_warning" yaml:"tls_ignore_warning,omitempty" json:"tls_ignore_warning,omitempty"`
 	TLSCert                       string                      `mapstructure:"tls_cert" yaml:"tls_cert,omitempty" json:"tls_cert,omitempty"`

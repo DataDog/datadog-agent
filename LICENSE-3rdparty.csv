@@ -108,6 +108,7 @@ core,github.com/alecthomas/participle/lexer,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer/ebnf,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer/ebnf/internal,MIT,Alec Thomas
 core,github.com/alecthomas/repr,MIT,Alec Thomas
+core,github.com/alecthomas/units,MIT,Alec Thomas
 core,github.com/andybalholm/brotli,MIT,the Brotli Authors
 core,github.com/aptly-dev/aptly/aptly,MIT,aptly authors
 core,github.com/aptly-dev/aptly/database,MIT,aptly authors
@@ -192,6 +193,7 @@ core,github.com/cilium/ebpf/internal/unix,MIT,Authors of Cilium | Cloudflare | N
 core,github.com/cilium/ebpf/perf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go Authors
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
+core,github.com/containerd/cgroups,Apache-2.0,The containerd Authors
 core,github.com/containerd/cgroups/stats/v1,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/api/events,Apache-2.0,The containerd Authors
@@ -336,6 +338,7 @@ core,github.com/go-kit/log,MIT,Go kit
 core,github.com/go-kit/log/level,MIT,Go kit
 core,github.com/go-logfmt/logfmt,MIT,go-logfmt
 core,github.com/go-logr/logr,Apache-2.0,The logr Authors
+core,github.com/go-logr/stdr,Apache-2.0,The logr Authors
 core,github.com/go-ole/go-ole,MIT,"Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
 core,github.com/go-ole/go-ole/oleutil,MIT,"Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
 core,github.com/go-openapi/jsonpointer,Apache-2.0,sigu-399 ( https://github.com/sigu-399 )
@@ -391,6 +394,8 @@ core,github.com/google/gopacket/layers,BSD-3-Clause,"Andreas Krennmair | Google,
 core,github.com/google/pprof/profile,Apache-2.0,Andrew Hunter <andrewhhunter@gmail.com> | Google Inc. | Hyoun Kyu Cho <netforce@google.com> | Martin Spier <spiermar@gmail.com> | Raul Silvera <rsilvera@google.com> | Taco de Wolff <tacodewolff@gmail.com> | Tipp Moseley <tipp@google.com>
 core,github.com/google/uuid,BSD-3-Clause,Google Inc | Paul Borman <borman@google.com> | bmatsuo | cd1 | dansouza | dsymonds | jboverfelt | shawnps | theory | wallclockbuilder
 core,github.com/googleapis/gax-go/v2,BSD-3-Clause,Google LLC
+core,github.com/googleapis/gax-go/v2/apierror,BSD-3-Clause,Google LLC
+core,github.com/googleapis/gax-go/v2/apierror/internal/proto,BSD-3-Clause,Google LLC
 core,github.com/googleapis/gnostic/compiler,Apache-2.0,Google LLC
 core,github.com/googleapis/gnostic/extensions,Apache-2.0,Google LLC
 core,github.com/googleapis/gnostic/openapiv2,Apache-2.0,Google LLC
@@ -452,9 +457,6 @@ core,github.com/jmespath/go-jmespath,Apache-2.0,James Saryerwinnie
 core,github.com/josharian/intern,MIT,Josh Bleecher Snyder
 core,github.com/josharian/native,MIT,Josh Bleecher Snyder
 core,github.com/json-iterator/go,MIT,json-iterator
-core,github.com/jstemmer/go-junit-report,MIT,Joel Stemmer
-core,github.com/jstemmer/go-junit-report/formatter,MIT,Joel Stemmer
-core,github.com/jstemmer/go-junit-report/parser,MIT,Joel Stemmer
 core,github.com/kardianos/osext,BSD-3-Clause,The Go Authors
 core,github.com/karrick/godirwalk,BSD-2-Clause,Karrick McDermott
 core,github.com/kjk/lzma,BSD-3-Clause,Andrei Vieru
@@ -643,9 +645,8 @@ core,github.com/shirou/gopsutil/v3/mem,BSD-3-Clause,The Go Authors | WAKAYAMA Sh
 core,github.com/shirou/gopsutil/v3/net,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/shirou/gopsutil/v3/process,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/shirou/w32,BSD-3-Clause,The w32 Authors
-core,github.com/shuLhan/go-bindata,CC0-1.0,The go-bindata authors
-core,github.com/shuLhan/go-bindata/cmd/go-bindata,CC0-1.0,The go-bindata authors
 core,github.com/sirupsen/logrus,MIT,Simon Eskildsen
+core,github.com/skydive-project/go-debouncer,Apache-2.0,"Red Hat, Inc"
 core,github.com/smira/go-ftp-protocol/protocol,MIT,Andrey Smirnov
 core,github.com/smira/go-xz,MIT,Andrey Smirnov
 core,github.com/spf13/afero,Apache-2.0,The Authors
@@ -755,12 +756,12 @@ core,go.opentelemetry.io/collector/component/componenterror,Apache-2.0,Open Tele
 core,go.opentelemetry.io/collector/component/componenthelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configauth,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configcompression,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configgrpc,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/confighttp,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configmapprovider,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/collector/config/configtest,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configunmarshaler,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/experimental/configsource,Apache-2.0,Open Telemetry Maintainers
@@ -844,10 +845,8 @@ core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Open Telemetry Main
 core,go.opentelemetry.io/otel/sdk/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/aggregator,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/otel/sdk/metric/aggregator/exact,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/aggregator/histogram,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/aggregator/lastvalue,Apache-2.0,Open Telemetry Maintainers
-core,go.opentelemetry.io/otel/sdk/metric/aggregator/minmaxsumcount,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/aggregator/sum,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/controller/basic,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/metric/controller/time,Apache-2.0,Open Telemetry Maintainers
@@ -868,6 +867,7 @@ core,go.uber.org/zap/internal/bufferpool,MIT,"Uber Technologies, Inc"
 core,go.uber.org/zap/internal/color,MIT,"Uber Technologies, Inc"
 core,go.uber.org/zap/internal/exit,MIT,"Uber Technologies, Inc"
 core,go.uber.org/zap/zapcore,MIT,"Uber Technologies, Inc"
+core,go.uber.org/zap/zapgrpc,MIT,"Uber Technologies, Inc"
 core,go4.org/intern,BSD-3-Clause,Brad Fitzpatrick
 core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,Brad Fitzpatrick
 core,golang.org/x/crypto/cast5,BSD-3-Clause,The Go Authors
@@ -889,8 +889,6 @@ core,golang.org/x/crypto/poly1305,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/salsa20/salsa,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/scrypt,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/ssh/terminal,BSD-3-Clause,The Go Authors
-core,golang.org/x/lint,BSD-3-Clause,The Go Authors
-core,golang.org/x/lint/golint,BSD-3-Clause,The Go Authors
 core,golang.org/x/net/bpf,BSD-3-Clause,The Go Authors
 core,golang.org/x/net/context,BSD-3-Clause,The Go Authors
 core,golang.org/x/net/context/ctxhttp,BSD-3-Clause,The Go Authors
@@ -990,6 +988,7 @@ core,google.golang.org/grpc/binarylog/grpc_binarylog_v1,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/codes,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/connectivity,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/credentials,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/credentials/insecure,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/credentials/internal,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/encoding,Apache-2.0,gRPC authors
 core,google.golang.org/grpc/encoding/gzip,Apache-2.0,gRPC authors

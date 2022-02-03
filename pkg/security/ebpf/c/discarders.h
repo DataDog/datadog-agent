@@ -132,7 +132,7 @@ struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct inode_discarder_t),
     .value_size = sizeof(struct inode_discarder_params_t),
-    .max_entries = 512,
+    .max_entries = 4096,
     .pinning = 0,
     .namespace = "",
 };

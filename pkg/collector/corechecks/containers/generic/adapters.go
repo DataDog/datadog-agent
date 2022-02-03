@@ -17,29 +17,29 @@ type MetricsAdapter interface {
 	AdaptMetrics(metricName string, value float64) (string, float64)
 }
 
-// ContainerLister abstracts away how to list all known containers
-type ContainerLister interface {
+// ContainerAccessor abstracts away how to list all known containers
+type ContainerAccessor interface {
 	List() ([]*workloadmeta.Container, error)
 }
 
-// MetadataContainerLister implements ContainerLister interface using Workload meta service
-type MetadataContainerLister struct{}
+// MetadataContainerAccessor implements ContainerLister interface using Workload meta service
+type MetadataContainerAccessor struct{}
 
 // List returns all known containers
-func (l MetadataContainerLister) List() ([]*workloadmeta.Container, error) {
+func (l MetadataContainerAccessor) List() ([]*workloadmeta.Container, error) {
 	return workloadmeta.GetGlobalStore().ListContainers()
 }
 
-// GenMetricsAdapter implements MetricsAdapter API in a basic way.
+// GenericMetricsAdapter implements MetricsAdapter API in a basic way.
 // Adds `runtime` tag and do not change metrics.
-type GenMetricsAdapter struct{}
+type GenericMetricsAdapter struct{}
 
 // AdaptTags adds a `runtime` tag for all containers
-func (a GenMetricsAdapter) AdaptTags(tags []string, c *workloadmeta.Container) []string {
+func (a GenericMetricsAdapter) AdaptTags(tags []string, c *workloadmeta.Container) []string {
 	return append(tags, "runtime:"+string(c.Runtime))
 }
 
 // AdaptMetrics is a passthrough (does not change anything)
-func (a GenMetricsAdapter) AdaptMetrics(metricName string, value float64) (string, float64) {
+func (a GenericMetricsAdapter) AdaptMetrics(metricName string, value float64) (string, float64) {
 	return metricName, value
 }

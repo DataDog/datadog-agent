@@ -6,13 +6,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
 
 import (
+	"fmt"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -122,6 +126,7 @@ type ProcessCacheEntrySerializer struct {
 	Credentials         *ProcessCredentialsSerializer `json:"credentials,omitempty" jsonschema_description:"Credentials associated with the process"`
 	Executable          *FileSerializer               `json:"executable,omitempty" jsonschema_description:"File information of the executable"`
 	Container           *ContainerContextSerializer   `json:"container,omitempty" jsonschema_description:"Container context"`
+	Argv0               string                        `json:"argv0,omitempty" jsonschema_description:"First command line argument"`
 	Args                []string                      `json:"args,omitempty" jsonschema_description:"Command line arguments"`
 	ArgsTruncated       bool                          `json:"args_truncated,omitempty" jsonschema_description:"Indicator of arguments truncation"`
 	Envs                []string                      `json:"envs,omitempty" jsonschema_description:"Environment variables of the process"`
@@ -211,6 +216,31 @@ type BPFEventSerializer struct {
 	Program *BPFProgramSerializer `json:"program,omitempty" jsonschema_description:"BPF program"`
 }
 
+// MMapEventSerializer serializes a mmap event to JSON
+type MMapEventSerializer struct {
+	Address    string          `json:"address" jsonschema_description:"memory segment address"`
+	Offset     uint64          `json:"offset" jsonschema_description:"file offset"`
+	Len        uint32          `json:"length" jsonschema_description:"memory segment length"`
+	Protection string          `json:"protection" jsonschema_description:"memory segment protection"`
+	Flags      string          `json:"flags" jsonschema_description:"memory segment flags"`
+	File       *FileSerializer `json:"file,omitempty" jsonschema_description:"mmaped file"`
+}
+
+// MProtectEventSerializer serializes a mmap event to JSON
+type MProtectEventSerializer struct {
+	VMStart       string `json:"vm_start" jsonschema_description:"memory segment start address"`
+	VMEnd         string `json:"vm_end" jsonschema_description:"memory segment end address"`
+	VMProtection  string `json:"vm_protection" jsonschema_description:"memory segment protection"`
+	ReqProtection string `json:"new_protection" jsonschema_description:"new memory segment protection"`
+}
+
+// PTraceEventSerializer serializes a mmap event to JSON
+type PTraceEventSerializer struct {
+	Request string                    `json:"request" jsonschema_description:"ptrace request"`
+	Address string                    `json:"address" jsonschema_description:"address at which the ptrace request was executed"`
+	Tracee  *ProcessContextSerializer `json:"tracee,omitempty" jsonschema_description:"process context of the tracee"`
+}
+
 // DDContextSerializer serializes a span context to JSON
 // easyjson:json
 type DDContextSerializer struct {
@@ -225,6 +255,9 @@ type EventSerializer struct {
 	*FileEventSerializer       `json:"file,omitempty"`
 	*SELinuxEventSerializer    `json:"selinux,omitempty"`
 	*BPFEventSerializer        `json:"bpf,omitempty"`
+	*MMapEventSerializer       `json:"mmap,omitempty"`
+	*MProtectEventSerializer   `json:"mprotect,omitempty"`
+	*PTraceEventSerializer     `json:"ptrace,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   ProcessContextSerializer    `json:"process,omitempty"`
 	DDContextSerializer        DDContextSerializer         `json:"dd,omitempty"`
@@ -326,27 +359,10 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	}
 }
 
-func scrubArgs(pr *model.Process, e *Event) ([]string, bool) {
-	return e.resolvers.ProcessResolver.GetScrubbedProcessArgv(pr)
-}
-
-func scrubEnvs(pr *model.Process, e *Event) ([]string, bool) {
-	envs, truncated := e.resolvers.ProcessResolver.GetProcessEnvs(pr)
-	if envs == nil {
-		return nil, false
-	}
-
-	result := make([]string, 0, len(envs))
-	for key := range envs {
-		result = append(result, key)
-	}
-
-	return result, truncated
-}
-
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *ProcessCacheEntrySerializer {
-	argv, argvTruncated := scrubArgs(&pce.Process, e)
-	envs, EnvsTruncated := scrubEnvs(&pce.Process, e)
+	argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessScrubbedArgv(&pce.Process)
+	envs, EnvsTruncated := e.resolvers.ProcessResolver.GetProcessEnvs(&pce.Process)
+	argv0, _ := e.resolvers.ProcessResolver.GetProcessArgv0(&pce.Process)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
 		ForkTime: getTimeIfNotZero(pce.ForkTime),
@@ -359,6 +375,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		Comm:          pce.Process.Comm,
 		TTY:           pce.Process.TTYName,
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
+		Argv0:         argv0,
 		Args:          argv,
 		ArgsTruncated: argvTruncated,
 		Envs:          envs,
@@ -495,6 +512,44 @@ func newBPFEventSerializer(e *Event) *BPFEventSerializer {
 		Map:     newBPFMapSerializer(e),
 		Program: newBPFProgramSerializer(e),
 	}
+}
+
+func newMMapEventSerializer(e *Event) *MMapEventSerializer {
+	var fileSerializer *FileSerializer
+	if e.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
+		fileSerializer = newFileSerializer(&e.MMap.File, e)
+	}
+
+	return &MMapEventSerializer{
+		Address:    fmt.Sprintf("0x%x", e.MMap.Addr),
+		Offset:     e.MMap.Offset,
+		Len:        e.MMap.Len,
+		Protection: model.Protection(e.MMap.Protection).String(),
+		Flags:      model.MMapFlag(e.MMap.Flags).String(),
+		File:       fileSerializer,
+	}
+}
+
+func newMProtectEventSerializer(e *Event) *MProtectEventSerializer {
+	return &MProtectEventSerializer{
+		VMStart:       fmt.Sprintf("0x%x", e.MProtect.VMStart),
+		VMEnd:         fmt.Sprintf("0x%x", e.MProtect.VMEnd),
+		VMProtection:  model.VMFlag(e.MProtect.VMProtection).String(),
+		ReqProtection: model.VMFlag(e.MProtect.ReqProtection).String(),
+	}
+}
+
+func newPTraceEventSerializer(e *Event) *PTraceEventSerializer {
+	ptes := &PTraceEventSerializer{
+		Request: model.PTraceRequest(e.PTrace.Request).String(),
+		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
+	}
+
+	if e.PTrace.TraceeProcessCacheEntry != nil {
+		pcs := newProcessContextSerializer(e.PTrace.TraceeProcessCacheEntry, e, e.resolvers)
+		ptes.Tracee = &pcs
+	}
+	return ptes
 }
 
 func serializeSyscallRetval(retval int64) string {
@@ -692,6 +747,15 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.BPFEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.BPFEventSerializer = newBPFEventSerializer(event)
+	case model.MMapEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.MMap.Retval)
+		s.MMapEventSerializer = newMMapEventSerializer(event)
+	case model.MProtectEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.MProtect.Retval)
+		s.MProtectEventSerializer = newMProtectEventSerializer(event)
+	case model.PTraceEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.PTrace.Retval)
+		s.PTraceEventSerializer = newPTraceEventSerializer(event)
 	}
 
 	return s

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -272,6 +273,8 @@ func (dr *DentryResolver) lookupInodeFromCache(mountID uint32, inode uint64) (*P
 	return cacheEntry, nil
 }
 
+// We need to cache inode by inode instead of caching the whole path in order to be
+// able to invalidate the whole path if one of its element got rename or removed.
 func (dr *DentryResolver) cacheInode(key PathKey, path *PathEntry) error {
 	entries, exists := dr.cache[key.MountID]
 	if !exists {
@@ -735,6 +738,11 @@ func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32)
 	if err != nil && err != errTruncatedParentsERPC && dr.mapEnabled {
 		parentMountID, parentInode, err = dr.resolveParentFromMap(mountID, inode, pathID)
 	}
+
+	if parentInode == 0 {
+		return 0, 0, ErrEntryNotFound
+	}
+
 	return parentMountID, parentInode, err
 }
 

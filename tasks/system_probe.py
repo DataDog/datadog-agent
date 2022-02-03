@@ -2,6 +2,7 @@ import contextlib
 import glob
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -199,8 +200,7 @@ def kitchen_prepare(ctx, windows=is_windows):
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
-        relative_path = os.path.relpath(pkg)
-        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, relative_path)
+        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, re.sub("^.*datadog-agent.", "", pkg))
         target_bin = "testsuite"
         if windows:
             target_bin = "testsuite.exe"
@@ -512,8 +512,7 @@ def build_http_ebpf_files(ctx, build_dir):
     network_flags.append(f"-I{network_c_dir}")
     network_flags.append(f"-D__{uname_m}__")
 
-    if uname_m == "aarch64":
-        network_flags.append("-isystem /usr/include/aarch64-linux-gnu")
+    network_flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
 
     build_network_ebpf_compile_file(
         ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"

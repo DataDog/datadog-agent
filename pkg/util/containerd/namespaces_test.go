@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -27,9 +28,15 @@ func TestNamespacesToWatch(t *testing.T) {
 		expectsError           bool
 	}{
 		{
-			name:                   "containerd_namespace set",
+			name:                   "containerd_namespace set with one namespace",
 			containerdNamespaceVal: "some_namespace",
 			expectedNamespaces:     []string{"some_namespace"},
+			expectsError:           false,
+		},
+		{
+			name:                   "containerd_namespace set with multiple namespaces",
+			containerdNamespaceVal: "ns1 ns2 ns3",
+			expectedNamespaces:     []string{"ns1", "ns2", "ns3"},
 			expectsError:           false,
 		},
 		{
@@ -51,6 +58,9 @@ func TestNamespacesToWatch(t *testing.T) {
 		},
 	}
 
+	originalContainerdNamespaceOpt := config.Datadog.GetString("containerd_namespace")
+	defer config.Datadog.Set("containerd_namespace", originalContainerdNamespaceOpt)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			config.Datadog.Set("containerd_namespace", test.containerdNamespaceVal)
@@ -62,6 +72,65 @@ func TestNamespacesToWatch(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, test.expectedNamespaces, namespaces)
 			}
+		})
+	}
+}
+
+func TestFiltersWithNamespaces(t *testing.T) {
+	tests := []struct {
+		name                         string
+		containerdNamespaceConfigOpt string
+		inputFilters                 []string
+		expectedFilters              []string
+	}{
+		{
+			name:                         "watch all namespaces",
+			containerdNamespaceConfigOpt: "",
+			inputFilters: []string{
+				`topic==/containers/create`,
+				`topic==/containers/delete`,
+			},
+			expectedFilters: []string{
+				`topic==/containers/create`,
+				`topic==/containers/delete`,
+			},
+		},
+		{
+			name:                         "watch one namespace",
+			containerdNamespaceConfigOpt: "ns1",
+			inputFilters: []string{
+				`topic=="/containers/create"`,
+				`topic=="/containers/delete"`,
+			},
+			expectedFilters: []string{
+				`topic=="/containers/create",namespace=="ns1"`,
+				`topic=="/containers/delete",namespace=="ns1"`,
+			},
+		},
+		{
+			name:                         "watch several namespaces, but not all",
+			containerdNamespaceConfigOpt: "ns1 ns2",
+			inputFilters: []string{
+				`topic=="/containers/create"`,
+				`topic=="/containers/delete"`,
+			},
+			expectedFilters: []string{
+				`topic=="/containers/create",namespace=="ns1"`,
+				`topic=="/containers/delete",namespace=="ns1"`,
+				`topic=="/containers/create",namespace=="ns2"`,
+				`topic=="/containers/delete",namespace=="ns2"`,
+			},
+		},
+	}
+
+	originalContainerdNamespaceOpt := config.Datadog.GetString("containerd_namespace")
+	defer config.Datadog.Set("containerd_namespace", originalContainerdNamespaceOpt)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config.Datadog.Set("containerd_namespace", test.containerdNamespaceConfigOpt)
+			result := FiltersWithNamespaces(test.inputFilters)
+			assert.ElementsMatch(t, test.expectedFilters, result)
 		})
 	}
 }

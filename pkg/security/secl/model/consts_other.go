@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//+build !linux
+//go:build !linux
+// +build !linux
 
 package model
 
@@ -14,4 +15,9 @@ var (
 	// KernelCapabilityConstants list of kernel capabilities
 	KernelCapabilityConstants = map[string]uint64{}
 	unlinkFlagsConstants      = map[string]int{}
+	ptraceConstants           = map[string]uint32{}
+	ptraceArchConstants       = map[string]uint32{}
+	protConstants             = map[string]int{}
+	mmapFlagConstants         = map[string]int{}
+	mmapFlagArchConstants     = map[string]int{}
 )

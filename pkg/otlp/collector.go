@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//go:build !serverless && otlp
 // +build !serverless,otlp
 
 package otlp
@@ -118,11 +119,16 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 	}),
 	}
 
+	configProvider, err := newMapProvider(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build configuration provider: %w", err)
+	}
+
 	col, err := service.New(service.CollectorSettings{
 		Factories:               factories,
 		BuildInfo:               buildInfo,
 		DisableGracefulShutdown: true,
-		ConfigMapProvider:       newMapProvider(cfg),
+		ConfigProvider:          configProvider,
 		LoggingOptions:          options,
 	})
 

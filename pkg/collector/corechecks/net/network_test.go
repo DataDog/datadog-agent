@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package net
@@ -97,18 +98,22 @@ func TestNetworkCheck(t *testing.T) {
 				BytesRecv:   10,
 				BytesSent:   11,
 				PacketsRecv: 12,
-				Errin:       13,
-				PacketsSent: 14,
-				Errout:      15,
+				Dropin:      13,
+				Errin:       14,
+				PacketsSent: 15,
+				Dropout:     16,
+				Errout:      17,
 			},
 			{
 				Name:        "lo0",
-				BytesRecv:   16,
-				BytesSent:   17,
-				PacketsRecv: 18,
-				Errin:       19,
-				PacketsSent: 20,
-				Errout:      21,
+				BytesRecv:   18,
+				BytesSent:   19,
+				PacketsRecv: 20,
+				Dropin:      21,
+				Errin:       22,
+				PacketsSent: 23,
+				Dropout:     24,
+				Errout:      25,
 			},
 		},
 		protoCountersStats: []net.ProtoCountersStat{
@@ -285,17 +290,21 @@ collect_connection_state: true
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(13), "", eth0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.drop", float64(13), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(14), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(15), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(16), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(17), "", eth0Tags)
 
 	lo0Tags := []string{"device:lo0", "device_name:lo0"}
-	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", lo0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", lo0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", lo0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(19), "", lo0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(20), "", lo0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(21), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(18), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(19), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(20), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.drop", float64(21), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(22), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(23), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(24), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(25), "", lo0Tags)
 
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.retrans_segs", float64(22), "", customTags)
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_segs", float64(23), "", customTags)
@@ -353,18 +362,22 @@ func TestExcludedInterfaces(t *testing.T) {
 				BytesRecv:   10,
 				BytesSent:   11,
 				PacketsRecv: 12,
-				Errin:       13,
-				PacketsSent: 14,
-				Errout:      15,
+				Dropin:      13,
+				Errin:       14,
+				PacketsSent: 15,
+				Dropout:     16,
+				Errout:      17,
 			},
 			{
 				Name:        "lo0",
-				BytesRecv:   16,
-				BytesSent:   17,
-				PacketsRecv: 18,
-				Errin:       19,
-				PacketsSent: 20,
-				Errout:      21,
+				BytesRecv:   18,
+				BytesSent:   19,
+				PacketsRecv: 20,
+				Dropin:      21,
+				Errin:       22,
+				PacketsSent: 23,
+				Dropout:     24,
+				Errout:      25,
 			},
 		},
 	}
@@ -394,17 +407,21 @@ excluded_interfaces:
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(13), "", eth0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.drop", float64(13), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(14), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(15), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(16), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(17), "", eth0Tags)
 
 	lo0Tags := []string{"device:lo0", "device_name:lo0"}
-	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", lo0Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", lo0Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", lo0Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.error", float64(19), "", lo0Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(20), "", lo0Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(21), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(18), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(19), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(20), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.drop", float64(21), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.error", float64(22), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(23), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.drop", float64(24), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(25), "", lo0Tags)
 }
 
 func TestExcludedInterfacesRe(t *testing.T) {
@@ -415,27 +432,33 @@ func TestExcludedInterfacesRe(t *testing.T) {
 				BytesRecv:   10,
 				BytesSent:   11,
 				PacketsRecv: 12,
-				Errin:       13,
-				PacketsSent: 14,
-				Errout:      15,
+				Dropin:      13,
+				Errin:       14,
+				PacketsSent: 15,
+				Dropout:     16,
+				Errout:      17,
 			},
 			{
 				Name:        "eth1",
-				BytesRecv:   16,
-				BytesSent:   17,
-				PacketsRecv: 18,
-				Errin:       19,
-				PacketsSent: 20,
-				Errout:      21,
+				BytesRecv:   18,
+				BytesSent:   19,
+				PacketsRecv: 20,
+				Dropin:      21,
+				Errin:       22,
+				PacketsSent: 23,
+				Dropout:     24,
+				Errout:      25,
 			},
 			{
 				Name:        "lo0",
-				BytesRecv:   22,
-				BytesSent:   23,
-				PacketsRecv: 24,
-				Errin:       25,
-				PacketsSent: 26,
-				Errout:      27,
+				BytesRecv:   26,
+				BytesSent:   27,
+				PacketsRecv: 28,
+				Dropin:      29,
+				Errin:       30,
+				PacketsSent: 31,
+				Dropout:     32,
+				Errout:      33,
 			},
 		},
 	}
@@ -465,23 +488,29 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.error", float64(13), "", eth0Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.drop", float64(13), "", eth0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.error", float64(14), "", eth0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(15), "", eth0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.drop", float64(16), "", eth0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(17), "", eth0Tags)
 
 	eth1Tags := []string{"device:eth1", "device_name:eth1"}
-	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", eth1Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", eth1Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", eth1Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.error", float64(19), "", eth1Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(20), "", eth1Tags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(21), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(18), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(19), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(20), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.drop", float64(21), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.error", float64(22), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(23), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.drop", float64(24), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(25), "", eth1Tags)
 
 	lo0Tags := []string{"device:lo0", "device_name:lo0"}
-	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(22), "", lo0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(23), "", lo0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(24), "", lo0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(25), "", lo0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(26), "", lo0Tags)
-	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(27), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(26), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(27), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(28), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.drop", float64(29), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(30), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(31), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(32), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(33), "", lo0Tags)
 }

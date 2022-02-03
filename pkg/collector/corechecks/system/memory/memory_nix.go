@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package memory
@@ -67,6 +68,8 @@ func (c *Check) Run() error {
 		sender.Gauge("system.swap.free", float64(s.Free)/mbSize, "", nil)
 		sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
 		sender.Gauge("system.swap.pct_free", (100-s.UsedPercent)/100, "", nil)
+		sender.Rate("system.swap.swap_in", float64(s.Sin)/mbSize, "", nil)
+		sender.Rate("system.swap.swap_out", float64(s.Sout)/mbSize, "", nil)
 	} else {
 		log.Errorf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}

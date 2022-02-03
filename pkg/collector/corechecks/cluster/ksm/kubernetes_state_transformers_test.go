@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package ksm
@@ -1189,7 +1190,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:unknown"},
-				status:  metrics.ServiceCheckUnknown,
+				status:  metrics.ServiceCheckWarning,
 				message: "foo is currently reporting Ready = unknown",
 			},
 			expectedMetric: &metricsExpected{

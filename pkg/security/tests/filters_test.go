@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -76,10 +77,7 @@ func TestOpenBasenameApproverFilterERPCDentryResolution(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd1); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd1)
 	}, testFile1); err != nil {
 		t.Fatal(err)
 	}
@@ -96,10 +94,7 @@ func TestOpenBasenameApproverFilterERPCDentryResolution(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd2); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd2)
 	}, testFile2); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
@@ -137,10 +132,7 @@ func TestOpenBasenameApproverFilterMapDentryResolution(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd1); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd1)
 	}, testFile1); err != nil {
 		t.Fatal(err)
 	}
@@ -157,10 +149,7 @@ func TestOpenBasenameApproverFilterMapDentryResolution(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd2); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd2)
 	}, testFile2); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
@@ -199,10 +188,7 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, func(d *testDiscarder) bool {
 		e := d.event.(*probe.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
@@ -225,16 +211,13 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, testFile); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
 }
 
-func TestOpenParentDiscarderFilter(t *testing.T) {
+func testOpenParentDiscarderFilter(t *testing.T, parents ...string) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -251,7 +234,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	var fd int
 	var testFile string
 
-	testFile, _, err = test.Path("a", "test-obd-2")
+	testFile, _, err = test.Path(append(parents, "test-obd-2")...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,10 +250,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, func(d *testDiscarder) bool {
 		e := d.event.(*probe.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
@@ -288,7 +268,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
-	testFile, _, err = test.Path("a", "test-obd-3")
+	testFile, _, err = test.Path(append(parents, "test-obd-3")...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,13 +279,18 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, testFile); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
+}
+
+func TestOpenParentDiscarderFilter(t *testing.T) {
+	testOpenParentDiscarderFilter(t, "parent")
+}
+
+func TestOpenGrandParentDiscarderFilter(t *testing.T) {
+	testOpenParentDiscarderFilter(t, "grandparent", "parent")
 }
 
 func TestDiscarderFilterMask(t *testing.T) {
@@ -340,10 +325,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 			time.Sleep(probe.DiscardRetention)
 
 			testFile, testFilePtr, err = test.CreateWithOptions("test-mask", 98, 99, 0o447)
-			if err != nil {
-				return err
-			}
-			return nil
+			return err
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
@@ -376,10 +358,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err = f.Close(); err != nil {
-				return err
-			}
-			return nil
+			return f.Close()
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
@@ -413,10 +392,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, testFile); err != nil {
 		t.Fatal(err)
 	}
@@ -426,10 +402,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, testFile); err != nil {
 		t.Fatal(err)
 	}
@@ -439,10 +412,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, testFile); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
@@ -479,10 +449,7 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, func(d *testDiscarder) bool {
 		e := d.event.(*probe.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
@@ -505,10 +472,7 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, testFile); err == nil {
 		t.Fatalf("shouldn't get an event")
 	}
@@ -553,11 +517,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
-
+		return syscall.Close(fd)
 	}, func(d *testDiscarder) bool {
 		e := d.event.(*probe.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
@@ -583,10 +543,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, testFile); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
@@ -613,10 +570,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err = syscall.Close(fd); err != nil {
-				return err
-			}
-			return nil
+			return syscall.Close(fd)
 		}, newFile); err != nil {
 			discarded = true
 			break

@@ -43,7 +43,7 @@ func TestBasicProcessMessages(t *testing.T) {
 	c[1].Pids = []int32{3}
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 	sysInfo := &model.SystemInfo{}
 	lastCtrRates := util.ExtractContainerRateMetric(c)
 
@@ -325,7 +325,7 @@ func TestContainerProcessChunking(t *testing.T) {
 
 			lastRun := time.Now().Add(-5 * time.Second)
 			syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
-			cfg := config.NewDefaultAgentConfig(false)
+			cfg := config.NewDefaultAgentConfig()
 			sysInfo := &model.SystemInfo{}
 			lastCtrRates := util.ExtractContainerRateMetric(ctrs)
 			cfg.MaxPerMessage = tc.maxSize

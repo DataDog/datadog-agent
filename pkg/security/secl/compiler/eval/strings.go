@@ -6,6 +6,7 @@
 package eval
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/pkg/errors"
@@ -13,8 +14,8 @@ import (
 
 // StringValues describes a set of string values, either regex or scalar
 type StringValues struct {
-	scalars []string
-	regexps []*regexp.Regexp
+	scalars         []string
+	patternMatchers []StringMatcher
 
 	// caches
 	scalarCache map[string]bool
@@ -42,7 +43,7 @@ func (s *StringValues) AppendFieldValue(value FieldValue) error {
 		if err := value.Compile(); err != nil {
 			return err
 		}
-		s.regexps = append(s.regexps, value.Regexp)
+		s.patternMatchers = append(s.patternMatchers, value.StringMatcher)
 	default:
 		str := value.Value.(string)
 		s.scalars = append(s.scalars, str)
@@ -58,15 +59,15 @@ func (s *StringValues) GetScalarValues() []string {
 	return s.scalars
 }
 
-// GetRegexValues return the regex values
-func (s *StringValues) GetRegexValues() []*regexp.Regexp {
-	return s.regexps
+// GetStringMatchers return the pattern matchers
+func (s *StringValues) GetStringMatchers() []StringMatcher {
+	return s.patternMatchers
 }
 
 // SetFieldValues apply field values
 func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	// reset internal caches
-	s.regexps = []*regexp.Regexp{}
+	s.patternMatchers = s.patternMatchers[:0]
 	s.scalarCache = nil
 	s.exists = nil
 
@@ -110,16 +111,97 @@ func (s *StringValues) AppendStringEvaluator(evaluator *StringEvaluator) error {
 	})
 }
 
-// Match returns whether the value matches the string values
-func (s *StringValues) Match(value string) bool {
+// Matches returns whether the value matches the string values
+func (s *StringValues) Matches(value string) bool {
 	if s.scalarCache != nil && s.scalarCache[value] {
 		return true
 	}
-	for _, re := range s.regexps {
-		if re.MatchString(value) {
+	for _, pm := range s.patternMatchers {
+		if pm.Matches(value) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// StringMatcher defines a pattern matcher
+type StringMatcher interface {
+	Compile(pattern string) error
+	Matches(value string) bool
+}
+
+// RegexpStringMatcher defines a regular expression pattern matcher
+type RegexpStringMatcher struct {
+	re *regexp.Regexp
+}
+
+// Compile a regular expression based pattern
+func (r *RegexpStringMatcher) Compile(pattern string) error {
+	if r.re != nil {
+		return nil
+	}
+
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return err
+	}
+	r.re = re
+
+	return nil
+}
+
+// Matches returns whether the value matches
+func (r *RegexpStringMatcher) Matches(value string) bool {
+	return r.re.MatchString(value)
+}
+
+// GlobStringMatcher defines a glob pattern matcher
+type GlobStringMatcher struct {
+	glob *Glob
+}
+
+// Compile a simple pattern
+func (g *GlobStringMatcher) Compile(pattern string) error {
+	if g.glob != nil {
+		return nil
+	}
+
+	glob, err := NewGlob(pattern)
+	if err != nil {
+		return err
+	}
+	g.glob = glob
+
+	return nil
+}
+
+// Matches returns whether the value matches
+func (g *GlobStringMatcher) Matches(value string) bool {
+	return g.glob.Matches(value)
+}
+
+// Contains returns whether the pattern contains the value
+func (g *GlobStringMatcher) Contains(value string) bool {
+	return g.glob.Contains(value)
+}
+
+// NewStringMatcher returns a new string matcher
+func NewStringMatcher(kind FieldValueType, pattern string) (StringMatcher, error) {
+	switch kind {
+	case PatternValueType:
+		var matcher GlobStringMatcher
+		if err := matcher.Compile(pattern); err != nil {
+			return nil, fmt.Errorf("invalid pattern `%s`: %s", pattern, err)
+		}
+		return &matcher, nil
+	case RegexpValueType:
+		var matcher RegexpStringMatcher
+		if err := matcher.Compile(pattern); err != nil {
+			return nil, fmt.Errorf("invalid regexp `%s`: %s", pattern, err)
+		}
+		return &matcher, nil
+	}
+
+	return nil, errors.New("unknown type")
 }

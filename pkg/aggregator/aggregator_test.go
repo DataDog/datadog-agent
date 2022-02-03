@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package aggregator
@@ -521,6 +522,7 @@ func TestAggregatorFlush(t *testing.T) {
 			config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", tt.enabled)
 			s := &MockSerializerIterableSerie{}
 			s.On("SendServiceChecks", mock.Anything).Return(nil)
+			s.On("IsIterableSeriesSupported", mock.Anything).Return(true).Maybe()
 			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 			expectedSeries := flushSomeSamples(agg)
 			assertSeriesEqual(t, s.series, expectedSeries)

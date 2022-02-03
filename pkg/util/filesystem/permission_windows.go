@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build windows
 // +build windows
 
 package filesystem
@@ -60,7 +61,7 @@ func getCurrentUserSid() (*windows.SID, error) {
 	return windows.StringToSid(sidString)
 }
 
-// RestrictAccessToUser restricts the access to the user (chmod 700)
+// RestrictAccessToUser update the ACL of a file so only the current user and ADMIN/SYSTEM can access it
 func (p *Permission) RestrictAccessToUser(path string) error {
 	return acl.Apply(
 		path,

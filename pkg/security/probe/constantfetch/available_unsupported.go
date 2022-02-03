@@ -1,3 +1,4 @@
+//go:build linux && !linux_bpf
 // +build linux,!linux_bpf
 
 package constantfetch

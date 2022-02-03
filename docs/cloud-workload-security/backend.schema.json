@@ -17,12 +17,23 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/BPFEvent"
     },
+    "mmap": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/MMapEvent"
+    },
+    "mprotect": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/MProtectEvent"
+    },
+    "ptrace": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/PTraceEvent"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
     },
     "process": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/ProcessContext"
     },
     "dd": {
@@ -339,6 +350,94 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "MMapEvent": {
+      "required": [
+        "address",
+        "offset",
+        "length",
+        "protection",
+        "flags"
+      ],
+      "properties": {
+        "address": {
+          "type": "string",
+          "description": "memory segment address"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "file offset"
+        },
+        "length": {
+          "type": "integer",
+          "description": "memory segment length"
+        },
+        "protection": {
+          "type": "string",
+          "description": "memory segment protection"
+        },
+        "flags": {
+          "type": "string",
+          "description": "memory segment flags"
+        },
+        "file": {
+          "$ref": "#/definitions/File",
+          "description": "mmaped file"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MProtectEvent": {
+      "required": [
+        "vm_start",
+        "vm_end",
+        "vm_protection",
+        "new_protection"
+      ],
+      "properties": {
+        "vm_start": {
+          "type": "string",
+          "description": "memory segment start address"
+        },
+        "vm_end": {
+          "type": "string",
+          "description": "memory segment end address"
+        },
+        "vm_protection": {
+          "type": "string",
+          "description": "memory segment protection"
+        },
+        "new_protection": {
+          "type": "string",
+          "description": "new memory segment protection"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "PTraceEvent": {
+      "required": [
+        "request",
+        "address"
+      ],
+      "properties": {
+        "request": {
+          "type": "string",
+          "description": "ptrace request"
+        },
+        "address": {
+          "type": "string",
+          "description": "address at which the ptrace request was executed"
+        },
+        "tracee": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/ProcessContext",
+          "description": "process context of the tracee"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "ProcessCacheEntry": {
       "required": [
         "uid",
@@ -411,6 +510,10 @@
         "container": {
           "$ref": "#/definitions/ContainerContext",
           "description": "Container context"
+        },
+        "argv0": {
+          "type": "string",
+          "description": "First command line argument"
         },
         "args": {
           "items": {
@@ -512,6 +615,10 @@
           "$schema": "http://json-schema.org/draft-04/schema#",
           "$ref": "#/definitions/ContainerContext",
           "description": "Container context"
+        },
+        "argv0": {
+          "type": "string",
+          "description": "First command line argument"
         },
         "args": {
           "items": {

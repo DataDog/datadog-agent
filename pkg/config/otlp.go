@@ -29,7 +29,7 @@ func SetupOTLP(config Config) {
 
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in pkg/otlp/config.go
-	config.BindEnv(ExperimentalOTLPTagCardinalityKey, "DD_OTLP_TAG_CARDINALITY")
+	config.BindEnvAndSetDefault(ExperimentalOTLPTagCardinalityKey, "low", "DD_OTLP_TAG_CARDINALITY")
 
 	config.SetKnown(ExperimentalOTLPMetrics)
 	// Set all subkeys of experimental.otlp.metrics as known
