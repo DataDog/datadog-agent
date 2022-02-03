@@ -6,7 +6,6 @@
 package config
 
 import (
-	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
