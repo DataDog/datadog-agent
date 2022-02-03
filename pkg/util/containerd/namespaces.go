@@ -15,10 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func init() {
-	mergeNamespaceConfigs()
-}
-
 // NamespacesToWatch returns the namespaces to watch. If the
 // "containerd_namespace" option has been set, it returns the namespaces it contains.
 // Otherwise, it returns all of them.
@@ -54,27 +50,4 @@ func FiltersWithNamespaces(filters []string) []string {
 	}
 
 	return res
-}
-
-// mergeNamespaceConfig merges and dedupes containerd_namespaces and containerd_namespace
-func mergeNamespaceConfigs() {
-	namespaces := merge(config.Datadog.GetStringSlice("containerd_namespaces"), config.Datadog.GetStringSlice("containerd_namespace"))
-	config.Datadog.Set("containerd_namespaces", namespaces)
-	config.Datadog.Set("containerd_namespace", namespaces)
-}
-
-// merge merges and dedupes 2 slices without changing order
-func merge(s1, s2 []string) []string {
-	dedupe := map[string]struct{}{}
-	merged := []string{}
-
-	for _, elem := range append(s1, s2...) {
-		if _, seen := dedupe[elem]; !seen {
-			merged = append(merged, elem)
-		}
-
-		dedupe[elem] = struct{}{}
-	}
-
-	return merged
 }
