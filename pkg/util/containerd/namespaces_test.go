@@ -13,10 +13,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNamespacesToWatch(t *testing.T) {
@@ -59,11 +59,17 @@ func TestNamespacesToWatch(t *testing.T) {
 	}
 
 	originalContainerdNamespaceOpt := config.Datadog.GetString("containerd_namespace")
-	defer config.Datadog.Set("containerd_namespace", originalContainerdNamespaceOpt)
+	originalContainerdNamespacesOpt := config.Datadog.GetStringSlice("containerd_namespaces")
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			config.Datadog.Set("containerd_namespace", test.containerdNamespaceVal)
+			config.Datadog.Set("containerd_namespaces", test.containerdNamespaceVal)
+
+			defer config.Datadog.Set("containerd_namespace", originalContainerdNamespaceOpt)
+			defer config.Datadog.Set("containerd_namespaces", originalContainerdNamespacesOpt)
+
+			mergeNamespaceConfigs()
+
 			namespaces, err := NamespacesToWatch(context.TODO(), test.client)
 
 			if test.expectsError {
@@ -124,13 +130,69 @@ func TestFiltersWithNamespaces(t *testing.T) {
 	}
 
 	originalContainerdNamespaceOpt := config.Datadog.GetString("containerd_namespace")
-	defer config.Datadog.Set("containerd_namespace", originalContainerdNamespaceOpt)
+	originalContainerdNamespacesOpt := config.Datadog.GetStringSlice("containerd_namespaces")
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			config.Datadog.Set("containerd_namespace", test.containerdNamespaceConfigOpt)
+			config.Datadog.Set("containerd_namespaces", test.containerdNamespaceConfigOpt)
+
+			defer config.Datadog.Set("containerd_namespace", originalContainerdNamespaceOpt)
+			defer config.Datadog.Set("containerd_namespaces", originalContainerdNamespacesOpt)
+
+			mergeNamespaceConfigs()
 			result := FiltersWithNamespaces(test.inputFilters)
 			assert.ElementsMatch(t, test.expectedFilters, result)
+		})
+	}
+}
+
+func Test_merge(t *testing.T) {
+	tests := []struct {
+		name string
+		s1   []string
+		s2   []string
+		want []string
+	}{
+		{
+			name: "nominal case",
+			s1:   []string{"foo", "bar"},
+			s2:   []string{"baz", "tar"},
+			want: []string{"foo", "bar", "baz", "tar"},
+		},
+		{
+			name: "empty s1",
+			s1:   []string{},
+			s2:   []string{"baz", "tar"},
+			want: []string{"baz", "tar"},
+		},
+		{
+			name: "empty s2",
+			s1:   []string{"foo", "bar"},
+			s2:   []string{},
+			want: []string{"foo", "bar"},
+		},
+		{
+			name: "dedupe 1",
+			s1:   []string{"foo", "bar"},
+			s2:   []string{"baz", "foo"},
+			want: []string{"foo", "bar", "baz"},
+		},
+		{
+			name: "dedupe 2",
+			s1:   []string{"foo", "foo"},
+			s2:   []string{"foo", "foo"},
+			want: []string{"foo"},
+		},
+		{
+			name: "dedupe 3",
+			s1:   []string{"foo", "foo"},
+			s2:   []string{"baz", "tar"},
+			want: []string{"foo", "baz", "tar"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.EqualValues(t, tt.want, merge(tt.s1, tt.s2))
 		})
 	}
 }
