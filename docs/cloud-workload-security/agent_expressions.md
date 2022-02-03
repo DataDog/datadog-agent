@@ -150,6 +150,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.args_options` | string | Arguments of the process (as an array) |
 | `process.ancestors.args_truncated` | bool | Indicator of arguments truncation |
 | `process.ancestors.argv` | string | Arguments of the process (as an array) |
+| `process.ancestors.argv0` | string | First argument of the process |
 | `process.ancestors.cap_effective` | int | Effective capability set of the process |
 | `process.ancestors.cap_permitted` | int | Permitted capability set of the process |
 | `process.ancestors.comm` | string | Comm attribute of the process |
@@ -193,6 +194,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.args_options` | string | Arguments of the process (as an array) |
 | `process.args_truncated` | bool | Indicator of arguments truncation |
 | `process.argv` | string | Arguments of the process (as an array) |
+| `process.argv0` | string | First argument of the process |
 | `process.cap_effective` | int | Effective capability set of the process |
 | `process.cap_permitted` | int | Permitted capability set of the process |
 | `process.comm` | string | Comm attribute of the process |
@@ -314,6 +316,7 @@ A process was executed or forked
 | `exec.args_options` | string | Arguments of the process (as an array) |
 | `exec.args_truncated` | bool | Indicator of arguments truncation |
 | `exec.argv` | string | Arguments of the process (as an array) |
+| `exec.argv0` | string | First argument of the process |
 | `exec.cap_effective` | int | Effective capability set of the process |
 | `exec.cap_permitted` | int | Permitted capability set of the process |
 | `exec.comm` | string | Comm attribute of the process |
@@ -490,6 +493,7 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.args_options` | string | Arguments of the process (as an array) |
 | `ptrace.tracee.ancestors.args_truncated` | bool | Indicator of arguments truncation |
 | `ptrace.tracee.ancestors.argv` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.ancestors.argv0` | string | First argument of the process |
 | `ptrace.tracee.ancestors.cap_effective` | int | Effective capability set of the process |
 | `ptrace.tracee.ancestors.cap_permitted` | int | Permitted capability set of the process |
 | `ptrace.tracee.ancestors.comm` | string | Comm attribute of the process |
@@ -533,6 +537,7 @@ A ptrace command was executed
 | `ptrace.tracee.args_options` | string | Arguments of the process (as an array) |
 | `ptrace.tracee.args_truncated` | bool | Indicator of arguments truncation |
 | `ptrace.tracee.argv` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.argv0` | string | First argument of the process |
 | `ptrace.tracee.cap_effective` | int | Effective capability set of the process |
 | `ptrace.tracee.cap_permitted` | int | Permitted capability set of the process |
 | `ptrace.tracee.comm` | string | Comm attribute of the process |

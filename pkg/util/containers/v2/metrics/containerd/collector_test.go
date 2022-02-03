@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -191,7 +192,6 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 							WriteOperations: util.Float64Ptr(1),
 						},
 					},
-					OpenFiles: util.Float64Ptr(0), // Not checked in this test
 				},
 			},
 		},
@@ -319,36 +319,6 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 			},
 		},
 		{
-			name: "Linux with interface mapping",
-			containerdMetrics: &types.Metric{
-				Data: linuxMetricsAny,
-			},
-			interfaceMapping: map[string]string{
-				"interface-1": "custom-1",
-				"interface-2": "custom-2",
-			},
-			expectedNetworkStats: &provider.ContainerNetworkStats{
-				BytesSent:   util.Float64Ptr(220),
-				BytesRcvd:   util.Float64Ptr(110),
-				PacketsSent: util.Float64Ptr(22),
-				PacketsRcvd: util.Float64Ptr(11),
-				Interfaces: map[string]provider.InterfaceNetStats{
-					"custom-1": {
-						BytesSent:   util.Float64Ptr(20),
-						BytesRcvd:   util.Float64Ptr(10),
-						PacketsSent: util.Float64Ptr(2),
-						PacketsRcvd: util.Float64Ptr(1),
-					},
-					"custom-2": {
-						BytesSent:   util.Float64Ptr(200),
-						BytesRcvd:   util.Float64Ptr(100),
-						PacketsSent: util.Float64Ptr(20),
-						PacketsRcvd: util.Float64Ptr(10),
-					},
-				},
-			},
-		},
-		{
 			name: "Windows",
 			containerdMetrics: &types.Metric{
 				Data: windowsMetricsAny,
@@ -380,7 +350,7 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 			}
 
 			// ID and cache TTL not relevant for these tests
-			result, err := collector.GetContainerNetworkStats(containerID, 10*time.Second, test.interfaceMapping)
+			result, err := collector.GetContainerNetworkStats(containerID, 10*time.Second)
 
 			assert.NoError(t, err)
 			assert.Empty(t, cmp.Diff(test.expectedNetworkStats, result))

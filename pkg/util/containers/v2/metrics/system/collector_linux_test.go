@@ -22,17 +22,19 @@ import (
 func TestBuildContainerMetrics(t *testing.T) {
 	tests := []struct {
 		name string
-		cgs  cgroups.Stats
+		cg   cgroups.Cgroup
 		want *provider.ContainerStats
 	}{
 		{
 			name: "everything empty",
-			cgs:  cgroups.Stats{},
-			want: &provider.ContainerStats{},
+			cg:   &cgroups.MockCgroup{},
+			want: &provider.ContainerStats{
+				PID: &provider.ContainerPIDStats{},
+			},
 		},
 		{
 			name: "structs with all stats",
-			cgs: cgroups.Stats{
+			cg: &cgroups.MockCgroup{
 				CPU: &cgroups.CPUStats{
 					Total:            util.UInt64Ptr(100),
 					System:           util.UInt64Ptr(200),
@@ -55,7 +57,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 					Swap:         util.UInt64Ptr(0),
 					OOMEvents:    util.UInt64Ptr(10),
 				},
-				IO: &cgroups.IOStats{
+				IOStats: &cgroups.IOStats{
 					ReadBytes:       util.UInt64Ptr(100),
 					WriteBytes:      util.UInt64Ptr(200),
 					ReadOperations:  util.UInt64Ptr(10),
@@ -70,11 +72,11 @@ func TestBuildContainerMetrics(t *testing.T) {
 						},
 					},
 				},
-				PID: &cgroups.PIDStats{
-					PIDs:                    []int{4, 2},
+				PIDStats: &cgroups.PIDStats{
 					HierarchicalThreadCount: util.UInt64Ptr(10),
 					HierarchicalThreadLimit: util.UInt64Ptr(20),
 				},
+				PIDs: []int{4, 2},
 			},
 			want: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
@@ -112,7 +114,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 		},
 		{
 			name: "limit cpu count no quota",
-			cgs: cgroups.Stats{
+			cg: &cgroups.MockCgroup{
 				CPU: &cgroups.CPUStats{
 					CPUCount: util.UInt64Ptr(10),
 				},
@@ -121,25 +123,28 @@ func TestBuildContainerMetrics(t *testing.T) {
 				CPU: &provider.ContainerCPUStats{
 					Limit: util.Float64Ptr(1000),
 				},
+				PID: &provider.ContainerPIDStats{},
 			},
 		},
 		{
 			name: "limit no cpu count, no quota",
-			cgs: cgroups.Stats{
+			cg: &cgroups.MockCgroup{
 				CPU: &cgroups.CPUStats{},
 			},
 			want: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
 					Limit: util.Float64Ptr(float64(utilsystem.HostCPUCount()) * 100),
 				},
+				PID: &provider.ContainerPIDStats{},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &cgroupCollector{}
-			got := c.buildContainerMetrics(tt.cgs)
+			c := &systemCollector{}
+			got, err := c.buildContainerMetrics(tt.cg, 0)
+			assert.NoError(t, err)
 			tt.want.Timestamp = got.Timestamp
 			assert.Empty(t, cmp.Diff(tt.want, got))
 		})

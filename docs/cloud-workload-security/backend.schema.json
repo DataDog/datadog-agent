@@ -511,6 +511,10 @@
           "$ref": "#/definitions/ContainerContext",
           "description": "Container context"
         },
+        "argv0": {
+          "type": "string",
+          "description": "First command line argument"
+        },
         "args": {
           "items": {
             "type": "string"
@@ -611,6 +615,10 @@
           "$schema": "http://json-schema.org/draft-04/schema#",
           "$ref": "#/definitions/ContainerContext",
           "description": "Container context"
+        },
+        "argv0": {
+          "type": "string",
+          "description": "First command line argument"
         },
         "args": {
           "items": {

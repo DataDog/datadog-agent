@@ -413,9 +413,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 	}
 
-	if c.Namespace == "" {
-		// Can only happen if snmp_listener.namespace config is set to empty string in `datadog.yaml`
-		return nil, fmt.Errorf("namespace cannot be empty")
+	c.Namespace, err = common.NormalizeNamespace(c.Namespace)
+	if err != nil {
+		return nil, err
 	}
 
 	// profile configs

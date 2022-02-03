@@ -50,11 +50,6 @@ const (
 	PodCheckName         = "pod"
 	DiscoveryCheckName   = "process_discovery"
 
-	NetworkCheckName        = "Network"
-	OOMKillCheckName        = "OOM Kill"
-	TCPQueueLengthCheckName = "TCP queue length"
-	ProcessModuleCheckName  = "Process Module"
-
 	ProcessCheckDefaultInterval          = 10 * time.Second
 	RTProcessCheckDefaultInterval        = 2 * time.Second
 	ContainerCheckDefaultInterval        = 10 * time.Second
@@ -64,43 +59,17 @@ const (
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 )
 
-var (
-	processChecks   = []string{ProcessCheckName, RTProcessCheckName}
-	containerChecks = []string{ContainerCheckName, RTContainerCheckName}
-
-	moduleCheckMap = map[sysconfig.ModuleName][]string{
-		sysconfig.NetworkTracerModule:        {ConnectionsCheckName, NetworkCheckName},
-		sysconfig.OOMKillProbeModule:         {OOMKillCheckName},
-		sysconfig.TCPQueueLengthTracerModule: {TCPQueueLengthCheckName},
-		sysconfig.ProcessModule:              {ProcessModuleCheckName},
-	}
-)
-
 type proxyFunc func(*http.Request) (*url.URL, error)
 
 type cmdFunc = func(name string, arg ...string) *exec.Cmd
-
-// WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
-type WindowsConfig struct {
-	// Number of checks runs between refreshes of command-line arguments
-	ArgsRefreshInterval int
-	// Controls getting process arguments immediately when a new process is discovered
-	AddNewArgs bool
-	// UsePerfCounters enables new process check using performance counters for process collection
-	UsePerfCounters bool
-}
 
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 //
 // Deprecated. Use `pkg/config` directly.
 type AgentConfig struct {
-	Enabled                   bool
 	HostName                  string
 	APIEndpoints              []apicfg.Endpoint
-	QueueSize                 int // The number of items allowed in each delivery queue.
-	RTQueueSize               int // the number of items allowed in real-time delivery queue
-	ProcessQueueBytes         int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
 	Blacklist                 []*regexp.Regexp
 	Scrubber                  *DataScrubber
 	MaxPerMessage             int
@@ -123,19 +92,10 @@ type AgentConfig struct {
 	Orchestrator *oconfig.OrchestratorConfig
 
 	// Check config
-	EnabledChecks  []string
 	CheckIntervals map[string]time.Duration
 
 	// Internal store of a proxy used for generating the Transport
 	proxy proxyFunc
-
-	// Windows-specific config
-	Windows WindowsConfig
-}
-
-// CheckIsEnabled returns a bool indicating if the given check name is enabled.
-func (a AgentConfig) CheckIsEnabled(checkName string) bool {
-	return util.StringInSlice(a.EnabledChecks, checkName)
 }
 
 // CheckInterval returns the interval for the given check name, defaulting to 10s if not found.
@@ -171,28 +131,15 @@ func NewDefaultTransport() *http.Transport {
 }
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
-func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
+func NewDefaultAgentConfig() *AgentConfig {
 	processEndpoint, err := url.Parse(defaultProcessEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail
 		panic(err)
 	}
 
-	var enabledChecks []string
-	if canAccessContainers {
-		enabledChecks = containerChecks
-	}
-
 	ac := &AgentConfig{
-		Enabled:      canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
-
-		// Allow buffering up to 60 megabytes of payload data in total
-		ProcessQueueBytes: 60 * 1000 * 1000,
-		// This can be fairly high as the input should get throttled by queue bytes first.
-		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
-		QueueSize:   256,
-		RTQueueSize: 5, // We set a small queue size for real-time message queue because they get staled very quickly, thus we only keep the latest several payloads
 
 		MaxPerMessage:             maxMessageBatch,
 		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
@@ -210,7 +157,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
 
 		// Check config
-		EnabledChecks: enabledChecks,
 		CheckIntervals: map[string]time.Duration{
 			ProcessCheckName:     ProcessCheckDefaultInterval,
 			RTProcessCheckName:   RTProcessCheckDefaultInterval,
@@ -224,12 +170,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// DataScrubber to hide command line sensitive words
 		Scrubber:  NewDefaultDataScrubber(),
 		Blacklist: make([]*regexp.Regexp, 0),
-
-		// Windows process config
-		Windows: WindowsConfig{
-			ArgsRefreshInterval: 15, // with default 20s check interval we refresh every 5m
-			AddNewArgs:          true,
-		},
 	}
 
 	// Set default values for proc/sys paths if unset.
@@ -269,10 +209,10 @@ func LoadConfigIfExists(path string) error {
 
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config, canAccessContainers bool) (*AgentConfig, error) {
+func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config) (*AgentConfig, error) {
 	var err error
 
-	cfg := NewDefaultAgentConfig(canAccessContainers)
+	cfg := NewDefaultAgentConfig()
 
 	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
 		return nil, err
@@ -293,18 +233,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 		cfg.EnableSystemProbe = true
 		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = syscfg.SocketAddress
-
-		// enable corresponding checks to system-probe modules
-		for mod := range syscfg.EnabledModules {
-			if checks, ok := moduleCheckMap[mod]; ok {
-				cfg.EnabledChecks = append(cfg.EnabledChecks, checks...)
-			}
-		}
-
-		if !cfg.Enabled {
-			log.Info("enabling process-agent for connections check as the system-probe is enabled")
-			cfg.Enabled = true
-		}
 	}
 
 	// TODO: Once proxies have been moved to common config util, remove this
@@ -328,22 +256,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 
 	if cfg.proxy != nil {
 		cfg.Transport.Proxy = cfg.proxy
-	}
-
-	// sanity check. This element is used with the modulo operator (%), so it can't be zero.
-	// if it is, log the error, and assume the config was attempting to disable
-	if cfg.Windows.ArgsRefreshInterval == 0 {
-		log.Warnf("invalid configuration: windows_collect_skip_new_args was set to 0.  Disabling argument collection")
-		cfg.Windows.ArgsRefreshInterval = -1
-	}
-
-	// activate the pod collection if enabled and we have the cluster name set
-	if cfg.Orchestrator.OrchestrationCollectionEnabled {
-		if cfg.Orchestrator.KubeClusterName != "" {
-			cfg.EnabledChecks = append(cfg.EnabledChecks, PodCheckName)
-		} else {
-			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
-		}
 	}
 
 	return cfg, nil
@@ -388,7 +300,6 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
-		{"DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS", "process_config.windows.use_perf_counters"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_BIND_HOST", "bind_host"},

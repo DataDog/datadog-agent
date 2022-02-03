@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -203,7 +204,6 @@ func StartAgent() error {
 		if loggerSetupErr == nil {
 			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
-				config.Datadog.GetString("log_level"),
 				jmxLogFile,
 				syslogURI,
 				config.Datadog.GetBool("syslog_rfc"),
@@ -227,7 +227,6 @@ func StartAgent() error {
 		if loggerSetupErr == nil {
 			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
-				config.Datadog.GetString("log_level"),
 				"", // no log file on android
 				"", // no syslog on android,
 				false,
@@ -385,7 +384,9 @@ func StartAgent() error {
 	}
 
 	// Start OTLP intake
-	if otlp.IsEnabled(config.Datadog) {
+	otlpEnabled := otlp.IsEnabled(config.Datadog)
+	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
+	if otlpEnabled {
 		var err error
 		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog, demux.Serializer())
 		if err != nil {
@@ -433,7 +434,7 @@ func StartAgent() error {
 	util.LogVersionHistory()
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 

@@ -43,6 +43,11 @@
           "definition": "Arguments of the process (as an array)"
         },
         {
+          "name": "process.ancestors.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
+        },
+        {
           "name": "process.ancestors.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process"
@@ -256,6 +261,11 @@
           "name": "process.argv",
           "type": "string",
           "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "process.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
         },
         {
           "name": "process.cap_effective",
@@ -731,6 +741,11 @@
           "name": "exec.argv",
           "type": "string",
           "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "exec.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
         },
         {
           "name": "exec.cap_effective",
@@ -1427,6 +1442,11 @@
           "definition": "Arguments of the process (as an array)"
         },
         {
+          "name": "ptrace.tracee.ancestors.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
+        },
+        {
           "name": "ptrace.tracee.ancestors.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process"
@@ -1640,6 +1660,11 @@
           "name": "ptrace.tracee.argv",
           "type": "string",
           "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.tracee.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
         },
         {
           "name": "ptrace.tracee.cap_effective",
