@@ -281,7 +281,7 @@ func TestGetAPIEndpoints(t *testing.T) {
 // TestGetAPIEndpointsSite is a test for GetAPIEndpoints. It makes sure that the deprecated `site` setting still works
 func TestGetAPIEndpointsSite(t *testing.T) {
 	for _, tc := range []struct {
-		name, site, ddUrl, expectedHostname string
+		name, site, ddURL, expectedHostname string
 	}{
 		{
 			name:             "site only",
@@ -290,13 +290,13 @@ func TestGetAPIEndpointsSite(t *testing.T) {
 		},
 		{
 			name:             "dd_url only",
-			ddUrl:            "https://process.datadoghq.eu",
+			ddURL:            "https://process.datadoghq.eu",
 			expectedHostname: "process.datadoghq.eu",
 		},
 		{
 			name:             "both site and dd_url",
 			site:             "datacathq.eu",
-			ddUrl:            "https://burrito.com",
+			ddURL:            "https://burrito.com",
 			expectedHostname: "burrito.com",
 		},
 	} {
@@ -305,8 +305,8 @@ func TestGetAPIEndpointsSite(t *testing.T) {
 			if tc.site != "" {
 				cfg.Set("site", tc.site)
 			}
-			if tc.ddUrl != "" {
-				cfg.Set("process_config.process_dd_url", tc.ddUrl)
+			if tc.ddURL != "" {
+				cfg.Set("process_config.process_dd_url", tc.ddURL)
 			}
 
 			eps, err := getAPIEndpoints()
