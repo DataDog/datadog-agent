@@ -105,7 +105,7 @@ func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf
 		cCode: cCode,
 	}
 	runtimeCompiler := runtime.NewRuntimeCompiler()
-	reader, err := runtimeCompiler.CompileObjectFile(config, additionalFlags, "constant_fetcher.c", provider)
+	reader, err := runtimeCompiler.CompileObjectFile(config, nil, "constant_fetcher.c", provider)
 
 	telemetry := runtimeCompiler.GetRCTelemetry()
 	if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
@@ -161,15 +161,6 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 	return cf.result, nil
 }
 
-var additionalFlags = []string{
-	"-D__KERNEL__",
-	"-fno-stack-protector",
-	"-fno-color-diagnostics",
-	"-fno-unwind-tables",
-	"-fno-asynchronous-unwind-tables",
-	"-fno-jump-tables",
-}
-
 type constantFetcherRCProvider struct {
 	cCode string
 }
@@ -178,14 +169,14 @@ func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runt
 	return strings.NewReader(p.cCode), nil
 }
 
-func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
+func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
 	hasher := sha256.New()
 	if _, err := hasher.Write([]byte(a.cCode)); err != nil {
 		return "", err
 	}
 	cCodeHash := hasher.Sum(nil)
 
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHash, flagHash)), nil
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s.o", kernelVersion, cCodeHash)), nil
 }
 
 func sortAndDedup(in []string) []string {
