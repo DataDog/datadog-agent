@@ -247,9 +247,9 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_AGENT_URL",
 			value:    "datacat.com",
 			expected: "datacat.com",
-    },
+		},
 		{
-      key:      "process_config.internal_profiling.enabled",
+			key:      "process_config.internal_profiling.enabled",
 			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
 			value:    "true",
 			expected: true,
