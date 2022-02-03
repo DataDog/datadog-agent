@@ -6,7 +6,8 @@
 package netflow
 
 const (
-	defaultPort        = uint16(162) // Standard UDP port for traps.
+	defaultPortNETFLOW = uint16(2055)
+	defaultPortIPFIX = uint16(4739)
+	defaultPortSFLOW = uint16(6343)
 	defaultStopTimeout = 5
-	packetsChanSize    = 100
 )

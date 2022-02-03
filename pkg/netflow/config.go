@@ -33,14 +33,9 @@ func ReadConfig() (*Config, error) {
 		return nil, err
 	}
 
-	// Validate required fields.
-	//if c.CommunityStrings == nil || len(c.CommunityStrings) == 0 {
-	//	return nil, errors.New("`community_strings` is required and must be non-empty")
-	//}
-
 	// Set defaults.
 	if c.Port == 0 {
-		c.Port = defaultPort
+		c.Port = defaultPortNETFLOW
 	}
 	if c.BindHost == "" {
 		// Default to global bind_host option.
@@ -57,13 +52,3 @@ func ReadConfig() (*Config, error) {
 func (c *Config) Addr() string {
 	return fmt.Sprintf("%s:%d", c.BindHost, c.Port)
 }
-
-//// BuildV2Params returns a valid GoSNMP SNMPv2 params structure from configuration.
-//func (c *Config) BuildV2Params() *gosnmp.GoSNMP {
-//	return &gosnmp.GoSNMP{
-//		Port:      c.Port,
-//		Transport: "udp",
-//		//Version:   gosnmp.Version2c,
-//		//Logger:    gosnmp.NewLogger(&trapLogger{}),
-//	}
-//}

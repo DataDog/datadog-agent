@@ -25,15 +25,11 @@ type SnmpPacket struct {
 	Addr    *net.UDPAddr
 }
 
-// PacketsChannel is the type of channels of trap packets.
-type PacketsChannel = chan *SnmpPacket
-
 // NfCollector manages an SNMPv2 trap listener.
 type NfCollector struct {
 	Addr          string
 	config        *Config
 	listener      *utils.StateNetFlow
-	packets       PacketsChannel
 	demultiplexer aggregator.Demultiplexer
 }
 
@@ -61,11 +57,6 @@ func IsRunning() bool {
 	return serverInstance != nil
 }
 
-// GetPacketsChannel returns a channel containing all received trap packets.
-func GetPacketsChannel() PacketsChannel {
-	return serverInstance.packets
-}
-
 // NewNetflowServer configures and returns a running SNMP traps server.
 func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*NfCollector, error) {
 	config, err := ReadConfig()
@@ -73,9 +64,7 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*NfCollector, err
 		return nil, err
 	}
 
-	packets := make(PacketsChannel, packetsChanSize)
-
-	listener, err := startSNMPv2Listener(config, packets, demultiplexer)
+	listener, err := startSNMPv2Listener(config, demultiplexer)
 	if err != nil {
 		return nil, err
 	}
@@ -83,23 +72,16 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*NfCollector, err
 	server := &NfCollector{
 		listener:      listener,
 		config:        config,
-		packets:       packets,
 		demultiplexer: demultiplexer,
 	}
 
 	return server, nil
 }
 
-func startSNMPv2Listener(c *Config, packets PacketsChannel, demultiplexer aggregator.Demultiplexer) (*utils.StateNetFlow, error) {
+func startSNMPv2Listener(c *Config, demultiplexer aggregator.Demultiplexer) (*utils.StateNetFlow, error) {
 	log.Warn("Starting Netflow Server")
 	agg := demultiplexer.Aggregator()
 	metricChan := agg.GetBufferedMetricsWithTsChannel()
-
-	//d := &metric.MetricDriver{
-	//	Lock: &sync.RWMutex{},
-	//	MetricChan: metricChan,
-	//}
-	//transport.RegisterTransportDriver("metric", d)
 
 	d := &Driver{
 		MetricChan: metricChan,
@@ -149,7 +131,4 @@ func (s *NfCollector) Stop() {
 	case <-time.After(time.Duration(s.config.StopTimeout) * time.Second):
 		log.Errorf("Stopping server. Timeout after %d seconds", s.config.StopTimeout)
 	}
-
-	// Let consumers know that we will not be sending any more packets.
-	close(s.packets)
 }
