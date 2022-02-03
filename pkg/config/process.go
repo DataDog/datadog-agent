@@ -104,7 +104,7 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
-	config.SetKnown("process_config.internal_profiling.enabled")
+	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
 	procBindEnvAndSetDefault(config, "process_config.remote_tagger", false)
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)

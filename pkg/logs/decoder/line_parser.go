@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,13 +23,13 @@ type LineParser interface {
 // SingleLineParser makes sure that multiple lines from a same content
 // are properly put together.
 type SingleLineParser struct {
-	parser      parser.Parser
+	parser      parsers.Parser
 	inputChan   chan *DecodedInput
 	lineHandler LineHandler
 }
 
 // NewSingleLineParser returns a new SingleLineParser.
-func NewSingleLineParser(parser parser.Parser, lineHandler LineHandler) *SingleLineParser {
+func NewSingleLineParser(parser parsers.Parser, lineHandler LineHandler) *SingleLineParser {
 	return &SingleLineParser{
 		parser:      parser,
 		inputChan:   make(chan *DecodedInput),
@@ -63,11 +63,11 @@ func (p *SingleLineParser) run() {
 
 func (p *SingleLineParser) process(input *DecodedInput) {
 	// Just parse an pass to the next step
-	content, status, timestamp, _, err := p.parser.Parse(input.content)
+	msg, err := p.parser.Parse(input.content)
 	if err != nil {
 		log.Debug(err)
 	}
-	p.lineHandler.Handle(NewMessage(content, status, input.rawDataLen, timestamp))
+	p.lineHandler.Handle(NewMessage(msg.Content, msg.Status, input.rawDataLen, msg.Timestamp))
 }
 
 // MultiLineParser makes sure that chunked lines are properly put together.
@@ -76,7 +76,7 @@ type MultiLineParser struct {
 	flushTimeout time.Duration
 	inputChan    chan *DecodedInput
 	lineHandler  LineHandler
-	parser       parser.Parser
+	parser       parsers.Parser
 	rawDataLen   int
 	lineLimit    int
 	status       string
@@ -84,7 +84,7 @@ type MultiLineParser struct {
 }
 
 // NewMultiLineParser returns a new MultiLineParser.
-func NewMultiLineParser(flushTimeout time.Duration, parser parser.Parser, lineHandler LineHandler, lineLimit int) *MultiLineParser {
+func NewMultiLineParser(flushTimeout time.Duration, parser parsers.Parser, lineHandler LineHandler, lineLimit int) *MultiLineParser {
 	return &MultiLineParser{
 		inputChan:    make(chan *DecodedInput),
 		buffer:       bytes.NewBuffer(nil),
@@ -151,18 +151,18 @@ func (p *MultiLineParser) run() {
 
 // process buffers and aggregates partial lines
 func (p *MultiLineParser) process(input *DecodedInput) {
-	content, status, timestamp, partial, err := p.parser.Parse(input.content)
+	msg, err := p.parser.Parse(input.content)
 	if err != nil {
 		log.Debug(err)
 	}
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
 	p.rawDataLen += input.rawDataLen
-	p.timestamp = timestamp
-	p.status = status
-	p.buffer.Write(content)
+	p.timestamp = msg.Timestamp
+	p.status = msg.Status
+	p.buffer.Write(msg.Content)
 
-	if !partial || p.buffer.Len() >= p.lineLimit {
+	if !msg.IsPartial || p.buffer.Len() >= p.lineLimit {
 		// the current chunk marks the end of an aggregated line
 		p.sendLine()
 	}

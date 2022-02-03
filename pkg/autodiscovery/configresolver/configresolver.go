@@ -66,7 +66,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		ADIdentifiers:   tpl.ADIdentifiers,
 		ClusterCheck:    tpl.ClusterCheck,
 		Provider:        tpl.Provider,
-		Entity:          svc.GetEntity(),
+		ServiceID:       svc.GetServiceID(),
 		CreationTime:    svc.GetCreationTime(),
 		NodeName:        tpl.NodeName,
 		Source:          tpl.Source,
@@ -106,17 +106,17 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 
 	if err := SubstituteTemplateEnvVars(&resolvedConfig); err != nil {
 		// We add the service name to the error here, since SubstituteTemplateEnvVars doesn't know about that
-		return resolvedConfig, "", fmt.Errorf("%w, skipping service %s", err, svc.GetEntity())
+		return resolvedConfig, "", fmt.Errorf("%w, skipping service %s", err, svc.GetServiceID())
 	}
 
 	tags, tagsHash, err := svc.GetTags()
 	if err != nil {
-		return resolvedConfig, "", fmt.Errorf("couldn't get tags for service '%s', err: %w", svc.GetEntity(), err)
+		return resolvedConfig, "", fmt.Errorf("couldn't get tags for service '%s', err: %w", svc.GetServiceID(), err)
 	}
 
 	if !tpl.IgnoreAutodiscoveryTags {
 		if err := addServiceTags(&resolvedConfig, tags); err != nil {
-			return resolvedConfig, "", fmt.Errorf("unable to add tags for service '%s', err: %w", svc.GetEntity(), err)
+			return resolvedConfig, "", fmt.Errorf("unable to add tags for service '%s', err: %w", svc.GetServiceID(), err)
 		}
 	}
 
@@ -204,10 +204,10 @@ func addServiceTags(resolvedConfig *integration.Config, tags []string) error {
 func getHost(ctx context.Context, tplVar []byte, svc listeners.Service) ([]byte, error) {
 	hosts, err := svc.GetHosts(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %s", svc.GetEntity(), err)
+		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %s", svc.GetServiceID(), err)
 	}
 	if len(hosts) == 0 {
-		return nil, fmt.Errorf("no network found for container %s, ignoring it", svc.GetEntity())
+		return nil, fmt.Errorf("no network found for container %s, ignoring it", svc.GetServiceID())
 	}
 
 	// a network was specified
@@ -220,7 +220,7 @@ func getHost(ctx context.Context, tplVar []byte, svc listeners.Service) ([]byte,
 	// otherwise use fallback policy
 	ip, err := getFallbackHost(hosts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Source error: %s", svc.GetEntity(), err)
+		return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Source error: %s", svc.GetServiceID(), err)
 	}
 
 	return []byte(ip), nil
@@ -250,9 +250,9 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 func getPort(ctx context.Context, tplVar []byte, svc listeners.Service) ([]byte, error) {
 	ports, err := svc.GetPorts(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %s", svc.GetEntity(), err)
+		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %s", svc.GetServiceID(), err)
 	} else if len(ports) == 0 {
-		return nil, fmt.Errorf("no port found for container %s - ignoring it", svc.GetEntity())
+		return nil, fmt.Errorf("no port found for container %s - ignoring it", svc.GetServiceID())
 	}
 
 	if len(tplVar) == 0 {
@@ -267,10 +267,10 @@ func getPort(ctx context.Context, tplVar []byte, svc listeners.Service) ([]byte,
 				return []byte(strconv.Itoa(port.Port)), nil
 			}
 		}
-		return nil, fmt.Errorf("port %s not found, skipping container %s", string(tplVar), svc.GetEntity())
+		return nil, fmt.Errorf("port %s not found, skipping container %s", string(tplVar), svc.GetServiceID())
 	}
 	if len(ports) <= idx {
-		return nil, fmt.Errorf("index given for the port template var is too big, skipping container %s", svc.GetEntity())
+		return nil, fmt.Errorf("index given for the port template var is too big, skipping container %s", svc.GetServiceID())
 	}
 	return []byte(strconv.Itoa(ports[idx].Port)), nil
 }
@@ -279,7 +279,7 @@ func getPort(ctx context.Context, tplVar []byte, svc listeners.Service) ([]byte,
 func getPid(ctx context.Context, _ []byte, svc listeners.Service) ([]byte, error) {
 	pid, err := svc.GetPid(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get pid for service %s, skipping config - %s", svc.GetEntity(), err)
+		return nil, fmt.Errorf("failed to get pid for service %s, skipping config - %s", svc.GetServiceID(), err)
 	}
 	return []byte(strconv.Itoa(pid)), nil
 }
@@ -289,7 +289,7 @@ func getPid(ctx context.Context, _ []byte, svc listeners.Service) ([]byte, error
 func getHostname(ctx context.Context, tplVar []byte, svc listeners.Service) ([]byte, error) {
 	name, err := svc.GetHostname(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetEntity(), err)
+		return nil, fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetServiceID(), err)
 	}
 	return []byte(name), nil
 }
@@ -302,7 +302,7 @@ func getHostname(ctx context.Context, tplVar []byte, svc listeners.Service) ([]b
 func getAdditionalTplVariables(_ context.Context, tplVar []byte, svc listeners.Service) ([]byte, error) {
 	value, err := svc.GetExtraConfig(tplVar)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get extra info for service %s, skipping config - %s", svc.GetEntity(), err)
+		return nil, fmt.Errorf("failed to get extra info for service %s, skipping config - %s", svc.GetServiceID(), err)
 	}
 	return value, nil
 }
