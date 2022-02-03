@@ -6,7 +6,7 @@
 //go:build orchestrator
 // +build orchestrator
 
-package orchestrator
+package k8s
 
 import (
 	"fmt"
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -21,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func TestExtractPodMessage(t *testing.T) {
+func TestExtractPod(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 
 	parseRequests := resource.MustParse("250M")
@@ -400,7 +401,7 @@ func TestExtractPodMessage(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, extractPodMessage(&tc.input))
+			assert.Equal(t, &tc.expected, ExtractPod(&tc.input))
 		})
 	}
 }
@@ -562,7 +563,7 @@ func TestComputeStatus(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {
-			assert.EqualValues(t, tc.status, ComputeStatus(tc.pod))
+			assert.EqualValues(t, tc.status, computeStatus(tc.pod))
 		})
 	}
 }
@@ -602,7 +603,7 @@ func TestFillPodResourceVersion(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			err := fillPodResourceVersion(tc.input)
+			err := FillK8sPodResourceVersion(tc.input)
 			assert.NoError(t, err)
 			assert.Equal(t, "4669378970017265057", tc.input.Metadata.ResourceVersion)
 		})
@@ -672,68 +673,9 @@ func TestGetConditionMessage(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {
-			assert.EqualValues(t, tc.message, GetConditionMessage(tc.pod))
+			assert.EqualValues(t, tc.message, getConditionMessage(tc.pod))
 		})
 	}
-}
-
-func TestChunkPods(t *testing.T) {
-	pods := []*model.Pod{
-		{
-			Metadata: &model.Metadata{
-				Uid: "1",
-			},
-		},
-		{
-			Metadata: &model.Metadata{
-				Uid: "2",
-			},
-		},
-		{
-			Metadata: &model.Metadata{
-				Uid: "3",
-			},
-		},
-		{
-			Metadata: &model.Metadata{
-				Uid: "4",
-			},
-		},
-		{
-			Metadata: &model.Metadata{
-				Uid: "5",
-			},
-		},
-	}
-	expected := [][]*model.Pod{
-		{{
-			Metadata: &model.Metadata{
-				Uid: "1",
-			},
-		},
-			{
-				Metadata: &model.Metadata{
-					Uid: "2",
-				},
-			}},
-		{{
-			Metadata: &model.Metadata{
-				Uid: "3",
-			},
-		},
-			{
-				Metadata: &model.Metadata{
-					Uid: "4",
-				},
-			}},
-		{{
-			Metadata: &model.Metadata{
-				Uid: "5",
-			},
-		}},
-	}
-	actual := chunkPods(pods, 3, 2)
-	assert.ElementsMatch(t, expected, actual)
 }
 
 func TestGenerateUniqueStaticPodHash(t *testing.T) {
@@ -742,8 +684,8 @@ func TestGenerateUniqueStaticPodHash(t *testing.T) {
 	namespace := "kube-system"
 	clusterName := "something"
 
-	uniqueHash := generateUniqueStaticPodHash(hostName, podName, namespace, clusterName)
-	uniqueHashAgain := generateUniqueStaticPodHash(hostName, podName, namespace, clusterName)
+	uniqueHash := GenerateUniqueK8sStaticPodHash(hostName, podName, namespace, clusterName)
+	uniqueHashAgain := GenerateUniqueK8sStaticPodHash(hostName, podName, namespace, clusterName)
 
 	assert.Equal(t, uniqueHash, uniqueHashAgain)
 }
@@ -754,7 +696,7 @@ func TestGenerateUniqueStaticPodHashHardCoded(t *testing.T) {
 	namespace := "kube-system"
 	clusterName := "something"
 
-	uniqueHash := generateUniqueStaticPodHash(hostName, podName, namespace, clusterName)
+	uniqueHash := GenerateUniqueK8sStaticPodHash(hostName, podName, namespace, clusterName)
 	expectedHash := "b9d79449507ade06"
 
 	assert.Equal(t, uniqueHash, expectedHash)
