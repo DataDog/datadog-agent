@@ -69,13 +69,13 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 }
 
 // flush flushes the TimeSampler data into the serializer.
-func (f *timeSamplerWorker) flush(start time.Time, waitForSerializer bool) {
+func (w *timeSamplerWorker) flush(start time.Time, waitForSerializer bool) {
 	trigger := flushTrigger{time: start}
 	if waitForSerializer {
 		trigger.blockChan = make(chan struct{})
 	}
 
-	f.flushChan <- trigger
+	w.flushChan <- trigger
 
 	if waitForSerializer {
 		<-trigger.blockChan
@@ -88,55 +88,55 @@ func (f *timeSamplerWorker) flush(start time.Time, waitForSerializer bool) {
 // not sampler level).
 // If we want to move to a design where we can flush while we are processing samples,
 // we could consider implementing double-buffering or locking for every sample reception.
-func (f *timeSamplerWorker) run() {
+func (w *timeSamplerWorker) run() {
 	var tickerChan <-chan time.Time
-	if f.flushInterval > 0 {
-		tickerChan = time.NewTicker(f.flushInterval).C
+	if w.flushInterval > 0 {
+		tickerChan = time.NewTicker(w.flushInterval).C
 	} else {
-		log.Debugf("Time Sampler #%d - flushInterval set to 0: it won't automatically flush", f.sampler.id)
+		log.Debugf("Time Sampler #%d - flushInterval set to 0: it won't automatically flush", w.sampler.id)
 	}
 
 	for {
 		select {
-		case <-f.stopChan:
+		case <-w.stopChan:
 			return
-		case ms := <-f.samplesChan:
+		case ms := <-w.samplesChan:
 			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
 			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
 			t := timeNowNano()
 			for i := 0; i < len(ms); i++ {
-				f.sampler.sample(&ms[i], t)
+				w.sampler.sample(&ms[i], t)
 			}
-			f.metricSamplePool.PutBatch(ms)
-		case trigger := <-f.flushChan:
-			f.triggerFlush(trigger.time, trigger.blockChan != nil)
+			w.metricSamplePool.PutBatch(ms)
+		case trigger := <-w.flushChan:
+			w.triggerFlush(trigger.time, trigger.blockChan != nil)
 			if trigger.blockChan != nil {
 				trigger.blockChan <- struct{}{}
 			}
 		case t := <-tickerChan:
-			f.triggerFlush(t, false)
+			w.triggerFlush(t, false)
 		}
 	}
 }
 
-func (f *timeSamplerWorker) stop() {
-	f.stopChan <- struct{}{}
+func (w *timeSamplerWorker) stop() {
+	w.stopChan <- struct{}{}
 }
 
-func (f *timeSamplerWorker) triggerFlush(t time.Time, waitForSerializer bool) {
-	if f.parallelSerialization.enabled {
-		f.triggerFlushWithParallelSerialize(t, waitForSerializer)
+func (w *timeSamplerWorker) triggerFlush(t time.Time, waitForSerializer bool) {
+	if w.parallelSerialization.enabled {
+		w.triggerFlushWithParallelSerialize(t, waitForSerializer)
 	} else {
-		log.Debugf("Time Sampler #%d - Flushing series to the forwarder", f.sampler.id)
+		log.Debugf("Time Sampler #%d - Flushing series to the forwarder", w.sampler.id)
 
 		var series metrics.Series
-		sketches := f.sampler.flush(float64(t.Unix()), &series)
-		if f.serializer != nil {
-			err := f.serializer.SendSeries(series)
+		sketches := w.sampler.flush(float64(t.Unix()), &series)
+		if w.serializer != nil {
+			err := w.serializer.SendSeries(series)
 			updateSerieTelemetry(t, uint64(len(series)), "timeSamplerWorker", err)
 			tagsetTlm.updateHugeSeriesTelemetry(&series)
 
-			err = f.serializer.SendSketch(sketches)
+			err = w.serializer.SendSketch(sketches)
 			updateSketchTelemetry(t, uint64(len(sketches)), "timeSamplerWorker", err)
 			tagsetTlm.updateHugeSketchesTelemetry(&sketches)
 		}
@@ -145,14 +145,14 @@ func (f *timeSamplerWorker) triggerFlush(t time.Time, waitForSerializer bool) {
 
 // NOTE(remy): this has been stolen from the Aggregator implementation, we will have
 // to factor it at some point.
-func (f *timeSamplerWorker) sendIterableSeries(
+func (w *timeSamplerWorker) sendIterableSeries(
 	start time.Time,
 	series *metrics.IterableSeries,
 	done chan<- struct{}) {
 	go func() {
-		log.Debugf("Time Sampler #%d - Flushing series to the forwarder in parallel", f.sampler.id)
+		log.Debugf("Time Sampler #%d - Flushing series to the forwarder in parallel", w.sampler.id)
 
-		err := f.serializer.SendIterableSeries(series)
+		err := w.serializer.SendIterableSeries(series)
 		// if err == nil, SenderStopped was called and it is safe to read the number of series.
 		count := series.SeriesCount()
 		addFlushCount("Series", int64(count))
@@ -163,20 +163,20 @@ func (f *timeSamplerWorker) sendIterableSeries(
 
 // NOTE(remy): this has been stolen from the Aggregator implementation, we will have
 // to factor it at some point.
-func (f *timeSamplerWorker) triggerFlushWithParallelSerialize(start time.Time, waitForSerializer bool) {
+func (w *timeSamplerWorker) triggerFlushWithParallelSerialize(start time.Time, waitForSerializer bool) {
 	logPayloads := config.Datadog.GetBool("log_payloads")
 	series := metrics.NewIterableSeries(func(se *metrics.Serie) {
 		if logPayloads {
-			log.Debugf("Time Sampler #%d - Flushing the following metrics: %s", f.sampler.id, se)
+			log.Debugf("Time Sampler #%d - Flushing the following metrics: %s", w.sampler.id, se)
 		}
 		tagsetTlm.updateHugeSerieTelemetry(se)
-	}, f.parallelSerialization.channelSize, f.parallelSerialization.bufferSize)
+	}, w.parallelSerialization.channelSize, w.parallelSerialization.bufferSize)
 	done := make(chan struct{})
 
 	// start the serialization routine
-	f.sendIterableSeries(start, series, done)
+	w.sendIterableSeries(start, series, done)
 
-	sketches := f.sampler.flush(float64(start.Unix()), series)
+	sketches := w.sampler.flush(float64(start.Unix()), series)
 	series.SenderStopped()
 
 	if waitForSerializer {
@@ -184,7 +184,7 @@ func (f *timeSamplerWorker) triggerFlushWithParallelSerialize(start time.Time, w
 	}
 
 	tagsetTlm.updateHugeSketchesTelemetry(&sketches)
-	if err := f.serializer.SendSketch(sketches); err != nil {
+	if err := w.serializer.SendSketch(sketches); err != nil {
 		log.Errorf("flushLoop: %+v", err)
 	}
 }
