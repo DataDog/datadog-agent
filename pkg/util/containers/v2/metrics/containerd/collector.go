@@ -22,18 +22,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
-	containerdCollectorID    = "containerd"
-	containerdCacheKeyPrefix = "containerd-stats-"
-	containerdCacheTTL       = 10 * time.Second
+	containerdCollectorID = "containerd"
 )
 
 func init() {
@@ -44,12 +40,12 @@ func init() {
 		Factory: func() (provider.Collector, error) {
 			return newContainerdCollector()
 		},
+		DelegateCache: true,
 	})
 }
 
 type containerdCollector struct {
 	client            cutil.ContainerdItf
-	lastScrapeTime    time.Time
 	workloadmetaStore workloadmeta.Store
 }
 
@@ -151,13 +147,6 @@ func (c *containerdCollector) GetContainerNetworkStats(containerID string, cache
 // v1.Metrics (for Linux) or stats.Statistics (Windows) and they don't share a
 // common interface.
 func (c *containerdCollector) getContainerdMetrics(containerID string, cacheValidity time.Duration) (interface{}, error) {
-	refreshRequired := c.lastScrapeTime.Add(cacheValidity).Before(time.Now())
-	cacheKey := containerdCacheKeyPrefix + containerID
-	if cachedMetrics, found := cache.Cache.Get(cacheKey); found && !refreshRequired {
-		log.Debugf("Got containerd stats from cache for container %s", containerID)
-		return cachedMetrics, nil
-	}
-
 	container, err := c.client.Container(containerID)
 	if err != nil {
 		return nil, fmt.Errorf("could not get container with ID %s: %s", containerID, err)
@@ -172,9 +161,6 @@ func (c *containerdCollector) getContainerdMetrics(containerID string, cacheVali
 	if err != nil {
 		return nil, fmt.Errorf("could not convert the metrics data from container with ID %s: %s", containerID, err)
 	}
-
-	c.lastScrapeTime = time.Now()
-	cache.Cache.Set(cacheKey, metrics, containerdCacheTTL)
 
 	return metrics, nil
 }

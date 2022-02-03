@@ -56,7 +56,7 @@ platforms:
     ]
 
     windows_sizes = [
-      "Standard_D2_v2"
+      "Standard_D2_v4"
     ]
 
     windows_platforms = []

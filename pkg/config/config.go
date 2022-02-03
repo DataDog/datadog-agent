@@ -639,6 +639,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.server.read_timeout_seconds", 2)
 	config.BindEnvAndSetDefault("cluster_agent.server.write_timeout_seconds", 2)
 	config.BindEnvAndSetDefault("cluster_agent.server.idle_timeout_seconds", 60)
+	config.BindEnvAndSetDefault("cluster_agent.serve_nozzle_data", false)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints

@@ -6,7 +6,9 @@
 package trace
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type spanModifier struct {
@@ -18,5 +20,15 @@ func (s *spanModifier) ModifySpan(span *pb.Span) {
 	if span.Service == "aws.lambda" && s.tags["service"] != "" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
 		span.Service = s.tags["service"]
+	}
+	if inferredspan.CheckIsInferredSpan(span) {
+		log.Debug("Detected a managed service span, filtering out function tags")
+
+		// filter out existing function tags inside span metadata
+		spanMetadataTags := span.Meta
+		if spanMetadataTags != nil {
+			spanMetadataTags = inferredspan.FilterFunctionTags(spanMetadataTags)
+			span.Meta = spanMetadataTags
+		}
 	}
 }
