@@ -308,7 +308,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "")
 
 	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
-	assert.Equal("my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
+	assert.Equal("http://my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
@@ -319,7 +319,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")
 
 	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
-	assert.Equal("my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
+	assert.Equal("http://my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
 	assert.Equal("server-01", agentConfig.HostName)
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
@@ -333,7 +333,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-2.yaml")
 
 	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
-	assert.Equal("my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
+	assert.Equal("http://my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
