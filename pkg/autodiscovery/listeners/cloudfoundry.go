@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package listeners
@@ -203,8 +204,8 @@ func (l *CloudFoundryListener) Stop() {
 	l.stop <- true
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *CloudFoundryService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *CloudFoundryService) GetServiceID() string {
 	return s.adIdentifier.String()
 }
 

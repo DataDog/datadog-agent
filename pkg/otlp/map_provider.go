@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//go:build !serverless && otlp
 // +build !serverless,otlp
 
 package otlp
@@ -26,7 +27,6 @@ func buildKey(keys ...string) string {
 // defaultTracesConfig is the base traces OTLP pipeline configuration.
 // This pipeline is extended through the datadog.yaml configuration values.
 // It is written in YAML because it is easier to read and write than a map.
-// TODO (AP-1254): Set service-level configuration when available.
 const defaultTracesConfig string = `
 receivers:
   otlp:
@@ -37,6 +37,9 @@ exporters:
       insecure: true
 
 service:
+  telemetry:
+    metrics:
+      level: none
   pipelines:
     traces:
       receivers: [otlp]
@@ -57,7 +60,6 @@ func buildTracesMap(tracePort uint) (*config.Map, error) {
 }
 
 // defaultMetricsConfig is the metrics OTLP pipeline configuration.
-// TODO (AP-1254): Set service-level configuration when available.
 const defaultMetricsConfig string = `
 receivers:
   otlp:
@@ -70,6 +72,9 @@ exporters:
   serializer:
 
 service:
+  telemetry:
+    metrics:
+      level: none
   pipelines:
     metrics:
       receivers: [otlp]

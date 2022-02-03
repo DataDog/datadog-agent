@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cri
 // +build cri
 
 package cri
@@ -14,16 +15,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	criCollectorID    = "cri"
-	criCacheKeyPrefix = "cri-stats-"
-	criCacheTTL       = 10 * time.Second
+	criCollectorID = "cri"
 )
 
 func init() {
@@ -34,12 +31,12 @@ func init() {
 		Factory: func() (provider.Collector, error) {
 			return newCRICollector()
 		},
+		DelegateCache: true,
 	})
 }
 
 type criCollector struct {
-	client         cri.CRIClient
-	lastScrapeTime time.Time
+	client cri.CRIClient
 }
 
 func newCRICollector() (*criCollector, error) {
@@ -62,7 +59,7 @@ func (collector *criCollector) ID() string {
 
 // GetContainerStats returns stats by container ID.
 func (collector *criCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
-	stats, err := collector.getCriContainerStats(containerID, cacheValidity)
+	stats, err := collector.getCriContainerStats(containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,26 +76,16 @@ func (collector *criCollector) GetContainerStats(containerID string, cacheValidi
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (collector *criCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
+func (collector *criCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	// Not available
 	return nil, nil
 }
 
-func (collector *criCollector) getCriContainerStats(containerID string, cacheValidity time.Duration) (*v1alpha2.ContainerStats, error) {
-	refreshRequired := collector.lastScrapeTime.Add(cacheValidity).Before(time.Now())
-	cacheKey := criCacheKeyPrefix + containerID
-	if cachedMetrics, found := cache.Cache.Get(cacheKey); found && !refreshRequired {
-		log.Debugf("Got CRI stats from cache for container %s", containerID)
-		return cachedMetrics.(*v1alpha2.ContainerStats), nil
-	}
-
+func (collector *criCollector) getCriContainerStats(containerID string) (*v1alpha2.ContainerStats, error) {
 	stats, err := collector.client.GetContainerStats(containerID)
 	if err != nil {
 		return nil, err
 	}
-
-	collector.lastScrapeTime = time.Now()
-	cache.Cache.Set(cacheKey, stats, criCacheTTL)
 
 	return stats, nil
 }

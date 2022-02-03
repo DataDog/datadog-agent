@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests && amd64
 // +build functionaltests,amd64
 
 package tests
@@ -49,11 +50,7 @@ func TestChown32(t *testing.T) {
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_x86_tester")
 	if err != nil {
-		if _, ok := err.(ErrUnsupportedArch); ok {
-			t.Skip(err)
-		} else {
-			t.Fatal(err)
-		}
+		t.Fatal(err)
 	}
 
 	prevUID := 98

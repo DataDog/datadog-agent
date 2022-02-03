@@ -74,6 +74,19 @@ Patterns or regular expressions can be used in SECL expressions. They can be use
 
 Patterns on `.path` fields will be used as Glob. `*` will match files and folders at the same level. `**`, introduced in 7.34, can be used at the end of a path in order to match all the files and subfolders.
 
+## Duration
+You can use SECL to write rules based on durations, which trigger on events that occur during a specific time period. For example, trigger on an event where a secret file is accessed more than a certain length of time after a process is created.
+Such a rule could be written as follows:
+
+{% raw %}
+{{< code-block lang="javascript" >}}
+open.file.path == "/etc/secret" && process.file.name == "java" && process.created_at > 5s
+
+{{< /code-block >}}
+{% endraw %}
+
+Durations are numbers with a unit suffix. The supported suffixes are "s", "m", "h".
+
 ## Variables
 SECL variables are predefined variables that can be used as values or as part of values.
 

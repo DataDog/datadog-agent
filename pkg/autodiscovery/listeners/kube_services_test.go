@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -50,7 +50,7 @@ func TestProcessService(t *testing.T) {
 	}
 
 	svc := processService(ksvc, true)
-	assert.Equal(t, "kube_service://default/myservice", svc.GetEntity())
+	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 	assert.Equal(t, integration.Before, svc.GetCreationTime())
 
 	adID, err := svc.GetADIdentifiers(ctx)

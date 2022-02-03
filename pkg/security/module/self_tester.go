@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package module
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -63,14 +63,14 @@ func (t *SelfTester) CreateTargetFileIfNeeded() error {
 	}
 
 	// Create temp directory to put target file in
-	tmpDir, err := ioutil.TempDir("", "datadog_agent_cws_self_test")
+	tmpDir, err := os.MkdirTemp("", "datadog_agent_cws_self_test")
 	if err != nil {
 		return err
 	}
 	t.targetTempDir = tmpDir
 
 	// Create target file
-	targetFile, err := ioutil.TempFile(tmpDir, "datadog_agent_cws_target_file")
+	targetFile, err := os.CreateTemp(tmpDir, "datadog_agent_cws_target_file")
 	if err != nil {
 		return err
 	}

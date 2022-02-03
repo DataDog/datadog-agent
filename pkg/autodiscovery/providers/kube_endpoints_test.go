@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -149,7 +149,7 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1"},
 					InitConfig:    integration.Data("{}"),
@@ -157,7 +157,7 @@ func TestGenerateConfigs(t *testing.T) {
 					ClusterCheck:  true,
 				},
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2"},
 					InitConfig:    integration.Data("{}"),
@@ -204,7 +204,7 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1", "kubernetes_pod://pod-uid-1"},
 					InitConfig:    integration.Data("{}"),
@@ -213,7 +213,7 @@ func TestGenerateConfigs(t *testing.T) {
 					NodeName:      "node1",
 				},
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2", "kubernetes_pod://pod-uid-2"},
 					InitConfig:    integration.Data("{}"),
@@ -261,7 +261,7 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1"},
 					InitConfig:    integration.Data("{}"),
@@ -270,7 +270,7 @@ func TestGenerateConfigs(t *testing.T) {
 					NodeName:      "",
 				},
 				{
-					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
+					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
 					Name:          "http_check",
 					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2"},
 					InitConfig:    integration.Data("{}"),

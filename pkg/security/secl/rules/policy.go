@@ -8,7 +8,6 @@ package rules
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -99,7 +98,7 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 		allRules []*RuleDefinition
 	)
 
-	policyFiles, err := ioutil.ReadDir(policiesDir)
+	policyFiles, err := os.ReadDir(policiesDir)
 	if err != nil {
 		return multierror.Append(result, ErrPoliciesLoad{Name: policiesDir, Err: err})
 	}

@@ -7,6 +7,7 @@
 // This group of endpoints is meant to provide high-level functionalities
 // at the agent level.
 
+//go:build !jmx
 // +build !jmx
 
 package agent
