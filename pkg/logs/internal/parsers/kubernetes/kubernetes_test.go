@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package parser
+package kubernetes
 
 import (
 	"testing"
@@ -23,44 +23,44 @@ func TestKubernetesGetStatus(t *testing.T) {
 
 func TestKubernetesParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := containerdHeaderOut + " " + "anything"
-	content, status, _, partial, err := KubernetesFormat.Parse([]byte(validMessage))
+	msg, err := New().Parse([]byte(validMessage))
 	assert.Nil(t, err)
-	assert.False(t, partial)
-	assert.Equal(t, message.StatusInfo, status)
-	assert.Equal(t, []byte("anything"), content)
+	assert.False(t, msg.IsPartial)
+	assert.Equal(t, message.StatusInfo, msg.Status)
+	assert.Equal(t, []byte("anything"), msg.Content)
 }
 func TestKubernetesParserShouldSucceedWithPartialFlag(t *testing.T) {
 	validMessage := partialContainerdHeaderOut + " " + "anything"
-	content, status, _, partial, err := KubernetesFormat.Parse([]byte(validMessage))
+	msg, err := New().Parse([]byte(validMessage))
 	assert.Nil(t, err)
-	assert.True(t, partial)
-	assert.Equal(t, message.StatusInfo, status)
-	assert.Equal(t, []byte("anything"), content)
+	assert.True(t, msg.IsPartial)
+	assert.Equal(t, message.StatusInfo, msg.Status)
+	assert.Equal(t, []byte("anything"), msg.Content)
 }
 
 func TestKubernetesParserShouldHandleEmptyMessage(t *testing.T) {
-	msg, status, timestamp, partial, err := KubernetesFormat.Parse([]byte(containerdHeaderOut))
+	msg, err := New().Parse([]byte(containerdHeaderOut))
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(msg))
-	assert.False(t, partial)
-	assert.Equal(t, message.StatusInfo, status)
-	assert.Equal(t, "2018-09-20T11:54:11.753589172Z", timestamp)
+	assert.Equal(t, 0, len(msg.Content))
+	assert.False(t, msg.IsPartial)
+	assert.Equal(t, message.StatusInfo, msg.Status)
+	assert.Equal(t, "2018-09-20T11:54:11.753589172Z", msg.Timestamp)
 }
 
 func TestKubernetesParserShouldFailWithInvalidInput(t *testing.T) {
 	// Only timestamp
 	var err error
 	log := []byte("2018-09-20T11:54:11.753589172Z foo")
-	msg, status, timestamp, partial, err := KubernetesFormat.Parse(log)
-	assert.False(t, partial)
+	msg, err := New().Parse(log)
+	assert.False(t, msg.IsPartial)
 	assert.NotNil(t, err)
-	assert.Equal(t, log, msg)
-	assert.Equal(t, message.StatusInfo, status)
-	assert.Equal(t, "", timestamp)
+	assert.Equal(t, log, msg.Content)
+	assert.Equal(t, message.StatusInfo, msg.Status)
+	assert.Equal(t, "", msg.Timestamp)
 
 	// Missing timestamp but with 3 spaces, the message is valid
 	// FIXME: We might want to handle that
 	log = []byte("stdout F foo bar")
-	_, _, _, _, err = KubernetesFormat.Parse(log)
+	msg, err = New().Parse(log)
 	assert.Nil(t, err)
 }

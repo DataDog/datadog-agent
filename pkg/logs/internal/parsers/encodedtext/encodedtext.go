@@ -3,9 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package parser
+// Package encodedtext parses plain text messages that are in encodings other than utf-8.
+package encodedtext
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/encoding/unicode"
@@ -24,27 +26,26 @@ const (
 	SHIFTJIS
 )
 
-// EncodedText a parser for decoding encoded logfiles.  It treats each input
-// message as entirely content, in the given encoding.  No timetamp or other
-// metadata are returned.
-type EncodedText struct {
+type encodedText struct {
 	decoder *encoding.Decoder
 }
 
 // Parse implements Parser#Parse
-func (p *EncodedText) Parse(msg []byte) ([]byte, string, string, bool, error) {
+func (p *encodedText) Parse(msg []byte) (parsers.Message, error) {
 	decoded, _, err := transform.Bytes(p.decoder, msg)
-	return decoded, "", "", false, err
+	return parsers.Message{Content: decoded}, err
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine
-func (p *EncodedText) SupportsPartialLine() bool {
+func (p *encodedText) SupportsPartialLine() bool {
 	return false
 }
 
-// NewEncodedText builds a new DecodingParser.
-func NewEncodedText(e Encoding) *EncodedText {
-	p := &EncodedText{}
+// New builds a new parser for decoding encoded logfiles.  It treats each input
+// message as entirely content, in the given encoding.  No timetamp or other
+// metadata are returned.
+func New(e Encoding) parsers.Parser {
+	p := &encodedText{}
 	var enc encoding.Encoding
 	switch e {
 	case UTF16LE:
