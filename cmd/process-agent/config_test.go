@@ -272,7 +272,7 @@ func TestGetAPIEndpoints(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.EqualValues(t, tc.expected, eps)
+				assert.ElementsMatch(t, tc.expected, eps)
 			}
 		})
 	}

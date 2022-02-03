@@ -71,10 +71,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: false,
 		},
 		{
-			key:          "process_config.process_dd_url",
-			defaultValue: DefaultProcessEndpoint,
-		},
-		{
 			key:          "process_config.additional_endpoints",
 			defaultValue: make(map[string][]string),
 		},
