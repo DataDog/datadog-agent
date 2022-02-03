@@ -77,7 +77,7 @@ func TestRmdir(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
-				return err
+				return error(err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -113,10 +113,7 @@ func TestRmdirInvalidate(t *testing.T) {
 		}
 
 		test.WaitSignal(t, func() error {
-			if err := syscall.Rmdir(testFile); err != nil {
-				return err
-			}
-			return nil
+			return syscall.Rmdir(testFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rmdir.file.path", testFile)

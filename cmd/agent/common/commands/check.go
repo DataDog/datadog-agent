@@ -142,7 +142,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			opts.UseOrchestratorForwarder = false
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
-			common.LoadComponents(config.Datadog.GetString("confd_path"))
+			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)

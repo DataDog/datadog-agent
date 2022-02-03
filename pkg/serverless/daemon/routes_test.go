@@ -45,7 +45,9 @@ func TestStartInvocation(t *testing.T) {
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
-	assert.Equal(res.StatusCode, 200)
+	if res != nil {
+		assert.Equal(res.StatusCode, 200)
+	}
 	assert.True(m.OnInvokeStartCalled)
 }
 
@@ -63,7 +65,9 @@ func TestEndInvocation(t *testing.T) {
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
-	assert.Equal(res.StatusCode, 200)
+	if res != nil {
+		assert.Equal(res.StatusCode, 200)
+	}
 	assert.False(m.isError)
 	assert.True(m.OnInvokeEndCalled)
 }
@@ -83,7 +87,9 @@ func TestEndInvocationWithError(t *testing.T) {
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
-	assert.Equal(res.StatusCode, 200)
+	if res != nil {
+		assert.Equal(res.StatusCode, 200)
+	}
 	assert.True(m.OnInvokeEndCalled)
 	assert.True(m.isError)
 }
@@ -107,9 +113,11 @@ func TestTraceContext(t *testing.T) {
 	assert.Nil(err)
 	request, err = http.NewRequest(http.MethodPost, "http://127.0.0.1:8124/trace-context", nil)
 	assert.Nil(err)
-	response, err := client.Do(request)
+	res, err := client.Do(request)
 	assert.Nil(err)
 	assert.Equal("2222", fmt.Sprintf("%v", invocationlifecycle.TraceID()))
-	assert.Equal(response.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", invocationlifecycle.TraceID()))
-	assert.Equal(response.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", invocationlifecycle.SpanID()))
+	if res != nil {
+		assert.Equal(res.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", invocationlifecycle.TraceID()))
+		assert.Equal(res.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", invocationlifecycle.SpanID()))
+	}
 }

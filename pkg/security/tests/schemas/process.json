@@ -139,6 +139,21 @@
                 },
                 "change_time": {
                     "$ref": "/schemas/datetime.json"
+                },
+                "envs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "argv0": {
+                    "type": "string"
                 }
             },
             "required": [
