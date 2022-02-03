@@ -16,26 +16,6 @@ import (
 	"go.uber.org/multierr"
 )
 
-// getReceiverHost gets the receiver host for the OTLP endpoint in a given config.
-func getReceiverHost(cfg config.Config) (receiverHost string) {
-	// The default value for the trace Agent
-	receiverHost = "localhost"
-
-	// This is taken from pkg/trace/config.AgentConfig.applyDatadogConfig
-	if cfg.IsSet("bind_host") || cfg.IsSet("apm_config.apm_non_local_traffic") {
-		if cfg.IsSet("bind_host") {
-			receiverHost = cfg.GetString("bind_host")
-		}
-
-		if cfg.IsSet("apm_config.apm_non_local_traffic") && cfg.GetBool("apm_config.apm_non_local_traffic") {
-			receiverHost = "0.0.0.0"
-		}
-	} else if config.IsContainerized() {
-		receiverHost = "0.0.0.0"
-	}
-	return
-}
-
 // isSetMetrics checks if the metrics config is set.
 func isSetMetrics(cfg config.Config) bool {
 	return cfg.IsSet(config.OTLPMetrics)
