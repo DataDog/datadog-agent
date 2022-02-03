@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -173,6 +174,7 @@ func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []strin
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", inputFileName, err)
 		}
 		rc.telemetry.compilationResult = compilationSuccess
+		log.Infof("successfully compiled runtime version of %s", inputFileName)
 	} else {
 		rc.telemetry.compilationResult = compiledOutputFound
 	}
