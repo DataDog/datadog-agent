@@ -186,10 +186,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
+		return syscall.Close(fd)
 	}, func(event *probe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode

@@ -27,10 +27,10 @@ type ProcessDiscoveryCheck struct {
 }
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	d.info = info
 	d.initCalled = true
-	d.probe = getProcessProbe(cfg)
+	d.probe = getProcessProbe()
 }
 
 // Name returns the name of the ProcessDiscoveryCheck.

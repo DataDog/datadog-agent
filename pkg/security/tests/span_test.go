@@ -57,8 +57,7 @@ func TestSpan(t *testing.T) {
 			out, err := cmd.CombinedOutput()
 
 			if err != nil {
-				//if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %s", out, err)
+				return fmt.Errorf("%s: %w", out, err)
 			}
 
 			return nil
@@ -87,7 +86,7 @@ func TestSpan(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %s", out, err)
+				return fmt.Errorf("%s: %w", out, err)
 			}
 
 			return nil

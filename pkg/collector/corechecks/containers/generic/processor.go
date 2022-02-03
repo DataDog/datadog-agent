@@ -13,28 +13,45 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+const (
+	// NetworkExtensionID uniquely identifies network extensions
+	NetworkExtensionID = "network"
+)
+
+var defaultExtensions = map[string]ProcessorExtension{
+	NetworkExtensionID: NewProcessorNetwork(),
+}
+
 // Processor contains the core logic of the generic check, allowing reusability
 type Processor struct {
 	metricsProvider metrics.Provider
-	ctrLister       ContainerLister
+	ctrLister       ContainerAccessor
 	metricsAdapter  MetricsAdapter
-	ctrFilter       *containers.Filter
+	ctrFilter       ContainerFilter
+	extensions      map[string]ProcessorExtension
 }
 
 // NewProcessor creates a new processor
-func NewProcessor(provider metrics.Provider, lister ContainerLister, adapter MetricsAdapter, filter *containers.Filter) Processor {
+func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter MetricsAdapter, filter ContainerFilter) Processor {
 	return Processor{
 		metricsProvider: provider,
 		ctrLister:       lister,
 		metricsAdapter:  adapter,
 		ctrFilter:       filter,
+		extensions:      defaultExtensions,
 	}
+}
+
+// RegisterExtension allows to register (or override) an extension
+func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
+	p.extensions[id] = extension
 }
 
 // Run executes the check
@@ -57,13 +74,18 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 		return collector
 	}
 
+	// Extensions: PreProcess hook
+	for _, extension := range p.extensions {
+		extension.PreProcess(p.sendMetric, sender)
+	}
+
 	for _, container := range allContainers {
 		// We surely won't get stats for not running containers
 		if !container.State.Running {
 			continue
 		}
 
-		if p.ctrFilter.IsExcluded(container.Name, container.Image.Name, container.Labels["io.kubernetes.pod.namespace"]) {
+		if p.ctrFilter != nil && p.ctrFilter.IsExcluded(container) {
 			log.Tracef("Container excluded due to filter, name: %s - image: %s - namespace: %s", container.Name, container.Image.Name, container.Labels["io.kubernetes.pod.namespace"])
 			continue
 		}
@@ -94,6 +116,16 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 		}
 
 		// TODO: Implement container stats. We currently don't have enough information from Metadata service to do it.
+
+		// Extensions: Process hook
+		for _, extension := range p.extensions {
+			extension.Process(tags, container, collector, cacheValidity)
+		}
+	}
+
+	// Extensions: PostProcess hook
+	for _, extension := range p.extensions {
+		extension.PostProcess()
 	}
 
 	sender.Commit()
@@ -133,7 +165,7 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 
 	if containerStats.IO != nil {
 		for deviceName, deviceStats := range containerStats.IO.Devices {
-			deviceTags := extraTags(tags, "device_name:"+deviceName)
+			deviceTags := taggerUtils.ConcatenateStringTags(tags, "device:"+deviceName, "device_name:"+deviceName)
 			p.sendMetric(sender.Rate, "container.io.read", deviceStats.ReadBytes, deviceTags)
 			p.sendMetric(sender.Rate, "container.io.read.operations", deviceStats.ReadOperations, deviceTags)
 			p.sendMetric(sender.Rate, "container.io.write", deviceStats.WriteBytes, deviceTags)
@@ -151,6 +183,7 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 	if containerStats.PID != nil {
 		p.sendMetric(sender.Gauge, "container.pid.thread_count", containerStats.PID.ThreadCount, tags)
 		p.sendMetric(sender.Gauge, "container.pid.thread_limit", containerStats.PID.ThreadLimit, tags)
+		p.sendMetric(sender.Gauge, "container.pid.open_files", containerStats.PID.OpenFiles, tags)
 	}
 
 	return nil
@@ -162,12 +195,7 @@ func (p *Processor) sendMetric(senderFunc func(string, float64, string, []string
 	}
 
 	metricName, val := p.metricsAdapter.AdaptMetrics(metricName, *value)
-	senderFunc(metricName, val, "", tags)
-}
-
-func extraTags(tags []string, extraTags ...string) []string {
-	finalTags := make([]string, 0, len(tags)+len(extraTags))
-	finalTags = append(finalTags, tags...)
-	finalTags = append(finalTags, extraTags...)
-	return finalTags
+	if metricName != "" {
+		senderFunc(metricName, val, "", tags)
+	}
 }

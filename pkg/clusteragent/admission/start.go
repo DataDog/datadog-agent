@@ -90,8 +90,10 @@ func StartControllers(ctx ControllerContext) error {
 
 	if v1Enabled {
 		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
+		getWebhookStatus = getWebhookStatusV1
 	} else {
 		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer()
+		getWebhookStatus = getWebhookStatusV1beta1
 	}
 
 	return apiserver.SyncInformers(informers, 0)

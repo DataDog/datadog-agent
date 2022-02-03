@@ -62,12 +62,15 @@ type ProcessCheck struct {
 
 	// Create times by PID used in the network check
 	createTimes atomic.Value
+
+	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
+	SysprobeProcessModuleEnabled bool
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
-	p.probe = getProcessProbe(cfg)
+	p.probe = getProcessProbe()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
 
@@ -117,7 +120,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	var sysProbeUtil *net.RemoteSysProbeUtil
 	// if the Process module is disabled, we allow Probe to collect
 	// fields that require elevated permission to collect with best effort
-	if !cfg.CheckIsEnabled(config.ProcessModuleCheckName) {
+	if !p.SysprobeProcessModuleEnabled {
 		procutil.WithPermission(true)(p.probe)
 	} else {
 		procutil.WithPermission(false)(p.probe)
