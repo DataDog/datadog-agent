@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package parser
+package noop
 
 import (
 	"testing"
@@ -12,10 +12,10 @@ import (
 )
 
 func TestNoopParserHandleMessages(t *testing.T) {
-	parser := Noop
+	parser := New()
 	testMsg := []byte("Foo")
-	msg, _, _, partial, err := parser.Parse(testMsg)
+	msg, err := parser.Parse(testMsg)
 	assert.Nil(t, err)
-	assert.False(t, partial)
-	assert.Equal(t, testMsg, msg)
+	assert.False(t, msg.IsPartial)
+	assert.Equal(t, testMsg, msg.Content)
 }

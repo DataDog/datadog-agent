@@ -7,11 +7,29 @@ import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 
+from ..flavor import AgentFlavor
+
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
 DATADOG_CI_COMMAND = ["datadog-ci", "junit", "upload"]
 JOB_URL_FILE_NAME = "job_url.txt"
 TAGS_FILE_NAME = "tags.txt"
+
+
+def add_flavor_to_junitxml(xml_path: str, flavor: AgentFlavor):
+    """
+    Takes a JUnit XML file and adds a flavor field to it, to allow tagging
+    tests by flavor.
+    """
+    tree = ET.parse(xml_path)
+
+    # Create a new element containing the flavor and append it to the tree
+    flavor_element = ET.Element('flavor')
+    flavor_element.text = flavor.name
+    tree.getroot().append(flavor_element)
+
+    # Write back to the original file
+    tree.write(xml_path)
 
 
 def split_junitxml(xml_path, codeowners, output_dir):
@@ -21,6 +39,9 @@ def split_junitxml(xml_path, codeowners, output_dir):
     """
     tree = ET.parse(xml_path)
     output_xmls = {}
+
+    flavor = tree.find("flavor").text
+
     for suite in tree.iter("testsuite"):
         path = suite.attrib["name"].replace(REPO_NAME_PREFIX, "", 1)
 
@@ -42,10 +63,10 @@ def split_junitxml(xml_path, codeowners, output_dir):
         filepath = os.path.join(output_dir, owner + ".xml")
         xml.write(filepath, encoding="UTF-8", xml_declaration=True)
 
-    return list(output_xmls)
+    return list(output_xmls), flavor
 
 
-def upload_junitxmls(output_dir, owners, additional_tags=None, job_url=""):
+def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url=""):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
@@ -58,6 +79,8 @@ def upload_junitxmls(output_dir, owners, additional_tags=None, job_url=""):
             "datadog-agent",
             "--tags",
             'test.codeowners:["' + CODEOWNERS_ORG_PREFIX + owner + '"]',
+            "--tags",
+            f"test.flavor:{flavor}",
         ]
         if additional_tags:
             args.extend(additional_tags)
@@ -92,8 +115,8 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         # for each unpacked xml file, split it and submit all parts
         for xmlfile in glob.glob(f"{unpack_dir}/*.xml"):
             with tempfile.TemporaryDirectory() as output_dir:
-                written_owners = split_junitxml(xmlfile, codeowners, output_dir)
-                upload_junitxmls(output_dir, written_owners, tags, job_url)
+                written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
+                upload_junitxmls(output_dir, written_owners, flavor, tags, job_url)
 
 
 def _normalize_architecture(architecture):

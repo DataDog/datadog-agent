@@ -3,17 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package parser
+// Package dockerstream parses the log format output by Docker when streaming
+// via its API.
+//
+// See https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
+package dockerstream
 
 import (
 	"bytes"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // Length of the docker message header.
-// See https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs:
 // [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 const dockerHeaderLength = 8
 
@@ -24,37 +28,43 @@ const dockerBufferSize = 16 * 1024
 // Escaped CRLF, used for determine empty messages
 var escapedCRLF = []byte{'\\', 'r', '\\', 'n'}
 
-// DockerStreamFormat parses docker log messages as provided by the log-streaming
-// API.  The format is documented at
-// https://pkg.go.dev/github.com/moby/moby/client?utm_source=godoc#Client.ContainerLogs
-type DockerStreamFormat struct {
+type dockerStreamFormat struct {
 	containerID string
 }
 
-// NewDockerStreamFormat create a new instance of docker parser for a specific container.  The given
+// New creates a new instance of docker parser for a specific container.  The given
 // container ID is only used to generate error messages for invalid log data.
-func NewDockerStreamFormat(containerID string) *DockerStreamFormat {
-	return &DockerStreamFormat{
+//
+// The returned parser handles log messages as provided by the log-streaming
+// API.  The format is documented at
+// https://pkg.go.dev/github.com/moby/moby/client?utm_source=godoc#Client.ContainerLogs
+func New(containerID string) parsers.Parser {
+	return &dockerStreamFormat{
 		containerID: containerID,
 	}
 }
 
 // Parse implements Parser#Parse
-func (p *DockerStreamFormat) Parse(msg []byte) ([]byte, string, string, bool, error) {
+func (p *dockerStreamFormat) Parse(msg []byte) (parsers.Message, error) {
 	return parseDockerStream(msg, p.containerID)
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine
-func (p *DockerStreamFormat) SupportsPartialLine() bool {
+func (p *dockerStreamFormat) SupportsPartialLine() bool {
 	return false
 }
 
-func parseDockerStream(msg []byte, containerID string) ([]byte, string, string, bool, error) {
+func parseDockerStream(msg []byte, containerID string) (parsers.Message, error) {
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return msg, message.StatusInfo, "", false, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", containerID)
+		return parsers.Message{
+			Content:   msg,
+			Status:    message.StatusInfo,
+			Timestamp: "",
+			IsPartial: false,
+		}, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", containerID)
 	}
 
 	// Read the first byte to get the status
@@ -83,10 +93,15 @@ func parseDockerStream(msg []byte, containerID string) ([]byte, string, string, 
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 || isEmptyMessage(msg[idx+1:]) {
 		// Nothing after the timestamp: empty message
-		return nil, "", "", false, nil
+		return parsers.Message{}, nil
 	}
 
-	return msg[idx+1:], status, string(msg[:idx]), false, nil
+	return parsers.Message{
+		Content:   msg[idx+1:],
+		Status:    status,
+		Timestamp: string(msg[:idx]),
+		IsPartial: false,
+	}, nil
 }
 
 // getDockerSeverity returns the status of the message based on the value of the

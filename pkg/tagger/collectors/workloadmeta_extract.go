@@ -592,8 +592,9 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 	case workloadmeta.KindECSTask:
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
 	default:
-		log.Errorf("can't recognize entity %q with kind %q, but building a a tagger ID anyway", entityID.ID, entityID.Kind)
-		return containers.BuildEntityName(string(entityID.Kind), entityID.ID)
+		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
+			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)
+		return fmt.Sprintf("%s://%s", string(entityID.Kind), entityID.ID)
 	}
 }
 
