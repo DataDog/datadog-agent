@@ -64,7 +64,7 @@ deploy_deb_testing-a6_x64:
 
 deploy_deb_testing-a6_arm64:
   rules:
-    !reference [.on_all_builds_a6]
+    !reference [.on_all_kitchen_builds_a6]
   extends:
     - .deploy_deb_testing-a6
   needs: ["agent_deb-arm64-a6", "tests_deb-arm64-py2", "tests_deb-arm64-py3"]
@@ -105,7 +105,7 @@ deploy_deb_testing-a7_x64:
 
 deploy_deb_testing-a7_arm64:
   rules:
-    !reference [.on_all_builds_a7]
+    !reference [.on_all_kitchen_builds_a7]
   extends:
     - .deploy_deb_testing-a7
   needs: ["agent_deb-arm64-a7", "tests_deb-arm64-py2", "tests_deb-arm64-py3"]

@@ -213,7 +213,7 @@ variables:
 # - on main and deploy pipelines, kitchen tests are run
 # - on branch pipelines, kitchen tests are not run
 # RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
-# RUN_KITCHEN_TESTS can be set to false to force kithcen tests to not run on main/deploy pipelines.
+# RUN_KITCHEN_TESTS can be set to false to force kitchen tests to not run on main/deploy pipelines.
 .if_kitchen: &if_kitchen
   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
 
@@ -222,6 +222,12 @@ variables:
 # by setting RUN_KITCHEN_TESTS to false.
 .if_default_kitchen: &if_default_kitchen
   if: $RUN_KITCHEN_TESTS != "false"
+
+# Runs on all builds where RUN_KITCHEN_TESTS is also true.
+.all_kitchen_builds: &all_kitchen_builds
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_kitchen
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
@@ -653,6 +659,11 @@ variables:
   - <<: *if_kitchen
     when: always
 
+.on_all_kitchen_builds_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *all_kitchen_builds
+
 .on_kitchen_tests_a7:
   - <<: *if_not_version_7
     when: never
@@ -663,6 +674,11 @@ variables:
     when: never
   - <<: *if_kitchen
     when: always
+
+.on_all_kitchen_builds_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *all_kitchen_builds
 
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
