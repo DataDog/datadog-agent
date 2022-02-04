@@ -6,15 +6,12 @@
 //go:build zlib
 // +build zlib
 
-package metrics
+package metricsserializer
 
 import (
-	"bytes"
-	"compress/zlib"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"reflect"
 	"strconv"
@@ -26,7 +23,7 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 )
 
@@ -35,10 +32,10 @@ func TestMarshal(t *testing.T) {
 		Title:          "test title",
 		Text:           "test text",
 		Ts:             12345,
-		Priority:       EventPriorityNormal,
+		Priority:       metrics.EventPriorityNormal,
 		Host:           "test.localhost",
 		Tags:           []string{"tag1", "tag2:yes"},
-		AlertType:      EventAlertTypeError,
+		AlertType:      metrics.EventAlertTypeError,
 		AggregationKey: "test aggregation",
 		SourceTypeName: "test source",
 	}}
@@ -55,12 +52,12 @@ func TestMarshal(t *testing.T) {
 	assert.Equal(t, newPayload.Events[0].Title, "test title")
 	assert.Equal(t, newPayload.Events[0].Text, "test text")
 	assert.Equal(t, newPayload.Events[0].Ts, int64(12345))
-	assert.Equal(t, newPayload.Events[0].Priority, string(EventPriorityNormal))
+	assert.Equal(t, newPayload.Events[0].Priority, string(metrics.EventPriorityNormal))
 	assert.Equal(t, newPayload.Events[0].Host, "test.localhost")
 	require.Len(t, newPayload.Events[0].Tags, 2)
 	assert.Equal(t, newPayload.Events[0].Tags[0], "tag1")
 	assert.Equal(t, newPayload.Events[0].Tags[1], "tag2:yes")
-	assert.Equal(t, newPayload.Events[0].AlertType, string(EventAlertTypeError))
+	assert.Equal(t, newPayload.Events[0].AlertType, string(metrics.EventAlertTypeError))
 	assert.Equal(t, newPayload.Events[0].AggregationKey, "test aggregation")
 	assert.Equal(t, newPayload.Events[0].SourceTypeName, "test source")
 }
@@ -70,10 +67,10 @@ func TestMarshalJSON(t *testing.T) {
 		Title:          "An event occurred",
 		Text:           "event description",
 		Ts:             12345,
-		Priority:       EventPriorityNormal,
+		Priority:       metrics.EventPriorityNormal,
 		Host:           "my-hostname",
 		Tags:           []string{"tag1", "tag2:yes"},
-		AlertType:      EventAlertTypeError,
+		AlertType:      metrics.EventAlertTypeError,
 		AggregationKey: "my_agg_key",
 		SourceTypeName: "custom_source_type",
 	}}
@@ -113,14 +110,14 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 func TestSplitEvents(t *testing.T) {
 	var events = Events{}
 	for i := 0; i < 2; i++ {
-		e := Event{
+		e := metrics.Event{
 			Title:          "An event occurred",
 			Text:           "event description",
 			Ts:             12345,
-			Priority:       EventPriorityNormal,
+			Priority:       metrics.EventPriorityNormal,
 			Host:           "my-hostname",
 			Tags:           []string{"tag1", "tag2:yes"},
-			AlertType:      EventAlertTypeError,
+			AlertType:      metrics.EventAlertTypeError,
 			AggregationKey: "my_agg_key",
 			SourceTypeName: "custom_source_type",
 		}
@@ -155,7 +152,7 @@ func TestPayloadsSingleEvent(t *testing.T) {
 }
 
 func TestPayloadsEmptyEvent(t *testing.T) {
-	assertEqualEventsToMarshalJSON(t, Events{&Event{}})
+	assertEqualEventsToMarshalJSON(t, Events{&metrics.Event{}})
 }
 
 func TestPayloadsEvents(t *testing.T) {
@@ -175,37 +172,6 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler())
 	assert.Equal(t, 3, len(payloadsBySourceType))
 	assertEqualEventsPayloads(t, expectedPayloads, payloadsBySourceType)
-}
-
-// Temporary duplicate this function
-func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
-	builder := stream.NewJSONPayloadBuilder(true)
-	payloads, err := builder.Build(m)
-	assert.NoError(t, err)
-	var uncompressedPayloads [][]byte
-
-	for _, compressedPayload := range payloads {
-		payload, err := decompressPayload(*compressedPayload)
-		assert.NoError(t, err)
-
-		uncompressedPayloads = append(uncompressedPayloads, payload)
-	}
-	return uncompressedPayloads
-}
-
-// Temporary duplicate this function
-func decompressPayload(payload []byte) ([]byte, error) {
-	r, err := zlib.NewReader(bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	dst, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	return dst, nil
 }
 
 func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
@@ -232,22 +198,22 @@ func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 // Helpers
 type payloadsType = []byte
 
-func createEvent(sourceTypeName string) *Event {
-	return &Event{
+func createEvent(sourceTypeName string) *metrics.Event {
+	return &metrics.Event{
 		Title:          "1",
 		Text:           "2",
 		Ts:             3,
-		Priority:       EventPriorityNormal,
+		Priority:       metrics.EventPriorityNormal,
 		Host:           "5",
 		Tags:           []string{"6", "7"},
-		AlertType:      EventAlertTypeError,
+		AlertType:      metrics.EventAlertTypeError,
 		AggregationKey: "9",
 		SourceTypeName: sourceTypeName,
 		EventType:      "10"}
 }
 
 func createEvents(sourceTypeNames ...string) Events {
-	var events []*Event
+	var events []*metrics.Event
 	for _, s := range sourceTypeNames {
 		events = append(events, createEvent(s))
 	}
@@ -318,7 +284,7 @@ func buildEventsJSON(payloads []payloadsType) (*eventsJSON, error) {
 
 type eventsJSON struct {
 	APIKey           string
-	Events           map[string][]Event
+	Events           map[string][]metrics.Event
 	InternalHostname string
 }
 

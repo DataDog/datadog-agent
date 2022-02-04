@@ -169,7 +169,7 @@ func TestSplitPayloadsEvents(t *testing.T) {
 }
 
 func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
-	testEvent := metrics.Events{}
+	testEvent := metricsserializer.Events{}
 	for i := 0; i < numPoints; i++ {
 		event := metrics.Event{
 			Title:          "test title",
