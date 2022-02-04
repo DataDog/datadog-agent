@@ -167,7 +167,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	service.api = api
 
-	// Artifically set the backoff error count so we can test recovery
+	// Artificially set the backoff error count so we can test recovery
 	service.backoffErrorCount = 3
 
 	// We'll set the default interal to 1 second to make math less hard
