@@ -224,7 +224,7 @@ system_service=${flavor_to_system_service[$agent_flavor]:-datadog-agent}
 
 declare -A flavor_to_etcdir
 flavor_to_etcdir=(
-    ["datadog_dogstatsd"]="/etc/datadog-dogstatsd"
+    ["datadog-dogstatsd"]="/etc/datadog-dogstatsd"
 )
 etcdir=${flavor_to_etcdir[$agent_flavor]:-/etc/datadog-agent}
 
