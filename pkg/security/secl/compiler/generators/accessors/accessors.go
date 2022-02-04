@@ -63,7 +63,9 @@ func origTypeToBasicType(kind string) string {
 }
 
 func handleBasic(name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string) {
-	fmt.Printf("handleBasic %s %s\n", name, kind)
+	if verbose {
+		fmt.Printf("handleBasic %s %s\n", name, kind)
+	}
 
 	basicType := origTypeToBasicType(kind)
 	module.Fields[alias] = &common.StructField{
@@ -82,7 +84,9 @@ func handleBasic(name, alias, kind, event string, iterator *common.StructField, 
 }
 
 func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
-	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
+	if verbose {
+		fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
+	}
 
 	switch fieldType.Name {
 	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64":
@@ -154,7 +158,9 @@ func parseHandler(handler string) (string, int64) {
 }
 
 func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
-	fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
+	if verbose {
+		fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
+	}
 
 	if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 		if structType, ok := typeSpec.Type.(*ast.StructType); ok {
@@ -303,7 +309,9 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					if ident != nil {
 						embedded := astFile.Scope.Lookup(ident.Name)
 						if embedded != nil {
-							log.Printf("Embedded struct %s", ident.Name)
+							if verbose {
+								log.Printf("Embedded struct %s", ident.Name)
+							}
 							handleSpec(astFile, embedded.Decl, prefix+"."+ident.Name, aliasPrefix, event, fieldIterator, dejavu)
 						}
 					}
