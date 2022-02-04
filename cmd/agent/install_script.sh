@@ -224,7 +224,7 @@ flavor_to_system_service=(
 system_service=${flavor_to_system_service[$agent_flavor]:-datadog-agent}
 
 declare -A flavor_to_config
-flavor_to_conf=(
+flavor_to_config=(
     ["datadog-dogstatsd"]="$ETCDIR/dogstatsd.yaml"
 )
 config_file=${flavor_to_config[$agent_flavor]:-$ETCDIR/datadog.yaml}
@@ -292,6 +292,11 @@ fi
 
 if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
     printf "\033[31mThe full $nice_flavor isn't available for your architecture (armv7l).\nInstall the ${flavor_to_readable[datadog-iot-agent]} by setting DD_AGENT_FLAVOR='datadog-iot-agent'.\033[0m\n"
+    exit 1;
+fi
+
+if [[ `uname -m` != "x86_64" ]] && [[ $agent_flavor == "datadog-dogstatsd" ]]; then
+    printf "\033[31mThe $nice_flavor is only available for x86_64 architecture.\033[0m\n"
     exit 1;
 fi
 
@@ -374,7 +379,7 @@ if [ "$OS" = "RedHat" ]; then
 
     $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
 
-    printf "\033[34m* Installing the $nice_flavor\n\033[0m\n"
+    printf "\033[34m* Installing the $nice_flavor package\n\033[0m\n"
     $sudo_cmd yum -y clean metadata
 
     dnf_flag=""
@@ -433,7 +438,7 @@ elif [ "$OS" = "Debian" ]; then
         $sudo_cmd cp -a $apt_usr_share_keyring $apt_trusted_d_keyring
     fi
 
-    printf "\033[34m\n* Installing the $nice_flavor\n\033[0m\n"
+    printf "\033[34m\n* Installing the $nice_flavor package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
 Failed to update the sources after adding the Datadog repository.
 This may be due to any of the configured APT sources failing -
@@ -530,7 +535,7 @@ elif [ "$OS" = "SUSE" ]; then
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
   
-  echo -e "\033[34m\n* Installing the $nice_flavor\n\033[0m"
+  echo -e "\033[34m\n* Installing the $nice_flavor package\n\033[0m"
 
   # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
   agent_minor_version_without_patch="${agent_minor_version%.*}"
@@ -600,11 +605,11 @@ if [ "$upgrade" ] && [ "$agent_flavor" != "datadog-dogstatsd" ]; then
 fi
 
 # Set the configuration
-if [ -e $config_file ] && [ -z "$upgrade" ]; then
-  printf "\033[34m\n* Keeping old datadog.yaml configuration file\n\033[0m\n"
+if [ -e "$config_file" ] && [ -z "$upgrade" ]; then
+  printf "\033[34m\n* Keeping old $config_file configuration file\n\033[0m\n"
 else
-  if [ ! -e $config_file ]; then
-    $sudo_cmd cp $config_file.example $config_file
+  if [ ! -e "$config_file" ]; then
+    $sudo_cmd cp "$config_file.example" "$config_file"
   fi
   if [ "$apikey" ]; then
     printf "\033[34m\n* Adding your API key to the $nice_flavor configuration: $config_file\n\033[0m\n"
@@ -613,7 +618,7 @@ else
     # If the import script failed for any reason, we might end here also in case
     # of upgrade, let's not start the agent or it would fail because the api key
     # is missing
-    if ! $sudo_cmd grep -q -E '^api_key: .+' $config_file; then
+    if ! $sudo_cmd grep -q -E '^api_key: .+' "$config_file"; then
       printf "\033[31mThe $nice_flavor won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the $nice_flavor manually.\n\033[0m\n"
       no_start=true
     fi
@@ -635,8 +640,8 @@ else
       formatted_host_tags="['""$( echo "$host_tags" | sed "s/,/','/g" )""']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
       $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $config_file"
   fi
-  $sudo_cmd chown dd-agent:dd-agent $config_file
-  $sudo_cmd chmod 640 $config_file
+  $sudo_cmd chown dd-agent:dd-agent "$config_file"
+  $sudo_cmd chmod 640 "$config_file"
 fi
 
 # Creating or overriding the install information
