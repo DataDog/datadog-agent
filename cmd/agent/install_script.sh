@@ -12,7 +12,6 @@ support_email=support@datadoghq.com
 
 LEGACY_ETCDIR="/etc/dd-agent"
 LEGACY_CONF="$LEGACY_ETCDIR/datadog.conf"
-ETCDIR="/etc/datadog-agent"
 
 # DATADOG_APT_KEY_CURRENT.public always contains key used to sign current
 # repodata and newly released packages
@@ -223,11 +222,17 @@ flavor_to_system_service=(
 )
 system_service=${flavor_to_system_service[$agent_flavor]:-datadog-agent}
 
+declare -A flavor_to_etcdir
+flavor_to_etcdir=(
+    ["datadog_dogstatsd"]="/etc/datadog-dogstatsd"
+)
+etcdir=${flavor_to_etcdir[$agent_flavor]:-/etc/datadog-agent}
+
 declare -A flavor_to_config
 flavor_to_config=(
-    ["datadog-dogstatsd"]="$ETCDIR/dogstatsd.yaml"
+    ["datadog-dogstatsd"]="$etcdir/dogstatsd.yaml"
 )
-config_file=${flavor_to_config[$agent_flavor]:-$ETCDIR/datadog.yaml}
+config_file=${flavor_to_config[$agent_flavor]:-$etcdir/datadog.yaml}
 
 agent_major_version=6
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
@@ -593,12 +598,12 @@ fi
 if [ "$upgrade" ] && [ "$agent_flavor" != "datadog-dogstatsd" ]; then
   if [ -e $LEGACY_CONF ]; then
     # try to import the config file from the previous version
-    icmd="datadog-agent import $LEGACY_ETCDIR $ETCDIR"
+    icmd="datadog-agent import $LEGACY_ETCDIR $etcdir"
     # shellcheck disable=SC2086
     $sudo_cmd $icmd || printf "\033[31mAutomatic import failed, you can still try to manually run: $icmd\n\033[0m\n"
     # fix file owner and permissions since the script moves around some files
-    $sudo_cmd chown -R dd-agent:dd-agent $ETCDIR
-    $sudo_cmd find $ETCDIR/ -type f -exec chmod 640 {} \;
+    $sudo_cmd chown -R dd-agent:dd-agent "$etcdir"
+    $sudo_cmd find "$etcdir/" -type f -exec chmod 640 {} \;
   else
     printf "\033[31mYou don't have a datadog.conf file to convert.\n\033[0m\n"
   fi
@@ -651,7 +656,7 @@ install_method:
   tool_version: install_script
   installer_version: install_script-$install_script_version
 "
-$sudo_cmd sh -c "echo '$install_info_content' > $ETCDIR/install_info"
+$sudo_cmd sh -c "echo '$install_info_content' > $etcdir/install_info"
 
 # On SUSE 11, sudo service datadog-agent start fails (because /sbin is not in a base user's path)
 # However, sudo /sbin/service datadog-agent does work.
