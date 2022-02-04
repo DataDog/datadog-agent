@@ -1601,6 +1601,13 @@ api_key:
 #
 # dogstatsd_origin_detection: false
 
+## @param dogstatsd_origin_detection_client - boolean - optional - default: false
+## @env DD_DOGSTATSD_ORIGIN_DETECTION_CLIENT - boolean - optional - default: false
+## Whether the Agent should use a client-provided container ID to enrich the metrics, events and service checks with container tags.
+## Note: This requires using a client compatible with DogStatsD protocol version 1.2.
+#
+# dogstatsd_origin_detection_client: false
+
 ## @param dogstatsd_buffer_size - integer - optional - default: 8192
 ## @env DD_DOGSTATSD_BUFFER_SIZE - integer - optional - default: 8192
 ## The buffer size use to receive statsd packets, in bytes.
