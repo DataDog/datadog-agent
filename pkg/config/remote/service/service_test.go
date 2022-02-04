@@ -86,7 +86,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	return service
 }
 
-func TestServiceBackoff(t *testing.T) {
+func TestServiceBackoffFailure(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockUptane{}
 	clock := clock.NewMock()
@@ -141,8 +141,18 @@ func TestServiceBackoff(t *testing.T) {
 	refreshInterval = service.calculateRefreshInterval()
 	assert.GreaterOrEqual(t, refreshInterval, 121*time.Second)
 	assert.LessOrEqual(t, refreshInterval, 241*time.Second)
+}
 
-	// Make the call succeed so we can test the recovery interval
+func TestServiceBackoffFailureRecovery(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock)
+
+	lastConfigResponse := &pbgo.LatestConfigsResponse{
+		TargetFiles: []*pbgo.File{{Path: "test"}},
+	}
+
 	api = &mockAPI{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -153,14 +163,22 @@ func TestServiceBackoff(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 	}).Return(lastConfigResponse, nil)
+	uptaneClient.On("State").Return(uptane.State{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	service.api = api
 
-	err = service.refresh()
+	// Artifically set the backoff error count so we can test recovery
+	service.backoffErrorCount = 3
+
+	// We'll set the default interal to 1 second to make math less hard
+	service.defaultRefreshInterval = 1 * time.Second
+
+	err := service.refresh()
 	assert.Nil(t, err)
 
-	// Our recovery interval is 2, so we step back to the [31,61] range
+	// Our recovery interval is 2, so we should step back to the [31,61] range
 	assert.Equal(t, service.backoffErrorCount, 1)
-	refreshInterval = service.calculateRefreshInterval()
+	refreshInterval := service.calculateRefreshInterval()
 	assert.GreaterOrEqual(t, refreshInterval, 31*time.Second)
 	assert.LessOrEqual(t, refreshInterval, 61*time.Second)
 
