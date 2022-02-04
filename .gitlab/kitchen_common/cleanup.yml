@@ -23,6 +23,7 @@
   tags: ["runner:main"]
   dependencies: []
   before_script:
+    - python3 -m pip install -r requirements.txt
     - rsync -azr --delete ./ $SRC_PATH
   script:
     - cd $DD_AGENT_TESTING_DIR

@@ -9,6 +9,8 @@
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
   retry: 1
+  before_script:
+    - python3 -m pip install -r requirements.txt
 
 # Kitchen: providers
 # ---------------
