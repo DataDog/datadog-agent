@@ -13,8 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // Tailer reads data from a net.Conn.  It uses a `read` callback to be generic
@@ -36,7 +36,7 @@ func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan *message
 		Conn:       conn,
 		outputChan: outputChan,
 		read:       read,
-		decoder:    decoder.InitializeDecoder(source, parser.Noop),
+		decoder:    decoder.InitializeDecoder(source, noop.New()),
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
 	}

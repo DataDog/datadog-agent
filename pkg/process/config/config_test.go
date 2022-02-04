@@ -62,7 +62,7 @@ func loadAgentConfigForTest(t *testing.T, path, networksYamlPath string) *AgentC
 	syscfg, err := sysconfig.Merge(networksYamlPath)
 	require.NoError(t, err)
 
-	cfg, err := NewAgentConfig("test", path, syscfg, false)
+	cfg, err := NewAgentConfig("test", path, syscfg)
 	require.NoError(t, err)
 	return cfg
 }
@@ -129,15 +129,15 @@ func TestOnlyEnvConfig(t *testing.T) {
 	os.Setenv("DD_API_KEY", "apikey_from_env")
 	defer os.Unsetenv("DD_API_KEY")
 
-	agentConfig, _ := NewAgentConfig("test", "", syscfg, true)
+	agentConfig, _ := NewAgentConfig("test", "", syscfg)
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
 
 	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
-	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
+	agentConfig, _ = NewAgentConfig("test", "", syscfg)
 	assert.Equal(t, 99, agentConfig.MaxPerMessage)
 
 	_ = os.Setenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "1234")
-	agentConfig, _ = NewAgentConfig("test", "", syscfg, true)
+	agentConfig, _ = NewAgentConfig("test", "", syscfg)
 	assert.Equal(t, 1234, agentConfig.MaxCtrProcessesPerMessage)
 	_ = os.Unsetenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE")
 }
@@ -151,12 +151,12 @@ func TestEnvGrpcConnectionTimeoutSecs(t *testing.T) {
 	require.NoError(t, err)
 
 	_ = os.Setenv("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", "1")
-	_, _ = NewAgentConfig("test", "", syscfg, true)
+	_, _ = NewAgentConfig("test", "", syscfg)
 	assert.Equal(t, 1, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
 	_ = os.Unsetenv("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS")
 
 	_ = os.Setenv("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS", "2")
-	_, _ = NewAgentConfig("test", "", syscfg, true)
+	_, _ = NewAgentConfig("test", "", syscfg)
 	assert.Equal(t, 2, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
 	_ = os.Unsetenv("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS")
 }
@@ -204,7 +204,7 @@ func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
 
 	syscfg, err := sysconfig.Merge("")
 	assert.NoError(t, err)
-	agentConfig, _ := NewAgentConfig("test", "", syscfg, true)
+	agentConfig, _ := NewAgentConfig("test", "", syscfg)
 	assert.Equal(t, true, agentConfig.Scrubber.Enabled)
 
 	cases := []struct {
@@ -234,7 +234,7 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 
 	syscfg, err := sysconfig.Merge("")
 	require.NoError(t, err)
-	agentConfig, _ := NewAgentConfig("test", "", syscfg, true)
+	agentConfig, _ := NewAgentConfig("test", "", syscfg)
 	assert.Equal(t, false, agentConfig.Scrubber.Enabled)
 
 	cases := []struct {
@@ -265,7 +265,7 @@ func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
 
 	syscfg, err := sysconfig.Merge("")
 	require.NoError(t, err)
-	_, _ = NewAgentConfig("test", "", syscfg, true)
+	_, _ = NewAgentConfig("test", "", syscfg)
 	assert.Equal(t, "error", config.Datadog.GetString("log_level"))
 }
 
@@ -318,11 +318,8 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal("apikey_20", ep.APIKey)
 	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
-	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
-	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
-	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.Equal(5065, agentConfig.ProcessExpVarPort)
 
@@ -335,13 +332,10 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
-	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
-	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	if runtime.GOOS != "windows" {
 		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
 	}
-	assert.Equal(append(processChecks, ConnectionsCheckName, NetworkCheckName), agentConfig.EnabledChecks)
 
 	newConfig()
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-2.yaml")
@@ -351,13 +345,10 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
-	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
-	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	if runtime.GOOS != "windows" {
 		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
 	}
-	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
 
 	newConfig()
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-Windows.yaml")
@@ -448,7 +439,6 @@ func TestEnvSiteConfig(t *testing.T) {
 	require.NoError(t, err)
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-ProcessDiscovery.yaml", "")
 	require.NoError(t, err)
-	assert.Contains(agentConfig.EnabledChecks, "process_discovery")
 	os.Unsetenv("DD_PROCESS_AGENT_DISCOVERY_ENABLED")
 }
 
@@ -525,7 +515,6 @@ func TestNetworkConfig(t *testing.T) {
 		agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlOnly.yaml", "./testdata/TestDDAgentConfig-NetConfig.yaml")
 
 		assert.True(t, agentConfig.EnableSystemProbe)
-		assert.ElementsMatch(t, []string{ConnectionsCheckName, NetworkCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
 	})
 
 	t.Run("env", func(t *testing.T) {
@@ -537,11 +526,10 @@ func TestNetworkConfig(t *testing.T) {
 
 		syscfg, err := sysconfig.Merge("")
 		require.NoError(t, err)
-		agentConfig, err := NewAgentConfig("test", "", syscfg, true)
+		agentConfig, err := NewAgentConfig("test", "", syscfg)
 		require.NoError(t, err)
 
 		assert.True(t, agentConfig.EnableSystemProbe)
-		assert.ElementsMatch(t, []string{ConnectionsCheckName, NetworkCheckName, ContainerCheckName, RTContainerCheckName, DiscoveryCheckName}, agentConfig.EnabledChecks)
 	})
 }
 
@@ -552,7 +540,6 @@ func TestSystemProbeNoNetwork(t *testing.T) {
 	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlOnly.yaml", "./testdata/TestDDAgentConfig-OOMKillOnly.yaml")
 
 	assert.True(t, agentConfig.EnableSystemProbe)
-	assert.ElementsMatch(t, []string{OOMKillCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
 }
 
 func TestGetHostnameFromGRPC(t *testing.T) {
@@ -613,7 +600,7 @@ func TestInvalidHostname(t *testing.T) {
 	config.Datadog.Set("process_config.grpc_connection_timeout_secs", 1)
 
 	// Input yaml file has an invalid hostname (localhost) so we expect to configure via environment
-	agentConfig, err := NewAgentConfig("test", "./testdata/TestDDAgentConfigYamlOnly-InvalidHostname.yaml", syscfg, true)
+	agentConfig, err := NewAgentConfig("test", "./testdata/TestDDAgentConfigYamlOnly-InvalidHostname.yaml", syscfg)
 	require.NoError(t, err)
 
 	expectedHostname, _ := os.Hostname()
@@ -653,38 +640,33 @@ func TestGetHostnameShellCmd(t *testing.T) {
 	}
 }
 
-// TestProcessDiscoveryConfig tests to make sure that the process discovery check is properly configured
-func TestProcessDiscoveryConfig(t *testing.T) {
-	assert := assert.New(t)
+// TestProcessDiscoveryInterval tests to make sure that the process discovery interval validation works properly
+func TestProcessDiscoveryInterval(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		interval         time.Duration
+		expectedInterval time.Duration
+	}{
+		{
+			name:             "allowed interval",
+			interval:         8 * time.Hour,
+			expectedInterval: 8 * time.Hour,
+		},
+		{
+			name:             "below minimum",
+			interval:         0,
+			expectedInterval: discoveryMinInterval,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.Mock()
+			cfg.Set("process_config.process_discovery.interval", tc.interval)
 
-	for _, procCollectionEnabled := range []bool{true, false} {
-		for _, procDiscoveryEnabled := range []bool{true, false} {
-			config.Datadog.Set("process_config.process_collection.enabled", procCollectionEnabled)
-			config.Datadog.Set("process_config.process_discovery.enabled", procDiscoveryEnabled)
-			config.Datadog.Set("process_config.process_discovery.interval", time.Hour)
-			cfg := AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
-			cfg.initProcessDiscoveryCheck()
+			agentCfg := NewDefaultAgentConfig()
+			assert.NoError(t, agentCfg.LoadProcessYamlConfig(""))
 
-			// Make sure that the process discovery check is only enabled when process collection is disabled,
-			// and procDiscoveryEnabled isn't overridden.
-			if procDiscoveryEnabled && !procCollectionEnabled {
-				assert.ElementsMatch([]string{DiscoveryCheckName}, cfg.EnabledChecks)
-
-				// Interval Tests:
-				// These can only be done while the check is enabled, which is why we do them here.
-
-				// Make sure that the discovery check interval can be overridden.
-				assert.Equal(time.Hour, cfg.CheckIntervals[DiscoveryCheckName])
-
-				// Ensure that the minimum interval for the process_discovery check is enforced
-				config.Datadog.Set("process_config.process_discovery.interval", time.Second)
-				cfg = AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
-				cfg.initProcessDiscoveryCheck()
-				assert.Equal(10*time.Minute, cfg.CheckIntervals[DiscoveryCheckName])
-			} else {
-				assert.ElementsMatch([]string{}, cfg.EnabledChecks)
-			}
-		}
+			assert.Equal(t, tc.expectedInterval, agentCfg.CheckIntervals[DiscoveryCheckName])
+		})
 	}
 }
 

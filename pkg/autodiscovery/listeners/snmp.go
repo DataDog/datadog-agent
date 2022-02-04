@@ -321,8 +321,8 @@ func (l *SNMPListener) Stop() {
 	l.stop <- true
 }
 
-// GetEntity returns the unique entity ID linked to that service
-func (s *SNMPService) GetEntity() string {
+// GetServiceID returns the unique entity ID linked to that service
+func (s *SNMPService) GetServiceID() string {
 	return s.entityID
 }
 

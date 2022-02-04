@@ -20,6 +20,8 @@
       docker login --username "`${DOCKER_REGISTRY_LOGIN}" --password "`${DOCKER_REGISTRY_PWD}" "${DOCKER_REGISTRY_URL}"
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | out-file ci-scripts/docker-login.ps1
+  # Workaround for temporary network failures
+  retry: 2
 
 .docker_build_agent_windows_common:
   extends:

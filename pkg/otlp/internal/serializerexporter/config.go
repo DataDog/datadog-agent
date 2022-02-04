@@ -22,6 +22,9 @@ type exporterConfig struct {
 
 // metricsConfig defines the metrics exporter specific configuration options
 type metricsConfig struct {
+	// Enabled reports whether Metrics should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
 	// Quantiles states whether to report quantiles from summary metrics.
 	// By default, the minimum, maximum and average are reported.
 	Quantiles bool `mapstructure:"report_quantiles"`
