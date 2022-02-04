@@ -162,25 +162,29 @@ func TestBuildMetricBlocklistForProxy(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
-func getAvailablePort(t *testing.T) uint16 {
+// getAvailableUDPPort requests a random port number and makes sure it is available
+func getAvailableUDPPort() (int, error) {
 	conn, err := net.ListenPacket("udp", ":0")
-	require.NoError(t, err)
+	if err != nil {
+		return -1, fmt.Errorf("can't find an available udp port: %s", err)
+	}
 	defer conn.Close()
-	return parsePort(t, conn.LocalAddr().String())
-}
 
-func parsePort(t *testing.T, addr string) uint16 {
-	_, portString, err := net.SplitHostPort(addr)
-	require.NoError(t, err)
+	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
+	if err != nil {
+		return -1, fmt.Errorf("can't find an available udp port: %s", err)
+	}
+	portInt, err := strconv.Atoi(portString)
+	if err != nil {
+		return -1, fmt.Errorf("can't convert udp port: %s", err)
+	}
 
-	port, err := strconv.ParseUint(portString, 10, 16)
-	require.NoError(t, err)
-
-	return uint16(port)
+	return portInt, nil
 }
 
 func TestRaceFlushVersusParsePacket(t *testing.T) {
-	port := getAvailablePort(t)
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	opts := aggregator.DefaultDemultiplexerOptions(nil)
@@ -188,7 +192,6 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
 
-	metricOut, _, _ := demux.Aggregator().GetBufferedChannels()
 	s, err := dogstatsd.NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -204,15 +207,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	go func(wg *sync.WaitGroup) {
 		for i := 0; i < 1000; i++ {
 			conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-			select {
-			case res := <-metricOut:
-				assert.Equal(t, 1, len(res))
-				sample := res[0]
-				assert.NotNil(t, sample)
-			case <-time.After(30 * time.Second):
-				finish.Done()
-				assert.FailNow(t, "Timeout on receive channel")
-			}
+			time.Sleep(10 * time.Millisecond)
 		}
 		finish.Done()
 	}(finish)
