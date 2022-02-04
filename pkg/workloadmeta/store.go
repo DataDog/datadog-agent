@@ -460,16 +460,21 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				continue
 			}
 
-			entityOfSource := s.store[entityID.Kind][entityID.ID]
+			entityOfSource, ok := s.store[entityID.Kind][entityID.ID]
 			filteredSources, _ := filter.SelectSources(entityOfSource.sources())
 
-			if ev.Type == EventTypeSet || len(filteredSources) > 0 {
+			var entity Entity
+			if ok && len(filteredSources) > 0 {
+				entity = entityOfSource.merge(filteredSources)
+			}
+
+			if ev.Type == EventTypeSet || entity != nil {
 				// setting an entity (EventTypeSet) or entity
 				// had one source removed, but others remain
 				filteredEvents = append(filteredEvents, Event{
 					Type:    EventTypeSet,
 					Sources: filteredSources,
-					Entity:  entityOfSource.merge(filteredSources),
+					Entity:  entity,
 				})
 
 			} else {
