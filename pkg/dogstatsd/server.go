@@ -129,6 +129,7 @@ type Server struct {
 	workers []*worker
 
 	packetsIn                 chan packets.Packets
+	serverlessFlushChan       chan bool
 	sharedPacketPool          *packets.Pool
 	sharedPacketPoolManager   *packets.PoolManager
 	sharedFloat64List         *float64ListPool
@@ -317,6 +318,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		demultiplexer:             demultiplexer,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
+		serverlessFlushChan:       make(chan bool),
 		health:                    health.RegisterLiveness("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
 		metricPrefixBlacklist:     metricPrefixBlacklist,
@@ -443,9 +445,7 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
 	// make all workers flush their aggregated data (in the batcher) to the aggregator.
-	for _, w := range s.workers {
-		w.flush()
-	}
+	s.serverlessFlushChan <- true
 	// flush the aggregator to have the serializer/forwarder send data to the backend.
 	agg := s.demultiplexer.Aggregator()
 	agg.ServerlessFlush <- true
