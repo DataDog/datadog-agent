@@ -235,7 +235,7 @@ func TestSplitPayloadsServiceChecks(t *testing.T) {
 }
 
 func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) {
-	testServiceChecks := metrics.ServiceChecks{}
+	testServiceChecks := metricsserializer.ServiceChecks{}
 	for i := 0; i < numPoints; i++ {
 		sc := metrics.ServiceCheck{
 			CheckName: "test.check",

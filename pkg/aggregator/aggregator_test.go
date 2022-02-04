@@ -211,7 +211,7 @@ func TestDefaultData(t *testing.T) {
 	agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 	start := time.Now()
 
-	s.On("SendServiceChecks", metrics.ServiceChecks{{
+	s.On("SendServiceChecks", metricsserializer.ServiceChecks{{
 		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
 		Tags:      []string{},
@@ -417,7 +417,7 @@ func TestRecurrentSeries(t *testing.T) {
 	}}
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
-	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+	agentUpMatcher := mock.MatchedBy(func(m metricsserializer.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
 		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)

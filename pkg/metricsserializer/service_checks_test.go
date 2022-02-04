@@ -6,13 +6,10 @@
 //go:build zlib
 // +build zlib
 
-package metrics
+package metricsserializer
 
 import (
-	"bytes"
-	"compress/zlib"
 	"fmt"
-	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -20,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
@@ -30,7 +28,7 @@ func TestMarshalJSONServiceChecks(t *testing.T) {
 		CheckName: "my_service.can_connect",
 		Host:      "my-hostname",
 		Ts:        int64(12345),
-		Status:    ServiceCheckOK,
+		Status:    metrics.ServiceCheckOK,
 		Message:   "my_service is up",
 		Tags:      []string{"tag1", "tag2:yes"},
 	}}
@@ -44,11 +42,11 @@ func TestMarshalJSONServiceChecks(t *testing.T) {
 func TestSplitServiceChecks(t *testing.T) {
 	var serviceChecks = ServiceChecks{}
 	for i := 0; i < 2; i++ {
-		sc := ServiceCheck{
+		sc := metrics.ServiceCheck{
 			CheckName: "test.check",
 			Host:      "test.localhost",
 			Ts:        1000,
-			Status:    ServiceCheckOK,
+			Status:    metrics.ServiceCheckOK,
 			Message:   "this is fine",
 			Tags:      []string{"tag1", "tag2:yes"},
 		}
@@ -65,12 +63,12 @@ func TestSplitServiceChecks(t *testing.T) {
 	require.Len(t, newSC, 2)
 }
 
-func createServiceCheck(checkName string) *ServiceCheck {
-	return &ServiceCheck{
+func createServiceCheck(checkName string) *metrics.ServiceCheck {
+	return &metrics.ServiceCheck{
 		CheckName: checkName,
 		Host:      "2",
 		Ts:        3,
-		Status:    ServiceCheckUnknown,
+		Status:    metrics.ServiceCheckUnknown,
 		Message:   "4",
 		Tags:      []string{"5", "6"}}
 }
@@ -88,21 +86,6 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
 		uncompressedPayloads = append(uncompressedPayloads, payload)
 	}
 	return uncompressedPayloads
-}
-
-// Duplicate this function temporary (removed later)
-func decompressPayload(payload []byte) ([]byte, error) {
-	r, err := zlib.NewReader(bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	dst, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	return dst, nil
 }
 
 func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler) {
@@ -128,7 +111,7 @@ func TestPayloadsSingleServiceCheck(t *testing.T) {
 }
 
 func TestPayloadsEmptyServiceCheck(t *testing.T) {
-	assertEqualToMarshalJSON(t, ServiceChecks{&ServiceCheck{}})
+	assertEqualToMarshalJSON(t, ServiceChecks{&metrics.ServiceCheck{}})
 }
 
 func TestPayloadsServiceChecks(t *testing.T) {
@@ -158,7 +141,7 @@ func TestPayloadsServiceChecks(t *testing.T) {
 }
 
 func createServiceChecks(numberOfItem int) ServiceChecks {
-	var serviceCheckCollections []*ServiceCheck
+	var serviceCheckCollections []*metrics.ServiceCheck
 
 	for i := 0; i < numberOfItem; i++ {
 		serviceCheckCollections = append(serviceCheckCollections, createServiceCheck(fmt.Sprint(i)))

@@ -217,7 +217,7 @@ type BufferedAggregator struct {
 	statsdSampler          TimeSampler
 	tagsStore              *tags.Store
 	checkSamplers          map[check.ID]*CheckSampler
-	serviceChecks          metrics.ServiceChecks
+	serviceChecks          metricsserializer.ServiceChecks
 	events                 metrics.Events
 	flushInterval          time.Duration
 	mu                     sync.Mutex // to protect the checkSamplers field
@@ -658,7 +658,7 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSe
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
-func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
+func (agg *BufferedAggregator) GetServiceChecks() metricsserializer.ServiceChecks {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	// Clear the current service check slice
@@ -667,7 +667,7 @@ func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 	return serviceChecks
 }
 
-func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metrics.ServiceChecks) {
+func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metricsserializer.ServiceChecks) {
 	log.Debugf("Flushing %d service checks to the forwarder", len(serviceChecks))
 	state := stateOk
 	if err := agg.serializer.SendServiceChecks(serviceChecks); err != nil {

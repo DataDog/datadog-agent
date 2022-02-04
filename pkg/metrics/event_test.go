@@ -9,9 +9,12 @@
 package metrics
 
 import (
+	"bytes"
+	"compress/zlib"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"reflect"
 	"strconv"
@@ -23,6 +26,7 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 )
 
@@ -171,6 +175,37 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler())
 	assert.Equal(t, 3, len(payloadsBySourceType))
 	assertEqualEventsPayloads(t, expectedPayloads, payloadsBySourceType)
+}
+
+// Temporary duplicate this function
+func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
+	builder := stream.NewJSONPayloadBuilder(true)
+	payloads, err := builder.Build(m)
+	assert.NoError(t, err)
+	var uncompressedPayloads [][]byte
+
+	for _, compressedPayload := range payloads {
+		payload, err := decompressPayload(*compressedPayload)
+		assert.NoError(t, err)
+
+		uncompressedPayloads = append(uncompressedPayloads, payload)
+	}
+	return uncompressedPayloads
+}
+
+// Temporary duplicate this function
+func decompressPayload(payload []byte) ([]byte, error) {
+	r, err := zlib.NewReader(bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	dst, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	return dst, nil
 }
 
 func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
