@@ -1603,8 +1603,7 @@ api_key:
 
 ## @param dogstatsd_origin_detection_client - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION_CLIENT - boolean - optional - default: false
-## A DogStatsD client can send its container ID.
-## Enable this parameter to instruct the Agent to use the container ID to enrich the metrics with container tags.
+## Whether the Agent should use a client-provided container ID to enrich the metrics, events and service checks with container tags.
 ## Note: This requires using a client compatible with DogStatsD protocol version 1.2.
 #
 # dogstatsd_origin_detection_client: false
