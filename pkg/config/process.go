@@ -100,7 +100,11 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.strip_proc_arguments")
 	// Use PDH API to collect performance counter data for process check on Windows
 	procBindEnvAndSetDefault(config, "process_config.windows.use_perf_counters", false)
-	procBindEnvAndSetDefault(config, "process_config.additional_endpoints", map[string][]string{})
+	config.BindEnvAndSetDefault("process_config.additional_endpoints", make(map[string][]string),
+		"DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS",
+		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
+		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
+	)
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
