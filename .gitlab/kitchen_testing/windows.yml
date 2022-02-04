@@ -9,6 +9,8 @@
 # -------------
 
 .kitchen_os_windows:
+  extends:
+    - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2008r2,win2012,win2012r2,win2016,win2019,win2019cn,win2022"
@@ -82,16 +84,19 @@
   extends:
     - .kitchen_test_windows_installer
     - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
 
 .kitchen_test_windows_installer_driver:
   extends:
     - .kitchen_test_windows_npm_driver
     - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
 
 .kitchen_test_windows_installer_npm:
   extends:
     - .kitchen_test_windows_npm_installer
     - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
 
 # Kitchen: scenarios (os * agent)
 # -------------------------------
