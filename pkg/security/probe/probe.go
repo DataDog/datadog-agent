@@ -907,7 +907,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
 	}
 
-	p.sanityChecks()
+	p.ensureConfigDefaults()
 
 	numCPU, err := utils.NumCPU()
 	if err != nil {
@@ -1045,7 +1045,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	return p, nil
 }
 
-func (p *Probe) sanityChecks() {
+func (p *Probe) ensureConfigDefaults() {
 	// enable runtime compiled constants on COS by default
 	if !p.config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
 		p.config.EnableRuntimeCompiledConstants = true
