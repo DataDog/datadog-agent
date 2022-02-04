@@ -10,8 +10,10 @@ skip_ssl_validation: yes
 dogstatsd_port: 18125
 dogstatsd_non_local_traffic: yes
 log_level: info
-otlp:
-  internal_traces_port: 50053
+otlp_config:
+  receiver:
+  traces:
+    internal_port: 50053
 apm_config:
   enabled: false
   log_file: abc

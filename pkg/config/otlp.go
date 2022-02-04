@@ -53,7 +53,7 @@ func promoteExperimentalOTLP(cfg Config) {
 		return
 	}
 	log.Warn(`OpenTelemetry OTLP receiver configuration is now public beta and has been moved out of the "experimental" section. ` +
-		`This section will be deprecated in a future Datadog Agent release. Please use the same configuration as part of the top level "otlp_config" section instead.`)
+		`This section will be deprecated in a future Datadog Agent release. Please use the "otlp_config" section instead.`)
 	if k := "experimental.otlp.metrics"; cfg.IsSet(k) {
 		for key, val := range cfg.GetStringMap(k) {
 			cfg.Set(OTLPMetrics+"."+key, val)

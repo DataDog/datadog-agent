@@ -2828,7 +2828,6 @@ api_key:
   # stop_timeout: 5.0
 
 {{end -}}
-{{- if .OpenTelemetry }}
 
 ###################################
 ## OpenTelemetry Configuration   ##
@@ -2847,5 +2846,3 @@ api_key:
   #
   # receiver:
   #   <RECEIVER_CONFIGURATION>
-
-{{end -}}

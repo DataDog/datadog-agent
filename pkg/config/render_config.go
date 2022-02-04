@@ -52,7 +52,6 @@ type context struct {
 	SecurityAgent     bool
 	NetworkModule     bool // Sub-module of System Probe
 	PrometheusScrape  bool
-	OpenTelemetry     bool
 }
 
 func mkContext(buildType string) context {
@@ -83,7 +82,6 @@ func mkContext(buildType string) context {
 		Compliance:        true,
 		SNMP:              true,
 		PrometheusScrape:  true,
-		OpenTelemetry:     true,
 	}
 
 	switch buildType {
