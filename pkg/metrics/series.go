@@ -39,7 +39,7 @@ type Serie struct {
 	NameSuffix     string          `json:"-"`
 }
 
-// seriesAPIV2Enum returns the enumeration value for MetricPayload.MetricType in
+// SeriesAPIV2Enum returns the enumeration value for MetricPayload.MetricType in
 // https://github.com/DataDog/agent-payload/blob/master/proto/metrics/agent_payload.proto
 func (a APIMetricType) SeriesAPIV2Enum() int32 {
 	switch a {
