@@ -55,13 +55,16 @@ func ExtractPod(p *corev1.Pod) *model.Pod {
 	podModel.Status = computeStatus(p)
 	podModel.ConditionMessage = getConditionMessage(p)
 
-	podModel.ResourceRequirements = ExtractPodResourceRequirements(p.Spec.Containers, p.Spec.InitContainers)
+	podModel.ResourceRequirements = extractPodResourceRequirements(p.Spec.Containers, p.Spec.InitContainers)
 
 	return &podModel
 }
 
-// ExtractPodResourceRequirements extracts resource requirements of containers and initContainers into model.ResourceRequirements
-func ExtractPodResourceRequirements(containers []corev1.Container, initContainers []corev1.Container) []*model.ResourceRequirements {
+// ExtractPodTemplateResourceRequirements extracts resource requirements of containers and initContainers into model.ResourceRequirements
+func ExtractPodTemplateResourceRequirements(template corev1.PodTemplateSpec) []*model.ResourceRequirements {
+	return extractPodResourceRequirements(template.Spec.Containers, template.Spec.InitContainers)
+}
+func extractPodResourceRequirements(containers []corev1.Container, initContainers []corev1.Container) []*model.ResourceRequirements {
 	var resReq []*model.ResourceRequirements
 	for _, c := range containers {
 		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_container); modelReq != nil {
