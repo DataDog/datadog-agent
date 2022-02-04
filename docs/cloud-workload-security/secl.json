@@ -1,12 +1,31 @@
 {
   "secl": [
     {
+      "name": "",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "-",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
       "name": "*",
       "definition": "",
       "type": "",
       "from_agent_version": "",
       "experimental": false,
       "properties": [
+        {
+          "name": "-._",
+          "type": "int",
+          "definition": ""
+        },
         {
           "name": "container.id",
           "type": "string",
@@ -16,6 +35,16 @@
           "name": "container.tags",
           "type": "string",
           "definition": "Tags of the container"
+        },
+        {
+          "name": "process.-",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.-",
+          "type": "bool",
+          "definition": ""
         },
         {
           "name": "process.ancestors.args",
@@ -111,6 +140,11 @@
           "name": "process.ancestors.euser",
           "type": "string",
           "definition": "Effective user of the process"
+        },
+        {
+          "name": "process.ancestors.file.-",
+          "type": "int",
+          "definition": ""
         },
         {
           "name": "process.ancestors.file.change_time",
@@ -338,6 +372,11 @@
           "definition": "Effective user of the process"
         },
         {
+          "name": "process.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "process.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -482,6 +521,11 @@
           "definition": "BPF command name"
         },
         {
+          "name": "bpf.map.-",
+          "type": "int",
+          "definition": "ID of the eBPF map"
+        },
+        {
           "name": "bpf.map.name",
           "type": "string",
           "definition": "Name of the eBPF map (added in 7.35)"
@@ -490,6 +534,11 @@
           "name": "bpf.map.type",
           "type": "int",
           "definition": "Type of the eBPF map"
+        },
+        {
+          "name": "bpf.prog.-",
+          "type": "int",
+          "definition": "ID of the eBPF program"
         },
         {
           "name": "bpf.prog.attach_type",
@@ -549,6 +598,11 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
+        {
+          "name": "chmod.file.-",
+          "type": "int",
+          "definition": ""
+        },
         {
           "name": "chmod.file.change_time",
           "type": "int",
@@ -643,6 +697,11 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
+        {
+          "name": "chown.file.-",
+          "type": "int",
+          "definition": ""
+        },
         {
           "name": "chown.file.change_time",
           "type": "int",
@@ -748,6 +807,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "exec.-",
+          "type": "bool",
+          "definition": ""
+        },
+        {
           "name": "exec.args",
           "type": "string",
           "definition": "Arguments of the process (as a string)"
@@ -841,6 +905,11 @@
           "name": "exec.euser",
           "type": "string",
           "definition": "Effective user of the process"
+        },
+        {
+          "name": "exec.file.-",
+          "type": "int",
+          "definition": ""
         },
         {
           "name": "exec.file.change_time",
@@ -982,9 +1051,19 @@
       "experimental": false,
       "properties": [
         {
+          "name": "link.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "link.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
+        },
+        {
+          "name": "link.file.destination.-",
+          "type": "int",
+          "definition": ""
         },
         {
           "name": "link.file.destination.change_time",
@@ -1136,6 +1215,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "load_module.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "load_module.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -1229,6 +1313,11 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
+        {
+          "name": "mkdir.file.-",
+          "type": "int",
+          "definition": ""
+        },
         {
           "name": "mkdir.file.change_time",
           "type": "int",
@@ -1324,6 +1413,16 @@
       "experimental": false,
       "properties": [
         {
+          "name": "mmap.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mmap.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "mmap.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -1418,6 +1517,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "mprotect.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "mprotect.req_protection",
           "type": "int",
           "definition": "new memory segment protection"
@@ -1441,6 +1545,11 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
+        {
+          "name": "open.file.-",
+          "type": "int",
+          "definition": ""
+        },
         {
           "name": "open.file.change_time",
           "type": "int",
@@ -1536,6 +1645,481 @@
       "experimental": false,
       "properties": [
         {
+          "name": "ptrace.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "ptrace.-.-",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "ptrace.-.ancestors.-",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "ptrace.-.ancestors.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)"
+        },
+        {
+          "name": "ptrace.-.ancestors.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.-.ancestors.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.-.ancestors.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation"
+        },
+        {
+          "name": "ptrace.-.ancestors.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.-.ancestors.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.cap_effective",
+          "type": "int",
+          "definition": "Effective capability set of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.cap_permitted",
+          "type": "int",
+          "definition": "Permitted capability set of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.comm",
+          "type": "string",
+          "definition": "Comm attribute of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.container.id",
+          "type": "string",
+          "definition": "Container ID"
+        },
+        {
+          "name": "ptrace.-.ancestors.cookie",
+          "type": "int",
+          "definition": "Cookie of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.created_at",
+          "type": "int",
+          "definition": "Timestamp of the creation of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.egid",
+          "type": "int",
+          "definition": "Effective GID of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.egroup",
+          "type": "string",
+          "definition": "Effective group of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.envp",
+          "type": "string",
+          "definition": "Environment variables of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation"
+        },
+        {
+          "name": "ptrace.-.ancestors.euid",
+          "type": "int",
+          "definition": "Effective UID of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.euser",
+          "type": "string",
+          "definition": "Effective user of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "ptrace.-.ancestors.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.filesystem",
+          "type": "string",
+          "definition": "FileSystem of the process executable"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.name",
+          "type": "string",
+          "definition": "Basename of the path of the process executable"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.path",
+          "type": "string",
+          "definition": "Path of the process executable"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "ptrace.-.ancestors.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "ptrace.-.ancestors.fsgid",
+          "type": "int",
+          "definition": "FileSystem-gid of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.fsgroup",
+          "type": "string",
+          "definition": "FileSystem-group of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.fsuid",
+          "type": "int",
+          "definition": "FileSystem-uid of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.fsuser",
+          "type": "string",
+          "definition": "FileSystem-user of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.gid",
+          "type": "int",
+          "definition": "GID of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.group",
+          "type": "string",
+          "definition": "Group of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.pid",
+          "type": "int",
+          "definition": "Process ID of the process (also called thread group ID)"
+        },
+        {
+          "name": "ptrace.-.ancestors.ppid",
+          "type": "int",
+          "definition": "Parent process ID"
+        },
+        {
+          "name": "ptrace.-.ancestors.tid",
+          "type": "int",
+          "definition": "Thread ID of the thread"
+        },
+        {
+          "name": "ptrace.-.ancestors.tty_name",
+          "type": "string",
+          "definition": "Name of the TTY associated with the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.uid",
+          "type": "int",
+          "definition": "UID of the process"
+        },
+        {
+          "name": "ptrace.-.ancestors.user",
+          "type": "string",
+          "definition": "User of the process"
+        },
+        {
+          "name": "ptrace.-.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)"
+        },
+        {
+          "name": "ptrace.-.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.-.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.-.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation"
+        },
+        {
+          "name": "ptrace.-.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "ptrace.-.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
+        },
+        {
+          "name": "ptrace.-.cap_effective",
+          "type": "int",
+          "definition": "Effective capability set of the process"
+        },
+        {
+          "name": "ptrace.-.cap_permitted",
+          "type": "int",
+          "definition": "Permitted capability set of the process"
+        },
+        {
+          "name": "ptrace.-.comm",
+          "type": "string",
+          "definition": "Comm attribute of the process"
+        },
+        {
+          "name": "ptrace.-.container.id",
+          "type": "string",
+          "definition": "Container ID"
+        },
+        {
+          "name": "ptrace.-.cookie",
+          "type": "int",
+          "definition": "Cookie of the process"
+        },
+        {
+          "name": "ptrace.-.created_at",
+          "type": "int",
+          "definition": "Timestamp of the creation of the process"
+        },
+        {
+          "name": "ptrace.-.egid",
+          "type": "int",
+          "definition": "Effective GID of the process"
+        },
+        {
+          "name": "ptrace.-.egroup",
+          "type": "string",
+          "definition": "Effective group of the process"
+        },
+        {
+          "name": "ptrace.-.envp",
+          "type": "string",
+          "definition": "Environment variables of the process"
+        },
+        {
+          "name": "ptrace.-.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
+        },
+        {
+          "name": "ptrace.-.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation"
+        },
+        {
+          "name": "ptrace.-.euid",
+          "type": "int",
+          "definition": "Effective UID of the process"
+        },
+        {
+          "name": "ptrace.-.euser",
+          "type": "string",
+          "definition": "Effective user of the process"
+        },
+        {
+          "name": "ptrace.-.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "ptrace.-.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "ptrace.-.file.filesystem",
+          "type": "string",
+          "definition": "FileSystem of the process executable"
+        },
+        {
+          "name": "ptrace.-.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "ptrace.-.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "ptrace.-.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "ptrace.-.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "ptrace.-.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "ptrace.-.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "ptrace.-.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "ptrace.-.file.name",
+          "type": "string",
+          "definition": "Basename of the path of the process executable"
+        },
+        {
+          "name": "ptrace.-.file.path",
+          "type": "string",
+          "definition": "Path of the process executable"
+        },
+        {
+          "name": "ptrace.-.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "ptrace.-.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "ptrace.-.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "ptrace.-.fsgid",
+          "type": "int",
+          "definition": "FileSystem-gid of the process"
+        },
+        {
+          "name": "ptrace.-.fsgroup",
+          "type": "string",
+          "definition": "FileSystem-group of the process"
+        },
+        {
+          "name": "ptrace.-.fsuid",
+          "type": "int",
+          "definition": "FileSystem-uid of the process"
+        },
+        {
+          "name": "ptrace.-.fsuser",
+          "type": "string",
+          "definition": "FileSystem-user of the process"
+        },
+        {
+          "name": "ptrace.-.gid",
+          "type": "int",
+          "definition": "GID of the process"
+        },
+        {
+          "name": "ptrace.-.group",
+          "type": "string",
+          "definition": "Group of the process"
+        },
+        {
+          "name": "ptrace.-.pid",
+          "type": "int",
+          "definition": "Process ID of the process (also called thread group ID)"
+        },
+        {
+          "name": "ptrace.-.ppid",
+          "type": "int",
+          "definition": "Parent process ID"
+        },
+        {
+          "name": "ptrace.-.tid",
+          "type": "int",
+          "definition": "Thread ID of the thread"
+        },
+        {
+          "name": "ptrace.-.tty_name",
+          "type": "string",
+          "definition": "Name of the TTY associated with the process"
+        },
+        {
+          "name": "ptrace.-.uid",
+          "type": "int",
+          "definition": "UID of the process"
+        },
+        {
+          "name": "ptrace.-.user",
+          "type": "string",
+          "definition": "User of the process"
+        },
+        {
           "name": "ptrace.request",
           "type": "int",
           "definition": "ptrace request"
@@ -1544,6 +2128,16 @@
           "name": "ptrace.retval",
           "type": "int",
           "definition": "Return value of the syscall"
+        },
+        {
+          "name": "ptrace.tracee.-",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.-",
+          "type": "bool",
+          "definition": ""
         },
         {
           "name": "ptrace.tracee.ancestors.args",
@@ -1639,6 +2233,11 @@
           "name": "ptrace.tracee.ancestors.euser",
           "type": "string",
           "definition": "Effective user of the process"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.-",
+          "type": "int",
+          "definition": ""
         },
         {
           "name": "ptrace.tracee.ancestors.file.change_time",
@@ -1866,6 +2465,11 @@
           "definition": "Effective user of the process"
         },
         {
+          "name": "ptrace.tracee.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "ptrace.tracee.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -2005,6 +2609,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "removexattr.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "removexattr.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -2099,9 +2708,24 @@
       "experimental": false,
       "properties": [
         {
+          "name": "rename.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "rename.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
+        },
+        {
+          "name": "rename.file.destination.-",
+          "type": "int",
+          "definition": ""
         },
         {
           "name": "rename.file.destination.change_time",
@@ -2253,6 +2877,16 @@
       "experimental": false,
       "properties": [
         {
+          "name": "rmdir.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "rmdir.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -2336,6 +2970,81 @@
       "from_agent_version": "7.30",
       "experimental": false,
       "properties": [
+        {
+          "name": "selinux.-.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "selinux.-.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "selinux.-.filesystem",
+          "type": "string",
+          "definition": "File's filesystem"
+        },
+        {
+          "name": "selinux.-.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "selinux.-.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "selinux.-.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "selinux.-.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "selinux.-.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "selinux.-.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "selinux.-.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "selinux.-.name",
+          "type": "string",
+          "definition": "File's basename"
+        },
+        {
+          "name": "selinux.-.path",
+          "type": "string",
+          "definition": "File's path"
+        },
+        {
+          "name": "selinux.-.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "selinux.-.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "selinux.-.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
         {
           "name": "selinux.bool.name",
           "type": "string",
@@ -2444,6 +3153,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "setxattr.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "setxattr.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -2538,6 +3252,476 @@
       "experimental": false,
       "properties": [
         {
+          "name": "signal.-.-",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "signal.-.ancestors.-",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "signal.-.ancestors.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)"
+        },
+        {
+          "name": "signal.-.ancestors.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.-.ancestors.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.-.ancestors.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation"
+        },
+        {
+          "name": "signal.-.ancestors.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.-.ancestors.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
+        },
+        {
+          "name": "signal.-.ancestors.cap_effective",
+          "type": "int",
+          "definition": "Effective capability set of the process"
+        },
+        {
+          "name": "signal.-.ancestors.cap_permitted",
+          "type": "int",
+          "definition": "Permitted capability set of the process"
+        },
+        {
+          "name": "signal.-.ancestors.comm",
+          "type": "string",
+          "definition": "Comm attribute of the process"
+        },
+        {
+          "name": "signal.-.ancestors.container.id",
+          "type": "string",
+          "definition": "Container ID"
+        },
+        {
+          "name": "signal.-.ancestors.cookie",
+          "type": "int",
+          "definition": "Cookie of the process"
+        },
+        {
+          "name": "signal.-.ancestors.created_at",
+          "type": "int",
+          "definition": "Timestamp of the creation of the process"
+        },
+        {
+          "name": "signal.-.ancestors.egid",
+          "type": "int",
+          "definition": "Effective GID of the process"
+        },
+        {
+          "name": "signal.-.ancestors.egroup",
+          "type": "string",
+          "definition": "Effective group of the process"
+        },
+        {
+          "name": "signal.-.ancestors.envp",
+          "type": "string",
+          "definition": "Environment variables of the process"
+        },
+        {
+          "name": "signal.-.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
+        },
+        {
+          "name": "signal.-.ancestors.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation"
+        },
+        {
+          "name": "signal.-.ancestors.euid",
+          "type": "int",
+          "definition": "Effective UID of the process"
+        },
+        {
+          "name": "signal.-.ancestors.euser",
+          "type": "string",
+          "definition": "Effective user of the process"
+        },
+        {
+          "name": "signal.-.ancestors.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "signal.-.ancestors.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "signal.-.ancestors.file.filesystem",
+          "type": "string",
+          "definition": "FileSystem of the process executable"
+        },
+        {
+          "name": "signal.-.ancestors.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "signal.-.ancestors.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "signal.-.ancestors.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "signal.-.ancestors.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "signal.-.ancestors.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "signal.-.ancestors.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "signal.-.ancestors.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "signal.-.ancestors.file.name",
+          "type": "string",
+          "definition": "Basename of the path of the process executable"
+        },
+        {
+          "name": "signal.-.ancestors.file.path",
+          "type": "string",
+          "definition": "Path of the process executable"
+        },
+        {
+          "name": "signal.-.ancestors.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "signal.-.ancestors.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "signal.-.ancestors.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "signal.-.ancestors.fsgid",
+          "type": "int",
+          "definition": "FileSystem-gid of the process"
+        },
+        {
+          "name": "signal.-.ancestors.fsgroup",
+          "type": "string",
+          "definition": "FileSystem-group of the process"
+        },
+        {
+          "name": "signal.-.ancestors.fsuid",
+          "type": "int",
+          "definition": "FileSystem-uid of the process"
+        },
+        {
+          "name": "signal.-.ancestors.fsuser",
+          "type": "string",
+          "definition": "FileSystem-user of the process"
+        },
+        {
+          "name": "signal.-.ancestors.gid",
+          "type": "int",
+          "definition": "GID of the process"
+        },
+        {
+          "name": "signal.-.ancestors.group",
+          "type": "string",
+          "definition": "Group of the process"
+        },
+        {
+          "name": "signal.-.ancestors.pid",
+          "type": "int",
+          "definition": "Process ID of the process (also called thread group ID)"
+        },
+        {
+          "name": "signal.-.ancestors.ppid",
+          "type": "int",
+          "definition": "Parent process ID"
+        },
+        {
+          "name": "signal.-.ancestors.tid",
+          "type": "int",
+          "definition": "Thread ID of the thread"
+        },
+        {
+          "name": "signal.-.ancestors.tty_name",
+          "type": "string",
+          "definition": "Name of the TTY associated with the process"
+        },
+        {
+          "name": "signal.-.ancestors.uid",
+          "type": "int",
+          "definition": "UID of the process"
+        },
+        {
+          "name": "signal.-.ancestors.user",
+          "type": "string",
+          "definition": "User of the process"
+        },
+        {
+          "name": "signal.-.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)"
+        },
+        {
+          "name": "signal.-.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.-.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.-.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation"
+        },
+        {
+          "name": "signal.-.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)"
+        },
+        {
+          "name": "signal.-.argv0",
+          "type": "string",
+          "definition": "First argument of the process"
+        },
+        {
+          "name": "signal.-.cap_effective",
+          "type": "int",
+          "definition": "Effective capability set of the process"
+        },
+        {
+          "name": "signal.-.cap_permitted",
+          "type": "int",
+          "definition": "Permitted capability set of the process"
+        },
+        {
+          "name": "signal.-.comm",
+          "type": "string",
+          "definition": "Comm attribute of the process"
+        },
+        {
+          "name": "signal.-.container.id",
+          "type": "string",
+          "definition": "Container ID"
+        },
+        {
+          "name": "signal.-.cookie",
+          "type": "int",
+          "definition": "Cookie of the process"
+        },
+        {
+          "name": "signal.-.created_at",
+          "type": "int",
+          "definition": "Timestamp of the creation of the process"
+        },
+        {
+          "name": "signal.-.egid",
+          "type": "int",
+          "definition": "Effective GID of the process"
+        },
+        {
+          "name": "signal.-.egroup",
+          "type": "string",
+          "definition": "Effective group of the process"
+        },
+        {
+          "name": "signal.-.envp",
+          "type": "string",
+          "definition": "Environment variables of the process"
+        },
+        {
+          "name": "signal.-.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
+        },
+        {
+          "name": "signal.-.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation"
+        },
+        {
+          "name": "signal.-.euid",
+          "type": "int",
+          "definition": "Effective UID of the process"
+        },
+        {
+          "name": "signal.-.euser",
+          "type": "string",
+          "definition": "Effective user of the process"
+        },
+        {
+          "name": "signal.-.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "signal.-.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "signal.-.file.filesystem",
+          "type": "string",
+          "definition": "FileSystem of the process executable"
+        },
+        {
+          "name": "signal.-.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner"
+        },
+        {
+          "name": "signal.-.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner"
+        },
+        {
+          "name": "signal.-.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
+        },
+        {
+          "name": "signal.-.file.inode",
+          "type": "int",
+          "definition": "Inode of the file"
+        },
+        {
+          "name": "signal.-.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "signal.-.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
+        },
+        {
+          "name": "signal.-.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file"
+        },
+        {
+          "name": "signal.-.file.name",
+          "type": "string",
+          "definition": "Basename of the path of the process executable"
+        },
+        {
+          "name": "signal.-.file.path",
+          "type": "string",
+          "definition": "Path of the process executable"
+        },
+        {
+          "name": "signal.-.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "signal.-.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner"
+        },
+        {
+          "name": "signal.-.file.user",
+          "type": "string",
+          "definition": "User of the file's owner"
+        },
+        {
+          "name": "signal.-.fsgid",
+          "type": "int",
+          "definition": "FileSystem-gid of the process"
+        },
+        {
+          "name": "signal.-.fsgroup",
+          "type": "string",
+          "definition": "FileSystem-group of the process"
+        },
+        {
+          "name": "signal.-.fsuid",
+          "type": "int",
+          "definition": "FileSystem-uid of the process"
+        },
+        {
+          "name": "signal.-.fsuser",
+          "type": "string",
+          "definition": "FileSystem-user of the process"
+        },
+        {
+          "name": "signal.-.gid",
+          "type": "int",
+          "definition": "GID of the process"
+        },
+        {
+          "name": "signal.-.group",
+          "type": "string",
+          "definition": "Group of the process"
+        },
+        {
+          "name": "signal.-.pid",
+          "type": "int",
+          "definition": "Process ID of the process (also called thread group ID)"
+        },
+        {
+          "name": "signal.-.ppid",
+          "type": "int",
+          "definition": "Parent process ID"
+        },
+        {
+          "name": "signal.-.tid",
+          "type": "int",
+          "definition": "Thread ID of the thread"
+        },
+        {
+          "name": "signal.-.tty_name",
+          "type": "string",
+          "definition": "Name of the TTY associated with the process"
+        },
+        {
+          "name": "signal.-.uid",
+          "type": "int",
+          "definition": "UID of the process"
+        },
+        {
+          "name": "signal.-.user",
+          "type": "string",
+          "definition": "User of the process"
+        },
+        {
           "name": "signal.pid",
           "type": "int",
           "definition": "Target PID"
@@ -2546,6 +3730,16 @@
           "name": "signal.retval",
           "type": "int",
           "definition": "Return value of the syscall"
+        },
+        {
+          "name": "signal.target.-",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "signal.target.ancestors.-",
+          "type": "bool",
+          "definition": ""
         },
         {
           "name": "signal.target.ancestors.args",
@@ -2641,6 +3835,11 @@
           "name": "signal.target.ancestors.euser",
           "type": "string",
           "definition": "Effective user of the process"
+        },
+        {
+          "name": "signal.target.ancestors.file.-",
+          "type": "int",
+          "definition": ""
         },
         {
           "name": "signal.target.ancestors.file.change_time",
@@ -2868,6 +4067,11 @@
           "definition": "Effective user of the process"
         },
         {
+          "name": "signal.target.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "signal.target.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -3012,6 +4216,16 @@
       "experimental": false,
       "properties": [
         {
+          "name": "unlink.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.-",
+          "type": "int",
+          "definition": ""
+        },
+        {
           "name": "unlink.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -3096,6 +4310,71 @@
       "experimental": false,
       "properties": [
         {
+          "name": "-.Device",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "-.DiscarderRevision",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "-.FSType",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "-.GroupID",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "-.Inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "-.MountID",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "-.MountPointStr",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "-.ParentInode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "-.ParentMountID",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "-.RootInode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "-.RootMountID",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "-.RootStr",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "-.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        },
+        {
           "name": "unload_module.name",
           "type": "string",
           "definition": "Name of the kernel module that was deleted"
@@ -3114,6 +4393,11 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
+        {
+          "name": "utimes.file.-",
+          "type": "int",
+          "definition": ""
+        },
         {
           "name": "utimes.file.change_time",
           "type": "int",

@@ -332,8 +332,11 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 			return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
 		}
 
+		var builder eval.StringBuilder
+		builder.WriteString(pathnameStr)
+
 		entry.FileFields = *info
-		entry.Process.PathnameStr = pathnameStr
+		entry.Process.PathnameStr = &builder
 		entry.Process.BasenameStr = path.Base(pathnameStr)
 		entry.Process.ContainerID = string(containerID)
 		// resolve container path with the MountResolver
@@ -501,16 +504,16 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
+func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) error {
 	var err error
 
 	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
-		if entry.PathnameStr, err = p.resolvers.resolveFileFieldsPath(&entry.FileFields); err == nil {
-			entry.BasenameStr = path.Base(entry.PathnameStr)
+		if err = p.resolvers.resolveFileFieldsPath(entry.PathnameStr, &entry.FileFields); err == nil {
+			entry.BasenameStr = path.Base(entry.PathnameStr.String())
 		}
 	}
 
-	return entry.PathnameStr, err
+	return err
 }
 
 // SetProcessFilesystem resolves process file system
@@ -563,7 +566,7 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 func (p *ProcessResolver) ResolveNewProcessCacheEntryContext(entry *model.ProcessCacheEntry) error {
 	p.SetProcessArgs(entry)
 	p.SetProcessEnvs(entry)
-	if _, err := p.SetProcessPath(entry); err != nil {
+	if err := p.SetProcessPath(entry); err != nil {
 		return fmt.Errorf("failed to resolve exec path: %w", err)
 	}
 	p.SetProcessFilesystem(entry)

@@ -603,24 +603,25 @@ func extractFirstParent(path string) (string, int) {
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
 func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType) bool {
-	prefix, prefixLen := extractFirstParent(event.ResolveFilePath(fileEvent))
+	prefix, prefixLen := extractFirstParent(event.ResolveFilePath(fileEvent).String())
 	if prefixLen == 0 {
 		return false
 	}
 
+	pathnameStr := fileEvent.PathnameStr.String()
 	for _, child := range pan.Files {
 		if child.Name == prefix {
-			return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[prefixLen:], generationType)
+			return child.InsertFileEvent(fileEvent, event, pathnameStr[prefixLen:], generationType)
 		}
 		// TODO: look for patterns / merge algo
 	}
 
 	// create new child
-	if len(fileEvent.PathnameStr) <= prefixLen+1 {
+	if len(pathnameStr) <= prefixLen+1 {
 		pan.Files = append(pan.Files, NewFileActivityNode(fileEvent, event, prefix, generationType))
 	} else {
 		child := NewFileActivityNode(nil, nil, prefix, generationType)
-		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[prefixLen:], generationType)
+		child.InsertFileEvent(fileEvent, event, pathnameStr[prefixLen:], generationType)
 		pan.Files = append(pan.Files, child)
 	}
 	return true
@@ -663,7 +664,7 @@ func (pan *ProcessActivityNode) snapshot(ad *ActivityDump) error {
 	}
 
 	for _, mm := range *memoryMaps {
-		if mm.Path != pan.Process.PathnameStr {
+		if mm.Path != pan.Process.PathnameStr.String() {
 			files = append(files, mm.Path)
 		}
 	}
@@ -691,11 +692,11 @@ func (pan *ProcessActivityNode) snapshot(ad *ActivityDump) error {
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
 		if err != nil {
-			evt.Open.File.PathnameStr = resolvedPath
+			evt.Open.File.PathnameStr.WriteString(resolvedPath)
 		} else {
-			evt.Open.File.PathnameStr = f
+			evt.Open.File.PathnameStr.WriteString(f)
 		}
-		evt.Open.File.BasenameStr = path.Base(evt.Open.File.PathnameStr)
+		evt.Open.File.BasenameStr = path.Base(evt.Open.File.PathnameStr.String())
 		evt.Open.File.FileFields.Mode = uint16(stat.Mode)
 		evt.Open.File.FileFields.Inode = stat.Ino
 		evt.Open.File.FileFields.UID = stat.Uid

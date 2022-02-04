@@ -23,6 +23,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -61,11 +62,15 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) 
 		return nil, err
 	}
 
+	var mpBuilder, rootBuilder eval.StringBuilder
+	mpBuilder.WriteString(mnt.Mountpoint)
+	rootBuilder.WriteString(mnt.Root)
+
 	// create a MountEvent out of the parsed MountInfo
 	return &model.MountEvent{
 		ParentMountID: uint32(mnt.Parent),
-		MountPointStr: mnt.Mountpoint,
-		RootStr:       mnt.Root,
+		MountPointStr: &mpBuilder,
+		RootStr:       &rootBuilder,
 		MountID:       uint32(mnt.ID),
 		GroupID:       groupID,
 		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
@@ -225,7 +230,9 @@ func (mr *MountResolver) insert(e model.MountEvent) {
 	if ok {
 		prefix := mr.getParentPath(p.MountID)
 		if len(prefix) > 0 && prefix != "/" {
-			e.MountPointStr = strings.TrimPrefix(e.MountPointStr, prefix)
+			mp := e.MountPointStr.String()
+			mp = strings.TrimPrefix(mp, prefix)
+			e.MountPointStr.WriteString(mp)
 		}
 	}
 
@@ -245,7 +252,7 @@ func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) s
 		return ""
 	}
 
-	mountPointStr := mount.MountPointStr
+	mountPointStr := mount.MountPointStr.String()
 
 	if _, exists := cache[mountID]; exists {
 		return ""
@@ -258,8 +265,9 @@ func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) s
 			return mountPointStr
 		}
 
-		if p != "/" && !strings.HasPrefix(mount.MountPointStr, p) {
-			mountPointStr = p + mount.MountPointStr
+		mp := mount.MountPointStr.String()
+		if p != "/" && !strings.HasPrefix(mp, p) {
+			mountPointStr = p + mp
 		}
 	}
 
@@ -384,7 +392,7 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 		return "", "", "", nil
 	}
 
-	return mr.getOverlayPath(mount), mr.getParentPath(mountID), mount.RootStr, nil
+	return mr.getOverlayPath(mount), mr.getParentPath(mountID), mount.RootStr.String(), nil
 }
 
 func getMountIDOffset(probe *Probe) uint64 {

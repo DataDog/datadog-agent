@@ -253,10 +253,10 @@ type Process struct {
 	Pid uint32 `field:"pid"` // Process ID of the process (also called thread group ID)
 	Tid uint32 `field:"tid"` // Thread ID of the thread
 
-	PathnameStr         string `field:"file.path"`       // Path of the process executable
-	BasenameStr         string `field:"file.name"`       // Basename of the path of the process executable
-	Filesystem          string `field:"file.filesystem"` // FileSystem of the process executable
-	PathResolutionError error  `field:"-"`
+	PathnameStr         *eval.StringBuilder `field:"file.path"`       // Path of the process executable
+	BasenameStr         string              `field:"file.name"`       // Basename of the path of the process executable
+	Filesystem          string              `field:"file.filesystem"` // FileSystem of the process executable
+	PathResolutionError error               `field:"-"`
 
 	ContainerID   string   `field:"container.id"` // Container ID
 	ContainerTags []string `field:"-"`
@@ -347,9 +347,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr string `field:"path,ResolveFilePath"`             // File's path
-	BasenameStr string `field:"name,ResolveFileBasename"`         // File's basename
-	Filesytem   string `field:"filesystem,ResolveFileFilesystem"` // File's filesystem
+	PathnameStr *eval.StringBuilder `field:"path,ResolveFilePath"`             // File's path
+	BasenameStr string              `field:"name,ResolveFileBasename"`         // File's basename
+	Filesytem   string              `field:"filesystem,ResolveFileFilesystem"` // File's filesystem
 
 	PathResolutionError error `field:"-"`
 }
@@ -403,11 +403,11 @@ type MountEvent struct {
 	ParentMountID                 uint32
 	ParentInode                   uint64
 	FSType                        string
-	MountPointStr                 string
+	MountPointStr                 *eval.StringBuilder
 	MountPointPathResolutionError error
 	RootMountID                   uint32
 	RootInode                     uint64
-	RootStr                       string
+	RootStr                       *eval.StringBuilder
 	RootPathResolutionError       error
 
 	FSTypeRaw [16]byte
@@ -482,9 +482,16 @@ type ProcessCacheEntry struct {
 
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
+	// save and reset process context builders
+	builder := pc.ProcessContext.PathnameStr
+	builder.Reset()
+
 	pc.ProcessContext = zeroProcessContext
 	pc.refCount = 0
 	pc.releaseCb = nil
+
+	// restore builders
+	pc.ProcessContext.PathnameStr = builder
 }
 
 // Retain increment ref counter
@@ -515,7 +522,12 @@ func (pc *ProcessCacheEntry) Release() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{onRelease: onRelease}
+	pce := &ProcessCacheEntry{
+		onRelease: onRelease,
+	}
+	pce.ProcessContext.PathnameStr = &eval.StringBuilder{}
+
+	return pce
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

@@ -297,7 +297,7 @@ func newFileSerializer(fe *model.FileEvent, e *Event, forceInode ...uint64) *Fil
 
 	mode := uint32(fe.FileFields.Mode)
 	return &FileSerializer{
-		Path:                e.ResolveFilePath(fe),
+		Path:                e.ResolveFilePath(fe).String(),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.ResolveFileBasename(fe),
 		Inode:               getUint64Pointer(&inode),
@@ -317,7 +317,7 @@ func newFileSerializer(fe *model.FileEvent, e *Event, forceInode ...uint64) *Fil
 func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers) *FileSerializer {
 	mode := uint32(process.FileFields.Mode)
 	return &FileSerializer{
-		Path:                process.PathnameStr,
+		Path:                process.PathnameStr.String(),
 		PathResolutionError: process.GetPathResolutionError(),
 		Name:                process.BasenameStr,
 		Inode:               getUint64Pointer(&process.FileFields.Inode),
@@ -719,13 +719,13 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.FileMountEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: FileSerializer{
-				Path:                event.ResolveMountRoot(&event.Mount),
+				Path:                event.GetMountRoot(&event.Mount),
 				PathResolutionError: event.Mount.GetRootPathResolutionError(),
 				MountID:             &event.Mount.RootMountID,
 				Inode:               &event.Mount.RootInode,
 			},
 			Destination: &FileSerializer{
-				Path:                event.ResolveMountPoint(&event.Mount),
+				Path:                event.GetMountPoint(&event.Mount),
 				PathResolutionError: event.Mount.GetMountPointPathResolutionError(),
 				MountID:             &event.Mount.ParentMountID,
 				Inode:               &event.Mount.ParentInode,

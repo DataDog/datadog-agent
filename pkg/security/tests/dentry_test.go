@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	probe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -136,19 +137,21 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
-	f, err := resolver.ResolveFromERPC(mountID, inode, pathID, true)
-	if err != nil {
+
+	var builder eval.StringBuilder
+	if err := resolver.ResolveFromERPC(&builder, mountID, inode, pathID, true); err != nil {
 		b.Fatal(err)
 	}
-	b.Log(f)
+	b.Log(builder.String())
+
+	builder.Reset()
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromERPC(mountID, inode, pathID, true)
-		if err != nil {
+		if err := resolver.ResolveFromERPC(&builder, mountID, inode, pathID, true); err != nil {
 			b.Fatal(err)
 		}
-		if len(f) == 0 || len(f) > 0 && f[0] == 0 {
+		if builder.Len() == 0 || builder.Len() > 0 && builder.String()[0] == 0 {
 			b.Log("couldn't resolve path")
 		}
 	}
@@ -274,19 +277,21 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
-	f, err := resolver.ResolveFromMap(mountID, inode, pathID, true)
-	if err != nil {
+
+	var builder eval.StringBuilder
+	if err := resolver.ResolveFromMap(&builder, mountID, inode, pathID, true); err != nil {
 		b.Fatal(err)
 	}
-	b.Log(f)
+	b.Log(builder.String())
+
+	builder.Reset()
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromMap(mountID, inode, pathID, true)
-		if err != nil {
+		if err := resolver.ResolveFromMap(&builder, mountID, inode, pathID, true); err != nil {
 			b.Fatal(err)
 		}
-		if f[0] == 0 {
+		if builder.String()[0] == 0 {
 			b.Fatal("couldn't resolve file")
 		}
 	}

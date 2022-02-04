@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -83,16 +84,18 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 }
 
 // resolveFileFieldsPath resolves the inode to a full path
-func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
-	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
+func (r *Resolvers) resolveFileFieldsPath(builder *eval.StringBuilder, e *model.FileFields) error {
+	err := r.DentryResolver.Resolve(builder, e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
-		return pathStr, err
+		return err
 	}
 
 	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
 	if mountErr != nil {
-		return pathStr, mountErr
+		return mountErr
 	}
+
+	pathStr := builder.String()
 
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)
@@ -102,7 +105,9 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 		pathStr = mountPath + pathStr
 	}
 
-	return pathStr, err
+	builder.WriteString(pathStr)
+
+	return err
 }
 
 // ResolveFileFieldsUser resolves the user id of the file to a username

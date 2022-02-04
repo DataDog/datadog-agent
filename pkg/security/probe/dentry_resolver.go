@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -372,7 +373,7 @@ func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) s
 }
 
 // ResolveFromCache resolves path from the cache
-func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (string, error) {
+func (dr *DentryResolver) ResolveFromCache(builder *eval.StringBuilder, mountID uint32, inode uint64) error {
 	var path *PathEntry
 	var filename string
 	var err error
@@ -408,11 +409,13 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (string
 		atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.CacheTag], depth)
 	}
 
-	return filename, err
+	builder.WriteString(filename)
+
+	return err
 }
 
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
-func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
+func (dr *DentryResolver) ResolveFromMap(builder *eval.StringBuilder, mountID uint32, inode uint64, pathID uint32, cache bool) error {
 	var cacheKey PathKey
 	var cacheEntry *PathEntry
 	var err, resolutionErr error
@@ -423,7 +426,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 	keyBuffer, err := key.MarshalBinary()
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	depth := int64(0)
@@ -500,7 +503,9 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], 1)
 	}
 
-	return filename, err
+	builder.WriteString(filename)
+
+	return err
 }
 
 func (dr *DentryResolver) preventSegmentMajorPageFault() {
@@ -573,7 +578,7 @@ func (dr *DentryResolver) cacheEntries(keys []PathKey, entries []*PathEntry) {
 }
 
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
-func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
+func (dr *DentryResolver) ResolveFromERPC(builder *eval.StringBuilder, mountID uint32, inode uint64, pathID uint32, cache bool) error {
 	var filename, segment string
 	var err, resolutionErr error
 	var cacheKey PathKey
@@ -594,7 +599,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
-		return "", errors.Wrapf(err, "unable to resolve the path of mountID `%d` and inode `%d` with eRPC", mountID, inode)
+		return errors.Wrapf(err, "unable to resolve the path of mountID `%d` and inode `%d` with eRPC", mountID, inode)
 	}
 
 	var keys []PathKey
@@ -616,7 +621,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 				break
 			}
 			atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
-			return "", errERPCRequestNotProcessed
+			return errERPCRequestNotProcessed
 		}
 
 		// skip PathID
@@ -661,19 +666,21 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
 	}
 
-	return filename, resolutionErr
+	builder.WriteString(filename)
+
+	return resolutionErr
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
-	path, err := dr.ResolveFromCache(mountID, inode)
+func (dr *DentryResolver) Resolve(builder *eval.StringBuilder, mountID uint32, inode uint64, pathID uint32, cache bool) error {
+	err := dr.ResolveFromCache(builder, mountID, inode)
 	if err != nil && dr.erpcEnabled {
-		path, err = dr.ResolveFromERPC(mountID, inode, pathID, cache)
+		err = dr.ResolveFromERPC(builder, mountID, inode, pathID, cache)
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.mapEnabled {
-		path, err = dr.ResolveFromMap(mountID, inode, pathID, cache)
+		err = dr.ResolveFromMap(builder, mountID, inode, pathID, cache)
 	}
-	return path, err
+	return err
 }
 
 func (dr *DentryResolver) resolveParentFromCache(mountID uint32, inode uint64) (uint32, uint64, error) {

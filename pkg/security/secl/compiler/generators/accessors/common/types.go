@@ -35,4 +35,5 @@ type StructField struct {
 	Weight        int64
 	CommentText   string
 	OpOverrides   string
+	Exported      bool
 }

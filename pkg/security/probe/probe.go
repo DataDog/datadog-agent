@@ -335,6 +335,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	eventType := event.GetEventType()
 	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, int(CPU))
 
+	// reset internal buffers
+	event.ResetEventType(eventType.String())
+
 	// no need to dispatch events
 	switch eventType {
 	case model.MountReleasedEventType:
@@ -1047,8 +1050,11 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 
 	p.event = NewEvent(p.resolvers, p.scrubber)
 
+	eventZero.Init()
 	eventZero.resolvers = p.resolvers
 	eventZero.scrubber = p.scrubber
+
+	p.zeroEvent()
 
 	return p, nil
 }

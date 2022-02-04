@@ -8,6 +8,7 @@ package eval
 import (
 	"fmt"
 	"regexp"
+	"unsafe"
 
 	"github.com/pkg/errors"
 )
@@ -204,4 +205,34 @@ func NewStringMatcher(kind FieldValueType, pattern string) (StringMatcher, error
 	}
 
 	return nil, errors.New("unknown type")
+}
+
+// StringBuilder defines a strict builder
+type StringBuilder struct {
+	buf []byte
+}
+
+// String returns a string
+func (b *StringBuilder) String() string {
+	return *(*string)(unsafe.Pointer(&b.buf))
+}
+
+// Len returns the len of the current string
+func (b *StringBuilder) Len() int {
+	return len(b.buf)
+}
+
+// WriteString writes a string in the builder
+func (b *StringBuilder) WriteString(s string) {
+	b.buf = b.buf[:0]
+	if len(s) == 0 {
+		return
+	}
+
+	b.buf = append(b.buf, s...)
+}
+
+// Reset the buffer to zero
+func (b *StringBuilder) Reset() {
+	b.buf = b.buf[:0]
 }

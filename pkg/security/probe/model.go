@@ -94,22 +94,21 @@ func (ev *Event) GetPathResolutionError() error {
 }
 
 // ResolveFilePath resolves the inode to a full path
-func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
+func (ev *Event) ResolveFilePath(f *model.FileEvent) *eval.StringBuilder {
 	// do not try to resolve mmap events when they aren't backed by any file
 	switch ev.GetEventType() {
 	case model.MMapEventType:
 		if ev.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
-			return ""
+			return f.PathnameStr
 		}
 	case model.LoadModuleEventType:
 		if ev.LoadModule.LoadedFromMemory {
-			return ""
+			return f.PathnameStr
 		}
 	}
 
-	if len(f.PathnameStr) == 0 {
-		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
-		if err != nil {
+	if f.PathnameStr.Len() == 0 {
+		if err := ev.resolvers.resolveFileFieldsPath(f.PathnameStr, &f.FileFields); err != nil {
 			switch err.(type) {
 			case ErrDentryPathKeyNotFound:
 				// this error is the only one we don't care about
@@ -118,7 +117,6 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 				ev.SetPathResolutionError(err)
 			}
 		}
-		f.PathnameStr = path
 	}
 	return f.PathnameStr
 }
@@ -126,8 +124,8 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 // ResolveFileBasename resolves the inode to a full path
 func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 	if len(f.BasenameStr) == 0 {
-		if f.PathnameStr != "" {
-			f.BasenameStr = path.Base(f.PathnameStr)
+		if pathStr := f.PathnameStr.String(); pathStr != "" {
+			f.BasenameStr = path.Base(pathStr)
 		} else {
 			f.BasenameStr = ev.resolvers.resolveBasename(&f.FileFields)
 		}
@@ -171,28 +169,28 @@ func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 
 // SetMountPoint set the mount point information
 func (ev *Event) SetMountPoint(e *model.MountEvent) {
-	e.MountPointStr, e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
+	e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.MountPointStr, e.ParentMountID, e.ParentInode, 0, true)
 }
 
-// ResolveMountPoint resolves the mountpoint to a full path
-func (ev *Event) ResolveMountPoint(e *model.MountEvent) string {
-	if len(e.MountPointStr) == 0 {
+// GetMountPoint resolves the mountpoint to a full path
+func (ev *Event) GetMountPoint(e *model.MountEvent) string {
+	if e.MountPointStr.Len() == 0 {
 		ev.SetMountPoint(e)
 	}
-	return e.MountPointStr
+	return e.MountPointStr.String()
 }
 
 // SetMountRoot set the mount point information
 func (ev *Event) SetMountRoot(e *model.MountEvent) {
-	e.RootStr, e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
+	e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootStr, e.RootMountID, e.RootInode, 0, true)
 }
 
-// ResolveMountRoot resolves the mountpoint to a full path
-func (ev *Event) ResolveMountRoot(e *model.MountEvent) string {
-	if len(e.RootStr) == 0 {
+// GetMountRoot resolves the mountpoint to a full path
+func (ev *Event) GetMountRoot(e *model.MountEvent) string {
+	if e.RootStr.Len() == 0 {
 		ev.SetMountRoot(e)
 	}
-	return e.RootStr
+	return e.RootStr.String()
 }
 
 // ResolveContainerID resolves the container ID of the event
@@ -479,7 +477,8 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 	if ev.processCacheEntry == nil {
 		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.ProcessContext.Pid, ev.ProcessContext.Tid)
 		if ev.processCacheEntry == nil {
-			ev.processCacheEntry = &model.ProcessCacheEntry{}
+			// should happen that often, allocate outside of pool
+			ev.processCacheEntry = model.NewProcessCacheEntry(nil)
 		}
 	}
 
