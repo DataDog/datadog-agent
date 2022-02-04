@@ -83,10 +83,10 @@ func NewService() (*Service, error) {
 
 	maxBackoffTime := config.Datadog.GetDuration("remote_configuration.max_backoff_interval")
 	if maxBackoffTime < minimalMaxBackoffTime {
-		log.Warnf("remote_configuration.max_backoff_time is set to %v which is below the minimum of %v", maxBackoffTime, minimalMaxBackoffTime)
+		log.Warnf("remote_configuration.max_backoff_time is set to %v which is below the minimum of %v - setting value to %v", maxBackoffTime, minimalMaxBackoffTime, minimalMaxBackoffTime)
 		maxBackoffTime = minimalMaxBackoffTime
 	} else if maxBackoffTime > maximalMaxBackoffTime {
-		log.Warnf("remote_configuration.max_backoff_time is set to %v which is above the maximum of %v", maxBackoffTime, maximalMaxBackoffTime)
+		log.Warnf("remote_configuration.max_backoff_time is set to %v which is above the maximum of %v - setting value to %v", maxBackoffTime, maximalMaxBackoffTime, maximalMaxBackoffTime)
 		maxBackoffTime = maximalMaxBackoffTime
 	}
 
