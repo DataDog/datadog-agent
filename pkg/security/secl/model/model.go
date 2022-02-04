@@ -551,7 +551,7 @@ type SetXAttrEvent struct {
 	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"` // Namespace of the extended attribute
 	Name      string    `field:"file.destination.name,ResolveXAttrName"`           // Name of the extended attribute
 
-	NameRaw [200]byte
+	NameRaw [200]byte `field:"-"`
 }
 
 // SyscallEvent contains common fields for all the event
