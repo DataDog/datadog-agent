@@ -84,7 +84,7 @@
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_centos_8_fips
-        - .kitchen_azure_x64
+    - .kitchen_azure_x64
   needs: ["deploy_rpm_testing-a7"]
 
 # Kitchen: final test matrix (tests * scenarios)
