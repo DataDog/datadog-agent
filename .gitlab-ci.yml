@@ -662,7 +662,9 @@ variables:
 .on_all_kitchen_builds_a6:
   - <<: *if_not_version_6
     when: never
-  - <<: *all_kitchen_builds
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_kitchen
 
 .on_kitchen_tests_a7:
   - <<: *if_not_version_7
@@ -678,7 +680,9 @@ variables:
 .on_all_kitchen_builds_a7:
   - <<: *if_not_version_7
     when: never
-  - <<: *all_kitchen_builds
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_kitchen
 
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
