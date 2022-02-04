@@ -117,11 +117,10 @@ type DemultiplexerOptions struct {
 
 type statsd struct {
 	// how many sharded statsdSamplers exists.
-	// len(statsdSamplers) would return the same result but having it stored
+	// len(workers) would return the same result but having it stored
 	// it will provide more explicit visiblility / no extra function call for
 	// every metric to distribute.
 	pipelinesCount int
-	samplers       []*TimeSampler
 	workers        []*timeSamplerWorker
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
@@ -221,13 +220,12 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 		statsdPipelinesCount = 1
 	}
 
-	statsdSamplers := make([]*TimeSampler, statsdPipelinesCount)
 	statsdWorkers := make([]*timeSamplerWorker, statsdPipelinesCount)
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
 		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
-		statsdSamplers[i] = NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore)
 
 		// its worker (process loop + flush/serialization mechanism)
 
@@ -236,7 +234,7 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 		// could probably be considered
 		serializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder,
 			containerLifecycleForwarder)
-		statsdWorkers[i] = newTimeSamplerWorker(statsdSamplers[i], options.FlushInterval,
+		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
 			bufferSize, metricSamplePool, serializer, agg.flushAndSerializeInParallel)
 	}
 
@@ -266,7 +264,6 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 		// statsd time samplers
 		statsd: statsd{
 			pipelinesCount:   statsdPipelinesCount,
-			samplers:         statsdSamplers,
 			workers:          statsdWorkers,
 			metricSamplePool: metricSamplePool,
 		},

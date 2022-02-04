@@ -12,7 +12,6 @@ import (
 	"math"
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -30,24 +28,21 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	return l.Generate(serie.Name, serie.Host, tagset.NewHashingTagsAccumulatorWithTags(serie.Tags))
 }
 
-func testTimeSampler() (*TimeSampler, *timeSamplerWorker) {
+func testTimeSampler() *TimeSampler {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"))
-	worker := newTimeSamplerWorker(sampler, 15*time.Second, 100, metrics.NewMetricSamplePool(32), &serializer.MockSerializer{}, flushAndSerializeInParallel{enabled: false})
-	go worker.run()
-	return sampler, worker
+	return sampler
 }
 
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
-	sampler, _ := testTimeSampler()
+	sampler := testTimeSampler()
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 }
 
 func testBucketSampling(t *testing.T, store *tags.Store) {
-	sampler, worker := testTimeSampler()
-	defer worker.stop()
+	sampler := testTimeSampler()
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -81,8 +76,7 @@ func TestBucketSampling(t *testing.T) {
 }
 
 func testContextSampling(t *testing.T, store *tags.Store) {
-	sampler, worker := testTimeSampler()
-	defer worker.stop()
+	sampler := testTimeSampler()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -149,8 +143,7 @@ func TestContextSampling(t *testing.T) {
 }
 
 func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
-	sampler, worker := testTimeSampler()
-	defer worker.stop()
+	sampler := testTimeSampler()
 
 	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
@@ -291,7 +284,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 	)
 
 	var (
-		sampler, worker = testTimeSampler()
+		sampler = testTimeSampler()
 
 		insert = func(t *testing.T, ts float64, name string, tags []string, host string, values ...float64) {
 			t.Helper()
@@ -307,8 +300,6 @@ func testSketch(t *testing.T, store *tags.Store) {
 			}
 		}
 	)
-
-	defer worker.stop()
 
 	assert.EqualValues(t, defaultBucketSize, sampler.interval,
 		"interval should default to 10")
@@ -361,8 +352,7 @@ func TestSketch(t *testing.T) {
 }
 
 func testSketchBucketSampling(t *testing.T, store *tags.Store) {
-	sampler, worker := testTimeSampler()
-	defer worker.stop()
+	sampler := testTimeSampler()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -408,8 +398,7 @@ func TestSketchBucketSampling(t *testing.T) {
 }
 
 func testSketchContextSampling(t *testing.T, store *tags.Store) {
-	sampler, worker := testTimeSampler()
-	defer worker.stop()
+	sampler := testTimeSampler()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -462,8 +451,7 @@ func TestSketchContextSampling(t *testing.T) {
 }
 
 func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
-	sampler, worker := testTimeSampler()
-	defer worker.stop()
+	sampler := testTimeSampler()
 
 	dSample1 := metrics.MetricSample{
 		Name:       "distribution.metric.name1",
@@ -522,8 +510,7 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
-	sampler, worker := testTimeSampler()
-	defer worker.stop()
+	sampler := testTimeSampler()
 
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",
