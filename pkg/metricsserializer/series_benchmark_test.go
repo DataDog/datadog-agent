@@ -3,9 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metrics
+package metricsserializer
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+)
 
 func benchmarkPopulateDeviceField(numberOfTags int, b *testing.B) {
 	tags := make([]string, 0, numberOfTags+1)
@@ -14,10 +18,10 @@ func benchmarkPopulateDeviceField(numberOfTags int, b *testing.B) {
 	}
 	tags = append(tags, "device:test")
 
-	serie := &Serie{
+	serie := &metrics.Serie{
 		Tags: tags,
 	}
-	series := []*Serie{serie}
+	series := []*metrics.Serie{serie}
 
 	for n := 0; n < b.N; n++ {
 		serie.Tags = tags

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -45,7 +46,7 @@ func TestSplitPayloadsSeries(t *testing.T) {
 }
 
 func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
-	testSeries := metrics.Series{}
+	testSeries := metricsserializer.Series{}
 	for i := 0; i < numPoints; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
@@ -74,9 +75,9 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 	require.Nil(t, err)
 
 	originalLength := len(testSeries)
-	var splitSeries = []metrics.Series{}
+	var splitSeries = []metricsserializer.Series{}
 	for _, payload := range payloads {
-		var s = map[string]metrics.Series{}
+		var s = map[string]metricsserializer.Series{}
 
 		if compress {
 			*payload, err = compression.Decompress(nil, *payload)
@@ -88,7 +89,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 		splitSeries = append(splitSeries, s["series"])
 	}
 
-	unrolledSeries := metrics.Series{}
+	unrolledSeries := metricsserializer.Series{}
 	for _, series := range splitSeries {
 		for _, s := range series {
 			unrolledSeries = append(unrolledSeries, s)
@@ -101,7 +102,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 var result forwarder.Payloads
 
 func BenchmarkSplitPayloadsSeries(b *testing.B) {
-	testSeries := metrics.Series{}
+	testSeries := metricsserializer.Series{}
 	for i := 0; i < 400000; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{

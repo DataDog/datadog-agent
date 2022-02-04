@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -52,7 +53,7 @@ func initF() {
 	opts.DontStartForwarders = true
 	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
-	recurrentSeries = metrics.Series{}
+	recurrentSeries = metricsserializer.Series{}
 	tagsetTlm.reset()
 }
 
@@ -218,7 +219,7 @@ func TestDefaultData(t *testing.T) {
 		Host:      agg.hostname,
 	}}).Return(nil).Times(1)
 
-	series := metrics.Series{&metrics.Serie{
+	series := metricsserializer.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
@@ -295,7 +296,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 			// reset telemetry for next tests
 			agg.stopChan <- struct{}{}
-			recurrentSeries = metrics.Series{}
+			recurrentSeries = metricsserializer.Series{}
 			tagsetTlm.reset()
 		}
 	}
@@ -351,7 +352,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			assert.Equal(t, expMap, gotMap)
 
 			// reset for next tests
-			recurrentSeries = metrics.Series{}
+			recurrentSeries = metricsserializer.Series{}
 			tagsetTlm.reset()
 		}
 	}
@@ -385,7 +386,7 @@ func TestRecurrentSeries(t *testing.T) {
 
 	start := time.Now()
 
-	series := metrics.Series{&metrics.Serie{
+	series := metricsserializer.Series{&metrics.Serie{
 		Name:           "some.metric.1",
 		Points:         []metrics.Point{{Value: 21, Ts: float64(start.Unix())}},
 		Tags:           []string{"tag:1", "tag:2"},
@@ -542,7 +543,7 @@ type MockSerializerIterableSerie struct {
 }
 
 func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableMarshaler) error {
-	iterableSerie := series.(*metrics.IterableSeries)
+	iterableSerie := series.(*metricsserializer.IterableSeries)
 	defer iterableSerie.IterationStopped()
 
 	for iterableSerie.MoveNext() {
@@ -552,7 +553,7 @@ func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.Iterab
 }
 
 func (s *MockSerializerIterableSerie) SendSeries(series marshaler.StreamJSONMarshaler) error {
-	s.series = append(s.series, series.(metrics.Series)...)
+	s.series = append(s.series, series.(metricsserializer.Series)...)
 	return nil
 }
 

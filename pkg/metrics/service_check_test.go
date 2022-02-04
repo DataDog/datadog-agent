@@ -9,7 +9,10 @@
 package metrics
 
 import (
+	"bytes"
+	"compress/zlib"
 	"fmt"
+	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -85,6 +88,21 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
 		uncompressedPayloads = append(uncompressedPayloads, payload)
 	}
 	return uncompressedPayloads
+}
+
+// Duplicate this function temporary (removed later)
+func decompressPayload(payload []byte) ([]byte, error) {
+	r, err := zlib.NewReader(bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	dst, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	return dst, nil
 }
 
 func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler) {

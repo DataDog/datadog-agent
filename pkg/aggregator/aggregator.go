@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -132,7 +133,7 @@ var (
 		nil, "Count the number of dogstatsd contexts in the aggregator")
 
 	// Hold series to be added to aggregated series on each flush
-	recurrentSeries     metrics.Series
+	recurrentSeries     metricsserializer.Series
 	recurrentSeriesLock sync.Mutex
 )
 
@@ -467,8 +468,8 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, metrics.SketchSeriesList) {
-	var series metrics.Series
+func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metricsserializer.Series, metrics.SketchSeriesList) {
+	var series metricsserializer.Series
 	sketches := agg.getSeriesAndSketches(before, &series)
 	return series, sketches
 }
@@ -476,7 +477,7 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series metrics.SerieSink) metrics.SketchSeriesList {
+func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series metricsserializer.SerieSink) metrics.SketchSeriesList {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	sketches := agg.statsdSampler.flush(float64(before.UnixNano())/float64(time.Second), series)
@@ -507,7 +508,7 @@ func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.Sk
 	tagsetTlm.updateHugeSketchesTelemetry(&sketches)
 }
 
-func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
+func (agg *BufferedAggregator) pushSeries(start time.Time, series metricsserializer.Series) {
 	log.Debugf("Flushing %d series to the forwarder", len(series))
 	err := agg.serializer.SendSeries(series)
 	updateSerieTelemetry(start, len(series), err)
@@ -527,7 +528,7 @@ func updateSerieTelemetry(start time.Time, serieCount int, err error) {
 
 }
 
-func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metrics.SerieSink) {
+func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metricsserializer.SerieSink) {
 	recurrentSeriesLock.Lock()
 	// Adding recurrentSeries to the flushed ones
 	for _, extra := range recurrentSeries {
@@ -583,7 +584,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	})
 }
 
-func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {
+func (agg *BufferedAggregator) sendSeries(start time.Time, series metricsserializer.Series, waitForSerializer bool) {
 	agg.appendDefaultSeries(start, &series)
 	addFlushCount("Series", int64(len(series)))
 
@@ -604,7 +605,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 
 func (agg *BufferedAggregator) sendIterableSeries(
 	start time.Time,
-	series *metrics.IterableSeries,
+	series *metricsserializer.IterableSeries,
 	done chan<- struct{}) {
 	go func() {
 		log.Debugf("Flushing series to the forwarder")
@@ -638,7 +639,7 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSe
 		agg.sendSeries(start, series, waitForSerializer)
 	} else {
 		logPayloads := config.Datadog.GetBool("log_payloads")
-		series := metrics.NewIterableSeries(func(s *metrics.Serie) {
+		series := metricsserializer.NewIterableSeries(func(s *metrics.Serie) {
 			if logPayloads {
 				log.Debugf("Flushing the following metrics: %s", s)
 			}

@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -176,7 +177,7 @@ func (cs *CheckSampler) commit(timestamp float64) {
 	cs.metrics.Expire(expiredContextKeys, timestamp)
 }
 
-func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
+func (cs *CheckSampler) flush() (metricsserializer.Series, metrics.SketchSeriesList) {
 	// series
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)

@@ -42,21 +42,21 @@ type SketchSeriesList []SketchSeries
 
 var (
 	expvars                    = expvar.NewMap("sketch_series")
-	expvarsItemTooBig          = expvar.Int{}
-	expvarsPayloadFull         = expvar.Int{}
-	expvarsUnexpectedItemDrops = expvar.Int{}
-	tlmItemTooBig              = telemetry.NewCounter("sketch_series", "sketch_too_big",
+	ExpvarsItemTooBig          = expvar.Int{} // Temporary public
+	ExpvarsPayloadFull         = expvar.Int{}
+	ExpvarsUnexpectedItemDrops = expvar.Int{}
+	TlmItemTooBig              = telemetry.NewCounter("sketch_series", "sketch_too_big",
 		nil, "Number of payloads dropped because they were too big for the stream compressor")
-	tlmPayloadFull = telemetry.NewCounter("sketch_series", "payload_full",
+	TlmPayloadFull = telemetry.NewCounter("sketch_series", "payload_full",
 		nil, "How many times we've hit a 'payload is full' in the stream compressor")
-	tlmUnexpectedItemDrops = telemetry.NewCounter("sketch_series", "unexpected_item_drops",
+	TlmUnexpectedItemDrops = telemetry.NewCounter("sketch_series", "unexpected_item_drops",
 		nil, "Items dropped in the stream compressor")
 )
 
 func init() {
-	expvars.Set("ItemTooBig", &expvarsItemTooBig)
-	expvars.Set("PayloadFull", &expvarsPayloadFull)
-	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
+	expvars.Set("ItemTooBig", &ExpvarsItemTooBig)
+	expvars.Set("PayloadFull", &ExpvarsPayloadFull)
+	expvars.Set("UnexpectedItemDrops", &ExpvarsUnexpectedItemDrops)
 }
 
 // MarshalJSON serializes sketch series to JSON.
@@ -278,8 +278,8 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		err = compressor.AddItem(buf.Bytes())
 		switch err {
 		case stream.ErrPayloadFull:
-			expvarsPayloadFull.Add(1)
-			tlmPayloadFull.Inc()
+			ExpvarsPayloadFull.Add(1)
+			TlmPayloadFull.Inc()
 
 			// Since the compression buffer is full - flush it and start a new one
 			err = finishPayload()
@@ -296,26 +296,26 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 			err = compressor.AddItem(buf.Bytes())
 			if err == stream.ErrItemTooBig {
 				// Item was too big, drop it
-				expvarsItemTooBig.Add(1)
-				tlmItemTooBig.Inc()
+				ExpvarsItemTooBig.Add(1)
+				TlmItemTooBig.Inc()
 				continue
 			}
 			if err != nil {
 				// Unexpected error bail out
-				expvarsUnexpectedItemDrops.Add(1)
-				tlmUnexpectedItemDrops.Inc()
+				ExpvarsUnexpectedItemDrops.Add(1)
+				TlmUnexpectedItemDrops.Inc()
 				return nil, err
 			}
 		case stream.ErrItemTooBig:
 			// Item was too big, drop it
-			expvarsItemTooBig.Add(1)
-			tlmItemTooBig.Add(1)
+			ExpvarsItemTooBig.Add(1)
+			TlmItemTooBig.Add(1)
 		case nil:
 			continue
 		default:
 			// Unexpected error bail out
-			expvarsUnexpectedItemDrops.Add(1)
-			tlmUnexpectedItemDrops.Inc()
+			ExpvarsUnexpectedItemDrops.Add(1)
+			TlmUnexpectedItemDrops.Inc()
 			return nil, err
 		}
 	}

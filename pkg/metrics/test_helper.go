@@ -42,7 +42,7 @@ func AssertTagsEqual(t assert.TestingT, expected, actual []string) {
 }
 
 // AssertSeriesEqual evaluate if two list of series match
-func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
+func AssertSeriesEqual(t *testing.T, expected []*Serie, series []*Serie) {
 	assert.Equal(t, len(expected), len(series))
 	for _, serie := range series {
 		found := false

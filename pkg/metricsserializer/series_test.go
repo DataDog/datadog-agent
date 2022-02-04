@@ -6,7 +6,7 @@
 //go:build zlib
 // +build zlib
 
-package metrics
+package metricsserializer
 
 import (
 	"bytes"
@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/stretchr/testify/assert"
@@ -49,7 +50,7 @@ func TestPopulateDeviceField(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
-			s := &Serie{Tags: []string{}}
+			s := &metrics.Serie{Tags: []string{}}
 			for _, t := range tc.Tags {
 				s.Tags = append(s.Tags, t)
 			}
@@ -67,11 +68,11 @@ func TestPopulateDeviceField(t *testing.T) {
 
 func TestMarshalJSONSeries(t *testing.T) {
 	series := Series{{
-		Points: []Point{
+		Points: []metrics.Point{
 			{Ts: 12345.0, Value: float64(21.21)},
 			{Ts: 67890.0, Value: float64(12.12)},
 		},
-		MType:          APIGaugeType,
+		MType:          metrics.APIGaugeType,
 		Name:           "test.metrics",
 		Host:           "localHost",
 		Tags:           []string{"tag1", "tag2:yes", "device:/dev/sda1"},
@@ -86,20 +87,20 @@ func TestMarshalJSONSeries(t *testing.T) {
 
 func TestSplitSerieasOneMetric(t *testing.T) {
 	s := Series{
-		{Points: []Point{
+		{Points: []metrics.Point{
 			{Ts: 12345.0, Value: float64(21.21)},
 			{Ts: 67890.0, Value: float64(12.12)},
 		},
-			MType: APIGaugeType,
+			MType: metrics.APIGaugeType,
 			Name:  "test.metrics",
 			Host:  "localHost",
 			Tags:  []string{"tag1", "tag2:yes"},
 		},
-		{Points: []Point{
+		{Points: []metrics.Point{
 			{Ts: 12345.0, Value: float64(21.21)},
 			{Ts: 67890.0, Value: float64(12.12)},
 		},
-			MType: APIGaugeType,
+			MType: metrics.APIGaugeType,
 			Name:  "test.metrics",
 			Host:  "localHost",
 			Tags:  []string{"tag3"},
@@ -115,23 +116,23 @@ func TestSplitSerieasOneMetric(t *testing.T) {
 func TestSplitSerieasByName(t *testing.T) {
 	var series = Series{}
 	for _, name := range []string{"name1", "name2", "name3"} {
-		s1 := Serie{
-			Points: []Point{
+		s1 := metrics.Serie{
+			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
 				{Ts: 67890.0, Value: float64(12.12)},
 			},
-			MType: APIGaugeType,
+			MType: metrics.APIGaugeType,
 			Name:  name,
 			Host:  "localHost",
 			Tags:  []string{"tag1", "tag2:yes"},
 		}
 		series = append(series, &s1)
-		s2 := Serie{
-			Points: []Point{
+		s2 := metrics.Serie{
+			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
 				{Ts: 67890.0, Value: float64(12.12)},
 			},
-			MType: APIGaugeType,
+			MType: metrics.APIGaugeType,
 			Name:  name,
 			Host:  "localHost",
 			Tags:  []string{"tag3"},
@@ -153,23 +154,23 @@ func TestSplitSerieasByName(t *testing.T) {
 func TestSplitOversizedMetric(t *testing.T) {
 	var series = Series{
 		{
-			Points: []Point{
+			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
 				{Ts: 67890.0, Value: float64(12.12)},
 			},
-			MType: APIGaugeType,
+			MType: metrics.APIGaugeType,
 			Name:  "test.test1",
 			Host:  "localHost",
 			Tags:  []string{"tag1", "tag2:yes"},
 		},
 	}
 	for _, tag := range []string{"tag1", "tag2", "tag3"} {
-		series = append(series, &Serie{
-			Points: []Point{
+		series = append(series, &metrics.Serie{
+			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
 				{Ts: 67890.0, Value: float64(12.12)},
 			},
-			MType: APIGaugeType,
+			MType: metrics.APIGaugeType,
 			Name:  "test.test2",
 			Host:  "localHost",
 			Tags:  []string{tag},
@@ -191,31 +192,31 @@ func TestSplitOversizedMetric(t *testing.T) {
 func TestUnmarshalSeriesJSON(t *testing.T) {
 	// Test one for each value of the API Type
 	series := Series{{
-		Points: []Point{
+		Points: []metrics.Point{
 			{Ts: 12345.0, Value: float64(21.21)},
 			{Ts: 67890.0, Value: float64(12.12)},
 		},
-		MType:    APIGaugeType,
+		MType:    metrics.APIGaugeType,
 		Name:     "test.metrics",
 		Interval: 1,
 		Host:     "localHost",
 		Tags:     []string{"tag1", "tag2:yes"},
 	}, {
-		Points: []Point{
+		Points: []metrics.Point{
 			{Ts: 12345.0, Value: float64(21.21)},
 			{Ts: 67890.0, Value: float64(12.12)},
 		},
-		MType:    APIRateType,
+		MType:    metrics.APIRateType,
 		Name:     "test.metrics",
 		Interval: 1,
 		Host:     "localHost",
 		Tags:     []string{"tag1", "tag2:yes"},
 	}, {
-		Points: []Point{
+		Points: []metrics.Point{
 			{Ts: 12345.0, Value: float64(21.21)},
 			{Ts: 67890.0, Value: float64(12.12)},
 		},
-		MType:    APICountType,
+		MType:    metrics.APICountType,
 		Name:     "test.metrics",
 		Interval: 1,
 		Host:     "localHost",
@@ -229,7 +230,7 @@ func TestUnmarshalSeriesJSON(t *testing.T) {
 	require.Nil(t, err)
 
 	badPointJSON := []byte(`[12345,21.21,1]`)
-	var badPoint Point
+	var badPoint metrics.Point
 	err = json.Unmarshal(badPointJSON, &badPoint)
 	require.NotNil(t, err)
 }
@@ -237,30 +238,30 @@ func TestUnmarshalSeriesJSON(t *testing.T) {
 func TestStreamJSONMarshaler(t *testing.T) {
 	series := Series{
 		{
-			Points: []Point{
+			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
 				{Ts: 67890.0, Value: float64(12.12)},
 			},
-			MType:    APIGaugeType,
+			MType:    metrics.APIGaugeType,
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
 			Tags:     []string{"tag1", "tag2:yes"},
 		},
 		{
-			Points: []Point{
+			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
 				{Ts: 67890.0, Value: float64(12.12)},
 			},
-			MType:    APIRateType,
+			MType:    metrics.APIRateType,
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
 			Tags:     []string{"tag1", "tag2:yes"},
 		},
 		{
-			Points:   []Point{},
-			MType:    APICountType,
+			Points:   []metrics.Point{},
+			MType:    metrics.APICountType,
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
@@ -293,7 +294,7 @@ func TestStreamJSONMarshaler(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Make sure the output is valid and matches the original item
-		item := &Serie{}
+		item := &metrics.Serie{}
 		err = json.Unmarshal(stream.Buffer(), item)
 		assert.NoError(t, err)
 		assert.EqualValues(t, series[i], item)
@@ -303,11 +304,11 @@ func TestStreamJSONMarshaler(t *testing.T) {
 func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 	series := Series{
 		{
-			Points: []Point{
+			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
 				{Ts: 67890.0, Value: float64(12.12)},
 			},
-			MType:    APIGaugeType,
+			MType:    metrics.APIGaugeType,
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
@@ -321,7 +322,7 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Make sure the output is valid and fields are as expected
-	item := &Serie{}
+	item := &metrics.Serie{}
 	err = json.Unmarshal(stream.Buffer(), item)
 	assert.NoError(t, err)
 	assert.Equal(t, item.Device, "/dev/sda1")
@@ -331,11 +332,11 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 func TestDescribeItem(t *testing.T) {
 	series := Series{
 		{
-			Points: []Point{
+			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
 				{Ts: 67890.0, Value: float64(12.12)},
 			},
-			MType:    APIGaugeType,
+			MType:    metrics.APIGaugeType,
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
@@ -352,17 +353,17 @@ func TestDescribeItem(t *testing.T) {
 }
 
 func makeSeries(numItems, numPoints int) Series {
-	series := make([]*Serie, 0, numItems)
+	series := make([]*metrics.Serie, 0, numItems)
 	for i := 0; i < numItems; i++ {
-		series = append(series, &Serie{
-			Points: func() []Point {
-				ps := make([]Point, numPoints)
+		series = append(series, &metrics.Serie{
+			Points: func() []metrics.Point {
+				ps := make([]metrics.Point, numPoints)
 				for p := 0; p < numPoints; p++ {
-					ps[p] = Point{Ts: float64(p * i), Value: float64(p + i)}
+					ps[p] = metrics.Point{Ts: float64(p * i), Value: float64(p + i)}
 				}
 				return ps
 			}(),
-			MType:    APIGaugeType,
+			MType:    metrics.APIGaugeType,
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
@@ -417,8 +418,8 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 func TestPayloadsSeries(t *testing.T) {
 	testSeries := Series{}
 	for i := 0; i < 30000; i++ {
-		point := Serie{
-			Points: []Point{
+		point := metrics.Serie{
+			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
 				{Ts: 67890.0, Value: float64(12.12)},
 				{Ts: 2222.0, Value: float64(22.12)},
@@ -431,7 +432,7 @@ func TestPayloadsSeries(t *testing.T) {
 				{Ts: 808080.0, Value: float64(92.12)},
 				{Ts: 9090.0, Value: float64(13.12)},
 			},
-			MType:    APIGaugeType,
+			MType:    metrics.APIGaugeType,
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
@@ -471,11 +472,11 @@ var result forwarder.Payloads
 func BenchmarkPayloadsSeries(b *testing.B) {
 	testSeries := Series{}
 	for i := 0; i < 400000; i++ {
-		point := Serie{
-			Points: []Point{
+		point := metrics.Serie{
+			Points: []metrics.Point{
 				{Ts: 12345.0, Value: 1.2 * float64(i)},
 			},
-			MType:    APIGaugeType,
+			MType:    metrics.APIGaugeType,
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
