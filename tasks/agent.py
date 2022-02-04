@@ -13,10 +13,8 @@ import shutil
 import sys
 from distutils.dir_util import copy_tree
 
-import toml
 from invoke import task
 from invoke.exceptions import Exit, ParseError
-from packaging.specifiers import SpecifierSet
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .docker import pull_base_images
@@ -633,6 +631,9 @@ def check_supports_python_version(_, check_dir, python):
     """
     Check if a Python project states support for a given major Python version.
     """
+    import toml
+    from packaging.specifiers import SpecifierSet
+
     if python not in ['2', '3']:
         raise Exit("invalid Python version", code=2)
 
