@@ -13,7 +13,6 @@ support_email=support@datadoghq.com
 LEGACY_ETCDIR="/etc/dd-agent"
 LEGACY_CONF="$LEGACY_ETCDIR/datadog.conf"
 ETCDIR="/etc/datadog-agent"
-CONF="$ETCDIR/datadog.yaml"
 
 # DATADOG_APT_KEY_CURRENT.public always contains key used to sign current
 # repodata and newly released packages
@@ -210,17 +209,25 @@ agent_flavor="datadog-agent"
 if [ -n "$DD_AGENT_FLAVOR" ]; then
     agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
 fi
+
 declare -A flavor_to_readable
 flavor_to_readable=(
     ["datadog-iot-agent"]="Datadog IoT Agent"
-    ["datadog-agent"]="Datadog Dogstatsd"
+    ["datadog-dogstatsd"]="Datadog Dogstatsd"
 )
 nice_flavor=${flavor_to_readable[$agent_flavor]:-Datadog Agent}
+
 declare -A flavor_to_system_service
 flavor_to_system_service=(
     ["datadog-dogstatsd"]="datadog-dogstatsd"
 )
 system_service=${flavor_to_system_service[$agent_flavor]:-datadog-agent}
+
+declare -A flavor_to_config
+flavor_to_conf=(
+    ["datadog-dogstatsd"]="$ETCDIR/dogstatsd.yaml"
+)
+config_file=${flavor_to_config[$agent_flavor]:-$ETCDIR/datadog.yaml}
 
 agent_major_version=6
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
@@ -578,7 +585,7 @@ Please follow the instructions on the Agent setup page:
     exit;
 fi
 
-if [ "$upgrade" ]; then
+if [ "$upgrade" ] && [ "$agent_flavor" != "datadog-dogstatsd" ]; then
   if [ -e $LEGACY_CONF ]; then
     # try to import the config file from the previous version
     icmd="datadog-agent import $LEGACY_ETCDIR $ETCDIR"
@@ -593,43 +600,43 @@ if [ "$upgrade" ]; then
 fi
 
 # Set the configuration
-if [ -e $CONF ] && [ -z "$upgrade" ]; then
+if [ -e $config_file ] && [ -z "$upgrade" ]; then
   printf "\033[34m\n* Keeping old datadog.yaml configuration file\n\033[0m\n"
 else
-  if [ ! -e $CONF ]; then
-    $sudo_cmd cp $CONF.example $CONF
+  if [ ! -e $config_file ]; then
+    $sudo_cmd cp $config_file.example $config_file
   fi
   if [ "$apikey" ]; then
-    printf "\033[34m\n* Adding your API key to the $nice_flavor configuration: $CONF\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' $CONF"
+    printf "\033[34m\n* Adding your API key to the $nice_flavor configuration: $config_file\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' $config_file"
   else
     # If the import script failed for any reason, we might end here also in case
     # of upgrade, let's not start the agent or it would fail because the api key
     # is missing
-    if ! $sudo_cmd grep -q -E '^api_key: .+' $CONF; then
+    if ! $sudo_cmd grep -q -E '^api_key: .+' $config_file; then
       printf "\033[31mThe $nice_flavor won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the $nice_flavor manually.\n\033[0m\n"
       no_start=true
     fi
   fi
   if [ "$site" ]; then
-    printf "\033[34m\n* Setting SITE in the $nice_flavor configuration: $CONF\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $CONF"
+    printf "\033[34m\n* Setting SITE in the $nice_flavor configuration: $config_file\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $config_file"
   fi
   if [ -n "$DD_URL" ]; then
-    printf "\033[34m\n* Setting DD_URL in the $nice_flavor configuration: $CONF\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $CONF"
+    printf "\033[34m\n* Setting DD_URL in the $nice_flavor configuration: $config_file\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $config_file"
   fi
   if [ "$hostname" ]; then
-    printf "\033[34m\n* Adding your HOSTNAME to the $nice_flavor configuration: $CONF\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $hostname/' $CONF"
+    printf "\033[34m\n* Adding your HOSTNAME to the $nice_flavor configuration: $config_file\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $hostname/' $config_file"
   fi
   if [ "$host_tags" ]; then
-      printf "\033[34m\n* Adding your HOST TAGS to the $nice_flavor configuration: $CONF\n\033[0m\n"
+      printf "\033[34m\n* Adding your HOST TAGS to the $nice_flavor configuration: $config_file\n\033[0m\n"
       formatted_host_tags="['""$( echo "$host_tags" | sed "s/,/','/g" )""']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
-      $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $CONF"
+      $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $config_file"
   fi
-  $sudo_cmd chown dd-agent:dd-agent $CONF
-  $sudo_cmd chmod 640 $CONF
+  $sudo_cmd chown dd-agent:dd-agent $config_file
+  $sudo_cmd chmod 640 $config_file
 fi
 
 # Creating or overriding the install information
