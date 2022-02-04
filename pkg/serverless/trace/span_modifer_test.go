@@ -82,3 +82,35 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	_, tagOriginSelfSpanHasGlobalTags := tp.Chunks[0].Spans[0].GetMeta()["function_arn"]
 	assert.False(t, tagOriginSelfSpanHasGlobalTags, "A span with meta._inferred_span.tag_origin = self should not get global tags")
 }
+
+func TestNoServiceRewriteIfInferred(t *testing.T) {
+	cfg := config.New()
+	cfg.GlobalTags = map[string]string{
+		"service": "myTestService",
+	}
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := agent.NewAgent(ctx, cfg)
+	spanModifier := &spanModifier{
+		tags: cfg.GlobalTags,
+	}
+	agnt.ModifySpan = spanModifier.ModifySpan
+	defer cancel()
+
+	tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+	tp.Chunks[0].Spans[0].Service = "should-not-be-replaced"
+	tp.Chunks[0].Spans[0].Meta["_inferred_span.tag_source"] = "self"
+	go agnt.Process(&api.Payload{
+		TracerPayload: tp,
+		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+	})
+	timeout := time.After(2 * time.Second)
+	var span *pb.Span
+	select {
+	case ss := <-agnt.TraceWriter.In:
+		span = ss.TracerPayload.Chunks[0].Spans[0]
+	case <-timeout:
+		t.Fatal("timed out")
+	}
+	assert.Equal(t, "should-not-be-replaced", span.Service)
+}
