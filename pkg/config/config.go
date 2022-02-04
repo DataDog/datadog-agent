@@ -1562,10 +1562,13 @@ func IsCLCRunner() bool {
 // Not using `config.BindEnvAndSetDefault` as some processes need to know
 // if value was default one or not (e.g. trace-agent)
 func GetBindHost() string {
-	if Datadog.IsSet("bind_host") {
-		return Datadog.GetString("bind_host")
-	}
+	return getBindHost(Datadog)
+}
 
+func getBindHost(cfg Config) string {
+	if cfg.IsSet("bind_host") {
+		return cfg.GetString("bind_host")
+	}
 	return "localhost"
 }
 

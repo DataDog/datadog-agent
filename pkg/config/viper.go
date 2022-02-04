@@ -335,8 +335,10 @@ func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
 // ReadInConfig wraps Viper for concurrent access
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
-	defer c.Unlock()
-	return c.Viper.ReadInConfig()
+	err := c.Viper.ReadInConfig()
+	c.Unlock()
+	promoteExperimentalOTLP(c) // TODO(gbbr): remove after 7.35.0 is released
+	return err
 }
 
 // ReadConfig wraps Viper for concurrent access
