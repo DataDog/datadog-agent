@@ -223,12 +223,6 @@ variables:
 .if_default_kitchen: &if_default_kitchen
   if: $RUN_KITCHEN_TESTS != "false"
 
-# Runs on all builds where RUN_KITCHEN_TESTS is also true.
-.all_kitchen_builds: &all_kitchen_builds
-  - <<: *if_not_run_all_builds
-    when: never
-  - <<: *if_kitchen
-
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
 
