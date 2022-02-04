@@ -23,7 +23,7 @@ var _ translator.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
 	series   metricsserializer.Series
-	sketches metrics.SketchSeriesList
+	sketches metricsserializer.SketchSeriesList
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, name string, ts uint64, qsketch *quantile.Sketch, tags []string, host string) {

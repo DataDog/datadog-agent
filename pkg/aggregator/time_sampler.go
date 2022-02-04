@@ -174,9 +174,9 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	}
 }
 
-func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
+func (s *TimeSampler) flushSketches(cutoffTime int64) metricsserializer.SketchSeriesList {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
+	sketches := make(metricsserializer.SketchSeriesList, 0, len(pointsByCtx))
 
 	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
@@ -191,7 +191,7 @@ func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
 	return sketches
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metricsserializer.SerieSink) metrics.SketchSeriesList {
+func (s *TimeSampler) flush(timestamp float64, series metricsserializer.SerieSink) metricsserializer.SketchSeriesList {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 

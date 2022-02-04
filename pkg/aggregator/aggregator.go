@@ -468,7 +468,7 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metricsserializer.Series, metrics.SketchSeriesList) {
+func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metricsserializer.Series, metricsserializer.SketchSeriesList) {
 	var series metricsserializer.Series
 	sketches := agg.getSeriesAndSketches(before, &series)
 	return series, sketches
@@ -477,7 +477,7 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metricsse
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series metricsserializer.SerieSink) metrics.SketchSeriesList {
+func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series metricsserializer.SerieSink) metricsserializer.SketchSeriesList {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	sketches := agg.statsdSampler.flush(float64(before.UnixNano())/float64(time.Second), series)
@@ -492,7 +492,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series met
 	return sketches
 }
 
-func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
+func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metricsserializer.SketchSeriesList) {
 	log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
 	err := agg.serializer.SendSketch(sketches)
 	state := stateOk
@@ -619,7 +619,7 @@ func (agg *BufferedAggregator) sendIterableSeries(
 	}()
 }
 
-func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.SketchSeriesList, waitForSerializer bool) {
+func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metricsserializer.SketchSeriesList, waitForSerializer bool) {
 	// Serialize and forward sketches in a separate goroutine
 	addFlushCount("Sketches", int64(len(sketches)))
 	if len(sketches) != 0 {

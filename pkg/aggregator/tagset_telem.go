@@ -84,7 +84,7 @@ func (t *tagsetTelemetry) updateTelemetry(tagsetSizes []uint64, atomicCounts []u
 }
 
 // updateHugeSketches huge and almost-huge series in the given value
-func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSeriesList) {
+func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metricsserializer.SketchSeriesList) {
 	tagsetSizes := make([]uint64, len(*sketches))
 	for i, s := range *sketches {
 		tagsetSizes[i] = uint64(len(s.Tags))

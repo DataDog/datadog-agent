@@ -525,7 +525,7 @@ func BenchmarkTimeSampler(b *testing.B) {
 	benchWithTagsStore(b, benchmarkTimeSampler)
 }
 
-func flushSerie(sampler *TimeSampler, timestamp float64) (metricsserializer.Series, metrics.SketchSeriesList) {
+func flushSerie(sampler *TimeSampler, timestamp float64) (metricsserializer.Series, metricsserializer.SketchSeriesList) {
 	var series metricsserializer.Series
 	sketches := sampler.flush(timestamp, &series)
 	return series, sketches

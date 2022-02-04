@@ -380,8 +380,8 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 
 		switch err {
 		case stream.ErrPayloadFull:
-			metrics.ExpvarsPayloadFull.Add(1)
-			metrics.TlmPayloadFull.Inc()
+			expvarsPayloadFull.Add(1)
+			tlmPayloadFull.Inc()
 
 			err = finishPayload()
 			if err != nil {
@@ -397,26 +397,26 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 			err = addToPayload()
 			if err == stream.ErrItemTooBig {
 				// Item was too big, drop it
-				metrics.ExpvarsItemTooBig.Add(1)
-				metrics.TlmItemTooBig.Inc()
+				expvarsItemTooBig.Add(1)
+				tlmItemTooBig.Inc()
 				continue
 			}
 			if err != nil {
 				// Unexpected error bail out
-				metrics.ExpvarsUnexpectedItemDrops.Add(1)
-				metrics.TlmUnexpectedItemDrops.Inc()
+				expvarsUnexpectedItemDrops.Add(1)
+				tlmUnexpectedItemDrops.Inc()
 				return nil, err
 			}
 		case stream.ErrItemTooBig:
 			// Item was too big, drop it
-			metrics.ExpvarsItemTooBig.Add(1)
-			metrics.TlmItemTooBig.Add(1)
+			expvarsItemTooBig.Add(1)
+			tlmItemTooBig.Add(1)
 		case nil:
 			continue
 		default:
 			// Unexpected error bail out
-			metrics.ExpvarsUnexpectedItemDrops.Add(1)
-			metrics.TlmUnexpectedItemDrops.Inc()
+			expvarsUnexpectedItemDrops.Add(1)
+			tlmUnexpectedItemDrops.Inc()
 			return nil, err
 		}
 	}
