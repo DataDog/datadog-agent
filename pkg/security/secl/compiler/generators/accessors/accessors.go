@@ -456,9 +456,9 @@ func (m *Model) GetEventTypes() []eval.EventType {
 }
 
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+	{{- $Mock := .Mock -}}
 	switch field {
-	{{$Mock := .Mock}}
-	{{range $Name, $Field := .Fields}}
+	{{range $Name, $Field := .Fields -}}
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
 			{{- if and $Field.OpOverrides (not $Mock)}}
@@ -534,13 +534,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 							}
 							return result
 						{{- else}}
-							{{- if ne $Field.OrigType "int"}}
+							{{- if ne $Field.OrigType "int" -}}
 								return int({{$Return}})
 							{{- else}}
 								return {{$Return}}
 							{{end -}}
 						{{end -}}
-					{{- else}}
+					{{- else -}}
 						return {{$Return}}
 					{{end -}}
 				},
@@ -562,7 +562,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				Weight: eval.FunctionWeight,
 			{{end}}
 		}, nil
-	{{end}}
+	{{end -}}
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
