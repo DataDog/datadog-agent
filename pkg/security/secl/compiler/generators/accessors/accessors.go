@@ -436,10 +436,10 @@ var (
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
-	{{range $Name, $Field := .Iterators}}
+	{{range $Name, $Field := .Iterators -}}
 	case "{{$Name}}":
 		return &{{$Field.ReturnType}}{}, nil
-	{{end}}
+	{{end -}}
 	}
 
 	return nil, &eval.ErrIteratorNotSupported{Field: field}

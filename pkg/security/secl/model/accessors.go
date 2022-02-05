@@ -16,13 +16,10 @@ var (
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
-
 	case "process.ancestors":
 		return &ProcessAncestorsIterator{}, nil
-
 	case "ptrace.tracee.ancestors":
 		return &ProcessAncestorsIterator{}, nil
-
 	}
 
 	return nil, &eval.ErrIteratorNotSupported{Field: field}
