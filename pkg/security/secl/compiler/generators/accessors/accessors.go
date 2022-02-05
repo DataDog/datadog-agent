@@ -683,10 +683,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
-		{{range $Name, $Field := .Fields}}
-		{{$FieldName := $Field.Name | printf "e.%s"}}
+	{{range $Name, $Field := .Fields -}}
+		{{- $FieldName := $Field.Name | printf "e.%s" -}}
 		case "{{$Name}}":
-		{{if $Field.Iterator}}
+		{{- if $Field.Iterator}}
 			{{if $Field.Iterator.IsOrigTypePtr}}
 				if e.{{$Field.Iterator.Name}} == nil {
 					e.{{$Field.Iterator.Name}} = &{{$Field.Iterator.OrigType}}{}
@@ -705,7 +705,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 				{{$FieldName}} = str
 			{{end}}
 			return nil
-		{{else if eq $Field.BasicType "int"}}
+		{{- else if eq $Field.BasicType "int"}}
 			v, ok := value.(int)
 			if !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
@@ -716,16 +716,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 				{{$FieldName}} = {{$Field.OrigType}}(v)
 			{{end}}
 			return nil
-		{{else if eq $Field.BasicType "bool"}}
+		{{- else if eq $Field.BasicType "bool"}}
 			if {{$FieldName}}, ok = value.(bool); !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
 			return nil
-		{{end}}
-		{{end}}
-		}
+		{{- end}}
+	{{end -}}
+	}
 
-		return &eval.ErrFieldNotFound{Field: field}
+	return &eval.ErrFieldNotFound{Field: field}
 }
 
 `))
