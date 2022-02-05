@@ -577,11 +577,11 @@ func (e *Event) GetFields() []eval.Field {
 }
 
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
+	{{- $Mock := .Mock -}}
 	switch field {
-		{{$Mock := .Mock}}
-		{{range $Name, $Field := .Fields}}
+		{{range $Name, $Field := .Fields -}}
 		case "{{$Name}}":
-		{{if $Field.Iterator}}
+		{{- if $Field.Iterator}}
 			var values []{{$Field.ReturnType}}
 
 			ctx := eval.NewContext(unsafe.Pointer(e))
@@ -590,7 +590,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr := iterator.Front(ctx)
 
 			for ptr != nil {
-				{{if $Field.Iterator.IsOrigTypePtr}}
+				{{- if $Field.Iterator.IsOrigTypePtr}}
 					element := (*{{$Field.Iterator.OrigType}})(ptr)
 				{{else}}
 					elementPtr := (*{{$Field.Iterator.OrigType}})(ptr)
@@ -622,14 +622,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			return values, nil
 		{{else}}
-			{{$Return := $Field.Name | printf "e.%s"}}
-			{{if and (ne $Field.Handler "") (not $Mock)}}
+			{{- $Return := $Field.Name | printf "e.%s" -}}
+			{{- if and (ne $Field.Handler "") (not $Mock)}}
 				{{$Return = print "e." $Field.Handler "(&e." $Field.Prefix ")"}}
-			{{end}}
+			{{end -}}
 
-			{{if eq $Field.ReturnType "string"}}
+			{{- if eq $Field.ReturnType "string" -}}
 				return {{$Return}}, nil
-			{{else if eq $Field.ReturnType "int"}}
+			{{- else if eq $Field.ReturnType "int" -}}
 				{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
 					result := make([]int, len({{$Return}}))
 					for i, v := range {{$Return}} {
@@ -637,20 +637,20 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 					}
 					return result, nil
 				{{- else}}
-					{{- if ne $Field.OrigType "int"}}
+					{{- if ne $Field.OrigType "int" -}}
 						return int({{$Return}}), nil
-					{{- else}}
+					{{- else -}}
 						return {{$Return}}, nil
-					{{end -}}
+					{{- end -}}
 				{{end -}}
-			{{else if eq $Field.ReturnType "bool"}}
+			{{- else if eq $Field.ReturnType "bool" -}}
 				return {{$Return}}, nil
-			{{end}}
-		{{end}}
-		{{end}}
-		}
+			{{- end}}
+		{{end -}}
+	{{end -}}
+	}
 
-		return nil, &eval.ErrFieldNotFound{Field: field}
+	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {

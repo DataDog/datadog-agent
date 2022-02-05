@@ -5742,697 +5742,351 @@ func (e *Event) GetFields() []eval.Field {
 
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
-
 	case "bpf.cmd":
-
 		return int(e.BPF.Cmd), nil
-
 	case "bpf.map.type":
-
 		return int(e.BPF.Map.Type), nil
-
 	case "bpf.prog.attach_type":
-
 		return int(e.BPF.Program.AttachType), nil
-
 	case "bpf.prog.type":
-
 		return int(e.BPF.Program.Type), nil
-
 	case "bpf.retval":
-
 		return int(e.BPF.SyscallEvent.Retval), nil
-
 	case "capset.cap_effective":
-
 		return int(e.Capset.CapEffective), nil
-
 	case "capset.cap_permitted":
-
 		return int(e.Capset.CapPermitted), nil
-
 	case "chmod.file.change_time":
-
 		return int(e.Chmod.File.FileFields.CTime), nil
-
 	case "chmod.file.destination.mode":
-
 		return int(e.Chmod.Mode), nil
-
 	case "chmod.file.destination.rights":
-
 		return int(e.Chmod.Mode), nil
-
 	case "chmod.file.filesystem":
-
 		return e.Chmod.File.Filesytem, nil
-
 	case "chmod.file.gid":
-
 		return int(e.Chmod.File.FileFields.GID), nil
-
 	case "chmod.file.group":
-
 		return e.Chmod.File.FileFields.Group, nil
-
 	case "chmod.file.in_upper_layer":
-
 		return e.Chmod.File.FileFields.InUpperLayer, nil
-
 	case "chmod.file.inode":
-
 		return int(e.Chmod.File.FileFields.Inode), nil
-
 	case "chmod.file.mode":
-
 		return int(e.Chmod.File.FileFields.Mode), nil
-
 	case "chmod.file.modification_time":
-
 		return int(e.Chmod.File.FileFields.MTime), nil
-
 	case "chmod.file.mount_id":
-
 		return int(e.Chmod.File.FileFields.MountID), nil
-
 	case "chmod.file.name":
-
 		return e.Chmod.File.BasenameStr, nil
-
 	case "chmod.file.path":
-
 		return e.Chmod.File.PathnameStr, nil
-
 	case "chmod.file.rights":
-
 		return int(e.Chmod.File.FileFields.Mode), nil
-
 	case "chmod.file.uid":
-
 		return int(e.Chmod.File.FileFields.UID), nil
-
 	case "chmod.file.user":
-
 		return e.Chmod.File.FileFields.User, nil
-
 	case "chmod.retval":
-
 		return int(e.Chmod.SyscallEvent.Retval), nil
-
 	case "chown.file.change_time":
-
 		return int(e.Chown.File.FileFields.CTime), nil
-
 	case "chown.file.destination.gid":
-
 		return int(e.Chown.GID), nil
-
 	case "chown.file.destination.group":
-
 		return e.Chown.Group, nil
-
 	case "chown.file.destination.uid":
-
 		return int(e.Chown.UID), nil
-
 	case "chown.file.destination.user":
-
 		return e.Chown.User, nil
-
 	case "chown.file.filesystem":
-
 		return e.Chown.File.Filesytem, nil
-
 	case "chown.file.gid":
-
 		return int(e.Chown.File.FileFields.GID), nil
-
 	case "chown.file.group":
-
 		return e.Chown.File.FileFields.Group, nil
-
 	case "chown.file.in_upper_layer":
-
 		return e.Chown.File.FileFields.InUpperLayer, nil
-
 	case "chown.file.inode":
-
 		return int(e.Chown.File.FileFields.Inode), nil
-
 	case "chown.file.mode":
-
 		return int(e.Chown.File.FileFields.Mode), nil
-
 	case "chown.file.modification_time":
-
 		return int(e.Chown.File.FileFields.MTime), nil
-
 	case "chown.file.mount_id":
-
 		return int(e.Chown.File.FileFields.MountID), nil
-
 	case "chown.file.name":
-
 		return e.Chown.File.BasenameStr, nil
-
 	case "chown.file.path":
-
 		return e.Chown.File.PathnameStr, nil
-
 	case "chown.file.rights":
-
 		return int(e.Chown.File.FileFields.Mode), nil
-
 	case "chown.file.uid":
-
 		return int(e.Chown.File.FileFields.UID), nil
-
 	case "chown.file.user":
-
 		return e.Chown.File.FileFields.User, nil
-
 	case "chown.retval":
-
 		return int(e.Chown.SyscallEvent.Retval), nil
-
 	case "container.id":
-
 		return e.ContainerContext.ID, nil
-
 	case "container.tags":
-
 		return e.ContainerContext.Tags, nil
-
 	case "exec.args":
-
 		return e.Exec.Process.Args, nil
-
 	case "exec.args_flags":
-
 		return e.Exec.Process.Argv, nil
-
 	case "exec.args_options":
-
 		return e.Exec.Process.Argv, nil
-
 	case "exec.args_truncated":
-
 		return e.Exec.Process.ArgsTruncated, nil
-
 	case "exec.argv":
-
 		return e.Exec.Process.Argv, nil
-
 	case "exec.argv0":
-
 		return e.Exec.Process.Argv0, nil
-
 	case "exec.cap_effective":
-
 		return int(e.Exec.Process.Credentials.CapEffective), nil
-
 	case "exec.cap_permitted":
-
 		return int(e.Exec.Process.Credentials.CapPermitted), nil
-
 	case "exec.comm":
-
 		return e.Exec.Process.Comm, nil
-
 	case "exec.container.id":
-
 		return e.Exec.Process.ContainerID, nil
-
 	case "exec.cookie":
-
 		return int(e.Exec.Process.Cookie), nil
-
 	case "exec.created_at":
-
 		return int(e.Exec.Process.CreatedAt), nil
-
 	case "exec.egid":
-
 		return int(e.Exec.Process.Credentials.EGID), nil
-
 	case "exec.egroup":
-
 		return e.Exec.Process.Credentials.EGroup, nil
-
 	case "exec.envs":
-
 		return e.Exec.Process.Envs, nil
-
 	case "exec.envs_truncated":
-
 		return e.Exec.Process.EnvsTruncated, nil
-
 	case "exec.euid":
-
 		return int(e.Exec.Process.Credentials.EUID), nil
-
 	case "exec.euser":
-
 		return e.Exec.Process.Credentials.EUser, nil
-
 	case "exec.file.change_time":
-
 		return int(e.Exec.Process.FileFields.CTime), nil
-
 	case "exec.file.filesystem":
-
 		return e.Exec.Process.Filesystem, nil
-
 	case "exec.file.gid":
-
 		return int(e.Exec.Process.FileFields.GID), nil
-
 	case "exec.file.group":
-
 		return e.Exec.Process.FileFields.Group, nil
-
 	case "exec.file.in_upper_layer":
-
 		return e.Exec.Process.FileFields.InUpperLayer, nil
-
 	case "exec.file.inode":
-
 		return int(e.Exec.Process.FileFields.Inode), nil
-
 	case "exec.file.mode":
-
 		return int(e.Exec.Process.FileFields.Mode), nil
-
 	case "exec.file.modification_time":
-
 		return int(e.Exec.Process.FileFields.MTime), nil
-
 	case "exec.file.mount_id":
-
 		return int(e.Exec.Process.FileFields.MountID), nil
-
 	case "exec.file.name":
-
 		return e.Exec.Process.BasenameStr, nil
-
 	case "exec.file.path":
-
 		return e.Exec.Process.PathnameStr, nil
-
 	case "exec.file.rights":
-
 		return int(e.Exec.Process.FileFields.Mode), nil
-
 	case "exec.file.uid":
-
 		return int(e.Exec.Process.FileFields.UID), nil
-
 	case "exec.file.user":
-
 		return e.Exec.Process.FileFields.User, nil
-
 	case "exec.fsgid":
-
 		return int(e.Exec.Process.Credentials.FSGID), nil
-
 	case "exec.fsgroup":
-
 		return e.Exec.Process.Credentials.FSGroup, nil
-
 	case "exec.fsuid":
-
 		return int(e.Exec.Process.Credentials.FSUID), nil
-
 	case "exec.fsuser":
-
 		return e.Exec.Process.Credentials.FSUser, nil
-
 	case "exec.gid":
-
 		return int(e.Exec.Process.Credentials.GID), nil
-
 	case "exec.group":
-
 		return e.Exec.Process.Credentials.Group, nil
-
 	case "exec.pid":
-
 		return int(e.Exec.Process.Pid), nil
-
 	case "exec.ppid":
-
 		return int(e.Exec.Process.PPid), nil
-
 	case "exec.tid":
-
 		return int(e.Exec.Process.Tid), nil
-
 	case "exec.tty_name":
-
 		return e.Exec.Process.TTYName, nil
-
 	case "exec.uid":
-
 		return int(e.Exec.Process.Credentials.UID), nil
-
 	case "exec.user":
-
 		return e.Exec.Process.Credentials.User, nil
-
 	case "link.file.change_time":
-
 		return int(e.Link.Source.FileFields.CTime), nil
-
 	case "link.file.destination.change_time":
-
 		return int(e.Link.Target.FileFields.CTime), nil
-
 	case "link.file.destination.filesystem":
-
 		return e.Link.Target.Filesytem, nil
-
 	case "link.file.destination.gid":
-
 		return int(e.Link.Target.FileFields.GID), nil
-
 	case "link.file.destination.group":
-
 		return e.Link.Target.FileFields.Group, nil
-
 	case "link.file.destination.in_upper_layer":
-
 		return e.Link.Target.FileFields.InUpperLayer, nil
-
 	case "link.file.destination.inode":
-
 		return int(e.Link.Target.FileFields.Inode), nil
-
 	case "link.file.destination.mode":
-
 		return int(e.Link.Target.FileFields.Mode), nil
-
 	case "link.file.destination.modification_time":
-
 		return int(e.Link.Target.FileFields.MTime), nil
-
 	case "link.file.destination.mount_id":
-
 		return int(e.Link.Target.FileFields.MountID), nil
-
 	case "link.file.destination.name":
-
 		return e.Link.Target.BasenameStr, nil
-
 	case "link.file.destination.path":
-
 		return e.Link.Target.PathnameStr, nil
-
 	case "link.file.destination.rights":
-
 		return int(e.Link.Target.FileFields.Mode), nil
-
 	case "link.file.destination.uid":
-
 		return int(e.Link.Target.FileFields.UID), nil
-
 	case "link.file.destination.user":
-
 		return e.Link.Target.FileFields.User, nil
-
 	case "link.file.filesystem":
-
 		return e.Link.Source.Filesytem, nil
-
 	case "link.file.gid":
-
 		return int(e.Link.Source.FileFields.GID), nil
-
 	case "link.file.group":
-
 		return e.Link.Source.FileFields.Group, nil
-
 	case "link.file.in_upper_layer":
-
 		return e.Link.Source.FileFields.InUpperLayer, nil
-
 	case "link.file.inode":
-
 		return int(e.Link.Source.FileFields.Inode), nil
-
 	case "link.file.mode":
-
 		return int(e.Link.Source.FileFields.Mode), nil
-
 	case "link.file.modification_time":
-
 		return int(e.Link.Source.FileFields.MTime), nil
-
 	case "link.file.mount_id":
-
 		return int(e.Link.Source.FileFields.MountID), nil
-
 	case "link.file.name":
-
 		return e.Link.Source.BasenameStr, nil
-
 	case "link.file.path":
-
 		return e.Link.Source.PathnameStr, nil
-
 	case "link.file.rights":
-
 		return int(e.Link.Source.FileFields.Mode), nil
-
 	case "link.file.uid":
-
 		return int(e.Link.Source.FileFields.UID), nil
-
 	case "link.file.user":
-
 		return e.Link.Source.FileFields.User, nil
-
 	case "link.retval":
-
 		return int(e.Link.SyscallEvent.Retval), nil
-
 	case "mkdir.file.change_time":
-
 		return int(e.Mkdir.File.FileFields.CTime), nil
-
 	case "mkdir.file.destination.mode":
-
 		return int(e.Mkdir.Mode), nil
-
 	case "mkdir.file.destination.rights":
-
 		return int(e.Mkdir.Mode), nil
-
 	case "mkdir.file.filesystem":
-
 		return e.Mkdir.File.Filesytem, nil
-
 	case "mkdir.file.gid":
-
 		return int(e.Mkdir.File.FileFields.GID), nil
-
 	case "mkdir.file.group":
-
 		return e.Mkdir.File.FileFields.Group, nil
-
 	case "mkdir.file.in_upper_layer":
-
 		return e.Mkdir.File.FileFields.InUpperLayer, nil
-
 	case "mkdir.file.inode":
-
 		return int(e.Mkdir.File.FileFields.Inode), nil
-
 	case "mkdir.file.mode":
-
 		return int(e.Mkdir.File.FileFields.Mode), nil
-
 	case "mkdir.file.modification_time":
-
 		return int(e.Mkdir.File.FileFields.MTime), nil
-
 	case "mkdir.file.mount_id":
-
 		return int(e.Mkdir.File.FileFields.MountID), nil
-
 	case "mkdir.file.name":
-
 		return e.Mkdir.File.BasenameStr, nil
-
 	case "mkdir.file.path":
-
 		return e.Mkdir.File.PathnameStr, nil
-
 	case "mkdir.file.rights":
-
 		return int(e.Mkdir.File.FileFields.Mode), nil
-
 	case "mkdir.file.uid":
-
 		return int(e.Mkdir.File.FileFields.UID), nil
-
 	case "mkdir.file.user":
-
 		return e.Mkdir.File.FileFields.User, nil
-
 	case "mkdir.retval":
-
 		return int(e.Mkdir.SyscallEvent.Retval), nil
-
 	case "mmap.file.change_time":
-
 		return int(e.MMap.File.FileFields.CTime), nil
-
 	case "mmap.file.filesystem":
-
 		return e.MMap.File.Filesytem, nil
-
 	case "mmap.file.gid":
-
 		return int(e.MMap.File.FileFields.GID), nil
-
 	case "mmap.file.group":
-
 		return e.MMap.File.FileFields.Group, nil
-
 	case "mmap.file.in_upper_layer":
-
 		return e.MMap.File.FileFields.InUpperLayer, nil
-
 	case "mmap.file.inode":
-
 		return int(e.MMap.File.FileFields.Inode), nil
-
 	case "mmap.file.mode":
-
 		return int(e.MMap.File.FileFields.Mode), nil
-
 	case "mmap.file.modification_time":
-
 		return int(e.MMap.File.FileFields.MTime), nil
-
 	case "mmap.file.mount_id":
-
 		return int(e.MMap.File.FileFields.MountID), nil
-
 	case "mmap.file.name":
-
 		return e.MMap.File.BasenameStr, nil
-
 	case "mmap.file.path":
-
 		return e.MMap.File.PathnameStr, nil
-
 	case "mmap.file.rights":
-
 		return int(e.MMap.File.FileFields.Mode), nil
-
 	case "mmap.file.uid":
-
 		return int(e.MMap.File.FileFields.UID), nil
-
 	case "mmap.file.user":
-
 		return e.MMap.File.FileFields.User, nil
-
 	case "mmap.flags":
-
 		return e.MMap.Flags, nil
-
 	case "mmap.protection":
-
 		return e.MMap.Protection, nil
-
 	case "mmap.retval":
-
 		return int(e.MMap.SyscallEvent.Retval), nil
-
 	case "mprotect.req_protection":
-
 		return e.MProtect.ReqProtection, nil
-
 	case "mprotect.retval":
-
 		return int(e.MProtect.SyscallEvent.Retval), nil
-
 	case "mprotect.vm_protection":
-
 		return e.MProtect.VMProtection, nil
-
 	case "open.file.change_time":
-
 		return int(e.Open.File.FileFields.CTime), nil
-
 	case "open.file.destination.mode":
-
 		return int(e.Open.Mode), nil
-
 	case "open.file.filesystem":
-
 		return e.Open.File.Filesytem, nil
-
 	case "open.file.gid":
-
 		return int(e.Open.File.FileFields.GID), nil
-
 	case "open.file.group":
-
 		return e.Open.File.FileFields.Group, nil
-
 	case "open.file.in_upper_layer":
-
 		return e.Open.File.FileFields.InUpperLayer, nil
-
 	case "open.file.inode":
-
 		return int(e.Open.File.FileFields.Inode), nil
-
 	case "open.file.mode":
-
 		return int(e.Open.File.FileFields.Mode), nil
-
 	case "open.file.modification_time":
-
 		return int(e.Open.File.FileFields.MTime), nil
-
 	case "open.file.mount_id":
-
 		return int(e.Open.File.FileFields.MountID), nil
-
 	case "open.file.name":
-
 		return e.Open.File.BasenameStr, nil
-
 	case "open.file.path":
-
 		return e.Open.File.PathnameStr, nil
-
 	case "open.file.rights":
-
 		return int(e.Open.File.FileFields.Mode), nil
-
 	case "open.file.uid":
-
 		return int(e.Open.File.FileFields.UID), nil
-
 	case "open.file.user":
-
 		return e.Open.File.FileFields.User, nil
-
 	case "open.flags":
-
 		return int(e.Open.Flags), nil
-
 	case "open.retval":
-
 		return int(e.Open.SyscallEvent.Retval), nil
-
 	case "process.ancestors.args":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6441,7 +6095,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Args
@@ -6452,9 +6105,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.args_flags":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6463,7 +6114,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Argv
@@ -6474,9 +6124,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.args_options":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6485,7 +6133,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Argv
@@ -6496,9 +6143,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.args_truncated":
-
 		var values []bool
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6507,7 +6152,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.ArgsTruncated
@@ -6518,9 +6162,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.argv":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6529,7 +6171,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Argv
@@ -6540,9 +6181,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.argv0":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6551,7 +6190,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Argv0
@@ -6562,9 +6200,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.cap_effective":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6573,7 +6209,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.CapEffective)
@@ -6584,9 +6219,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.cap_permitted":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6595,7 +6228,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
@@ -6606,9 +6238,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.comm":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6617,7 +6247,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Comm
@@ -6628,9 +6257,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.container.id":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6639,7 +6266,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.ContainerID
@@ -6650,9 +6276,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.cookie":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6661,7 +6285,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Cookie)
@@ -6672,9 +6295,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.created_at":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6683,7 +6304,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.CreatedAt)
@@ -6694,9 +6314,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.egid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6705,7 +6323,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.EGID)
@@ -6716,9 +6333,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.egroup":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6727,7 +6342,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.EGroup
@@ -6738,9 +6352,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.envs":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6749,7 +6361,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Envs
@@ -6760,9 +6371,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.envs_truncated":
-
 		var values []bool
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6771,7 +6380,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.EnvsTruncated
@@ -6782,9 +6390,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.euid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6793,7 +6399,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.EUID)
@@ -6804,9 +6409,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.euser":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6815,7 +6418,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.EUser
@@ -6826,9 +6428,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.change_time":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6837,7 +6437,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.CTime)
@@ -6848,9 +6447,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.filesystem":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6859,7 +6456,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Filesystem
@@ -6870,9 +6466,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.gid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6881,7 +6475,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.GID)
@@ -6892,9 +6485,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.group":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6903,7 +6494,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.FileFields.Group
@@ -6914,9 +6504,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.in_upper_layer":
-
 		var values []bool
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6925,7 +6513,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.FileFields.InUpperLayer
@@ -6936,9 +6523,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.inode":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6947,7 +6532,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.Inode)
@@ -6958,9 +6542,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.mode":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6969,7 +6551,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.Mode)
@@ -6980,9 +6561,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.modification_time":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -6991,7 +6570,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.MTime)
@@ -7002,9 +6580,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.mount_id":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7013,7 +6589,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.MountID)
@@ -7024,9 +6599,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.name":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7035,7 +6608,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.BasenameStr
@@ -7046,9 +6618,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.path":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7057,7 +6627,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.PathnameStr
@@ -7068,9 +6637,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.rights":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7079,7 +6646,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.Mode)
@@ -7090,9 +6656,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.uid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7101,7 +6665,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.UID)
@@ -7112,9 +6675,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.file.user":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7123,7 +6684,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.FileFields.User
@@ -7134,9 +6694,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.fsgid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7145,7 +6703,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.FSGID)
@@ -7156,9 +6713,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.fsgroup":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7167,7 +6722,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.FSGroup
@@ -7178,9 +6732,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.fsuid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7189,7 +6741,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.FSUID)
@@ -7200,9 +6751,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.fsuser":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7211,7 +6760,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.FSUser
@@ -7222,9 +6770,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.gid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7233,7 +6779,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.GID)
@@ -7244,9 +6789,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.group":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7255,7 +6798,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.Group
@@ -7266,9 +6808,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.pid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7277,7 +6817,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Pid)
@@ -7288,9 +6827,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.ppid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7299,7 +6836,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.PPid)
@@ -7310,9 +6846,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.tid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7321,7 +6855,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Tid)
@@ -7332,9 +6865,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.tty_name":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7343,7 +6874,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.TTYName
@@ -7354,9 +6884,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.uid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7365,7 +6893,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.UID)
@@ -7376,9 +6903,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.ancestors.user":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7387,7 +6912,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.User
@@ -7398,193 +6922,99 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "process.args":
-
 		return e.ProcessContext.Process.Args, nil
-
 	case "process.args_flags":
-
 		return e.ProcessContext.Process.Argv, nil
-
 	case "process.args_options":
-
 		return e.ProcessContext.Process.Argv, nil
-
 	case "process.args_truncated":
-
 		return e.ProcessContext.Process.ArgsTruncated, nil
-
 	case "process.argv":
-
 		return e.ProcessContext.Process.Argv, nil
-
 	case "process.argv0":
-
 		return e.ProcessContext.Process.Argv0, nil
-
 	case "process.cap_effective":
-
 		return int(e.ProcessContext.Process.Credentials.CapEffective), nil
-
 	case "process.cap_permitted":
-
 		return int(e.ProcessContext.Process.Credentials.CapPermitted), nil
-
 	case "process.comm":
-
 		return e.ProcessContext.Process.Comm, nil
-
 	case "process.container.id":
-
 		return e.ProcessContext.Process.ContainerID, nil
-
 	case "process.cookie":
-
 		return int(e.ProcessContext.Process.Cookie), nil
-
 	case "process.created_at":
-
 		return int(e.ProcessContext.Process.CreatedAt), nil
-
 	case "process.egid":
-
 		return int(e.ProcessContext.Process.Credentials.EGID), nil
-
 	case "process.egroup":
-
 		return e.ProcessContext.Process.Credentials.EGroup, nil
-
 	case "process.envs":
-
 		return e.ProcessContext.Process.Envs, nil
-
 	case "process.envs_truncated":
-
 		return e.ProcessContext.Process.EnvsTruncated, nil
-
 	case "process.euid":
-
 		return int(e.ProcessContext.Process.Credentials.EUID), nil
-
 	case "process.euser":
-
 		return e.ProcessContext.Process.Credentials.EUser, nil
-
 	case "process.file.change_time":
-
 		return int(e.ProcessContext.Process.FileFields.CTime), nil
-
 	case "process.file.filesystem":
-
 		return e.ProcessContext.Process.Filesystem, nil
-
 	case "process.file.gid":
-
 		return int(e.ProcessContext.Process.FileFields.GID), nil
-
 	case "process.file.group":
-
 		return e.ProcessContext.Process.FileFields.Group, nil
-
 	case "process.file.in_upper_layer":
-
 		return e.ProcessContext.Process.FileFields.InUpperLayer, nil
-
 	case "process.file.inode":
-
 		return int(e.ProcessContext.Process.FileFields.Inode), nil
-
 	case "process.file.mode":
-
 		return int(e.ProcessContext.Process.FileFields.Mode), nil
-
 	case "process.file.modification_time":
-
 		return int(e.ProcessContext.Process.FileFields.MTime), nil
-
 	case "process.file.mount_id":
-
 		return int(e.ProcessContext.Process.FileFields.MountID), nil
-
 	case "process.file.name":
-
 		return e.ProcessContext.Process.BasenameStr, nil
-
 	case "process.file.path":
-
 		return e.ProcessContext.Process.PathnameStr, nil
-
 	case "process.file.rights":
-
 		return int(e.ProcessContext.Process.FileFields.Mode), nil
-
 	case "process.file.uid":
-
 		return int(e.ProcessContext.Process.FileFields.UID), nil
-
 	case "process.file.user":
-
 		return e.ProcessContext.Process.FileFields.User, nil
-
 	case "process.fsgid":
-
 		return int(e.ProcessContext.Process.Credentials.FSGID), nil
-
 	case "process.fsgroup":
-
 		return e.ProcessContext.Process.Credentials.FSGroup, nil
-
 	case "process.fsuid":
-
 		return int(e.ProcessContext.Process.Credentials.FSUID), nil
-
 	case "process.fsuser":
-
 		return e.ProcessContext.Process.Credentials.FSUser, nil
-
 	case "process.gid":
-
 		return int(e.ProcessContext.Process.Credentials.GID), nil
-
 	case "process.group":
-
 		return e.ProcessContext.Process.Credentials.Group, nil
-
 	case "process.pid":
-
 		return int(e.ProcessContext.Process.Pid), nil
-
 	case "process.ppid":
-
 		return int(e.ProcessContext.Process.PPid), nil
-
 	case "process.tid":
-
 		return int(e.ProcessContext.Process.Tid), nil
-
 	case "process.tty_name":
-
 		return e.ProcessContext.Process.TTYName, nil
-
 	case "process.uid":
-
 		return int(e.ProcessContext.Process.Credentials.UID), nil
-
 	case "process.user":
-
 		return e.ProcessContext.Process.Credentials.User, nil
-
 	case "ptrace.request":
-
 		return int(e.PTrace.Request), nil
-
 	case "ptrace.retval":
-
 		return int(e.PTrace.SyscallEvent.Retval), nil
-
 	case "ptrace.tracee.ancestors.args":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7593,7 +7023,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Args
@@ -7604,9 +7033,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.args_flags":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7615,7 +7042,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Argv
@@ -7626,9 +7052,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.args_options":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7637,7 +7061,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Argv
@@ -7648,9 +7071,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.args_truncated":
-
 		var values []bool
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7659,7 +7080,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.ArgsTruncated
@@ -7670,9 +7090,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.argv":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7681,7 +7099,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Argv
@@ -7692,9 +7109,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.argv0":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7703,7 +7118,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Argv0
@@ -7714,9 +7128,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.cap_effective":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7725,7 +7137,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.CapEffective)
@@ -7736,9 +7147,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.cap_permitted":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7747,7 +7156,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
@@ -7758,9 +7166,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.comm":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7769,7 +7175,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Comm
@@ -7780,9 +7185,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.container.id":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7791,7 +7194,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.ContainerID
@@ -7802,9 +7204,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.cookie":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7813,7 +7213,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Cookie)
@@ -7824,9 +7223,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.created_at":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7835,7 +7232,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.CreatedAt)
@@ -7846,9 +7242,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.egid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7857,7 +7251,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.EGID)
@@ -7868,9 +7261,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.egroup":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7879,7 +7270,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.EGroup
@@ -7890,9 +7280,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.envs":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7901,7 +7289,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Envs
@@ -7912,9 +7299,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.envs_truncated":
-
 		var values []bool
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7923,7 +7308,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.EnvsTruncated
@@ -7934,9 +7318,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.euid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7945,7 +7327,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.EUID)
@@ -7956,9 +7337,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.euser":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7967,7 +7346,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.EUser
@@ -7978,9 +7356,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.change_time":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7989,7 +7365,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.CTime)
@@ -8000,9 +7375,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.filesystem":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8011,7 +7384,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Filesystem
@@ -8022,9 +7394,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.gid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8033,7 +7403,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.GID)
@@ -8044,9 +7413,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.group":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8055,7 +7422,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.FileFields.Group
@@ -8066,9 +7432,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
-
 		var values []bool
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8077,7 +7441,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.FileFields.InUpperLayer
@@ -8088,9 +7451,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.inode":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8099,7 +7460,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.Inode)
@@ -8110,9 +7470,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.mode":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8121,7 +7479,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.Mode)
@@ -8132,9 +7489,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.modification_time":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8143,7 +7498,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.MTime)
@@ -8154,9 +7508,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.mount_id":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8165,7 +7517,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.MountID)
@@ -8176,9 +7527,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.name":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8187,7 +7536,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.BasenameStr
@@ -8198,9 +7546,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.path":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8209,7 +7555,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.PathnameStr
@@ -8220,9 +7565,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.rights":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8231,7 +7574,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.Mode)
@@ -8242,9 +7584,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.uid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8253,7 +7593,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.UID)
@@ -8264,9 +7603,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.file.user":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8275,7 +7612,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.FileFields.User
@@ -8286,9 +7622,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.fsgid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8297,7 +7631,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.FSGID)
@@ -8308,9 +7641,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.fsgroup":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8319,7 +7650,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.FSGroup
@@ -8330,9 +7660,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.fsuid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8341,7 +7669,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.FSUID)
@@ -8352,9 +7679,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.fsuser":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8363,7 +7688,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.FSUser
@@ -8374,9 +7698,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.gid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8385,7 +7707,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.GID)
@@ -8396,9 +7717,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.group":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8407,7 +7726,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.Group
@@ -8418,9 +7736,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.pid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8429,7 +7745,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Pid)
@@ -8440,9 +7755,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.ppid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8451,7 +7764,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.PPid)
@@ -8462,9 +7774,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.tid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8473,7 +7783,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Tid)
@@ -8484,9 +7793,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.tty_name":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8495,7 +7802,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.TTYName
@@ -8506,9 +7812,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.uid":
-
 		var values []int
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8517,7 +7821,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Credentials.UID)
@@ -8528,9 +7831,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.ancestors.user":
-
 		var values []string
 
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8539,7 +7840,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
-
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.User
@@ -8550,679 +7850,342 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
-
 	case "ptrace.tracee.args":
-
 		return e.PTrace.Tracee.Process.Args, nil
-
 	case "ptrace.tracee.args_flags":
-
 		return e.PTrace.Tracee.Process.Argv, nil
-
 	case "ptrace.tracee.args_options":
-
 		return e.PTrace.Tracee.Process.Argv, nil
-
 	case "ptrace.tracee.args_truncated":
-
 		return e.PTrace.Tracee.Process.ArgsTruncated, nil
-
 	case "ptrace.tracee.argv":
-
 		return e.PTrace.Tracee.Process.Argv, nil
-
 	case "ptrace.tracee.argv0":
-
 		return e.PTrace.Tracee.Process.Argv0, nil
-
 	case "ptrace.tracee.cap_effective":
-
 		return int(e.PTrace.Tracee.Process.Credentials.CapEffective), nil
-
 	case "ptrace.tracee.cap_permitted":
-
 		return int(e.PTrace.Tracee.Process.Credentials.CapPermitted), nil
-
 	case "ptrace.tracee.comm":
-
 		return e.PTrace.Tracee.Process.Comm, nil
-
 	case "ptrace.tracee.container.id":
-
 		return e.PTrace.Tracee.Process.ContainerID, nil
-
 	case "ptrace.tracee.cookie":
-
 		return int(e.PTrace.Tracee.Process.Cookie), nil
-
 	case "ptrace.tracee.created_at":
-
 		return int(e.PTrace.Tracee.Process.CreatedAt), nil
-
 	case "ptrace.tracee.egid":
-
 		return int(e.PTrace.Tracee.Process.Credentials.EGID), nil
-
 	case "ptrace.tracee.egroup":
-
 		return e.PTrace.Tracee.Process.Credentials.EGroup, nil
-
 	case "ptrace.tracee.envs":
-
 		return e.PTrace.Tracee.Process.Envs, nil
-
 	case "ptrace.tracee.envs_truncated":
-
 		return e.PTrace.Tracee.Process.EnvsTruncated, nil
-
 	case "ptrace.tracee.euid":
-
 		return int(e.PTrace.Tracee.Process.Credentials.EUID), nil
-
 	case "ptrace.tracee.euser":
-
 		return e.PTrace.Tracee.Process.Credentials.EUser, nil
-
 	case "ptrace.tracee.file.change_time":
-
 		return int(e.PTrace.Tracee.Process.FileFields.CTime), nil
-
 	case "ptrace.tracee.file.filesystem":
-
 		return e.PTrace.Tracee.Process.Filesystem, nil
-
 	case "ptrace.tracee.file.gid":
-
 		return int(e.PTrace.Tracee.Process.FileFields.GID), nil
-
 	case "ptrace.tracee.file.group":
-
 		return e.PTrace.Tracee.Process.FileFields.Group, nil
-
 	case "ptrace.tracee.file.in_upper_layer":
-
 		return e.PTrace.Tracee.Process.FileFields.InUpperLayer, nil
-
 	case "ptrace.tracee.file.inode":
-
 		return int(e.PTrace.Tracee.Process.FileFields.Inode), nil
-
 	case "ptrace.tracee.file.mode":
-
 		return int(e.PTrace.Tracee.Process.FileFields.Mode), nil
-
 	case "ptrace.tracee.file.modification_time":
-
 		return int(e.PTrace.Tracee.Process.FileFields.MTime), nil
-
 	case "ptrace.tracee.file.mount_id":
-
 		return int(e.PTrace.Tracee.Process.FileFields.MountID), nil
-
 	case "ptrace.tracee.file.name":
-
 		return e.PTrace.Tracee.Process.BasenameStr, nil
-
 	case "ptrace.tracee.file.path":
-
 		return e.PTrace.Tracee.Process.PathnameStr, nil
-
 	case "ptrace.tracee.file.rights":
-
 		return int(e.PTrace.Tracee.Process.FileFields.Mode), nil
-
 	case "ptrace.tracee.file.uid":
-
 		return int(e.PTrace.Tracee.Process.FileFields.UID), nil
-
 	case "ptrace.tracee.file.user":
-
 		return e.PTrace.Tracee.Process.FileFields.User, nil
-
 	case "ptrace.tracee.fsgid":
-
 		return int(e.PTrace.Tracee.Process.Credentials.FSGID), nil
-
 	case "ptrace.tracee.fsgroup":
-
 		return e.PTrace.Tracee.Process.Credentials.FSGroup, nil
-
 	case "ptrace.tracee.fsuid":
-
 		return int(e.PTrace.Tracee.Process.Credentials.FSUID), nil
-
 	case "ptrace.tracee.fsuser":
-
 		return e.PTrace.Tracee.Process.Credentials.FSUser, nil
-
 	case "ptrace.tracee.gid":
-
 		return int(e.PTrace.Tracee.Process.Credentials.GID), nil
-
 	case "ptrace.tracee.group":
-
 		return e.PTrace.Tracee.Process.Credentials.Group, nil
-
 	case "ptrace.tracee.pid":
-
 		return int(e.PTrace.Tracee.Process.Pid), nil
-
 	case "ptrace.tracee.ppid":
-
 		return int(e.PTrace.Tracee.Process.PPid), nil
-
 	case "ptrace.tracee.tid":
-
 		return int(e.PTrace.Tracee.Process.Tid), nil
-
 	case "ptrace.tracee.tty_name":
-
 		return e.PTrace.Tracee.Process.TTYName, nil
-
 	case "ptrace.tracee.uid":
-
 		return int(e.PTrace.Tracee.Process.Credentials.UID), nil
-
 	case "ptrace.tracee.user":
-
 		return e.PTrace.Tracee.Process.Credentials.User, nil
-
 	case "removexattr.file.change_time":
-
 		return int(e.RemoveXAttr.File.FileFields.CTime), nil
-
 	case "removexattr.file.destination.name":
-
 		return e.RemoveXAttr.Name, nil
-
 	case "removexattr.file.destination.namespace":
-
 		return e.RemoveXAttr.Namespace, nil
-
 	case "removexattr.file.filesystem":
-
 		return e.RemoveXAttr.File.Filesytem, nil
-
 	case "removexattr.file.gid":
-
 		return int(e.RemoveXAttr.File.FileFields.GID), nil
-
 	case "removexattr.file.group":
-
 		return e.RemoveXAttr.File.FileFields.Group, nil
-
 	case "removexattr.file.in_upper_layer":
-
 		return e.RemoveXAttr.File.FileFields.InUpperLayer, nil
-
 	case "removexattr.file.inode":
-
 		return int(e.RemoveXAttr.File.FileFields.Inode), nil
-
 	case "removexattr.file.mode":
-
 		return int(e.RemoveXAttr.File.FileFields.Mode), nil
-
 	case "removexattr.file.modification_time":
-
 		return int(e.RemoveXAttr.File.FileFields.MTime), nil
-
 	case "removexattr.file.mount_id":
-
 		return int(e.RemoveXAttr.File.FileFields.MountID), nil
-
 	case "removexattr.file.name":
-
 		return e.RemoveXAttr.File.BasenameStr, nil
-
 	case "removexattr.file.path":
-
 		return e.RemoveXAttr.File.PathnameStr, nil
-
 	case "removexattr.file.rights":
-
 		return int(e.RemoveXAttr.File.FileFields.Mode), nil
-
 	case "removexattr.file.uid":
-
 		return int(e.RemoveXAttr.File.FileFields.UID), nil
-
 	case "removexattr.file.user":
-
 		return e.RemoveXAttr.File.FileFields.User, nil
-
 	case "removexattr.retval":
-
 		return int(e.RemoveXAttr.SyscallEvent.Retval), nil
-
 	case "rename.file.change_time":
-
 		return int(e.Rename.Old.FileFields.CTime), nil
-
 	case "rename.file.destination.change_time":
-
 		return int(e.Rename.New.FileFields.CTime), nil
-
 	case "rename.file.destination.filesystem":
-
 		return e.Rename.New.Filesytem, nil
-
 	case "rename.file.destination.gid":
-
 		return int(e.Rename.New.FileFields.GID), nil
-
 	case "rename.file.destination.group":
-
 		return e.Rename.New.FileFields.Group, nil
-
 	case "rename.file.destination.in_upper_layer":
-
 		return e.Rename.New.FileFields.InUpperLayer, nil
-
 	case "rename.file.destination.inode":
-
 		return int(e.Rename.New.FileFields.Inode), nil
-
 	case "rename.file.destination.mode":
-
 		return int(e.Rename.New.FileFields.Mode), nil
-
 	case "rename.file.destination.modification_time":
-
 		return int(e.Rename.New.FileFields.MTime), nil
-
 	case "rename.file.destination.mount_id":
-
 		return int(e.Rename.New.FileFields.MountID), nil
-
 	case "rename.file.destination.name":
-
 		return e.Rename.New.BasenameStr, nil
-
 	case "rename.file.destination.path":
-
 		return e.Rename.New.PathnameStr, nil
-
 	case "rename.file.destination.rights":
-
 		return int(e.Rename.New.FileFields.Mode), nil
-
 	case "rename.file.destination.uid":
-
 		return int(e.Rename.New.FileFields.UID), nil
-
 	case "rename.file.destination.user":
-
 		return e.Rename.New.FileFields.User, nil
-
 	case "rename.file.filesystem":
-
 		return e.Rename.Old.Filesytem, nil
-
 	case "rename.file.gid":
-
 		return int(e.Rename.Old.FileFields.GID), nil
-
 	case "rename.file.group":
-
 		return e.Rename.Old.FileFields.Group, nil
-
 	case "rename.file.in_upper_layer":
-
 		return e.Rename.Old.FileFields.InUpperLayer, nil
-
 	case "rename.file.inode":
-
 		return int(e.Rename.Old.FileFields.Inode), nil
-
 	case "rename.file.mode":
-
 		return int(e.Rename.Old.FileFields.Mode), nil
-
 	case "rename.file.modification_time":
-
 		return int(e.Rename.Old.FileFields.MTime), nil
-
 	case "rename.file.mount_id":
-
 		return int(e.Rename.Old.FileFields.MountID), nil
-
 	case "rename.file.name":
-
 		return e.Rename.Old.BasenameStr, nil
-
 	case "rename.file.path":
-
 		return e.Rename.Old.PathnameStr, nil
-
 	case "rename.file.rights":
-
 		return int(e.Rename.Old.FileFields.Mode), nil
-
 	case "rename.file.uid":
-
 		return int(e.Rename.Old.FileFields.UID), nil
-
 	case "rename.file.user":
-
 		return e.Rename.Old.FileFields.User, nil
-
 	case "rename.retval":
-
 		return int(e.Rename.SyscallEvent.Retval), nil
-
 	case "rmdir.file.change_time":
-
 		return int(e.Rmdir.File.FileFields.CTime), nil
-
 	case "rmdir.file.filesystem":
-
 		return e.Rmdir.File.Filesytem, nil
-
 	case "rmdir.file.gid":
-
 		return int(e.Rmdir.File.FileFields.GID), nil
-
 	case "rmdir.file.group":
-
 		return e.Rmdir.File.FileFields.Group, nil
-
 	case "rmdir.file.in_upper_layer":
-
 		return e.Rmdir.File.FileFields.InUpperLayer, nil
-
 	case "rmdir.file.inode":
-
 		return int(e.Rmdir.File.FileFields.Inode), nil
-
 	case "rmdir.file.mode":
-
 		return int(e.Rmdir.File.FileFields.Mode), nil
-
 	case "rmdir.file.modification_time":
-
 		return int(e.Rmdir.File.FileFields.MTime), nil
-
 	case "rmdir.file.mount_id":
-
 		return int(e.Rmdir.File.FileFields.MountID), nil
-
 	case "rmdir.file.name":
-
 		return e.Rmdir.File.BasenameStr, nil
-
 	case "rmdir.file.path":
-
 		return e.Rmdir.File.PathnameStr, nil
-
 	case "rmdir.file.rights":
-
 		return int(e.Rmdir.File.FileFields.Mode), nil
-
 	case "rmdir.file.uid":
-
 		return int(e.Rmdir.File.FileFields.UID), nil
-
 	case "rmdir.file.user":
-
 		return e.Rmdir.File.FileFields.User, nil
-
 	case "rmdir.retval":
-
 		return int(e.Rmdir.SyscallEvent.Retval), nil
-
 	case "selinux.bool.name":
-
 		return e.SELinux.BoolName, nil
-
 	case "selinux.bool.state":
-
 		return e.SELinux.BoolChangeValue, nil
-
 	case "selinux.bool_commit.state":
-
 		return e.SELinux.BoolCommitValue, nil
-
 	case "selinux.enforce.status":
-
 		return e.SELinux.EnforceStatus, nil
-
 	case "setgid.egid":
-
 		return int(e.SetGID.EGID), nil
-
 	case "setgid.egroup":
-
 		return e.SetGID.EGroup, nil
-
 	case "setgid.fsgid":
-
 		return int(e.SetGID.FSGID), nil
-
 	case "setgid.fsgroup":
-
 		return e.SetGID.FSGroup, nil
-
 	case "setgid.gid":
-
 		return int(e.SetGID.GID), nil
-
 	case "setgid.group":
-
 		return e.SetGID.Group, nil
-
 	case "setuid.euid":
-
 		return int(e.SetUID.EUID), nil
-
 	case "setuid.euser":
-
 		return e.SetUID.EUser, nil
-
 	case "setuid.fsuid":
-
 		return int(e.SetUID.FSUID), nil
-
 	case "setuid.fsuser":
-
 		return e.SetUID.FSUser, nil
-
 	case "setuid.uid":
-
 		return int(e.SetUID.UID), nil
-
 	case "setuid.user":
-
 		return e.SetUID.User, nil
-
 	case "setxattr.file.change_time":
-
 		return int(e.SetXAttr.File.FileFields.CTime), nil
-
 	case "setxattr.file.destination.name":
-
 		return e.SetXAttr.Name, nil
-
 	case "setxattr.file.destination.namespace":
-
 		return e.SetXAttr.Namespace, nil
-
 	case "setxattr.file.filesystem":
-
 		return e.SetXAttr.File.Filesytem, nil
-
 	case "setxattr.file.gid":
-
 		return int(e.SetXAttr.File.FileFields.GID), nil
-
 	case "setxattr.file.group":
-
 		return e.SetXAttr.File.FileFields.Group, nil
-
 	case "setxattr.file.in_upper_layer":
-
 		return e.SetXAttr.File.FileFields.InUpperLayer, nil
-
 	case "setxattr.file.inode":
-
 		return int(e.SetXAttr.File.FileFields.Inode), nil
-
 	case "setxattr.file.mode":
-
 		return int(e.SetXAttr.File.FileFields.Mode), nil
-
 	case "setxattr.file.modification_time":
-
 		return int(e.SetXAttr.File.FileFields.MTime), nil
-
 	case "setxattr.file.mount_id":
-
 		return int(e.SetXAttr.File.FileFields.MountID), nil
-
 	case "setxattr.file.name":
-
 		return e.SetXAttr.File.BasenameStr, nil
-
 	case "setxattr.file.path":
-
 		return e.SetXAttr.File.PathnameStr, nil
-
 	case "setxattr.file.rights":
-
 		return int(e.SetXAttr.File.FileFields.Mode), nil
-
 	case "setxattr.file.uid":
-
 		return int(e.SetXAttr.File.FileFields.UID), nil
-
 	case "setxattr.file.user":
-
 		return e.SetXAttr.File.FileFields.User, nil
-
 	case "setxattr.retval":
-
 		return int(e.SetXAttr.SyscallEvent.Retval), nil
-
 	case "unlink.file.change_time":
-
 		return int(e.Unlink.File.FileFields.CTime), nil
-
 	case "unlink.file.filesystem":
-
 		return e.Unlink.File.Filesytem, nil
-
 	case "unlink.file.gid":
-
 		return int(e.Unlink.File.FileFields.GID), nil
-
 	case "unlink.file.group":
-
 		return e.Unlink.File.FileFields.Group, nil
-
 	case "unlink.file.in_upper_layer":
-
 		return e.Unlink.File.FileFields.InUpperLayer, nil
-
 	case "unlink.file.inode":
-
 		return int(e.Unlink.File.FileFields.Inode), nil
-
 	case "unlink.file.mode":
-
 		return int(e.Unlink.File.FileFields.Mode), nil
-
 	case "unlink.file.modification_time":
-
 		return int(e.Unlink.File.FileFields.MTime), nil
-
 	case "unlink.file.mount_id":
-
 		return int(e.Unlink.File.FileFields.MountID), nil
-
 	case "unlink.file.name":
-
 		return e.Unlink.File.BasenameStr, nil
-
 	case "unlink.file.path":
-
 		return e.Unlink.File.PathnameStr, nil
-
 	case "unlink.file.rights":
-
 		return int(e.Unlink.File.FileFields.Mode), nil
-
 	case "unlink.file.uid":
-
 		return int(e.Unlink.File.FileFields.UID), nil
-
 	case "unlink.file.user":
-
 		return e.Unlink.File.FileFields.User, nil
-
 	case "unlink.retval":
-
 		return int(e.Unlink.SyscallEvent.Retval), nil
-
 	case "utimes.file.change_time":
-
 		return int(e.Utimes.File.FileFields.CTime), nil
-
 	case "utimes.file.filesystem":
-
 		return e.Utimes.File.Filesytem, nil
-
 	case "utimes.file.gid":
-
 		return int(e.Utimes.File.FileFields.GID), nil
-
 	case "utimes.file.group":
-
 		return e.Utimes.File.FileFields.Group, nil
-
 	case "utimes.file.in_upper_layer":
-
 		return e.Utimes.File.FileFields.InUpperLayer, nil
-
 	case "utimes.file.inode":
-
 		return int(e.Utimes.File.FileFields.Inode), nil
-
 	case "utimes.file.mode":
-
 		return int(e.Utimes.File.FileFields.Mode), nil
-
 	case "utimes.file.modification_time":
-
 		return int(e.Utimes.File.FileFields.MTime), nil
-
 	case "utimes.file.mount_id":
-
 		return int(e.Utimes.File.FileFields.MountID), nil
-
 	case "utimes.file.name":
-
 		return e.Utimes.File.BasenameStr, nil
-
 	case "utimes.file.path":
-
 		return e.Utimes.File.PathnameStr, nil
-
 	case "utimes.file.rights":
-
 		return int(e.Utimes.File.FileFields.Mode), nil
-
 	case "utimes.file.uid":
-
 		return int(e.Utimes.File.FileFields.UID), nil
-
 	case "utimes.file.user":
-
 		return e.Utimes.File.FileFields.User, nil
-
 	case "utimes.retval":
-
 		return int(e.Utimes.SyscallEvent.Retval), nil
-
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
