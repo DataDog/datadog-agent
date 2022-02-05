@@ -689,10 +689,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	switch field {
-	{{range $Name, $Field := .Fields}}
+	{{- range $Name, $Field := .Fields -}}
 	case "{{$Name}}":
 		return "{{$Field.Event}}", nil
-	{{end}}
+	{{end -}}
 	}
 
 	return "", &eval.ErrFieldNotFound{Field: field}

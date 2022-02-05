@@ -10640,1429 +10640,954 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	switch field {
-
 	case "bpf.cmd":
 		return "bpf", nil
-
 	case "bpf.map.type":
 		return "bpf", nil
-
 	case "bpf.prog.attach_type":
 		return "bpf", nil
-
 	case "bpf.prog.type":
 		return "bpf", nil
-
 	case "bpf.retval":
 		return "bpf", nil
-
 	case "capset.cap_effective":
 		return "capset", nil
-
 	case "capset.cap_permitted":
 		return "capset", nil
-
 	case "chmod.file.change_time":
 		return "chmod", nil
-
 	case "chmod.file.destination.mode":
 		return "chmod", nil
-
 	case "chmod.file.destination.rights":
 		return "chmod", nil
-
 	case "chmod.file.filesystem":
 		return "chmod", nil
-
 	case "chmod.file.gid":
 		return "chmod", nil
-
 	case "chmod.file.group":
 		return "chmod", nil
-
 	case "chmod.file.in_upper_layer":
 		return "chmod", nil
-
 	case "chmod.file.inode":
 		return "chmod", nil
-
 	case "chmod.file.mode":
 		return "chmod", nil
-
 	case "chmod.file.modification_time":
 		return "chmod", nil
-
 	case "chmod.file.mount_id":
 		return "chmod", nil
-
 	case "chmod.file.name":
 		return "chmod", nil
-
 	case "chmod.file.path":
 		return "chmod", nil
-
 	case "chmod.file.rights":
 		return "chmod", nil
-
 	case "chmod.file.uid":
 		return "chmod", nil
-
 	case "chmod.file.user":
 		return "chmod", nil
-
 	case "chmod.retval":
 		return "chmod", nil
-
 	case "chown.file.change_time":
 		return "chown", nil
-
 	case "chown.file.destination.gid":
 		return "chown", nil
-
 	case "chown.file.destination.group":
 		return "chown", nil
-
 	case "chown.file.destination.uid":
 		return "chown", nil
-
 	case "chown.file.destination.user":
 		return "chown", nil
-
 	case "chown.file.filesystem":
 		return "chown", nil
-
 	case "chown.file.gid":
 		return "chown", nil
-
 	case "chown.file.group":
 		return "chown", nil
-
 	case "chown.file.in_upper_layer":
 		return "chown", nil
-
 	case "chown.file.inode":
 		return "chown", nil
-
 	case "chown.file.mode":
 		return "chown", nil
-
 	case "chown.file.modification_time":
 		return "chown", nil
-
 	case "chown.file.mount_id":
 		return "chown", nil
-
 	case "chown.file.name":
 		return "chown", nil
-
 	case "chown.file.path":
 		return "chown", nil
-
 	case "chown.file.rights":
 		return "chown", nil
-
 	case "chown.file.uid":
 		return "chown", nil
-
 	case "chown.file.user":
 		return "chown", nil
-
 	case "chown.retval":
 		return "chown", nil
-
 	case "container.id":
 		return "*", nil
-
 	case "container.tags":
 		return "*", nil
-
 	case "exec.args":
 		return "exec", nil
-
 	case "exec.args_flags":
 		return "exec", nil
-
 	case "exec.args_options":
 		return "exec", nil
-
 	case "exec.args_truncated":
 		return "exec", nil
-
 	case "exec.argv":
 		return "exec", nil
-
 	case "exec.argv0":
 		return "exec", nil
-
 	case "exec.cap_effective":
 		return "exec", nil
-
 	case "exec.cap_permitted":
 		return "exec", nil
-
 	case "exec.comm":
 		return "exec", nil
-
 	case "exec.container.id":
 		return "exec", nil
-
 	case "exec.cookie":
 		return "exec", nil
-
 	case "exec.created_at":
 		return "exec", nil
-
 	case "exec.egid":
 		return "exec", nil
-
 	case "exec.egroup":
 		return "exec", nil
-
 	case "exec.envs":
 		return "exec", nil
-
 	case "exec.envs_truncated":
 		return "exec", nil
-
 	case "exec.euid":
 		return "exec", nil
-
 	case "exec.euser":
 		return "exec", nil
-
 	case "exec.file.change_time":
 		return "exec", nil
-
 	case "exec.file.filesystem":
 		return "exec", nil
-
 	case "exec.file.gid":
 		return "exec", nil
-
 	case "exec.file.group":
 		return "exec", nil
-
 	case "exec.file.in_upper_layer":
 		return "exec", nil
-
 	case "exec.file.inode":
 		return "exec", nil
-
 	case "exec.file.mode":
 		return "exec", nil
-
 	case "exec.file.modification_time":
 		return "exec", nil
-
 	case "exec.file.mount_id":
 		return "exec", nil
-
 	case "exec.file.name":
 		return "exec", nil
-
 	case "exec.file.path":
 		return "exec", nil
-
 	case "exec.file.rights":
 		return "exec", nil
-
 	case "exec.file.uid":
 		return "exec", nil
-
 	case "exec.file.user":
 		return "exec", nil
-
 	case "exec.fsgid":
 		return "exec", nil
-
 	case "exec.fsgroup":
 		return "exec", nil
-
 	case "exec.fsuid":
 		return "exec", nil
-
 	case "exec.fsuser":
 		return "exec", nil
-
 	case "exec.gid":
 		return "exec", nil
-
 	case "exec.group":
 		return "exec", nil
-
 	case "exec.pid":
 		return "exec", nil
-
 	case "exec.ppid":
 		return "exec", nil
-
 	case "exec.tid":
 		return "exec", nil
-
 	case "exec.tty_name":
 		return "exec", nil
-
 	case "exec.uid":
 		return "exec", nil
-
 	case "exec.user":
 		return "exec", nil
-
 	case "link.file.change_time":
 		return "link", nil
-
 	case "link.file.destination.change_time":
 		return "link", nil
-
 	case "link.file.destination.filesystem":
 		return "link", nil
-
 	case "link.file.destination.gid":
 		return "link", nil
-
 	case "link.file.destination.group":
 		return "link", nil
-
 	case "link.file.destination.in_upper_layer":
 		return "link", nil
-
 	case "link.file.destination.inode":
 		return "link", nil
-
 	case "link.file.destination.mode":
 		return "link", nil
-
 	case "link.file.destination.modification_time":
 		return "link", nil
-
 	case "link.file.destination.mount_id":
 		return "link", nil
-
 	case "link.file.destination.name":
 		return "link", nil
-
 	case "link.file.destination.path":
 		return "link", nil
-
 	case "link.file.destination.rights":
 		return "link", nil
-
 	case "link.file.destination.uid":
 		return "link", nil
-
 	case "link.file.destination.user":
 		return "link", nil
-
 	case "link.file.filesystem":
 		return "link", nil
-
 	case "link.file.gid":
 		return "link", nil
-
 	case "link.file.group":
 		return "link", nil
-
 	case "link.file.in_upper_layer":
 		return "link", nil
-
 	case "link.file.inode":
 		return "link", nil
-
 	case "link.file.mode":
 		return "link", nil
-
 	case "link.file.modification_time":
 		return "link", nil
-
 	case "link.file.mount_id":
 		return "link", nil
-
 	case "link.file.name":
 		return "link", nil
-
 	case "link.file.path":
 		return "link", nil
-
 	case "link.file.rights":
 		return "link", nil
-
 	case "link.file.uid":
 		return "link", nil
-
 	case "link.file.user":
 		return "link", nil
-
 	case "link.retval":
 		return "link", nil
-
 	case "mkdir.file.change_time":
 		return "mkdir", nil
-
 	case "mkdir.file.destination.mode":
 		return "mkdir", nil
-
 	case "mkdir.file.destination.rights":
 		return "mkdir", nil
-
 	case "mkdir.file.filesystem":
 		return "mkdir", nil
-
 	case "mkdir.file.gid":
 		return "mkdir", nil
-
 	case "mkdir.file.group":
 		return "mkdir", nil
-
 	case "mkdir.file.in_upper_layer":
 		return "mkdir", nil
-
 	case "mkdir.file.inode":
 		return "mkdir", nil
-
 	case "mkdir.file.mode":
 		return "mkdir", nil
-
 	case "mkdir.file.modification_time":
 		return "mkdir", nil
-
 	case "mkdir.file.mount_id":
 		return "mkdir", nil
-
 	case "mkdir.file.name":
 		return "mkdir", nil
-
 	case "mkdir.file.path":
 		return "mkdir", nil
-
 	case "mkdir.file.rights":
 		return "mkdir", nil
-
 	case "mkdir.file.uid":
 		return "mkdir", nil
-
 	case "mkdir.file.user":
 		return "mkdir", nil
-
 	case "mkdir.retval":
 		return "mkdir", nil
-
 	case "mmap.file.change_time":
 		return "mmap", nil
-
 	case "mmap.file.filesystem":
 		return "mmap", nil
-
 	case "mmap.file.gid":
 		return "mmap", nil
-
 	case "mmap.file.group":
 		return "mmap", nil
-
 	case "mmap.file.in_upper_layer":
 		return "mmap", nil
-
 	case "mmap.file.inode":
 		return "mmap", nil
-
 	case "mmap.file.mode":
 		return "mmap", nil
-
 	case "mmap.file.modification_time":
 		return "mmap", nil
-
 	case "mmap.file.mount_id":
 		return "mmap", nil
-
 	case "mmap.file.name":
 		return "mmap", nil
-
 	case "mmap.file.path":
 		return "mmap", nil
-
 	case "mmap.file.rights":
 		return "mmap", nil
-
 	case "mmap.file.uid":
 		return "mmap", nil
-
 	case "mmap.file.user":
 		return "mmap", nil
-
 	case "mmap.flags":
 		return "mmap", nil
-
 	case "mmap.protection":
 		return "mmap", nil
-
 	case "mmap.retval":
 		return "mmap", nil
-
 	case "mprotect.req_protection":
 		return "mprotect", nil
-
 	case "mprotect.retval":
 		return "mprotect", nil
-
 	case "mprotect.vm_protection":
 		return "mprotect", nil
-
 	case "open.file.change_time":
 		return "open", nil
-
 	case "open.file.destination.mode":
 		return "open", nil
-
 	case "open.file.filesystem":
 		return "open", nil
-
 	case "open.file.gid":
 		return "open", nil
-
 	case "open.file.group":
 		return "open", nil
-
 	case "open.file.in_upper_layer":
 		return "open", nil
-
 	case "open.file.inode":
 		return "open", nil
-
 	case "open.file.mode":
 		return "open", nil
-
 	case "open.file.modification_time":
 		return "open", nil
-
 	case "open.file.mount_id":
 		return "open", nil
-
 	case "open.file.name":
 		return "open", nil
-
 	case "open.file.path":
 		return "open", nil
-
 	case "open.file.rights":
 		return "open", nil
-
 	case "open.file.uid":
 		return "open", nil
-
 	case "open.file.user":
 		return "open", nil
-
 	case "open.flags":
 		return "open", nil
-
 	case "open.retval":
 		return "open", nil
-
 	case "process.ancestors.args":
 		return "*", nil
-
 	case "process.ancestors.args_flags":
 		return "*", nil
-
 	case "process.ancestors.args_options":
 		return "*", nil
-
 	case "process.ancestors.args_truncated":
 		return "*", nil
-
 	case "process.ancestors.argv":
 		return "*", nil
-
 	case "process.ancestors.argv0":
 		return "*", nil
-
 	case "process.ancestors.cap_effective":
 		return "*", nil
-
 	case "process.ancestors.cap_permitted":
 		return "*", nil
-
 	case "process.ancestors.comm":
 		return "*", nil
-
 	case "process.ancestors.container.id":
 		return "*", nil
-
 	case "process.ancestors.cookie":
 		return "*", nil
-
 	case "process.ancestors.created_at":
 		return "*", nil
-
 	case "process.ancestors.egid":
 		return "*", nil
-
 	case "process.ancestors.egroup":
 		return "*", nil
-
 	case "process.ancestors.envs":
 		return "*", nil
-
 	case "process.ancestors.envs_truncated":
 		return "*", nil
-
 	case "process.ancestors.euid":
 		return "*", nil
-
 	case "process.ancestors.euser":
 		return "*", nil
-
 	case "process.ancestors.file.change_time":
 		return "*", nil
-
 	case "process.ancestors.file.filesystem":
 		return "*", nil
-
 	case "process.ancestors.file.gid":
 		return "*", nil
-
 	case "process.ancestors.file.group":
 		return "*", nil
-
 	case "process.ancestors.file.in_upper_layer":
 		return "*", nil
-
 	case "process.ancestors.file.inode":
 		return "*", nil
-
 	case "process.ancestors.file.mode":
 		return "*", nil
-
 	case "process.ancestors.file.modification_time":
 		return "*", nil
-
 	case "process.ancestors.file.mount_id":
 		return "*", nil
-
 	case "process.ancestors.file.name":
 		return "*", nil
-
 	case "process.ancestors.file.path":
 		return "*", nil
-
 	case "process.ancestors.file.rights":
 		return "*", nil
-
 	case "process.ancestors.file.uid":
 		return "*", nil
-
 	case "process.ancestors.file.user":
 		return "*", nil
-
 	case "process.ancestors.fsgid":
 		return "*", nil
-
 	case "process.ancestors.fsgroup":
 		return "*", nil
-
 	case "process.ancestors.fsuid":
 		return "*", nil
-
 	case "process.ancestors.fsuser":
 		return "*", nil
-
 	case "process.ancestors.gid":
 		return "*", nil
-
 	case "process.ancestors.group":
 		return "*", nil
-
 	case "process.ancestors.pid":
 		return "*", nil
-
 	case "process.ancestors.ppid":
 		return "*", nil
-
 	case "process.ancestors.tid":
 		return "*", nil
-
 	case "process.ancestors.tty_name":
 		return "*", nil
-
 	case "process.ancestors.uid":
 		return "*", nil
-
 	case "process.ancestors.user":
 		return "*", nil
-
 	case "process.args":
 		return "*", nil
-
 	case "process.args_flags":
 		return "*", nil
-
 	case "process.args_options":
 		return "*", nil
-
 	case "process.args_truncated":
 		return "*", nil
-
 	case "process.argv":
 		return "*", nil
-
 	case "process.argv0":
 		return "*", nil
-
 	case "process.cap_effective":
 		return "*", nil
-
 	case "process.cap_permitted":
 		return "*", nil
-
 	case "process.comm":
 		return "*", nil
-
 	case "process.container.id":
 		return "*", nil
-
 	case "process.cookie":
 		return "*", nil
-
 	case "process.created_at":
 		return "*", nil
-
 	case "process.egid":
 		return "*", nil
-
 	case "process.egroup":
 		return "*", nil
-
 	case "process.envs":
 		return "*", nil
-
 	case "process.envs_truncated":
 		return "*", nil
-
 	case "process.euid":
 		return "*", nil
-
 	case "process.euser":
 		return "*", nil
-
 	case "process.file.change_time":
 		return "*", nil
-
 	case "process.file.filesystem":
 		return "*", nil
-
 	case "process.file.gid":
 		return "*", nil
-
 	case "process.file.group":
 		return "*", nil
-
 	case "process.file.in_upper_layer":
 		return "*", nil
-
 	case "process.file.inode":
 		return "*", nil
-
 	case "process.file.mode":
 		return "*", nil
-
 	case "process.file.modification_time":
 		return "*", nil
-
 	case "process.file.mount_id":
 		return "*", nil
-
 	case "process.file.name":
 		return "*", nil
-
 	case "process.file.path":
 		return "*", nil
-
 	case "process.file.rights":
 		return "*", nil
-
 	case "process.file.uid":
 		return "*", nil
-
 	case "process.file.user":
 		return "*", nil
-
 	case "process.fsgid":
 		return "*", nil
-
 	case "process.fsgroup":
 		return "*", nil
-
 	case "process.fsuid":
 		return "*", nil
-
 	case "process.fsuser":
 		return "*", nil
-
 	case "process.gid":
 		return "*", nil
-
 	case "process.group":
 		return "*", nil
-
 	case "process.pid":
 		return "*", nil
-
 	case "process.ppid":
 		return "*", nil
-
 	case "process.tid":
 		return "*", nil
-
 	case "process.tty_name":
 		return "*", nil
-
 	case "process.uid":
 		return "*", nil
-
 	case "process.user":
 		return "*", nil
-
 	case "ptrace.request":
 		return "ptrace", nil
-
 	case "ptrace.retval":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.args":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.args_flags":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.args_options":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.args_truncated":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.argv":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.argv0":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.cap_effective":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.cap_permitted":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.comm":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.container.id":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.cookie":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.created_at":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.egid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.egroup":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.envs":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.envs_truncated":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.euid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.euser":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.change_time":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.filesystem":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.gid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.group":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.inode":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.mode":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.modification_time":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.mount_id":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.name":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.path":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.rights":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.uid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.file.user":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.fsgid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.fsgroup":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.fsuid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.fsuser":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.gid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.group":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.pid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.ppid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.tid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.tty_name":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.uid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ancestors.user":
 		return "ptrace", nil
-
 	case "ptrace.tracee.args":
 		return "ptrace", nil
-
 	case "ptrace.tracee.args_flags":
 		return "ptrace", nil
-
 	case "ptrace.tracee.args_options":
 		return "ptrace", nil
-
 	case "ptrace.tracee.args_truncated":
 		return "ptrace", nil
-
 	case "ptrace.tracee.argv":
 		return "ptrace", nil
-
 	case "ptrace.tracee.argv0":
 		return "ptrace", nil
-
 	case "ptrace.tracee.cap_effective":
 		return "ptrace", nil
-
 	case "ptrace.tracee.cap_permitted":
 		return "ptrace", nil
-
 	case "ptrace.tracee.comm":
 		return "ptrace", nil
-
 	case "ptrace.tracee.container.id":
 		return "ptrace", nil
-
 	case "ptrace.tracee.cookie":
 		return "ptrace", nil
-
 	case "ptrace.tracee.created_at":
 		return "ptrace", nil
-
 	case "ptrace.tracee.egid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.egroup":
 		return "ptrace", nil
-
 	case "ptrace.tracee.envs":
 		return "ptrace", nil
-
 	case "ptrace.tracee.envs_truncated":
 		return "ptrace", nil
-
 	case "ptrace.tracee.euid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.euser":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.change_time":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.filesystem":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.gid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.group":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.in_upper_layer":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.inode":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.mode":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.modification_time":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.mount_id":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.name":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.path":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.rights":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.uid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.file.user":
 		return "ptrace", nil
-
 	case "ptrace.tracee.fsgid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.fsgroup":
 		return "ptrace", nil
-
 	case "ptrace.tracee.fsuid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.fsuser":
 		return "ptrace", nil
-
 	case "ptrace.tracee.gid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.group":
 		return "ptrace", nil
-
 	case "ptrace.tracee.pid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.ppid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.tid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.tty_name":
 		return "ptrace", nil
-
 	case "ptrace.tracee.uid":
 		return "ptrace", nil
-
 	case "ptrace.tracee.user":
 		return "ptrace", nil
-
 	case "removexattr.file.change_time":
 		return "removexattr", nil
-
 	case "removexattr.file.destination.name":
 		return "removexattr", nil
-
 	case "removexattr.file.destination.namespace":
 		return "removexattr", nil
-
 	case "removexattr.file.filesystem":
 		return "removexattr", nil
-
 	case "removexattr.file.gid":
 		return "removexattr", nil
-
 	case "removexattr.file.group":
 		return "removexattr", nil
-
 	case "removexattr.file.in_upper_layer":
 		return "removexattr", nil
-
 	case "removexattr.file.inode":
 		return "removexattr", nil
-
 	case "removexattr.file.mode":
 		return "removexattr", nil
-
 	case "removexattr.file.modification_time":
 		return "removexattr", nil
-
 	case "removexattr.file.mount_id":
 		return "removexattr", nil
-
 	case "removexattr.file.name":
 		return "removexattr", nil
-
 	case "removexattr.file.path":
 		return "removexattr", nil
-
 	case "removexattr.file.rights":
 		return "removexattr", nil
-
 	case "removexattr.file.uid":
 		return "removexattr", nil
-
 	case "removexattr.file.user":
 		return "removexattr", nil
-
 	case "removexattr.retval":
 		return "removexattr", nil
-
 	case "rename.file.change_time":
 		return "rename", nil
-
 	case "rename.file.destination.change_time":
 		return "rename", nil
-
 	case "rename.file.destination.filesystem":
 		return "rename", nil
-
 	case "rename.file.destination.gid":
 		return "rename", nil
-
 	case "rename.file.destination.group":
 		return "rename", nil
-
 	case "rename.file.destination.in_upper_layer":
 		return "rename", nil
-
 	case "rename.file.destination.inode":
 		return "rename", nil
-
 	case "rename.file.destination.mode":
 		return "rename", nil
-
 	case "rename.file.destination.modification_time":
 		return "rename", nil
-
 	case "rename.file.destination.mount_id":
 		return "rename", nil
-
 	case "rename.file.destination.name":
 		return "rename", nil
-
 	case "rename.file.destination.path":
 		return "rename", nil
-
 	case "rename.file.destination.rights":
 		return "rename", nil
-
 	case "rename.file.destination.uid":
 		return "rename", nil
-
 	case "rename.file.destination.user":
 		return "rename", nil
-
 	case "rename.file.filesystem":
 		return "rename", nil
-
 	case "rename.file.gid":
 		return "rename", nil
-
 	case "rename.file.group":
 		return "rename", nil
-
 	case "rename.file.in_upper_layer":
 		return "rename", nil
-
 	case "rename.file.inode":
 		return "rename", nil
-
 	case "rename.file.mode":
 		return "rename", nil
-
 	case "rename.file.modification_time":
 		return "rename", nil
-
 	case "rename.file.mount_id":
 		return "rename", nil
-
 	case "rename.file.name":
 		return "rename", nil
-
 	case "rename.file.path":
 		return "rename", nil
-
 	case "rename.file.rights":
 		return "rename", nil
-
 	case "rename.file.uid":
 		return "rename", nil
-
 	case "rename.file.user":
 		return "rename", nil
-
 	case "rename.retval":
 		return "rename", nil
-
 	case "rmdir.file.change_time":
 		return "rmdir", nil
-
 	case "rmdir.file.filesystem":
 		return "rmdir", nil
-
 	case "rmdir.file.gid":
 		return "rmdir", nil
-
 	case "rmdir.file.group":
 		return "rmdir", nil
-
 	case "rmdir.file.in_upper_layer":
 		return "rmdir", nil
-
 	case "rmdir.file.inode":
 		return "rmdir", nil
-
 	case "rmdir.file.mode":
 		return "rmdir", nil
-
 	case "rmdir.file.modification_time":
 		return "rmdir", nil
-
 	case "rmdir.file.mount_id":
 		return "rmdir", nil
-
 	case "rmdir.file.name":
 		return "rmdir", nil
-
 	case "rmdir.file.path":
 		return "rmdir", nil
-
 	case "rmdir.file.rights":
 		return "rmdir", nil
-
 	case "rmdir.file.uid":
 		return "rmdir", nil
-
 	case "rmdir.file.user":
 		return "rmdir", nil
-
 	case "rmdir.retval":
 		return "rmdir", nil
-
 	case "selinux.bool.name":
 		return "selinux", nil
-
 	case "selinux.bool.state":
 		return "selinux", nil
-
 	case "selinux.bool_commit.state":
 		return "selinux", nil
-
 	case "selinux.enforce.status":
 		return "selinux", nil
-
 	case "setgid.egid":
 		return "setgid", nil
-
 	case "setgid.egroup":
 		return "setgid", nil
-
 	case "setgid.fsgid":
 		return "setgid", nil
-
 	case "setgid.fsgroup":
 		return "setgid", nil
-
 	case "setgid.gid":
 		return "setgid", nil
-
 	case "setgid.group":
 		return "setgid", nil
-
 	case "setuid.euid":
 		return "setuid", nil
-
 	case "setuid.euser":
 		return "setuid", nil
-
 	case "setuid.fsuid":
 		return "setuid", nil
-
 	case "setuid.fsuser":
 		return "setuid", nil
-
 	case "setuid.uid":
 		return "setuid", nil
-
 	case "setuid.user":
 		return "setuid", nil
-
 	case "setxattr.file.change_time":
 		return "setxattr", nil
-
 	case "setxattr.file.destination.name":
 		return "setxattr", nil
-
 	case "setxattr.file.destination.namespace":
 		return "setxattr", nil
-
 	case "setxattr.file.filesystem":
 		return "setxattr", nil
-
 	case "setxattr.file.gid":
 		return "setxattr", nil
-
 	case "setxattr.file.group":
 		return "setxattr", nil
-
 	case "setxattr.file.in_upper_layer":
 		return "setxattr", nil
-
 	case "setxattr.file.inode":
 		return "setxattr", nil
-
 	case "setxattr.file.mode":
 		return "setxattr", nil
-
 	case "setxattr.file.modification_time":
 		return "setxattr", nil
-
 	case "setxattr.file.mount_id":
 		return "setxattr", nil
-
 	case "setxattr.file.name":
 		return "setxattr", nil
-
 	case "setxattr.file.path":
 		return "setxattr", nil
-
 	case "setxattr.file.rights":
 		return "setxattr", nil
-
 	case "setxattr.file.uid":
 		return "setxattr", nil
-
 	case "setxattr.file.user":
 		return "setxattr", nil
-
 	case "setxattr.retval":
 		return "setxattr", nil
-
 	case "unlink.file.change_time":
 		return "unlink", nil
-
 	case "unlink.file.filesystem":
 		return "unlink", nil
-
 	case "unlink.file.gid":
 		return "unlink", nil
-
 	case "unlink.file.group":
 		return "unlink", nil
-
 	case "unlink.file.in_upper_layer":
 		return "unlink", nil
-
 	case "unlink.file.inode":
 		return "unlink", nil
-
 	case "unlink.file.mode":
 		return "unlink", nil
-
 	case "unlink.file.modification_time":
 		return "unlink", nil
-
 	case "unlink.file.mount_id":
 		return "unlink", nil
-
 	case "unlink.file.name":
 		return "unlink", nil
-
 	case "unlink.file.path":
 		return "unlink", nil
-
 	case "unlink.file.rights":
 		return "unlink", nil
-
 	case "unlink.file.uid":
 		return "unlink", nil
-
 	case "unlink.file.user":
 		return "unlink", nil
-
 	case "unlink.retval":
 		return "unlink", nil
-
 	case "utimes.file.change_time":
 		return "utimes", nil
-
 	case "utimes.file.filesystem":
 		return "utimes", nil
-
 	case "utimes.file.gid":
 		return "utimes", nil
-
 	case "utimes.file.group":
 		return "utimes", nil
-
 	case "utimes.file.in_upper_layer":
 		return "utimes", nil
-
 	case "utimes.file.inode":
 		return "utimes", nil
-
 	case "utimes.file.mode":
 		return "utimes", nil
-
 	case "utimes.file.modification_time":
 		return "utimes", nil
-
 	case "utimes.file.mount_id":
 		return "utimes", nil
-
 	case "utimes.file.name":
 		return "utimes", nil
-
 	case "utimes.file.path":
 		return "utimes", nil
-
 	case "utimes.file.rights":
 		return "utimes", nil
-
 	case "utimes.file.uid":
 		return "utimes", nil
-
 	case "utimes.file.user":
 		return "utimes", nil
-
 	case "utimes.retval":
 		return "utimes", nil
-
 	}
 
 	return "", &eval.ErrFieldNotFound{Field: field}
