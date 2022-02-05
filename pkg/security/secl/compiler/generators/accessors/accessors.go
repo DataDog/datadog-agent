@@ -434,6 +434,8 @@ var (
 	_ *unsafe.Pointer
 )
 
+{{$Mock := .Mock}}
+
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
 	{{range $Name, $Field := .Iterators}}
@@ -457,7 +459,6 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
-	{{$Mock := .Mock}}
 	{{range $Name, $Field := .Fields}}
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
@@ -578,7 +579,6 @@ func (e *Event) GetFields() []eval.Field {
 
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
-		{{$Mock := .Mock}}
 		{{range $Name, $Field := .Fields}}
 		case "{{$Name}}":
 		{{if $Field.Iterator}}
