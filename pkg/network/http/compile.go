@@ -21,7 +21,9 @@ func getRuntimeCompiledHTTP(config *config.Config) (runtime.CompiledOutput, erro
 }
 
 func getCFlags(config *config.Config) []string {
-	var cflags []string
+	cflags := []string{
+		"--target=x86_64-unknown-linux-gnu",
+	}
 	if config.CollectIPv6Conns {
 		cflags = append(cflags, "-DFEATURE_IPV6_ENABLED")
 	}
