@@ -37,6 +37,7 @@ type StructField struct {
 	OpOverrides   string
 }
 
+// GetEvaluatorType returns the evaluator type name
 func (sf *StructField) GetEvaluatorType() string {
 	var evaluatorType string
 	if sf.ReturnType == "int" {
@@ -58,10 +59,10 @@ func (sf *StructField) GetEvaluatorType() string {
 	return evaluatorType
 }
 
+// GetArrayPrefix returns the array prefix of this field
 func (sf *StructField) GetArrayPrefix() string {
 	if sf.IsArray {
 		return "[]"
-	} else {
-		return ""
 	}
+	return ""
 }
