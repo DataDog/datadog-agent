@@ -594,7 +594,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 func (e *Event) GetFields() []eval.Field {
 	return []eval.Field{
-		{{range $Name, $Field := .Fields}}
+		{{range $Name, $Field := .Fields -}}
 			"{{$Name}}",
 		{{end}}
 	}
