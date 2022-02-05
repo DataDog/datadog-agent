@@ -459,32 +459,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	switch field {
 	{{$Mock := .Mock}}
 	{{range $Name, $Field := .Fields}}
-	{{$EvaluatorType := "eval.StringEvaluator"}}
-	{{if or $Field.Iterator $Field.IsArray}}
-		{{$EvaluatorType = "eval.StringArrayEvaluator"}}
-	{{end}}
-	{{if eq $Field.ReturnType "int"}}
-		{{$EvaluatorType = "eval.IntEvaluator"}}
-		{{if or $Field.Iterator $Field.IsArray}}
-			{{$EvaluatorType = "eval.IntArrayEvaluator"}}
-		{{end}}
-	{{else if eq $Field.ReturnType "bool"}}
-		{{$EvaluatorType = "eval.BoolEvaluator"}}
-		{{if or $Field.Iterator $Field.IsArray}}
-			{{$EvaluatorType = "eval.BoolArrayEvaluator"}}
-		{{end}}
-	{{end}}
-
 	case "{{$Name}}":
-		return &{{$EvaluatorType}}{
+		return &{{$Field.GetEvaluatorType}}{
 			{{- if and $Field.OpOverrides (not $Mock)}}
 			OpOverrides: {{$Field.OpOverrides}},
 			{{- end}}
 			{{- if $Field.Iterator}}
-				{{- $ArrayPrefix := ""}}
-				{{- if $Field.IsArray}}
-					{{$ArrayPrefix = "[]"}}
-				{{end}}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
 					{{- if not $Mock }}
 					if ptr := ctx.Cache[field]; ptr != nil {
@@ -500,7 +480,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value := iterator.Front(ctx)
 					for value != nil {
-						var result {{$ArrayPrefix}}{{$Field.ReturnType}}
+						var result {{$Field.GetArrayPrefix}}{{$Field.ReturnType}}
 
 						{{if $Field.Iterator.IsOrigTypePtr}}
 							element := (*{{$Field.Iterator.OrigType}})(value)
@@ -523,7 +503,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 							result = {{$Return}}
 						{{end}}
 
-						{{if eq $ArrayPrefix ""}}
+						{{if eq $Field.GetArrayPrefix ""}}
 						results = append(results, result)
 						{{else}}
 						results = append(results, result...)
@@ -539,12 +519,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return results
 				},
 			{{- else}}
-				{{- $ArrayPrefix := ""}}
 				{{- $ReturnType := $Field.ReturnType}}
-				{{- if $Field.IsArray}}
-					{{$ArrayPrefix = "[]"}}
-				{{end}}
-				EvalFnc: func(ctx *eval.Context) {{$ArrayPrefix}}{{$ReturnType}} {
+				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
 					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
 					{{- if and (ne $Field.Handler "") (not $Mock)}}
 						{{$Return = print "(*Event)(ctx.Object)." $Field.Handler "(&(*Event)(ctx.Object)." $Field.Prefix ")"}}
@@ -606,11 +582,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{range $Name, $Field := .Fields}}
 		case "{{$Name}}":
 		{{if $Field.Iterator}}
-			{{- $ArrayPrefix := ""}}
-			{{- if $Field.IsArray}}
-				{{$ArrayPrefix = "[]"}}
-			{{end}}
-
 			var values []{{$Field.ReturnType}}
 
 			ctx := eval.NewContext(unsafe.Pointer(e))
@@ -640,7 +611,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 					result := {{$Return}}
 				{{end}}
 
-				{{if eq $ArrayPrefix ""}}
+				{{if eq $Field.GetArrayPrefix ""}}
 				values = append(values, result)
 				{{else}}
 				values = append(values, result...)
@@ -654,11 +625,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			{{$Return := $Field.Name | printf "e.%s"}}
 			{{if and (ne $Field.Handler "") (not $Mock)}}
 				{{$Return = print "e." $Field.Handler "(&e." $Field.Prefix ")"}}
-			{{end}}
-
-			{{- $ArrayPrefix := ""}}
-			{{- if $Field.IsArray}}
-				{{$ArrayPrefix = "[]"}}
 			{{end}}
 
 			{{if eq $Field.ReturnType "string"}}
