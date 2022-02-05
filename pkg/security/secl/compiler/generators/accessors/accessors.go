@@ -700,17 +700,16 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
-		{{range $Name, $Field := .Fields}}
-
+		{{range $Name, $Field := .Fields -}}
 		case "{{$Name}}":
-		{{if eq $Field.ReturnType "string"}}
+		{{- if eq $Field.ReturnType "string"}}
 			return reflect.String, nil
 		{{else if eq $Field.ReturnType "int"}}
 			return reflect.Int, nil
 		{{else if eq $Field.ReturnType "bool"}}
 			return reflect.Bool, nil
-		{{end}}
-		{{end}}
+		{{end -}}
+		{{end -}}
 		}
 
 		return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
