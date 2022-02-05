@@ -34,45 +34,25 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
-
 		eval.EventType("bpf"),
-
 		eval.EventType("capset"),
-
 		eval.EventType("chmod"),
-
 		eval.EventType("chown"),
-
 		eval.EventType("exec"),
-
 		eval.EventType("link"),
-
 		eval.EventType("mkdir"),
-
 		eval.EventType("mmap"),
-
 		eval.EventType("mprotect"),
-
 		eval.EventType("open"),
-
 		eval.EventType("ptrace"),
-
 		eval.EventType("removexattr"),
-
 		eval.EventType("rename"),
-
 		eval.EventType("rmdir"),
-
 		eval.EventType("selinux"),
-
 		eval.EventType("setgid"),
-
 		eval.EventType("setuid"),
-
 		eval.EventType("setxattr"),
-
 		eval.EventType("unlink"),
-
 		eval.EventType("utimes"),
 	}
 }
