@@ -14,6 +14,7 @@ type Module struct {
 	EventTypeDocs map[string]string
 }
 
+// ListUserFieldTypes returns all user defined types used by the module fields
 func (m *Module) ListUserFieldTypes() []string {
 	types := make([]string, 0)
 	for _, field := range m.Fields {
