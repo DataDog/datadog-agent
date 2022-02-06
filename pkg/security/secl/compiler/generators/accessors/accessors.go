@@ -413,9 +413,8 @@ var FuncMap = map[string]interface{}{
 	"TrimPrefix": strings.TrimPrefix,
 }
 
-func main() {
-	var err error
-	tmpl := template.Must(template.New("header").Funcs(FuncMap).Parse(`{{- range .BuildTags }}// {{.}}{{end}}
+var accessorsTemplate = template.Must(template.New("header").Funcs(FuncMap).Parse(`
+{{- range .BuildTags }}// {{.}}{{end}}
 
 // Code generated - DO NOT EDIT.
 
@@ -727,12 +726,12 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 	return &eval.ErrFieldNotFound{Field: field}
 }
-
 `))
 
+func main() {
 	os.Remove(output)
 
-	module, err = parseFile(filename, pkgname)
+	module, err := parseFile(filename, pkgname)
 	if err != nil {
 		panic(err)
 	}
@@ -749,7 +748,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		log.Fatal(err)
 	}
 
-	if err := tmpl.Execute(tmpfile, module); err != nil {
+	if err := accessorsTemplate.Execute(tmpfile, module); err != nil {
 		panic(err)
 	}
 
