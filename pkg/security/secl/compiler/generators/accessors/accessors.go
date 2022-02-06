@@ -35,17 +35,18 @@ const (
 )
 
 var (
-	filename          string
-	pkgname           string
-	output            string
-	verbose           bool
-	mock              bool
-	genDoc            bool
-	packagesLookupMap map[string]*types.Package
-	buildTags         string
+	filename  string
+	pkgname   string
+	output    string
+	verbose   bool
+	mock      bool
+	genDoc    bool
+	buildTags string
 )
 
-var module *common.Module
+var (
+	packagesLookupMap map[string]*types.Package
+)
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
 	if typePackage, found := packagesLookupMap[pkg]; found {
