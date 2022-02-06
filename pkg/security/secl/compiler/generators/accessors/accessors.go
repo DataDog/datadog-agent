@@ -413,13 +413,13 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	return module, nil
 }
 
-var FuncMap = map[string]interface{}{
+var funcMap = map[string]interface{}{
 	"TrimPrefix": strings.TrimPrefix,
 }
 
 //go:embed accessors.go.tmpl
 var accessorsTemplateCode string
-var accessorsTemplate = template.Must(template.New("header").Funcs(FuncMap).Parse(accessorsTemplateCode))
+var accessorsTemplate = template.Must(template.New("header").Funcs(funcMap).Parse(accessorsTemplateCode))
 
 func main() {
 	os.Remove(output)
