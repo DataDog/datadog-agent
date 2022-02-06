@@ -390,11 +390,13 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 			genaccessors := false
 			if decl.Doc != nil {
 				for _, doc := range decl.Doc.List {
-					if genaccessors = strings.Index(doc.Text, "genaccessors") != -1; genaccessors {
+					if strings.Contains(doc.Text, "genaccessors") {
+						genaccessors = true
 						break
 					}
 				}
 			}
+
 			if !genaccessors {
 				continue
 			}
