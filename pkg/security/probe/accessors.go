@@ -20,8 +20,6 @@ var (
 
 type ProcessAncestorsIterator = model.ProcessAncestorsIterator
 type ProcessCacheEntry = model.ProcessCacheEntry
-type ProcessAncestorsIterator = model.ProcessAncestorsIterator
-type ProcessCacheEntry = model.ProcessCacheEntry
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {

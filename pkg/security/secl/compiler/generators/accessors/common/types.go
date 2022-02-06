@@ -5,6 +5,8 @@
 
 package common
 
+import "sort"
+
 // Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)
 type Module struct {
 	BuildTags     []string
@@ -16,18 +18,18 @@ type Module struct {
 
 // ListUserFieldTypes returns all user defined types used by the module fields
 func (m *Module) ListUserFieldTypes() []string {
-	types := make([]string, 0)
+	types := make(map[string]bool)
 	for _, field := range m.Fields {
-		types = append(types, field.ReturnType)
-		types = append(types, field.OrigType)
+		types[field.ReturnType] = true
+		types[field.OrigType] = true
 	}
 	for _, iter := range m.Iterators {
-		types = append(types, iter.ReturnType)
-		types = append(types, iter.OrigType)
+		types[iter.ReturnType] = true
+		types[iter.OrigType] = true
 	}
 
 	filteredTypes := make([]string, 0, len(types))
-	for _, t := range types {
+	for t, _ := range types {
 		switch t {
 		case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
 		case "string", "bool":
@@ -36,6 +38,8 @@ func (m *Module) ListUserFieldTypes() []string {
 			filteredTypes = append(filteredTypes, t)
 		}
 	}
+
+	sort.Strings(filteredTypes)
 
 	return filteredTypes
 }
