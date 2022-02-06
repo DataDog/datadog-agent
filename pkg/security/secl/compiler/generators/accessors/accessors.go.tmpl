@@ -1,3 +1,6 @@
+{{$Mock := .Mock}}
+{{with .Module}}
+
 {{- range .BuildTags }}// {{.}}{{end}}
 
 // Code generated - DO NOT EDIT.
@@ -8,7 +11,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
+	{{if ne .SourcePkg .TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -17,7 +20,6 @@ var (
 	_ *unsafe.Pointer
 )
 
-{{$Mock := .Mock}}
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
@@ -310,3 +312,4 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 	return &eval.ErrFieldNotFound{Field: field}
 }
+{{end}}

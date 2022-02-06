@@ -377,7 +377,6 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		Iterators:     make(map[string]*common.StructField),
 		EventTypes:    make(map[string]bool),
 		EventTypeDocs: make(map[string]string),
-		Mock:          mock,
 	}
 
 	// If the target package is different from the model package
@@ -441,7 +440,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := accessorsTemplate.Execute(tmpfile, module); err != nil {
+	templateVariables := map[string]interface{}{
+		"Module": module,
+		"Mock":   mock,
+	}
+
+	if err := accessorsTemplate.Execute(tmpfile, templateVariables); err != nil {
 		panic(err)
 	}
 

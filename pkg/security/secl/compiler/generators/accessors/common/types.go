@@ -16,7 +16,6 @@ type Module struct {
 	Iterators       map[string]*StructField
 	EventTypes      map[string]bool
 	EventTypeDocs   map[string]string
-	Mock            bool
 }
 
 // StructField represents a structure field for which an accessor will be generated
