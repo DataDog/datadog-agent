@@ -29,7 +29,7 @@ func (m *Module) ListUserFieldTypes() []string {
 	}
 
 	filteredTypes := make([]string, 0, len(types))
-	for t, _ := range types {
+	for t := range types {
 		switch t {
 		case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
 		case "string", "bool":
