@@ -5,13 +5,13 @@
 
 // Code generated - DO NOT EDIT.
 
-package {{.Name}}
+package {{$.Name}}
 
 import (
 	"reflect"
 	"unsafe"
 
-	{{if ne .SourcePkg .TargetPkg}}"{{.SourcePkg}}"{{end}}
+	{{if ne $.SourcePkg $.TargetPkg}}"{{$.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -20,6 +20,11 @@ var (
 	_ *unsafe.Pointer
 )
 
+{{if ne $.SourcePkgPrefix ""}}
+{{range $CType := .ListUserFieldTypes}}
+type {{.}} = {{$.SourcePkgPrefix}}{{.}}
+{{- end}}
+{{end}}
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {

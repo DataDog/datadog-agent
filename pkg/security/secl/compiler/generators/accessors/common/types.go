@@ -7,15 +7,36 @@ package common
 
 // Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)
 type Module struct {
-	Name            string
-	SourcePkgPrefix string
-	SourcePkg       string
-	TargetPkg       string
-	BuildTags       []string
-	Fields          map[string]*StructField
-	Iterators       map[string]*StructField
-	EventTypes      map[string]bool
-	EventTypeDocs   map[string]string
+	BuildTags     []string
+	Fields        map[string]*StructField
+	Iterators     map[string]*StructField
+	EventTypes    map[string]bool
+	EventTypeDocs map[string]string
+}
+
+func (m *Module) ListUserFieldTypes() []string {
+	types := make([]string, 0)
+	for _, field := range m.Fields {
+		types = append(types, field.ReturnType)
+		types = append(types, field.OrigType)
+	}
+	for _, iter := range m.Iterators {
+		types = append(types, iter.ReturnType)
+		types = append(types, iter.OrigType)
+	}
+
+	filteredTypes := make([]string, 0, len(types))
+	for _, t := range types {
+		switch t {
+		case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
+		case "string", "bool":
+			continue
+		default:
+			filteredTypes = append(filteredTypes, t)
+		}
+	}
+
+	return filteredTypes
 }
 
 // StructField represents a structure field for which an accessor will be generated

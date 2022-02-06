@@ -232,20 +232,11 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 						}
 
 						if iterator := seclField.iterator; iterator != "" {
-							qualifiedType := func(t string) string {
-								switch t {
-								case "int", "string", "bool":
-									return t
-								default:
-									return module.SourcePkgPrefix + t
-								}
-							}
-
 							module.Iterators[alias] = &common.StructField{
 								Name:          fmt.Sprintf("%s.%s", prefix, fieldName),
-								ReturnType:    qualifiedType(iterator),
+								ReturnType:    iterator,
 								Event:         event,
-								OrigType:      qualifiedType(fieldType.Name),
+								OrigType:      fieldType.Name,
 								IsOrigTypePtr: isPointer,
 								IsArray:       isArray,
 								Weight:        weight,
@@ -363,26 +354,12 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		}
 	}
 
-	moduleName := path.Base(path.Dir(output))
-	if moduleName == "." {
-		moduleName = path.Base(pkgName)
-	}
-
 	module := &common.Module{
-		Name:          moduleName,
-		SourcePkg:     pkgName,
-		TargetPkg:     pkgName,
 		BuildTags:     buildTags,
 		Fields:        make(map[string]*common.StructField),
 		Iterators:     make(map[string]*common.StructField),
 		EventTypes:    make(map[string]bool),
 		EventTypeDocs: make(map[string]string),
-	}
-
-	// If the target package is different from the model package
-	if module.Name != path.Base(pkgName) {
-		module.SourcePkgPrefix = path.Base(pkgName) + "."
-		module.TargetPkg = path.Clean(path.Join(pkgName, path.Dir(output)))
 	}
 
 	for _, decl := range astFile.Decls {
@@ -412,13 +389,54 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	return module, nil
 }
 
+const prefixIndicator = "$prefix$"
+
+func prefixReplacer(input, prefix string) string {
+	return strings.ReplaceAll(input, prefixIndicator, prefix)
+}
+
 var funcMap = map[string]interface{}{
-	"TrimPrefix": strings.TrimPrefix,
+	"TrimPrefix":    strings.TrimPrefix,
+	"ReplacePrefix": prefixReplacer,
 }
 
 //go:embed accessors.go.tmpl
 var accessorsTemplateCode string
 var accessorsTemplate = template.Must(template.New("header").Funcs(funcMap).Parse(accessorsTemplateCode))
+
+type accessorsTemplateArgs struct {
+	Module *common.Module
+	Mock   bool
+
+	Name            string
+	SourcePkgPrefix string
+	SourcePkg       string
+	TargetPkg       string
+}
+
+func newAccessorsTemplateArgs(module *common.Module, mock bool, output, pkgName string) accessorsTemplateArgs {
+	moduleName := path.Base(path.Dir(output))
+	if moduleName == "." {
+		moduleName = path.Base(pkgName)
+	}
+
+	args := accessorsTemplateArgs{
+		Module: module,
+		Mock:   mock,
+
+		Name:      moduleName,
+		SourcePkg: pkgName,
+		TargetPkg: pkgName,
+	}
+
+	// If the target package is different from the model package
+	if args.Name != path.Base(pkgName) {
+		args.SourcePkgPrefix = path.Base(pkgName) + "."
+		args.TargetPkg = path.Clean(path.Join(pkgName, path.Dir(output)))
+	}
+
+	return args
+}
 
 func main() {
 	os.Remove(output)
@@ -440,10 +458,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	templateVariables := map[string]interface{}{
-		"Module": module,
-		"Mock":   mock,
-	}
+	templateVariables := newAccessorsTemplateArgs(module, mock, output, pkgname)
 
 	if err := accessorsTemplate.Execute(tmpfile, templateVariables); err != nil {
 		panic(err)
