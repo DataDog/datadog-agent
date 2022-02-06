@@ -64,7 +64,7 @@ func origTypeToBasicType(kind string) string {
 	return kind
 }
 
-func handleBasic(name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string) {
+func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string) {
 	if verbose {
 		fmt.Printf("handleBasic %s %s\n", name, kind)
 	}
@@ -85,7 +85,7 @@ func handleBasic(name, alias, kind, event string, iterator *common.StructField, 
 	module.EventTypes[event] = true
 }
 
-func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
+func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
 	if verbose {
 		fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 	}
@@ -96,7 +96,7 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(name, alias, fieldType.Name, event, iterator, isArray, opOverride, commentText)
+		handleBasic(module, name, alias, fieldType.Name, event, iterator, isArray, opOverride, commentText)
 
 	default:
 		symbol, err := resolveSymbol(pkgName, fieldType.Name)
@@ -116,7 +116,7 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 		}
 
 		spec := astFile.Scope.Lookup(fieldType.Name)
-		handleSpec(astFile, spec.Decl, prefix, aliasPrefix, event, iterator, dejavu)
+		handleSpec(module, astFile, spec.Decl, prefix, aliasPrefix, event, iterator, dejavu)
 	}
 
 	return nil
@@ -159,7 +159,7 @@ func parseHandler(handler string) (string, int64) {
 	return handler, weight
 }
 
-func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
+func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
 	if verbose {
 		fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
 	}
@@ -286,7 +286,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						dejavu[fieldName] = true
 
 						if fieldType != nil {
-							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, fieldCommentText); err != nil {
+							if err := handleField(module, astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, fieldCommentText); err != nil {
 								log.Print(err)
 							}
 
@@ -314,7 +314,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 							if verbose {
 								log.Printf("Embedded struct %s", ident.Name)
 							}
-							handleSpec(astFile, embedded.Decl, prefix+"."+ident.Name, aliasPrefix, event, fieldIterator, dejavu)
+							handleSpec(module, astFile, embedded.Decl, prefix+"."+ident.Name, aliasPrefix, event, fieldIterator, dejavu)
 						}
 					}
 				}
@@ -368,7 +368,7 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		moduleName = path.Base(pkgName)
 	}
 
-	module = &common.Module{
+	module := &common.Module{
 		Name:          moduleName,
 		SourcePkg:     pkgName,
 		TargetPkg:     pkgName,
@@ -404,7 +404,7 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 
 			for _, spec := range decl.Specs {
 				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-					handleSpec(astFile, typeSpec, "", "", "", nil, make(map[string]bool))
+					handleSpec(module, astFile, typeSpec, "", "", "", nil, make(map[string]bool))
 				}
 			}
 		}
