@@ -132,7 +132,8 @@ all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
 functions_to_skip=(
-    # Not currently skipping any functions
+    # unresolved issue instrumenting void return types 
+    error-csharp
 )
 
 echo "Invoking functions for the first time..."
