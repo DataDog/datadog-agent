@@ -2,17 +2,23 @@ package netflow
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	flowmessage "github.com/netsampler/goflow2/pb"
 	"net"
-	"time"
 )
 
 // NDMFlowDriver desc
 type NDMFlowDriver struct {
-	MetricChan chan []metrics.MetricSample
+	sender aggregator.Sender
+	config *Config
+}
+
+func NewNDMFlowDriver(sender aggregator.Sender, config *Config) *NDMFlowDriver {
+	return &NDMFlowDriver{sender: sender, config: config}
 }
 
 // Prepare desc
@@ -31,6 +37,12 @@ func (d *NDMFlowDriver) Format(data interface{}) ([]byte, []byte, error) {
 	if !ok {
 		return nil, nil, fmt.Errorf("message is not flowmessage.FlowMessage")
 	}
+	d.sendMetrics(flowmsg)
+	d.sendEvents(flowmsg)
+	return nil, nil, nil
+}
+
+func (d *NDMFlowDriver) sendMetrics(flowmsg *flowmessage.FlowMessage) {
 	srcAddr := net.IP(flowmsg.SrcAddr)
 	dstAddr := net.IP(flowmsg.DstAddr)
 
@@ -44,36 +56,38 @@ func (d *NDMFlowDriver) Format(data interface{}) ([]byte, []byte, error) {
 		fmt.Sprintf("out_if:%d", flowmsg.OutIf),
 		fmt.Sprintf("direction:%d", flowmsg.FlowDirection),
 	}
-
 	log.Debugf("tags: %v", tags)
-	timestamp := float64(time.Now().UnixNano())
-	enhancedMetrics := []metrics.MetricSample{
-		{
-			Name:       "netflow.flows",
-			Value:      1,
-			Mtype:      metrics.CountType,
-			Tags:       tags,
-			SampleRate: 1,
-			Timestamp:  timestamp,
-		},
-		{
-			Name:       "netflow.bytes",
-			Value:      float64(flowmsg.Bytes),
-			Mtype:      metrics.CountType,
-			Tags:       tags,
-			SampleRate: 1,
-			Timestamp:  timestamp,
-		},
-		{
-			Name:       "netflow.packets",
-			Value:      float64(flowmsg.Packets),
-			Mtype:      metrics.CountType,
-			Tags:       tags,
-			SampleRate: 1,
-			Timestamp:  timestamp,
-		},
-	}
-	d.MetricChan <- enhancedMetrics
 
-	return nil, nil, nil
+	d.sender.Count("netflow.flows", 1,"", tags)
+	d.sender.Count("netflow.bytes", float64(flowmsg.Bytes),"", tags)
+	d.sender.Count("netflow.packets", float64(flowmsg.Packets),"", tags)
+}
+
+func (d *NDMFlowDriver) sendEvents(flowmsg *flowmessage.FlowMessage) {
+	payload := buildPayload(flowmsg)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("Error marshalling device metadata: %s", err)
+		return
+	}
+	d.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesMetadata)
+}
+
+func buildPayload(flowmsg *flowmessage.FlowMessage) DeviceFlow {
+	srcAddr := net.IP(flowmsg.SrcAddr)
+	dstAddr := net.IP(flowmsg.DstAddr)
+	samplerAddr := net.IP(flowmsg.SamplerAddress)
+
+	return DeviceFlow{
+		SrcAddr: srcAddr.String(),
+		DstAddr: dstAddr.String(),
+		SamplerAddr    : samplerAddr.String(),
+		FlowType       : flowmsg.Type.String(),
+		Proto          : flowmsg.Proto,
+		InputInterface : flowmsg.InIf,
+		OutputInterface: flowmsg.OutIf,
+		Direction      : flowmsg.GetInIf(),
+		Bytes          : flowmsg.Bytes,
+		Packets        : flowmsg.Packets,
+	}
 }

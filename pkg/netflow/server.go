@@ -6,9 +6,7 @@
 package netflow
 
 import (
-	"context"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/netsampler/goflow2/format"
 	"net"
 	"time"
 
@@ -80,25 +78,18 @@ func NewNetflowServer(demultiplexer aggregator.Demultiplexer) (*NfCollector, err
 
 func startSNMPv2Listener(c *Config, demultiplexer aggregator.Demultiplexer) (*utils.StateNetFlow, error) {
 	log.Warn("Starting Netflow Server")
-	agg := demultiplexer.Aggregator()
-	metricChan := agg.GetBufferedMetricsWithTsChannel()
-
-	d := &NDMFlowDriver{
-		MetricChan: metricChan,
-	}
-	format.RegisterFormatDriver("json", d)
-
-	ctx := context.TODO()
-	formatter, err := format.FindFormat(ctx, "json")
+	//agg := demultiplexer.Aggregator()
+	sender, err := demultiplexer.GetDefaultSender()
 	if err != nil {
 		return nil, err
 	}
+	ndmFlowDriver := NewNDMFlowDriver(sender, c)
 
 	logger := logrus.StandardLogger()
 	logger.SetLevel(logrus.TraceLevel)
 	sNF := &utils.StateNetFlow{
-		Format:    formatter,
-		Logger:    logger,
+		Format: ndmFlowDriver,
+		Logger: logger,
 	}
 	hostname := c.BindHost
 	port := c.Port
