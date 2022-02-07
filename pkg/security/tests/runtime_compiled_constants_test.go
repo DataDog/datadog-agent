@@ -25,8 +25,9 @@ func TestFallbackConstants(t *testing.T) {
 	defer test.Close()
 
 	config := test.config
-	config.RuntimeCompiledConstantsIsSet = true
 	config.EnableRuntimeCompiledConstants = false
+
+	constantfetch.ClearConstantsCache()
 
 	withoutRC, err := probe.GetOffsetConstants(config, test.probe)
 	if err != nil {
