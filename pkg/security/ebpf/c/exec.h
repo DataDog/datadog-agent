@@ -217,7 +217,7 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
             .args = {
                 .id = bpf_get_prandom_u32(),
                 .array = argv,
-                .index = 1,
+                .index = 0,
             },
             .envs = {
                 .id = bpf_get_prandom_u32(),
@@ -419,6 +419,11 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     event.process.pid = pid;
     event.process.tid = pid;
 
+    // ignore kthreads
+    if (IS_KTHREAD(ppid, pid)) {
+        return 0;
+    }
+
     struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &ppid);
     if (parent_pid_entry) {
         // ensure pid and ppid point to the same cookie
@@ -458,6 +463,11 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
+
+            // ignore kthreads
+            if (IS_KTHREAD(pid_entry->ppid, pid)) {
+                return 0;
+            }
         }
 
         // send the entry to maintain userspace cache

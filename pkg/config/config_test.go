@@ -853,6 +853,32 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
 }
 
+func TestExperimentalOTLP(t *testing.T) {
+	checkConf := func(t *testing.T, conf Config) {
+		assert.Equal(t, 789, conf.GetInt(OTLPTracePort))
+		assert.Equal(t, map[string]interface{}{"a": 1, "b": 2, "c": map[string]interface{}{"d": interface{}(nil)}}, conf.GetStringMap(OTLPReceiverSection))
+		assert.Equal(t, map[string]interface{}{"c": 3, "d": 4, "enabled": false, "tag_cardinality": "medium"}, conf.GetStringMap(OTLPMetrics))
+		assert.False(t, conf.GetBool(OTLPMetricsEnabled))
+		assert.Equal(t, "medium", conf.GetString(OTLPTagCardinalityKey))
+	}
+
+	t.Run("main", func(t *testing.T) {
+		conf := setupConf()
+		conf.SetConfigFile("./tests/otlp_main.yaml")
+		_, err := load(conf, "otlp_main.yaml", true)
+		assert.NoError(t, err)
+		checkConf(t, conf)
+	})
+
+	t.Run("experimental", func(t *testing.T) {
+		conf := setupConf()
+		conf.SetConfigFile("./tests/otlp_experimental.yaml")
+		_, err := load(conf, "otlp_experimental.yaml", true)
+		assert.NoError(t, err)
+		checkConf(t, conf)
+	})
+}
+
 func TestNumWorkers(t *testing.T) {
 	config := setupConf()
 

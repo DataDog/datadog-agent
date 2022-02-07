@@ -76,6 +76,16 @@ func (q *WeightedQueue) Weight() int64 {
 	return q.currentWeight
 }
 
+// MaxSize returns the maxSize of the queue
+func (q *WeightedQueue) MaxSize() int {
+	return q.maxSize
+}
+
+// MaxWeight returns the maxWeight of the queue
+func (q *WeightedQueue) MaxWeight() int64 {
+	return q.maxWeight
+}
+
 // Poll retrieves the head of the queue or blocks until an item is available or
 // the WeightedQueue is stopped.  Returns the head of the queue and true or
 // nil, false if the WeightedQueue is stopped.

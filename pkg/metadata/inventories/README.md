@@ -72,6 +72,7 @@ The payload is a JSON dict with the following fields
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
   - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
+  - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 

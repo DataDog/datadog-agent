@@ -384,8 +384,8 @@ func (l *KubeEndpointsListener) getStandardTagsForEndpoints(kep *v1.Endpoints) (
 	return getStandardTags(ksvc.GetLabels()), nil
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *KubeEndpointService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeEndpointService) GetServiceID() string {
 	return s.entity
 }
 

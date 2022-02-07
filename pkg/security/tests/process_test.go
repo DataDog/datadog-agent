@@ -197,6 +197,12 @@ func TestProcessContext(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			argv0, err := event.GetFieldValue("exec.argv0")
+			if err != nil {
+				t.Errorf("not able to get argv0")
+			}
+			assert.Equal(t, "ls", argv0, "incorrect argv0: %s", argv0)
+
 			// args
 			args, err := event.GetFieldValue("exec.args")
 			if err != nil || len(args.(string)) == 0 {
@@ -257,10 +263,7 @@ func TestProcessContext(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ll")
-			if err = cmd.Run(); err != nil {
-				return err
-			}
-			return nil
+			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_argv")
 		})
@@ -271,10 +274,7 @@ func TestProcessContext(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ls", "--escape")
-			if err = cmd.Run(); err != nil {
-				return err
-			}
-			return nil
+			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_args_flags")
 		})
@@ -316,6 +316,12 @@ func TestProcessContext(t *testing.T) {
 			argv := strings.Split(args.(string), " ")
 			assert.Equal(t, 2, len(argv), "incorrect number of args: %s", argv)
 			assert.Equal(t, true, strings.HasSuffix(argv[1], "..."), "args not truncated")
+
+			argv0, err := event.GetFieldValue("exec.argv0")
+			if err != nil {
+				t.Errorf("not able to get argv0")
+			}
+			assert.Equal(t, "ls", argv0, "incorrect argv0: %s", argv0)
 		})
 
 		// number of args overflow
@@ -437,7 +443,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("sh", args, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %s", out, err)
+				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -465,7 +471,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(shell, args, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %s", out, err)
+				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -493,7 +499,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(shell, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %s", out, err)
+				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -520,7 +526,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(shell, args, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %s", out, err)
+				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -767,7 +773,7 @@ func testProcessEEExit(t *testing.T, pid uint32, test *testModule) {
 		resolvers := test.probe.GetResolvers()
 		entry := resolvers.ProcessResolver.Get(pid)
 		if entry != nil {
-			return fmt.Errorf("the process cache entry was not deleted from the user space cache")
+			return errors.New("the process cache entry was not deleted from the user space cache")
 		}
 
 		return nil

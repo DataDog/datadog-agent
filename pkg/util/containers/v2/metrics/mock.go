@@ -100,7 +100,7 @@ func (mp *MockCollector) GetContainerStats(containerID string, cacheValidity tim
 }
 
 // GetContainerNetworkStats returns stats from MockContainerEntry
-func (mp *MockCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*ContainerNetworkStats, error) {
+func (mp *MockCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
 	if entry, found := mp.containers[containerID]; found {
 		return &entry.NetworkStats, entry.Error
 	}

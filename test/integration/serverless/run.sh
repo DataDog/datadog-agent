@@ -137,7 +137,7 @@ all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
 functions_to_skip=(
-    # not currently skipping any functions
+    # Not currently skipping any functions
 )
 
 echo "Invoking functions for the first time..."
