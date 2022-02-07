@@ -4,6 +4,7 @@
 package runtime
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -17,6 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/statsd"
 )
+
+func hashFlags(flags []string) string {
+	h := sha256.New()
+	for _, f := range flags {
+		h.Write([]byte(f))
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
 
 type RuntimeCompilationTelemetry struct {
 	compilationEnabled  bool
@@ -73,7 +82,7 @@ func (tm *RuntimeCompilationTelemetry) SendMetrics(client *statsd.Client) error 
 
 type RuntimeCompilationFileProvider interface {
 	GetInputReader(config *ebpf.Config, tm *RuntimeCompilationTelemetry) (io.Reader, error)
-	GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, tm *RuntimeCompilationTelemetry) (string, error)
+	GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *RuntimeCompilationTelemetry) (string, error)
 }
 
 type RuntimeCompiler struct {
@@ -113,7 +122,7 @@ func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []strin
 		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", config.RuntimeCompilerOutputDir, err)
 	}
 
-	outputFile, err := provider.GetOutputFilePath(config, kv, &rc.telemetry)
+	outputFile, err := provider.GetOutputFilePath(config, kv, hashFlags(cflags), &rc.telemetry)
 	if err != nil {
 		return nil, err
 	}

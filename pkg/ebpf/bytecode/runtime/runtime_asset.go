@@ -99,11 +99,11 @@ func (a *RuntimeAsset) GetInputReader(config *ebpf.Config, tm *RuntimeCompilatio
 	return inputReader, nil
 }
 
-func (a *RuntimeAsset) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, tm *RuntimeCompilationTelemetry) (string, error) {
-	// filename includes kernel version & input file hash
+func (a *RuntimeAsset) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *RuntimeCompilationTelemetry) (string, error) {
+	// filename includes kernel version, input file hash, and cflags hash
 	// this ensures we re-compile when either of the input changes
 	baseName := strings.TrimSuffix(a.filename, filepath.Ext(a.filename))
-	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%d-%s.o", baseName, kernelVersion, a.hash))
+	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%d-%s-%s.o", baseName, kernelVersion, a.hash, flagHash))
 	return outputFile, nil
 }
 

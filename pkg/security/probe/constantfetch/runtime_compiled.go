@@ -169,14 +169,14 @@ func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runt
 	return strings.NewReader(p.cCode), nil
 }
 
-func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
+func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
 	hasher := sha256.New()
 	if _, err := hasher.Write([]byte(a.cCode)); err != nil {
 		return "", err
 	}
 	cCodeHash := hasher.Sum(nil)
 
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s.o", kernelVersion, cCodeHash)), nil
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHash, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {
