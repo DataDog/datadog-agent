@@ -294,7 +294,7 @@ func chunkProcessesAndContainers(
 
 	totalProcs := len(procsByCtr[emptyCtrID])
 
-	chunkProcessesBySizeAndWeight(procsByCtr[emptyCtrID], maxChunkSize, maxChunkWeight, chunker)
+	chunkProcessesBySizeAndWeight(procsByCtr[emptyCtrID], nil, maxChunkSize, maxChunkWeight, chunker)
 
 	totalContainers := 0
 	for _, ctr := range containers {
@@ -305,12 +305,7 @@ func chunkProcessesAndContainers(
 		}
 		totalProcs += len(procs)
 		totalContainers++
-		chunker.container = ctr
-		chunker.idx = 0
-		if len(chunker.collectorProcs) > 1 {
-			chunker.idx = len(chunker.collectorProcs) - 1
-		}
-		chunkProcessesBySizeAndWeight(procs, maxChunkSize, maxChunkWeight, chunker)
+		chunkProcessesBySizeAndWeight(procs, ctr, maxChunkSize, maxChunkWeight, chunker)
 	}
 	return chunker.collectorProcs, totalProcs, totalContainers
 }

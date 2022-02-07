@@ -620,3 +620,9 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 		})
 	}
 }
+
+func TestWeightProcess(t *testing.T) {
+	p := &model.Process{
+
+	}
+}

@@ -5,5 +5,5 @@ enhancements:
     the size of process details such as CLI and user name.
 deprecations:
   - |
-    Deprecates process_config.max_ctr_procs_per_message setting.
+    Removes the process_config.max_ctr_procs_per_message setting.
 
