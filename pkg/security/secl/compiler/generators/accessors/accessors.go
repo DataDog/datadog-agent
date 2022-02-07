@@ -453,29 +453,33 @@ func main() {
 		return
 	}
 
-	tmpfile, err := os.CreateTemp(path.Dir(output), "accessors")
+	if err := generateAccessors(module, mock, output); err != nil {
+		panic(err)
+	}
+}
+
+func generateAccessors(module *common.Module, mock bool, outputPath string) error {
+	tmpfile, err := os.CreateTemp(path.Dir(outputPath), "accessors")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	templateVariables := newAccessorsTemplateArgs(module, mock, output, pkgname)
+	templateVariables := newAccessorsTemplateArgs(module, mock, outputPath, pkgname)
 
 	if err := accessorsTemplate.Execute(tmpfile, templateVariables); err != nil {
-		panic(err)
+		return err
 	}
 
 	if err := tmpfile.Close(); err != nil {
-		panic(err)
+		return err
 	}
 
 	cmd := exec.Command("gofmt", "-s", "-w", tmpfile.Name())
 	if err := cmd.Run(); err != nil {
-		panic(err)
+		return err
 	}
 
-	if err := os.Rename(tmpfile.Name(), output); err != nil {
-		panic(err)
-	}
+	return os.Rename(tmpfile.Name(), outputPath)
 }
 
 func init() {
