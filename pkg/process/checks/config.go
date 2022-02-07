@@ -17,7 +17,7 @@ var (
 	maxBatchSizeOnce sync.Once
 	maxBatchSize     int
 
-	// maxCtrProcsBatchSizeOnce is used only read the process_config.max_ctr_procs_per_message config once and set maxCtrProcsBatchSize
+	// maxCtrProcsBatchSizeOnce is used to only read the process_config.max_ctr_procs_per_message config once and set maxCtrProcsBatchSize
 	maxCtrProcsBatchSizeOnce sync.Once
 	maxCtrProcsBatchSize     int
 )
