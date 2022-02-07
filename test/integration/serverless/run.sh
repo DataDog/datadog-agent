@@ -59,9 +59,9 @@ fi
 
 cd $SERVERLESS_INTEGRATION_TESTS_DIR
 
-# ./build_recorder.sh
-# ./build_go_functions.sh
-# ./build_java_functions.sh
+./build_recorder.sh
+./build_go_functions.sh
+./build_java_functions.sh
 ./build_csharp_functions.sh
 
 if [ -z "$NODE_LAYER_VERSION" ]; then
@@ -102,15 +102,18 @@ metric_functions=(
     "metric-java"
     "metric-go"
     "metric-csharp"
+    "metric-proxy"
     "timeout-node"
     "timeout-python"
     "timeout-java"
     "timeout-go"
     "timeout-csharp"
+    "timeout-proxy"
     "error-node"
     "error-python"
     "error-java"
     "error-csharp"
+    "error-proxy"
 )
 log_functions=(
     "log-node"
@@ -118,6 +121,7 @@ log_functions=(
     "log-java"
     "log-go"
     "log-csharp"
+    "log-proxy"
 )
 trace_functions=(
     "trace-node"
@@ -125,6 +129,7 @@ trace_functions=(
     "trace-java"
     "trace-go"
     "trace-csharp"
+    "trace-proxy"
 )
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
@@ -132,8 +137,7 @@ all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
 functions_to_skip=(
-    # unresolved issue instrumenting void return types 
-    error-csharp
+    # not currently skipping any functions
 )
 
 echo "Invoking functions for the first time..."
@@ -208,6 +212,7 @@ for function_name in "${all_functions[@]}"; do
         # Normalize logs
         logs=$(
             echo "$raw_logs" |
+                grep -v "\[trace\]" |
                 grep -v "\[sketch\]" |
                 grep "\[log\]" |
                 # remove configuration log line from dd-trace-go

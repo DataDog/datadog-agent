@@ -29,4 +29,6 @@ async function error(event, context) {
 
 module.exports.noop = noop;
 module.exports.log = log;
+module.exports.timeout = timeout;
+module.exports.error = error;
 
