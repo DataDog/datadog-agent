@@ -55,6 +55,7 @@ func startTestServer(t *testing.T, cfg config.Config, expectedStatus status) sta
 	})
 	expvarEndpoint := fmt.Sprintf("localhost:%d", cfg.GetInt("process_config.expvar_port"))
 	expvarsListener, err := net.Listen("tcp", expvarEndpoint)
+	require.NoError(t, err)
 	go func() {
 		_ = http.Serve(expvarsListener, expvarMux)
 	}()
