@@ -38,6 +38,8 @@ type ContainerCheck struct {
 	networkID       string
 
 	containerFailedLogLimit *util.LogLimit
+
+	maxBatchSize int
 }
 
 // Init initializes a ContainerCheck instance.
@@ -51,6 +53,7 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.networkID = networkID
 
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
+	c.maxBatchSize = getMaxBatchSize()
 }
 
 // Name returns the name of the ProcessCheck.
@@ -95,11 +98,11 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, nil
 	}
 
-	groupSize := len(ctrList) / MaxBatchSize
-	if len(ctrList)%MaxBatchSize != 0 {
+	groupSize := len(ctrList) / c.maxBatchSize
+	if len(ctrList)%c.maxBatchSize != 0 {
 		groupSize++
 	}
-	chunked := chunkContainers(ctrList, c.lastRates, c.lastRun, groupSize, MaxBatchSize)
+	chunked := chunkContainers(ctrList, c.lastRates, c.lastRun, groupSize, c.maxBatchSize)
 	messages := make([]model.MessageBody, 0, groupSize)
 	totalContainers := float64(0)
 	for i := 0; i < groupSize; i++ {

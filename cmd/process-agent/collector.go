@@ -79,29 +79,6 @@ type Collector struct {
 	runRealTime bool
 }
 
-// initProcessChecksRuntime initializes global variables that are shared across pkg/process/checks
-func initProcessChecksRuntime() {
-	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
-	if batchSize <= 0 {
-		log.Warnf("Invalid item count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxPerMessage)
-		batchSize = ddconfig.DefaultProcessMaxPerMessage
-	} else if batchSize > ddconfig.DefaultProcessMaxPerMessage {
-		log.Warnf("Overriding the configured max of item count per message because it exceeds maximum limit of %d", ddconfig.DefaultProcessMaxPerMessage)
-		batchSize = ddconfig.DefaultProcessMaxPerMessage
-	}
-	checks.MaxBatchSize = batchSize
-
-	ctrProcsBatchSize := ddconfig.Datadog.GetInt("process_config.max_ctr_procs_per_message")
-	if ctrProcsBatchSize <= 0 {
-		log.Warnf("Invalid max container processes count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxCtrProcsPerMessage)
-		ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
-	} else if ctrProcsBatchSize > ddconfig.ProcessMaxCtrProcsPerMessageLimit {
-		log.Warnf("Overriding the configured max of container processes count per message because it exceeds maximum limit of %d", ddconfig.ProcessMaxCtrProcsPerMessageLimit)
-		ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
-	}
-	checks.MaxCtrProcsBatchSize = ctrProcsBatchSize
-}
-
 // NewCollector creates a new Collector
 func NewCollector(cfg *config.AgentConfig, enabledChecks []checks.Check) (Collector, error) {
 	sysInfo, err := checks.CollectSystemInfo(cfg)
@@ -109,7 +86,6 @@ func NewCollector(cfg *config.AgentConfig, enabledChecks []checks.Check) (Collec
 		return Collector{}, err
 	}
 
-	initProcessChecksRuntime()
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 	for _, c := range enabledChecks {
 		c.Init(cfg, sysInfo)

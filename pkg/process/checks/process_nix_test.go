@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -145,7 +146,7 @@ func TestBasicProcessMessages(t *testing.T) {
 
 			procs := fmtProcesses(cfg, tc.cur, tc.last, containersByPid(tc.containers), syst2, syst1, lastRun, networks)
 			containers := fmtContainers(tc.containers, lastCtrRates, lastRun)
-			messages, totalProcs, totalContainers := createProcCtrMessages(procs, containers, cfg, tc.maxSize, MaxCtrProcsBatchSize, sysInfo, int32(i), "nid")
+			messages, totalProcs, totalContainers := createProcCtrMessages(procs, containers, cfg, tc.maxSize, ddconfig.DefaultProcessMaxCtrProcsPerMessage, sysInfo, int32(i), "nid")
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
 			assert.Equal(t, tc.totalProcs, totalProcs)
