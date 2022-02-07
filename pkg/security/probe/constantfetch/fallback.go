@@ -73,6 +73,12 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 592
 	case kv.IsOracleUEKKernel():
 		sizeOf = 632
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		sizeOf = 712
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		sizeOf = 704
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		sizeOf = 704
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_16:
 		sizeOf = 608
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
@@ -106,6 +112,12 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		ttyOffset = 376
 	case kv.IsSLES15Kernel():
 		ttyOffset = 408
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		ttyOffset = 416
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		ttyOffset = 416
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		ttyOffset = 416
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel4_19):
 		ttyOffset = 376
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
@@ -139,6 +151,12 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
 		nameOffset = 312
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		nameOffset = 552
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		nameOffset = 552
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		nameOffset = 544
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel5_8):
 		nameOffset = 368
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9) && runtime.GOARCH == "arm64":
