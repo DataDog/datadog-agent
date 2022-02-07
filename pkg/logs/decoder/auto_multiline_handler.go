@@ -97,7 +97,9 @@ func NewAutoMultilineHandler(
 		detectedPattern: detectedPattern,
 	}
 
-	h.singleLineHandler = NewSingleLineHandler(inputChan, outputChan, lineLimit)
+	// This single-line handler is never started. Instead, we call its `process`
+	// method directly.  So, it does not need an input channel.
+	h.singleLineHandler = NewSingleLineHandler(nil, outputChan, lineLimit)
 	h.processsingFunc = h.processAndTry
 
 	return h
