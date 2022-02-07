@@ -103,12 +103,6 @@ func NewAutoMultilineHandler(
 	return h
 }
 
-// Handle puts all new lines into a channel for later processing.
-func (h *AutoMultilineHandler) Handle(input *Message) {
-	// TODO: remove
-	h.inputChan <- input
-}
-
 // Stop stops the handler.
 func (h *AutoMultilineHandler) Stop() {
 	close(h.inputChan)
