@@ -105,7 +105,7 @@ func InitializeDecoder(source *config.LogSource, parser parsers.Parser) *Decoder
 func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parser, matcher EndLineMatcher, multiLinePattern *regexp.Regexp) *Decoder {
 	inputChan := make(chan *Input)
 	brokenLineChan := make(chan *DecodedInput)
-	parsedMessageChan := make(chan *Message)
+	lineParserOut := make(chan *Message)
 	outputChan := make(chan *Message)
 	lineLimit := defaultContentLenLimit
 	detectedPattern := &DetectedPattern{}
@@ -116,16 +116,16 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parse
 	// construct the lineParser actor, wrapping the parser
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
-		lineParser = NewMultiLineParser(brokenLineChan, parsedMessageChan, config.AggregationTimeout(), parser, lineLimit)
+		lineParser = NewMultiLineParser(brokenLineChan, lineParserOut, config.AggregationTimeout(), parser, lineLimit)
 	} else {
-		lineParser = NewSingleLineParser(brokenLineChan, parsedMessageChan, parser)
+		lineParser = NewSingleLineParser(brokenLineChan, lineParserOut, parser)
 	}
 
 	// construct the lineHandler actor
 	var lineHandler LineHandler
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lh := NewMultiLineHandler(parsedMessageChan, outputChan, rule.Regex, config.AggregationTimeout(), lineLimit)
+			lh := NewMultiLineHandler(lineParserOut, outputChan, rule.Regex, config.AggregationTimeout(), lineLimit)
 
 			// Since a single source can have multiple file tailers - each with their own decoder instance,
 			// Make sure we keep track of the multiline match count info from all of the decoders so the
@@ -150,12 +150,12 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parsers.Parse
 				// Save the pattern again for the next rotation
 				detectedPattern.Set(multiLinePattern)
 
-				lineHandler = NewMultiLineHandler(parsedMessageChan, outputChan, multiLinePattern, config.AggregationTimeout(), lineLimit)
+				lineHandler = NewMultiLineHandler(lineParserOut, outputChan, multiLinePattern, config.AggregationTimeout(), lineLimit)
 			} else {
-				lineHandler = buildAutoMultilineHandlerFromConfig(parsedMessageChan, outputChan, lineLimit, source, detectedPattern)
+				lineHandler = buildAutoMultilineHandlerFromConfig(lineParserOut, outputChan, lineLimit, source, detectedPattern)
 			}
 		} else {
-			lineHandler = NewSingleLineHandler(parsedMessageChan, outputChan, lineLimit)
+			lineHandler = NewSingleLineHandler(lineParserOut, outputChan, lineLimit)
 		}
 	}
 
