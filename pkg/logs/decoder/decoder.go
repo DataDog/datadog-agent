@@ -66,6 +66,9 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 	}
 }
 
+// Decoder translates a sequence of byte buffers (such as from a file or a
+// network socket) into log messages.
+//
 // Decoder wraps a collection of internal actors, joined by channels, representing the
 // whole as a single actor with InputChan of type *decoder.Input and OutputChan of type
 // *decoder.Message.
