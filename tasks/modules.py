@@ -105,6 +105,7 @@ DEFAULT_MODULES = {
     "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
     "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
+    "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(
         "pkg/util/winutil",
         condition=lambda: sys.platform == 'win32',
