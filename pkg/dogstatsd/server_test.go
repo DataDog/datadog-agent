@@ -947,3 +947,32 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 	assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "fourth_origin"})
 	assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "fourth_origin"})
 }
+
+func TestContainerIDParsing(t *testing.T) {
+	assert := assert.New(t)
+
+	s, err := NewServer(mockDemultiplexer(), nil)
+	assert.NoError(err, "starting the DogStatsD server shouldn't fail")
+	s.Stop()
+
+	parser := newParser(newFloat64ListPool())
+	parser.dsdOriginEnabled = true
+
+	// Metric
+	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", false)
+	assert.NoError(err)
+	assert.Len(metrics, 1)
+	assert.Equal("container_id://metric-container", metrics[0].OriginFromClient)
+
+	// Event
+	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
+	assert.NoError(err)
+	assert.NotNil(event)
+	assert.Equal("container_id://event-container", event.OriginFromClient)
+
+	// Service check
+	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
+	assert.NoError(err)
+	assert.NotNil(serviceCheck)
+	assert.Equal("container_id://service-check-container", serviceCheck.OriginFromClient)
+}

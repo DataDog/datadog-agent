@@ -28,12 +28,12 @@ func TestServiceToConfig(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 		Hosts:         map[string]string{"bridge": "127.0.0.1"},
 	}
-	s.addConfigForService(service.GetEntity(), integration.Config{Name: "foo"})
-	s.addConfigForService(service.GetEntity(), integration.Config{Name: "bar"})
-	assert.Equal(t, countConfigsForService(s, service.GetEntity()), 2)
-	s.removeConfigsForService(service.GetEntity())
-	s.addConfigForService(service.GetEntity(), integration.Config{Name: "foo"})
-	assert.Equal(t, countConfigsForService(s, service.GetEntity()), 1)
+	s.addConfigForService(service.GetServiceID(), integration.Config{Name: "foo"})
+	s.addConfigForService(service.GetServiceID(), integration.Config{Name: "bar"})
+	assert.Equal(t, countConfigsForService(s, service.GetServiceID()), 2)
+	s.removeConfigsForService(service.GetServiceID())
+	s.addConfigForService(service.GetServiceID(), integration.Config{Name: "foo"})
+	assert.Equal(t, countConfigsForService(s, service.GetServiceID()), 1)
 }
 
 func TestTemplateToConfig(t *testing.T) {

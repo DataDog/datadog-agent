@@ -10,7 +10,6 @@ package otlp
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
@@ -27,7 +26,6 @@ func TestIsEnabled(t *testing.T) {
 		{path: "port/disabled.yaml", enabled: false},
 		{path: "port/invalid.yaml", enabled: true},
 		{path: "port/nobindhost.yaml", enabled: true},
-		{path: "port/nonlocal.yaml", enabled: true},
 
 		{path: "receiver/noprotocols.yaml", enabled: true},
 		{path: "receiver/portandreceiver.yaml", enabled: true},
@@ -58,6 +56,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
@@ -70,33 +69,14 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
 		},
 		{
 			path: "port/invalid.yaml",
-			err: fmt.Sprintf("OTLP receiver port-based configuration is invalid: %s",
-				strings.Join([]string{
-					"HTTP port is invalid: -1 is out of [0, 65535] range",
-					"gRPC port is invalid: -1 is out of [0, 65535] range",
-					"internal trace port is invalid: -1 is out of [0, 65535] range",
-				},
-					"; ",
-				),
-			),
-		},
-		{
-			path: "port/nonlocal.yaml",
-			cfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("0.0.0.0", 5678, 1234),
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				Metrics: map[string]interface{}{
-					"tag_cardinality": "low",
-				},
-			},
+			err:  fmt.Sprintf("internal trace port is invalid: -1 is out of [0, 65535] range"),
 		},
 		{
 			path: "port/alldisabled.yaml",
@@ -110,6 +90,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
@@ -122,6 +103,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
@@ -139,6 +121,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
@@ -171,6 +154,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},

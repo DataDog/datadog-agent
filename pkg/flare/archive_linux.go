@@ -12,22 +12,26 @@ import (
 	"path/filepath"
 )
 
+func zipLinuxFile(source, tempDir, hostname, filename string) error {
+	return zipFile(source, filepath.Join(tempDir, hostname), filename)
+}
+
 func zipLinuxKernelSymbols(tempDir, hostname string) error {
-	return zipFile("/proc/kallsyms", filepath.Join(tempDir, hostname, "kallsyms"))
+	return zipLinuxFile("/proc", tempDir, hostname, "kallsyms")
 }
 
 func zipLinuxKrobeEvents(tempDir, hostname string) error {
-	return zipFile("/sys/kernel/debug/tracing/kprobe_events", filepath.Join(tempDir, hostname, "kprobe_events"))
+	return zipLinuxFile("/sys/kernel/debug/tracing", tempDir, hostname, "kprobe_events")
 }
 
 func zipLinuxPid1MountInfo(tempDir, hostname string) error {
-	return zipFile("/proc/1/mountinfo", filepath.Join(tempDir, hostname, "mountinfo"))
+	return zipLinuxFile("/proc/1", tempDir, hostname, "mountinfo")
 }
 
 func zipLinuxTracingAvailableEvents(tempDir, hostname string) error {
-	return zipFile("/sys/kernel/debug/tracing/available_events", filepath.Join(tempDir, hostname, "available_events"))
+	return zipLinuxFile("/sys/kernel/debug/tracing", tempDir, hostname, "available_events")
 }
 
 func zipLinuxTracingAvailableFilterFunctions(tempDir, hostname string) error {
-	return zipFile("/sys/kernel/debug/tracing/available_filter_functions", filepath.Join(tempDir, hostname, "available_filter_functions"))
+	return zipLinuxFile("/sys/kernel/debug/tracing", tempDir, hostname, "available_filter_functions")
 }
