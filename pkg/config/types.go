@@ -89,4 +89,8 @@ type Config interface {
 	// GetEnvVars returns a list of the env vars that the config supports.
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
 	GetEnvVars() []string
+
+	// IsSectionSet checks if a given section is set by checking if any of
+	// its subkeys is set.
+	IsSectionSet(section string) bool
 }

@@ -57,12 +57,14 @@ func SetupOTLP(config Config) {
 // TODO(gbbr): This is to keep backwards compatibility and should
 // be completely removed once 7.35.0 is out.
 func promoteExperimentalOTLP(cfg Config) {
-	if !cfg.IsSet("experimental.otlp") {
+	if !cfg.IsSectionSet("experimental.otlp") {
 		return
 	}
+
 	log.Warn(`OTLP ingest configuration is now stable and has been moved out of the "experimental" section. ` +
 		`This section will be deprecated in the 7.37 Datadog Agent release. Please use the "otlp_config" section instead.`)
-	if k := "experimental.otlp.metrics"; cfg.IsSet(k) {
+
+	if k := "experimental.otlp.metrics"; cfg.IsSectionSet(k) {
 		for key, val := range cfg.GetStringMap(k) {
 			cfg.Set(OTLPMetrics+"."+key, val)
 		}
