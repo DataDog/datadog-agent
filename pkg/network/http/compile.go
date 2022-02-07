@@ -11,6 +11,8 @@ package http
 import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	rt "runtime"
+	"strings"
 )
 
 //go:generate go run ../../../pkg/ebpf/include_headers.go ../../../pkg/network/ebpf/c/runtime/http.c ../../../pkg/ebpf/bytecode/build/runtime/http.c ../../../pkg/ebpf/c ../../../pkg/network/ebpf/c/runtime ../../../pkg/network/ebpf/c
@@ -21,9 +23,14 @@ func getRuntimeCompiledHTTP(config *config.Config) (runtime.CompiledOutput, erro
 }
 
 func getCFlags(config *config.Config) []string {
-	cflags := []string{
-		"--target=x86_64-unknown-linux-gnu",
+	var cflags []string
+
+	if strings.ToLower(rt.GOARCH) == "arm64" {
+		cflags = append(cflags, "--target=aarch64-unknown-linux-gnu")
+	} else {
+		cflags = append(cflags, "--target=x86_64-unknown-linux-gnu")
 	}
+
 	if config.CollectIPv6Conns {
 		cflags = append(cflags, "-DFEATURE_IPV6_ENABLED")
 	}
