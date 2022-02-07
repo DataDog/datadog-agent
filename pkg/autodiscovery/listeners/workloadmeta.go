@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -45,7 +44,7 @@ type workloadmetaListenerImpl struct {
 	name string
 	stop chan struct{}
 
-	processFn func(workloadmeta.Entity, integration.CreationTime)
+	processFn func(workloadmeta.Entity)
 
 	store            workloadmeta.Store
 	workloadFilters  *workloadmeta.Filter
@@ -69,7 +68,7 @@ var _ workloadmetaListener = &workloadmetaListenerImpl{}
 func newWorkloadmetaListener(
 	name string,
 	workloadFilters *workloadmeta.Filter,
-	processFn func(workloadmeta.Entity, integration.CreationTime),
+	processFn func(workloadmeta.Entity),
 ) (workloadmetaListener, error) {
 	containerFilters, err := newContainerFilters()
 	if err != nil {
@@ -131,7 +130,6 @@ func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- S
 
 	ch := l.store.Subscribe(l.name, workloadmeta.NormalPriority, l.workloadFilters)
 	health := health.RegisterLiveness(l.name)
-	creationTime := integration.Before
 
 	log.Infof("%s initialized successfully", l.name)
 
@@ -150,8 +148,7 @@ func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- S
 					return
 				}
 
-				l.processEvents(evBundle, creationTime)
-				creationTime = integration.After
+				l.processEvents(evBundle)
 
 			case <-health.C:
 
@@ -168,7 +165,7 @@ func (l *workloadmetaListenerImpl) Stop() {
 	l.stop <- struct{}{}
 }
 
-func (l *workloadmetaListenerImpl) processEvents(evBundle workloadmeta.EventBundle, creationTime integration.CreationTime) {
+func (l *workloadmetaListenerImpl) processEvents(evBundle workloadmeta.EventBundle) {
 	// close the bundle channel asap since there are no downstream
 	// collectors that depend on AD having up to date data.
 	close(evBundle.Ch)
@@ -178,7 +175,7 @@ func (l *workloadmetaListenerImpl) processEvents(evBundle workloadmeta.EventBund
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			l.processSetEntity(entity, creationTime)
+			l.processSetEntity(entity)
 
 		case workloadmeta.EventTypeUnset:
 			l.processUnsetEntity(entity)
@@ -189,7 +186,7 @@ func (l *workloadmetaListenerImpl) processEvents(evBundle workloadmeta.EventBund
 	}
 }
 
-func (l *workloadmetaListenerImpl) processSetEntity(entity workloadmeta.Entity, creationTime integration.CreationTime) {
+func (l *workloadmetaListenerImpl) processSetEntity(entity workloadmeta.Entity) {
 	svcID := buildSvcID(entity.GetID())
 
 	// keep track of children of this entity from previous iterations ...
@@ -202,7 +199,7 @@ func (l *workloadmetaListenerImpl) processSetEntity(entity workloadmeta.Entity, 
 	// iteration.
 	l.children[svcID] = make(map[string]struct{})
 
-	l.processFn(entity, creationTime)
+	l.processFn(entity)
 
 	// remove the children seen in this iteration from the unseen list ...
 	for childSvcID := range l.children[svcID] {
