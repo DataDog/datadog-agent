@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -29,6 +30,46 @@ var (
 )
 
 func fetchEc2Tags(ctx context.Context) ([]string, error) {
+	if config.Datadog.GetBool("collect_ec2_tags_use_imds") {
+		// prefer to fetch tags from IMDS, falling back to the API
+		tags, err := fetchEc2TagsFromIMDS(ctx)
+		if err == nil {
+			return tags, nil
+		}
+
+		log.Debugf("Could not fetech tags from instance metadata (trying EC2 API instead): %s", err)
+	}
+
+	tags, err := fetchEc2TagsFromAPI(ctx)
+	if err == nil {
+		return tags, err
+	}
+
+	return nil, err
+}
+
+func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
+	keysStr, err := getMetadataItem(ctx, "/tags/instance")
+	if err != nil {
+		return nil, err
+	}
+
+	// keysStr is a newline-separated list of strings containing tag keys
+	keys := strings.Split(keysStr, "\n")
+
+	tags := []string{}
+	for _, key := range keys {
+		val, err := getMetadataItem(ctx, "/tags/instance/"+key)
+		if err != nil {
+			return nil, err
+		}
+		tags = append(tags, fmt.Sprintf("%s:%s", key, val))
+	}
+
+	return tags, nil
+}
+
+func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	instanceIdentity, err := getInstanceIdentity(ctx)
 	if err != nil {
 		return nil, err
