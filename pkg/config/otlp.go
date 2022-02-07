@@ -31,6 +31,12 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
 
+	// Make sure the old DD_OTLP_GRPC_PORT and DD_OTLP_HTTP_PORT env variables keep working
+	// for one release.
+	// TODO: To be removed once 7.35.0 is out.
+	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")
+	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")
+
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in pkg/otlp/config.go
 	config.BindEnvAndSetDefault(OTLPTagCardinalityKey, "low", "DD_OTLP_TAG_CARDINALITY")
