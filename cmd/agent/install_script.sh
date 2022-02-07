@@ -211,7 +211,7 @@ fi
 
 declare -A flavor_to_readable
 flavor_to_readable=(
-    ["datadog-agent"]    ="Datadog Agent"
+    ["datadog-agent"]="Datadog Agent"
     ["datadog-iot-agent"]="Datadog IoT Agent"
     ["datadog-dogstatsd"]="Datadog Dogstatsd"
 )
