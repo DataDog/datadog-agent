@@ -152,6 +152,7 @@ func TestChunkPayloadsBySizeAndWeightSingleRun(t *testing.T) {
 						1,
 						1,
 						1,
+						// chop!
 						1,
 						// chop!
 						5,
@@ -518,7 +519,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 					proc(100, "top"),
 				},
 				"foo": {
-					proc(2, "foo", strings.Repeat("-", 600)),
+					proc(2, "foo", strings.Repeat("-", 970)),
 				},
 				"bar": {
 					proc(3, "bar"),
@@ -537,7 +538,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 					},
 					Processes: []*model.Process{
 						proc(100, "top"),
-						proc(2, "foo", strings.Repeat("-", 600)),
+						proc(2, "foo", strings.Repeat("-", 970)),
 					},
 				},
 				{
