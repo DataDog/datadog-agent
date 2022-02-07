@@ -16,10 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -97,7 +97,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 	mockSender := mocksender.NewMockSender("docker-network-extension")
 	mockSender.SetupAcceptAll()
 
-	mockCollector := metrics.NewMockCollector("testCollector")
+	mockCollector := mock.NewCollector("testCollector")
 
 	// Test setup:
 	// container1 is host network in Kubernetes - linked to PID 100
@@ -105,37 +105,37 @@ func TestDockerNetworkExtension(t *testing.T) {
 	// container3 is a pause container in Kubernetes (owns the network config) - linked to nothing
 	// container4 is a normal docker container connected to 2 networks 0 linked to PID 200
 	container1 := generic.CreateContainerMeta("docker", "kube-host-network")
-	mockCollector.SetContainerEntry(container1.ID, metrics.MockContainerEntry{
+	mockCollector.SetContainerEntry(container1.ID, mock.ContainerEntry{
 		ContainerStats: provider.ContainerStats{
 			PID: &provider.ContainerPIDStats{
 				PIDs: []int{100},
 			},
 		},
-		NetworkStats: metrics.ContainerNetworkStats{
-			Interfaces: map[string]metrics.InterfaceNetStats{
+		NetworkStats: provider.ContainerNetworkStats{
+			Interfaces: map[string]provider.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   util.Float64Ptr(1),
-					BytesRcvd:   util.Float64Ptr(1),
-					PacketsSent: util.Float64Ptr(1),
-					PacketsRcvd: util.Float64Ptr(1),
+					BytesSent:   pointer.Float64Ptr(1),
+					BytesRcvd:   pointer.Float64Ptr(1),
+					PacketsSent: pointer.Float64Ptr(1),
+					PacketsRcvd: pointer.Float64Ptr(1),
 				},
 				"docker0": {
-					BytesSent:   util.Float64Ptr(2),
-					BytesRcvd:   util.Float64Ptr(2),
-					PacketsSent: util.Float64Ptr(2),
-					PacketsRcvd: util.Float64Ptr(2),
+					BytesSent:   pointer.Float64Ptr(2),
+					BytesRcvd:   pointer.Float64Ptr(2),
+					PacketsSent: pointer.Float64Ptr(2),
+					PacketsRcvd: pointer.Float64Ptr(2),
 				},
 				"cbr0": {
-					BytesSent:   util.Float64Ptr(3),
-					BytesRcvd:   util.Float64Ptr(3),
-					PacketsSent: util.Float64Ptr(3),
-					PacketsRcvd: util.Float64Ptr(3),
+					BytesSent:   pointer.Float64Ptr(3),
+					BytesRcvd:   pointer.Float64Ptr(3),
+					PacketsSent: pointer.Float64Ptr(3),
+					PacketsRcvd: pointer.Float64Ptr(3),
 				},
 				"vethc71e3170": {
-					BytesSent:   util.Float64Ptr(4),
-					BytesRcvd:   util.Float64Ptr(4),
-					PacketsSent: util.Float64Ptr(4),
-					PacketsRcvd: util.Float64Ptr(4),
+					BytesSent:   pointer.Float64Ptr(4),
+					BytesRcvd:   pointer.Float64Ptr(4),
+					PacketsSent: pointer.Float64Ptr(4),
+					PacketsRcvd: pointer.Float64Ptr(4),
 				},
 			},
 		},
@@ -157,19 +157,19 @@ func TestDockerNetworkExtension(t *testing.T) {
 	}
 
 	container2 := generic.CreateContainerMeta("docker", "kube-app")
-	mockCollector.SetContainerEntry(container2.ID, metrics.MockContainerEntry{
+	mockCollector.SetContainerEntry(container2.ID, mock.ContainerEntry{
 		ContainerStats: provider.ContainerStats{
 			PID: &provider.ContainerPIDStats{
 				PIDs: []int{101},
 			},
 		},
-		NetworkStats: metrics.ContainerNetworkStats{
-			Interfaces: map[string]metrics.InterfaceNetStats{
+		NetworkStats: provider.ContainerNetworkStats{
+			Interfaces: map[string]provider.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   util.Float64Ptr(5),
-					BytesRcvd:   util.Float64Ptr(5),
-					PacketsSent: util.Float64Ptr(5),
-					PacketsRcvd: util.Float64Ptr(5),
+					BytesSent:   pointer.Float64Ptr(5),
+					BytesRcvd:   pointer.Float64Ptr(5),
+					PacketsSent: pointer.Float64Ptr(5),
+					PacketsRcvd: pointer.Float64Ptr(5),
 				},
 			},
 		},
@@ -203,25 +203,25 @@ func TestDockerNetworkExtension(t *testing.T) {
 	}
 
 	container4 := generic.CreateContainerMeta("docker", "docker-app")
-	mockCollector.SetContainerEntry(container4.ID, metrics.MockContainerEntry{
+	mockCollector.SetContainerEntry(container4.ID, mock.ContainerEntry{
 		ContainerStats: provider.ContainerStats{
 			PID: &provider.ContainerPIDStats{
 				PIDs: []int{200},
 			},
 		},
-		NetworkStats: metrics.ContainerNetworkStats{
-			Interfaces: map[string]metrics.InterfaceNetStats{
+		NetworkStats: provider.ContainerNetworkStats{
+			Interfaces: map[string]provider.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   util.Float64Ptr(6),
-					BytesRcvd:   util.Float64Ptr(6),
-					PacketsSent: util.Float64Ptr(6),
-					PacketsRcvd: util.Float64Ptr(6),
+					BytesSent:   pointer.Float64Ptr(6),
+					BytesRcvd:   pointer.Float64Ptr(6),
+					PacketsSent: pointer.Float64Ptr(6),
+					PacketsRcvd: pointer.Float64Ptr(6),
 				},
 				"eth1": {
-					BytesSent:   util.Float64Ptr(7),
-					BytesRcvd:   util.Float64Ptr(7),
-					PacketsSent: util.Float64Ptr(7),
-					PacketsRcvd: util.Float64Ptr(7),
+					BytesSent:   pointer.Float64Ptr(7),
+					BytesRcvd:   pointer.Float64Ptr(7),
+					PacketsSent: pointer.Float64Ptr(7),
+					PacketsRcvd: pointer.Float64Ptr(7),
 				},
 			},
 		},
