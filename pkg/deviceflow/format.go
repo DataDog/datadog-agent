@@ -56,7 +56,7 @@ func (d *FlowDriver) sendMetrics(flowmsg *flowmessage.FlowMessage) {
 		fmt.Sprintf("out_if:%d", flowmsg.OutIf),
 		fmt.Sprintf("direction:%d", flowmsg.FlowDirection),
 	}
-	log.Debugf("tags: %v", tags)
+	log.Debugf("metrics tags: %v", tags)
 
 	d.sender.Count("netflow.flows", 1,"", tags)
 	d.sender.Count("netflow.bytes", float64(flowmsg.Bytes),"", tags)
@@ -70,6 +70,7 @@ func (d *FlowDriver) sendEvents(flowmsg *flowmessage.FlowMessage) {
 		log.Errorf("Error marshalling device metadata: %s", err)
 		return
 	}
+	log.Debugf("device_flow payload: %v", payloadBytes)
 	d.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 }
 
