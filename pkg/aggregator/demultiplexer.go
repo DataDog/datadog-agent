@@ -555,7 +555,7 @@ func (d *ServerlessDemultiplexer) Run() {
 
 // Stop stops the wrapped aggregator and the forwarder.
 func (d *ServerlessDemultiplexer) Stop(flush bool) {
-	d.statsdWorker.flush(time.Now(), flush == true)
+	d.statsdWorker.flush(time.Now(), flush)
 
 	// no need to flush the aggregator, it doesn't contain any data
 	// for the serverless agent

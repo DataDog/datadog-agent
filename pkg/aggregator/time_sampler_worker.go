@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// The timeSamplerWorker is running the process loop for a TimeSampler:
+// The timeSamplerWorker runs the process loop for a TimeSampler:
 //  - receiving samples for the TimeSampler to process
 //  - receiving flush triggers to flush the series from the TimeSampler
 //    into a serializer
@@ -83,7 +83,7 @@ func (w *timeSamplerWorker) flush(start time.Time, waitForSerializer bool) {
 }
 
 // We process all receivend samples in the `select`, but we also process a flush action,
-// meaning that the time sampler will not process any sample while it is flushing.
+// meaning that the time sampler does not process any sample while flushing.
 // Note that it was the same design in the BufferedAggregator (but at the aggregator level,
 // not sampler level).
 // If we want to move to a design where we can flush while we are processing samples,

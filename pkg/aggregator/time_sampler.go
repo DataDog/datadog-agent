@@ -75,8 +75,6 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
 	bucketStart := s.calculateBucketStart(timestamp)
 
-	// log.Infof("TimeSampler #%d processed sample '%s' tags '%s': %s", s.id, metricSample.Name, metricSample.Tags)
-
 	switch metricSample.Mtype {
 	case metrics.DistributionType:
 		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value, metricSample.SampleRate)
