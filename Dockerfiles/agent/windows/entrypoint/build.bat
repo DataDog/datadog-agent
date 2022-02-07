@@ -17,7 +17,8 @@ xcopy /e/s/h/q c:\mnt\Dockerfiles\agent\windows\entrypoint || exit /b 3
 
 call "%VSTUDIO_ROOT%\VC\Auxiliary\Build\vcvars64.bat"
 msbuild /p:Configuration=Release /p:Platform=%TARGET_ARCH% || exit /b 4
-xcopy \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint\%TARGET_ARCH%\Release\entrypoint.exe %PKG_OUTDIR%\  || exit /b 5
+REM xcopy fails with 'file exists' error if %CI_JOB_ID% is not set, which happens when running the script outside the CI.
+copy \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint\%TARGET_ARCH%\Release\entrypoint.exe %PKG_OUTDIR%\  || exit /b 5
 
 goto :EOF
 
