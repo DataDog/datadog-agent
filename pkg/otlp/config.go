@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//go:build !serverless && otlp
 // +build !serverless,otlp
 
 package otlp
@@ -11,54 +12,13 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	colConfig "go.opentelemetry.io/collector/config"
 	"go.uber.org/multierr"
 )
 
-// getReceiverHost gets the receiver host for the OTLP endpoint in a given config.
-func getReceiverHost(cfg config.Config) (receiverHost string) {
-	// The default value for the trace Agent
-	receiverHost = "localhost"
-
-	// This is taken from pkg/trace/config.AgentConfig.applyDatadogConfig
-	if cfg.IsSet("bind_host") || cfg.IsSet("apm_config.apm_non_local_traffic") {
-		if cfg.IsSet("bind_host") {
-			receiverHost = cfg.GetString("bind_host")
-		}
-
-		if cfg.IsSet("apm_config.apm_non_local_traffic") && cfg.GetBool("apm_config.apm_non_local_traffic") {
-			receiverHost = "0.0.0.0"
-		}
-	} else if config.IsContainerized() {
-		receiverHost = "0.0.0.0"
-	}
-	return
-}
-
-// isSetExperimentalPort checks if the experimental port config is set.
-func isSetExperimentalPort(cfg config.Config) bool {
-	return cfg.IsSet(config.ExperimentalOTLPHTTPPort) || cfg.IsSet(config.ExperimentalOTLPgRPCPort)
-}
-
-// isSetExperimentalReceiver checks it the experimental receiver section is set.
-func isSetExperimentalReceiver(cfg config.Config) bool {
-	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
-	// from unmarshaling/validation done by the Collector code.
-	//
-	// IsSet won't work here: it will return false if the section is present but empty.
-	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
-	_, ok := cfg.GetStringMap(config.ExperimentalOTLPSection)[config.ReceiverSubSectionKey]
-	return ok
-}
-
-// isSetExperimentalMetrics checks if the experimental metrics config is set.
-func isSetExperimentalMetrics(cfg config.Config) bool {
-	return cfg.IsSet(config.ExperimentalOTLPMetrics)
-}
-
-func isSetExperimental(cfg config.Config) bool {
-	return isSetExperimentalPort(cfg) || isSetExperimentalReceiver(cfg)
+// isSetMetrics checks if the metrics config is set.
+func isSetMetrics(cfg config.Config) bool {
+	return cfg.IsSet(config.OTLPMetrics)
 }
 
 func portToUint(v int) (port uint, err error) {
@@ -69,87 +29,32 @@ func portToUint(v int) (port uint, err error) {
 	return
 }
 
-func fromExperimentalReceiverSectionConfig(cfg config.Config) *colConfig.Map {
+func fromReceiverSectionConfig(cfg config.Config) *colConfig.Map {
 	return colConfig.NewMapFromStringMap(
-		cfg.GetStringMap(config.ExperimentalOTLPReceiverSection),
+		cfg.GetStringMap(config.OTLPReceiverSection),
 	)
 }
 
-func fromExperimentalPortReceiverConfig(cfg config.Config, otlpConfig *colConfig.Map) error {
+// fromConfig builds a PipelineConfig from the configuration.
+func fromConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
+	otlpConfig := fromReceiverSectionConfig(cfg)
 
-	httpPort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPHTTPPort))
-	if err != nil {
-		errs = append(errs, fmt.Errorf("HTTP port is invalid: %w", err))
-	}
-
-	gRPCPort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPgRPCPort))
-	if err != nil {
-		errs = append(errs, fmt.Errorf("gRPC port is invalid: %w", err))
-	}
-
-	if len(errs) == 0 {
-		log.Infoc(
-			"Overriding OTLP receiver endpoints with port-based configuration",
-			"grpc_port", gRPCPort,
-			"http_port", httpPort,
-		)
-	}
-
-	bindHost := getReceiverHost(cfg)
-
-	if gRPCPort > 0 {
-		otlpConfig.Set(
-			buildKey("protocols", "grpc", "endpoint"),
-			fmt.Sprintf("%s:%d", bindHost, gRPCPort),
-		)
-	}
-
-	if httpPort > 0 {
-		otlpConfig.Set(
-			buildKey("protocols", "http", "endpoint"),
-			fmt.Sprintf("%s:%d", bindHost, httpPort),
-		)
-	}
-
-	return multierr.Combine(errs...)
-}
-
-// fromExperimentalConfig builds a PipelineConfig from the experimental configuration.
-func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
-	var errs []error
-	otlpConfig := colConfig.NewMap()
-
-	if isSetExperimentalReceiver(cfg) {
-		otlpConfig = fromExperimentalReceiverSectionConfig(cfg)
-	}
-	if isSetExperimentalPort(cfg) {
-		err := fromExperimentalPortReceiverConfig(cfg, otlpConfig)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("OTLP receiver port-based configuration is invalid: %w", err))
-		}
-	}
-
-	tracePort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPTracePort))
+	tracePort, err := portToUint(cfg.GetInt(config.OTLPTracePort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
 	}
 
-	metricsEnabled := cfg.GetBool(config.ExperimentalOTLPMetricsEnabled)
-	tracesEnabled := cfg.GetBool(config.ExperimentalOTLPTracesEnabled)
+	metricsEnabled := cfg.GetBool(config.OTLPMetricsEnabled)
+	tracesEnabled := cfg.GetBool(config.OTLPTracesEnabled)
 	if !metricsEnabled && !tracesEnabled {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
 
 	metrics := map[string]interface{}{}
-	if isSetExperimentalMetrics(cfg) {
-		metrics = cfg.GetStringMap(config.ExperimentalOTLPMetrics)
+	if isSetMetrics(cfg) {
+		metrics = cfg.GetStringMap(config.OTLPMetrics)
 	}
-
-	// HACK: Because of https://github.com/spf13/viper/issues/1012
-	// we need to manually get the nested setting to support the bound environment variable.
-	// The 'correct' solution would be to fix this in our Viper fork.
-	metrics["tag_cardinality"] = cfg.GetString(config.ExperimentalOTLPTagCardinalityKey)
 
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),
@@ -162,12 +67,17 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Config) bool {
-	// TODO (AP-1267): Check stable config too
-	return isSetExperimental(cfg)
+	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
+	// from unmarshaling/validation done by the Collector code.
+	//
+	// IsSet won't work here: it will return false if the section is present but empty.
+	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
+	_, ok := cfg.GetStringMap(config.OTLPSection)[config.OTLPReceiverSubSectionKey]
+	return ok
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
 func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	// TODO (AP-1267): Check stable config too
-	return fromExperimentalConfig(cfg)
+	return fromConfig(cfg)
 }

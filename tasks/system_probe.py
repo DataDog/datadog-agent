@@ -2,6 +2,7 @@ import contextlib
 import glob
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -199,8 +200,7 @@ def kitchen_prepare(ctx, windows=is_windows):
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
-        relative_path = os.path.relpath(pkg)
-        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, relative_path)
+        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, re.sub("^.*datadog-agent.", "", pkg))
         target_bin = "testsuite"
         if windows:
             target_bin = "testsuite.exe"

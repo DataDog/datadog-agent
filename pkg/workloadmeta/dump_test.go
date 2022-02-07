@@ -12,7 +12,7 @@ import (
 )
 
 func TestDump(t *testing.T) {
-	s := newStore()
+	s := newTestStore()
 
 	container := &Container{
 		EntityID: EntityID{

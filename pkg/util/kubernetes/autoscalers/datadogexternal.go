@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package autoscalers
@@ -147,7 +148,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 
 	// If we add no series at all, return an error on top of invalid metrics
 	if len(seriesSlice) == 0 {
-		return processedMetrics, log.Errorf("Returned series slice empty")
+		return processedMetrics, log.Warnf("none of the queries %s returned any point, there might be an issue with them", query)
 	}
 
 	return processedMetrics, nil

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -267,7 +267,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 			// Set a new entity containing the endpoint's IP
 			entity := apiserver.EntityForEndpoints(namespace, name, kep.Subsets[i].Addresses[j].IP)
 			newConfig := integration.Config{
-				Entity:                  entity,
+				ServiceID:               entity,
 				Name:                    tpl.Name,
 				Instances:               tpl.Instances,
 				InitConfig:              tpl.InitConfig,

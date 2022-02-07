@@ -429,6 +429,7 @@ func InitConfig(config Config) {
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
+	config.BindEnvAndSetDefault("serializer_max_series_points_per_payload", 10000)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", false)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -497,6 +498,7 @@ func InitConfig(config Config) {
 	// contexts will be deleted (see 'dogstatsd_expiry_seconds').
 	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 300)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
+	config.BindEnvAndSetDefault("dogstatsd_origin_detection_client", false)
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
@@ -569,6 +571,7 @@ func InitConfig(config Config) {
 
 	// Containerd
 	config.BindEnvAndSetDefault("containerd_namespace", "")
+	config.BindEnvAndSetDefault("containerd_namespaces", []string{}) // alias for containerd_namespace
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
@@ -638,6 +641,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.server.read_timeout_seconds", 2)
 	config.BindEnvAndSetDefault("cluster_agent.server.write_timeout_seconds", 2)
 	config.BindEnvAndSetDefault("cluster_agent.server.idle_timeout_seconds", 60)
+	config.BindEnvAndSetDefault("cluster_agent.serve_nozzle_data", false)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
@@ -1112,15 +1116,21 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
-func findUnknownEnvVars(config Config) []string {
+func findUnknownEnvVars(config Config, environ []string) []string {
 	var unknownVars []string
 
-	knownVars := map[string]struct{}{}
+	knownVars := map[string]struct{}{
+		// these variables are used by the agent, but not via the Config struct,
+		// so must be listed separately.
+		"DD_PROXY_NO_PROXY": {},
+		"DD_PROXY_HTTP":     {},
+		"DD_PROXY_HTTPS":    {},
+	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
 	}
 
-	for _, equality := range os.Environ() {
+	for _, equality := range environ {
 		key := strings.SplitN(equality, "=", 2)[0]
 		if !strings.HasPrefix(key, "DD_") {
 			continue
@@ -1175,7 +1185,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		log.Warnf("Unknown key in config file: %v", key)
 	}
 
-	for _, v := range findUnknownEnvVars(config) {
+	for _, v := range findUnknownEnvVars(config, os.Environ()) {
 		log.Warnf("Unknown environment variable: %v", v)
 	}
 
@@ -1553,10 +1563,13 @@ func IsCLCRunner() bool {
 // Not using `config.BindEnvAndSetDefault` as some processes need to know
 // if value was default one or not (e.g. trace-agent)
 func GetBindHost() string {
-	if Datadog.IsSet("bind_host") {
-		return Datadog.GetString("bind_host")
-	}
+	return getBindHost(Datadog)
+}
 
+func getBindHost(cfg Config) string {
+	if cfg.IsSet("bind_host") {
+		return cfg.GetString("bind_host")
+	}
 	return "localhost"
 }
 

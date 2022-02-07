@@ -261,10 +261,9 @@ build do
       manifest = JSON.parse(File.read(manifest_file_path))
       manifest['supported_os'].include?(os) || next
 
-      setup_file_path = "#{check_dir}/setup.py"
-      File.file?(setup_file_path) || next
+      File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
       # Check if it supports Python 3.
-      support = `inv agent.check-supports-python-version #{setup_file_path} 3`
+      support = `inv agent.check-supports-python-version #{check_dir} 3`
       if support == "False"
         log.info(log_key) { "Skipping '#{check}' since it does not support Python 3." }
         next
@@ -395,10 +394,6 @@ build do
     block do
       # We have to run these operations in block, so they get applied after operations
       # from the last block
-
-      if linux?
-        patch :source => "psutil-pr2000.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/psutil/_pslinux.py"
-      end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
       if windows?

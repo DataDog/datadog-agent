@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -127,7 +128,8 @@ func startMetadataController(ctx ControllerContext, c chan error) {
 // startAutoscalersController starts the informers needed for autoscaling.
 // The synchronization of the informers is handled by the controller.
 func startAutoscalersController(ctx ControllerContext, c chan error) {
-	dogCl, err := autoscalers.NewDatadogClient()
+	var err error
+	dogCl, err = autoscalers.NewDatadogClient()
 	if err != nil {
 		c <- err
 		return

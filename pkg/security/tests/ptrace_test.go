@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -32,11 +33,7 @@ func TestPTraceEvent(t *testing.T) {
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
-		if _, ok := err.(ErrUnsupportedArch); ok {
-			t.Skip(err)
-		} else {
-			t.Fatal(err)
-		}
+		t.Fatal(err)
 	}
 
 	t.Run("test_ptrace", func(t *testing.T) {

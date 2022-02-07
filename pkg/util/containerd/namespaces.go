@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -18,7 +19,7 @@ import (
 // "containerd_namespace" option has been set, it returns the namespaces it contains.
 // Otherwise, it returns all of them.
 func NamespacesToWatch(ctx context.Context, containerdClient ContainerdItf) ([]string, error) {
-	namespaces := config.Datadog.GetStringSlice("containerd_namespace")
+	namespaces := config.Datadog.GetStringSlice("containerd_namespaces")
 
 	if len(namespaces) == 0 {
 		return containerdClient.Namespaces(ctx)
@@ -33,7 +34,7 @@ func NamespacesToWatch(ctx context.Context, containerdClient ContainerdItf) ([]s
 // namespace that we need to watch is "ns1", this function returns
 // `topic=="/container/create",namespace=="ns1"`.
 func FiltersWithNamespaces(filters []string) []string {
-	namespaces := config.Datadog.GetStringSlice("containerd_namespace")
+	namespaces := config.Datadog.GetStringSlice("containerd_namespaces")
 
 	if len(namespaces) == 0 {
 		// Watch all namespaces. No need to add them to the filters.

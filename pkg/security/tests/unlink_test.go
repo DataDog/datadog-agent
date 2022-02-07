@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -44,7 +45,7 @@ func TestUnlink(t *testing.T) {
 	t.Run("unlink", ifSyscallSupported("SYS_UNLINK", func(t *testing.T, syscallNB uintptr) {
 		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
-				return err
+				return error(err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -67,7 +68,7 @@ func TestUnlink(t *testing.T) {
 	t.Run("unlinkat", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testAtFilePtr), 0); err != 0 {
-				return err
+				return error(err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {

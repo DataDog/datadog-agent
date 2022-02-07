@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cri
 // +build cri
 
 package cri
@@ -54,7 +55,7 @@ func TestGetContainerStats(t *testing.T) {
 
 func TestGetContainerNetworkStats(t *testing.T) {
 	collector := criCollector{}
-	stats, err := collector.GetContainerNetworkStats("123", time.Second, nil)
+	stats, err := collector.GetContainerNetworkStats("123", time.Second)
 	assert.NoError(t, err)
 	assert.Nil(t, stats) // The CRI collector does not return any network data
 }

@@ -257,10 +257,9 @@ build do
       manifest = JSON.parse(File.read(manifest_file_path))
       manifest['supported_os'].include?(os) || next
 
-      setup_file_path = "#{check_dir}/setup.py"
-      File.file?(setup_file_path) || next
+      File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
       # Check if it supports Python 2.
-      support = `inv agent.check-supports-python-version #{setup_file_path} 2`
+      support = `inv agent.check-supports-python-version #{check_dir} 2`
       if support == "False"
         log.info(log_key) { "Skipping '#{check}' since it does not support Python 2." }
         next
@@ -399,10 +398,6 @@ build do
       else
         patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
         patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/tuf/client/updater.py"
-      end
-
-      if linux?
-        patch :source => "psutil-pr2000.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/psutil/_pslinux.py"
       end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible

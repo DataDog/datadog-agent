@@ -9,6 +9,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -173,12 +174,12 @@ func runJmxCommandConsole(command string) error {
 		return err
 	}
 
-	err = config.SetupJMXLogger(jmxLoggerName, logLevel, logFile, "", false, true, false)
+	err = config.SetupJMXLogger(jmxLoggerName, logFile, "", false, true, false)
 	if err != nil {
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
 	}
 
-	common.LoadComponents(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 
 	if discoveryRetryInterval > discoveryTimeout {
 		fmt.Println("The discovery retry interval", discoveryRetryInterval, "is higher than the discovery timeout", discoveryTimeout)

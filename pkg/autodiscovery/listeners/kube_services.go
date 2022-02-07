@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -267,8 +267,8 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 	}
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *KubeServiceService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeServiceService) GetServiceID() string {
 	return s.entity
 }
 
