@@ -41,6 +41,7 @@ var (
 	infoProcessQueueBytes   int
 	infoRTProcessQueueBytes int
 	infoPodQueueBytes       int
+	infoEnabledChecks       []string
 )
 
 const (
@@ -158,6 +159,18 @@ func updateQueueSize(processQueueSize, rtProcessQueueSize, podQueueSize int) {
 	infoProcessQueueSize = processQueueSize
 	infoRTProcessQueueSize = rtProcessQueueSize
 	infoPodQueueSize = podQueueSize
+}
+
+func updateEnabledChecks(enabledChecks []string) {
+	infoMutex.Lock()
+	defer infoMutex.Unlock()
+	infoEnabledChecks = enabledChecks
+}
+
+func publishEnabledChecks() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoEnabledChecks
 }
 
 func publishProcessQueueSize() interface{} {
@@ -298,6 +311,7 @@ func initInfo(_ *config.AgentConfig) error {
 		expvar.Publish("rtprocess_queue_bytes", expvar.Func(publishRTProcessQueueBytes))
 		expvar.Publish("pod_queue_bytes", expvar.Func(publishPodQueueBytes))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
+		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 		if err != nil {

@@ -35,7 +35,7 @@ Process Agent ({{ .Core.AgentVersion }})
  Python Version: {{ .Core.PythonVersion }}
  Build arch: {{ .Core.Arch }}
  Log Level: {{ .Core.Config.LogLevel }}
- Enabled Checks:
+ Enabled Checks: {{ .Expvars.EnabledChecks }}
 
 =========
 Collector
@@ -51,20 +51,15 @@ Collector
   Process Bytes enqueued: {{.Expvars.ProcessQueueBytes}}
   RTProcess Bytes enqueued: {{.Expvars.RTProcessQueueBytes}}
   Pod Bytes enqueued: {{.Expvars.PodQueueBytes}}
+
 `
 	notRunning = `
 =============
 Process Agent
 =============
 
-The process agent is not running
-`
-	infoErrorTmplSrc = `
-=============
-Process Agent
-=============
+  The Process Agent is not running
 
-	Error: {{.Error}}
 `
 )
 
@@ -119,6 +114,7 @@ type ProcessStatus struct {
 	ContainerID         string                 `json:"container_id"`
 	ProxyURL            string                 `json:"proxy_url"`
 	LogFile             string                 `json:"log_file"`
+	EnabledChecks       []string               `json:"enabled_checks"`
 }
 
 type status struct {
@@ -189,6 +185,7 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	status, err := getStatus()
 	if err != nil {
 		printNotRunning()
+		return nil
 	}
 
 	tpl, err := template.New("").Parse(statusTemplate)
