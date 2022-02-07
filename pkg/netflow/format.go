@@ -10,23 +10,23 @@ import (
 	"time"
 )
 
-// Driver desc
-type Driver struct {
+// NDMFlowDriver desc
+type NDMFlowDriver struct {
 	MetricChan chan []metrics.MetricSample
 }
 
 // Prepare desc
-func (d *Driver) Prepare() error {
+func (d *NDMFlowDriver) Prepare() error {
 	return nil
 }
 
 // Init desc
-func (d *Driver) Init(context.Context) error {
+func (d *NDMFlowDriver) Init(context.Context) error {
 	return nil
 }
 
 // Format desc
-func (d *Driver) Format(data interface{}) ([]byte, []byte, error) {
+func (d *NDMFlowDriver) Format(data interface{}) ([]byte, []byte, error) {
 	flowmsg, ok := data.(*flowmessage.FlowMessage)
 	if !ok {
 		return nil, nil, fmt.Errorf("message is not flowmessage.FlowMessage")

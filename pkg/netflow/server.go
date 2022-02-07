@@ -83,7 +83,7 @@ func startSNMPv2Listener(c *Config, demultiplexer aggregator.Demultiplexer) (*ut
 	agg := demultiplexer.Aggregator()
 	metricChan := agg.GetBufferedMetricsWithTsChannel()
 
-	d := &Driver{
+	d := &NDMFlowDriver{
 		MetricChan: metricChan,
 	}
 	format.RegisterFormatDriver("json", d)
