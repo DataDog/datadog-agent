@@ -17,11 +17,6 @@ import (
 	"go.uber.org/multierr"
 )
 
-// isSetMetrics checks if the metrics config is set.
-func isSetMetrics(cfg config.Config) bool {
-	return cfg.IsSet(config.OTLPMetrics)
-}
-
 func portToUint(v int) (port uint, err error) {
 	if v < 0 || v > 65535 {
 		err = fmt.Errorf("%d is out of [0, 65535] range", v)
