@@ -77,7 +77,7 @@
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - bash -l tasks/run-test-kitchen.sh windows-npm-test $AGENT_MAJOR_VERSION
 
-# Kitchen: Test types (test suite * agent flavor)
+# Kitchen: Test types (test suite * agent flavor + azure location)
 # -------------------------------
 
 .kitchen_test_windows_installer_agent:
