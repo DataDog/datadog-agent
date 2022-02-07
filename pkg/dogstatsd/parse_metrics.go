@@ -44,6 +44,8 @@ type dogstatsdMetricSample struct {
 	metricType metricType
 	sampleRate float64
 	tags       []string
+	// containerID represents the container ID of the sender (optional).
+	containerID []byte
 }
 
 // sanity checks a given message against the metric sample format

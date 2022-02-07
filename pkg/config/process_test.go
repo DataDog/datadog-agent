@@ -70,6 +70,14 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.windows.use_perf_counters",
 			defaultValue: false,
 		},
+		{
+			key:          "process_config.additional_endpoints",
+			defaultValue: make(map[string][]string),
+		},
+		{
+			key:          "process_config.internal_profiling.enabled",
+			defaultValue: false,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -230,6 +238,18 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "true",
 			expected: true,
 		},
+		{
+			key:      "process_config.process_dd_url",
+			env:      "DD_PROCESS_AGENT_URL",
+			value:    "datacat.com",
+			expected: "datacat.com",
+		},
+		{
+			key:      "process_config.internal_profiling.enabled",
+			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
+			value:    "true",
+			expected: true,
+		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			reset := setEnvForTest(tc.env, tc.value)
@@ -247,6 +267,17 @@ func TestEnvVarOverride(t *testing.T) {
 			})
 		}
 	}
+
+	// StringMapStringSlice can't be converted by `Config.Get` so we need to test this separately
+	t.Run("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
+		reset := setEnvForTest("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", `{"https://process.datadoghq.com": ["fakeAPIKey"]}`)
+		assert.Equal(t, map[string][]string{
+			"https://process.datadoghq.com": {
+				"fakeAPIKey",
+			},
+		}, cfg.GetStringMapStringSlice("process_config.additional_endpoints"))
+		reset()
+	})
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {

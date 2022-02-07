@@ -417,30 +417,6 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal("my-key", config.Datadog.GetString("apm_config.debugger_api_key"))
 	})
 
-	env = "DD_OTLP_HTTP_PORT"
-	t.Run(env, func(t *testing.T) {
-		defer cleanConfig()()
-		assert := assert.New(t)
-		err := os.Setenv(env, "50061")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
-		_, err = Load("./testdata/full.yaml")
-		assert.NoError(err)
-		assert.Equal(50061, config.Datadog.GetInt(config.ExperimentalOTLPHTTPPort))
-	})
-
-	env = "DD_OTLP_GRPC_PORT"
-	t.Run(env, func(t *testing.T) {
-		defer cleanConfig()()
-		assert := assert.New(t)
-		err := os.Setenv(env, "50066")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
-		_, err = Load("./testdata/full.yaml")
-		assert.NoError(err)
-		assert.Equal(50066, config.Datadog.GetInt(config.ExperimentalOTLPgRPCPort))
-	})
-
 	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
