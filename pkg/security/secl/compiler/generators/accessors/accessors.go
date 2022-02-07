@@ -35,13 +35,13 @@ const (
 )
 
 var (
-	filename  string
-	pkgname   string
-	output    string
-	verbose   bool
-	mock      bool
-	genDoc    bool
-	buildTags string
+	filename     string
+	pkgname      string
+	normalOutput string
+	mockOutput   string
+	docOutput    string
+	verbose      bool
+	buildTags    string
 )
 
 var (
@@ -439,26 +439,36 @@ func newAccessorsTemplateArgs(module *common.Module, mock bool, output, pkgName 
 }
 
 func main() {
-	os.Remove(output)
 
 	module, err := parseFile(filename, pkgname)
 	if err != nil {
 		panic(err)
 	}
 
-	if genDoc {
-		if err := doc.GenerateDocJSON(module, output); err != nil {
+	if docOutput != "" {
+		if err := doc.GenerateDocJSON(module, docOutput); err != nil {
 			panic(err)
 		}
-		return
 	}
 
-	if err := generateAccessors(module, mock, output); err != nil {
-		panic(err)
+	if normalOutput != "" {
+		if err := generateAccessors(module, false, normalOutput); err != nil {
+			panic(err)
+		}
+	}
+
+	if mockOutput != "" {
+		if err := generateAccessors(module, true, mockOutput); err != nil {
+			panic(err)
+		}
 	}
 }
 
 func generateAccessors(module *common.Module, mock bool, outputPath string) error {
+	if err := os.Remove(outputPath); err != nil {
+		return err
+	}
+
 	tmpfile, err := os.CreateTemp(path.Dir(outputPath), "accessors")
 	if err != nil {
 		return err
@@ -484,11 +494,11 @@ func generateAccessors(module *common.Module, mock bool, outputPath string) erro
 
 func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
-	flag.BoolVar(&mock, "mock", false, "Mock accessors")
-	flag.BoolVar(&genDoc, "doc", false, "Generate documentation JSON")
 	flag.StringVar(&filename, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")
-	flag.StringVar(&output, "output", "", "Go generated file")
+	flag.StringVar(&normalOutput, "output", "", "Go generated file")
+	flag.StringVar(&mockOutput, "mock-output", "", "Go generated file, with mock accessors")
+	flag.StringVar(&docOutput, "doc-output", "", "Documentation JSON generated file")
 	flag.Parse()
 }

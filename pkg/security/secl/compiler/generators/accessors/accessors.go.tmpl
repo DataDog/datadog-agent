@@ -1,7 +1,9 @@
 {{$Mock := .Mock}}
 {{with .Module}}
 
+{{if not $Mock}}
 {{- range .BuildTags }}// {{.}}{{end}}
+{{end}}
 
 // Code generated - DO NOT EDIT.
 
