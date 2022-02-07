@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    When ``ec2_collect_tags`` is configured, the agent will retry the API calls to gather those tags before giving up.
+    When ``ec2_collect_tags`` is configured, the Agent retries API calls to gather EC2 tags before giving up.
