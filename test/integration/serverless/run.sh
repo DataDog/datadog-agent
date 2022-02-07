@@ -1,3 +1,4 @@
+# Trigger
 #!/bin/bash
 
 # Runs Datadog Lambda Extension integration tests.
