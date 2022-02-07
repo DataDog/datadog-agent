@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package netflow
+package deviceflow
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -83,7 +83,7 @@ func startSNMPv2Listener(c *Config, demultiplexer aggregator.Demultiplexer) (*ut
 	if err != nil {
 		return nil, err
 	}
-	ndmFlowDriver := NewNDMFlowDriver(sender, c)
+	ndmFlowDriver := NewFlowDriver(sender, c)
 
 	logger := logrus.StandardLogger()
 	logger.SetLevel(logrus.TraceLevel)

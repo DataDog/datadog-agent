@@ -413,8 +413,8 @@ func StartAgent() error {
 	}
 
 	// Start SNMP trap server
-	if netflow.IsEnabled() {
-		err = netflow.StartServer(demux)
+	if deviceflow.IsEnabled() {
+		err = deviceflow.StartServer(demux)
 		if err != nil {
 			log.Errorf("Failed to start netflow server: %s", err)
 		}
@@ -495,7 +495,7 @@ func StopAgent() {
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
-	netflow.StopServer()
+	deviceflow.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
