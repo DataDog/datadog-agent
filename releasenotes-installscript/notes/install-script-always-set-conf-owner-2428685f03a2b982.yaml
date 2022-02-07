@@ -8,4 +8,4 @@
 ---
 other:
   - |
-    The install script will set the owner and permissions of datadog.yaml even if the file exists beforehand.
+    The install script sets the owner and permissions of ``datadog.yaml`` even if the file exists beforehand.
