@@ -40,6 +40,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSignalTTYOffset(f.kernelVersion)
 	case "tty_name_offset":
 		value = getTTYNameOffset(f.kernelVersion)
+	case "creds_uid_offset":
+		value = getCredsUIDOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -166,4 +168,15 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 	}
 
 	return nameOffset
+}
+
+func getCredsUIDOffset(kv *kernel.Version) uint64 {
+	size := uint64(4)
+
+	switch {
+	case kv.IsCOSKernel():
+		size += 16
+	}
+
+	return size
 }
