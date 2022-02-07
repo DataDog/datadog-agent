@@ -52,12 +52,12 @@ const compilationStepTimeout = 15 * time.Second
 
 func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, headerDirs []string) error {
 	if len(headerDirs) == 0 {
-		fmt.Errorf("unable to find kernel headers")
+		return fmt.Errorf("unable to find kernel headers")
 	}
 
 	arch := kernel.Arch()
 	if arch == "" {
-		fmt.Errorf("unable to get kernel arch for %s", runtime.GOARCH)
+		return fmt.Errorf("unable to get kernel arch for %s", runtime.GOARCH)
 	}
 
 	cflags = append(cflags, defaultFlags...)
