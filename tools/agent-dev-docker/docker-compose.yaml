@@ -1,0 +1,18 @@
+version: '3'
+services:
+  agent-dev:
+    image: "arm64v8/ubuntu:focal"
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - DOCKER_HOST_USER=${USER}
+        - DOCKER_HOST_USER_HOME=${HOME}
+    volumes:
+      - ${HOME}/dd/integrations-core:${HOME}/dd/integrations-core
+      - ${HOME}/dd/datadog-agent:${HOME}/dd/datadog-agent
+      - ${HOME}/.local/share/dd-checks-dev:${HOME}/.local/share/dd-checks-dev
+      - ./etc-datadog-agent:/etc/datadog-agent
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: '/bin/bash -c "trap : TERM INT; sleep infinity & wait"'
+    network_mode: "host"
