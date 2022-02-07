@@ -36,7 +36,6 @@
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime/conntrack.c $S3_ARTIFACTS_URI/conntrack.c.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime/oom-kill.c $S3_ARTIFACTS_URI/oom-kill.c.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c $S3_ARTIFACTS_URI/tcp-queue-length.c.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/compiler/stdarg.h $S3_PERMANENT_ARTIFACTS_URI/stdarg.h
 
 build_system-probe-x64:
   stage: binary_build
