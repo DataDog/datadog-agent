@@ -41,6 +41,8 @@ func SetupOTLP(config Config) {
 	config.SetKnown(OTLPReceiverSection)
 	// Set all subkeys of otlp.receiver as known
 	config.SetKnown(OTLPReceiverSection + ".*")
+	// set environment variables for selected fields
+	setupOTLPEnvironmentVariables(config)
 }
 
 // promoteExperimentalOTLP checks if "experimental.otlp" is set and promotes it to the top level
@@ -86,4 +88,37 @@ func promoteExperimentalOTLP(cfg Config) {
 	if v := cfg.GetString("experimental.otlp.grpc_port"); v != "" {
 		cfg.Set(OTLPReceiverSection+".protocols.grpc.endpoint", net.JoinHostPort(getBindHost(cfg), v))
 	}
+}
+
+// setupOTLPEnvironmentVariables sets up the environment variables associated with different OTLP ingest settings:
+// If there are changes in the OTLP receiver configuration, they should be reflected here.
+//
+// We don't need to set the default value: it is dealt with at the unmarshaling level
+// since we get the configuration through GetStringMap
+//
+// We are missing TLS settings: since some of them need more work to work right they are not included here.
+func setupOTLPEnvironmentVariables(config Config) {
+	// gRPC settings
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.endpoint")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.transport")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.max_recv_msg_size_mib")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.max_concurrent_streams")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.read_buffer_size")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.write_buffer_size")
+	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.include_metadata")
+
+	// HTTP settings
+	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")
+	config.BindEnv(OTLPSection + ".receiver.protocols.http.max_request_body_size")
+	config.BindEnv(OTLPSection + ".receiver.protocols.http.include_metadata")
+
+	// Metrics settings
+	config.BindEnv(OTLPSection + ".metrics.report_quantiles")
+	config.BindEnv(OTLPSection + ".metrics.send_monotonic_counter")
+	config.BindEnv(OTLPSection + ".metrics.delta_ttl")
+	config.BindEnv(OTLPSection + ".metrics.resource_attributes_as_tags")
+	config.BindEnv(OTLPSection + ".metrics.instrumentation_library_metadata_as_tags")
+	config.BindEnv(OTLPSection + ".metrics.tag_cardinality")
+	config.BindEnv(OTLPSection + ".metrics.histograms.mode")
+	config.BindEnv(OTLPSection + ".metrics.histograms.send_count_sum_metrics")
 }
