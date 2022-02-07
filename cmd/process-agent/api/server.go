@@ -6,7 +6,6 @@
 package api
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -60,7 +59,8 @@ func getIPCAddressPort() (string, error) {
 
 	port := ddconfig.Datadog.GetInt("process_config.cmd_port")
 	if port <= 0 {
-		return "", fmt.Errorf("invalid process_config.cmd_port -- %d", port)
+		log.Warnf("invalid process_config.cmd_port -- %d, using default port %d", port, ddconfig.DefaultProcessCmdPort)
+		port = ddconfig.DefaultProcessCmdPort
 	}
 
 	addrPort := net.JoinHostPort(address, strconv.Itoa(port))
