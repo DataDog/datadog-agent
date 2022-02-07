@@ -8,6 +8,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"text/template"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var httpClient = util.GetClient(false)
@@ -63,16 +65,7 @@ Process Agent
 `
 )
 
-func StatusCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "status",
-		Short: "Print the current status",
-		Long:  ``,
-		RunE:  runStatus,
-	}
-}
-
-type CoreStatus struct {
+type coreStatus struct {
 	AgentVersion  string `json:"version"`
 	GoVersion     string `json:"go_version"`
 	PythonVersion string `json:"python_version"`
@@ -88,7 +81,7 @@ type CoreStatus struct {
 	Endpoints map[string][]string `json:"endpointsInfos"`
 }
 
-type InfoVersion struct {
+type infoVersion struct {
 	Version   string
 	GitCommit string
 	GitBranch string
@@ -96,11 +89,11 @@ type InfoVersion struct {
 	GoVersion string
 }
 
-type ProcessStatus struct {
+type processExpvars struct {
 	Pid                 int                    `json:"pid"`
 	Uptime              int                    `json:"uptime"`
 	MemStats            struct{ Alloc uint64 } `json:"memstats"`
-	Version             InfoVersion            `json:"version"`
+	Version             infoVersion            `json:"version"`
 	DockerSocket        string                 `json:"docker_socket"`
 	LastCollectTime     string                 `json:"last_collect_time"`
 	ProcessCount        int                    `json:"process_count"`
@@ -119,17 +112,26 @@ type ProcessStatus struct {
 
 type status struct {
 	Date    string
-	Core    CoreStatus    // Contains the status from the core agent
-	Expvars ProcessStatus // Contains the expvars retrieved from the process agent
+	Core    coreStatus     // Contains the status from the core agent
+	Expvars processExpvars // Contains the expvars retrieved from the process agent
 }
 
-func getCoreStatus() (s CoreStatus, err error) {
-	procAddr, err := api.GetAPIAddressPort()
+type statusOption func(s *status)
+
+func overrideTime(t time.Time) statusOption {
+	return func(s *status) {
+		s.Date = t.Format(time.RFC850)
+	}
+}
+
+func getCoreStatus() (s coreStatus, err error) {
+	addressPort, err := api.GetAPIAddressPort()
 	if err != nil {
 		return
 	}
 
-	b, err := util.DoGet(httpClient, fmt.Sprintf("http://%s/agent/status", procAddr))
+	statusEndpoint := fmt.Sprintf("http://%s/agent/status", addressPort)
+	b, err := util.DoGet(httpClient, statusEndpoint)
 	if err != nil {
 		return
 	}
@@ -138,14 +140,14 @@ func getCoreStatus() (s CoreStatus, err error) {
 	return
 }
 
-func getProcessStatus() (s ProcessStatus, err error) {
+func getExpvars() (s processExpvars, err error) {
 	ipcAddr, err := ddconfig.GetIPCAddress()
 	if err != nil {
 		return
 	}
 
-	expvarAddr := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, ddconfig.Datadog.GetInt("process_config.expvar_port"))
-	b, err := util.DoGet(httpClient, expvarAddr)
+	expvarEndpoint := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, ddconfig.Datadog.GetInt("process_config.expvar_port"))
+	b, err := util.DoGet(httpClient, expvarEndpoint)
 	if err != nil {
 		return
 	}
@@ -160,20 +162,56 @@ func getStatus() (status, error) {
 		return status{}, err
 	}
 
-	processStatus, err := getProcessStatus()
+	processStatus, err := getExpvars()
 	if err != nil {
 		return status{}, err
 	}
 
-	return status{
-		Date:    time.Now().Format(time.RFC850),
+	s := status{
 		Core:    coreStatus,
 		Expvars: processStatus,
-	}, nil
+	}
+	overrideTime(time.Now())(&s)
+	return s, nil
 }
 
-func printNotRunning() {
-	fmt.Print(notRunning)
+func writeNotRunning(w io.Writer) {
+	_, err := fmt.Fprint(w, notRunning)
+	if err != nil {
+		_ = log.Error(err)
+	}
+}
+
+// getAndWriteStatus calls the status server and writes it to `w`
+func getAndWriteStatus(w io.Writer, options ...statusOption) {
+	status, err := getStatus()
+	if err != nil {
+		writeNotRunning(w)
+		return
+	}
+	for _, option := range options {
+		option(&status)
+	}
+
+	tpl, err := template.New("").Parse(statusTemplate)
+	if err != nil {
+		_ = log.Error(err)
+	}
+
+	err = tpl.Execute(w, status)
+	if err != nil {
+		_ = log.Error(err)
+	}
+}
+
+// StatusCmd returns a cobra command that prints the current status
+func StatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Print the current status",
+		Long:  ``,
+		RunE:  runStatus,
+	}
 }
 
 func runStatus(cmd *cobra.Command, _ []string) error {
@@ -182,16 +220,6 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	status, err := getStatus()
-	if err != nil {
-		printNotRunning()
-		return nil
-	}
-
-	tpl, err := template.New("").Parse(statusTemplate)
-	if err != nil {
-		return err
-	}
-
-	return tpl.Execute(os.Stdout, status)
+	getAndWriteStatus(os.Stdout)
+	return nil
 }
