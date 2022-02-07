@@ -32,7 +32,7 @@ func (s *statusServer) stop() error {
 func startTestServer(t *testing.T, cfg config.Config, expectedStatus status) statusServer {
 	statusMux := http.NewServeMux()
 	statusMux.HandleFunc("/agent/status", func(w http.ResponseWriter, _ *http.Request) {
-		b, err := json.Marshal(expectedStatus)
+		b, err := json.Marshal(expectedStatus.Core)
 		require.NoError(t, err)
 
 		_, err = w.Write(b)
@@ -47,7 +47,7 @@ func startTestServer(t *testing.T, cfg config.Config, expectedStatus status) sta
 
 	expvarMux := http.NewServeMux()
 	expvarMux.HandleFunc("/debug/vars", func(w http.ResponseWriter, _ *http.Request) {
-		b, err := json.Marshal(expectedStatus)
+		b, err := json.Marshal(expectedStatus.Expvars)
 		require.NoError(t, err)
 
 		_, err = w.Write(b)
