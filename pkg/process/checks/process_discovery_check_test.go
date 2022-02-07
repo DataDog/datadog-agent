@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"sync"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -15,6 +16,8 @@ import (
 )
 
 func TestProcessDiscoveryCheck(t *testing.T) {
+	// override maxBatchSizeOnce so maxBatchSize can be set to the new value
+	maxBatchSizeOnce = sync.Once{}
 	maxBatchSize := 10
 	mockConfig := ddconfig.Mock()
 	mockConfig.Set("process_config.max_per_message", maxBatchSize)
