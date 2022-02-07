@@ -31,12 +31,15 @@
       -DLLVM_PARALLEL_LINK_JOBS=4 \
       ../llvm
     - cmake --build . --target install
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang $S3_PERMANENT_ARTIFACTS_URI/clang.${ARCH} 
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-11 $S3_PERMANENT_ARTIFACTS_URI/clang-11.${ARCH} 
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc.${ARCH}
+    - mv $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-11 $DATADOG_AGENT_EMBEDDED_PATH/bin/clang
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang $S3_PERMANENT_ARTIFACTS_URI/clang-11.0.1.${ARCH}
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-11.0.1.${ARCH}
   timeout: 2h 00m
   artifacts:
     expire_in: 2 weeks
+    paths:
+      - $DATADOG_AGENT_EMBEDDED_PATH/bin/clang
+      - $DATADOG_AGENT_EMBEDDED_PATH/bin/llc
 
 build_clang_x64:
   extends: .build_clang_common
