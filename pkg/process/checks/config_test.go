@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,6 +61,8 @@ func TestGetMaxBatchSize(t *testing.T) {
 				mockConfig.Set("process_config.max_per_message", tc.maxPerMessage)
 			}
 
+			// override maxBatchSizeOnce so maxBatchSize can be set to the new value
+			maxBatchSizeOnce = sync.Once{}
 			assert.Equal(tc.expectedMaxBatchSize, getMaxBatchSize())
 		})
 	}
@@ -112,6 +115,8 @@ func TestGetMaxCtrProcsBatchSize(t *testing.T) {
 				mockConfig.Set("process_config.max_ctr_procs_per_message", tc.maxCtrProcsPerMessage)
 			}
 
+			// override maxCtrProcsBatchSizeOnce so maxCtrProcsBatchSize can be set to the new value
+			maxCtrProcsBatchSizeOnce = sync.Once{}
 			assert.Equal(tc.expectedMaxCtrProcsBatchSize, getMaxCtrProcsBatchSize())
 		})
 	}

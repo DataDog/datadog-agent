@@ -79,7 +79,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: false,
 		},
 		{
-
 			key:          "process_config.max_per_message",
 			defaultValue: DefaultProcessMaxPerMessage,
 		},
