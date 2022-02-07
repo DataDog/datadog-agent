@@ -62,11 +62,11 @@
 /.gitlab/functional_test/system_probe.yml            @DataDog/agent-network @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/agent-network @DataDog/agent-platform
 
-/.gitlab/image_build/                                @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/image_deploy/                               @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/image_scan.yml                              @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/container_scan.yml                          @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/internal_deploy.yml                         @DataDog/agent-network @DataDog/agent-platform
 
