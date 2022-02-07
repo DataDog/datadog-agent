@@ -32,6 +32,7 @@ func TestCompilerMatch(t *testing.T) {
 	}
 	input, err := os.Open(cPath)
 	require.NoError(t, err)
+	defer input.Close()
 
 	cfg := ebpf.NewConfig()
 
