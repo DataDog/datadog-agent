@@ -45,6 +45,9 @@ const (
 
 	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
 	DefaultProcessCmdPort = 6162
+
+	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
+	DefaultProcessEndpoint = "https://process.datadoghq.com"
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -88,9 +91,13 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
-	config.BindEnv("process_config.process_dd_url", "")
+	config.BindEnv("process_config.process_dd_url",
+		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
+		"DD_PROCESS_AGENT_PROCESS_DD_URL",
+		"DD_PROCESS_AGENT_URL",
+		"DD_PROCESS_CONFIG_URL",
+	)
 	config.SetKnown("process_config.dd_agent_env")
-	config.SetKnown("process_config.enabled")
 	config.SetKnown("process_config.intervals.process_realtime")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.process_queue_bytes", DefaultProcessQueueBytes)
@@ -106,15 +113,18 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.custom_sensitive_words")
 	config.SetKnown("process_config.scrub_args")
 	config.SetKnown("process_config.strip_proc_arguments")
-	config.SetKnown("process_config.windows.args_refresh_interval")
-	config.SetKnown("process_config.windows.add_new_args")
-	config.SetKnown("process_config.windows.use_perf_counters")
-	config.SetKnown("process_config.additional_endpoints.*")
+	// Use PDH API to collect performance counter data for process check on Windows
+	procBindEnvAndSetDefault(config, "process_config.windows.use_perf_counters", false)
+	config.BindEnvAndSetDefault("process_config.additional_endpoints", make(map[string][]string),
+		"DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS",
+		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
+		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
+	)
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
-	config.SetKnown("process_config.internal_profiling.enabled")
+	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
 	procBindEnvAndSetDefault(config, "process_config.remote_tagger", false)
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)

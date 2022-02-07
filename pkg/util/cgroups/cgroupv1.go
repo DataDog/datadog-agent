@@ -15,13 +15,15 @@ type cgroupV1 struct {
 	mountPoints map[string]string
 	path        string
 	fr          fileReader
+	pidMapper   pidMapper
 }
 
-func newCgroupV1(identifier, path string, mountPoints map[string]string) *cgroupV1 {
+func newCgroupV1(identifier, path string, mountPoints map[string]string, pidMapper pidMapper) *cgroupV1 {
 	return &cgroupV1{
 		identifier:  identifier,
 		mountPoints: mountPoints,
 		path:        path,
+		pidMapper:   pidMapper,
 		fr:          defaultFileReader,
 	}
 }
@@ -32,7 +34,7 @@ func (c *cgroupV1) Identifier() string {
 
 func (c *cgroupV1) GetParent() (Cgroup, error) {
 	parentPath := filepath.Join(c.path, "/..")
-	return newCgroupV1(filepath.Base(parentPath), parentPath, c.mountPoints), nil
+	return newCgroupV1(filepath.Base(parentPath), parentPath, c.mountPoints, c.pidMapper), nil
 }
 
 func (c *cgroupV1) GetStats(stats *Stats) error {

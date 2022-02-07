@@ -79,55 +79,19 @@ type Collector struct {
 	runRealTime bool
 }
 
-// initProcessChecksRuntime initializes global variables that are shared across pkg/process/checks
-func initProcessChecksRuntime() {
-	batchSize := ddconfig.Datadog.GetInt("process_config.max_per_message")
-	if batchSize <= 0 {
-		log.Warnf("Invalid item count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxPerMessage)
-		batchSize = ddconfig.DefaultProcessMaxPerMessage
-	} else if batchSize > ddconfig.DefaultProcessMaxPerMessage {
-		log.Warnf("Overriding the configured max of item count per message because it exceeds maximum limit of %d", ddconfig.DefaultProcessMaxPerMessage)
-		batchSize = ddconfig.DefaultProcessMaxPerMessage
-	}
-	checks.MaxBatchSize = batchSize
-
-	ctrProcsBatchSize := ddconfig.Datadog.GetInt("process_config.max_ctr_procs_per_message")
-	if ctrProcsBatchSize <= 0 {
-		log.Warnf("Invalid max container processes count per message (<= 0), using default value of %d", ddconfig.DefaultProcessMaxCtrProcsPerMessage)
-		ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
-	} else if ctrProcsBatchSize > ddconfig.ProcessMaxCtrProcsPerMessageLimit {
-		log.Warnf("Overriding the configured max of container processes count per message because it exceeds maximum limit of %d", ddconfig.ProcessMaxCtrProcsPerMessageLimit)
-		ctrProcsBatchSize = ddconfig.DefaultProcessMaxCtrProcsPerMessage
-	}
-	checks.MaxCtrProcsBatchSize = ctrProcsBatchSize
-}
-
 // NewCollector creates a new Collector
-func NewCollector(cfg *config.AgentConfig) (Collector, error) {
+func NewCollector(cfg *config.AgentConfig, enabledChecks []checks.Check) (Collector, error) {
 	sysInfo, err := checks.CollectSystemInfo(cfg)
 	if err != nil {
 		return Collector{}, err
 	}
 
-	initProcessChecksRuntime()
-	enabledChecks := make([]checks.Check, 0)
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
-	for _, c := range checks.All {
-		if !runRealTime && isRealTimeCheck(c.Name()) {
-			log.Infof("Skip enabling check '%s': realtime disabled", c.Name())
-			continue
-		}
-		if cfg.CheckIsEnabled(c.Name()) {
-			c.Init(cfg, sysInfo)
-			enabledChecks = append(enabledChecks, c)
-		}
+	for _, c := range enabledChecks {
+		c.Init(cfg, sysInfo)
 	}
 
 	return NewCollectorWithChecks(cfg, enabledChecks, runRealTime), nil
-}
-
-func isRealTimeCheck(checkName string) bool {
-	return checkName == config.RTProcessCheckName || checkName == config.RTContainerCheckName
 }
 
 // NewCollectorWithChecks creates a new Collector
@@ -288,15 +252,31 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 }
 
 func (l *Collector) run(exit chan struct{}) error {
-	eps := make([]string, 0, len(l.cfg.APIEndpoints))
-	for _, e := range l.cfg.APIEndpoints {
+	processAPIEndpoints, err := getAPIEndpoints()
+	if err != nil {
+		return err
+	}
+
+	eps := make([]string, 0, len(processAPIEndpoints))
+	for _, e := range processAPIEndpoints {
 		eps = append(eps, e.Endpoint.String())
 	}
 	orchestratorEps := make([]string, 0, len(l.cfg.Orchestrator.OrchestratorEndpoints))
 	for _, e := range l.cfg.Orchestrator.OrchestratorEndpoints {
 		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
 	}
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
+
+	var checkNames []string
+	for _, check := range l.enabledChecks {
+		checkNames = append(checkNames, check.Name())
+
+		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
+		// process_rt doesn't show up in the enabled checks
+		if check.Name() == checks.Process.Name() && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+			checkNames = append(checkNames, checks.Process.RealTimeName())
+		}
+	}
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
 
@@ -347,7 +327,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}()
 
-	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.APIEndpoints)))
+	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints)))
 	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)

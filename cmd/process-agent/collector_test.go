@@ -11,7 +11,9 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +22,7 @@ import (
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
 	cfg := config.NewDefaultAgentConfig()
-	c, err := NewCollector(cfg)
+	c, err := NewCollector(cfg, []checks.Check{checks.Process})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -56,7 +58,7 @@ func TestUpdateRTStatus(t *testing.T) {
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
 	cfg := config.NewDefaultAgentConfig()
-	c, err := NewCollector(cfg)
+	c, err := NewCollector(cfg, []checks.Check{checks.Process})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -110,33 +112,63 @@ func TestDisableRealTime(t *testing.T) {
 		{
 			name:            "true",
 			disableRealtime: true,
-			expectedChecks:  []checks.Check{checks.Process, checks.Container},
+			expectedChecks:  []checks.Check{checks.Container},
 		},
 		{
 			name:            "false",
 			disableRealtime: false,
-			expectedChecks:  []checks.Check{checks.Process, checks.Container, checks.RTContainer},
+			expectedChecks:  []checks.Check{checks.Container, checks.RTContainer},
 		},
 	}
 
 	assert := assert.New(t)
 	cfg := config.NewDefaultAgentConfig()
-	cfg.EnabledChecks = []string{
-		config.ProcessCheckName,
-		config.RTProcessCheckName,
-		config.ContainerCheckName,
-		config.RTContainerCheckName,
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := ddconfig.Mock()
+			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
+			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
+
+			enabledChecks := getChecks(&sysconfig.Config{}, &oconfig.OrchestratorConfig{}, true)
+			assert.EqualValues(tc.expectedChecks, enabledChecks)
+
+			c, err := NewCollector(cfg, enabledChecks)
+			assert.NoError(err)
+			assert.Equal(!tc.disableRealtime, c.runRealTime)
+			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
+		})
 	}
+}
+
+func TestDisableRealTimeProcessCheck(t *testing.T) {
+	tests := []struct {
+		name            string
+		disableRealtime bool
+	}{
+		{
+			name:            "true",
+			disableRealtime: true,
+		},
+		{
+			name:            "false",
+			disableRealtime: false,
+		},
+	}
+
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig()
+	expectedChecks := []checks.Check{checks.Process}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock()
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 
-			c, err := NewCollector(cfg)
+			c, err := NewCollector(cfg, expectedChecks)
 			assert.NoError(err)
-			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
+			assert.EqualValues(expectedChecks, c.enabledChecks)
 		})
 	}
 }
@@ -184,7 +216,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
 
-			c, err := NewCollector(cfg)
+			c, err := NewCollector(cfg, []checks.Check{checks.Process, checks.Pod})
 			assert.NoError(err)
 			assert.Equal(tc.expectedQueueSize, c.processResults.MaxSize())
 			assert.Equal(tc.expectedQueueSize, c.podResults.MaxSize())
@@ -235,7 +267,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
 
-			c, err := NewCollector(cfg)
+			c, err := NewCollector(cfg, []checks.Check{checks.Process})
 			assert.NoError(err)
 			assert.Equal(tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
@@ -285,119 +317,11 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
 
-			c, err := NewCollector(cfg)
+			c, err := NewCollector(cfg, []checks.Check{checks.Process})
 			assert.NoError(err)
 			assert.Equal(int64(tc.expectedQueueSize), c.processResults.MaxWeight())
 			assert.Equal(int64(tc.expectedQueueSize), c.rtProcessResults.MaxWeight())
 			assert.Equal(tc.expectedQueueSize, c.forwarderRetryQueueMaxBytes)
 		})
 	}
-}
-
-func TestInitChecksRuntime(t *testing.T) {
-	t.Run("max batch size", func(t *testing.T) {
-		tests := []struct {
-			name                 string
-			override             bool
-			maxPerMessage        int
-			expectedMaxBatchSize int
-		}{
-			{
-				name:                 "default batch size",
-				override:             false,
-				maxPerMessage:        50,
-				expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
-			},
-			{
-				name:                 "valid batch size override",
-				override:             true,
-				maxPerMessage:        50,
-				expectedMaxBatchSize: 50,
-			},
-			{
-				name:                 "negative max batch size",
-				override:             true,
-				maxPerMessage:        -1,
-				expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
-			},
-			{
-				name:                 "0 max batch size",
-				override:             true,
-				maxPerMessage:        0,
-				expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
-			},
-			{
-				name:                 "big max batch size",
-				override:             true,
-				maxPerMessage:        2000,
-				expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
-			},
-		}
-
-		assert := assert.New(t)
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				mockConfig := ddconfig.Mock()
-				if tc.override {
-					mockConfig.Set("process_config.max_per_message", tc.maxPerMessage)
-				}
-
-				initProcessChecksRuntime()
-				assert.Equal(tc.expectedMaxBatchSize, checks.MaxBatchSize)
-			})
-		}
-	})
-
-	t.Run("max process container batch size", func(t *testing.T) {
-		tests := []struct {
-			name                         string
-			override                     bool
-			maxCtrProcsPerMessage        int
-			expectedMaxCtrProcsBatchSize int
-		}{
-			{
-				name:                         "default batch size",
-				override:                     false,
-				maxCtrProcsPerMessage:        50,
-				expectedMaxCtrProcsBatchSize: ddconfig.DefaultProcessMaxCtrProcsPerMessage,
-			},
-			{
-				name:                         "valid batch size override",
-				override:                     true,
-				maxCtrProcsPerMessage:        50,
-				expectedMaxCtrProcsBatchSize: 50,
-			},
-			{
-				name:                         "negative max batch size",
-				override:                     true,
-				maxCtrProcsPerMessage:        -1,
-				expectedMaxCtrProcsBatchSize: ddconfig.DefaultProcessMaxCtrProcsPerMessage,
-			},
-			{
-				name:                         "0 max batch size",
-				override:                     true,
-				maxCtrProcsPerMessage:        0,
-				expectedMaxCtrProcsBatchSize: ddconfig.DefaultProcessMaxCtrProcsPerMessage,
-			},
-			{
-				name:                         "big max batch size",
-				override:                     true,
-				maxCtrProcsPerMessage:        50000,
-				expectedMaxCtrProcsBatchSize: ddconfig.DefaultProcessMaxCtrProcsPerMessage,
-			},
-		}
-
-		assert := assert.New(t)
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				mockConfig := ddconfig.Mock()
-				if tc.override {
-					mockConfig.Set("process_config.max_ctr_procs_per_message", tc.maxCtrProcsPerMessage)
-				}
-
-				initProcessChecksRuntime()
-				assert.Equal(tc.expectedMaxCtrProcsBatchSize, checks.MaxCtrProcsBatchSize)
-			})
-		}
-	})
 }

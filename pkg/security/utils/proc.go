@@ -11,7 +11,6 @@ package utils
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -52,7 +51,7 @@ func StatusPath(pid int32) string {
 // CapEffCapEprm returns the effective and permitted kernel capabilities of a process
 func CapEffCapEprm(pid int32) (uint64, uint64, error) {
 	var capEff, capPrm uint64
-	contents, err := ioutil.ReadFile(StatusPath(pid))
+	contents, err := os.ReadFile(StatusPath(pid))
 	if err != nil {
 		return 0, 0, err
 	}
