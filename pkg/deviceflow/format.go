@@ -87,7 +87,7 @@ func buildPayload(flowmsg *flowmessage.FlowMessage) DeviceFlow {
 		Proto          : flowmsg.Proto,
 		InputInterface : flowmsg.InIf,
 		OutputInterface: flowmsg.OutIf,
-		Direction      : flowmsg.GetInIf(),
+		Direction      : flowmsg.FlowDirection,
 		Bytes          : flowmsg.Bytes,
 		Packets        : flowmsg.Packets,
 	}
