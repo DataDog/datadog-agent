@@ -2807,6 +2807,18 @@ api_key:
 ## Network Devices Configuration ##
 ###################################
 
+## @param network_devices - custom object - optional
+## Configuration related to Network Devices Monitoring
+#
+# network_devices:
+
+  ## @param namespace - string - optional - default: default
+  ## Namespace can be used to disambiguate devices with the same IP.
+  ## Changing namespace will cause devices being recreated in NDM app.
+  ## This field is used by both the SNMP check and by the traps listener.
+  #
+  # namespace: default
+
 ## @param snmp_traps_enabled - boolean - optional - default: false
 ## Set to true to enable collection of traps.
 #
