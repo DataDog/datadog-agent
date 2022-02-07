@@ -66,14 +66,12 @@ type cmdFunc = func(name string, arg ...string) *exec.Cmd
 //
 // Deprecated. Use `pkg/config` directly.
 type AgentConfig struct {
-	HostName                  string
-	Blacklist                 []*regexp.Regexp
-	Scrubber                  *DataScrubber
-	MaxPerMessage             int
-	MaxCtrProcessesPerMessage int // The maximum number of processes that belong to a container for a given message
-	MaxConnsPerMessage        int
-	Transport                 *http.Transport `json:"-"`
-	ProcessExpVarPort         int
+	HostName           string
+	Blacklist          []*regexp.Regexp
+	Scrubber           *DataScrubber
+	MaxConnsPerMessage int
+	Transport          *http.Transport `json:"-"`
+	ProcessExpVarPort  int
 
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
@@ -102,12 +100,6 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 	return d
 }
 
-const (
-	maxMessageBatch                = 100
-	defaultMaxCtrProcsMessageBatch = 10000
-	maxCtrProcsMessageBatch        = 30000
-)
-
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
 func NewDefaultTransport() *http.Transport {
 	return &http.Transport{
@@ -126,13 +118,11 @@ func NewDefaultTransport() *http.Transport {
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
 func NewDefaultAgentConfig() *AgentConfig {
 	ac := &AgentConfig{
-		MaxPerMessage:             maxMessageBatch,
-		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
-		MaxConnsPerMessage:        600,
-		HostName:                  "",
-		Transport:                 NewDefaultTransport(),
-		ProcessExpVarPort:         6062,
-		ContainerHostType:         model.ContainerHostType_notSpecified,
+		MaxConnsPerMessage: 600,
+		HostName:           "",
+		Transport:          NewDefaultTransport(),
+		ProcessExpVarPort:  6062,
+		ContainerHostType:  model.ContainerHostType_notSpecified,
 
 		// System probe collection configuration
 		EnableSystemProbe:  false,
@@ -280,8 +270,6 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"},
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
-		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
-		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},

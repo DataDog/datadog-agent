@@ -72,7 +72,7 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 
 	connsByPID := Connections.getLastConnectionsByPID()
 
-	chunkedStats := fmtProcessStats(cfg, procs, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+	chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, procs, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := fmtContainerStats(ctrList, p.realtimeLastCtrRates, p.realtimeLastRun, groupSize)
 
@@ -105,6 +105,7 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 // fmtProcessStats formats and chunks a slice of ProcessStat into chunks.
 func fmtProcessStats(
 	cfg *config.AgentConfig,
+	maxBatchSize int,
 	procs, lastProcs map[int32]*procutil.Stats,
 	ctrList []*containers.Container,
 	syst2, syst1 cpu.TimesStat,
@@ -121,7 +122,7 @@ func fmtProcessStats(
 	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
 
 	chunked := make([][]*model.ProcessStat, 0)
-	chunk := make([]*model.ProcessStat, 0, cfg.MaxPerMessage)
+	chunk := make([]*model.ProcessStat, 0, maxBatchSize)
 
 	for pid, fp := range procs {
 		// Skipping any processes that didn't exist in the previous run.
@@ -157,9 +158,9 @@ func fmtProcessStats(
 			ContainerId:            cidByPid[pid],
 			Networks:               formatNetworks(connsByPID[pid], connCheckIntervalS),
 		})
-		if len(chunk) == cfg.MaxPerMessage {
+		if len(chunk) == maxBatchSize {
 			chunked = append(chunked, chunk)
-			chunk = make([]*model.ProcessStat, 0, cfg.MaxPerMessage)
+			chunk = make([]*model.ProcessStat, 0, maxBatchSize)
 		}
 	}
 	if len(chunk) > 0 {

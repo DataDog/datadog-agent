@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -141,12 +142,11 @@ func TestBasicProcessMessages(t *testing.T) {
 				bl = append(bl, regexp.MustCompile(s))
 			}
 			cfg.Blacklist = bl
-			cfg.MaxPerMessage = tc.maxSize
 			networks := make(map[int32][]*model.Connection)
 
 			procs := fmtProcesses(cfg, tc.cur, tc.last, containersByPid(tc.containers), syst2, syst1, lastRun, networks)
 			containers := fmtContainers(tc.containers, lastCtrRates, lastRun)
-			messages, totalProcs, totalContainers := createProcCtrMessages(procs, containers, cfg, sysInfo, int32(i), "nid")
+			messages, totalProcs, totalContainers := createProcCtrMessages(procs, containers, cfg, tc.maxSize, ddconfig.DefaultProcessMaxCtrProcsPerMessage, sysInfo, int32(i), "nid")
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
 			assert.Equal(t, tc.totalProcs, totalProcs)
@@ -328,13 +328,11 @@ func TestContainerProcessChunking(t *testing.T) {
 			cfg := config.NewDefaultAgentConfig()
 			sysInfo := &model.SystemInfo{}
 			lastCtrRates := util.ExtractContainerRateMetric(ctrs)
-			cfg.MaxPerMessage = tc.maxSize
-			cfg.MaxCtrProcessesPerMessage = tc.maxCtrProcSize
 			cfg.ContainerHostType = tc.containerHostType
 
 			processes := fmtProcesses(cfg, procsByPid, procsByPid, ctrIDForPID(ctrs), syst2, syst1, lastRun, networks)
 			containers := fmtContainers(ctrs, lastCtrRates, lastRun)
-			messages, totalProcs, totalContainers := createProcCtrMessages(processes, containers, cfg, sysInfo, int32(i), "nid")
+			messages, totalProcs, totalContainers := createProcCtrMessages(processes, containers, cfg, tc.maxSize, tc.maxCtrProcSize, sysInfo, int32(i), "nid")
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
 			assert.Equal(t, tc.expectedCtrCount, totalContainers)

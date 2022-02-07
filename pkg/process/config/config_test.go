@@ -118,23 +118,6 @@ func TestBlacklist(t *testing.T) {
 	}
 }
 
-func TestOnlyEnvConfig(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
-	syscfg, err := sysconfig.Merge("")
-	require.NoError(t, err)
-
-	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
-	agentConfig, _ := NewAgentConfig("test", "", syscfg)
-	assert.Equal(t, 99, agentConfig.MaxPerMessage)
-
-	_ = os.Setenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "1234")
-	agentConfig, _ = NewAgentConfig("test", "", syscfg)
-	assert.Equal(t, 1234, agentConfig.MaxCtrProcessesPerMessage)
-	_ = os.Unsetenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE")
-}
-
 // TestEnvGrpcConnectionTimeoutSecs tests DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS.
 // This environment variable cannot be tested with the other environment variables because it is overridden.
 func TestEnvGrpcConnectionTimeoutSecs(t *testing.T) {
