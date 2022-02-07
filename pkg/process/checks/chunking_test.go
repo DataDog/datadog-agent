@@ -621,8 +621,60 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 	}
 }
 
-func TestWeightProcess(t *testing.T) {
-	p := &model.Process{
+func testProcessWithStrings(size int) *model.Process {
+	s := strings.Repeat("x", size)
+	return &model.Process{
+		User: &model.ProcessUser{
+			Name: s,
+		},
+		Command: &model.Command{
+			Args: []string{
+				s,
+				s,
+				s,
+				s,
+				s,
+			},
+			Cwd:  s,
+			Exe:  s,
+			Root: s,
+		},
+		ContainerId: s,
+	}
+}
 
+func TestWeightProcess(t *testing.T) {
+	const (
+		allowedPctDelta = 2.
+		allowedMinDelta = 20
+	)
+	strSizes := []int{
+		0, 10, 100, 1000, 10000, 100000,
+	}
+
+	for i := range strSizes {
+		p := testProcessWithStrings(strSizes[i])
+		actualWeight := weighProcess(p)
+		t.Run(fmt.Sprintf("case %d weight %d", i, actualWeight), func(t *testing.T) {
+			serialized, err := p.Marshal()
+			assert.NoError(t, err)
+
+			expectedWeight := len(serialized)
+			assert.Equal(t, expectedWeight, p.Size())
+			allowedDelta := int(float64(actualWeight) * allowedPctDelta / 100.)
+			if allowedDelta < allowedMinDelta {
+				allowedDelta = allowedMinDelta
+			}
+
+			withinLimits := expectedWeight-allowedDelta <= actualWeight && actualWeight <= expectedWeight+allowedDelta
+			assert.True(
+				t,
+				withinLimits,
+				"Expected weight to be within allowed delta (%d) of %d, actual %d",
+				allowedDelta,
+				expectedWeight,
+				actualWeight,
+			)
+		})
 	}
 }

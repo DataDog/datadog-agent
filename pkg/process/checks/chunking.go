@@ -6,8 +6,6 @@
 package checks
 
 import (
-	"unsafe"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 )
 
@@ -105,7 +103,7 @@ func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container,
 	if len(chunker.collectorProcs) > 1 {
 		chunker.idx = len(chunker.collectorProcs) - 1
 	}
-	// Processs that have a related container will add this container to every chunk they are split across
+	// Processes that have a related container will add this container to every chunk they are split across
 	// This may result in the same container being sent in multiple payloads from the agent
 	// Note that this is necessary because container process tags (sent within `model.Container`) are only resolved from
 	// containers seen within the same `model.ContainerProc` as processes.
@@ -211,18 +209,30 @@ func (c *collectorProcChunker) Accept(procs []*model.Process, weight int) {
 	c.props[c.idx].weight += weight
 }
 
-var procSizeof = int(unsafe.Sizeof(model.Process{}))
-var procSizeofSerializeDelta = (&model.Process{}).Size() -
+var (
+	// procSizeofSampleProcess is a sample process used in sizeof/weight calculations
+	procSizeofSampleProcess = &model.Process{
+		Memory:   &model.MemoryStat{},
+		Cpu:      &model.CPUStat{},
+		IoStat:   &model.IOStat{},
+		Networks: &model.ProcessNetworks{},
+	}
+	// procSizeofProto is a size of the empty process
+	procSizeofProto = procSizeofSampleProcess.Size()
+)
+
+// weighProcess weighs `model.Process` payloads using an approximation of a serialized size of the proto message
 func weighProcess(proc *model.Process) int {
-	weight := procSizeof
+	weight := procSizeofProto
 	if proc.Command != nil {
 		weight += len(proc.Command.Exe) + len(proc.Command.Cwd) + len(proc.Command.Root)
 		for _, arg := range proc.Command.Args {
-			weight += 2*len(arg)
+			weight += len(arg)
 		}
 	}
 	if proc.User != nil {
-		weight += 2*len(proc.User.Name)
+		weight += len(proc.User.Name)
 	}
+	weight += len(proc.ContainerId)
 	return weight
 }

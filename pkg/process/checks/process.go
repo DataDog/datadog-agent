@@ -32,8 +32,8 @@ var _ CheckWithRealTime = (*ProcessCheck)(nil)
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
-// TODO: determine a heuristic suitable for interpreting this as a 1MB limit
-var maxWeightPerMessage = 1000000
+// maxWeightPerMessage is the maximum allowed size of a chunk (message)
+var maxWeightPerMessage = 1000000 // 1MB
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
