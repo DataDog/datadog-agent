@@ -211,10 +211,17 @@ fi
 
 declare -A flavor_to_readable
 flavor_to_readable=(
+    ["datadog-agent"]    ="Datadog Agent"
     ["datadog-iot-agent"]="Datadog IoT Agent"
     ["datadog-dogstatsd"]="Datadog Dogstatsd"
 )
-nice_flavor=${flavor_to_readable[$agent_flavor]:-Datadog Agent}
+nice_flavor=${flavor_to_readable[$agent_flavor]}
+
+if [ -z "$nice_flavor" ]; then
+    echo -e "\033[33mUnknow DD_AGENT_FLAVOR \"$agent_flavor\"\033[0m"
+    fallback_msg
+    exit 1;
+fi
 
 declare -A flavor_to_system_service
 flavor_to_system_service=(
