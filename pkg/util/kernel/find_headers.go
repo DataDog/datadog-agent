@@ -57,8 +57,23 @@ var errLinuxTypesHMissing = errors.New("correctly versioned kernel headers found
 var errReposDirInaccessible = errors.New("unable to access repos directory")
 
 // GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
-// to  download them to headerDownloadDir
+// to download them to headerDownloadDir
 func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir string) ([]string, HeaderFetchResult, error) {
+	dirs, res, err := getKernelHeadersInner(headerDirs, headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir)
+	if err != nil {
+		return dirs, res, err
+	}
+
+	extraPath, err := createNikosExtraFiles(headerDownloadDir)
+	if err != nil {
+		return dirs, res, err
+	}
+
+	dirs = append(dirs, extraPath)
+	return dirs, res, err
+}
+
+func getKernelHeadersInner(headerDirs []string, headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir string) ([]string, HeaderFetchResult, error) {
 	hv, hvErr := HostVersion()
 	if hvErr != nil {
 		return nil, hostVersionErr, fmt.Errorf("unable to determine host kernel version: %w", hvErr)
@@ -291,4 +306,37 @@ func unloadKHeadersModule() error {
 		return fmt.Errorf("unable to unload kheaders module: %s", stderr.String())
 	}
 	return nil
+}
+
+func createNikosExtraFiles(headerDownloadDir string) (string, error) {
+	nikosExtraPath := filepath.Join(headerDownloadDir, "nikos-extra")
+	nikosIncludePath := filepath.Join(nikosExtraPath, "include")
+	_, err := createOutputDir(nikosIncludePath)
+	if err != nil {
+		return "", err
+	}
+
+	emptyFiles := []string{
+		"asm/compiler.h",
+	}
+
+	for _, path := range emptyFiles {
+		inDirPath := filepath.Join(nikosIncludePath, path)
+
+		folderPath := filepath.Dir(inDirPath)
+		if err := os.MkdirAll(folderPath, 0755); err != nil {
+			return "", err
+		}
+
+		f, err := os.Create(inDirPath)
+		if err != nil {
+			return "", err
+		}
+
+		if err := f.Close(); err != nil {
+			return "", err
+		}
+	}
+
+	return nikosExtraPath, nil
 }
