@@ -20,6 +20,7 @@ import (
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -103,7 +104,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand)
+	rootCmd.AddCommand(configCommand, app.StatusCmd())
 }
 
 // fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
