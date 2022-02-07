@@ -42,7 +42,7 @@ func SetupOTLP(config Config) {
 	// Set all subkeys of otlp.receiver as known
 	config.SetKnown(OTLPReceiverSection + ".*")
 	// set environment variables for selected fields
-	setupEnvironmentVariables(config)
+	setupOTLPEnvironmentVariables(config)
 }
 
 // promoteExperimentalOTLP checks if "experimental.otlp" is set and promotes it to the top level
@@ -90,14 +90,14 @@ func promoteExperimentalOTLP(cfg Config) {
 	}
 }
 
-// setupEnvironmentVariables sets up the environment variables associated with different OTLP ingest settings:
+// setupOTLPEnvironmentVariables sets up the environment variables associated with different OTLP ingest settings:
 // If there are changes in the OTLP receiver configuration, they should be reflected here.
 //
 // We don't need to set the default value: it is dealt with at the unmarshaling level
 // since we get the configuration through GetStringMap
 //
 // We are missing TLS settings: since some of them need more work to work right they are not included here.
-func setupEnvironmentVariables(config Config) {
+func setupOTLPEnvironmentVariables(config Config) {
 	// gRPC settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.endpoint")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.transport")
