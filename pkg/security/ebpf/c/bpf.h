@@ -128,7 +128,7 @@ __attribute__((always_inline)) u32 fetch_prog_id(int fd) {
 }
 
 __attribute__((always_inline)) void populate_map_id_and_prog_id(struct syscall_cache_t *syscall) {
-    int fd = 0;
+    int fd = 0, map_id = 0, prog_id = 0;
 
     switch (syscall->bpf.cmd) {
     case BPF_MAP_LOOKUP_ELEM_CMD:
@@ -138,70 +138,73 @@ __attribute__((always_inline)) void populate_map_id_and_prog_id(struct syscall_c
     case BPF_MAP_GET_NEXT_KEY_CMD:
     case BPF_MAP_FREEZE_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->map_fd);
-        syscall->bpf.map_id = fetch_map_id(fd);
+        map_id = fetch_map_id(fd);
         break;
     case BPF_PROG_ATTACH_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->attach_bpf_fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        prog_id = fetch_map_id(fd);
         break;
     case BPF_PROG_DETACH_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->target_fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        prog_id = fetch_map_id(fd);
         break;
     case BPF_PROG_QUERY_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->query.target_fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        prog_id = fetch_map_id(fd);
         break;
     case BPF_PROG_TEST_RUN_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->test.prog_fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        prog_id = fetch_prog_id(fd);
         break;
     case BPF_PROG_GET_NEXT_ID_CMD:
-        bpf_probe_read(&syscall->bpf.prog_id, sizeof(syscall->bpf.prog_id), &syscall->bpf.attr->start_id);
+        bpf_probe_read(&prog_id, sizeof(prog_id), &syscall->bpf.attr->start_id);
         break;
     case BPF_MAP_GET_NEXT_ID_CMD:
-        bpf_probe_read(&syscall->bpf.map_id, sizeof(syscall->bpf.prog_id), &syscall->bpf.attr->start_id);
+        bpf_probe_read(&map_id, sizeof(prog_id), &syscall->bpf.attr->start_id);
         break;
     case BPF_OBJ_GET_INFO_BY_FD_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->info.bpf_fd);
-        syscall->bpf.map_id = fetch_map_id(fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        map_id = fetch_map_id(fd);
+        prog_id = fetch_prog_id(fd);
         break;
     case BPF_OBJ_PIN_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->bpf_fd);
-        syscall->bpf.map_id = fetch_map_id(fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        map_id = fetch_map_id(fd);
+        prog_id = fetch_prog_id(fd);
         break;
     case BPF_RAW_TRACEPOINT_OPEN_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->raw_tracepoint.prog_fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        prog_id = fetch_prog_id(fd);
         break;
     case BPF_TASK_FD_QUERY_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->task_fd_query.fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        prog_id = fetch_prog_id(fd);
         break;
     case BPF_MAP_LOOKUP_BATCH_CMD:
     case BPF_MAP_LOOKUP_AND_DELETE_BATCH_CMD:
     case BPF_MAP_UPDATE_BATCH_CMD:
     case BPF_MAP_DELETE_BATCH_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->batch.map_fd);
-        syscall->bpf.map_id = fetch_map_id(fd);
+        map_id = fetch_map_id(fd);
         break;
     case BPF_LINK_CREATE_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->link_create.prog_fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        prog_id = fetch_prog_id(fd);
         break;
     case BPF_LINK_UPDATE_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->link_update.old_prog_fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        prog_id = fetch_prog_id(fd);
         break;
     case BPF_PROG_BIND_MAP_CMD:
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->prog_bind_map.map_fd);
-        syscall->bpf.map_id = fetch_map_id(fd);
+        map_id = fetch_map_id(fd);
         bpf_probe_read(&fd, sizeof(fd), &syscall->bpf.attr->prog_bind_map.prog_fd);
-        syscall->bpf.prog_id = fetch_prog_id(fd);
+        prog_id = fetch_prog_id(fd);
         break;
     }
+
+    syscall->bpf.map_id = map_id;
+    syscall->bpf.prog_id = prog_id;
 }
 
 __attribute__((always_inline)) void fill_from_syscall_args(struct syscall_cache_t *syscall, struct bpf_event_t *event) {
