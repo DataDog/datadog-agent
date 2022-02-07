@@ -218,7 +218,7 @@ flavor_to_readable=(
 nice_flavor=${flavor_to_readable[$agent_flavor]}
 
 if [ -z "$nice_flavor" ]; then
-    echo -e "\033[33mUnknow DD_AGENT_FLAVOR \"$agent_flavor\"\033[0m"
+    echo -e "\033[33mUnknown DD_AGENT_FLAVOR \"$agent_flavor\"\033[0m"
     fallback_msg
     exit 1;
 fi
