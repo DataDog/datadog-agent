@@ -26,13 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"google.golang.org/grpc"
 )
 
@@ -69,7 +67,6 @@ type cmdFunc = func(name string, arg ...string) *exec.Cmd
 // Deprecated. Use `pkg/config` directly.
 type AgentConfig struct {
 	HostName                  string
-	APIEndpoints              []apicfg.Endpoint
 	Blacklist                 []*regexp.Regexp
 	Scrubber                  *DataScrubber
 	MaxPerMessage             int
@@ -77,9 +74,6 @@ type AgentConfig struct {
 	MaxConnsPerMessage        int
 	Transport                 *http.Transport `json:"-"`
 	ProcessExpVarPort         int
-
-	// profiling settings, or nil if profiling is not enabled
-	ProfilingSettings *profiling.Settings
 
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
@@ -109,7 +103,6 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultProcessEndpoint         = "https://process.datadoghq.com"
 	maxMessageBatch                = 100
 	defaultMaxCtrProcsMessageBatch = 10000
 	maxCtrProcsMessageBatch        = 30000
@@ -132,15 +125,7 @@ func NewDefaultTransport() *http.Transport {
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
 func NewDefaultAgentConfig() *AgentConfig {
-	processEndpoint, err := url.Parse(defaultProcessEndpoint)
-	if err != nil {
-		// This is a hardcoded URL so parsing it should not fail
-		panic(err)
-	}
-
 	ac := &AgentConfig{
-		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
-
 		MaxPerMessage:             maxMessageBatch,
 		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
 		MaxConnsPerMessage:        600,
@@ -295,8 +280,6 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"},
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
-		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
-		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
@@ -309,17 +292,6 @@ func loadEnvVariables() {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
 		}
-	}
-
-	// Support API_KEY and DD_API_KEY but prefer DD_API_KEY.
-	apiKey, envKey := os.Getenv("DD_API_KEY"), "DD_API_KEY"
-	if apiKey == "" {
-		apiKey, envKey = os.Getenv("API_KEY"), "API_KEY"
-	}
-
-	if apiKey != "" { // We don't want to overwrite the API KEY provided as an environment variable
-		log.Infof("overriding API key from env %s value", envKey)
-		config.Datadog.Set("api_key", config.SanitizeAPIKey(strings.Split(apiKey, ",")[0]))
 	}
 
 	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {

@@ -129,6 +129,7 @@ type Server struct {
 	workers []*worker
 
 	packetsIn                 chan packets.Packets
+	serverlessFlushChan       chan bool
 	sharedPacketPool          *packets.Pool
 	sharedPacketPoolManager   *packets.PoolManager
 	sharedFloat64List         *float64ListPool
@@ -317,6 +318,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		demultiplexer:             demultiplexer,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
+		serverlessFlushChan:       make(chan bool),
 		health:                    health.RegisterLiveness("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
 		metricPrefixBlacklist:     metricPrefixBlacklist,
@@ -451,13 +453,11 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 // ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
 func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
-	// make all workers flush their aggregated data (in the batcher) to the aggregator.
-	for _, w := range s.workers {
-		w.flush()
-	}
+
+	// make all workers flush their aggregated data (in the batchers) to the aggregator.
+	s.serverlessFlushChan <- true
 
 	start := time.Now()
-
 	// flush the aggregator to have the serializer/forwarder send data to the backend.
 	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
 	s.demultiplexer.ForceFlushToSerializer(start.Add(time.Second*10), true)

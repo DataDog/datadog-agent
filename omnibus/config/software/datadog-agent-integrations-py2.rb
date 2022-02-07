@@ -257,10 +257,9 @@ build do
       manifest = JSON.parse(File.read(manifest_file_path))
       manifest['supported_os'].include?(os) || next
 
-      setup_file_path = "#{check_dir}/setup.py"
-      File.file?(setup_file_path) || next
+      File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
       # Check if it supports Python 2.
-      support = `inv agent.check-supports-python-version #{setup_file_path} 2`
+      support = `inv agent.check-supports-python-version #{check_dir} 2`
       if support == "False"
         log.info(log_key) { "Skipping '#{check}' since it does not support Python 2." }
         next

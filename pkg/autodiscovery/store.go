@@ -21,7 +21,7 @@ type store struct {
 	nameToJMXMetrics  map[string]integration.Data
 	adIDToServices    map[string]map[string]bool
 	entityToService   map[string]listeners.Service
-	templateCache     *TemplateCache
+	templateCache     *templateCache
 	m                 sync.RWMutex
 }
 
@@ -35,7 +35,7 @@ func newStore() *store {
 		nameToJMXMetrics:  make(map[string]integration.Data),
 		adIDToServices:    make(map[string]map[string]bool),
 		entityToService:   make(map[string]listeners.Service),
-		templateCache:     NewTemplateCache(),
+		templateCache:     newTemplateCache(),
 	}
 
 	return &s

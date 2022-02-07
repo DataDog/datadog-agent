@@ -6,8 +6,6 @@
 package config
 
 import (
-	"fmt"
-	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -17,11 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -40,16 +35,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// Resolve any secrets
 	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
 		return err
-	}
-
-	URL, err := url.Parse(config.GetMainEndpoint("https://process.", key(ns, "process_dd_url")))
-	if err != nil {
-		return fmt.Errorf("error parsing process_dd_url: %s", err)
-	}
-	a.APIEndpoints[0].Endpoint = URL
-
-	if key := "api_key"; config.Datadog.IsSet(key) {
-		a.APIEndpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString(key))
 	}
 
 	if config.Datadog.IsSet("hostname") {
@@ -145,50 +130,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
-	if k := key(ns, "additional_endpoints"); config.Datadog.IsSet(k) {
-		for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
-			u, err := URL.Parse(endpointURL)
-			if err != nil {
-				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
-			}
-			for _, k := range apiKeys {
-				a.APIEndpoints = append(a.APIEndpoints, apicfg.Endpoint{
-					APIKey:   config.SanitizeAPIKey(k),
-					Endpoint: u,
-				})
-			}
-		}
-	}
 	if !config.Datadog.IsSet(key(ns, "cmd_port")) {
 		config.Datadog.Set(key(ns, "cmd_port"), 6162)
-	}
-
-	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
-	// but use the configuration from main agent to fill the settings
-	if config.Datadog.IsSet(key(ns, "internal_profiling.enabled")) {
-		// allow full url override for development use
-		site := config.Datadog.GetString("internal_profiling.profile_dd_url")
-		if site == "" {
-			s := config.Datadog.GetString("site")
-			if s == "" {
-				s = config.DefaultSite
-			}
-			site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
-		}
-
-		v, _ := version.Agent()
-		a.ProfilingSettings = &profiling.Settings{
-			ProfilingURL:         site,
-			Env:                  config.Datadog.GetString("env"),
-			Service:              "process-agent",
-			Period:               config.Datadog.GetDuration("internal_profiling.period"),
-			CPUDuration:          config.Datadog.GetDuration("internal_profiling.cpu_duration"),
-			MutexProfileFraction: config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
-			BlockProfileRate:     config.Datadog.GetInt("internal_profiling.block_profile_rate"),
-			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-			Tags:                 []string{fmt.Sprintf("version:%v", v)},
-		}
 	}
 
 	// Used to override container source auto-detection
