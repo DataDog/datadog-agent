@@ -94,8 +94,6 @@ func TestProcessEndpoints(t *testing.T) {
 	tags, _, err = eps[1].GetTags()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.2", "foo:bar"}, tags)
-
-	eps = processEndpoints(kep, []string{"foo:bar"})
 }
 
 func TestSubsetsDiffer(t *testing.T) {
