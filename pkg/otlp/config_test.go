@@ -22,15 +22,20 @@ func TestIsEnabled(t *testing.T) {
 		path    string
 		enabled bool
 	}{
-		{path: "port/bindhost.yaml", enabled: true},
-		{path: "port/disabled.yaml", enabled: false},
-		{path: "port/invalid.yaml", enabled: true},
-		{path: "port/nobindhost.yaml", enabled: true},
+		{path: "experimental/port/bindhost.yaml", enabled: true},
+		{path: "experimental/port/disabled.yaml", enabled: false},
+		{path: "experimental/port/invalid.yaml", enabled: true},
+		{path: "experimental/port/nobindhost.yaml", enabled: true},
 
-		{path: "receiver/noprotocols.yaml", enabled: true},
-		{path: "receiver/portandreceiver.yaml", enabled: true},
-		{path: "receiver/simple.yaml", enabled: true},
-		{path: "receiver/advanced.yaml", enabled: true},
+		{path: "experimental/receiver/noprotocols.yaml", enabled: true},
+		{path: "experimental/receiver/portandreceiver.yaml", enabled: true},
+		{path: "experimental/receiver/simple.yaml", enabled: true},
+		{path: "experimental/receiver/advanced.yaml", enabled: true},
+
+		{path: "stable/invalid_port_based.yaml", enabled: false},
+		{path: "stable/receiver/noprotocols.yaml", enabled: true},
+		{path: "stable/receiver/simple.yaml", enabled: true},
+		{path: "stable/receiver/advanced.yaml", enabled: true},
 	}
 
 	for _, testInstance := range tests {
@@ -56,7 +61,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		err  string
 	}{
 		{
-			path: "port/bindhost.yaml",
+			path: "experimental/port/bindhost.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 5678, 1234),
 				TracePort:          5003,
@@ -69,7 +74,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			},
 		},
 		{
-			path: "port/nobindhost.yaml",
+			path: "experimental/port/nobindhost.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
 				TracePort:          5003,
@@ -82,15 +87,15 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			},
 		},
 		{
-			path: "port/invalid.yaml",
+			path: "experimental/port/invalid.yaml",
 			err:  fmt.Sprintf("internal trace port is invalid: -1 is out of [0, 65535] range"),
 		},
 		{
-			path: "port/alldisabled.yaml",
+			path: "experimental/port/alldisabled.yaml",
 			err:  "at least one OTLP signal needs to be enabled",
 		},
 		{
-			path: "receiver/noprotocols.yaml",
+			path: "experimental/receiver/noprotocols.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 				TracePort:          5003,
@@ -103,7 +108,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			},
 		},
 		{
-			path: "receiver/portandreceiver.yaml",
+			path: "experimental/receiver/portandreceiver.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5679, 1234),
 				TracePort:          5003,
@@ -116,7 +121,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			},
 		},
 		{
-			path: "receiver/simple.yaml",
+			path: "experimental/receiver/simple.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
@@ -134,7 +139,71 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			},
 		},
 		{
-			path: "receiver/advanced.yaml",
+			path: "experimental/receiver/advanced.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint":               "0.0.0.0:5678",
+							"max_concurrent_streams": 16,
+							"transport":              "tcp",
+							"keepalive": map[string]interface{}{
+								"enforcement_policy": map[string]interface{}{
+									"min_time": "10m",
+								},
+							},
+						},
+						"http": map[string]interface{}{
+							"endpoint": "localhost:1234",
+							"cors": map[string]interface{}{
+								"allowed_origins": []interface{}{"http://test.com"},
+								"allowed_headers": []interface{}{"ExampleHeader"},
+							},
+						},
+					},
+				},
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			path: "stable/receiver/noprotocols.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			path: "stable/receiver/simple.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": nil,
+						"http": nil,
+					},
+				},
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			path: "stable/receiver/advanced.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
@@ -294,7 +363,29 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 		err  string
 	}{
 		{
-			path: "metrics/allconfig.yaml",
+			path: "experimental/metrics/allconfig.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+				Metrics: map[string]interface{}{
+					"enabled":                     true,
+					"delta_ttl":                   2400,
+					"report_quantiles":            false,
+					"send_monotonic_counter":      true,
+					"resource_attributes_as_tags": true,
+					"instrumentation_library_metadata_as_tags": true,
+					"tag_cardinality":                          "orchestrator",
+					"histograms": map[string]interface{}{
+						"mode":                   "counters",
+						"send_count_sum_metrics": true,
+					},
+				},
+			},
+		},
+		{
+			path: "stable/metrics/allconfig.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
 				TracePort:          5003,
