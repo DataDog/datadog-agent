@@ -57,7 +57,7 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 	// keysStr is a newline-separated list of strings containing tag keys
 	keys := strings.Split(keysStr, "\n")
 
-	tags := []string{}
+	tags := make([]string, 0, len(keys))
 	for _, key := range keys {
 		// The key is a valid URL component and need not be escaped:
 		//
