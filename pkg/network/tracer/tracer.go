@@ -543,13 +543,19 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	connStatsMapSize := atomic.LoadInt64(&t.connStatsMapSize)
 
 	tracerStats := map[string]int64{
-		"conn_valid_skipped":  skipped, // Skipped connections (e.g. Local DNS requests)
-		"expired_tcp_conns":   expiredTCP,
-		"conn_stats_map_size": connStatsMapSize,
-		"last_check":          atomic.LoadInt64(&t.lastCheck),
+		"conn_valid_skipped":      skipped, // Skipped connections (e.g. Local DNS requests)
+		"expired_tcp_conns":       expiredTCP,
+		"conn_stats_map_size":     connStatsMapSize,
+		"last_check":              atomic.LoadInt64(&t.lastCheck),
+		"http_monitoring_enabled": 0,
 	}
+
 	for k, v := range runtime.Tracer.GetTelemetry() {
 		tracerStats[k] = v
+	}
+
+	if t.httpMonitor != nil {
+		tracerStats["http_monitoring_enabled"] = 1
 	}
 
 	stateStats := t.state.GetStats()
@@ -562,6 +568,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"ebpf":      t.ebpfTracer.GetTelemetry(),
 		"kprobes":   ddebpf.GetProbeStats(),
 		"dns":       t.reverseDNS.GetStats(),
+		"http":      t.httpMonitor.GetTelemetry(),
 	}
 
 	return ret, nil

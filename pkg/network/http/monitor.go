@@ -203,3 +203,12 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 	return m.ebpfProgram.Manager.DumpMaps(maps...)
 }
+
+func (m *Monitor) GetTelemetry() map[string]int64 {
+	if m == nil {
+		return map[string]int64{}
+	}
+
+	delta := m.telemetry.reset()
+	return delta.report()
+}
