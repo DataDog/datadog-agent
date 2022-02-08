@@ -7,7 +7,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -71,22 +70,13 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) (*manager.M
 	}
 
 	if runtimeTracer {
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return nil, err
-		}
-
-		if kv < kernel.VersionCode(4, 7, 0) {
-			mgr.Probes = append(mgr.Probes,
-				&manager.Probe{Section: string(probes.SKBFreeDatagramLocked)},
-				&manager.Probe{Section: string(probes.UDPRecvMsg)},
-				&manager.Probe{Section: string(probes.UDPRecvMsgReturn), KProbeMaxActive: maxActive},
-			)
-		} else if kv >= kernel.VersionCode(4, 7, 0) && kv < kernel.VersionCode(4, 10, 0) {
-			mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.SKB__FreeDatagramLocked)})
-		} else {
-			mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.SKBConsumeUDP)})
-		}
+		mgr.Probes = append(mgr.Probes,
+			&manager.Probe{Section: string(probes.SKBFreeDatagramLocked)},
+			&manager.Probe{Section: string(probes.UDPRecvMsg)},
+			&manager.Probe{Section: string(probes.UDPRecvMsgReturn), KProbeMaxActive: maxActive},
+			&manager.Probe{Section: string(probes.SKB__FreeDatagramLocked)},
+			&manager.Probe{Section: string(probes.SKBConsumeUDP)},
+		)
 	} else {
 		mgr.Probes = append(mgr.Probes,
 			&manager.Probe{Section: string(probes.UDPRecvMsg)},
