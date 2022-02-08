@@ -47,7 +47,7 @@ jobs:
           languages: go, javascript, python, cpp
           setup-python-dependencies: false
           config-file: .github/codeql_config.yml
-          # Define a fixed CodeQL bundle version
+          # Defining a fixed CodeQL bundle version
           tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-20211115/codeql-bundle-linux64.tar.gz
 
       - name: Build DataDog agent

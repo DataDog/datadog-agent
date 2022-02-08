@@ -120,7 +120,8 @@ func NewDefaultAgentConfig() *AgentConfig {
 		MaxConnsPerMessage: 600,
 		HostName:           "",
 		Transport:          NewDefaultTransport(),
-		ContainerHostType:  model.ContainerHostType_notSpecified,
+
+		ContainerHostType: model.ContainerHostType_notSpecified,
 
 		// System probe collection configuration
 		EnableSystemProbe:  false,

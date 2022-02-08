@@ -42,6 +42,13 @@ func TestIsEnabled(t *testing.T) {
 	}
 }
 
+func TestIsEnabledEnv(t *testing.T) {
+	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:9993")
+	cfg, err := testutil.LoadConfig("./testdata/empty.yaml")
+	require.NoError(t, err)
+	assert.True(t, IsEnabled(cfg))
+}
+
 func TestFromAgentConfigReceiver(t *testing.T) {
 	tests := []struct {
 		path string
@@ -175,6 +182,111 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 	}
 }
 
+func TestFromEnvironmentVariables(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		cfg  PipelineConfig
+		err  string
+	}{
+		{
+			name: "only gRPC",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "0.0.0.0:9999",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			name: "HTTP + gRPC",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9997",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT": "0.0.0.0:9998",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "0.0.0.0:9997",
+						},
+						"http": map[string]interface{}{
+							"endpoint": "0.0.0.0:9998",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			name: "HTTP + gRPC, metrics config",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9995",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT": "0.0.0.0:9996",
+				"DD_OTLP_CONFIG_METRICS_DELTA_TTL":                "2400",
+				"DD_OTLP_CONFIG_METRICS_HISTOGRAMS_MODE":          "counters",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "0.0.0.0:9995",
+						},
+						"http": map[string]interface{}{
+							"endpoint": "0.0.0.0:9996",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+					"delta_ttl":       "2400",
+					"histograms": map[string]interface{}{
+						"mode": "counters",
+					},
+				},
+			},
+		},
+	}
+	for _, testInstance := range tests {
+		t.Run(testInstance.name, func(t *testing.T) {
+			for env, val := range testInstance.env {
+				t.Setenv(env, val)
+			}
+			cfg, err := testutil.LoadConfig("./testdata/empty.yaml")
+			require.NoError(t, err)
+			pcfg, err := FromAgentConfig(cfg)
+			if err != nil || testInstance.err != "" {
+				assert.Equal(t, testInstance.err, err.Error())
+			} else {
+				assert.Equal(t, testInstance.cfg, pcfg)
+			}
+		})
+	}
+}
+
 func TestFromAgentConfigMetrics(t *testing.T) {
 	tests := []struct {
 		path string
@@ -189,10 +301,11 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                2400,
-					"report_quantiles":                         false,
-					"send_monotonic_counter":                   true,
-					"resource_attributes_as_tags":              true,
+					"enabled":                     true,
+					"delta_ttl":                   2400,
+					"report_quantiles":            false,
+					"send_monotonic_counter":      true,
+					"resource_attributes_as_tags": true,
 					"instrumentation_library_metadata_as_tags": true,
 					"tag_cardinality":                          "orchestrator",
 					"histograms": map[string]interface{}{

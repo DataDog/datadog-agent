@@ -10,16 +10,12 @@ package otlp
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	colConfig "go.opentelemetry.io/collector/config"
 	"go.uber.org/multierr"
 )
-
-// isSetMetrics checks if the metrics config is set.
-func isSetMetrics(cfg config.Config) bool {
-	return cfg.IsSet(config.OTLPMetrics)
-}
 
 func portToUint(v int) (port uint, err error) {
 	if v < 0 || v > 65535 {
@@ -29,16 +25,34 @@ func portToUint(v int) (port uint, err error) {
 	return
 }
 
-func fromReceiverSectionConfig(cfg config.Config) *colConfig.Map {
-	return colConfig.NewMapFromStringMap(
-		cfg.GetStringMap(config.OTLPReceiverSection),
-	)
+// readConfigSection from a config.Config object.
+func readConfigSection(cfg config.Config, section string) *colConfig.Map {
+	// Viper doesn't work well when getting subsections, since it
+	// ignores environment variables and nil-but-present sections.
+	// To work around this, we do the following two steps:
+
+	// Step one works around https://github.com/spf13/viper/issues/819
+	// If we only had the stuff below, the nil sections would be ignored.
+	// We want to take into account nil-but-present sections.
+	cfgMap := colConfig.NewMapFromStringMap(cfg.GetStringMap(section))
+
+	// Step two works around https://github.com/spf13/viper/issues/1012
+	// we check every key manually, and if it belongs to the OTLP receiver section,
+	// we set it. We need to do this to account for environment variable values.
+	prefix := section + "."
+	for _, key := range cfg.AllKeys() {
+		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
+			mapKey := strings.ReplaceAll(key[len(prefix):], ".", colConfig.KeyDelimiter)
+			cfgMap.Set(mapKey, cfg.Get(key))
+		}
+	}
+	return cfgMap
 }
 
 // fromConfig builds a PipelineConfig from the configuration.
 func fromConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
-	otlpConfig := fromReceiverSectionConfig(cfg)
+	otlpConfig := readConfigSection(cfg, config.OTLPReceiverSection)
 
 	tracePort, err := portToUint(cfg.GetInt(config.OTLPTracePort))
 	if err != nil {
@@ -51,17 +65,14 @@ func fromConfig(cfg config.Config) (PipelineConfig, error) {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
 
-	metrics := map[string]interface{}{}
-	if isSetMetrics(cfg) {
-		metrics = cfg.GetStringMap(config.OTLPMetrics)
-	}
+	metricsConfig := readConfigSection(cfg, config.OTLPMetrics)
 
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),
 		TracePort:          tracePort,
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
-		Metrics:            metrics,
+		Metrics:            metricsConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }
 
@@ -72,7 +83,7 @@ func IsEnabled(cfg config.Config) bool {
 	//
 	// IsSet won't work here: it will return false if the section is present but empty.
 	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
-	_, ok := cfg.GetStringMap(config.OTLPSection)[config.OTLPReceiverSubSectionKey]
+	_, ok := readConfigSection(cfg, config.OTLPSection).ToStringMap()[config.OTLPReceiverSubSectionKey]
 	return ok
 }
 
