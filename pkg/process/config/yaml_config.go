@@ -85,16 +85,23 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 
 	// Enable/Disable the DataScrubber to obfuscate process args
 	if scrubArgsKey := key(ns, "scrub_args"); config.Datadog.IsSet(scrubArgsKey) {
-		a.Scrubber.Enabled = config.Datadog.GetBool(scrubArgsKey)
+		scrubberEnabled := config.Datadog.GetBool(scrubArgsKey)
+		a.Scrubber.Enabled = scrubberEnabled
+		if scrubberEnabled {
+			log.Debug("Starting process-agent with Scrubber enabled")
+		}
 	}
 
 	// A custom word list to enhance the default one used by the DataScrubber
 	if k := key(ns, "custom_sensitive_words"); config.Datadog.IsSet(k) {
-		a.Scrubber.AddCustomSensitiveWords(config.Datadog.GetStringSlice(k))
+		words := config.Datadog.GetStringSlice(k)
+		a.Scrubber.AddCustomSensitiveWords(words)
+		log.Debug("Adding custom sensitives words to Scrubber: ", words)
 	}
 
 	// Strips all process arguments
 	if config.Datadog.GetBool(key(ns, "strip_proc_arguments")) {
+		log.Debug("Strip all process arguments enabled")
 		a.Scrubber.StripAllArguments = true
 	}
 

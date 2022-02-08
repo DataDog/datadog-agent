@@ -150,6 +150,7 @@ func TestEnvVarOverride(t *testing.T) {
 
 	for _, tc := range []struct {
 		key, env, value string
+		expType         string
 		expected        interface{}
 	}{
 		{
@@ -290,10 +291,17 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "1235",
 			expected: 1235,
 		},
+		{
+			key:      "process_config.container_source",
+			env:      "DD_PROCESS_CONFIG_CONTAINER_SOURCE",
+			value:    "[\"docker\",\"kubernetes\"]",
+			expType:  "stringSlice",
+			expected: []string{"docker", "kubernetes"},
+		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			reset := setEnvForTest(tc.env, tc.value)
-			assert.Equal(t, tc.expected, cfg.Get(tc.key))
+			assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 			reset()
 		})
 
@@ -302,7 +310,7 @@ func TestEnvVarOverride(t *testing.T) {
 			env := strings.Replace(tc.env, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 			t.Run(env, func(t *testing.T) {
 				reset := setEnvForTest(env, tc.value)
-				assert.Equal(t, tc.expected, cfg.Get(tc.key))
+				assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 				reset()
 			})
 		}
@@ -318,6 +326,15 @@ func TestEnvVarOverride(t *testing.T) {
 		}, cfg.GetStringMapStringSlice("process_config.additional_endpoints"))
 		reset()
 	})
+}
+
+func readCfgWithType(cfg Config, key, expType string) interface{} {
+	switch expType {
+	case "stringSlice":
+		return cfg.GetStringSlice(key)
+	default:
+		return cfg.Get(key)
+	}
 }
 
 func TestEnvVarScrubberSettings(t *testing.T) {
@@ -351,7 +368,7 @@ func TestEnvVarScrubberSettings(t *testing.T) {
 		})
 
 		t.Run(fmt.Sprintf("scrub sensitive words without transform/%s", e), func(t *testing.T) {
-			reset := setEnvForTest(e, `["pass*","word","secret"]`)
+			reset := setEnvForTest(e, "[\"pass*\", \"word\", \"secret\"]")
 			args := cfg.GetStringSlice("process_config.custom_sensitive_words")
 			assert.Equal(t, []string{"pass*", "word", "secret"}, args)
 			reset()
