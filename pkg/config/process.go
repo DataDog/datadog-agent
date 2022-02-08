@@ -30,6 +30,24 @@ const (
 	// DefaultProcessQueueBytes is the default amount of process-agent check data (in bytes) that can be buffered in memory
 	// Allow buffering up to 60 megabytes of payload data in total
 	DefaultProcessQueueBytes = 60 * 1000 * 1000
+
+	// DefaultProcessMaxPerMessage is the default maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
+	DefaultProcessMaxPerMessage = 100
+
+	// DefaultProcessMaxCtrProcsPerMessage is the default maximum number of processes belonging to a container per message. Note: Only change if the defaults are causing issues.
+	DefaultProcessMaxCtrProcsPerMessage = 10000
+
+	// ProcessMaxCtrProcsPerMessageLimit is the maximum allowed value for process_config.max_ctr_procs_per_message.
+	ProcessMaxCtrProcsPerMessageLimit = 30000
+
+	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
+	DefaultProcessExpVarPort = 6062
+
+	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
+	DefaultProcessCmdPort = 6162
+
+	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
+	DefaultProcessEndpoint = "https://process.datadoghq.com"
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -73,16 +91,20 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
-	config.BindEnv("process_config.process_dd_url", "")
+	config.BindEnv("process_config.process_dd_url",
+		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
+		"DD_PROCESS_AGENT_PROCESS_DD_URL",
+		"DD_PROCESS_AGENT_URL",
+		"DD_PROCESS_CONFIG_URL",
+	)
 	config.SetKnown("process_config.dd_agent_env")
-	config.SetKnown("process_config.enabled")
 	config.SetKnown("process_config.intervals.process_realtime")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.process_queue_bytes", DefaultProcessQueueBytes)
 	procBindEnvAndSetDefault(config, "process_config.rt_queue_size", DefaultProcessRTQueueSize)
-	config.SetKnown("process_config.max_per_message")
-	config.SetKnown("process_config.max_ctr_procs_per_message")
-	config.SetKnown("process_config.cmd_port")
+	procBindEnvAndSetDefault(config, "process_config.max_per_message", DefaultProcessMaxPerMessage)
+	procBindEnvAndSetDefault(config, "process_config.max_ctr_procs_per_message", DefaultProcessMaxCtrProcsPerMessage)
+	procBindEnvAndSetDefault(config, "process_config.cmd_port", DefaultProcessCmdPort)
 	config.SetKnown("process_config.intervals.process")
 	config.SetKnown("process_config.blacklist_patterns")
 	config.SetKnown("process_config.intervals.container")
@@ -93,10 +115,14 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.strip_proc_arguments")
 	// Use PDH API to collect performance counter data for process check on Windows
 	procBindEnvAndSetDefault(config, "process_config.windows.use_perf_counters", false)
-	config.SetKnown("process_config.additional_endpoints.*")
+	config.BindEnvAndSetDefault("process_config.additional_endpoints", make(map[string][]string),
+		"DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS",
+		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
+		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
+	)
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
-	config.SetKnown("process_config.expvar_port")
+	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)

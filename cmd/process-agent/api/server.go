@@ -57,6 +57,13 @@ func GetAPIAddressPort() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	addrPort := net.JoinHostPort(address, strconv.Itoa(ddconfig.Datadog.GetInt("process_config.cmd_port")))
+
+	port := ddconfig.Datadog.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, ddconfig.DefaultProcessCmdPort)
+		port = ddconfig.DefaultProcessCmdPort
+	}
+
+	addrPort := net.JoinHostPort(address, strconv.Itoa(port))
 	return addrPort, nil
 }

@@ -71,8 +71,28 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: false,
 		},
 		{
+			key:          "process_config.additional_endpoints",
+			defaultValue: make(map[string][]string),
+		},
+		{
 			key:          "process_config.internal_profiling.enabled",
 			defaultValue: false,
+		},
+		{
+			key:          "process_config.max_per_message",
+			defaultValue: DefaultProcessMaxPerMessage,
+		},
+		{
+			key:          "process_config.max_ctr_procs_per_message",
+			defaultValue: DefaultProcessMaxCtrProcsPerMessage,
+		},
+		{
+			key:          "process_config.expvar_port",
+			defaultValue: DefaultProcessExpVarPort,
+		},
+		{
+			key:          "process_config.cmd_port",
+			defaultValue: DefaultProcessCmdPort,
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
@@ -235,10 +255,40 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: true,
 		},
 		{
+			key:      "process_config.process_dd_url",
+			env:      "DD_PROCESS_AGENT_URL",
+			value:    "datacat.com",
+			expected: "datacat.com",
+		},
+		{
 			key:      "process_config.internal_profiling.enabled",
 			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
 			value:    "true",
 			expected: true,
+		},
+		{
+			key:      "process_config.max_per_message",
+			env:      "DD_PROCESS_CONFIG_MAX_PER_MESSAGE",
+			value:    "10",
+			expected: 10,
+		},
+		{
+			key:      "process_config.max_ctr_procs_per_message",
+			env:      "DD_PROCESS_CONFIG_MAX_CTR_PROCS_PER_MESSAGE",
+			value:    "20",
+			expected: 20,
+		},
+		{
+			key:      "process_config.expvar_port",
+			env:      "DD_PROCESS_CONFIG_EXPVAR_PORT",
+			value:    "1234",
+			expected: 1234,
+		},
+		{
+			key:      "process_config.cmd_port",
+			env:      "DD_PROCESS_CONFIG_CMD_PORT",
+			value:    "1235",
+			expected: 1235,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
@@ -257,6 +307,17 @@ func TestEnvVarOverride(t *testing.T) {
 			})
 		}
 	}
+
+	// StringMapStringSlice can't be converted by `Config.Get` so we need to test this separately
+	t.Run("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
+		reset := setEnvForTest("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", `{"https://process.datadoghq.com": ["fakeAPIKey"]}`)
+		assert.Equal(t, map[string][]string{
+			"https://process.datadoghq.com": {
+				"fakeAPIKey",
+			},
+		}, cfg.GetStringMapStringSlice("process_config.additional_endpoints"))
+		reset()
+	})
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {

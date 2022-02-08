@@ -107,9 +107,11 @@ func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf
 	runtimeCompiler := runtime.NewRuntimeCompiler()
 	reader, err := runtimeCompiler.CompileObjectFile(config, additionalFlags, "constant_fetcher.c", provider)
 
-	telemetry := runtimeCompiler.GetRCTelemetry()
-	if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
-		log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
+	if cf.statsdClient != nil {
+		telemetry := runtimeCompiler.GetRCTelemetry()
+		if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
+			log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
+		}
 	}
 
 	return reader, err
