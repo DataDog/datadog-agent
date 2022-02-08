@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -235,6 +236,10 @@ func getDefaultHeaderDirs() []string {
 		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
 		fedoraKernelModulesPath,
 	}
+
+	// openSUSE specific
+	dirs = append(dirs, getOpenSUSEDefaultHeaderDirs(hi.KernelVersion, hi.KernelArch)...)
+
 	return dirs
 }
 
@@ -307,6 +312,25 @@ func unloadKHeadersModule() error {
 		return fmt.Errorf("unable to unload kheaders module: %s", stderr.String())
 	}
 	return nil
+}
+
+func getOpenSUSEDefaultHeaderDirs(kernelVersion, kernelArch string) []string {
+	if kernelVersion == "" || kernelArch == "" {
+		return []string{}
+	}
+
+	flavorSuffix := regexp.MustCompile("-([a-z]+)$")
+	parts := flavorSuffix.FindStringSubmatch(kernelVersion)
+	if len(parts) == 0 {
+		return []string{}
+	}
+
+	cleanedKernelVersion := strings.TrimSuffix(kernelVersion, parts[0])
+	flavor := parts[1]
+
+	base := fmt.Sprintf("/usr/src/linux-%s/", cleanedKernelVersion)
+	obj := fmt.Sprintf("/usr/src/linux-%s-obj/%s/%s", cleanedKernelVersion, kernelArch, flavor)
+	return []string{base, obj}
 }
 
 func createNikosExtraFiles(headerDownloadDir string) (string, error) {
