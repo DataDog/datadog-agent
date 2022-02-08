@@ -261,7 +261,6 @@ static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_bu
     handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
 SEC("kprobe/udp_recvmsg")
 int kprobe__udp_recvmsg(struct pt_regs* ctx) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
@@ -306,7 +305,7 @@ int kprobe__skb_free_datagram_locked(struct pt_regs* ctx) {
     handle_skb_consume_udp(sk, skb, 0);
     return 0;
 }
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+
 SEC("kprobe/__skb_free_datagram_locked")
 int kprobe____skb_free_datagram_locked(struct pt_regs* ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
@@ -315,7 +314,7 @@ int kprobe____skb_free_datagram_locked(struct pt_regs* ctx) {
     handle_skb_consume_udp(sk, skb, len);
     return 0;
 }
-#else
+
 SEC("kprobe/skb_consume_udp")
 int kprobe__skb_consume_udp(struct pt_regs* ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
@@ -324,7 +323,6 @@ int kprobe__skb_consume_udp(struct pt_regs* ctx) {
     handle_skb_consume_udp(sk, skb, len);
     return 0;
 }
-#endif
 
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs* ctx) {

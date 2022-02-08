@@ -3,6 +3,7 @@
 package kprobe
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -15,6 +16,7 @@ import (
 // This map does not include the probes used exclusively in the offset guessing process.
 func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]struct{}, error) {
 	enabled := make(map[probes.ProbeName]struct{}, 0)
+	ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -41,7 +43,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 			enabled[probes.TCPRetransmit] = struct{}{}
 		}
 
-		missing, err := ebpf.VerifyKernelFuncs(filepath.Join(c.ProcRoot, "kallsyms"), []string{"sockfd_lookup_light"})
+		missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
 		if err == nil && len(missing) == 0 {
 			enabled[probes.SockFDLookup] = struct{}{}
 			enabled[probes.SockFDLookupRet] = struct{}{}
@@ -69,14 +71,21 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 		}
 
 		if runtimeTracer {
-			if kv < kernel.VersionCode(4, 7, 0) {
+			missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked"})
+			if err != nil {
+				return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
+			}
+
+			if _, miss := missing["skb_consume_udp"]; !miss {
+				enabled[probes.SKBConsumeUDP] = struct{}{}
+			} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
+				enabled[probes.SKB__FreeDatagramLocked] = struct{}{}
+			} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
 				enabled[probes.SKBFreeDatagramLocked] = struct{}{}
 				enabled[probes.UDPRecvMsg] = struct{}{}
 				enabled[probes.UDPRecvMsgReturn] = struct{}{}
-			} else if kv >= kernel.VersionCode(4, 7, 0) && kv < kernel.VersionCode(4, 10, 0) {
-				enabled[probes.SKB__FreeDatagramLocked] = struct{}{}
 			} else {
-				enabled[probes.SKBConsumeUDP] = struct{}{}
+				return nil, fmt.Errorf("missing desired UDP receive kernel functions")
 			}
 		} else {
 			if pre410Kernel {

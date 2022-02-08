@@ -90,9 +90,6 @@ const (
 	// SocketDnsFilter is the socket probe for dns
 	SocketDnsFilter ProbeName = "socket/dns_filter"
 
-	// SockMapFdReturn maps a file descriptor to a kernel sock
-	SockMapFdReturn ProbeName = "kretprobe/sockfd_lookup_light"
-
 	// IPRouteOutputFlow is the kprobe of an ip_route_output_flow call
 	IPRouteOutputFlow ProbeName = "kprobe/ip_route_output_flow"
 	// IPRouteOutputFlow is the kretprobe of an ip_route_output_flow call
