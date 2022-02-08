@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +13,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func TestGetMaxBatchSize(t *testing.T) {
+func TestEnsureValidMaxBatchSize(t *testing.T) {
 	tests := []struct {
 		name                 string
 		override             bool
@@ -22,32 +21,22 @@ func TestGetMaxBatchSize(t *testing.T) {
 		expectedMaxBatchSize int
 	}{
 		{
-			name:                 "default batch size",
-			override:             false,
-			maxPerMessage:        50,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
-		},
-		{
-			name:                 "valid batch size override",
-			override:             true,
+			name:                 "valid batch count",
 			maxPerMessage:        50,
 			expectedMaxBatchSize: 50,
 		},
 		{
-			name:                 "negative max batch size",
-			override:             true,
+			name:                 "negative batch count",
 			maxPerMessage:        -1,
 			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
 		},
 		{
 			name:                 "0 max batch size",
-			override:             true,
 			maxPerMessage:        0,
 			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
 		},
 		{
 			name:                 "big max batch size",
-			override:             true,
 			maxPerMessage:        2000,
 			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
 		},
@@ -56,14 +45,43 @@ func TestGetMaxBatchSize(t *testing.T) {
 	assert := assert.New(t)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
-			if tc.override {
-				mockConfig.Set("process_config.max_per_message", tc.maxPerMessage)
-			}
+			assert.Equal(tc.expectedMaxBatchSize, ensureValidMaxBatchSize(tc.maxPerMessage))
+		})
+	}
+}
 
-			// override maxBatchSizeOnce so maxBatchSize can be set to the new value
-			maxBatchSizeOnce = sync.Once{}
-			assert.Equal(tc.expectedMaxBatchSize, getMaxBatchSize())
+func TestEnsureValidMaxBatchBytes(t *testing.T) {
+	tests := []struct {
+		name                  string
+		maxMessageBytes       int
+		expectedMaxBatchBytes int
+	}{
+		{
+			name:                  "valid batch size",
+			maxMessageBytes:       100000,
+			expectedMaxBatchBytes: 100000,
+		},
+		{
+			name:                  "negative batch size",
+			maxMessageBytes:       -1,
+			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
+		},
+		{
+			name:                  "0 max batch size",
+			maxMessageBytes:       0,
+			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
+		},
+		{
+			name:                  "big max batch size",
+			maxMessageBytes:       2000000,
+			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
+		},
+	}
+
+	assert := assert.New(t)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(tc.expectedMaxBatchBytes, ensureValidMaxBatchBytes(tc.maxMessageBytes))
 		})
 	}
 }

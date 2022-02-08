@@ -32,9 +32,6 @@ var _ CheckWithRealTime = (*ProcessCheck)(nil)
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
-// maxWeightPerMessage is the maximum allowed size of a chunk (message)
-var maxWeightPerMessage = 1000000 // 1MB
-
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
@@ -66,8 +63,8 @@ type ProcessCheck struct {
 	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
 	SysprobeProcessModuleEnabled bool
 
-	maxBatchSize         int
-	maxCtrProcsBatchSize int
+	maxBatchSize  int
+	maxBatchBytes int
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -84,6 +81,7 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.networkID = networkID
 
 	p.maxBatchSize = getMaxBatchSize()
+	p.maxBatchBytes = getMaxBatchBytes()
 }
 
 // Name returns the name of the ProcessCheck.
@@ -180,7 +178,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.maxBatchSize, p.sysInfo, groupID, p.networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.maxBatchSize, p.maxBatchBytes, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -260,11 +258,12 @@ func createProcCtrMessages(
 	containers []*model.Container,
 	cfg *config.AgentConfig,
 	maxBatchSize int,
+	maxBatchWeight int,
 	sysInfo *model.SystemInfo,
 	groupID int32,
 	networkID string,
 ) ([]model.MessageBody, int, int) {
-	collectorProcs, totalProcs, totalContainers := chunkProcessesAndContainers(procsByCtr, containers, maxBatchSize, maxWeightPerMessage)
+	collectorProcs, totalProcs, totalContainers := chunkProcessesAndContainers(procsByCtr, containers, maxBatchSize, maxBatchWeight)
 	// fill in GroupSize for each CollectorProc and convert them to final messages
 	// also count containers and processes
 	messages := make([]model.MessageBody, 0, len(collectorProcs))

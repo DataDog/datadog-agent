@@ -87,6 +87,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: DefaultProcessExpVarPort,
 		},
 		{
+			key:          "process_config.max_message_bytes",
+			defaultValue: DefaultProcessMaxMessageBytes,
+		},
+		{
 			key:          "process_config.cmd_port",
 			defaultValue: DefaultProcessCmdPort,
 		},
@@ -267,6 +271,12 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_MAX_PER_MESSAGE",
 			value:    "10",
 			expected: 10,
+		},
+		{
+			key:      "process_config.max_message_bytes",
+			env:      "DD_PROCESS_CONFIG_MAX_MESSAGE_BYTES",
+			value:    "100000",
+			expected: 100000,
 		},
 		{
 			key:      "process_config.expvar_port",

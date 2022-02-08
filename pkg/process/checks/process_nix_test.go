@@ -24,6 +24,7 @@ import (
 
 // TestBasicProcessMessages tests basic cases for creating payloads by hard-coded scenarios
 func TestBasicProcessMessages(t *testing.T) {
+	const maxBatchBytes = 1000000
 	p := []*procutil.Process{
 		makeProcess(1, "git clone google.com"),
 		makeProcess(2, "mine-bitcoins -all -x"),
@@ -115,7 +116,7 @@ func TestBasicProcessMessages(t *testing.T) {
 
 			procs := fmtProcesses(cfg, tc.processes, tc.processes, containersByPid(tc.containers), syst2, syst1, lastRun, networks)
 			containers := fmtContainers(tc.containers, lastCtrRates, lastRun)
-			messages, totalProcs, totalContainers := createProcCtrMessages(procs, containers, cfg, tc.maxSize, sysInfo, int32(i), "nid")
+			messages, totalProcs, totalContainers := createProcCtrMessages(procs, containers, cfg, tc.maxSize, maxBatchBytes, sysInfo, int32(i), "nid")
 			assert.Equal(t, tc.expectedChunks, len(messages))
 
 			assert.Equal(t, tc.expectedProcs, totalProcs)
@@ -131,6 +132,8 @@ type ctrProc struct {
 
 // TestContainerProcessChunking generates processes and containers and tests that they are properly chunked
 func TestContainerProcessChunking(t *testing.T) {
+	const maxBatchBytes = 1000000
+
 	for i, tc := range []struct {
 		testName                            string
 		ctrProcs                            []ctrProc
@@ -226,7 +229,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			cfg.ContainerHostType = model.ContainerHostType_notSpecified
 			processes := fmtProcesses(cfg, procsByPid, procsByPid, ctrIDForPID(ctrs), syst2, syst1, lastRun, networks)
 			containers := fmtContainers(ctrs, lastCtrRates, lastRun)
-			messages, totalProcs, totalContainers := createProcCtrMessages(processes, containers, cfg, tc.maxSize, sysInfo, int32(i), "nid")
+			messages, totalProcs, totalContainers := createProcCtrMessages(processes, containers, cfg, tc.maxSize, maxBatchBytes, sysInfo, int32(i), "nid")
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
 			assert.Equal(t, tc.expectedCtrCount, totalContainers)
