@@ -87,7 +87,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 			return nil, err
 		}
 	}
-	err := cfg.LoadProcessYamlConfig(opts.configPath)
+	err := cfg.LoadAgentConfig(opts.configPath)
 	if err != nil {
 		return nil, err
 	}

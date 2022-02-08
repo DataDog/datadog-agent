@@ -63,8 +63,9 @@ type cmdFunc = func(name string, arg ...string) *exec.Cmd
 
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
-//
-// Deprecated. Use `pkg/config` directly.
+// AgentConfig is shared across process-agent checks and should only contain shared objects and
+// settings that cannot be read directly from the global Config object.
+// For any other settings, use `pkg/config`.
 type AgentConfig struct {
 	HostName           string
 	Blacklist          []*regexp.Regexp
@@ -187,8 +188,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 	var err error
 
 	cfg := NewDefaultAgentConfig()
-
-	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
+	if err := cfg.LoadAgentConfig(yamlPath); err != nil {
 		return nil, err
 	}
 
@@ -262,6 +262,10 @@ func getContainerHostType() model.ContainerHostType {
 	return model.ContainerHostType_notSpecified
 }
 
+// loadEnvVariable reads env variables specific to process-agent and overrides the corresponding settings
+// in the global Config object.
+// This function is used to handle historic process-agent env vars. New settings should be
+// handled in the /pkg/config/process.go file
 func loadEnvVariables() {
 	// The following environment variables will be loaded in the order listed, meaning variables
 	// further down the list may override prior variables.
@@ -270,7 +274,6 @@ func loadEnvVariables() {
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
-		{"DD_HOSTNAME", "hostname"},
 		{"DD_BIND_HOST", "bind_host"},
 		{"HTTPS_PROXY", "proxy.https"},
 		{"DD_PROXY_HTTPS", "proxy.https"},

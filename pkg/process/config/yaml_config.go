@@ -26,8 +26,8 @@ func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// LoadProcessYamlConfig load Process-specific configuration
-func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
+// LoadAgentConfig load process-agent specific configurations based on the global Config object
+func (a *AgentConfig) LoadAgentConfig(path string) error {
 	loadEnvVariables()
 
 	// Resolve any secrets
