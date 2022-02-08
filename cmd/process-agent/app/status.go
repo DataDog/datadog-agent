@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,6 +41,7 @@ Process Agent ({{ .Core.AgentVersion }})
  Log Level: {{ .Core.Config.LogLevel }}
  Enabled Checks: {{ .Expvars.EnabledChecks }}
  Allocated Memory: {{ .Expvars.MemStats.Alloc }} bytes
+ Hostname: {{ .Core.Metadata.Meta.Hostname }}
 
 =========
 Collector
@@ -75,11 +77,7 @@ type coreStatus struct {
 	Config        struct {
 		LogLevel string `json:"log_level"`
 	} `json:"config"`
-	Metadata struct {
-		Meta struct {
-			Hostname string `json:"Hostname"`
-		} `json:"meta"`
-	} `json:"metadata"`
+	Metadata  host.Payload        `json:"metadata"`
 	Endpoints map[string][]string `json:"endpointsInfos"`
 }
 
@@ -171,10 +169,10 @@ func getStatus() (status, error) {
 	}
 
 	s := status{
+		Date:    float64(time.Now().UnixNano()),
 		Core:    coreStatus,
 		Expvars: processStatus,
 	}
-	overrideTime(time.Now())(&s)
 	return s, nil
 }
 

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 )
 
@@ -83,8 +84,12 @@ func startTestServer(t *testing.T, cfg config.Config, expectedStatus status) sta
 func TestStatus(t *testing.T) {
 	testTime := time.Now()
 	expectedStatus := status{
-		Date:    float64(testTime.UnixNano()),
-		Core:    coreStatus{},
+		Date: float64(testTime.UnixNano()),
+		Core: coreStatus{
+			Metadata: host.Payload{
+				Meta: &host.Meta{},
+			},
+		},
 		Expvars: processExpvars{},
 	}
 
