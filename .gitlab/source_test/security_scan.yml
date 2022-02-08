@@ -4,7 +4,7 @@ security_scan_test:
   rules:
     !reference [.on_main_or_release_branch]
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:v5817527-cb0e69f-next
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:v6779027-23d6b05-next
   tags: ["runner:main"]
   needs: ["go_deps"]
   before_script:

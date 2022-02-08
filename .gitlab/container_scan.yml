@@ -1,12 +1,12 @@
 ---
-# image_scan stage
-# Contains jobs to deploy Docker images of the Agent to specific Dockerhub repos
+# container_scan stage
+# Contains jobs to deploy container images of the Agent to specific Dockerhub repos
 # (datadog/agent-scan and datadog/dogstatsd-scan) to be scanned.
 
 # push every night to docker hub agent-scan repo
 scan_nightly-dogstatsd:
   extends: .docker_publish_job_definition
-  stage: image_scan
+  stage: container_scan
   rules:
     !reference [.on_deploy_nightly_repo_branch_a7]
   needs:
@@ -18,7 +18,7 @@ scan_nightly-dogstatsd:
 
 scan_nightly-a6:
   extends: .docker_publish_job_definition
-  stage: image_scan
+  stage: container_scan
   rules:
     !reference [.on_deploy_nightly_repo_branch_a6]
   needs:
@@ -35,7 +35,7 @@ scan_nightly-a6:
 
 scan_nightly-a7:
   extends: .docker_publish_job_definition
-  stage: image_scan
+  stage: container_scan
   rules:
     !reference [.on_deploy_nightly_repo_branch_a7]
   needs:
@@ -52,7 +52,7 @@ scan_nightly-a7:
 
 dca_scan_nightly:
   extends: .docker_publish_job_definition
-  stage: image_scan
+  stage: container_scan
   rules:
     !reference [.on_deploy_nightly_repo_branch_a7]
   needs: ["docker_build_cluster_agent_amd64"]
@@ -64,7 +64,7 @@ dca_scan_nightly:
 # push on master to docker hub agent-scan repo
 scan_master-dogstatsd:
   extends: .docker_publish_job_definition
-  stage: image_scan
+  stage: container_scan
   rules:
     !reference [.on_main_a7]
   needs:
@@ -76,7 +76,7 @@ scan_master-dogstatsd:
 
 scan_master-a6:
   extends: .docker_publish_job_definition
-  stage: image_scan
+  stage: container_scan
   rules:
     !reference [.on_main_a6]
   needs:
@@ -93,7 +93,7 @@ scan_master-a6:
 
 scan_master-a7:
   extends: .docker_publish_job_definition
-  stage: image_scan
+  stage: container_scan
   rules:
     !reference [.on_main_a7]
   needs:
@@ -110,7 +110,7 @@ scan_master-a7:
 
 dca_scan_master:
   extends: .docker_publish_job_definition
-  stage: image_scan
+  stage: container_scan
   rules:
     !reference [.on_main_a7]
   needs: ["docker_build_cluster_agent_amd64"]

@@ -907,6 +907,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
 	}
 
+	p.ensureConfigDefaults()
+
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse CPU count")
@@ -1043,10 +1045,21 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	return p, nil
 }
 
+func (p *Probe) ensureConfigDefaults() {
+	// enable runtime compiled constants on COS by default
+	if !p.config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
+		p.config.EnableRuntimeCompiledConstants = true
+	}
+}
+
 // GetOffsetConstants returns the offsets and struct sizes constants
 func GetOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(config, probe.kernelVersion, probe.statsdClient))
+	return GetOffsetConstantsFromFetcher(constantFetcher)
+}
 
+// GetOffsetConstantsFromFetcher returns the offsets and struct sizes constants, from a constant fetcher
+func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher) (map[string]uint64, error) {
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")

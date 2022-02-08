@@ -9,7 +9,7 @@
 # Image tagging & manifest publication
 #
 
-.deploy-a7-base:
+.deploy_containers-a7-base:
   extends: .docker_publish_job_definition
   stage: deploy7
   dependencies: []
@@ -30,22 +30,21 @@
           - "-servercore"
 
 
-deploy-a7:
-  extends: .deploy-a7-base
+deploy_containers-a7:
+  extends: .deploy_containers-a7-base
   rules:
     !reference [.on_deploy_a7_manual_auto_on_rc]
 
 
-
-deploy-a7-rc:
-  extends: .deploy-a7-base
+deploy_containers-a7-rc:
+  extends: .deploy_containers-a7-base
   rules:
     !reference [.on_deploy_a7_rc]
   variables:
     VERSION: 7-rc
 
 
-deploy-dogstatsd:
+deploy_containers-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy7
   rules:
@@ -61,7 +60,7 @@ deploy-dogstatsd:
 # Latest publication
 #
 
-deploy_latest-a7:
+deploy_containers_latest-a7:
   extends: .docker_publish_job_definition
   stage: deploy7
   rules:
@@ -82,7 +81,7 @@ deploy_latest-a7:
         IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-win1909-servercore-amd64,%BASE%-win2004-servercore-amd64,%BASE%-win20h2-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-jmx,${AGENT_REPOSITORY}:latest-servercore-jmx
 
-deploy_latest-dogstatsd:
+deploy_containers_latest-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy7
   rules:

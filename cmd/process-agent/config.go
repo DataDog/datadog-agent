@@ -6,10 +6,14 @@
 package main
 
 import (
+	"fmt"
+	"net/url"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,5 +58,32 @@ func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAc
 		}
 	}
 
+	return
+}
+
+func getAPIEndpoints() (eps []apicfg.Endpoint, err error) {
+	// Setup main endpoint
+	mainEndpointURL, err := url.Parse(ddconfig.GetMainEndpoint("https://process.", "process_config.process_dd_url"))
+	if err != nil {
+		return nil, fmt.Errorf("error parsing process_dd_url: %s", err)
+	}
+	eps = append(eps, apicfg.Endpoint{
+		APIKey:   ddconfig.SanitizeAPIKey(ddconfig.Datadog.GetString("api_key")),
+		Endpoint: mainEndpointURL,
+	})
+
+	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
+	for endpointURL, apiKeys := range ddconfig.Datadog.GetStringMapStringSlice("process_config.additional_endpoints") {
+		u, err := url.Parse(endpointURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
+		}
+		for _, k := range apiKeys {
+			eps = append(eps, apicfg.Endpoint{
+				APIKey:   ddconfig.SanitizeAPIKey(k),
+				Endpoint: u,
+			})
+		}
+	}
 	return
 }

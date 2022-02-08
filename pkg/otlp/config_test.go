@@ -10,7 +10,6 @@ package otlp
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
@@ -23,16 +22,20 @@ func TestIsEnabled(t *testing.T) {
 		path    string
 		enabled bool
 	}{
-		{path: "port/bindhost.yaml", enabled: true},
-		{path: "port/disabled.yaml", enabled: false},
-		{path: "port/invalid.yaml", enabled: true},
-		{path: "port/nobindhost.yaml", enabled: true},
-		{path: "port/nonlocal.yaml", enabled: true},
+		{path: "experimental/port/bindhost.yaml", enabled: true},
+		{path: "experimental/port/disabled.yaml", enabled: false},
+		{path: "experimental/port/invalid.yaml", enabled: true},
+		{path: "experimental/port/nobindhost.yaml", enabled: true},
 
-		{path: "receiver/noprotocols.yaml", enabled: true},
-		{path: "receiver/portandreceiver.yaml", enabled: true},
-		{path: "receiver/simple.yaml", enabled: true},
-		{path: "receiver/advanced.yaml", enabled: true},
+		{path: "experimental/receiver/noprotocols.yaml", enabled: true},
+		{path: "experimental/receiver/portandreceiver.yaml", enabled: true},
+		{path: "experimental/receiver/simple.yaml", enabled: true},
+		{path: "experimental/receiver/advanced.yaml", enabled: true},
+
+		{path: "stable/invalid_port_based.yaml", enabled: false},
+		{path: "stable/receiver/noprotocols.yaml", enabled: true},
+		{path: "stable/receiver/simple.yaml", enabled: true},
+		{path: "stable/receiver/advanced.yaml", enabled: true},
 	}
 
 	for _, testInstance := range tests {
@@ -44,6 +47,13 @@ func TestIsEnabled(t *testing.T) {
 	}
 }
 
+func TestIsEnabledEnv(t *testing.T) {
+	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:9993")
+	cfg, err := testutil.LoadConfig("./testdata/empty.yaml")
+	require.NoError(t, err)
+	assert.True(t, IsEnabled(cfg))
+}
+
 func TestFromAgentConfigReceiver(t *testing.T) {
 	tests := []struct {
 		path string
@@ -51,83 +61,67 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		err  string
 	}{
 		{
-			path: "port/bindhost.yaml",
+			path: "experimental/port/bindhost.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 5678, 1234),
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
 		},
 		{
-			path: "port/nobindhost.yaml",
+			path: "experimental/port/nobindhost.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
 		},
 		{
-			path: "port/invalid.yaml",
-			err: fmt.Sprintf("OTLP receiver port-based configuration is invalid: %s",
-				strings.Join([]string{
-					"HTTP port is invalid: -1 is out of [0, 65535] range",
-					"gRPC port is invalid: -1 is out of [0, 65535] range",
-					"internal trace port is invalid: -1 is out of [0, 65535] range",
-				},
-					"; ",
-				),
-			),
+			path: "experimental/port/invalid.yaml",
+			err:  fmt.Sprintf("internal trace port is invalid: -1 is out of [0, 65535] range"),
 		},
 		{
-			path: "port/nonlocal.yaml",
-			cfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("0.0.0.0", 5678, 1234),
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				Metrics: map[string]interface{}{
-					"tag_cardinality": "low",
-				},
-			},
-		},
-		{
-			path: "port/alldisabled.yaml",
+			path: "experimental/port/alldisabled.yaml",
 			err:  "at least one OTLP signal needs to be enabled",
 		},
 		{
-			path: "receiver/noprotocols.yaml",
+			path: "experimental/receiver/noprotocols.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
 		},
 		{
-			path: "receiver/portandreceiver.yaml",
+			path: "experimental/receiver/portandreceiver.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5679, 1234),
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
 		},
 		{
-			path: "receiver/simple.yaml",
+			path: "experimental/receiver/simple.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
@@ -139,12 +133,13 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
 		},
 		{
-			path: "receiver/advanced.yaml",
+			path: "experimental/receiver/advanced.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
@@ -171,6 +166,71 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			path: "stable/receiver/noprotocols.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			path: "stable/receiver/simple.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": nil,
+						"http": nil,
+					},
+				},
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			path: "stable/receiver/advanced.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint":               "0.0.0.0:5678",
+							"max_concurrent_streams": 16,
+							"transport":              "tcp",
+							"keepalive": map[string]interface{}{
+								"enforcement_policy": map[string]interface{}{
+									"min_time": "10m",
+								},
+							},
+						},
+						"http": map[string]interface{}{
+							"endpoint": "localhost:1234",
+							"cors": map[string]interface{}{
+								"allowed_origins": []interface{}{"http://test.com"},
+								"allowed_headers": []interface{}{"ExampleHeader"},
+							},
+						},
+					},
+				},
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
 					"tag_cardinality": "low",
 				},
 			},
@@ -191,6 +251,111 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 	}
 }
 
+func TestFromEnvironmentVariables(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		cfg  PipelineConfig
+		err  string
+	}{
+		{
+			name: "only gRPC",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "0.0.0.0:9999",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			name: "HTTP + gRPC",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9997",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT": "0.0.0.0:9998",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "0.0.0.0:9997",
+						},
+						"http": map[string]interface{}{
+							"endpoint": "0.0.0.0:9998",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+			},
+		},
+		{
+			name: "HTTP + gRPC, metrics config",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9995",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT": "0.0.0.0:9996",
+				"DD_OTLP_CONFIG_METRICS_DELTA_TTL":                "2400",
+				"DD_OTLP_CONFIG_METRICS_HISTOGRAMS_MODE":          "counters",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "0.0.0.0:9995",
+						},
+						"http": map[string]interface{}{
+							"endpoint": "0.0.0.0:9996",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+					"delta_ttl":       "2400",
+					"histograms": map[string]interface{}{
+						"mode": "counters",
+					},
+				},
+			},
+		},
+	}
+	for _, testInstance := range tests {
+		t.Run(testInstance.name, func(t *testing.T) {
+			for env, val := range testInstance.env {
+				t.Setenv(env, val)
+			}
+			cfg, err := testutil.LoadConfig("./testdata/empty.yaml")
+			require.NoError(t, err)
+			pcfg, err := FromAgentConfig(cfg)
+			if err != nil || testInstance.err != "" {
+				assert.Equal(t, testInstance.err, err.Error())
+			} else {
+				assert.Equal(t, testInstance.cfg, pcfg)
+			}
+		})
+	}
+}
+
 func TestFromAgentConfigMetrics(t *testing.T) {
 	tests := []struct {
 		path string
@@ -198,17 +363,40 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 		err  string
 	}{
 		{
-			path: "metrics/allconfig.yaml",
+			path: "experimental/metrics/allconfig.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                2400,
-					"report_quantiles":                         false,
-					"send_monotonic_counter":                   true,
-					"resource_attributes_as_tags":              true,
+					"enabled":                     true,
+					"delta_ttl":                   2400,
+					"report_quantiles":            false,
+					"send_monotonic_counter":      true,
+					"resource_attributes_as_tags": true,
+					"instrumentation_library_metadata_as_tags": true,
+					"tag_cardinality":                          "orchestrator",
+					"histograms": map[string]interface{}{
+						"mode":                   "counters",
+						"send_count_sum_metrics": true,
+					},
+				},
+			},
+		},
+		{
+			path: "stable/metrics/allconfig.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+				Metrics: map[string]interface{}{
+					"enabled":                     true,
+					"delta_ttl":                   2400,
+					"report_quantiles":            false,
+					"send_monotonic_counter":      true,
+					"resource_attributes_as_tags": true,
 					"instrumentation_library_metadata_as_tags": true,
 					"tag_cardinality":                          "orchestrator",
 					"histograms": map[string]interface{}{

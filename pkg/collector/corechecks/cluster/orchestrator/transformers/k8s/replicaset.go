@@ -35,5 +35,7 @@ func ExtractReplicaSet(rs *appsv1.ReplicaSet) *model.ReplicaSet {
 	replicaSet.ReadyReplicas = rs.Status.ReadyReplicas
 	replicaSet.AvailableReplicas = rs.Status.AvailableReplicas
 
+	replicaSet.ResourceRequirements = ExtractPodTemplateResourceRequirements(rs.Spec.Template)
+
 	return &replicaSet
 }

@@ -1,6 +1,6 @@
 ---
 .docker_build_job_definition:
-  stage: image_build
+  stage: container_build
   script:
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
@@ -20,6 +20,8 @@
     - docker build --build-arg CIBUILD=true $BUILD_ARG --file $BUILD_CONTEXT/$ARCH/Dockerfile --pull --tag ${TARGET_TAG}-unsquashed $BUILD_CONTEXT
     - docker-squash ${TARGET_TAG}-unsquashed -t ${TARGET_TAG}
     - docker push $TARGET_TAG
+  # Workaround for temporary network failures
+  retry: 2
 
 .docker_build_job_definition_amd64:
   extends: .docker_build_job_definition
