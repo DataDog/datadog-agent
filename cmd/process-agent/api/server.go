@@ -59,7 +59,7 @@ func getIPCAddressPort() (string, error) {
 
 	port := ddconfig.Datadog.GetInt("process_config.cmd_port")
 	if port <= 0 {
-		log.Warnf("invalid process_config.cmd_port -- %d, using default port %d", port, ddconfig.DefaultProcessCmdPort)
+		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, ddconfig.DefaultProcessCmdPort)
 		port = ddconfig.DefaultProcessCmdPort
 	}
 
