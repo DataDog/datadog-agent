@@ -118,6 +118,7 @@ Make an edit to any of the files mentioned above and then, from the root of the 
 - Golang (see `go.mod` for the minimal version supported)
 - Python
 	- `pip install -r requirements.txt` to install dependencies
+	- `pip install -r docs/cloud-workload-security/scripts/requirements-docs.txt` to install dependencies
 
 
 #### Steps
