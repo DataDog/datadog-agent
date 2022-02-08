@@ -294,7 +294,6 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kprobe/skb_free_datagram_locked")
 int kprobe__skb_free_datagram_locked(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    // Retrieve socket pointer from kprobe via pid/tgid
     udp_recv_sock_t* st = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
     if (!st) { // no entry means a peek
         return 0;
@@ -308,6 +307,12 @@ int kprobe__skb_free_datagram_locked(struct pt_regs* ctx) {
 
 SEC("kprobe/__skb_free_datagram_locked")
 int kprobe____skb_free_datagram_locked(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    udp_recv_sock_t* st = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
+    if (!st) { // no entry means a peek
+        return 0;
+    }
+
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM2(ctx);
     int len = (int)PT_REGS_PARM3(ctx);
@@ -317,6 +322,12 @@ int kprobe____skb_free_datagram_locked(struct pt_regs* ctx) {
 
 SEC("kprobe/skb_consume_udp")
 int kprobe__skb_consume_udp(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    udp_recv_sock_t* st = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
+    if (!st) { // no entry means a peek
+        return 0;
+    }
+
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM2(ctx);
     int len = (int)PT_REGS_PARM3(ctx);

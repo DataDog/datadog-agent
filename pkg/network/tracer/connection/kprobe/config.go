@@ -76,14 +76,15 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 				return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
 			}
 
+			enabled[probes.UDPRecvMsg] = struct{}{}
+			enabled[probes.UDPRecvMsgReturn] = struct{}{}
+
 			if _, miss := missing["skb_consume_udp"]; !miss {
 				enabled[probes.SKBConsumeUDP] = struct{}{}
 			} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
 				enabled[probes.SKB__FreeDatagramLocked] = struct{}{}
 			} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
 				enabled[probes.SKBFreeDatagramLocked] = struct{}{}
-				enabled[probes.UDPRecvMsg] = struct{}{}
-				enabled[probes.UDPRecvMsgReturn] = struct{}{}
 			} else {
 				return nil, fmt.Errorf("missing desired UDP receive kernel functions")
 			}
