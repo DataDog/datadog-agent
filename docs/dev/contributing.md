@@ -110,9 +110,9 @@ Before the first PR review, meaningful commits are best: logically-encapsulated
 #### After the first review
 
 After the first review, to make follow-up reviews easier:
-- Avoid force pushes. In particular rewriting the history that was already
- reviewed, which makes follow up reviews painful as GitHub loses track of each
- comments.
+- Avoid force pushes: rewriting the history that was already
+ reviewed makes follow-up reviews painful as GitHub loses track of each
+ comment. Instead, address reviews with additional commits on the PR branch.
 - Resolve merge conflicts with `main` using `git merge origin/main`
 
 #### How to merge to `main`
