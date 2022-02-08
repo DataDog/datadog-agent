@@ -136,9 +136,11 @@ func (w *timeSamplerWorker) triggerFlush(t time.Time, waitForSerializer bool) {
 			updateSerieTelemetry(t, uint64(len(series)), "timeSamplerWorker", err)
 			tagsetTlm.updateHugeSeriesTelemetry(&series)
 
-			err = w.serializer.SendSketch(sketches)
-			updateSketchTelemetry(t, uint64(len(sketches)), "timeSamplerWorker", err)
-			tagsetTlm.updateHugeSketchesTelemetry(&sketches)
+			if len(sketches) > 0 {
+				err = w.serializer.SendSketch(sketches)
+				updateSketchTelemetry(t, uint64(len(sketches)), "timeSamplerWorker", err)
+				tagsetTlm.updateHugeSketchesTelemetry(&sketches)
+			}
 		}
 	}
 }
@@ -183,8 +185,10 @@ func (w *timeSamplerWorker) triggerFlushWithParallelSerialize(start time.Time, w
 		<-done
 	}
 
-	tagsetTlm.updateHugeSketchesTelemetry(&sketches)
-	if err := w.serializer.SendSketch(sketches); err != nil {
-		log.Errorf("flushLoop: %+v", err)
+	if len(sketches) > 0 {
+		tagsetTlm.updateHugeSketchesTelemetry(&sketches)
+		if err := w.serializer.SendSketch(sketches); err != nil {
+			log.Errorf("flushLoop: %+v", err)
+		}
 	}
 }
