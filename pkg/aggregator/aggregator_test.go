@@ -528,7 +528,6 @@ func TestTimeSamplerFlush(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", tt.enabled)
 			s := &MockSerializerIterableSerie{}
-			s.On("SendSketch", mock.Anything).Return(nil)
 			s.On("IsIterableSeriesSupported", mock.Anything).Return(true).Maybe()
 			opts := demuxTestOptions()
 			demux := InitAndStartAgentDemultiplexer(opts, "")
