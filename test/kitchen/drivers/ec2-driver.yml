@@ -95,6 +95,5 @@ platforms:
     username: ec2-user
     <% end %>
     ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY'] %>
-    
 
 <% end %>
