@@ -268,7 +268,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(os.Getenv("HOST_PROC"), "")
 	assert.Equal(os.Getenv("HOST_SYS"), "")
 	os.Setenv("DOCKER_DD_AGENT", "no")
-	assert.Equal(6062, agentConfig.ProcessExpVarPort)
+	assert.Equal(config.DefaultProcessExpVarPort, config.Datadog.GetInt("process_config.expvar_port"))
 
 	os.Unsetenv("DOCKER_DD_AGENT")
 
@@ -296,7 +296,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
-	assert.Equal(5065, agentConfig.ProcessExpVarPort)
+	assert.Equal(5065, config.Datadog.GetInt("process_config.expvar_port"))
 
 	newConfig()
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")

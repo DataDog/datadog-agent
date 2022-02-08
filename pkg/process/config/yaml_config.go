@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -85,14 +83,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	if k := key(ns, "expvar_port"); config.Datadog.IsSet(k) {
-		port := config.Datadog.GetInt(k)
-		if port <= 0 {
-			return errors.Errorf("invalid %s -- %d", k, port)
-		}
-		a.ProcessExpVarPort = port
-	}
-
 	// Enable/Disable the DataScrubber to obfuscate process args
 	if scrubArgsKey := key(ns, "scrub_args"); config.Datadog.IsSet(scrubArgsKey) {
 		a.Scrubber.Enabled = config.Datadog.GetBool(scrubArgsKey)
@@ -106,10 +96,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// Strips all process arguments
 	if config.Datadog.GetBool(key(ns, "strip_proc_arguments")) {
 		a.Scrubber.StripAllArguments = true
-	}
-
-	if !config.Datadog.IsSet(key(ns, "cmd_port")) {
-		config.Datadog.Set(key(ns, "cmd_port"), 6162)
 	}
 
 	// Used to override container source auto-detection

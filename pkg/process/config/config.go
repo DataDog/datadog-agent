@@ -71,7 +71,6 @@ type AgentConfig struct {
 	Scrubber           *DataScrubber
 	MaxConnsPerMessage int
 	Transport          *http.Transport `json:"-"`
-	ProcessExpVarPort  int
 
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
@@ -121,8 +120,8 @@ func NewDefaultAgentConfig() *AgentConfig {
 		MaxConnsPerMessage: 600,
 		HostName:           "",
 		Transport:          NewDefaultTransport(),
-		ProcessExpVarPort:  6062,
-		ContainerHostType:  model.ContainerHostType_notSpecified,
+
+		ContainerHostType: model.ContainerHostType_notSpecified,
 
 		// System probe collection configuration
 		EnableSystemProbe:  false,
@@ -270,7 +269,6 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"},
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
-		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_BIND_HOST", "bind_host"},

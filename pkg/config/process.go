@@ -40,6 +40,12 @@ const (
 	// ProcessMaxCtrProcsPerMessageLimit is the maximum allowed value for process_config.max_ctr_procs_per_message.
 	ProcessMaxCtrProcsPerMessageLimit = 30000
 
+	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
+	DefaultProcessExpVarPort = 6062
+
+	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
+	DefaultProcessCmdPort = 6162
+
 	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
 	DefaultProcessEndpoint = "https://process.datadoghq.com"
 )
@@ -98,7 +104,7 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.rt_queue_size", DefaultProcessRTQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.max_per_message", DefaultProcessMaxPerMessage)
 	procBindEnvAndSetDefault(config, "process_config.max_ctr_procs_per_message", DefaultProcessMaxCtrProcsPerMessage)
-	config.SetKnown("process_config.cmd_port")
+	procBindEnvAndSetDefault(config, "process_config.cmd_port", DefaultProcessCmdPort)
 	config.SetKnown("process_config.intervals.process")
 	config.SetKnown("process_config.blacklist_patterns")
 	config.SetKnown("process_config.intervals.container")
@@ -116,7 +122,7 @@ func setupProcesses(config Config) {
 	)
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
-	config.SetKnown("process_config.expvar_port")
+	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
