@@ -310,16 +310,16 @@ func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient
 }
 
 func downloadPolicy(cmd *cobra.Command, args []string) error {
-	if !coreconfig.Datadog.IsSet("api_key") {
-		return errors.New("no API key is set")
-	}
-
-	if !coreconfig.Datadog.IsSet("app_key") {
-		return errors.New("no application key is set")
-	}
-
 	apiKey := coreconfig.Datadog.GetString("api_key")
 	appKey := coreconfig.Datadog.GetString("app_key")
+
+	if apiKey == "" {
+		return errors.New("API key is empty")
+	}
+
+	if appKey == "" {
+		return errors.New("application key is empty")
+	}
 
 	site := coreconfig.Datadog.GetString("site")
 	if site == "" {
