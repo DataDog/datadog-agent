@@ -26,7 +26,7 @@ func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// LoadAgentConfig load process-agent specific configurations based on the global Config object
+// LoadAgentConfig loads process-agent specific configurations based on the global Config object
 func (a *AgentConfig) LoadAgentConfig(path string) error {
 	loadEnvVariables()
 

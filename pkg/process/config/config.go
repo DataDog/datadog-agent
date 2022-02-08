@@ -65,7 +65,7 @@ type cmdFunc = func(name string, arg ...string) *exec.Cmd
 // is sourced from config files and the environment variables.
 // AgentConfig is shared across process-agent checks and should only contain shared objects and
 // settings that cannot be read directly from the global Config object.
-// For any other settings, use `pkg/config`.
+// For any other setting, use `pkg/config`.
 type AgentConfig struct {
 	HostName           string
 	Blacklist          []*regexp.Regexp
