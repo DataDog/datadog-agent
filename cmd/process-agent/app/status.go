@@ -82,6 +82,15 @@ Process Agent
   The Process Agent is not running
 
 `
+
+	errorMessage = `
+=====
+Error
+=====
+
+{{ . }}
+
+`
 )
 
 type coreStatus struct {
@@ -134,6 +143,10 @@ type status struct {
 
 type statusOption func(s *status)
 
+type connectionError struct {
+	error
+}
+
 func overrideTime(t time.Time) statusOption {
 	return func(s *status) {
 		s.Date = float64(t.UnixNano())
@@ -143,13 +156,13 @@ func overrideTime(t time.Time) statusOption {
 func getCoreStatus() (s coreStatus, err error) {
 	addressPort, err := api.GetAPIAddressPort()
 	if err != nil {
-		return
+		return coreStatus{}, fmt.Errorf("config error: %s", err.Error())
 	}
 
 	statusEndpoint := fmt.Sprintf("http://%s/agent/status", addressPort)
 	b, err := util.DoGet(httpClient, statusEndpoint)
 	if err != nil {
-		return
+		return s, connectionError{err}
 	}
 
 	err = json.Unmarshal(b, &s)
@@ -159,13 +172,18 @@ func getCoreStatus() (s coreStatus, err error) {
 func getExpvars() (s processExpvars, err error) {
 	ipcAddr, err := ddconfig.GetIPCAddress()
 	if err != nil {
-		return
+		return processExpvars{}, fmt.Errorf("config error: %s", err.Error())
 	}
 
-	expvarEndpoint := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, ddconfig.Datadog.GetInt("process_config.expvar_port"))
+	port := ddconfig.Datadog.GetInt("process_config.expvar_port")
+	if port <= 0 {
+		_ = log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d\n", port, ddconfig.DefaultProcessExpVarPort)
+		port = ddconfig.DefaultProcessExpVarPort
+	}
+	expvarEndpoint := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	b, err := util.DoGet(httpClient, expvarEndpoint)
 	if err != nil {
-		return
+		return s, connectionError{err}
 	}
 
 	err = json.Unmarshal(b, &s)
@@ -198,12 +216,28 @@ func writeNotRunning(w io.Writer) {
 	}
 }
 
+func writeError(w io.Writer, e error) {
+	tpl, err := template.New("").Funcs(ddstatus.Textfmap()).Parse(errorMessage)
+	if err != nil {
+		_ = log.Error(err)
+	}
+
+	err = tpl.Execute(w, e)
+	if err != nil {
+		_ = log.Error(err)
+	}
+}
+
 // getAndWriteStatus calls the status server and writes it to `w`
 func getAndWriteStatus(w io.Writer, options ...statusOption) {
 	status, err := getStatus()
 	if err != nil {
-		log.Error(err)
-		writeNotRunning(w)
+		switch err.(type) {
+		case connectionError:
+			writeNotRunning(w)
+		default:
+			writeError(w, err)
+		}
 		return
 	}
 	for _, option := range options {
@@ -234,7 +268,20 @@ func StatusCmd() *cobra.Command {
 func runStatus(cmd *cobra.Command, _ []string) error {
 	err := config.LoadConfigIfExists(cmd.Flag("config").Value.String())
 	if err != nil {
-		return err
+		writeError(os.Stdout, err)
+	}
+
+	err = ddconfig.SetupLogger(
+		"process",
+		ddconfig.Datadog.GetString("log_level"),
+		ddconfig.Datadog.GetString("process_config.log_file"),
+		ddconfig.GetSyslogURI(),
+		ddconfig.Datadog.GetBool("syslog_rfc"),
+		ddconfig.Datadog.GetBool("log_to_console"),
+		ddconfig.Datadog.GetBool("log_format_json"),
+	)
+	if err != nil {
+		writeError(os.Stdout, err)
 	}
 
 	getAndWriteStatus(os.Stdout)
