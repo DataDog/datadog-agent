@@ -91,6 +91,7 @@ const (
 	AgentProcessesContainerEnabled     AgentMetadataName = "feature_processes_container_enabled"
 	AgentNetworksEnabled               AgentMetadataName = "feature_networks_enabled"
 	AgentNetworksHTTPEnabled           AgentMetadataName = "feature_networks_http_enabled"
+	AgentNetworksHTTPSEnabled          AgentMetadataName = "feature_networks_https_enabled"
 	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
 	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
@@ -286,6 +287,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.Datadog.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.Datadog.GetBool("network_config.enable_http_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.Datadog.GetBool("network_config.enable_https_monitoring"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
