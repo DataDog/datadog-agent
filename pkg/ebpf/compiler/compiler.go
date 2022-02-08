@@ -147,6 +147,7 @@ func NewEBPFCompiler(headerDirs []string, verbose bool) (*EBPFCompiler, error) {
 			fmt.Sprintf("-isystem%s/include/generated/uapi", d),
 		)
 	}
+	cflags = append(cflags, "-include", "generated/autoconf.h")
 	ebpfCompiler.kernelCflags = cflags
 
 	return ebpfCompiler, nil
