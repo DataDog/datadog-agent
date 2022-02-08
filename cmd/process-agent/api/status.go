@@ -14,7 +14,7 @@ import (
 )
 
 func statusHandler(w http.ResponseWriter, _ *http.Request) {
-	log.Trace("Received status request from process agent")
+	log.Trace("Received status request from process-agent")
 
 	agentStatus, err := status.GetStatus()
 	if err != nil {
