@@ -1,4 +1,4 @@
-FROM golang:1.16-buster
+FROM golang:1.17-buster
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV GOPATH /go
@@ -22,5 +22,6 @@ WORKDIR $GOPATH/src/github.com/DataDog/datadog-agent
 
 COPY requirements.txt requirements.txt
 COPY docs/cloud-workload-security/scripts/requirements-docs.txt requirements-docs.txt
+RUN python3 -m pip install wheel
 RUN python3 -m pip install -r requirements.txt
 RUN python3 -m pip install -r requirements-docs.txt
