@@ -207,15 +207,6 @@ build do
       command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
     end
 
-    # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
-    uninstall_buildtime_deps.each do |dep|
-      if windows?
-        command "#{python} -m pip uninstall -y #{dep}"
-      else
-        command "#{pip} uninstall -y #{dep}"
-      end
-    end
-
     #
     # Install static-environment requirements that the Agent and all checks will use
     #
@@ -384,6 +375,15 @@ build do
             "--integration #{check} " \
             "--awscli #{awscli}",
             :cwd => tasks_dir_in
+        end
+      end
+
+      # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
+      uninstall_buildtime_deps.each do |dep|
+        if windows?
+          command "#{python} -m pip uninstall -y #{dep}"
+        else
+          command "#{pip} uninstall -y #{dep}"
         end
       end
     end
