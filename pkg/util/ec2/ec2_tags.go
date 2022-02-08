@@ -59,6 +59,13 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 
 	tags := []string{}
 	for _, key := range keys {
+		// The key is a valid URL component and need not be escaped:
+		//
+		// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#tag-restrictions
+		// > If you enable instance tags in instance metadata, instance tag
+		// > keys can only use letters (a-z, A-Z), numbers (0-9), and the
+		// > following characters: -_+=,.@:. Instance tag keys can't use spaces,
+		// > /, or the reserved names ., .., or _index.
 		val, err := getMetadataItem(ctx, "/tags/instance/"+key)
 		if err != nil {
 			return nil, err
