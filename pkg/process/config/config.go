@@ -270,7 +270,6 @@ func loadEnvVariables() {
 	// The following environment variables will be loaded in the order listed, meaning variables
 	// further down the list may override prior variables.
 	for _, variable := range []struct{ env, cfg string }{
-		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"}, // MOVED: add test
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"HTTPS_PROXY", "proxy.https"},
 	} {

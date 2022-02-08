@@ -115,7 +115,7 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS")
 	config.SetEnvKeyTransformer("process_config.custom_sensitive_words", func(val string) interface{} {
-		// historically we accept DD_CUSTOM_SENSITIVE_WORDS as "w1,w2" but Viper expects the user to set a list as ["w1","w2",...]
+		// historically we accept DD_CUSTOM_SENSITIVE_WORDS as "w1,w2,..." but Viper expects the user to set a list as ["w1","w2",...]
 		if strings.HasPrefix(val, "[") && strings.HasSuffix(val, "]") {
 			return val
 		}
