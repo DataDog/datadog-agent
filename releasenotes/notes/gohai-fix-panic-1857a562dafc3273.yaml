@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix a rare panic in Gohai when collecting the system's python version
+    Fix a rare panic in Gohai when collecting the system's Python version.
