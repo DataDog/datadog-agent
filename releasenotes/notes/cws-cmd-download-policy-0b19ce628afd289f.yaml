@@ -8,8 +8,8 @@
 ---
 features:
   - |
-    The security agent now offers a command to directly download the policy file from the API.
+    The security Agent now offers a command to directly download the policy file from the API.
 deprecations:
   - |
-    The commands `check-policies` and `reload` of the security agent are deprecated.
-    Please use `runtime policy check` and `runtime policy reload` respectively instead.
+    The security Agent commands `check-policies` and `reload` are deprecated.
+    Use `runtime policy check` and `runtime policy reload` respectively instead.
