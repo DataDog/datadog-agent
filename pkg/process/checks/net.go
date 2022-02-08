@@ -98,7 +98,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	connTel := c.diffTelemetry(conns.ConnTelemetry)
+	connTel := c.diffAndFormatTelemetry(conns.ConnTelemetry)
 
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
@@ -130,7 +130,7 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 	return conns
 }
 
-func (c *ConnectionsCheck) diffTelemetry(tel map[string]int64) map[string]int64 {
+func (c *ConnectionsCheck) diffAndFormatTelemetry(tel map[string]int64) map[string]int64 {
 	if tel == nil {
 		return nil
 	}
@@ -142,17 +142,17 @@ func (c *ConnectionsCheck) diffTelemetry(tel map[string]int64) map[string]int64 
 	}
 
 	cct := map[string]int64{
-		"KprobesTriggered":          tel["MonotonicKprobesTriggered"] - c.lastTelemetry["KprobesTriggered"],
-		"KprobesMissed":             tel["MonotonicKprobesMissed"] - c.lastTelemetry["KprobesMissed"],
-		"ConntrackRegisters":        tel["MonotonicConntrackRegisters"] - c.lastTelemetry["ConntrackRegisters"],
-		"ConntrackRegistersDropped": tel["MonotonicConntrackRegistersDropped"] - c.lastTelemetry["ConntrackRegistersDropped"],
-		"DnsPacketsProcessed":       tel["MonotonicDnsPacketsProcessed"] - c.lastTelemetry["DnsPacketsProcessed"],
-		"ConnsClosed":               tel["MonotonicConnsClosed"] - c.lastTelemetry["ConnsClosed"],
-		"ConnsBpfMapSize":           tel["ConnsBpfMapSize"],
-		"UdpSendsProcessed":         tel["MonotonicUdpSendsProcessed"] - c.lastTelemetry["UdpSendsProcessed"],
-		"UdpSendsMissed":            tel["MonotonicUdpSendsMissed"] - c.lastTelemetry["UdpSendsMissed"],
-		"ConntrackSamplingPercent":  tel["ConntrackSamplingPercent"],
-		"DnsStatsDropped":           tel["DnsStatsDropped"],
+		"kprobes_triggered":           tel["MonotonicKprobesTriggered"] - c.lastTelemetry["KprobesTriggered"],
+		"kprobes_missed":              tel["MonotonicKprobesMissed"] - c.lastTelemetry["KprobesMissed"],
+		"conntrack_registers":         tel["MonotonicConntrackRegisters"] - c.lastTelemetry["ConntrackRegisters"],
+		"conntrack_registers_dropped": tel["MonotonicConntrackRegistersDropped"] - c.lastTelemetry["ConntrackRegistersDropped"],
+		"dns_packets_processed":       tel["MonotonicDnsPacketsProcessed"] - c.lastTelemetry["DnsPacketsProcessed"],
+		"conns_closed":                tel["MonotonicConnsClosed"] - c.lastTelemetry["ConnsClosed"],
+		"conns_bpf_map_size":          tel["ConnsBpfMapSize"],
+		"udp_sends_processed":         tel["MonotonicUdpSendsProcessed"] - c.lastTelemetry["UdpSendsProcessed"],
+		"udp_sends_missed":            tel["MonotonicUdpSendsMissed"] - c.lastTelemetry["UdpSendsMissed"],
+		"conntrack_sampling_percent":  tel["ConntrackSamplingPercent"],
+		"dns_stats_dropped":           tel["DnsStatsDropped"],
 	}
 	c.saveTelemetry(tel)
 	return cct
