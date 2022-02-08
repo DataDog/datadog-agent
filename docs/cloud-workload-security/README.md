@@ -116,9 +116,9 @@ Make an edit to any of the files mentioned above and then, from the root of the 
 #### Requirements
 
 - Golang (see `go.mod` for the minimal version supported)
-- Python
-	- `pip install -r requirements.txt` to install dependencies
-	- `pip install -r docs/cloud-workload-security/scripts/requirements-docs.txt` to install dependencies
+- Python, install dependencies with:
+	- `pip install -r requirements.txt`
+	- `pip install -r docs/cloud-workload-security/scripts/requirements-docs.txt`
 
 
 #### Steps
@@ -131,7 +131,7 @@ inv -e security-agent.cws-go-generate
 go generate ./path/to/the/touched/file
 ```
 
-To generate the final markdown files (at the root of `docs/cloud-workload-security`) please run:
+To generate the final markdown files please run:
 ```sh
 inv -e security-agent.generate-cws-documentation
 ```
