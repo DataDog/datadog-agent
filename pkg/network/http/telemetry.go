@@ -63,18 +63,10 @@ func (t *telemetry) reset() telemetry {
 	return delta
 }
 
-func (t *telemetry) report() map[string]int64 {
+func (t *telemetry) report() {
 	var totalRequests int64
 	for _, n := range t.hits {
 		totalRequests += n
-	}
-
-	stats := map[string]int64{
-		"requests_processed": totalRequests,
-		"requests_missed":    t.misses,
-		"requests_dropped":   t.dropped,
-		"requests_rejected":  t.rejected,
-		"aggregations":       t.aggregations,
 	}
 
 	log.Debugf(
@@ -89,6 +81,4 @@ func (t *telemetry) report() map[string]int64 {
 		float64(t.dropped)/float64(t.elapsed),
 		t.aggregations,
 	)
-
-	return stats
 }
