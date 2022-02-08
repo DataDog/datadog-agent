@@ -43,7 +43,7 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-Wno-error=int-conversion"})
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, nil)
 	if err != nil {
 		return nil, err
 	}

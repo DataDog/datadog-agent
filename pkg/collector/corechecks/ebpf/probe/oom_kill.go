@@ -40,7 +40,7 @@ type OOMKillProbe struct {
 }
 
 func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
-	compiledOutput, err := runtime.OomKill.Compile(cfg, []string{"-Wno-error=int-conversion"})
+	compiledOutput, err := runtime.OomKill.Compile(cfg, nil)
 	if err != nil {
 		return nil, err
 	}
