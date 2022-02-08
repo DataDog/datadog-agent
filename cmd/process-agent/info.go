@@ -253,6 +253,26 @@ func publishContainerID() interface{} {
 	return containerID
 }
 
+func publishEndpoints() interface{} {
+	eps, err := getAPIEndpoints()
+	if err != nil {
+		return err
+	}
+
+	endpointsInfo := make(map[string][]string)
+
+	// obfuscate the api keys
+	for _, endpoint := range eps {
+		apiKey := endpoint.APIKey
+		if len(apiKey) > 5 {
+			apiKey = apiKey[len(apiKey)-5:]
+		}
+
+		endpointsInfo[endpoint.Endpoint.String()] = append(endpointsInfo[endpoint.Endpoint.String()], apiKey)
+	}
+	return endpointsInfo
+}
+
 func getProgramBanner(version string) (string, string) {
 	program := fmt.Sprintf("Processes and Containers Agent (v %s)", version)
 	banner := strings.Repeat("=", len(program))
@@ -317,6 +337,7 @@ func initInfo(_ *config.AgentConfig) error {
 		expvar.Publish("pod_queue_bytes", expvar.Func(publishPodQueueBytes))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
 		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
+		expvar.Publish("endpoints", expvar.Func(publishEndpoints))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 		if err != nil {

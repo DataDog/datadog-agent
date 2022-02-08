@@ -43,6 +43,21 @@ Process Agent ({{ .Core.AgentVersion }})
  Allocated Memory: {{ .Expvars.MemStats.Alloc }} bytes
  Hostname: {{ .Core.Metadata.Meta.Hostname }}
 
+=================
+Process Endpoints
+=================
+{{- with .Expvars.Endpoints}}
+  {{- range $key, $value := .}}
+  {{$key}} - API Key{{ if gt (len $value) 1}}s{{end}} ending with:
+    {{- range $idx, $apikey := $value }}
+      - {{$apikey}}
+    {{- end}}
+  {{- end}}
+{{- else }}
+
+  No endpoints information. The agent may be misconfigured.
+{{- end }}
+
 =========
 Collector
 =========
@@ -77,8 +92,7 @@ type coreStatus struct {
 	Config        struct {
 		LogLevel string `json:"log_level"`
 	} `json:"config"`
-	Metadata  host.Payload        `json:"metadata"`
-	Endpoints map[string][]string `json:"endpointsInfos"`
+	Metadata host.Payload `json:"metadata"`
 }
 
 type infoVersion struct {
@@ -109,6 +123,7 @@ type processExpvars struct {
 	ProxyURL            string                 `json:"proxy_url"`
 	LogFile             string                 `json:"log_file"`
 	EnabledChecks       []string               `json:"enabled_checks"`
+	Endpoints           map[string][]string    `json:"endpoints"`
 }
 
 type status struct {
@@ -187,6 +202,7 @@ func writeNotRunning(w io.Writer) {
 func getAndWriteStatus(w io.Writer, options ...statusOption) {
 	status, err := getStatus()
 	if err != nil {
+		log.Error(err)
 		writeNotRunning(w)
 		return
 	}
