@@ -537,6 +537,7 @@ core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,The OPA Autho
 core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/ir,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/json/patch,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,The OPA Authors | lestrrat
 core,github.com/open-policy-agent/opa/internal/jwx/jwa,MIT,The OPA Authors | lestrrat
 core,github.com/open-policy-agent/opa/internal/jwx/jwk,MIT,The OPA Authors | lestrrat
@@ -547,6 +548,7 @@ core,github.com/open-policy-agent/opa/internal/lcss,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/leb128,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/merge,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/planner,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/ref,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/rego/opa,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/semver,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/strings,Apache-2.0,The OPA Authors
