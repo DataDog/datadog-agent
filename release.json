@@ -52,8 +52,8 @@
         "WINDOWS_DDNPM_VERSION": "1.3.0",
         "WINDOWS_DDNPM_SHASUM": "c135e8f8d1060235dcc52a3e5c3b421d1d37be2b4124ec3269308949a254c540"
     },
-    "dca-1.18.0-rc.1": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.19.0"
+    "dca-1.18.0-rc.2": {
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.20.0"
     },
     "dca-1.17.0": {
         "SECURITY_AGENT_POLICIES_VERSION": "v0.18.6"
