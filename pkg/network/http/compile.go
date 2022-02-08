@@ -25,7 +25,7 @@ func getRuntimeCompiledHTTP(config *config.Config) (runtime.CompiledOutput, erro
 func getCFlags(config *config.Config) []string {
 	var cflags []string
 
-	if strings.ToLower(rt.GOARCH) == "arm64" {
+	if rt.GOARCH == "arm64" {
 		cflags = append(cflags, "--target=aarch64-unknown-linux-gnu")
 	} else {
 		cflags = append(cflags, "--target=x86_64-unknown-linux-gnu")

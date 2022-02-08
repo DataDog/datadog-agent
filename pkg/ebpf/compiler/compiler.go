@@ -110,7 +110,7 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 	err = bcToObj.Run()
 	if err != nil {
 		var errMsg string
-		if clangCtx.Err() == context.DeadlineExceeded {
+		if llcCtx.Err() == context.DeadlineExceeded {
 			errMsg = "operation timed out"
 		} else if len(llcErr.String()) > 0 {
 			errMsg = llcErr.String()
