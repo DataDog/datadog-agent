@@ -214,6 +214,7 @@ flavor_to_readable=(
     ["datadog-agent"]="Datadog Agent"
     ["datadog-iot-agent"]="Datadog IoT Agent"
     ["datadog-dogstatsd"]="Datadog Dogstatsd"
+    ["datadog-heroku-agent"]="Datadog Heroku Agent"
 )
 nice_flavor=${flavor_to_readable[$agent_flavor]}
 
