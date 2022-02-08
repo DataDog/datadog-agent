@@ -57,9 +57,10 @@ var (
 	}
 
 	checkPoliciesCmd = &cobra.Command{
-		Use:   "check-policies",
-		Short: "Check policies and return a report",
-		RunE:  checkPolicies,
+		Use:        "check-policies",
+		Short:      "Check policies and return a report",
+		RunE:       checkPolicies,
+		Deprecated: "please use `security-agent runtime policy check` instead",
 	}
 
 	checkPoliciesArgs = struct {
@@ -88,14 +89,27 @@ var (
 	}
 
 	reloadPoliciesCmd = &cobra.Command{
+		Use:        "reload",
+		Short:      "Reload policies",
+		RunE:       reloadRuntimePolicies,
+		Deprecated: "please use `security-agent runtime policy reload` instead",
+	}
+
+	commonReloadPoliciesCmd = &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
 		RunE:  reloadRuntimePolicies,
 	}
 
+	commonCheckPoliciesCmd = &cobra.Command{
+		Use:   "check",
+		Short: "Check policies and return a report",
+		RunE:  checkPolicies,
+	}
+
 	downloadPolicyCmd = &cobra.Command{
-		Use:   "download-policy",
-		Short: "Download policy",
+		Use:   "download",
+		Short: "Download policies",
 		Args:  cobra.MaximumNArgs(1),
 		RunE:  downloadPolicy,
 	}
@@ -103,6 +117,11 @@ var (
 	downloadPolicyArgs = struct {
 		check bool
 	}{}
+
+	commonPolicyCmd = &cobra.Command{
+		Use:   "policy",
+		Short: "Policy related commands",
+	}
 )
 
 func init() {
@@ -115,8 +134,16 @@ func init() {
 
 	runtimeCmd.AddCommand(selfTestCmd)
 	runtimeCmd.AddCommand(reloadPoliciesCmd)
-	runtimeCmd.AddCommand(downloadPolicyCmd)
+
 	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
+	commonPolicyCmd.AddCommand(downloadPolicyCmd)
+
+	commonCheckPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonPolicyCmd.AddCommand(commonCheckPoliciesCmd)
+
+	commonPolicyCmd.AddCommand(commonReloadPoliciesCmd)
+
+	runtimeCmd.AddCommand(commonPolicyCmd)
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
