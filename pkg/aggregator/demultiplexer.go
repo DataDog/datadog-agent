@@ -352,7 +352,7 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	defer d.m.Unlock()
 
 	if flush {
-		d.ForceFlushToSerializer(time.Now(), true)
+		d.forceFlushToSerializer(time.Now(), true)
 	}
 
 	// aggregated data
@@ -399,6 +399,13 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
 	d.m.Lock()
 	defer d.m.Unlock()
+	d.forceFlushToSerializer(start, waitForSerializer)
+}
+
+// ForceFlushToSerializer flushes all data from the aggregator and time samplers
+// to the serializer.
+// Not safe to call from multiple threads, consider using ForceFlushToSerializer instead.
+func (d *AgentDemultiplexer) forceFlushToSerializer(start time.Time, waitForSerializer bool) {
 
 	// flush the time samplers
 	// ----------------------
