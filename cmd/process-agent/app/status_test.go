@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 )
 
 type statusServer struct {
@@ -82,7 +83,7 @@ func startTestServer(t *testing.T, cfg config.Config, expectedStatus status) sta
 func TestStatus(t *testing.T) {
 	testTime := time.Now()
 	expectedStatus := status{
-		Date:    testTime.Format(time.RFC850),
+		Date:    float64(testTime.UnixNano()),
 		Core:    coreStatus{},
 		Expvars: processExpvars{},
 	}
@@ -95,7 +96,7 @@ func TestStatus(t *testing.T) {
 	var statusBuilder, expectedStatusBuilder strings.Builder
 
 	// Build what the expected status should be
-	tpl, err := template.New("").Parse(statusTemplate)
+	tpl, err := template.New("").Funcs(ddstatus.Textfmap()).Parse(statusTemplate)
 	require.NoError(t, err)
 	err = tpl.Execute(&expectedStatusBuilder, expectedStatus)
 	require.NoError(t, err)

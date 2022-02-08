@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,8 +31,8 @@ const (
 Process Agent ({{ .Core.AgentVersion }})
 ==============================
 
- Status date: {{ .Date }}
- Process Agent Start: {{ .Expvars.Uptime }}
+ Status date: {{ formatUnixTime .Date }}
+ Process Agent Start: {{ formatUnixTime .Expvars.UptimeNano }}
  Pid: {{ .Expvars.Pid }}
  Go Version: {{ .Core.GoVersion }}
  Python Version: {{ .Core.PythonVersion }}
@@ -93,6 +94,7 @@ type infoVersion struct {
 type processExpvars struct {
 	Pid                 int                    `json:"pid"`
 	Uptime              int                    `json:"uptime"`
+	UptimeNano          float64                `json:"uptime_nano"`
 	MemStats            struct{ Alloc uint64 } `json:"memstats"`
 	Version             infoVersion            `json:"version"`
 	DockerSocket        string                 `json:"docker_socket"`
@@ -112,7 +114,7 @@ type processExpvars struct {
 }
 
 type status struct {
-	Date    string
+	Date    float64
 	Core    coreStatus     // Contains the status from the core agent
 	Expvars processExpvars // Contains the expvars retrieved from the process agent
 }
@@ -121,7 +123,7 @@ type statusOption func(s *status)
 
 func overrideTime(t time.Time) statusOption {
 	return func(s *status) {
-		s.Date = t.Format(time.RFC850)
+		s.Date = float64(t.UnixNano())
 	}
 }
 
@@ -194,7 +196,7 @@ func getAndWriteStatus(w io.Writer, options ...statusOption) {
 		option(&status)
 	}
 
-	tpl, err := template.New("").Parse(statusTemplate)
+	tpl, err := template.New("").Funcs(ddstatus.Textfmap()).Parse(statusTemplate)
 	if err != nil {
 		_ = log.Error(err)
 	}

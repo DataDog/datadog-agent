@@ -90,6 +90,10 @@ func publishUptime() interface{} {
 	return int(time.Since(infoStart) / time.Second)
 }
 
+func publishUptimeNano() interface{} {
+	return infoStart.UnixNano()
+}
+
 func publishVersion() interface{} {
 	return infoVersion{
 		Version:   Version,
@@ -299,6 +303,7 @@ func initInfo(_ *config.AgentConfig) error {
 	infoOnce.Do(func() {
 		expvar.NewInt("pid").Set(int64(os.Getpid()))
 		expvar.Publish("uptime", expvar.Func(publishUptime))
+		expvar.Publish("uptime_nano", expvar.Func(publishUptimeNano))
 		expvar.Publish("version", expvar.Func(publishVersion))
 		expvar.Publish("docker_socket", expvar.Func(publishDockerSocket))
 		expvar.Publish("last_collect_time", expvar.Func(publishLastCollectTime))
