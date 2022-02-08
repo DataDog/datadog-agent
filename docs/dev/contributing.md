@@ -105,7 +105,7 @@ You must open the PR when the code is reviewable or you must set the PR as
 Before the first PR review, meaningful commits are best: logically-encapsulated
  commits help the reviews go quicker and make the job for the reviewer easier.
  Conflicts with `main` can be resolved with a `git rebase origin/main` and a
- force push if it makes the review easier.
+ force push if it makes future review(s) easier.
 
 #### After the first review
 
