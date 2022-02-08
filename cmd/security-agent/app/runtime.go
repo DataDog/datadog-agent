@@ -115,7 +115,8 @@ var (
 	}
 
 	downloadPolicyArgs = struct {
-		check bool
+		check      bool
+		outputPath string
 	}{}
 
 	commonPolicyCmd = &cobra.Command{
@@ -136,6 +137,7 @@ func init() {
 	runtimeCmd.AddCommand(reloadPoliciesCmd)
 
 	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
+	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
 	commonPolicyCmd.AddCommand(downloadPolicyCmd)
 
 	commonCheckPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
@@ -327,7 +329,7 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 	}
 
 	var outputPath string
-	if len(args) == 0 {
+	if downloadPolicyArgs.outputPath == "" {
 		policiesDir := coreconfig.Datadog.GetString("runtime_security_config.policies.dir")
 		outputPath = path.Join(policiesDir, "default.policy")
 	} else {
