@@ -188,7 +188,7 @@ func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kerne
 	}
 	cCodeHash := hasher.Sum(nil)
 	// base32 is only [A-V0-9]+
-	cCodeHashB32 := base32.StdEncoding.EncodeToString(cCodeHash)
+	cCodeHashB32 := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(cCodeHash)
 
 	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHashB32, flagHash)), nil
 }
