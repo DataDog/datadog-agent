@@ -75,7 +75,7 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 	cflags = append(cflags, fmt.Sprintf("-isystem%s", embeddedIncludePath))
 	cflags = append(cflags, "-c", "-x", "c", "-o", "-", "-")
 
-	var clangOut, clangErr, llcOut, llcErr bytes.Buffer
+	var clangOut, clangErr, llcErr bytes.Buffer
 
 	clangCtx, clangCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
 	defer clangCancel()
@@ -88,11 +88,15 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 	err := compileToBC.Run()
 
 	if err != nil {
+		var errMsg string
 		if clangCtx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("error compiling asset to bytecode: operation timed out")
+			errMsg = "operation timed out"
+		} else if len(clangErr.String()) > 0 {
+			errMsg = clangErr.String()
+		} else {
+			errMsg = err.Error()
 		}
-
-		return fmt.Errorf("error compiling asset to bytecode: %s", clangErr.String())
+		return fmt.Errorf("error compiling asset to bytecode: %s", errMsg)
 	}
 
 	llcCtx, llcCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
@@ -100,16 +104,20 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 
 	bcToObj := exec.CommandContext(llcCtx, llcBinPath, "-march=bpf", "-filetype=obj", "-o", outputFile, "-")
 	bcToObj.Stdin = &clangOut
-	bcToObj.Stdout = &llcOut
+	bcToObj.Stdout = nil
 	bcToObj.Stderr = &llcErr
 
 	err = bcToObj.Run()
 	if err != nil {
-		if llcCtx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("error compiling bytecode to object file: operation timed out")
+		var errMsg string
+		if clangCtx.Err() == context.DeadlineExceeded {
+			errMsg = "operation timed out"
+		} else if len(llcErr.String()) > 0 {
+			errMsg = llcErr.String()
+		} else {
+			errMsg = err.Error()
 		}
-
-		return fmt.Errorf("error compiling bytecode to object file: %s", llcErr.String())
+		return fmt.Errorf("error compiling bytecode to object file: %s", errMsg)
 	}
 	return nil
 }
