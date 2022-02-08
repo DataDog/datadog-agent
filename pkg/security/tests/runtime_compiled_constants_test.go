@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build functionaltests && linux_bpf
+// +build functionaltests,linux_bpf
 
 package tests
 
@@ -24,24 +24,26 @@ func TestFallbackConstants(t *testing.T) {
 	}
 	defer test.Close()
 
+	kv, err := test.probe.GetKernelVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
 	config := test.config
-	config.RuntimeCompiledConstantsIsSet = true
-	config.EnableRuntimeCompiledConstants = false
 
-	withoutRC, err := probe.GetOffsetConstants(config, test.probe)
+	fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
+	rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
+
+	fallbackConstants, err := probe.GetOffsetConstantsFromFetcher(fallbackFetcher)
 	if err != nil {
 		t.Error(err)
 	}
 
-	constantfetch.ClearConstantsCache()
-
-	config.EnableRuntimeCompiledConstants = true
-	withRC, err := probe.GetOffsetConstants(config, test.probe)
+	rcConstants, err := probe.GetOffsetConstantsFromFetcher(rcFetcher)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if !assert.Equal(t, withoutRC, withRC) {
+	if !assert.Equal(t, fallbackConstants, rcConstants) {
 		kernelVersion, err := test.probe.GetKernelVersion()
 		if err != nil {
 			t.Error("failed to get probe kernel version")

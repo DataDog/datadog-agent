@@ -118,23 +118,6 @@ func TestBlacklist(t *testing.T) {
 	}
 }
 
-func TestOnlyEnvConfig(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
-	syscfg, err := sysconfig.Merge("")
-	require.NoError(t, err)
-
-	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
-	agentConfig, _ := NewAgentConfig("test", "", syscfg)
-	assert.Equal(t, 99, agentConfig.MaxPerMessage)
-
-	_ = os.Setenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "1234")
-	agentConfig, _ = NewAgentConfig("test", "", syscfg)
-	assert.Equal(t, 1234, agentConfig.MaxCtrProcessesPerMessage)
-	_ = os.Unsetenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE")
-}
-
 // TestEnvGrpcConnectionTimeoutSecs tests DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS.
 // This environment variable cannot be tested with the other environment variables because it is overridden.
 func TestEnvGrpcConnectionTimeoutSecs(t *testing.T) {
@@ -285,7 +268,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(os.Getenv("HOST_PROC"), "")
 	assert.Equal(os.Getenv("HOST_SYS"), "")
 	os.Setenv("DOCKER_DD_AGENT", "no")
-	assert.Equal(6062, agentConfig.ProcessExpVarPort)
+	assert.Equal(config.DefaultProcessExpVarPort, config.Datadog.GetInt("process_config.expvar_port"))
 
 	os.Unsetenv("DOCKER_DD_AGENT")
 
@@ -313,7 +296,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
-	assert.Equal(5065, agentConfig.ProcessExpVarPort)
+	assert.Equal(5065, config.Datadog.GetInt("process_config.expvar_port"))
 
 	newConfig()
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")

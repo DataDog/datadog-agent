@@ -37,6 +37,7 @@ core,github.com/DataDog/gohai/network,MIT,Datadog <info@datadoghq.com> | Kentaro
 core,github.com/DataDog/gohai/platform,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gohai/processes,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gohai/processes/gops,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
+core,github.com/DataDog/gohai/utils,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gopsutil/cpu,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/DataDog/gopsutil/host,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/DataDog/gopsutil/internal/common,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou

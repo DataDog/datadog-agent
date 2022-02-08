@@ -137,6 +137,9 @@ The second portion of the logs agent looks like this:
 Each input is composed of a tailer and (sometimes) a decoder, as created by the portion described above.
 One such input exists for each source of logs -- potentially many in a single agent.
 
+A decoder translates a sequence of byte buffers (such as from a file or a network socket) into log messages.
+Decoders and their components are defined in `pkg/logs/decoder`.
+
 In many cases, an input consists only of a tailer, so inputs are sometimes referred to as tailers.
 
 Tailers are defined in sub-packages of `pkg/logs/internal/tailers`.
