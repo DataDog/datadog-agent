@@ -157,8 +157,9 @@ func validateHeaderDirs(hv Version, dirs []string) error {
 			}
 			return fmt.Errorf("error validating headers version: %w", err)
 		}
-		if dirv != hv {
-			return fmt.Errorf("header version %s does not match host version %s", dirv, hv)
+
+		if err := compareKernelVersions(dirv, hv); err != nil {
+			return err
 		}
 
 		// as long as one directory passes, validate the entire set
@@ -339,4 +340,12 @@ func createNikosExtraFiles(headerDownloadDir string) (string, error) {
 	}
 
 	return nikosExtraPath, nil
+}
+
+func compareKernelVersions(headerVersion, hostVersion Version) error {
+	if headerVersion.Major() != hostVersion.Major() || headerVersion.Minor() != hostVersion.Minor() {
+		return fmt.Errorf("header version %s does not match host version %s", headerVersion, hostVersion)
+	}
+
+	return nil
 }

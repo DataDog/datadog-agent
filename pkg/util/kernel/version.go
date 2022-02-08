@@ -26,8 +26,22 @@ var hostVersion Version
 
 // String returns a string representing the version in x.x.x format
 func (v Version) String() string {
-	a, b, c := v>>16, v>>8&0xff, v&0xff
-	return fmt.Sprintf("%d.%d.%d", a, b, c)
+	return fmt.Sprintf("%d.%d.%d", v.Major(), v.Minor(), v.Patch())
+}
+
+// Major returns the major number of the version code
+func (v Version) Major() uint32 {
+	return (uint32)(v >> 16)
+}
+
+// Minor returns the minor number of the version code
+func (v Version) Minor() uint32 {
+	return (uint32)((v >> 8) & 0xff)
+}
+
+// Patch returns the patch number of the version code
+func (v Version) Patch() uint32 {
+	return (uint32)(v & 0xff)
 }
 
 // HostVersion returns the running kernel version of the host
