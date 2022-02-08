@@ -38,6 +38,7 @@ Process Agent ({{ .Core.AgentVersion }})
  Build arch: {{ .Core.Arch }}
  Log Level: {{ .Core.Config.LogLevel }}
  Enabled Checks: {{ .Expvars.EnabledChecks }}
+ Allocated Memory: {{ .Expvars.MemStats.Alloc }} bytes
 
 =========
 Collector

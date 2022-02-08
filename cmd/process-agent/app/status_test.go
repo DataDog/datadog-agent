@@ -1,11 +1,13 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"text/template"
 	"time"
@@ -17,19 +19,29 @@ import (
 )
 
 type statusServer struct {
-	statusListner, expvarListner net.Listener
+	shutdownWg                      *sync.WaitGroup
+	coreStatusServer, expvarsServer *http.Server
 }
 
 func (s *statusServer) stop() error {
-	err := s.statusListner.Close()
+	err := s.coreStatusServer.Shutdown(context.Background())
 	if err != nil {
 		return err
 	}
 
-	return s.expvarListner.Close()
+	err = s.expvarsServer.Shutdown(context.Background())
+	if err != nil {
+		return err
+	}
+
+	s.shutdownWg.Wait()
+	return nil
 }
 
 func startTestServer(t *testing.T, cfg config.Config, expectedStatus status) statusServer {
+	var serverWg sync.WaitGroup
+	serverWg.Add(2)
+
 	statusMux := http.NewServeMux()
 	statusMux.HandleFunc("/agent/status", func(w http.ResponseWriter, _ *http.Request) {
 		b, err := json.Marshal(expectedStatus.Core)
@@ -39,10 +51,12 @@ func startTestServer(t *testing.T, cfg config.Config, expectedStatus status) sta
 		require.NoError(t, err)
 	})
 	statusEndpoint := fmt.Sprintf("localhost:%d", cfg.GetInt("process_config.cmd_port"))
+	coreStatusServer := http.Server{Addr: statusEndpoint, Handler: statusMux}
 	statusListener, err := net.Listen("tcp", statusEndpoint)
 	require.NoError(t, err)
 	go func() {
-		_ = http.Serve(statusListener, statusMux)
+		_ = coreStatusServer.Serve(statusListener)
+		serverWg.Done()
 	}()
 
 	expvarMux := http.NewServeMux()
@@ -54,12 +68,15 @@ func startTestServer(t *testing.T, cfg config.Config, expectedStatus status) sta
 		require.NoError(t, err)
 	})
 	expvarEndpoint := fmt.Sprintf("localhost:%d", cfg.GetInt("process_config.expvar_port"))
+	expvarsServer := http.Server{Addr: expvarEndpoint, Handler: expvarMux}
 	expvarsListener, err := net.Listen("tcp", expvarEndpoint)
 	require.NoError(t, err)
 	go func() {
-		_ = http.Serve(expvarsListener, expvarMux)
+		_ = expvarsServer.Serve(expvarsListener)
+		serverWg.Done()
 	}()
-	return statusServer{statusListener, expvarsListener}
+
+	return statusServer{coreStatusServer: &coreStatusServer, expvarsServer: &expvarsServer, shutdownWg: &serverWg}
 }
 
 func TestStatus(t *testing.T) {
@@ -74,8 +91,6 @@ func TestStatus(t *testing.T) {
 	cfg.Set("process_config.expvar_port", 8081)
 	cfg.Set("process_config.cmd_port", 8082)
 	server := startTestServer(t, cfg, expectedStatus)
-	defer server.stop()
-	time.Sleep(2 * time.Second) // Wait 2 seconds for the server to start up.
 
 	var statusBuilder, expectedStatusBuilder strings.Builder
 
@@ -89,6 +104,9 @@ func TestStatus(t *testing.T) {
 	getAndWriteStatus(&statusBuilder, overrideTime(testTime))
 
 	assert.Equal(t, expectedStatusBuilder.String(), statusBuilder.String())
+
+	err = server.stop()
+	require.NoError(t, err)
 }
 
 func TestNotRunning(t *testing.T) {
