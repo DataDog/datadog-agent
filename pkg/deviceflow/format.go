@@ -37,8 +37,12 @@ func (d *FlowDriver) Format(data interface{}) ([]byte, []byte, error) {
 	if !ok {
 		return nil, nil, fmt.Errorf("message is not flowmessage.FlowMessage")
 	}
-	d.sendMetrics(flowmsg)
-	d.sendEvents(flowmsg)
+	if d.config.SendMetrics {
+		d.sendMetrics(flowmsg)
+	}
+	if d.config.SendEvents {
+		d.sendEvents(flowmsg)
+	}
 	return nil, nil, nil
 }
 
@@ -70,7 +74,7 @@ func (d *FlowDriver) sendEvents(flowmsg *flowmessage.FlowMessage) {
 		log.Errorf("Error marshalling device metadata: %s", err)
 		return
 	}
-	log.Debugf("device_flow payload: %v", payloadBytes)
+	log.Debugf("device_flow payload: %v", string(payloadBytes))
 	d.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 }
 
