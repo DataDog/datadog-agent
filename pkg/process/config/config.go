@@ -265,34 +265,17 @@ func getContainerHostType() model.ContainerHostType {
 // loadEnvVariable reads env variables specific to process-agent and overrides the corresponding settings
 // in the global Config object.
 // This function is used to handle historic process-agent env vars. New settings should be
-// handled in the /pkg/config/process.go file
+// handled directly in the /pkg/config/process.go file
 func loadEnvVariables() {
 	// The following environment variables will be loaded in the order listed, meaning variables
 	// further down the list may override prior variables.
 	for _, variable := range []struct{ env, cfg string }{
-		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"},
-		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
-		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
+		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"}, // MOVED: add test
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
-		{"DD_BIND_HOST", "bind_host"},
 		{"HTTPS_PROXY", "proxy.https"},
-		{"DD_PROXY_HTTPS", "proxy.https"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
-		}
-	}
-
-	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
-		config.Datadog.Set("process_config.custom_sensitive_words", strings.Split(v, ","))
-	}
-
-	if v := os.Getenv("DD_PROCESS_ADDITIONAL_ENDPOINTS"); v != "" {
-		endpoints := make(map[string][]string)
-		if err := json.Unmarshal([]byte(v), &endpoints); err != nil {
-			log.Errorf(`Could not parse DD_PROCESS_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://process.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
-		} else {
-			config.Datadog.Set("process_config.additional_endpoints", endpoints)
 		}
 	}
 

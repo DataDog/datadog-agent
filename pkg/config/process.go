@@ -110,9 +110,26 @@ func setupProcesses(config Config) {
 	config.SetKnown("process_config.intervals.container")
 	config.SetKnown("process_config.intervals.container_realtime")
 	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", DefaultDDAgentBin)
-	config.SetKnown("process_config.custom_sensitive_words")
-	config.SetKnown("process_config.scrub_args")
-	config.SetKnown("process_config.strip_proc_arguments")
+	config.BindEnv("process_config.custom_sensitive_words",
+		"DD_CUSTOM_SENSITIVE_WORDS",
+		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
+		"DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS")
+	config.SetEnvKeyTransformer("process_config.custom_sensitive_words", func(val string) interface{} {
+		// historically we accept DD_CUSTOM_SENSITIVE_WORDS as "w1,w2" but Viper expects the user to set a list as ["w1","w2",...]
+		if strings.HasPrefix(val, "[") && strings.HasSuffix(val, "]") {
+			return val
+		}
+
+		return strings.Split(val, ",")
+	})
+	config.BindEnv("process_config.scrub_args",
+		"DD_SCRUB_ARGS",
+		"DD_PROCESS_CONFIG_SCRUB_ARGS",
+		"DD_PROCESS_AGENT_SCRUB_ARGS")
+	config.BindEnv("process_config.strip_proc_arguments",
+		"DD_STRIP_PROCESS_ARGS",
+		"DD_PROCESS_CONFIG_STRIP_PROCESS_ARGS",
+		"DD_PROCESS_AGENT_STRIP_PROCESS_ARGS")
 	// Use PDH API to collect performance counter data for process check on Windows
 	procBindEnvAndSetDefault(config, "process_config.windows.use_perf_counters", false)
 	config.BindEnvAndSetDefault("process_config.additional_endpoints", make(map[string][]string),
@@ -120,7 +137,7 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
-	config.SetKnown("process_config.container_source")
+	procBindEnv(config, "process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)

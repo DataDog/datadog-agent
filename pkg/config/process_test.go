@@ -320,6 +320,61 @@ func TestEnvVarOverride(t *testing.T) {
 	})
 }
 
+func TestEnvVarScrubberSettings(t *testing.T) {
+	cfg := setupConf()
+	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
+
+	// Scrub enable/disable
+	for _, envVar := range expectedPrefixes {
+		e := envVar + "SCRUB_ARGS"
+		t.Run(fmt.Sprintf("scrub disabled/%s", e), func(t *testing.T) {
+			reset := setEnvForTest(e, "false")
+			assert.Equal(t, false, cfg.GetBool("process_config.scrub_args"))
+			reset()
+		})
+
+		t.Run(fmt.Sprintf("scrub enabled/%s", e), func(t *testing.T) {
+			reset := setEnvForTest(e, "true")
+			assert.Equal(t, true, cfg.GetBool("process_config.scrub_args"))
+			reset()
+		})
+	}
+
+	// Sensitive words
+	for _, envVar := range expectedPrefixes {
+		e := envVar + "CUSTOM_SENSITIVE_WORDS"
+		t.Run(fmt.Sprintf("scrub sensitive words with transform/%s", e), func(t *testing.T) {
+			reset := setEnvForTest(e, "pass*,word,secret")
+			args := cfg.GetStringSlice("process_config.custom_sensitive_words")
+			assert.Equal(t, []string{"pass*", "word", "secret"}, args)
+			reset()
+		})
+
+		t.Run(fmt.Sprintf("scrub sensitive words without transform/%s", e), func(t *testing.T) {
+			reset := setEnvForTest(e, `["pass*","word","secret"]`)
+			args := cfg.GetStringSlice("process_config.custom_sensitive_words")
+			assert.Equal(t, []string{"pass*", "word", "secret"}, args)
+			reset()
+		})
+	}
+
+	// Strip all args
+	for _, envVar := range expectedPrefixes {
+		e := envVar + "STRIP_PROCESS_ARGS"
+		t.Run(fmt.Sprintf("strip all args disabled/%s", e), func(t *testing.T) {
+			reset := setEnvForTest(e, "false")
+			assert.Equal(t, false, cfg.GetBool("process_config.strip_proc_arguments"))
+			reset()
+		})
+
+		t.Run(fmt.Sprintf("strip all args enabled/%s", e), func(t *testing.T) {
+			reset := setEnvForTest(e, "true")
+			assert.Equal(t, true, cfg.GetBool("process_config.strip_proc_arguments"))
+			reset()
+		})
+	}
+}
+
 func TestProcBindEnvAndSetDefault(t *testing.T) {
 	cfg := setupConf()
 	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
