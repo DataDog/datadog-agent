@@ -67,6 +67,7 @@ type Service struct {
 type uptaneClient interface {
 	Update(response *pbgo.LatestConfigsResponse) error
 	State() (uptane.State, error)
+	FullState() (map[string]uptane.MetaState, map[string]uptane.MetaState, error)
 	DirectorRoot(version uint64) ([]byte, error)
 	Targets() (data.TargetFiles, error)
 	TargetFile(path string) ([]byte, error)

@@ -26,6 +26,11 @@ type State struct {
 	DirectorTargetsVersion uint64
 }
 
+type MetaState struct {
+	Version uint64
+	Hash    string
+}
+
 // Client is an uptane client
 type Client struct {
 	sync.Mutex
@@ -111,6 +116,40 @@ func (c *Client) State() (State, error) {
 		DirectorRootVersion:    directorRootVersion,
 		DirectorTargetsVersion: directorTargetsVersion,
 	}, nil
+}
+
+// Full state of the uptane client with the latest config and director repo content
+func (c *Client) FullState() (map[string]MetaState, map[string]MetaState, error) {
+	c.Lock()
+	defer c.Unlock()
+	configState := make(map[string]MetaState)
+	directorState := make(map[string]MetaState)
+
+	metas, err := c.configLocalStore.GetMeta()
+	if err != nil {
+		return configState, directorState, err
+	}
+
+	for metaName, content := range metas {
+		version, err := metaVersion(content)
+		if err == nil {
+			configState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
+		}
+	}
+
+	directorMetas, err := c.directorLocalStore.GetMeta()
+	if err != nil {
+		return configState, directorState, err
+	}
+
+	for metaName, content := range directorMetas {
+		version, err := metaVersion(content)
+		if err == nil {
+			directorState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
+		}
+	}
+
+	return configState, directorState, nil
 }
 
 // DirectorRoot returns a director root

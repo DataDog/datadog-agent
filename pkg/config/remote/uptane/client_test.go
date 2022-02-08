@@ -77,6 +77,52 @@ func TestClientState(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestClientFullState(t *testing.T) {
+	target1content, target1 := generateTarget()
+	_, target2 := generateTarget()
+	configTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+	}
+	directorTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+	}
+	testRepository := newTestRepository(1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	config.Datadog.Set("remote_configuration.director_root", testRepository.directorRoot)
+	config.Datadog.Set("remote_configuration.config_root", testRepository.configRoot)
+
+	// Prepare
+	db := getTestDB()
+	client, err := NewClient(db, "testcachekey", 2)
+	assert.NoError(t, err)
+	err = client.Update(testRepository.toUpdate())
+	assert.NoError(t, err)
+	_, err = client.TargetFile("datadog/2/APM_SAMPLING/id/1")
+	assert.NoError(t, err)
+
+	// Check full state
+	configState, directorState, err := client.FullState()
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(configState))
+	assert.Equal(t, 4, len(directorState))
+
+	assertMetaVersion(t, configState, "root.json", 1)
+	assertMetaVersion(t, configState, "timestamp.json", 11)
+	assertMetaVersion(t, configState, "targets.json", 101)
+	assertMetaVersion(t, configState, "snapshot.json", 1001)
+
+	assertMetaVersion(t, directorState, "root.json", 1)
+	assertMetaVersion(t, directorState, "timestamp.json", 21)
+	assertMetaVersion(t, directorState, "targets.json", 201)
+	assertMetaVersion(t, directorState, "snapshot.json", 2001)
+}
+
+func assertMetaVersion(t *testing.T, state map[string]MetaState, metaName string, version uint64) {
+	metaState, found := state[metaName]
+	assert.True(t, found)
+	assert.Equal(t, version, metaState.Version)
+}
+
 func TestClientVerifyTUF(t *testing.T) {
 	testRepository1 := newTestRepository(1, nil, nil, nil)
 	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot)
