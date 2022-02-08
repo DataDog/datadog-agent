@@ -19,6 +19,27 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 )
 
+var defaultFlags = []string{
+	"-D__KERNEL__",
+	"-DCONFIG_64BIT",
+	"-D__BPF_TRACING__",
+	`-DKBUILD_MODNAME="ddsysprobe"`,
+	"-Wno-unused-value",
+	"-Wno-pointer-sign",
+	"-Wno-compare-distinct-pointer-types",
+	"-Wunused",
+	"-Wall",
+	"-Werror",
+	"-emit-llvm",
+	"-O2",
+	"-fno-stack-protector",
+	"-fno-color-diagnostics",
+	"-fno-unwind-tables",
+	"-fno-asynchronous-unwind-tables",
+	"-fno-jump-tables",
+	"-nostdinc",
+}
+
 func hashFlags(flags []string) string {
 	h := sha256.New()
 	for _, f := range flags {
@@ -122,7 +143,8 @@ func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []strin
 		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", config.RuntimeCompilerOutputDir, err)
 	}
 
-	outputFile, err := provider.GetOutputFilePath(config, kv, hashFlags(cflags), &rc.telemetry)
+	flags := append(defaultFlags, cflags...)
+	outputFile, err := provider.GetOutputFilePath(config, kv, hashFlags(flags), &rc.telemetry)
 	if err != nil {
 		return nil, err
 	}

@@ -26,26 +26,6 @@ var (
 	clangBinPath             = filepath.Join(datadogAgentEmbeddedPath, "bin/clang")
 	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc")
 	embeddedIncludePath      = filepath.Join(datadogAgentEmbeddedPath, "include")
-	defaultFlags             = []string{
-		"-D__KERNEL__",
-		"-DCONFIG_64BIT",
-		"-D__BPF_TRACING__",
-		`-DKBUILD_MODNAME="ddsysprobe"`,
-		"-Wno-unused-value",
-		"-Wno-pointer-sign",
-		"-Wno-compare-distinct-pointer-types",
-		"-Wunused",
-		"-Wall",
-		"-Werror",
-		"-emit-llvm",
-		"-O2",
-		"-fno-stack-protector",
-		"-fno-color-diagnostics",
-		"-fno-unwind-tables",
-		"-fno-asynchronous-unwind-tables",
-		"-fno-jump-tables",
-		"-nostdinc",
-	}
 )
 
 const compilationStepTimeout = 15 * time.Second
@@ -60,7 +40,6 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 		return fmt.Errorf("unable to get kernel arch for %s", runtime.GOARCH)
 	}
 
-	cflags = append(cflags, defaultFlags...)
 	for _, d := range headerDirs {
 		cflags = append(cflags,
 			fmt.Sprintf("-isystem%s/arch/%s/include", d, arch),
