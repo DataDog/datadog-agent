@@ -19,22 +19,12 @@ type SingleLineHandler struct {
 }
 
 // NewSingleLineHandler returns a new SingleLineHandler.
-func NewSingleLineHandler(outputChan chan *Message, lineLimit int) *SingleLineHandler {
+func NewSingleLineHandler(inputChan chan *Message, outputChan chan *Message, lineLimit int) *SingleLineHandler {
 	return &SingleLineHandler{
-		inputChan:  make(chan *Message),
+		inputChan:  inputChan,
 		outputChan: outputChan,
 		lineLimit:  lineLimit,
 	}
-}
-
-// Handle puts all new lines into a channel for later processing.
-func (h *SingleLineHandler) Handle(input *Message) {
-	h.inputChan <- input
-}
-
-// Stop stops the handler.
-func (h *SingleLineHandler) Stop() {
-	close(h.inputChan)
 }
 
 // Start starts the handler.
