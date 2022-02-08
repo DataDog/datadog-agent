@@ -148,7 +148,8 @@ func validateHeaderDirs(hv Version, dirs []string) []string {
 			log.Debugf("error validating %s: error validating headers version: %w", d, err)
 			continue
 		}
-		if dirv != hv {
+
+		if err := compareKernelVersions(dirv, hv); err != nil {
 			log.Debugf("error validating %s: header version %s does not match host version %s", d, dirv, hv)
 			continue
 		}
@@ -300,5 +301,13 @@ func unloadKHeadersModule() error {
 	if err := cmd.Run(); err != nil || stderr.Len() > 0 {
 		return fmt.Errorf("unable to unload kheaders module: %s", stderr.String())
 	}
+	return nil
+}
+
+func compareKernelVersions(headerVersion, hostVersion Version) error {
+	if headerVersion.Major() != hostVersion.Major() || headerVersion.Minor() != hostVersion.Minor() {
+		return fmt.Errorf("header version %s does not match host version %s", headerVersion, hostVersion)
+	}
+
 	return nil
 }
