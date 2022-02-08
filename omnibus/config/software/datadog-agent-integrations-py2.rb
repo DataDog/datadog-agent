@@ -125,10 +125,11 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
+    command "#{pip} install hatchling==0.11.2"
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install setuptools-scm==5.0.2" # Pin to the last version that supports Python 2
     command "#{pip} install pip-tools==5.4.0"
-    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
+    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools', 'hatchling']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -204,15 +205,6 @@ build do
       command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
       command "#{pip} install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
-    end
-
-    # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
-    uninstall_buildtime_deps.each do |dep|
-      if windows?
-        command "#{python} -m pip uninstall -y #{dep}"
-      else
-        command "#{pip} uninstall -y #{dep}"
-      end
     end
 
     #
@@ -383,6 +375,15 @@ build do
             "--integration #{check} " \
             "--awscli #{awscli}",
             :cwd => tasks_dir_in
+        end
+      end
+
+      # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
+      uninstall_buildtime_deps.each do |dep|
+        if windows?
+          command "#{python} -m pip uninstall -y #{dep}"
+        else
+          command "#{pip} uninstall -y #{dep}"
         end
       end
     end
