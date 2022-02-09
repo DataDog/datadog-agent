@@ -93,6 +93,7 @@ func TestStatus(t *testing.T) {
 		Expvars: processExpvars{},
 	}
 
+	// Use different ports in case the host is running a real agent
 	cfg := config.Mock()
 	cfg.Set("process_config.expvar_port", 8081)
 	cfg.Set("process_config.cmd_port", 8082)
@@ -116,8 +117,31 @@ func TestStatus(t *testing.T) {
 }
 
 func TestNotRunning(t *testing.T) {
+	// Use different ports in case the host is running a real agent
+	cfg := config.Mock()
+	cfg.Set("process_config.expvar_port", 8081)
+	cfg.Set("process_config.cmd_port", 8082)
+
 	var b strings.Builder
 	getAndWriteStatus(&b)
 
 	assert.Equal(t, notRunning, b.String())
+}
+
+// TestError tests an example error to make sure that the error template prints properly if we get something other than
+// a connection error
+func TestError(t *testing.T) {
+	cfg := config.Mock()
+	cfg.Set("ipc_address", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
+	_, ipcError := config.GetIPCAddress()
+
+	var errText, expectedErrText strings.Builder
+	getAndWriteStatus(&errText)
+
+	tpl, err := template.New("").Parse(errorMessage)
+	require.NoError(t, err)
+	err = tpl.Execute(&expectedErrText, fmt.Errorf("config error: %s", ipcError))
+	require.NoError(t, err)
+
+	assert.Equal(t, expectedErrText.String(), errText.String())
 }
