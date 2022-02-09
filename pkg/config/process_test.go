@@ -342,8 +342,8 @@ func TestEnvVarScrubberSettings(t *testing.T) {
 	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
 
 	// Scrub enabled/disabled
-	for _, envVar := range expectedPrefixes {
-		e := envVar + "SCRUB_ARGS"
+	for _, envPrefix := range expectedPrefixes {
+		e := envPrefix + "SCRUB_ARGS"
 		t.Run(fmt.Sprintf("scrub disabled/%s", e), func(t *testing.T) {
 			reset := setEnvForTest(e, "false")
 			assert.Equal(t, false, cfg.GetBool("process_config.scrub_args"))
@@ -375,8 +375,8 @@ func TestEnvVarScrubberSettings(t *testing.T) {
 			expected: []string{"[pass]", "word", "user"},
 		},
 	} {
-		for _, envVar := range expectedPrefixes {
-			e := envVar + "CUSTOM_SENSITIVE_WORDS"
+		for _, envPrefix := range expectedPrefixes {
+			e := envPrefix + "CUSTOM_SENSITIVE_WORDS"
 			t.Run(fmt.Sprintf("scrub sensitive words/%d/%s", i, e), func(t *testing.T) {
 				reset := setEnvForTest(e, tc.words)
 				args := cfg.GetStringSlice("process_config.custom_sensitive_words")
@@ -387,15 +387,14 @@ func TestEnvVarScrubberSettings(t *testing.T) {
 	}
 
 	// Strip all args
-
-	for _, envVar := range expectedPrefixes {
+	for _, envPrefix := range expectedPrefixes {
 		var e string
-		if envVar == "DD_" {
+		if envPrefix == "DD_" {
 			// historical setting
-			e = envVar + "STRIP_PROCESS_ARGS"
+			e = envPrefix + "STRIP_PROCESS_ARGS"
 		} else {
 			// expected setting: env var matching yaml config name
-			e = envVar + "STRIP_PROC_ARGUMENTS"
+			e = envPrefix + "STRIP_PROC_ARGUMENTS"
 		}
 		t.Run(fmt.Sprintf("strip all args disabled/%s", e), func(t *testing.T) {
 			reset := setEnvForTest(e, "false")

@@ -22,7 +22,7 @@ var (
 
 // SetContainerSources allows config to force one or multiple container sources
 func SetContainerSources(names []string) {
-	log.Debug("Setting container sources to: ", names)
+	log.Debug("Setting container sources to:", names)
 	detectors = []*collectors.Detector{}
 	for _, name := range names {
 		detectors = append(detectors, collectors.NewDetector(name))

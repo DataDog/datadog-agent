@@ -96,7 +96,7 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 	if k := key(ns, "custom_sensitive_words"); config.Datadog.IsSet(k) {
 		words := config.Datadog.GetStringSlice(k)
 		a.Scrubber.AddCustomSensitiveWords(words)
-		log.Debug("Adding custom sensitives words to Scrubber: ", words)
+		log.Debug("Adding custom sensitives words to Scrubber:", words)
 	}
 
 	// Strips all process arguments
