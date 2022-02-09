@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -198,6 +199,14 @@ func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetCon
 		return nil, errors.New("remote configuration service not initialized")
 	}
 	return s.configService.ClientGetConfigs(in)
+}
+
+func (s *serverSecure) GetConfigFullState(ctx context.Context, e *emptypb.Empty) (*pb.FullStateResponse, error) {
+	if s.configService == nil {
+		log.Debug("Remote configuration service not initialized")
+		return nil, errors.New("remote configuration service not initialized")
+	}
+	return s.configService.GetFullState()
 }
 
 func init() {
