@@ -341,7 +341,7 @@ func TestEnvVarScrubberSettings(t *testing.T) {
 	cfg := setupConf()
 	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
 
-	// Scrub enable/disable
+	// Scrub enabled/disabled
 	for _, envVar := range expectedPrefixes {
 		e := envVar + "SCRUB_ARGS"
 		t.Run(fmt.Sprintf("scrub disabled/%s", e), func(t *testing.T) {
@@ -358,26 +358,45 @@ func TestEnvVarScrubberSettings(t *testing.T) {
 	}
 
 	// Sensitive words
-	for _, envVar := range expectedPrefixes {
-		e := envVar + "CUSTOM_SENSITIVE_WORDS"
-		t.Run(fmt.Sprintf("scrub sensitive words with transform/%s", e), func(t *testing.T) {
-			reset := setEnvForTest(e, "pass*,word,secret")
-			args := cfg.GetStringSlice("process_config.custom_sensitive_words")
-			assert.Equal(t, []string{"pass*", "word", "secret"}, args)
-			reset()
-		})
-
-		t.Run(fmt.Sprintf("scrub sensitive words without transform/%s", e), func(t *testing.T) {
-			reset := setEnvForTest(e, "[\"pass*\", \"word\", \"secret\"]")
-			args := cfg.GetStringSlice("process_config.custom_sensitive_words")
-			assert.Equal(t, []string{"pass*", "word", "secret"}, args)
-			reset()
-		})
+	for i, tc := range []struct {
+		words    string
+		expected []string
+	}{
+		{
+			words:    "pass*,word,secret",
+			expected: []string{"pass*", "word", "secret"},
+		},
+		{
+			words:    "[\"pass*\", \"word\",\"secret\"]",
+			expected: []string{"pass*", "word", "secret"},
+		},
+		{
+			words:    "[pass],word,user",
+			expected: []string{"[pass]", "word", "user"},
+		},
+	} {
+		for _, envVar := range expectedPrefixes {
+			e := envVar + "CUSTOM_SENSITIVE_WORDS"
+			t.Run(fmt.Sprintf("scrub sensitive words/%d/%s", i, e), func(t *testing.T) {
+				reset := setEnvForTest(e, tc.words)
+				args := cfg.GetStringSlice("process_config.custom_sensitive_words")
+				assert.Equal(t, tc.expected, args)
+				reset()
+			})
+		}
 	}
 
 	// Strip all args
+
 	for _, envVar := range expectedPrefixes {
-		e := envVar + "STRIP_PROCESS_ARGS"
+		var e string
+		if envVar == "DD_" {
+			// historical setting
+			e = envVar + "STRIP_PROCESS_ARGS"
+		} else {
+			// expected setting: env var matching yaml config name
+			e = envVar + "STRIP_PROC_ARGUMENTS"
+		}
 		t.Run(fmt.Sprintf("strip all args disabled/%s", e), func(t *testing.T) {
 			reset := setEnvForTest(e, "false")
 			assert.Equal(t, false, cfg.GetBool("process_config.strip_proc_arguments"))

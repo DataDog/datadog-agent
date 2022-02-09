@@ -128,8 +128,8 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_SCRUB_ARGS")
 	config.BindEnv("process_config.strip_proc_arguments",
 		"DD_STRIP_PROCESS_ARGS",
-		"DD_PROCESS_CONFIG_STRIP_PROCESS_ARGS",
-		"DD_PROCESS_AGENT_STRIP_PROCESS_ARGS")
+		"DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
+		"DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS")
 	// Use PDH API to collect performance counter data for process check on Windows
 	procBindEnvAndSetDefault(config, "process_config.windows.use_perf_counters", false)
 	config.BindEnvAndSetDefault("process_config.additional_endpoints", make(map[string][]string),
