@@ -15,10 +15,12 @@
 # NODE_LAYER_VERSION [number] - A specific layer version of datadog-lambda-js to use.
 # PYTHON_LAYER_VERSION [number] - A specific layer version of datadog-lambda-py to use.
 # JAVA_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-java to use.
+# ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
 
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
 DEFAULT_JAVA_TRACE_LAYER_VERSION=4
+DEFAULT_ENABLE_RACE_DETECTION=false
 
 # Text formatting constants
 RED="\e[1;41m"
@@ -49,10 +51,14 @@ LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
 if [ "$BUILD_EXTENSION" != "false" ]; then
     echo "Building extension"
 
+    if [ -z "$ENABLE_RACE_DETECTION" ]; then
+        export ENABLE_RACE_DETECTION=$DEFAULT_ENABLE_RACE_DETECTION
+    fi
+
     # This version number is arbitrary and won't be used by AWS
     PLACEHOLDER_EXTENSION_VERSION=123
 
-    ARCHITECTURE=amd64 VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
+    ARCHITECTURE=amd64 RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
 else
     echo "Skipping extension build, reusing previously built extension"
 fi
@@ -237,7 +243,7 @@ for function_name in "${all_functions[@]}"; do
 
     if [ ! -f "$function_snapshot_path" ]; then
         printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"
-        echo "$logs" > "$function_snapshot_path"
+        echo "$logs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         printf "${MAGENTA} UPDATE ${END_COLOR} $function_name\n"
         echo "$logs" >"$function_snapshot_path"
