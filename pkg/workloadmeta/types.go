@@ -636,8 +636,8 @@ type Event struct {
 	Type EventType
 
 	// Entity is the entity involved in this event.  For an EventTypeSet event,
-	// this may contain information "merged" from multiple sources, as listed
-	// in the Sources field.  For an unset event it contains only an EntityID.
+	// this may contain information "merged" from multiple sources.  For an
+	// unset event it contains only an EntityID.
 	//
 	// For Type == EventTypeSet, this field can be cast unconditionally to the
 	// concrete type corresponding to its kind (Entity.GetID().Kind).  For Type
