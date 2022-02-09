@@ -37,6 +37,7 @@ core,github.com/DataDog/gohai/network,MIT,Datadog <info@datadoghq.com> | Kentaro
 core,github.com/DataDog/gohai/platform,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gohai/processes,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gohai/processes/gops,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
+core,github.com/DataDog/gohai/utils,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gopsutil/cpu,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/DataDog/gopsutil/host,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/DataDog/gopsutil/internal/common,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
@@ -108,6 +109,7 @@ core,github.com/alecthomas/participle/lexer,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer/ebnf,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer/ebnf/internal,MIT,Alec Thomas
 core,github.com/alecthomas/repr,MIT,Alec Thomas
+core,github.com/alecthomas/units,MIT,Alec Thomas
 core,github.com/andybalholm/brotli,MIT,the Brotli Authors
 core,github.com/aptly-dev/aptly/aptly,MIT,aptly authors
 core,github.com/aptly-dev/aptly/database,MIT,aptly authors
@@ -192,6 +194,7 @@ core,github.com/cilium/ebpf/internal/unix,MIT,Authors of Cilium | Cloudflare | N
 core,github.com/cilium/ebpf/perf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go Authors
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
+core,github.com/containerd/cgroups,Apache-2.0,The containerd Authors
 core,github.com/containerd/cgroups/stats/v1,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/api/events,Apache-2.0,The containerd Authors

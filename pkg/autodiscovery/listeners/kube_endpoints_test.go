@@ -61,7 +61,7 @@ func TestProcessEndpoints(t *testing.T) {
 		return keyi < keyj
 	})
 
-	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.1", eps[0].GetEntity())
+	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.1", eps[0].GetServiceID())
 	assert.Equal(t, integration.Before, eps[0].GetCreationTime())
 
 	adID, err := eps[0].GetADIdentifiers(ctx)
@@ -80,7 +80,7 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.1", "foo:bar"}, tags)
 
-	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetEntity())
+	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetServiceID())
 	assert.Equal(t, integration.Before, eps[1].GetCreationTime())
 
 	adID, err = eps[1].GetADIdentifiers(ctx)

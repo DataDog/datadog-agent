@@ -103,7 +103,7 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 
 	// Orchestrator Explorer
-	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+	if config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
 		oc.OrchestrationCollectionEnabled = true
 		// Set clustername
 		hostname, _ := coreutil.GetHostname(context.TODO())
@@ -111,8 +111,8 @@ func (oc *OrchestratorConfig) Load() error {
 			oc.KubeClusterName = clusterName
 		}
 	}
-	oc.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
-	oc.ExtraTags = config.Datadog.GetStringSlice("orchestrator_explorer.extra_tags")
+	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
+	oc.ExtraTags = config.Datadog.GetStringSlice(key(orchestratorNS, "extra_tags"))
 
 	return nil
 }
@@ -160,7 +160,7 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 // NewOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
 func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
-	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
+	if !config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
 		return nil
 	}
 	if flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {

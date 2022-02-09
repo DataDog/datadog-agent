@@ -67,7 +67,12 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 	)
 	log.Debugf("Target OSRelease: %s", target.OSRelease)
 
-	if backend, err = h.getHeaderDownloadBackend(&target); err != nil {
+	var reposDir string
+	if reposDir, err = h.verifyReposDir(target); err != nil {
+		return err
+	}
+
+	if backend, err = h.getHeaderDownloadBackend(&target, reposDir); err != nil {
 		return fmt.Errorf("unable to get kernel header download backend: %s", err)
 	}
 	defer backend.Close()
@@ -79,21 +84,43 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 	return nil
 }
 
-func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target) (backend types.Backend, err error) {
+func (h *headerDownloader) verifyReposDir(target types.Target) (string, error) {
+	var reposDir string
+	switch strings.ToLower(target.Distro.Display) {
+	case "fedora", "rhel", "redhat", "centos":
+		reposDir = h.yumReposDir
+	case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "opensuse-tumbleweed-kubic", "suse", "sles", "sled", "caasp":
+		reposDir = h.zypperReposDir
+	case "debian", "ubuntu":
+		reposDir = h.aptConfigDir
+	default:
+		// any other distro doesn't need a repos dir, so we can return the zero value
+		return reposDir, nil
+	}
+
+	if _, err := os.Stat(reposDir); err != nil {
+		log.Warnf("Unable to read %v, which is necessary for downloading kernel headers. If you are in a "+
+			"containerized environment, please ensure this directory is mounted.", reposDir)
+		return reposDir, errReposDirInaccessible
+	}
+	return reposDir, nil
+}
+
+func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target, reposDir string) (backend types.Backend, err error) {
 	logger := customLogger{}
 	switch strings.ToLower(target.Distro.Display) {
 	case "fedora":
-		backend, err = rpm.NewFedoraBackend(target, h.yumReposDir, logger)
+		backend, err = rpm.NewFedoraBackend(target, reposDir, logger)
 	case "rhel", "redhat":
-		backend, err = rpm.NewRedHatBackend(target, h.yumReposDir, logger)
+		backend, err = rpm.NewRedHatBackend(target, reposDir, logger)
 	case "centos":
-		backend, err = rpm.NewCentOSBackend(target, h.yumReposDir, logger)
+		backend, err = rpm.NewCentOSBackend(target, reposDir, logger)
 	case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "opensuse-tumbleweed-kubic":
-		backend, err = rpm.NewOpenSUSEBackend(target, h.zypperReposDir, logger)
+		backend, err = rpm.NewOpenSUSEBackend(target, reposDir, logger)
 	case "suse", "sles", "sled", "caasp":
-		backend, err = rpm.NewSLESBackend(target, h.zypperReposDir, logger)
+		backend, err = rpm.NewSLESBackend(target, reposDir, logger)
 	case "debian", "ubuntu":
-		backend, err = apt.NewBackend(target, h.aptConfigDir, logger)
+		backend, err = apt.NewBackend(target, reposDir, logger)
 	case "cos":
 		backend, err = cos.NewBackend(target, logger)
 	case "wsl":

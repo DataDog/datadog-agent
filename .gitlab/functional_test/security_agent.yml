@@ -12,6 +12,7 @@
   rules:
     !reference [.manual]
   stage: functional_test
+  retry: 0
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -23,6 +24,7 @@
 kitchen_test_security_agent_x64:
   extends:
     - .kitchen_test_security_agent
+    - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
   needs: ["tests_ebpf_x64"]
   variables:
@@ -68,6 +70,7 @@ kitchen_stress_security_agent:
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
   rules:
     !reference [.manual]

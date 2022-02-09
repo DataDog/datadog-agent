@@ -24,13 +24,17 @@ type ProcessDiscoveryCheck struct {
 	probe      procutil.Probe
 	info       *model.SystemInfo
 	initCalled bool
+
+	maxBatchSize int
 }
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	d.info = info
 	d.initCalled = true
-	d.probe = getProcessProbe(cfg)
+	d.probe = getProcessProbe()
+
+	d.maxBatchSize = getMaxBatchSize()
 }
 
 // Name returns the name of the ProcessDiscoveryCheck.
@@ -57,7 +61,7 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 		NumCpus:     calculateNumCores(d.info),
 		TotalMemory: d.info.TotalMemory,
 	}
-	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs), cfg.MaxPerMessage)
+	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs), d.maxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 	for i, procDiscoveryChunk := range procDiscoveryChunks {
 		payload[i] = &model.CollectorProcDiscovery{

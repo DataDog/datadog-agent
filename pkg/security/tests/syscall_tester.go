@@ -24,7 +24,7 @@ var syscallTesterFS embed.FS
 func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, error) {
 	var uname unix.Utsname
 	if err := unix.Uname(&uname); err != nil {
-		return "", fmt.Errorf("couldn't resolve arch: %s", err)
+		return "", fmt.Errorf("couldn't resolve arch: %w", err)
 	}
 
 	testerBin, err := syscallTesterFS.ReadFile(fmt.Sprintf("syscall_tester/bin/%s", binary))
@@ -57,7 +57,7 @@ func checkSyscallTester(t *testing.T, path string) error {
 	t.Helper()
 	sideTester := exec.Command(path, "check")
 	if _, err := sideTester.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run syscall tester check: %s", err)
+		return fmt.Errorf("cannot run syscall tester check: %w", err)
 	}
 	return nil
 }

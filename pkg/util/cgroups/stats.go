@@ -85,7 +85,6 @@ type CPUStats struct {
 // cgroupv1: pid
 // cgroupv2: pid
 type PIDStats struct {
-	PIDs                    []int
 	HierarchicalThreadCount *uint64 // Number of threads in cgroups + all children
 	HierarchicalThreadLimit *uint64 // Maximum number of threads in cgroups + all children
 }

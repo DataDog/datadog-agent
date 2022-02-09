@@ -263,10 +263,7 @@ func TestProcessContext(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ll")
-			if err = cmd.Run(); err != nil {
-				return err
-			}
-			return nil
+			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_argv")
 		})
@@ -277,10 +274,7 @@ func TestProcessContext(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ls", "--escape")
-			if err = cmd.Run(); err != nil {
-				return err
-			}
-			return nil
+			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_args_flags")
 		})
@@ -449,7 +443,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("sh", args, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %s", out, err)
+				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -477,7 +471,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(shell, args, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %s", out, err)
+				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -505,7 +499,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(shell, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %s", out, err)
+				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -532,7 +526,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(shell, args, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %s", out, err)
+				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -779,7 +773,7 @@ func testProcessEEExit(t *testing.T, pid uint32, test *testModule) {
 		resolvers := test.probe.GetResolvers()
 		entry := resolvers.ProcessResolver.Get(pid)
 		if entry != nil {
-			return fmt.Errorf("the process cache entry was not deleted from the user space cache")
+			return errors.New("the process cache entry was not deleted from the user space cache")
 		}
 
 		return nil

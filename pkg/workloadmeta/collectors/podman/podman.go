@@ -113,7 +113,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 
 	return workloadmeta.CollectorEvent{
 		Type:   eventType,
-		Source: workloadmeta.SourcePodman,
+		Source: workloadmeta.SourceRuntime,
 		Entity: &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,
@@ -147,7 +147,7 @@ func (c *collector) expiredEvents() []workloadmeta.CollectorEvent {
 	for _, expired := range c.expire.ComputeExpires() {
 		res = append(res, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourcePodman,
+			Source: workloadmeta.SourceRuntime,
 			Entity: expired,
 		})
 	}

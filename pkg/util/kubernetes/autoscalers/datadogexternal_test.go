@@ -42,7 +42,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 			},
 			[]string{"mymetric{foo:bar}"},
 			map[string]Point{"mymetric{foo:bar}": {Value: 0, Valid: false}},
-			fmt.Errorf("Returned series slice empty"),
+			fmt.Errorf("none of the queries mymetric{foo:bar} returned any point, there might be an issue with them"),
 		},
 		{
 			"metricName yields rate limiting error response from Datadog",

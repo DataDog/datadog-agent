@@ -7,12 +7,12 @@ package workloadmeta
 
 // Filter allows a subscriber to filter events by entity kind or event source.
 type Filter struct {
-	kinds   map[Kind]struct{}
-	sources map[Source]struct{}
+	kinds  map[Kind]struct{}
+	source Source
 }
 
 // NewFilter creates a new filter for subscribing to workloadmeta events.
-func NewFilter(kinds []Kind, sources []Source) *Filter {
+func NewFilter(kinds []Kind, source Source) *Filter {
 	var kindSet map[Kind]struct{}
 	if len(kinds) > 0 {
 		kindSet = make(map[Kind]struct{})
@@ -21,17 +21,9 @@ func NewFilter(kinds []Kind, sources []Source) *Filter {
 		}
 	}
 
-	var sourceSet map[Source]struct{}
-	if len(sources) > 0 {
-		sourceSet = make(map[Source]struct{})
-		for _, s := range sources {
-			sourceSet[s] = struct{}{}
-		}
-	}
-
 	return &Filter{
-		kinds:   kindSet,
-		sources: sourceSet,
+		kinds:  kindSet,
+		source: source,
 	}
 }
 
@@ -48,33 +40,19 @@ func (f *Filter) MatchKind(k Kind) bool {
 }
 
 // MatchSource returns true if the filter matches the passed sources. If the
-// filter is nil, or has no sources, it always matches.
+// filter is nil, or has SourceAll, it always matches.
 func (f *Filter) MatchSource(source Source) bool {
-	_, ok := f.SelectSources([]Source{source})
-
-	return ok
+	return f.Source() == SourceAll || f.Source() == source
 }
 
-// SelectSources returns a subset of the passed sources that match the filter.
-func (f *Filter) SelectSources(sources []Source) ([]Source, bool) {
-	if f == nil || len(f.sources) == 0 {
-		return sources, true
+// Source returns the source this filter is filtering by. If the filter is nil,
+// returns SourceAll.
+func (f *Filter) Source() Source {
+	if f == nil {
+		return SourceAll
 	}
 
-	var (
-		selectedSources []Source
-		found           bool
-	)
-
-	for _, s := range sources {
-		_, ok := f.sources[s]
-		if ok {
-			selectedSources = append(selectedSources, s)
-			found = true
-		}
-	}
-
-	return selectedSources, found
+	return f.source
 }
 
 // Match returns true if the filter matches an event.

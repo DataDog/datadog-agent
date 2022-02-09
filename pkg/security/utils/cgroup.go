@@ -12,7 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 
@@ -54,7 +54,7 @@ func (cg ControlGroup) GetContainerID() ContainerID {
 
 // GetProcControlGroups returns the cgroup membership of the specified task.
 func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
-	data, err := ioutil.ReadFile(CgroupTaskPath(tgid, pid))
+	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
 	if err != nil {
 		return nil, err
 	}
