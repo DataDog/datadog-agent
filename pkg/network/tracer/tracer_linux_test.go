@@ -1212,12 +1212,16 @@ func TestUDPPythonReusePort(t *testing.T) {
 
 	var conns []network.ConnectionStats
 	require.Eventually(t, func() bool {
+		t.Log("---")
 		conns = searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
 			return cs.Type == network.UDP &&
 				cs.Source.IsLoopback() &&
 				cs.Dest.IsLoopback() &&
 				(cs.DPort == uint16(port) || cs.SPort == uint16(port))
 		})
+		for _, c := range conns {
+			t.Log(c)
+		}
 
 		return len(conns) == 4
 	}, 5*time.Second, time.Second, "could not find expected number of udp connections, expected: 4")
