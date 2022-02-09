@@ -11,18 +11,18 @@ import (
 
 // MessageBuffer accumulates messages to a buffer until the max capacity is reached.
 type MessageBuffer struct {
-	messageBuffer    []*message.Message
-	contentSize      int
-	contentSizeLimit int
-	bufferSizeLimit  int
+	messageBuffer          []*message.Message
+	contentSize            int
+	singleMessageSizeLimit int
+	bufferSizeLimit        int
 }
 
 // NewMessageBuffer returns a new MessageBuffer.
-func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int, bufferSizeLimit int) *MessageBuffer {
+func NewMessageBuffer(batchSizeLimit int, singleMessageSizeLimit int, bufferSizeLimit int) *MessageBuffer {
 	return &MessageBuffer{
-		messageBuffer:    make([]*message.Message, 0, batchSizeLimit),
-		contentSizeLimit: contentSizeLimit,
-		bufferSizeLimit:  bufferSizeLimit,
+		messageBuffer:          make([]*message.Message, 0, batchSizeLimit),
+		singleMessageSizeLimit: singleMessageSizeLimit,
+		bufferSizeLimit:        bufferSizeLimit,
 	}
 }
 
@@ -30,7 +30,7 @@ func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int, bufferSizeLimit 
 // returns true if the message was added.
 func (p *MessageBuffer) AddMessage(message *message.Message) bool {
 	newMessageSize := len(message.Content)
-	if newMessageSize > p.contentSizeLimit {
+	if newMessageSize > p.singleMessageSizeLimit {
 		return false
 	}
 
@@ -64,7 +64,7 @@ func (p *MessageBuffer) IsEmpty() bool {
 	return len(p.messageBuffer) == 0
 }
 
-// ContentSizeLimit returns the configured content size limit. Messages above this limit are not accepted.
-func (p *MessageBuffer) ContentSizeLimit() int {
-	return p.contentSizeLimit
+// SingleMessageSizeLimit returns the configured maximum single message size. Messages above this limit are not accepted.
+func (p *MessageBuffer) SingleMessageSizeLimit() int {
+	return p.singleMessageSizeLimit
 }
