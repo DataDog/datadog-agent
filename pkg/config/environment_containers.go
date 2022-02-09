@@ -148,14 +148,27 @@ func isCriSupported() bool {
 }
 
 func detectFargate(features FeatureMap) {
-	if IsECSFargate() {
+	isECSFargate := IsECSFargate()
+	if isECSFargate {
 		features[ECSFargate] = struct{}{}
+
 		return
 	}
 
-	if Datadog.GetBool("eks_fargate") {
+	isEKSFargate := Datadog.GetBool("eks_fargate")
+	if isEKSFargate {
 		features[EKSFargate] = struct{}{}
 		features[Kubernetes] = struct{}{}
+	}
+
+	if isECSFargate || isEKSFargate {
+		// in AWS Fargate environments, dd_tags can't be attached to host.
+		// The agent already add all tags present to dd_tags to each tagger entities to have them on metrics checks,
+		// traces, events...
+		// To ease customer configuration, the agent should inject dd_tags to the dogstatsd_tags configuration option
+		// to have the same behaviour with dogstatsd metrics than with other metrics.
+		dsd_tags := merge(Datadog.GetStringSlice("dogstatsd_tags"), Datadog.GetStringSlice("dd_tags"))
+		AddOverride("dogstatsd_tags", dsd_tags)
 	}
 }
 
