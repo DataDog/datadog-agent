@@ -78,8 +78,8 @@ func SNMPTrapsSource() *LogSource {
 		// source to forward SNMP traps as logs.
 		return NewLogSource(SnmpTraps, &LogsConfig{
 			Type:    SnmpTrapsType,
-			Service: "snmp",
-			Source:  "snmp",
+			Service: "snmp-traps",
+			Source:  "snmp-traps",
 		})
 	}
 	return nil

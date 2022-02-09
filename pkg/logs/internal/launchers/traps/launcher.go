@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 )
 
@@ -36,7 +37,11 @@ func (l *Launcher) Start() {
 
 func (l *Launcher) startNewTailer(source *config.LogSource, inputChan chan *traps.SnmpPacket) {
 	outputChan := l.pipelineProvider.NextPipelineChan()
-	l.tailer = tailer.NewTailer(source, inputChan, outputChan)
+	oidResolver, err := traps.NewMultiFilesOIDResolver()
+	if err != nil {
+		log.Errorf("unable to load traps database: %w", err)
+	}
+	l.tailer = tailer.NewTailer(oidResolver, source, inputChan, outputChan)
 	l.tailer.Start()
 }
 

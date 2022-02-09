@@ -6,7 +6,6 @@
 package traps
 
 import (
-	"encoding/json"
 	"net"
 	"testing"
 	"time"
@@ -23,7 +22,7 @@ import (
 func TestTrapsShouldReceiveMessages(t *testing.T) {
 	inputChan := make(traps.PacketsChannel, 1)
 	outputChan := make(chan *message.Message)
-	tailer := NewTailer(config.NewLogSource("test", &config.LogsConfig{}), inputChan, outputChan)
+	tailer := NewTailer(&traps.NoOpOIDResolver{}, config.NewLogSource("test", &config.LogsConfig{}), inputChan, outputChan)
 	tailer.Start()
 
 	p := &traps.SnmpPacket{
@@ -46,18 +45,22 @@ func TestTrapsShouldReceiveMessages(t *testing.T) {
 		return
 	}
 
+	formattedPacket := format(t, p)
 	assert.Equal(t, message.StatusInfo, msg.GetStatus())
-	assert.Equal(t, format(t, p), msg.Content)
-	assert.Equal(t, traps.GetTags(p), msg.Origin.Tags())
+	assert.Equal(t, formattedPacket, msg.Content)
+	assert.Equal(t, []string{
+		"snmp_version:2",
+		"device_namespace:default",
+		"snmp_device:127.0.0.1",
+	}, msg.Origin.Tags())
 
 	close(inputChan)
 	tailer.WaitFlush()
 }
 
 func format(t *testing.T, p *traps.SnmpPacket) []byte {
-	data, err := traps.FormatPacketToJSON(p)
+	formatter := traps.NewJSONFormatter(nil)
+	formattedPacket, err := formatter.FormatPacket(p)
 	assert.NoError(t, err)
-	content, err := json.Marshal(data)
-	assert.NoError(t, err)
-	return content
+	return formattedPacket
 }
