@@ -1,0 +1,17 @@
+otlp_config:
+  receiver:
+    protocols:
+      http:
+        endpoint: "localhost:1234"
+        cors:
+          allowed_origins:
+            - http://test.com
+          allowed_headers:
+            - ExampleHeader
+      grpc:
+        endpoint: "0.0.0.0:5678"
+        max_concurrent_streams: 16
+        transport: tcp
+        keepalive:
+          enforcement_policy:
+            min_time: 10m

@@ -65,6 +65,9 @@ type ProcessCheck struct {
 
 	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
 	SysprobeProcessModuleEnabled bool
+
+	maxBatchSize         int
+	maxCtrProcsBatchSize int
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -79,6 +82,9 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	p.networkID = networkID
+
+	p.maxBatchSize = getMaxBatchSize()
+	p.maxCtrProcsBatchSize = getMaxCtrProcsBatchSize()
 }
 
 // Name returns the name of the ProcessCheck.
@@ -175,7 +181,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.sysInfo, groupID, p.networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.maxBatchSize, p.maxCtrProcsBatchSize, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -194,7 +200,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(cfg, stats, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+			chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, stats, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := fmtContainerStats(ctrList, p.realtimeLastCtrRates, p.realtimeLastRun, groupSize)
 
@@ -254,6 +260,8 @@ func createProcCtrMessages(
 	procsByCtr map[string][]*model.Process,
 	containers []*model.Container,
 	cfg *config.AgentConfig,
+	maxBatchSize int,
+	maxCtrProcsBatchSize int,
 	sysInfo *model.SystemInfo,
 	groupID int32,
 	networkID string,
@@ -262,7 +270,7 @@ func createProcCtrMessages(
 	var msgs []*model.CollectorProc
 
 	// we first split non-container processes in chunks
-	chunks := chunkProcesses(procsByCtr[emptyCtrID], cfg.MaxPerMessage)
+	chunks := chunkProcesses(procsByCtr[emptyCtrID], maxBatchSize)
 	for _, c := range chunks {
 		msgs = append(msgs, &model.CollectorProc{
 			HostName:          cfg.HostName,
@@ -274,7 +282,7 @@ func createProcCtrMessages(
 		})
 	}
 
-	procCtrMessages := packProcCtrMessages(cfg.MaxCtrProcessesPerMessage, procsByCtr, containers,
+	procCtrMessages := packProcCtrMessages(maxCtrProcsBatchSize, procsByCtr, containers,
 		func(p []*model.Process, c ...*model.Container) *model.CollectorProc {
 			return &model.CollectorProc{
 				HostName:          cfg.HostName,
