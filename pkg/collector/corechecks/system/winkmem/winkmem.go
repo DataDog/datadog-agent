@@ -28,6 +28,11 @@ const (
 
 	// KMemDefaultTopNum is the default number of kernel memory tags to return
 	KMemDefaultTopNum = 10
+
+	kSystemPoolTagInformation      = 0x16
+	kCEmptySystemInformationStruct = 48
+	kCEmptyPoolTagStruct           = 40
+	kStatusInformationMismatch     = 0xC0000004
 )
 
 var (
@@ -194,18 +199,18 @@ func (p sortKeyList) Swap(i, j int) {
 func (p sortKeyList) Less(i, j int) bool { return p[i].Key < p[j].Key }
 
 func getpoolinfo() (*systemPoolInformation, error) {
-	firstbuffer := make([]uint8, 48) // magic size of empty structure in C land
+	firstbuffer := make([]uint8, kCEmptySystemInformationStruct) // magic size of empty structure in C land
 	var returnlen uint32
-	r, _, _ := procNtQuerySystemInformation.Call(uintptr(0x16),
+	r, _, _ := procNtQuerySystemInformation.Call(uintptr(kSystemPoolTagInformation),
 		uintptr(unsafe.Pointer(&firstbuffer[0])),
 		48,
 		uintptr(unsafe.Pointer(&returnlen)))
-	if r != 0xC0000004 {
+	if r != kStatusInformationMismatch {
 		return nil, fmt.Errorf("Expected STATUS_INFO_LENGTH_MISMATCH, got %v", r)
 	}
 
 	fullbuffer := make([]uint8, returnlen)
-	r, _, _ = procNtQuerySystemInformation.Call(uintptr(0x16),
+	r, _, _ = procNtQuerySystemInformation.Call(uintptr(kSystemPoolTagInformation),
 		uintptr(unsafe.Pointer(&fullbuffer[0])),
 		uintptr(returnlen),
 		uintptr(unsafe.Pointer(&returnlen)))
@@ -215,10 +220,25 @@ func getpoolinfo() (*systemPoolInformation, error) {
 	spi := &systemPoolInformation{
 		byKey: make(map[string]int),
 	}
+	/* In C, the (undocumented) C structure is
+		struct SYSTEM_POOLTAG_INFORMATION {
+	    	ULONG Count;
+	    	SYSTEM_POOLTAG TagInfo[1];
+		};
+		So the `count` field is the first 4 bytes
+	*/
+
 	spi.spti.count = binary.LittleEndian.Uint32(fullbuffer[:4])
 
 	for i := 0; i < int(spi.spti.count); i++ {
-		pt := (*systemPooltag)(unsafe.Pointer(&fullbuffer[8+(40*i)]))
+		// in C, the (undocumented) C structure is as above.  a 32 bit int
+		// which is the count of the number of structures, followed by an array
+		// of the actual structures.  However, the structure is 64-bit byte
+		// aligned, so the array actually starts 8 bytes off the start of the
+		// buffer, not 4.  (hence the 8+ in the magic calculation)
+		// Then, the actual structure is 40 bytes long, so the index into the buffer
+		// becomes the 8 bytes plus the number of structs we want to skip.
+		pt := (*systemPooltag)(unsafe.Pointer(&fullbuffer[8+(kCEmptyPoolTagStruct*i)]))
 
 		tagstr := string(pt.tag[:])
 		spi.byKey[tagstr] = i
