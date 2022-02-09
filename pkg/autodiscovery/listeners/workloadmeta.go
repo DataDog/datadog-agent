@@ -165,7 +165,7 @@ func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- S
 }
 
 func (l *workloadmetaListenerImpl) Stop() {
-	l.stop <- struct{}{}
+	close(l.stop)
 }
 
 func (l *workloadmetaListenerImpl) processEvents(evBundle workloadmeta.EventBundle, creationTime integration.CreationTime) {

@@ -68,9 +68,9 @@ func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 
 	for kind, store := range s.store {
 		entities := WorkloadEntity{Infos: make(map[string]string)}
-		for id, srcToEntity := range store {
-			if verbose && len(srcToEntity) > 1 {
-				for source, entity := range srcToEntity {
+		for id, cachedEntity := range store {
+			if verbose && len(cachedEntity.sources) > 1 {
+				for source, entity := range cachedEntity.sources {
 					info, err := entityToString(entity)
 					if err != nil {
 						log.Debugf("Ignoring entity %s: %w", entity.GetID().ID, err)
@@ -81,14 +81,14 @@ func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 				}
 			}
 
-			e := srcToEntity.merge(nil)
+			e := cachedEntity.cached
 			info, err := entityToString(e)
 			if err != nil {
 				log.Debugf("Ignoring entity %s: %w", e.GetID().ID, err)
 				continue
 			}
 
-			entities.Infos[fmt.Sprintf("sources(merged):%v", srcToEntity.sources())+" id: "+id] = info
+			entities.Infos[fmt.Sprintf("sources(merged):%v", cachedEntity.sortedSources)+" id: "+id] = info
 		}
 
 		workloadList.Entities[string(kind)] = entities

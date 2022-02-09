@@ -61,7 +61,9 @@ type AutoMultilineHandler struct {
 }
 
 // NewAutoMultilineHandler returns a new AutoMultilineHandler.
-func NewAutoMultilineHandler(outputChan chan *Message,
+func NewAutoMultilineHandler(
+	inputChan chan *Message,
+	outputChan chan *Message,
 	lineLimit, linesToAssess int,
 	matchThreshold float64,
 	matchTimeout time.Duration,
@@ -82,7 +84,7 @@ func NewAutoMultilineHandler(outputChan chan *Message,
 		}
 	}
 	h := &AutoMultilineHandler{
-		inputChan:       make(chan *Message),
+		inputChan:       inputChan,
 		outputChan:      outputChan,
 		isRunning:       true,
 		lineLimit:       lineLimit,
@@ -95,15 +97,12 @@ func NewAutoMultilineHandler(outputChan chan *Message,
 		detectedPattern: detectedPattern,
 	}
 
-	h.singleLineHandler = NewSingleLineHandler(outputChan, lineLimit)
+	// This single-line handler is never started. Instead, we call its `process`
+	// method directly.  So, it does not need an input channel.
+	h.singleLineHandler = NewSingleLineHandler(nil, outputChan, lineLimit)
 	h.processsingFunc = h.processAndTry
 
 	return h
-}
-
-// Handle puts all new lines into a channel for later processing.
-func (h *AutoMultilineHandler) Handle(input *Message) {
-	h.inputChan <- input
 }
 
 // Stop stops the handler.
@@ -183,7 +182,7 @@ func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
 	h.singleLineHandler = nil
 
 	// Build and start a multiline-handler
-	h.multiLineHandler = newMultiLineHandler(h.inputChan, h.outputChan, r, h.flushTimeout, h.lineLimit)
+	h.multiLineHandler = NewMultiLineHandler(h.inputChan, h.outputChan, r, h.flushTimeout, h.lineLimit)
 	h.multiLineHandler.Start()
 
 	// At this point control is handed over to the multiline handler and the AutoMultilineHandler read loop has stopped.

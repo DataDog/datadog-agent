@@ -48,6 +48,8 @@ func ExtractDeployment(d *appsv1.Deployment) *model.Deployment {
 	deploy.UnavailableReplicas = d.Status.UnavailableReplicas
 	deploy.ConditionMessage = extractDeploymentConditionMessage(d.Status.Conditions)
 
+	deploy.ResourceRequirements = ExtractPodTemplateResourceRequirements(d.Spec.Template)
+
 	return &deploy
 }
 
