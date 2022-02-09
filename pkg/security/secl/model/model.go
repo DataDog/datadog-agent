@@ -493,8 +493,8 @@ func (pc *ProcessCacheEntry) Retain() {
 }
 
 // SetReleaseCallback set the callback called when the entry is released
-func (e *ProcessCacheEntry) SetReleaseCallback(callback func()) {
-	e.releaseCb = callback
+func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
+	pc.releaseCb = callback
 }
 
 // Release decrement and eventually release the entry
@@ -508,8 +508,8 @@ func (pc *ProcessCacheEntry) Release() {
 		pc.onRelease(pc)
 	}
 
-	if e.releaseCb != nil {
-		e.releaseCb()
+	if pc.releaseCb != nil {
+		pc.releaseCb()
 	}
 }
 

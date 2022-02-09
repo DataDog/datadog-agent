@@ -55,12 +55,12 @@ const (
 var (
 	runtimeCmd = &cobra.Command{
 		Use:   "runtime",
-		Short: "Runtime Agent utility commands",
+		Short: "runtime Agent utility commands",
 	}
 
 	checkPoliciesCmd = &cobra.Command{
 		Use:        "check-policies",
-		Short:      "Check policies and return a report",
+		Short:      "check policies and return a report",
 		RunE:       checkPolicies,
 		Deprecated: "please use `security-agent runtime policy check` instead",
 	}
@@ -69,53 +69,57 @@ var (
 		dir string
 	}{}
 
-	dumpCmd = &cobra.Command{
-		Use:   "dump",
-		Short: "Dump security module command",
-	}
-
-	stopCmd = &cobra.Command{
-		Use:   "stop",
-		Short: "Stop security module command",
-	}
-
-	listCmd = &cobra.Command{
-		Use:   "list",
-		Short: "List security module command",
-	}
-
-	dumpProcessArgs = struct {
-		withArgs bool
-	}{}
-
-	dumpProcessCacheCmd = &cobra.Command{
+	processCacheCmd = &cobra.Command{
 		Use:   "process-cache",
 		Short: "process cache",
+	}
+
+	processCacheDumpCmd = &cobra.Command{
+		Use:   "dump",
+		Short: "dump the process cache",
 		RunE:  dumpProcessCache,
 	}
 
-	dumpActivityCmd = &cobra.Command{
-		Use:   "activity",
-		Short: "record and dump all activity matching a set of tags",
-		RunE:  dumpActivity,
+	processCacheDumpArgs = struct {
+		withArgs bool
+	}{}
+
+	activityDumpCmd = &cobra.Command{
+		Use:   "activity-dump",
+		Short: "activity dump command",
 	}
 
-	activityDumpTags    []string
-	activityDumpComm    string
-	activityDumpTimeout int
-	withGraph           bool
-	differentiateArgs   bool
+	activityDumpArgs = struct {
+		tags              []string
+		comm              string
+		file              string
+		timeout           int
+		withGraph         bool
+		differentiateArgs bool
+	}{}
 
-	listActivityDumpsCmd = &cobra.Command{
-		Use:   "activity",
-		Short: "list all active dumps",
-		RunE:  listActivityDumps,
+	activityDumpGenerateCmd = &cobra.Command{
+		Use:   "generate",
+		Short: "generate an activity dump",
+		RunE:  generateActivityDump,
 	}
 
-	stopActivityDumpCmd = &cobra.Command{
-		Use:   "activity",
-		Short: "stops the first activity dump that matches the provided set of tags",
+	activityDumpGenerateProfileCmd = &cobra.Command{
+		Use:   "generate-profile",
+		Short: "generate a profile from an activity dump",
+		RunE:  generateProfileFromActivityDump,
+	}
+
+	activityDumpStopCmd = &cobra.Command{
+		Use:   "stop",
+		Short: "stops the first activity dump that matches the provided selector",
 		RunE:  stopActivityDump,
+	}
+
+	activityDumpListCmd = &cobra.Command{
+		Use:   "list",
+		Short: "get the list of running activity dumps",
+		RunE:  listActivityDumps,
 	}
 
 	selfTestCmd = &cobra.Command{
@@ -161,59 +165,68 @@ var (
 )
 
 func init() {
-	dumpProcessCacheCmd.Flags().BoolVar(&dumpProcessArgs.withArgs, "with-args", false, "add process arguments to the dump")
-	dumpActivityCmd.Flags().StringArrayVar(
-		&activityDumpTags,
+	processCacheDumpCmd.Flags().BoolVar(&processCacheDumpArgs.withArgs, "with-args", false, "add process arguments to the dump")
+
+	activityDumpGenerateCmd.Flags().StringArrayVar(
+		&activityDumpArgs.tags,
 		"tags",
 		[]string{},
 		"tags are used to filter the activity dump in order to select a specific workload. Tags should be provided in the \"tag_name:tag_value\" format.",
 	)
-	dumpActivityCmd.Flags().StringVar(
-		&activityDumpComm,
+	activityDumpGenerateCmd.Flags().StringVar(
+		&activityDumpArgs.comm,
 		"comm",
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
-	dumpActivityCmd.Flags().IntVar(
-		&activityDumpTimeout,
+	activityDumpGenerateCmd.Flags().IntVar(
+		&activityDumpArgs.timeout,
 		"timeout",
 		10,
 		"timeout for the activity dump in minutes",
 	)
-	dumpActivityCmd.Flags().BoolVar(
-		&withGraph,
+	activityDumpGenerateCmd.Flags().BoolVar(
+		&activityDumpArgs.withGraph,
 		"graph",
 		false,
 		"generate a graph from the generated dump",
 	)
-	dumpActivityCmd.Flags().BoolVar(
-		&differentiateArgs,
+	activityDumpGenerateCmd.Flags().BoolVar(
+		&activityDumpArgs.differentiateArgs,
 		"differentiate-args",
 		false,
 		"add the arguments in the process node merge algorithm",
 	)
-	stopActivityDumpCmd.Flags().StringArrayVar(
-		&activityDumpTags,
+
+	activityDumpStopCmd.Flags().StringArrayVar(
+		&activityDumpArgs.tags,
 		"tags",
 		[]string{},
 		"tags is used to select an activity dump. Tags should be provided in the [tag_name:tag_value] format.",
 	)
-	stopActivityDumpCmd.Flags().StringVar(
-		&activityDumpComm,
+	activityDumpStopCmd.Flags().StringVar(
+		&activityDumpArgs.comm,
 		"comm",
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
 
-	dumpCmd.AddCommand(dumpProcessCacheCmd)
-	dumpCmd.AddCommand(dumpActivityCmd)
-	runtimeCmd.AddCommand(dumpCmd)
+	activityDumpGenerateProfileCmd.Flags().StringVar(
+		&activityDumpArgs.file,
+		"input",
+		"",
+		"path to the activity dump file from which a profile will be generated",
+	)
+	_ = activityDumpGenerateProfileCmd.MarkFlagRequired("input")
 
-	listCmd.AddCommand(listActivityDumpsCmd)
-	runtimeCmd.AddCommand(listCmd)
+	processCacheCmd.AddCommand(processCacheDumpCmd)
+	runtimeCmd.AddCommand(processCacheCmd)
 
-	stopCmd.AddCommand(stopActivityDumpCmd)
-	runtimeCmd.AddCommand(stopCmd)
+	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
+	activityDumpCmd.AddCommand(activityDumpListCmd)
+	activityDumpCmd.AddCommand(activityDumpStopCmd)
+	activityDumpCmd.AddCommand(activityDumpGenerateProfileCmd)
+	runtimeCmd.AddCommand(activityDumpCmd)
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
@@ -245,17 +258,17 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
-	filename, err := client.DumpProcessCache(dumpProcessArgs.withArgs)
+	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs)
 	if err != nil {
 		return errors.Wrap(err, "unable to get a process cache dump")
 	}
 
-	log.Infof("Process dump file: %s\n", filename)
+	fmt.Printf("Process dump file: %s\n", filename)
 
 	return nil
 }
 
-func dumpActivity(cmd *cobra.Command, args []string) error {
+func generateActivityDump(cmd *cobra.Command, args []string) error {
 	// Read configuration files received from the command line arguments '-c'
 	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
@@ -268,7 +281,7 @@ func dumpActivity(cmd *cobra.Command, args []string) error {
 	defer client.Close()
 
 	var filename, graph string
-	filename, graph, err = client.DumpActivity(activityDumpTags, activityDumpComm, int32(activityDumpTimeout), withGraph, differentiateArgs)
+	filename, graph, err = client.GenerateActivityDump(activityDumpArgs.tags, activityDumpArgs.comm, int32(activityDumpArgs.timeout), activityDumpArgs.withGraph, activityDumpArgs.differentiateArgs)
 	if err != nil {
 		return errors.Wrap(err, "unable to an request activity dump for %s")
 	}
@@ -324,7 +337,7 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 	defer client.Close()
 
 	var msg string
-	msg, err = client.StopActivityDump(activityDumpTags, activityDumpComm)
+	msg, err = client.StopActivityDump(activityDumpArgs.tags, activityDumpArgs.comm)
 	if err != nil {
 		return errors.Wrap(err, "unable to stop the request activity dump")
 	}
@@ -335,6 +348,28 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 		fmt.Println(msg)
 	}
 
+	return nil
+}
+
+func generateProfileFromActivityDump(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to generate a profile")
+	}
+	defer client.Close()
+
+	var output string
+	output, err = client.GenerateProfile(activityDumpArgs.file)
+	if err != nil {
+		return errors.Wrapf(err, "couldn't generate a profile from: %s", activityDumpArgs.file)
+	}
+
+	fmt.Printf("Generated profile: %s\n", output)
 	return nil
 }
 
