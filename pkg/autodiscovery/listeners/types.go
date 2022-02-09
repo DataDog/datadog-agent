@@ -24,7 +24,7 @@ type ContainerPort struct {
 // It should be matched with a check template by the ConfigResolver using the
 // ADIdentifiers field.
 type Service interface {
-	GetEntity() string                                   // unique entity name
+	GetServiceID() string                                // unique service name
 	GetTaggerEntity() string                             // tagger entity name
 	GetADIdentifiers(context.Context) ([]string, error)  // identifiers on which templates will be matched
 	GetHosts(context.Context) (map[string]string, error) // network --> IP address

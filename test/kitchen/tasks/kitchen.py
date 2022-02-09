@@ -21,6 +21,7 @@ def genconfig(
     platlist=None,
     fips=False,
     arch="x86_64",
+    imagesize=None,
 ):
     """
     Create a kitchen config
@@ -147,6 +148,8 @@ def genconfig(
     if uservars:
         env = load_user_env(ctx, provider, uservars)
     env['TEST_PLATFORMS'] = testplatforms
+
+    env['TEST_IMAGE_SIZE'] = imagesize if imagesize else ""
 
     if fips:
         env['FIPS'] = 'true'

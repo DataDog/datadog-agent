@@ -425,11 +425,11 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				continue
 			}
 
-			entityOfSource, ok := s.store[entityID.Kind][entityID.ID]
+			cachedEntity, ok := s.store[entityID.Kind][entityID.ID]
 
 			var entity Entity
 			if ok {
-				entity = entityOfSource.get(filter.Source())
+				entity = cachedEntity.get(filter.Source())
 			}
 
 			if entity != nil {

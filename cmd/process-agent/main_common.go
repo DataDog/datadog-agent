@@ -39,6 +39,7 @@ import (
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	// register all workloadmeta collectors
@@ -93,7 +94,13 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 
 	httpClient := apiutil.GetClient(false)
 	ipcAddress, err := ddconfig.GetIPCAddress()
-	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, ddconfig.Datadog.GetInt("process_config.cmd_port"))
+
+	port := ddconfig.Datadog.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		return nil, fmt.Errorf("invalid process_config.cmd_port -- %d", port)
+	}
+
+	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, port)
 	if err != nil {
 		return nil, err
 	}
@@ -276,8 +283,33 @@ func runAgent(exit chan struct{}) {
 	// we just pass down empty string
 	updateDockerSocket(dockerSock)
 
-	if cfg.ProfilingSettings != nil {
-		if err := profiling.Start(*cfg.ProfilingSettings); err != nil {
+	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
+	// but use the configuration from main agent to fill the settings
+	if ddconfig.Datadog.GetBool("process_config.internal_profiling.enabled") {
+		// allow full url override for development use
+		site := ddconfig.Datadog.GetString("internal_profiling.profile_dd_url")
+		if site == "" {
+			s := ddconfig.Datadog.GetString("site")
+			if s == "" {
+				s = ddconfig.DefaultSite
+			}
+			site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
+		}
+
+		v, _ := version.Agent()
+		profilingSettings := profiling.Settings{
+			ProfilingURL:         site,
+			Env:                  ddconfig.Datadog.GetString("env"),
+			Service:              "process-agent",
+			Period:               ddconfig.Datadog.GetDuration("internal_profiling.period"),
+			CPUDuration:          ddconfig.Datadog.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: ddconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     ddconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: ddconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+		}
+
+		if err := profiling.Start(profilingSettings); err != nil {
 			log.Warnf("failed to enable profiling: %s", err)
 		} else {
 			log.Info("start profiling process-agent")
@@ -297,9 +329,15 @@ func runAgent(exit chan struct{}) {
 		return
 	}
 
+	expVarPort := ddconfig.Datadog.GetInt("process_config.expvar_port")
+	if expVarPort <= 0 {
+		log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", expVarPort, ddconfig.DefaultProcessExpVarPort)
+		expVarPort = ddconfig.DefaultProcessExpVarPort
+	}
+
 	if opts.info {
 		// using the debug port to get info to work
-		url := fmt.Sprintf("http://localhost:%d/debug/vars", cfg.ProcessExpVarPort)
+		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
 		if err := Info(os.Stdout, cfg, url); err != nil {
 			cleanupAndExit(1)
 		}
@@ -311,9 +349,9 @@ func runAgent(exit chan struct{}) {
 		if ddconfig.Datadog.GetBool("telemetry.enabled") {
 			http.Handle("/telemetry", telemetry.Handler())
 		}
-		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil)
+		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", expVarPort), nil)
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", cfg.ProcessExpVarPort, err)
+			log.Errorf("Error creating expvar server on port %v: %v", expVarPort, err)
 		}
 	}()
 

@@ -61,6 +61,9 @@ var (
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+		},
 	}
 
 	startCmd = &cobra.Command{
@@ -154,10 +157,6 @@ func start(cmd *cobra.Command, args []string) error {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	go handleSignals(stopCh)
-
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
 
 	err := RunAgent(ctx)
 	if err != nil {

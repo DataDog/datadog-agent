@@ -68,18 +68,18 @@ type MetricSampleContext interface {
 
 // MetricSample represents a raw metric sample
 type MetricSample struct {
-	Name            string
-	Value           float64
-	RawValue        string
-	Mtype           MetricType
-	Tags            []string
-	Host            string
-	SampleRate      float64
-	Timestamp       float64
-	FlushFirstValue bool
-	OriginID        string
-	K8sOriginID     string
-	Cardinality     string
+	Name             string
+	Value            float64
+	RawValue         string
+	Mtype            MetricType
+	Tags             []string
+	Host             string
+	SampleRate       float64
+	Timestamp        float64
+	FlushFirstValue  bool
+	OriginFromUDS    string
+	OriginFromClient string
+	Cardinality      string
 }
 
 // Implement the MetricSampleContext interface
@@ -97,7 +97,7 @@ func (m *MetricSample) GetHost() string {
 // GetTags returns the metric sample tags
 func (m *MetricSample) GetTags(tb *tagset.HashingTagsAccumulator) {
 	tb.Append(m.Tags...)
-	tagger.EnrichTags(tb, m.OriginID, m.K8sOriginID, m.Cardinality)
+	tagger.EnrichTags(tb, m.OriginFromUDS, m.OriginFromClient, m.Cardinality)
 }
 
 // Copy returns a deep copy of the m MetricSample
