@@ -274,11 +274,11 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	err = ddconfig.SetupLogger(
 		"process",
 		ddconfig.Datadog.GetString("log_level"),
-		ddconfig.Datadog.GetString("process_config.log_file"),
-		ddconfig.GetSyslogURI(),
-		ddconfig.Datadog.GetBool("syslog_rfc"),
-		ddconfig.Datadog.GetBool("log_to_console"),
-		ddconfig.Datadog.GetBool("log_format_json"),
+		"",
+		"",
+		false,
+		true,
+		false,
 	)
 	if err != nil {
 		writeError(os.Stdout, err)
