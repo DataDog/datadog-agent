@@ -78,6 +78,10 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 
 			enabled[probes.UDPRecvMsg] = struct{}{}
 			enabled[probes.UDPRecvMsgReturn] = struct{}{}
+			if c.CollectIPv6Conns {
+				enabled[probes.UDPv6RecvMsg] = struct{}{}
+				enabled[probes.UDPv6RecvMsgReturn] = struct{}{}
+			}
 
 			if _, miss := missing["skb_consume_udp"]; !miss {
 				enabled[probes.SKBConsumeUDP] = struct{}{}

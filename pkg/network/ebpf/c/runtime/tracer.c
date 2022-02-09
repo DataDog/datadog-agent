@@ -261,8 +261,7 @@ static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_bu
     handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT);
 }
 
-SEC("kprobe/udp_recvmsg")
-int kprobe__udp_recvmsg(struct pt_regs* ctx) {
+static __always_inline int handle_udp_recvmsg(struct pt_regs* ctx) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     struct msghdr* msg = (struct msghdr*)PT_REGS_PARM3(ctx);
@@ -284,12 +283,35 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kretprobe/udp_recvmsg")
-int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
+SEC("kprobe/udp_recvmsg")
+int kprobe__udp_recvmsg(struct pt_regs* ctx) {
+    return handle_udp_recvmsg(ctx);
+}
+
+#ifdef FEATURE_IPV6_ENABLED
+SEC("kprobe/udpv6_recvmsg")
+int kprobe__udpv6_recvmsg(struct pt_regs* ctx) {
+    return handle_udp_recvmsg(ctx);
+}
+#endif
+
+static __always_inline int handle_udp_recvmsg_ret(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_delete_elem(&udp_recv_sock, &pid_tgid);
     return 0;
 }
+
+SEC("kretprobe/udp_recvmsg")
+int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
+    return handle_udp_recvmsg_ret(ctx);
+}
+
+#ifdef FEATURE_IPV6_ENABLED
+SEC("kretprobe/udpv6_recvmsg")
+int kretprobe__udpv6_recvmsg(struct pt_regs* ctx) {
+    return handle_udp_recvmsg_ret(ctx);
+}
+#endif
 
 SEC("kprobe/skb_free_datagram_locked")
 int kprobe__skb_free_datagram_locked(struct pt_regs* ctx) {

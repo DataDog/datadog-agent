@@ -74,6 +74,8 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) (*manager.M
 			&manager.Probe{Section: string(probes.SKBFreeDatagramLocked)},
 			&manager.Probe{Section: string(probes.UDPRecvMsg)},
 			&manager.Probe{Section: string(probes.UDPRecvMsgReturn), KProbeMaxActive: maxActive},
+			&manager.Probe{Section: string(probes.UDPv6RecvMsg)},
+			&manager.Probe{Section: string(probes.UDPv6RecvMsgReturn), KProbeMaxActive: maxActive},
 			&manager.Probe{Section: string(probes.SKB__FreeDatagramLocked)},
 			&manager.Probe{Section: string(probes.SKBConsumeUDP)},
 		)

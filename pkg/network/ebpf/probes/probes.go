@@ -53,10 +53,14 @@ const (
 
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg ProbeName = "kprobe/udp_recvmsg"
+	// UDPv6RecvMsg traces the udpv6_recvmsg() system call
+	UDPv6RecvMsg ProbeName = "kprobe/udpv6_recvmsg"
 	// UDPRecvMsgPre410 traces the udp_recvmsg() system call on kernels prior to 4.1.0
 	UDPRecvMsgPre410 ProbeName = "kprobe/udp_recvmsg/pre_4_1_0"
 	// UDPRecvMsgReturn traces the return value for the udp_recvmsg() system call
 	UDPRecvMsgReturn ProbeName = "kretprobe/udp_recvmsg"
+	// UDPv6RecvMsgReturn traces the return value for the udpv6_recvmsg() system call
+	UDPv6RecvMsgReturn ProbeName = "kretprobe/udpv6_recvmsg"
 
 	// SKBConsumeUDP traces skb_consume_udp()
 	SKBConsumeUDP ProbeName = "kprobe/skb_consume_udp"
