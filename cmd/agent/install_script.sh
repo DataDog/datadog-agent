@@ -308,9 +308,15 @@ if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
     exit 1;
 fi
 
-if [[ `uname -m` != "x86_64" ]] && [[ $agent_flavor == "datadog-dogstatsd" ]]; then
-    printf "\033[31mThe $nice_flavor is only available for x86_64 architecture.\033[0m\n"
-    exit 1;
+if [[ "$agent_flavor" == "datadog-dogstatsd" ]]; then
+    if [[ `uname -m` == "armv7l" ]]; then
+        printf "\033[31mThe $nice_flavor isn't available for your architecture (armv7l).\033[0m\n"
+        exit 1;
+    fi
+    if  [[ `uname -m` == "aarch64" ]] && { [[ -n "$agent_minor_version" ]] && [[ "$agent_minor_version" -lt 35 ]]; }; then
+        printf "\033[31mThe $nice_flavor is only available since version 7.35.0 for your architecture (aarch64).\033[0m\n"
+        exit 1;
+    fi
 fi
 
 # OS/Distro Detection
