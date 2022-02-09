@@ -108,6 +108,8 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 	providers := make(map[string]*providerDef)
 
 	if config.Datadog.GetBool("collect_ec2_tags") {
+		// WARNING: if this config is enabled on a non-ec2 host, then its
+		// retries may time out, causing a 3s delay
 		providers["ec2"] = &providerDef{10, ec2.GetTags, false}
 	}
 
