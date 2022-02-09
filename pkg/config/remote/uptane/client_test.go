@@ -30,29 +30,22 @@ func TestClientState(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Testing default state
-	expectedDefaultState := State{
-		ConfigSnapshotVersion: 0,
-		ConfigRootVersion:     meta.RootsConfig().LastVersion(),
-		DirectorRootVersion:   meta.RootsDirector().LastVersion(),
-	}
 	clientState, err := client1.State()
 	assert.NoError(t, err)
-	assert.Equal(t, expectedDefaultState, clientState)
+	assert.Equal(t, meta.RootsConfig().LastVersion(), clientState.ConfigRootVersion())
+	assert.Equal(t, meta.RootsDirector().LastVersion(), clientState.DirectorRootVersion())
 	_, err = client1.TargetsMeta()
 	assert.Error(t, err)
 
 	// Testing state for a simple valid repository
 	err = client1.Update(testRepository1.toUpdate())
 	assert.NoError(t, err)
-	expectedUpdate1State := State{
-		ConfigSnapshotVersion:  uint64(testRepository1.configSnapshotVersion),
-		ConfigRootVersion:      uint64(testRepository1.configRootVersion),
-		DirectorRootVersion:    uint64(testRepository1.directorRootVersion),
-		DirectorTargetsVersion: uint64(testRepository1.directorTargetsVersion),
-	}
 	clientState, err = client1.State()
 	assert.NoError(t, err)
-	assert.Equal(t, expectedUpdate1State, clientState)
+	assert.Equal(t, uint64(testRepository1.configSnapshotVersion), clientState.ConfigSnapshotVersion())
+	assert.Equal(t, uint64(testRepository1.configRootVersion), clientState.ConfigRootVersion())
+	assert.Equal(t, uint64(testRepository1.directorRootVersion), clientState.DirectorRootVersion())
+	assert.Equal(t, uint64(testRepository1.directorTargetsVersion), clientState.DirectorTargetsVersion())
 	targets1, err := client1.TargetsMeta()
 	assert.NoError(t, err)
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
@@ -62,7 +55,10 @@ func TestClientState(t *testing.T) {
 	assert.NoError(t, err)
 	clientState, err = client2.State()
 	assert.NoError(t, err)
-	assert.Equal(t, expectedUpdate1State, clientState)
+	assert.Equal(t, uint64(testRepository1.configSnapshotVersion), clientState.ConfigSnapshotVersion())
+	assert.Equal(t, uint64(testRepository1.configRootVersion), clientState.ConfigRootVersion())
+	assert.Equal(t, uint64(testRepository1.directorRootVersion), clientState.DirectorRootVersion())
+	assert.Equal(t, uint64(testRepository1.directorTargetsVersion), clientState.DirectorTargetsVersion())
 	targets1, err = client2.TargetsMeta()
 	assert.NoError(t, err)
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
@@ -72,7 +68,8 @@ func TestClientState(t *testing.T) {
 	assert.NoError(t, err)
 	clientState, err = client3.State()
 	assert.NoError(t, err)
-	assert.Equal(t, expectedDefaultState, clientState)
+	assert.Equal(t, meta.RootsConfig().LastVersion(), clientState.ConfigRootVersion())
+	assert.Equal(t, meta.RootsDirector().LastVersion(), clientState.DirectorRootVersion())
 	_, err = client3.TargetsMeta()
 	assert.Error(t, err)
 }
@@ -101,20 +98,20 @@ func TestClientFullState(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check full state
-	configState, directorState, err := client.FullState()
+	state, err := client.State()
 	assert.NoError(t, err)
-	assert.Equal(t, 4, len(configState))
-	assert.Equal(t, 4, len(directorState))
+	assert.Equal(t, 4, len(state.ConfigState))
+	assert.Equal(t, 4, len(state.DirectorState))
 
-	assertMetaVersion(t, configState, "root.json", 1)
-	assertMetaVersion(t, configState, "timestamp.json", 11)
-	assertMetaVersion(t, configState, "targets.json", 101)
-	assertMetaVersion(t, configState, "snapshot.json", 1001)
+	assertMetaVersion(t, state.ConfigState, "root.json", 1)
+	assertMetaVersion(t, state.ConfigState, "timestamp.json", 11)
+	assertMetaVersion(t, state.ConfigState, "targets.json", 101)
+	assertMetaVersion(t, state.ConfigState, "snapshot.json", 1001)
 
-	assertMetaVersion(t, directorState, "root.json", 1)
-	assertMetaVersion(t, directorState, "timestamp.json", 21)
-	assertMetaVersion(t, directorState, "targets.json", 201)
-	assertMetaVersion(t, directorState, "snapshot.json", 2001)
+	assertMetaVersion(t, state.DirectorState, "root.json", 1)
+	assertMetaVersion(t, state.DirectorState, "timestamp.json", 21)
+	assertMetaVersion(t, state.DirectorState, "targets.json", 201)
+	assertMetaVersion(t, state.DirectorState, "snapshot.json", 2001)
 }
 
 func assertMetaVersion(t *testing.T, state map[string]MetaState, metaName string, version uint64) {

@@ -20,12 +20,11 @@ import (
 
 // State represents the state of an uptane client
 type State struct {
-	ConfigRootVersion      uint64
-	ConfigSnapshotVersion  uint64
-	DirectorRootVersion    uint64
-	DirectorTargetsVersion uint64
+	ConfigState   map[string]MetaState
+	DirectorState map[string]MetaState
 }
 
+// MetaState represents the state of a tuf file
 type MetaState struct {
 	Version uint64
 	Hash    string
@@ -90,66 +89,77 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	return c.verify()
 }
 
+// ConfigRootVersion returns the version of the config root.json file
+func (s *State) ConfigRootVersion() uint64 {
+	meta, found := s.ConfigState[metaRoot]
+	if !found {
+		return 0
+	}
+	return meta.Version
+}
+
+// ConfigSnapshotVersion returns the version of the config snapshot.json file
+func (s *State) ConfigSnapshotVersion() uint64 {
+	meta, found := s.ConfigState[metaSnapshot]
+	if !found {
+		return 0
+	}
+	return meta.Version
+}
+
+// DirectorRootVersion returns the version of the director root.json file
+func (s *State) DirectorRootVersion() uint64 {
+	meta, found := s.DirectorState[metaRoot]
+	if !found {
+		return 0
+	}
+	return meta.Version
+}
+
+// DirectorTargetsVersion returns the version of the director targets.json file
+func (s *State) DirectorTargetsVersion() uint64 {
+	meta, found := s.DirectorState[metaTargets]
+	if !found {
+		return 0
+	}
+	return meta.Version
+}
+
 // State returns the state of the uptane client
 func (c *Client) State() (State, error) {
 	c.Lock()
 	defer c.Unlock()
-	configRootVersion, err := c.configLocalStore.GetMetaVersion(metaRoot)
-	if err != nil {
-		return State{}, err
-	}
-	directorRootVersion, err := c.directorLocalStore.GetMetaVersion(metaRoot)
-	if err != nil {
-		return State{}, err
-	}
-	configSnapshotVersion, err := c.configLocalStore.GetMetaVersion(metaSnapshot)
-	if err != nil {
-		return State{}, err
-	}
-	directorTargetsVersion, err := c.directorLocalStore.GetMetaVersion(metaTargets)
-	if err != nil {
-		return State{}, err
-	}
-	return State{
-		ConfigRootVersion:      configRootVersion,
-		ConfigSnapshotVersion:  configSnapshotVersion,
-		DirectorRootVersion:    directorRootVersion,
-		DirectorTargetsVersion: directorTargetsVersion,
-	}, nil
-}
 
-// Full state of the uptane client with the latest config and director repo content
-func (c *Client) FullState() (map[string]MetaState, map[string]MetaState, error) {
-	c.Lock()
-	defer c.Unlock()
-	configState := make(map[string]MetaState)
-	directorState := make(map[string]MetaState)
+	s := State{
+		ConfigState:   map[string]MetaState{},
+		DirectorState: map[string]MetaState{},
+	}
 
 	metas, err := c.configLocalStore.GetMeta()
 	if err != nil {
-		return configState, directorState, err
+		return State{}, err
 	}
 
 	for metaName, content := range metas {
 		version, err := metaVersion(content)
 		if err == nil {
-			configState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
+			s.ConfigState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
 		}
 	}
 
 	directorMetas, err := c.directorLocalStore.GetMeta()
 	if err != nil {
-		return configState, directorState, err
+		return State{}, err
 	}
 
 	for metaName, content := range directorMetas {
 		version, err := metaVersion(content)
 		if err == nil {
-			directorState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
+			s.DirectorState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
 		}
 	}
 
-	return configState, directorState, nil
+	return s, nil
 }
 
 // DirectorRoot returns a director root

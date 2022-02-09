@@ -67,7 +67,6 @@ type Service struct {
 type uptaneClient interface {
 	Update(response *pbgo.LatestConfigsResponse) error
 	State() (uptane.State, error)
-	FullState() (map[string]uptane.MetaState, map[string]uptane.MetaState, error)
 	DirectorRoot(version uint64) ([]byte, error)
 	Targets() (data.TargetFiles, error)
 	TargetFile(path string) ([]byte, error)
@@ -245,10 +244,10 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
-	if state.DirectorTargetsVersion == request.Client.State.TargetsVersion {
+	if state.DirectorTargetsVersion() == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion)
+	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion())
 	if err != nil {
 		return nil, err
 	}
@@ -263,11 +262,34 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	return &pbgo.ClientGetConfigsResponse{
 		Roots: roots,
 		Targets: &pbgo.TopMeta{
-			Version: state.DirectorTargetsVersion,
+			Version: state.DirectorTargetsVersion(),
 			Raw:     targetsRaw,
 		},
 		TargetFiles: targetFiles,
 	}, nil
+}
+
+// GetFullState returns the state of the configuration and the director repos in the local store
+func (s *Service) GetFullState() (*pbgo.FullStateResponse, error) {
+	state, err := s.uptane.State()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &pbgo.FullStateResponse{
+		ConfigState:   map[string]*pbgo.FileMetaState{},
+		DirectorState: map[string]*pbgo.FileMetaState{},
+	}
+
+	for metaName, metaState := range state.ConfigState {
+		response.ConfigState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
+	}
+
+	for metaName, metaState := range state.DirectorState {
+		response.DirectorState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
+	}
+
+	return response, nil
 }
 
 func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([]*pbgo.TopMeta, error) {
