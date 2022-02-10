@@ -587,7 +587,8 @@ func flushSomeSamples(agg *BufferedAggregator) map[string]*metrics.Serie {
 					Name:     name,
 					MType:    metrics.APICountType,
 					Interval: int64(timeSamplerBucketSize),
-					Tags:     tagset.CompositeTagsFromSlice(make([]string, 0))}
+					Tags:     tagset.NewCompositeTags([]string{}, []string{}),
+				}
 			}
 			expectedSeries[name].Points = append(expectedSeries[name].Points, metrics.Point{Ts: timestamp, Value: value})
 		}
