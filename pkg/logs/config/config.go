@@ -228,11 +228,11 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		main.Version = EPIntakeVersion1
 	}
 
-	if vectorUrl, vectorUrlDefined := logsConfig.getVectorUrl(); logsConfig.vectorEnabled() && vectorUrlDefined {
-		if strings.HasPrefix(vectorUrl, "https://") || strings.HasPrefix(vectorUrl, "http://") {
-			u, err := url.Parse(vectorUrl)
+	if vectorURL, vectorURLDefined := logsConfig.getVectorURL(); logsConfig.vectorEnabled() && vectorURLDefined {
+		if strings.HasPrefix(vectorURL, "https://") || strings.HasPrefix(vectorURL, "http://") {
+			u, err := url.Parse(vectorURL)
 			if err != nil {
-				return nil, fmt.Errorf("could not parse %s: %v", vectorUrl, err)
+				return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
 			}
 			switch u.Scheme {
 			case "https":
@@ -244,14 +244,14 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 			if u.Port() != "" {
 				port, err := strconv.Atoi(u.Port())
 				if err != nil {
-					return nil, fmt.Errorf("could not parse %s: %v", vectorUrl, err)
+					return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
 				}
 				main.Port = port
 			}
 		} else {
-			host, port, err := parseAddress(vectorUrl)
+			host, port, err := parseAddress(vectorURL)
 			if err != nil {
-				return nil, fmt.Errorf("could not parse %s: %v", vectorUrl, err)
+				return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
 			}
 			main.Host = host
 			main.Port = port
@@ -273,7 +273,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
-		additionals[i].UseSSL = !defaultNoSSL
+		additionals[i].UseSSL = main.UseSSL
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 		additionals[i].UseCompression = main.UseCompression
 		additionals[i].CompressionLevel = main.CompressionLevel
