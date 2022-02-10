@@ -9,6 +9,8 @@
 package constantfetch
 
 import (
+	"runtime"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
 
@@ -38,6 +40,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSignalTTYOffset(f.kernelVersion)
 	case "tty_name_offset":
 		value = getTTYNameOffset(f.kernelVersion)
+	case "creds_uid_offset":
+		value = getCredsUIDOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -71,9 +75,15 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 592
 	case kv.IsOracleUEKKernel():
 		sizeOf = 632
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		sizeOf = 712
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		sizeOf = 704
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		sizeOf = 704
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_16:
 		sizeOf = 608
-	case kernel.Kernel5_0 <= kv.Code && kv.Code < kernel.Kernel5_1:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		sizeOf = 584
 	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
 		sizeOf = 592
@@ -104,6 +114,32 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		ttyOffset = 376
 	case kv.IsSLES15Kernel():
 		ttyOffset = 408
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		ttyOffset = 416
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		ttyOffset = 416
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		ttyOffset = 416
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel4_19):
+		ttyOffset = 376
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		ttyOffset = 400
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
+		ttyOffset = 408
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		ttyOffset = 408
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_7):
+		if runtime.GOARCH == "arm64" || kv.IsOracleUEKKernel() {
+			ttyOffset = 408
+		} else {
+			ttyOffset = 400
+		}
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_7, kernel.Kernel5_9):
+		if runtime.GOARCH == "arm64" {
+			ttyOffset = 400
+		} else {
+			ttyOffset = 408
+		}
 	case kv.Code != 0 && kv.Code < kernel.Kernel5_3:
 		ttyOffset = 368
 	}
@@ -117,7 +153,30 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
 		nameOffset = 312
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		nameOffset = 552
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		nameOffset = 552
+	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		nameOffset = 544
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel5_8):
+		nameOffset = 368
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9) && runtime.GOARCH == "arm64":
+		nameOffset = 368
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_14):
+		nameOffset = 360
 	}
 
 	return nameOffset
+}
+
+func getCredsUIDOffset(kv *kernel.Version) uint64 {
+	size := uint64(4)
+
+	switch {
+	case kv.IsCOSKernel():
+		size += 16
+	}
+
+	return size
 }

@@ -47,8 +47,7 @@ type Module struct {
 	wg               sync.WaitGroup
 	probe            *sprobe.Probe
 	config           *sconfig.Config
-	ruleSets         [2]*rules.RuleSet
-	currentRuleSet   uint64
+	currentRuleSet   atomic.Value
 	reloading        uint64
 	statsdClient     *statsd.Client
 	apiServer        *APIServer
@@ -94,11 +93,6 @@ func (m *Module) sanityChecks() error {
 	if m.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
 		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
 		m.config.ERPCDentryResolutionEnabled = false
-	}
-
-	// enable runtime compiled constants on COS by default
-	if !m.config.RuntimeCompiledConstantsIsSet && version.IsCOSKernel() {
-		m.config.EnableRuntimeCompiledConstants = true
 	}
 
 	return nil
@@ -317,10 +311,7 @@ func (m *Module) Reload() error {
 		m.rulesLoaded(ruleSet)
 	}
 
-	currentRuleSet := 1 - atomic.LoadUint64(&m.currentRuleSet)
-	m.ruleSets[currentRuleSet] = ruleSet
-	atomic.StoreUint64(&m.currentRuleSet, currentRuleSet)
-	m.ruleSets[1-currentRuleSet] = nil
+	m.currentRuleSet.Store(ruleSet)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
@@ -498,7 +489,10 @@ func (m *Module) GetProbe() *sprobe.Probe {
 
 // GetRuleSet returns the set of loaded rules
 func (m *Module) GetRuleSet() (rs *rules.RuleSet) {
-	return m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]
+	if ruleSet := m.currentRuleSet.Load(); ruleSet != nil {
+		return ruleSet.(*rules.RuleSet)
+	}
+	return nil
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
@@ -539,17 +533,16 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	}
 
 	m := &Module{
-		config:         cfg,
-		probe:          probe,
-		statsdClient:   statsdClient,
-		apiServer:      NewAPIServer(cfg, probe, statsdClient),
-		grpcServer:     grpc.NewServer(),
-		rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
-		sigupChan:      make(chan os.Signal, 1),
-		currentRuleSet: 1,
-		ctx:            ctx,
-		cancelFnc:      cancelFnc,
-		selfTester:     selfTester,
+		config:       cfg,
+		probe:        probe,
+		statsdClient: statsdClient,
+		apiServer:    NewAPIServer(cfg, probe, statsdClient),
+		grpcServer:   grpc.NewServer(),
+		rateLimiter:  NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
+		sigupChan:    make(chan os.Signal, 1),
+		ctx:          ctx,
+		cancelFnc:    cancelFnc,
+		selfTester:   selfTester,
 	}
 	m.apiServer.module = m
 	m.reloader = debouncer.New(3*time.Second, m.triggerReload)

@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -37,7 +36,7 @@ func NewContainerListener(Config) (ServiceListener, error) {
 	l := &ContainerListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd, workloadmeta.SourcePodman},
+		workloadmeta.SourceRuntime,
 	)
 
 	var err error
@@ -49,10 +48,7 @@ func NewContainerListener(Config) (ServiceListener, error) {
 	return l, nil
 }
 
-func (l *ContainerListener) createContainerService(
-	entity workloadmeta.Entity,
-	creationTime integration.CreationTime,
-) {
+func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	container := entity.(*workloadmeta.Container)
 
 	containerImg := container.Image
@@ -92,8 +88,7 @@ func (l *ContainerListener) createContainerService(
 	})
 
 	svc := &service{
-		entity:       container,
-		creationTime: integration.After,
+		entity: container,
 		adIdentifiers: ComputeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,

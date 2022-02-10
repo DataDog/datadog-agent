@@ -37,11 +37,20 @@ func main() {
 
 package	eval
 
+import (
+	"errors"
+)
+
 {{ range .Operators }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
 	isPartialLeaf := isPartialLeaf(a, b, state)
 
+	{{ if eq .ValueType "BitmaskValueType" }}
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		return nil, errors.New("full dynamic bitmask operation not supported")
+	}
+	{{ else }}
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
@@ -79,6 +88,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			isPartial: isPartialLeaf,
 		}, nil
 	}
+	{{ end }}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Value
@@ -131,6 +141,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
+			Field: a.Field,
 			Weight: a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
@@ -163,6 +174,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 	return &{{ .FuncReturnType }}{
 		EvalFnc: evalFnc,
+		Field: b.Field,
 		Weight: b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil

@@ -76,21 +76,26 @@ func (d *ContainerConfigProvider) listen() {
 	d.Lock()
 	d.streaming = true
 	health := health.RegisterLiveness("ad-containerprovider")
+	defer func() {
+		err := health.Deregister()
+		if err != nil {
+			log.Warnf("error de-registering health check: %s", err)
+		}
+	}()
 	d.Unlock()
 
 	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]workloadmeta.Source{
-			workloadmeta.SourceDocker,
-			workloadmeta.SourceContainerd,
-			workloadmeta.SourceECSFargate,
-			workloadmeta.SourcePodman,
-		},
+		workloadmeta.SourceRuntime,
 	))
 
 	for {
 		select {
-		case evBundle := <-workloadmetaEventsChannel:
+		case evBundle, ok := <-workloadmetaEventsChannel:
+			if !ok {
+				return
+			}
+
 			d.processEvents(evBundle)
 
 		case <-health.C:

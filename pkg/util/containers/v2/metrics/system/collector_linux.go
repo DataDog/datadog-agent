@@ -32,6 +32,7 @@ func init() {
 		Factory: func() (provider.Collector, error) {
 			return newSystemCollector()
 		},
+		DelegateCache: true,
 	})
 }
 

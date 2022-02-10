@@ -244,7 +244,11 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 
 	ignore, err := c.ignoreEvent(ctx, containerdEvent)
 	if err != nil {
-		return err
+		// if ignoreEvent returns an error, keep the event regardless.
+		// it might've been because of network errors, so it's better
+		// to keep a container we should've ignored than ignoring a
+		// container we should've kept
+		log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
 	}
 
 	if ignore {

@@ -123,7 +123,7 @@ func (suite *DockerListenerTestSuite) getServices(targetIDs, excludedIDs []strin
 		select {
 		case svc := <-channel:
 			for _, id := range targetIDs {
-				if strings.HasSuffix(svc.GetEntity(), id) {
+				if strings.HasSuffix(svc.GetServiceID(), id) {
 					log.Infof("Service matches container %s, keeping", id)
 					services[id] = svc
 					log.Infof("Got services for %d containers so far, out of %d wanted", len(services), len(targetIDs))
@@ -134,7 +134,7 @@ func (suite *DockerListenerTestSuite) getServices(targetIDs, excludedIDs []strin
 				}
 			}
 			for _, id := range excludedIDs {
-				if strings.HasSuffix(svc.GetEntity(), id) {
+				if strings.HasSuffix(svc.GetServiceID(), id) {
 					return services, fmt.Errorf("got service for excluded container %s", id)
 				}
 			}
@@ -220,7 +220,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		assert.Nil(suite.T(), err)
 		assert.Len(suite.T(), ports, 1)
 
-		entity := service.GetEntity()
+		entity := service.GetServiceID()
 		expectedTags, found := expectedADIDs[entity]
 		assert.True(suite.T(), found, "entity not found in expected ones")
 
@@ -239,7 +239,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	// Listen for late messages
 	select {
 	case svc := <-suite.newSvc:
-		if svc.GetEntity() == excludedEntity {
+		if svc.GetServiceID() == excludedEntity {
 			assert.FailNowf(suite.T(), "received service for excluded container %s", excludedEntity)
 		}
 	case <-time.After(250 * time.Millisecond):
@@ -256,7 +256,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	// Listen for late messages
 	select {
 	case svc := <-suite.delSvc:
-		if svc.GetEntity() == excludedEntity {
+		if svc.GetServiceID() == excludedEntity {
 			assert.FailNowf(suite.T(), "received service for excluded container %s", excludedEntity)
 		}
 	case <-time.After(250 * time.Millisecond):

@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 // Code generated - DO NOT EDIT.
@@ -14750,7 +14751,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.GID"}
 		}
-		e.Chown.GID = uint32(v)
+		e.Chown.GID = int64(v)
 
 		return nil
 
@@ -14772,7 +14773,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.UID"}
 		}
-		e.Chown.UID = uint32(v)
+		e.Chown.UID = int64(v)
 
 		return nil
 

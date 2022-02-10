@@ -25,7 +25,7 @@ func TestMMapEvent(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mmap",
-			Expression: `mmap.protection & (VM_WRITE | VM_EXEC) > 0`,
+			Expression: `mmap.protection & (VM_WRITE | VM_EXEC) > 0 && process.file.name == "testsuite"`,
 		},
 	}
 

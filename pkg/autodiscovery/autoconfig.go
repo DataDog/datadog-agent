@@ -46,17 +46,10 @@ func init() {
 	}))
 }
 
-// AutoConfig is responsible to collect integrations configurations from
-// different sources and then schedule or unschedule them.
-// It owns and orchestrates several key modules:
-//  - it owns a reference to the `collector.Collector` that it uses to schedule checks when template or container updates warrant them
-//  - it holds a list of `providers.ConfigProvider`s and poll them according to their policy
-//  - it holds a list of `check.Loader`s to load configurations into `Check` objects
-//  - it holds a list of `listeners.ServiceListener`s` used to listen to container lifecycle events
-//  - it uses the `ConfigResolver` that resolves a configuration template to an actual configuration based on a service matching the template
-//
-// Notice the `AutoConfig` public API speaks in terms of `integration.Config`,
-// meaning that you cannot use it to schedule integrations instances directly.
+// AutoConfig implements the agent's autodiscovery mechanism.  It is
+// responsible to collect integrations configurations from different sources
+// and then "schedule" or "unschedule" them by notifying subscribers.  See the
+// module README for details.
 type AutoConfig struct {
 	providers          []*configPoller
 	listeners          []listeners.ServiceListener
@@ -190,10 +183,6 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 	for _, pd := range ac.providers {
 		if pd.provider == provider {
 			// we already know this configuration provider, don't do anything
-
-			// this is formatted inline since logging is done on a background thread,
-			// so you can only pass it things to act on if they're thread safe
-			// this is not inherently thread safe
 			log.Warnf("Provider %s was already added, skipping...", provider)
 			return
 		}
@@ -298,7 +287,7 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.
 
 	if config.IsTemplate() {
 		// store the template in the cache in any case
-		if err := ac.store.templateCache.Set(config); err != nil {
+		if err := ac.store.templateCache.set(config); err != nil {
 			log.Errorf("Unable to store Check configuration in the cache: %s", err)
 		}
 
@@ -486,7 +475,7 @@ func (ac *AutoConfig) removeConfigTemplates(configs []integration.Config) {
 			ac.processRemovedConfigs(removedConfigs)
 
 			// Remove template from the cache
-			err := ac.store.templateCache.Del(c)
+			err := ac.store.templateCache.del(c)
 			if err != nil {
 				log.Debugf("Could not delete template: %v", err)
 			}
@@ -548,17 +537,17 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
 	config, tagsHash, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
-		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetEntity(), err)
+		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
 		errorStats.setResolveWarning(tpl.Name, newErr.Error())
 		return tpl, log.Warn(newErr)
 	}
 	resolvedConfig, err := decryptConfig(config)
 	if err != nil {
-		newErr := fmt.Errorf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetEntity(), err)
+		newErr := fmt.Errorf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
 		return config, log.Warn(newErr)
 	}
 	ac.store.setLoadedConfig(resolvedConfig)
-	ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
+	ac.store.addConfigForService(svc.GetServiceID(), resolvedConfig)
 	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
@@ -569,8 +558,10 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 }
 
 // MapOverLoadedConfigs calls the given function with the map of all
-// loaded configs.  This is done with the config store locked, so
-// callers should perform minimal work within f.
+// loaded configs (those that would be returned from LoadedConfigs).
+//
+// This is done with the config store locked, so callers should perform minimal
+// work within f.
 func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
 	if ac == nil || ac.store == nil {
 		log.Error("Autoconfig store not initialized")
@@ -580,8 +571,11 @@ func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)
 	ac.store.mapOverLoadedConfigs(f)
 }
 
-// LoadedConfigs returns a slice of all loaded configs.  This slice
-// is freshly created and will not be modified after return.
+// LoadedConfigs returns a slice of all loaded configs.  Loaded configs are non-template
+// configs, either as received from a config provider or as resolved from a template and
+// a service.  They do not include service configs.
+//
+// The returned slice is freshly created and will not be modified after return.
 func (ac *AutoConfig) LoadedConfigs() []integration.Config {
 	var configs []integration.Config
 	ac.store.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
@@ -596,7 +590,7 @@ func (ac *AutoConfig) LoadedConfigs() []integration.Config {
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
 func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
-	return ac.store.templateCache.GetUnresolvedTemplates()
+	return ac.store.templateCache.getUnresolvedTemplates()
 }
 
 // GetConfigErrors gets the config errors
@@ -613,7 +607,7 @@ func GetResolveWarnings() map[string][]string {
 // triggers scheduling events if it finds a valid config for it.
 func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
 	// in any case, register the service and store its tag hash
-	ac.store.setServiceForEntity(svc, svc.GetEntity())
+	ac.store.setServiceForEntity(svc, svc.GetServiceID())
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
 		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
@@ -623,13 +617,13 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 	var templates []integration.Config
 	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
 	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
+		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetServiceID(), err)
 		return
 	}
 	for _, adID := range ADIdentifiers {
 		// map the AD identifier to this service for reverse lookup
-		ac.store.setADIDForServices(adID, svc.GetEntity())
-		tpls, err := ac.store.templateCache.Get(adID)
+		ac.store.setADIDForServices(adID, svc.GetServiceID())
+		tpls, err := ac.store.templateCache.get(adID)
 		if err != nil {
 			log.Debugf("Unable to fetch templates from the cache: %v", err)
 		}
@@ -650,9 +644,8 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 	ac.schedule([]integration.Config{
 		{
 			LogsConfig:      integration.Data{},
-			Entity:          svc.GetEntity(),
+			ServiceID:       svc.GetServiceID(),
 			TaggerEntity:    svc.GetTaggerEntity(),
-			CreationTime:    svc.GetCreationTime(),
 			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
 			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
@@ -662,24 +655,26 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
-	ac.store.removeServiceForEntity(svc.GetEntity())
-	removedConfigs := ac.store.removeConfigsForService(svc.GetEntity())
+	ac.store.removeServiceForEntity(svc.GetServiceID())
+	removedConfigs := ac.store.removeConfigsForService(svc.GetServiceID())
 	ac.processRemovedConfigs(removedConfigs)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 	// FIXME: unschedule remove services as well
 	ac.unschedule([]integration.Config{
 		{
 			LogsConfig:      integration.Data{},
-			Entity:          svc.GetEntity(),
+			ServiceID:       svc.GetServiceID(),
 			TaggerEntity:    svc.GetTaggerEntity(),
-			CreationTime:    svc.GetCreationTime(),
 			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
 			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
 }
 
-// GetAutodiscoveryErrors fetches AD errors from each ConfigProvider
+// GetAutodiscoveryErrors fetches AD errors from each ConfigProvider.  The
+// resulting data structure maps provider name to resource name to a set of
+// unique error messages.  The resource names do not match other identifiers
+// and are only intended for display in diagnostic tools like `agent status`.
 func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
 	errors := map[string]map[string]providers.ErrorMsgSet{}
 	for _, pd := range ac.providers {

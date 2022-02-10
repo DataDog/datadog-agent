@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -27,7 +26,6 @@ type service struct {
 	ports           []ContainerPort
 	pid             int
 	hostname        string
-	creationTime    integration.CreationTime
 	ready           bool
 	checkNames      []string
 	extraConfig     map[string]string
@@ -37,8 +35,8 @@ type service struct {
 
 var _ Service = &service{}
 
-// GetEntity returns the AD entity ID of the service.
-func (s *service) GetEntity() string {
+// GetServiceID returns the AD entity ID of the service.
+func (s *service) GetServiceID() string {
 	switch e := s.entity.(type) {
 	case *workloadmeta.Container:
 		return containers.BuildEntityName(string(e.Runtime), e.ID)
@@ -95,12 +93,6 @@ func (s *service) GetHostname(_ context.Context) (string, error) {
 	return s.hostname, nil
 }
 
-// GetCreationTime returns whether the service was created before or after the
-// first run of the collector that created it.
-func (s *service) GetCreationTime() integration.CreationTime {
-	return s.creationTime
-}
-
 // IsReady returns whether the service is ready.
 func (s *service) IsReady(_ context.Context) bool {
 	return s.ready
@@ -145,8 +137,8 @@ func svcEqual(a, b Service) bool {
 		errB error
 	)
 
-	entityA := a.GetEntity()
-	entityB := b.GetEntity()
+	entityA := a.GetServiceID()
+	entityB := b.GetServiceID()
 	if entityA != entityB {
 		return false
 	}
@@ -185,6 +177,5 @@ func svcEqual(a, b Service) bool {
 		return false
 	}
 
-	return a.GetCreationTime() == b.GetCreationTime() &&
-		a.IsReady(ctx) == b.IsReady(ctx)
+	return a.IsReady(ctx) == b.IsReady(ctx)
 }
