@@ -8,6 +8,6 @@
 ---
 features:
   - |
-    Cloud Workload Security now supports Google's Container Optimized OS LTS versions, starting
+    Cloud Workload Security now works on Google's Container Optimized OS LTS versions, starting
     from v81.
 
