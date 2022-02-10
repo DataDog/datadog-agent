@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.33.1:
+
+7.33.1 / 6.33.1
+======
+
+.. _Release Notes_7.33.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-02-10
+
+
+.. _Release Notes_7.33.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a panic that happens occasionally when handling tags for deleted
+  containers or pods.
+
+- Fixes security module failing to start on kernels 4.14 and 4.15.
+
 .. _Release Notes_7.33.0:
 
 7.33.0 / 6.33.0
