@@ -6,6 +6,16 @@
   rules:
     !reference [.manual]
   stage: deps_build
+  before_script:
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
+    - cd $SRC_PATH
+    # HACK: empty the build directory cache (that can come from previous runs)
+    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
+    # TODO: remove this once we switch to k8s runners, they won't have this problem
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
   script:
     # use tmpdir to prevent git remote capture by clang build
     - mkdir /tmp/clangbuild && cd /tmp/clangbuild
