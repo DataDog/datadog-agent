@@ -341,7 +341,7 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 	}
 
 	downloadURL := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
-	fmt.Printf("Policy download url: %s\n", downloadURL)
+	fmt.Fprintf(os.Stderr, "Policy download url: %s\n", downloadURL)
 
 	headers := map[string]string{
 		"Content-Type":       "application/json",
