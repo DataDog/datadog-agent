@@ -7,10 +7,11 @@ package config
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
@@ -35,15 +36,63 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.remote_tagger",
-			defaultValue: true,
+			defaultValue: false,
 		},
 		{
 			key:          "process_config.process_discovery.enabled",
-			defaultValue: false,
+			defaultValue: true,
 		},
 		{
 			key:          "process_config.process_discovery.interval",
 			defaultValue: 4 * time.Hour,
+		},
+		{
+			key:          "process_config.process_collection.enabled",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.container_collection.enabled",
+			defaultValue: true,
+		},
+		{
+			key:          "process_config.queue_size",
+			defaultValue: DefaultProcessQueueSize,
+		},
+		{
+			key:          "process_config.rt_queue_size",
+			defaultValue: DefaultProcessRTQueueSize,
+		},
+		{
+			key:          "process_config.process_queue_bytes",
+			defaultValue: DefaultProcessQueueBytes,
+		},
+		{
+			key:          "process_config.windows.use_perf_counters",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.additional_endpoints",
+			defaultValue: make(map[string][]string),
+		},
+		{
+			key:          "process_config.internal_profiling.enabled",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.max_per_message",
+			defaultValue: DefaultProcessMaxPerMessage,
+		},
+		{
+			key:          "process_config.max_ctr_procs_per_message",
+			defaultValue: DefaultProcessMaxCtrProcsPerMessage,
+		},
+		{
+			key:          "process_config.expvar_port",
+			defaultValue: DefaultProcessExpVarPort,
+		},
+		{
+			key:          "process_config.cmd_port",
+			defaultValue: DefaultProcessCmdPort,
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
@@ -136,8 +185,8 @@ func TestEnvVarOverride(t *testing.T) {
 		{
 			key:      "process_config.remote_tagger",
 			env:      "DD_PROCESS_CONFIG_REMOTE_TAGGER",
-			value:    "false",
-			expected: false,
+			value:    "true",
+			expected: true,
 		},
 		{
 			key:      "process_config.process_discovery.enabled",
@@ -150,6 +199,96 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL",
 			value:    "1h",
 			expected: time.Hour,
+		},
+		{
+			key:      "process_config.disable_realtime_checks",
+			env:      "DD_PROCESS_CONFIG_DISABLE_REALTIME_CHECKS",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.enabled",
+			env:      "DD_PROCESS_CONFIG_ENABLED",
+			value:    "true",
+			expected: "true",
+		},
+		{
+			key:      "process_config.process_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.container_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.enabled",
+			env:      "DD_PROCESS_CONFIG_ENABLED",
+			value:    "false",
+			expected: "disabled",
+		},
+		{
+			key:      "process_config.queue_size",
+			env:      "DD_PROCESS_CONFIG_QUEUE_SIZE",
+			value:    "42",
+			expected: 42,
+		},
+		{
+			key:      "process_config.rt_queue_size",
+			env:      "DD_PROCESS_CONFIG_RT_QUEUE_SIZE",
+			value:    "10",
+			expected: 10,
+		},
+		{
+			key:      "process_config.process_queue_bytes",
+			env:      "DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES",
+			value:    "20000",
+			expected: 20000,
+		},
+		{
+			key:      "process_config.windows.use_perf_counters",
+			env:      "DD_PROCESS_CONFIG_WINDOWS_USE_PERF_COUNTERS",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.process_dd_url",
+			env:      "DD_PROCESS_AGENT_URL",
+			value:    "datacat.com",
+			expected: "datacat.com",
+		},
+		{
+			key:      "process_config.internal_profiling.enabled",
+			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.max_per_message",
+			env:      "DD_PROCESS_CONFIG_MAX_PER_MESSAGE",
+			value:    "10",
+			expected: 10,
+		},
+		{
+			key:      "process_config.max_ctr_procs_per_message",
+			env:      "DD_PROCESS_CONFIG_MAX_CTR_PROCS_PER_MESSAGE",
+			value:    "20",
+			expected: 20,
+		},
+		{
+			key:      "process_config.expvar_port",
+			env:      "DD_PROCESS_CONFIG_EXPVAR_PORT",
+			value:    "1234",
+			expected: 1234,
+		},
+		{
+			key:      "process_config.cmd_port",
+			env:      "DD_PROCESS_CONFIG_CMD_PORT",
+			value:    "1235",
+			expected: 1235,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
@@ -168,6 +307,17 @@ func TestEnvVarOverride(t *testing.T) {
 			})
 		}
 	}
+
+	// StringMapStringSlice can't be converted by `Config.Get` so we need to test this separately
+	t.Run("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
+		reset := setEnvForTest("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", `{"https://process.datadoghq.com": ["fakeAPIKey"]}`)
+		assert.Equal(t, map[string][]string{
+			"https://process.datadoghq.com": {
+				"fakeAPIKey",
+			},
+		}, cfg.GetStringMapStringSlice("process_config.additional_endpoints"))
+		reset()
+	})
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {
@@ -187,4 +337,62 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 
 	// Make sure the default is set properly
 	assert.Equal(t, "asdf", cfg.GetString("process_config.foo.bar"))
+}
+
+func TestProcBindEnv(t *testing.T) {
+	cfg := setupConf()
+	procBindEnv(cfg, "process_config.foo.bar")
+
+	envs := map[string]struct{}{}
+	for _, env := range cfg.GetEnvVars() {
+		envs[env] = struct{}{}
+	}
+
+	_, ok := envs["DD_PROCESS_CONFIG_FOO_BAR"]
+	assert.True(t, ok)
+
+	_, ok = envs["DD_PROCESS_AGENT_FOO_BAR"]
+	assert.True(t, ok)
+
+	// Make sure that DD_PROCESS_CONFIG_FOO_BAR shows up as unset by default
+	assert.False(t, cfg.IsSet("process_config.foo.bar"))
+
+	// Try and set DD_PROCESS_CONFIG_FOO_BAR and make sure it shows up in the config
+	reset := setEnvForTest("DD_PROCESS_CONFIG_FOO_BAR", "baz")
+	assert.True(t, cfg.IsSet("process_config.foo.bar"))
+	assert.Equal(t, "baz", cfg.GetString("process_config.foo.bar"))
+	reset()
+}
+
+func TestProcConfigEnabledTransform(t *testing.T) {
+	for _, tc := range []struct {
+		procConfigEnabled                                      string
+		expectedContainerCollection, expectedProcessCollection bool
+	}{
+		{
+			procConfigEnabled:           "true",
+			expectedContainerCollection: false,
+			expectedProcessCollection:   true,
+		},
+		{
+			procConfigEnabled:           "false",
+			expectedContainerCollection: true,
+			expectedProcessCollection:   false,
+		},
+		{
+			procConfigEnabled:           "disabled",
+			expectedContainerCollection: false,
+			expectedProcessCollection:   false,
+		},
+	} {
+		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
+			cfg := setupConf()
+			cfg.Set("process_config.enabled", tc.procConfigEnabled)
+			loadProcessTransforms(cfg)
+
+			assert.Equal(t, tc.expectedContainerCollection, cfg.GetBool("process_config.container_collection.enabled"))
+			assert.Equal(t, tc.expectedProcessCollection, cfg.GetBool("process_config.process_collection.enabled"))
+		})
+	}
+
 }

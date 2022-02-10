@@ -25,11 +25,15 @@ type RTContainerCheck struct {
 	sysInfo   *model.SystemInfo
 	lastRates map[string]util.ContainerRateMetrics
 	lastRun   time.Time
+
+	maxBatchSize int
 }
 
 // Init initializes a RTContainerCheck instance.
 func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) {
 	r.sysInfo = sysInfo
+
+	r.maxBatchSize = getMaxBatchSize()
 }
 
 // Name returns the name of the RTContainerCheck.
@@ -63,8 +67,8 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		return nil, nil
 	}
 
-	groupSize := len(ctrList) / cfg.MaxPerMessage
-	if len(ctrList)%cfg.MaxPerMessage != 0 {
+	groupSize := len(ctrList) / r.maxBatchSize
+	if len(ctrList)%r.maxBatchSize != 0 {
 		groupSize++
 	}
 	chunked := fmtContainerStats(ctrList, r.lastRates, r.lastRun, groupSize)
@@ -95,6 +99,7 @@ func fmtContainerStats(
 	lastRun time.Time,
 	chunks int,
 ) [][]*model.ContainerStat {
+	currentTime := time.Now()
 	perChunk := (len(ctrList) / chunks) + 1
 	chunked := make([][]*model.ContainerStat, chunks)
 	chunk := make([]*model.ContainerStat, 0, perChunk)
@@ -115,13 +120,13 @@ func fmtContainerStats(
 		cpus := system.HostCPUCount()
 		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
 
-		userPct := calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun)
-		systemPct := calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+		userPct := calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, currentTime, lastRun)
+		systemPct := calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, currentTime, lastRun)
 		var totalPct float32
 		if userPct == -1 || systemPct == -1 {
 			totalPct = -1
 		} else {
-			totalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+			totalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, currentTime, lastRun)
 		}
 
 		chunk = append(chunk, &model.ContainerStat{

@@ -244,7 +244,11 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 
 	ignore, err := c.ignoreEvent(ctx, containerdEvent)
 	if err != nil {
-		return err
+		// if ignoreEvent returns an error, keep the event regardless.
+		// it might've been because of network errors, so it's better
+		// to keep a container we should've ignored than ignoring a
+		// container we should've kept
+		log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
 	}
 
 	if ignore {
@@ -294,34 +298,14 @@ func (c *collector) ignoreEvent(ctx context.Context, containerdEvent *containerd
 	return c.filterPausedContainers.IsExcluded("", img.Name(), ""), nil
 }
 
-// subscribeFilters returns the containerd filters we need to subscribe to based
-// on the "containerd_namespace" option and the containerdTopics array defined.
-//
-// When "containerd_namespace" is empty, it means that we don't want to filter
-// by namespace. In that case, the filters only include topics.
-//
-// When the namespace is not empty, we need to include it on every filter. If we
-// define a filter with the TaskStartTopic topic and a second filter with a
-// namespace, we will receive an event when it is a TaskStartTopic OR
-// (inclusive) when the namespace is the one that we selected. What we need is
-// to only receive events that match both conditions and that's why they need to
-// be specified in the same filter.
 func subscribeFilters() []string {
-	namespace := config.Datadog.GetString("containerd_namespace")
-
 	var filters []string
 
 	for _, topic := range containerdTopics {
-		var filter string
-		if namespace == "" {
-			filter = fmt.Sprintf(`topic==%q`, topic)
-		} else {
-			filter = fmt.Sprintf(`topic==%q,namespace==%q`, topic, namespace)
-		}
-		filters = append(filters, filter)
+		filters = append(filters, fmt.Sprintf(`topic==%q`, topic))
 	}
 
-	return filters
+	return cutil.FiltersWithNamespaces(filters)
 }
 
 func (c *collector) getExitInfo(id string) *exitInfo {

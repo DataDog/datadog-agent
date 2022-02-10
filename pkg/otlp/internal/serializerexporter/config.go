@@ -22,6 +22,9 @@ type exporterConfig struct {
 
 // metricsConfig defines the metrics exporter specific configuration options
 type metricsConfig struct {
+	// Enabled reports whether Metrics should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
 	// Quantiles states whether to report quantiles from summary metrics.
 	// By default, the minimum, maximum and average are reported.
 	Quantiles bool `mapstructure:"report_quantiles"`
@@ -35,6 +38,9 @@ type metricsConfig struct {
 	DeltaTTL int64 `mapstructure:"delta_ttl"`
 
 	ExporterConfig metricsExporterConfig `mapstructure:",squash"`
+
+	// TagCardinality is the level of granularity of tags to send for OTLP metrics.
+	TagCardinality string `mapstructure:"tag_cardinality"`
 
 	// HistConfig defines the export of OTLP Histograms.
 	HistConfig histogramConfig `mapstructure:"histograms"`

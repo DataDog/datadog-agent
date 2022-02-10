@@ -4,7 +4,8 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build docker && (linux || windows)
-// +build docker,linux docker,windows
+// +build docker
+// +build linux windows
 
 package docker
 
@@ -17,19 +18,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	dockerCollectorID    = "docker"
-	statsCacheKey        = "docker-%s"
-	statsCacheExpiration = 10 * time.Second
+	dockerCollectorID = "docker"
 )
-
-type dockerStatsFunc func(ctx context.Context, id string) (*types.StatsJSON, error)
 
 func init() {
 	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
@@ -40,12 +35,12 @@ func init() {
 		Factory: func() (provider.Collector, error) {
 			return newDockerCollector()
 		},
+		DelegateCache: true,
 	})
 }
 
 type dockerCollector struct {
-	du             *docker.DockerUtil
-	lastScrapeTime time.Time
+	du *docker.DockerUtil
 }
 
 func newDockerCollector() (*dockerCollector, error) {
@@ -67,7 +62,7 @@ func (d *dockerCollector) ID() string {
 
 // GetContainerStats returns stats by container ID.
 func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
-	stats, err := d.stats(containerID, cacheValidity, d.du.GetContainerStats)
+	stats, err := d.stats(containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -76,39 +71,26 @@ func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity ti
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
-	stats, err := d.stats(containerID, cacheValidity, d.du.GetContainerStats)
+func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+	stats, err := d.stats(containerID)
 	if err != nil {
 		return nil, err
 	}
 
-	return convertNetworkStats(stats.Networks, networks), nil
+	return convertNetworkStats(stats.Networks), nil
 }
 
-// stats returns stats by container ID, it uses an in-memory cache to reduce the number of api calls.
-// Cache expires every 10 seconds and can also be invalidated using the cacheValidity argument.
-func (d *dockerCollector) stats(containerID string, cacheValidity time.Duration, clientFunc dockerStatsFunc) (*types.StatsJSON, error) {
-	refreshRequired := d.lastScrapeTime.Add(cacheValidity).Before(time.Now())
-	cacheKey := fmt.Sprintf(statsCacheKey, containerID)
-	if cacheStats, found := cache.Cache.Get(cacheKey); found && !refreshRequired {
-		stats := cacheStats.(*types.StatsJSON)
-		log.Debugf("Got docker stats from cache for %s", containerID)
-		return stats, nil
-	}
-
-	stats, err := clientFunc(context.TODO(), containerID)
+// stats returns stats by container ID
+func (d *dockerCollector) stats(containerID string) (*types.StatsJSON, error) {
+	stats, err := d.du.GetContainerStats(context.TODO(), containerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container stats for %s: %w", containerID, err)
 	}
 
-	log.Debugf("Got docker stats from API for container %s", containerID)
-	d.lastScrapeTime = time.Now()
-	cache.Cache.Set(cacheKey, stats, statsCacheExpiration)
-
 	return stats, nil
 }
 
-func convertNetworkStats(networkStats map[string]types.NetworkStats, networks map[string]string) *provider.ContainerNetworkStats {
+func convertNetworkStats(networkStats map[string]types.NetworkStats) *provider.ContainerNetworkStats {
 	containerNetworkStats := &provider.ContainerNetworkStats{
 		BytesSent:   util.Float64Ptr(0),
 		BytesRcvd:   util.Float64Ptr(0),
@@ -118,10 +100,6 @@ func convertNetworkStats(networkStats map[string]types.NetworkStats, networks ma
 	}
 
 	for ifname, netStats := range networkStats {
-		if new, found := networks[ifname]; found {
-			ifname = new
-		}
-
 		*containerNetworkStats.BytesSent += float64(netStats.TxBytes)
 		*containerNetworkStats.BytesRcvd += float64(netStats.RxBytes)
 		*containerNetworkStats.PacketsSent += float64(netStats.TxPackets)

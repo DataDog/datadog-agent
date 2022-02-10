@@ -8,7 +8,6 @@ package autodiscovery
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -20,16 +19,15 @@ type dummyService struct {
 	Ports         []listeners.ContainerPort
 	Pid           int
 	Hostname      string
-	CreationTime  integration.CreationTime
 	CheckNames    []string
 }
 
-// GetEntity returns the service entity name
-func (s *dummyService) GetEntity() string {
+// GetServiceID returns the service entity name
+func (s *dummyService) GetServiceID() string {
 	return s.ID
 }
 
-// GetEntity returns the service entity name
+// GetTaggerEntity returns the tagger entity ID for the entity corresponding to this service
 func (s *dummyService) GetTaggerEntity() string {
 	return s.ID
 }
@@ -62,11 +60,6 @@ func (s *dummyService) GetPid(context.Context) (int, error) {
 // GetHostname return a dummy hostname
 func (s *dummyService) GetHostname(context.Context) (string, error) {
 	return s.Hostname, nil
-}
-
-// GetCreationTime return a dummy creation time
-func (s *dummyService) GetCreationTime() integration.CreationTime {
-	return s.CreationTime
 }
 
 // IsReady returns if the service is ready

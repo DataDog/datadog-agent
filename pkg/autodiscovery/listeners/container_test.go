@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package listeners
@@ -11,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -63,6 +63,20 @@ func TestCreateContainerService(t *testing.T) {
 		Runtime: workloadmeta.ContainerRuntimeDocker,
 	}
 
+	runningContainerWithFinishedAtTime := &workloadmeta.Container{
+		EntityID:   containerEntityID,
+		EntityMeta: containerEntityMeta,
+		Image: workloadmeta.ContainerImage{
+			RawName:   "gcr.io/foobar:latest",
+			ShortName: "foobar",
+		},
+		State: workloadmeta.ContainerState{
+			Running:    true,
+			FinishedAt: time.Now().Add(-48 * time.Hour), // Older than default "container_exclude_stopped_age" config
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
 	tests := []struct {
 		name             string
 		container        *workloadmeta.Container
@@ -80,10 +94,9 @@ func TestCreateContainerService(t *testing.T) {
 							"gcr.io/foobar",
 							"foobar",
 						},
-						hosts:        map[string]string{},
-						creationTime: integration.After,
-						ports:        []ContainerPort{},
-						ready:        true,
+						hosts: map[string]string{},
+						ports: []ContainerPort{},
+						ready: true,
 					},
 				},
 			},
@@ -95,11 +108,34 @@ func TestCreateContainerService(t *testing.T) {
 				EntityMeta: containerEntityMeta,
 				Image:      basicImage,
 				State: workloadmeta.ContainerState{
+					Running:    false,
 					FinishedAt: time.Now().Add(-48 * time.Hour),
 				},
 				Runtime: workloadmeta.ContainerRuntimeDocker,
 			},
 			expectedServices: map[string]wlmListenerSvc{},
+		},
+		{
+			// In docker, running containers can have a "finishedAt" time when
+			// they have been stopped and then restarted. When that's the case,
+			// we want to collect their info.
+			name:      "running container with finishedAt time older than the configured threshold is collected",
+			container: runningContainerWithFinishedAtTime,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					service: &service{
+						entity: runningContainerWithFinishedAtTime,
+						adIdentifiers: []string{
+							"docker://foobarquux",
+							"gcr.io/foobar",
+							"foobar",
+						},
+						hosts: map[string]string{},
+						ports: []ContainerPort{},
+						ready: true,
+					},
+				},
+			},
 		},
 		{
 			name:      "container with multiple ports collects them in ascending order",
@@ -123,8 +159,7 @@ func TestCreateContainerService(t *testing.T) {
 								Name: "http",
 							},
 						},
-						creationTime: integration.After,
-						ready:        true,
+						ready: true,
 					},
 				},
 			},
@@ -135,7 +170,7 @@ func TestCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newContainerListener(t)
 
-			listener.createContainerService(tt.container, integration.After)
+			listener.createContainerService(tt.container)
 
 			wlm.assertServices(tt.expectedServices)
 		})

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -47,7 +46,7 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 	l := &KubeletListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		[]workloadmeta.Source{workloadmeta.SourceKubelet},
+		workloadmeta.SourceNodeOrchestrator,
 	)
 
 	var err error
@@ -59,10 +58,7 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 	return l, nil
 }
 
-func (l *KubeletListener) processPod(
-	entity workloadmeta.Entity,
-	creationTime integration.CreationTime,
-) {
+func (l *KubeletListener) processPod(entity workloadmeta.Entity) {
 	pod := entity.(*workloadmeta.KubernetesPod)
 
 	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
@@ -73,18 +69,17 @@ func (l *KubeletListener) processPod(
 			continue
 		}
 
-		l.createContainerService(pod, &podContainer, container, creationTime)
+		l.createContainerService(pod, &podContainer, container)
 
 		containers = append(containers, container)
 	}
 
-	l.createPodService(pod, containers, creationTime)
+	l.createPodService(pod, containers)
 }
 
 func (l *KubeletListener) createPodService(
 	pod *workloadmeta.KubernetesPod,
 	containers []*workloadmeta.Container,
-	creationTime integration.CreationTime,
 ) {
 	var ports []ContainerPort
 	for _, container := range containers {
@@ -106,7 +101,6 @@ func (l *KubeletListener) createPodService(
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
-		creationTime:  creationTime,
 		ready:         true,
 	}
 
@@ -118,7 +112,6 @@ func (l *KubeletListener) createContainerService(
 	pod *workloadmeta.KubernetesPod,
 	podContainer *workloadmeta.OrchestratorContainer,
 	container *workloadmeta.Container,
-	creationTime integration.CreationTime,
 ) {
 	// we need to take the container name and image from the pod spec, as
 	// the information from the container in the workloadmeta store might
@@ -137,7 +130,11 @@ func (l *KubeletListener) createContainerService(
 		return
 	}
 
-	if !container.State.FinishedAt.IsZero() {
+	// Note: Docker containers can have a "FinishedAt" time set even when
+	// they're running. That happens when they've been stopped and then
+	// restarted. "FinishedAt" corresponds to the last time the container was
+	// stopped.
+	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
 		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
 		if time.Now().Sub(finishedAt) > excludeAge {
@@ -160,10 +157,9 @@ func (l *KubeletListener) createContainerService(
 
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
 	svc := &service{
-		entity:       container,
-		creationTime: creationTime,
-		ready:        pod.Ready,
-		ports:        ports,
+		entity: container,
+		ready:  pod.Ready,
+		ports:  ports,
 		extraConfig: map[string]string{
 			"pod_name":  pod.Name,
 			"namespace": pod.Namespace,

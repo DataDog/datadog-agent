@@ -10,7 +10,7 @@ package filter
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // HeadlessSocketFilter creates a raw socket attached to the given socket filter.

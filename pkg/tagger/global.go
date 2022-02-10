@@ -251,11 +251,11 @@ func init() {
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-func EnrichTags(tb tagset.TagAccumulator, origin string, k8sOriginID string, cardinalityName string) {
+func EnrichTags(tb tagset.TagAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
 	cardinality := taggerCardinality(cardinalityName)
 
-	if origin != packets.NoOrigin {
-		if err := AccumulateTagsFor(origin, cardinality, tb); err != nil {
+	if udsOrigin != packets.NoOrigin {
+		if err := AccumulateTagsFor(udsOrigin, cardinality, tb); err != nil {
 			log.Errorf(err.Error())
 		}
 	}
@@ -267,10 +267,10 @@ func EnrichTags(tb tagset.TagAccumulator, origin string, k8sOriginID string, car
 		}
 	}
 
-	if k8sOriginID != "" {
-		if err := AccumulateTagsFor(k8sOriginID, cardinality, tb); err != nil {
+	if clientOrigin != "" {
+		if err := AccumulateTagsFor(clientOrigin, cardinality, tb); err != nil {
 			tlmUDPOriginDetectionError.Inc()
-			log.Tracef("Cannot get tags for entity %s: %s", k8sOriginID, err)
+			log.Tracef("Cannot get tags for entity %s: %s", clientOrigin, err)
 		}
 
 	}

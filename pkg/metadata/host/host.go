@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -62,6 +63,7 @@ func GetPayload(ctx context.Context, hostnameData util.HostnameData) *Payload {
 		LogsMeta:      getLogsMeta(),
 		InstallMethod: getInstallMethod(getInstallInfoPath()),
 		ProxyMeta:     getProxyMeta(),
+		OtlpMeta:      getOtlpMeta(),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -282,4 +284,8 @@ func getInstallMethod(infoPath string) *InstallMethod {
 		Tool:             &install.Method.Tool,
 		InstallerVersion: &install.Method.InstallerVersion,
 	}
+}
+
+func getOtlpMeta() *OtlpMeta {
+	return &OtlpMeta{Enabled: otlp.IsEnabled(config.Datadog)}
 }

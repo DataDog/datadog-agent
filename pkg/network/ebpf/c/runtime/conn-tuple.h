@@ -51,8 +51,12 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 #ifdef FEATURE_IPV6_ENABLED
     else if (family == AF_INET6) {
         // TODO cleanup? having it split on 64 bits is not nice for kernel reads
-        read_in6_addr(&t->saddr_h, &t->saddr_l, &skp->sk_v6_rcv_saddr);
-        read_in6_addr(&t->daddr_h, &t->daddr_l, &skp->sk_v6_daddr);
+        if (!(t->saddr_h || t->saddr_l)) {
+            read_in6_addr(&t->saddr_h, &t->saddr_l, &skp->sk_v6_rcv_saddr);
+        }
+        if (!(t->daddr_h || t->daddr_l)) {
+            read_in6_addr(&t->daddr_h, &t->daddr_l, &skp->sk_v6_daddr);
+        }
 
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything

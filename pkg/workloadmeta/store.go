@@ -37,48 +37,12 @@ type subscriber struct {
 	filter   *Filter
 }
 
-type sourceToEntity map[Source]Entity
-
-func (s sourceToEntity) merge(sources []Source) Entity {
-	if len(sources) == 0 {
-		sources = s.sources()
-	}
-
-	var merged Entity
-	for _, source := range sources {
-		if e, ok := s[source]; ok {
-			if merged == nil {
-				merged = e.DeepCopy()
-			} else {
-				err := merged.Merge(e)
-				if err != nil {
-					log.Errorf("cannot merge %+v into %+v: %s", merged, e, err)
-				}
-			}
-		}
-	}
-
-	return merged
-}
-
-func (s sourceToEntity) sources() []Source {
-	sources := make([]Source, 0, len(s))
-
-	for source := range s {
-		sources = append(sources, source)
-	}
-
-	sort.SliceStable(sources, func(i, j int) bool { return sources[i] < sources[j] })
-
-	return sources
-}
-
 // store is a central storage of metadata about workloads. A workload is any
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
 type store struct {
 	storeMut sync.RWMutex
-	store    map[Kind]map[string]sourceToEntity
+	store    map[Kind]map[string]*cachedEntity // store[entity.Kind][entity.ID] = &cachedEntity{}
 
 	subscribersMut sync.RWMutex
 	subscribers    []subscriber
@@ -96,13 +60,17 @@ var _ Store = &store{}
 // each collector in the catalog. Call Start to start the store and its
 // collectors.
 func NewStore(catalog map[string]collectorFactory) Store {
+	return newStore(catalog)
+}
+
+func newStore(catalog map[string]collectorFactory) *store {
 	candidates := make(map[string]Collector)
 	for id, c := range catalog {
 		candidates[id] = c()
 	}
 
 	return &store{
-		store:      make(map[Kind]map[string]sourceToEntity),
+		store:      make(map[Kind]map[string]*cachedEntity),
 		candidates: candidates,
 		collectors: make(map[string]Collector),
 		eventCh:    make(chan []CollectorEvent, eventChBufferSize),
@@ -172,6 +140,10 @@ func (s *store) Start(ctx context.Context) {
 					log.Warnf("error de-registering health check: %s", err)
 				}
 
+				s.unsubscribeAll()
+
+				log.Infof("stopped workloadmeta store")
+
 				return
 			}
 		}
@@ -198,26 +170,28 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 
 	var events []Event
 
+	// lock the store and only unlock once the subscriber has been added,
+	// otherwise the subscriber can lose events. adding the subscriber
+	// before locking the store can cause deadlocks if the store sends
+	// events before this function returns.
 	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
 	for kind, entitiesOfKind := range s.store {
 		if !sub.filter.MatchKind(kind) {
 			continue
 		}
 
-		for _, entity := range entitiesOfKind {
-			sources, ok := sub.filter.SelectSources(entity.sources())
-			if !ok {
-				continue
+		for _, cachedEntity := range entitiesOfKind {
+			entity := cachedEntity.get(sub.filter.Source())
+			if entity != nil {
+				events = append(events, Event{
+					Type:   EventTypeSet,
+					Entity: entity,
+				})
 			}
-
-			events = append(events, Event{
-				Sources: sources,
-				Type:    EventTypeSet,
-				Entity:  entity.merge(sources),
-			})
 		}
 	}
-	s.storeMut.RUnlock()
 
 	// sort events by kind and ID for deterministic ordering
 	sort.Slice(events, func(i, j int) bool {
@@ -235,15 +209,13 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 	// the subscriber is not ready to receive events yet
 	notifyChannel(sub.name, sub.ch, events, false)
 
-	// From the moment we add the subscriber to the list, the store can try to
-	// send it events, that's why it's important that we do this after the line
-	// above. Otherwise, it can cause a deadlock.
 	s.subscribersMut.Lock()
+	defer s.subscribersMut.Unlock()
+
 	s.subscribers = append(s.subscribers, sub)
 	sort.SliceStable(s.subscribers, func(i, j int) bool {
 		return s.subscribers[i].priority < s.subscribers[j].priority
 	})
-	s.subscribersMut.Unlock()
 
 	telemetry.Subscribers.Inc()
 
@@ -259,14 +231,13 @@ func (s *store) Unsubscribe(ch chan EventBundle) {
 		if sub.ch == ch {
 			s.subscribers = append(s.subscribers[:i], s.subscribers[i+1:]...)
 			telemetry.Subscribers.Dec()
-			break
+			close(ch)
+			return
 		}
 	}
-
-	close(ch)
 }
 
-// GetContainer returns metadata about a container.
+// GetContainer implements Store#GetContainer.
 func (s *store) GetContainer(id string) (*Container, error) {
 	entity, err := s.getEntityByKind(KindContainer, id)
 	if err != nil {
@@ -276,7 +247,7 @@ func (s *store) GetContainer(id string) (*Container, error) {
 	return entity.(*Container), nil
 }
 
-// ListContainers returns metadata about all known containers.
+// ListContainers implements Store#ListContainers.
 func (s *store) ListContainers() ([]*Container, error) {
 	entities, err := s.listEntitiesByKind(KindContainer)
 	if err != nil {
@@ -292,7 +263,7 @@ func (s *store) ListContainers() ([]*Container, error) {
 	return containers, nil
 }
 
-// GetKubernetesPod returns metadata about a Kubernetes pod.
+// GetKubernetesPod implements Store#GetKubernetesPod
 func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 	entity, err := s.getEntityByKind(KindKubernetesPod, id)
 	if err != nil {
@@ -302,8 +273,7 @@ func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 	return entity.(*KubernetesPod), nil
 }
 
-// GetKubernetesPodForContainer returns a KubernetesPod that contains the
-// specified containerID.
+// GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer
 func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
 	entities, ok := s.store[KindKubernetesPod]
 	if !ok {
@@ -311,7 +281,7 @@ func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 	}
 
 	for _, e := range entities {
-		pod := e.merge(nil).(*KubernetesPod)
+		pod := e.cached.(*KubernetesPod)
 		for _, podContainer := range pod.Containers {
 			if podContainer.ID == containerID {
 				return pod, nil
@@ -322,7 +292,7 @@ func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 	return nil, errors.NewNotFound(containerID)
 }
 
-// GetECSTask returns metadata about an ECS task.
+// GetECSTask implements Store#GetECSTask
 func (s *store) GetECSTask(id string) (*ECSTask, error) {
 	entity, err := s.getEntityByKind(KindECSTask, id)
 	if err != nil {
@@ -332,7 +302,7 @@ func (s *store) GetECSTask(id string) (*ECSTask, error) {
 	return entity.(*ECSTask), nil
 }
 
-// Notify notifies the store with a slice of events.
+// Notify implements Store#Notify
 func (s *store) Notify(events []CollectorEvent) {
 	if len(events) > 0 {
 		s.eventCh <- events
@@ -397,33 +367,33 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		entitiesOfKind, ok := s.store[meta.Kind]
 		if !ok {
-			s.store[meta.Kind] = make(map[string]sourceToEntity)
+			s.store[meta.Kind] = make(map[string]*cachedEntity)
 			entitiesOfKind = s.store[meta.Kind]
 		}
 
-		entityOfSource, ok := entitiesOfKind[meta.ID]
+		cachedEntity, ok := entitiesOfKind[meta.ID]
 
 		switch ev.Type {
 		case EventTypeSet:
 			if !ok {
-				entitiesOfKind[meta.ID] = make(sourceToEntity)
-				entityOfSource = entitiesOfKind[meta.ID]
+				entitiesOfKind[meta.ID] = newCachedEntity()
+				cachedEntity = entitiesOfKind[meta.ID]
 			}
 
-			if _, found := entityOfSource[ev.Source]; !found {
-				telemetry.StoredEntities.Inc(string(meta.Kind), string(ev.Source))
+			if found := cachedEntity.set(ev.Source, ev.Entity); !found {
+				telemetry.StoredEntities.Inc(
+					string(meta.Kind),
+					string(ev.Source),
+				)
 			}
-
-			entityOfSource[ev.Source] = ev.Entity
 		case EventTypeUnset:
-			if ok {
-				if _, found := entityOfSource[ev.Source]; found {
-					telemetry.StoredEntities.Dec(string(meta.Kind), string(ev.Source))
-				}
+			if ok && cachedEntity.unset(ev.Source) {
+				telemetry.StoredEntities.Dec(
+					string(meta.Kind),
+					string(ev.Source),
+				)
 
-				delete(entityOfSource, ev.Source)
-
-				if len(entityOfSource) == 0 {
+				if len(cachedEntity.sources) == 0 {
 					delete(entitiesOfKind, meta.ID)
 				}
 			}
@@ -449,43 +419,35 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		for _, ev := range evs {
 			entityID := ev.Entity.GetID()
-			evSources, ok := filter.SelectSources([]Source{ev.Source})
-
-			if !filter.MatchKind(entityID.Kind) || !ok {
+			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) {
 				// event should be filtered out because it
 				// doesn't match the filter
 				continue
 			}
 
-			entityOfSource, ok := s.store[entityID.Kind][entityID.ID]
-			entitySources, _ := filter.SelectSources(entityOfSource.sources())
+			cachedEntity, ok := s.store[entityID.Kind][entityID.ID]
 
-			if ev.Type == EventTypeSet && ok {
-				// setting an entity is straight forward
-				filteredEvents = append(filteredEvents, Event{
-					Type:    EventTypeSet,
-					Sources: entitySources,
-					Entity:  entityOfSource.merge(entitySources),
-				})
-				continue
+			var entity Entity
+			if ok {
+				entity = cachedEntity.get(filter.Source())
 			}
 
-			if !ok {
+			if entity != nil {
+				// setting an entity (EventTypeSet) or entity
+				// had one source removed, but others remain
+				filteredEvents = append(filteredEvents, Event{
+					Type:   EventTypeSet,
+					Entity: entity,
+				})
+
+			} else {
 				// entity has been removed entirely, unsetting
 				// is straight forward too
 				filteredEvents = append(filteredEvents, Event{
-					Type:    EventTypeUnset,
-					Sources: evSources,
-					Entity:  ev.Entity,
+					Type:   EventTypeUnset,
+					Entity: ev.Entity,
 				})
-				continue
 			}
-
-			filteredEvents = append(filteredEvents, Event{
-				Type:    EventTypeUnset,
-				Sources: evSources,
-				Entity:  ev.Entity,
-			})
 		}
 
 		notifyChannel(sub.name, sub.ch, filteredEvents, true)
@@ -506,7 +468,7 @@ func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 		return nil, errors.NewNotFound(id)
 	}
 
-	return entity.merge(nil), nil
+	return entity.cached, nil
 }
 
 func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
@@ -520,10 +482,21 @@ func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
 
 	entities := make([]Entity, 0, len(entitiesOfKind))
 	for _, entity := range entitiesOfKind {
-		entities = append(entities, entity.merge(nil))
+		entities = append(entities, entity.cached)
 	}
 
 	return entities, nil
+}
+
+func (s *store) unsubscribeAll() {
+	s.subscribersMut.Lock()
+	defer s.subscribersMut.Unlock()
+
+	for _, sub := range s.subscribers {
+		close(sub.ch)
+	}
+
+	telemetry.Subscribers.Set(0)
 }
 
 func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {

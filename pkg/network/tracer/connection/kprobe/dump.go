@@ -12,22 +12,16 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf/manager"
-
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 )
 
-func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
+func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map) string {
 	var output strings.Builder
-
-	mapName := managerMap.Name
-	currentMap, found, err := manager.GetMap(mapName)
-	if err != nil || !found {
-		return ""
-	}
 
 	switch mapName {
 
@@ -44,7 +38,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'tracerStatus'\n")
 		iter := currentMap.Iterate()
 		var key uint64
-		var value ebpf.TracerStatus
+		var value ddebpf.TracerStatus
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -52,8 +46,8 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case string(probes.ConntrackMap): // maps/conntrack (BPF_MAP_TYPE_HASH), key ConnTuple, value ConnTuple
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'ConnTuple'\n")
 		iter := currentMap.Iterate()
-		var key ebpf.ConnTuple
-		var value ebpf.ConnTuple
+		var key ddebpf.ConnTuple
+		var value ddebpf.ConnTuple
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -61,7 +55,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case string(probes.ConntrackTelemetryMap): // maps/conntrack_telemetry (BPF_MAP_TYPE_ARRAY), key C.u32, value conntrackTelemetry
 		output.WriteString("Map: '" + mapName + "', key: 'C.u32', value: 'conntrackTelemetry'\n")
 		var zero uint64
-		telemetry := &ebpf.ConntrackTelemetry{}
+		telemetry := &ddebpf.ConntrackTelemetry{}
 		if err := currentMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 			log.Tracef("error retrieving the contrack telemetry struct: %s", err)
 		}
@@ -79,7 +73,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case string(probes.SockByPidFDMap): // maps/sock_by_pid_fd (BPF_MAP_TYPE_HASH), key C.pid_fd_t, value uintptr // C.struct sock*
 		output.WriteString("Map: '" + mapName + "', key: 'C.pid_fd_t', value: 'uintptr // C.struct sock*'\n")
 		iter := currentMap.Iterate()
-		var key ebpf.PIDFD
+		var key ddebpf.PIDFD
 		var value uintptr // C.struct sock*
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
@@ -89,7 +83,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 		output.WriteString("Map: '" + mapName + "', key: 'uintptr // C.struct sock*', value: 'C.pid_fd_t'\n")
 		iter := currentMap.Iterate()
 		var key uintptr // C.struct sock*
-		var value ebpf.PIDFD
+		var value ddebpf.PIDFD
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -97,8 +91,8 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case string(probes.ConnMap): // maps/conn_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value ConnStatsWithTimestamp
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'ConnStatsWithTimestamp'\n")
 		iter := currentMap.Iterate()
-		var key ebpf.ConnTuple
-		var value ebpf.ConnStats
+		var key ddebpf.ConnTuple
+		var value ddebpf.ConnStats
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -106,8 +100,8 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case string(probes.TcpStatsMap): // maps/tcp_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value TCPStats
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'TCPStats'\n")
 		iter := currentMap.Iterate()
-		var key ebpf.ConnTuple
-		var value ebpf.TCPStats
+		var key ddebpf.ConnTuple
+		var value ddebpf.TCPStats
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -116,7 +110,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u32', value: 'batch'\n")
 		iter := currentMap.Iterate()
 		var key uint32
-		var value ebpf.Batch
+		var value ddebpf.Batch
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -125,7 +119,16 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'C.udp_recv_sock_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
-		var value ebpf.UDPRecvSock
+		var value ddebpf.UDPRecvSock
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			output.WriteString(spew.Sdump(key, value))
+		}
+
+	case "udpv6_recv_sock": // maps/udpv6_recv_sock (BPF_MAP_TYPE_HASH), key C.__u64, value C.udp_recv_sock_t
+		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'C.udp_recv_sock_t'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		var value ddebpf.UDPRecvSock
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -133,7 +136,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case string(probes.PortBindingsMap): // maps/port_bindings (BPF_MAP_TYPE_HASH), key portBindingTuple, value C.__u8
 		output.WriteString("Map: '" + mapName + "', key: 'portBindingTuple', value: 'C.__u8'\n")
 		iter := currentMap.Iterate()
-		var key ebpf.PortBinding
+		var key ddebpf.PortBinding
 		var value uint8
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
@@ -142,7 +145,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case string(probes.UdpPortBindingsMap): // maps/udp_port_bindings (BPF_MAP_TYPE_HASH), key portBindingTuple, value C.__u8
 		output.WriteString("Map: '" + mapName + "', key: 'portBindingTuple', value: 'C.__u8'\n")
 		iter := currentMap.Iterate()
-		var key ebpf.PortBinding
+		var key ddebpf.PortBinding
 		var value uint8
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
@@ -152,7 +155,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'C.bind_syscall_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
-		var value ebpf.BindSyscallArgs
+		var value ddebpf.BindSyscallArgs
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -160,7 +163,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case string(probes.TelemetryMap): // maps/telemetry (BPF_MAP_TYPE_ARRAY), key C.u32, value kernelTelemetry
 		output.WriteString("Map: '" + mapName + "', key: 'C.u32', value: 'kernelTelemetry'\n")
 		var zero uint64
-		telemetry := &ebpf.Telemetry{}
+		telemetry := &ddebpf.Telemetry{}
 		if err := currentMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 			// This can happen if we haven't initialized the telemetry object yet
 			// so let's just use a trace log
@@ -180,10 +183,4 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	}
 
 	return output.String()
-}
-
-func setupDumpHandler(manager *manager.Manager) {
-	for _, m := range manager.Maps {
-		m.DumpHandler = dumpMapsHandler
-	}
 }

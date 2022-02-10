@@ -44,7 +44,7 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     }
 }
 
-static __always_inline void sockaddr_to_addr(struct sockaddr *sa, u64 *addr_h, u64 *addr_l, u16 *port) {
+static __always_inline void sockaddr_to_addr(struct sockaddr *sa, u64 *addr_h, u64 *addr_l, u16 *port, u32 *metadata) {
     if (!sa) {
         return;
     }
@@ -56,6 +56,7 @@ static __always_inline void sockaddr_to_addr(struct sockaddr *sa, u64 *addr_h, u
     struct sockaddr_in6 *sin6;
     switch (family) {
     case AF_INET:
+        *metadata |= CONN_V4;
         sin = (struct sockaddr_in *)sa;
         if (addr_l) {
             bpf_probe_read(addr_l, sizeof(__be32), &(sin->sin_addr.s_addr));
@@ -66,6 +67,7 @@ static __always_inline void sockaddr_to_addr(struct sockaddr *sa, u64 *addr_h, u
         }
         break;
     case AF_INET6:
+        *metadata |= CONN_V6;
         sin6 = (struct sockaddr_in6 *)sa;
         if (addr_l && addr_h) {
             bpf_probe_read(addr_h, sizeof(u64), sin6->sin6_addr.s6_addr);
@@ -76,6 +78,8 @@ static __always_inline void sockaddr_to_addr(struct sockaddr *sa, u64 *addr_h, u
             *port = bpf_ntohs(*port);
         }
         break;
+    default:
+        log_debug("ERR(sockaddr_to_addr): invalid family: %u\n", family);
     }
 }
 

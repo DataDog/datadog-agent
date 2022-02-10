@@ -36,6 +36,8 @@ func (m *Model) NewEvent() eval.Event {
 func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
 	// check that all path are absolute
 	if strings.HasSuffix(field, "path") {
+
+		// do not support regular expression on path, currently unable to support discarder for regex value
 		if fieldValue.Type == eval.RegexpValueType {
 			return fmt.Errorf("regexp not supported on path `%s`", field)
 		}
@@ -99,9 +101,9 @@ type ChmodEvent struct {
 type ChownEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	UID   uint32    `field:"file.destination.uid"`                   // New UID of the chown-ed file's owner
+	UID   int64     `field:"file.destination.uid"`                   // New UID of the chown-ed file's owner
 	User  string    `field:"file.destination.user,ResolveChownUID"`  // New user of the chown-ed file's owner
-	GID   uint32    `field:"file.destination.gid"`                   // New GID of the chown-ed file's owner
+	GID   int64     `field:"file.destination.gid"`                   // New GID of the chown-ed file's owner
 	Group string    `field:"file.destination.group,ResolveChownGID"` // New group of the chown-ed file's owner
 }
 
@@ -140,8 +142,11 @@ type Event struct {
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 
-	SELinux SELinuxEvent `field:"selinux" event:"selinux"` // [7.30] [Kernel] An SELinux operation was run
-	BPF     BPFEvent     `field:"bpf" event:"bpf"`         // [7.33] [Kernel] A BPF command was executed
+	SELinux  SELinuxEvent  `field:"selinux" event:"selinux"`   // [7.30] [Kernel] An SELinux operation was run
+	BPF      BPFEvent      `field:"bpf" event:"bpf"`           // [7.33] [Kernel] A BPF command was executed
+	PTrace   PTraceEvent   `field:"ptrace" event:"ptrace"`     // [7.34] [Kernel] [Experimental] A ptrace command was executed
+	MMap     MMapEvent     `field:"mmap" event:"mmap"`         // [7.34] [Kernel] [Experimental] A mmap command was executed
+	MProtect MProtectEvent `field:"mprotect" event:"mprotect"` // [7.34] [Kernel] [Experimental] A mprotect command was executed
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
@@ -268,12 +273,18 @@ type Process struct {
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
 
-	// defined to generate accessors
+	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
+	Argv0         string   `field:"argv0,ResolveProcessArgv0:100"`                                                                                         // First argument of the process
 	Args          string   `field:"args,ResolveProcessArgs:100"`                                                                                           // Arguments of the process (as a string)
 	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags" field:"args_options,ResolveProcessArgsOptions"` // Arguments of the process (as an array)
 	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated"`                                                                            // Indicator of arguments truncation
 	Envs          []string `field:"envs,ResolveProcessEnvs:100"`                                                                                           // Environment variables of the process
 	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated"`                                                                            // Indicator of environment variables truncation
+
+	// cache version
+	ScrubbedArgvResolved  bool     `field:"-"`
+	ScrubbedArgv          []string `field:"-"`
+	ScrubbedArgsTruncated bool     `field:"-"`
 }
 
 // SpanContext describes a span context
@@ -593,4 +604,37 @@ type BPFProgram struct {
 	AttachType uint32   `field:"attach_type"`      // Attach type of the eBPF program
 	Helpers    []uint32 `field:"-,ResolveHelpers"` // eBPF helpers used by the eBPF program
 	Name       string   `field:"-"`                // Name of the eBPF program
+}
+
+// PTraceEvent represents a ptrace event
+type PTraceEvent struct {
+	SyscallEvent
+
+	Request                 uint32             `field:"request"`
+	PID                     uint32             `field:"-"`
+	Address                 uint64             `field:"-"`
+	Tracee                  ProcessContext     `field:"tracee"`
+	TraceeProcessCacheEntry *ProcessCacheEntry `field:"-"`
+}
+
+// MMapEvent represents a mmap event
+type MMapEvent struct {
+	SyscallEvent
+
+	File       FileEvent `field:"file"`
+	Addr       uint64    `field:"-"`
+	Offset     uint64    `field:"-"`
+	Len        uint32    `field:"-"`
+	Protection int       `field:"protection"`
+	Flags      int       `field:"flags"`
+}
+
+// MProtectEvent represents a mprotect event
+type MProtectEvent struct {
+	SyscallEvent
+
+	VMStart       uint64 `field:"-"`
+	VMEnd         uint64 `field:"-"`
+	VMProtection  int    `field:"vm_protection"`
+	ReqProtection int    `field:"req_protection"`
 }

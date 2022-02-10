@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -70,6 +71,29 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	})
+}
+
+// enrichTags of series and sketches.
+// This method should be called once after metrics have been mapped.
+//
+// In the OTLP pipeline, 'contexts' are kept within the translator, and,
+// therefore, this works a little differently than for DogStatsD/check metrics.
+func (c *serializerConsumer) enrichTags(cardinality string) {
+	// TODO (AP-1328): Get origin from semantic conventions.
+	const origin = ""
+	const k8sOriginID = ""
+
+	for i := range c.series {
+		tb := tagset.NewHashlessTagsAccumulatorFromSlice(c.series[i].Tags)
+		tagger.EnrichTags(tb, origin, k8sOriginID, cardinality)
+		c.series[i].Tags = tb.Get()
+	}
+
+	for i := range c.sketches {
+		tb := tagset.NewHashlessTagsAccumulatorFromSlice(c.sketches[i].Tags)
+		tagger.EnrichTags(tb, origin, k8sOriginID, cardinality)
+		c.sketches[i].Tags = tb.Get()
+	}
 }
 
 // flush all metrics and sketches in consumer.

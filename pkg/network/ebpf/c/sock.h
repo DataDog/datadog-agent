@@ -1,8 +1,6 @@
 #ifndef __SOCK_H
 #define __SOCK_H
 
-#include <net/net_namespace.h>
-
 /* The LOAD_CONSTANT macro is used to define a named constant that will be replaced
  * at runtime by the Go code. This replaces usage of a bpf_map for storing values, which
  * eliminates a bpf_map_lookup_elem per kprobe hit. The constants are best accessed with a
@@ -10,6 +8,10 @@
  */
 #define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
                                       : "=r"(var))
+
+// source include/linux/socket.h
+#define __AF_INET   2
+#define __AF_INET6 10
 
 static const __u64 ENABLED = 1;
 
@@ -152,9 +154,9 @@ static __always_inline __u64 offset_socket_sk() {
 }
 
 static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
-    possible_net_t* skc_net = NULL;
+    void* skc_net = NULL;
     __u32 net_ns_inum = 0;
-    bpf_probe_read(&skc_net, sizeof(possible_net_t*), ((char*)sk) + offset_netns());
+    bpf_probe_read(&skc_net, sizeof(void*), ((char*)sk) + offset_netns());
     bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + offset_ino());
     return net_ns_inum;
 }
@@ -189,7 +191,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
     t->netns = get_netns_from_sock(skp);
 
     // Retrieve addresses
-    if (check_family(skp, AF_INET)) {
+    if (check_family(skp, __AF_INET)) {
         t->metadata |= CONN_V4;
         if (t->saddr_l == 0) {
             bpf_probe_read(&t->saddr_l, sizeof(u32), ((char*)skp) + offset_saddr());
@@ -202,21 +204,17 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
             log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d\n", t->saddr_l, t->daddr_l);
             return 0;
         }
-    } else if (check_family(skp, AF_INET6)) {
+    } else if (check_family(skp, __AF_INET6)) {
         if (!is_ipv6_enabled()) {
             return 0;
         }
 
-        if (t->saddr_h == 0) {
+        if (!(t->saddr_h || t->saddr_l)) {
             bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
-        }
-        if (t->saddr_l == 0) {
             bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
         }
-        if (t->daddr_h == 0) {
+        if (!(t->daddr_h || t->daddr_l)) {
             bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
-        }
-        if (t->daddr_l == 0) {
             bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
         }
 
@@ -270,5 +268,6 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     __builtin_memset(t, 0, sizeof(conn_tuple_t));
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
+
 
 #endif

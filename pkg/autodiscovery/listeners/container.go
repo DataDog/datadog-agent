@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !serverless
 // +build !serverless
 
 package listeners
@@ -12,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -36,7 +36,7 @@ func NewContainerListener(Config) (ServiceListener, error) {
 	l := &ContainerListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd, workloadmeta.SourcePodman},
+		workloadmeta.SourceRuntime,
 	)
 
 	var err error
@@ -48,10 +48,7 @@ func NewContainerListener(Config) (ServiceListener, error) {
 	return l, nil
 }
 
-func (l *ContainerListener) createContainerService(
-	entity workloadmeta.Entity,
-	creationTime integration.CreationTime,
-) {
+func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	container := entity.(*workloadmeta.Container)
 
 	containerImg := container.Image
@@ -65,7 +62,11 @@ func (l *ContainerListener) createContainerService(
 		return
 	}
 
-	if !container.State.FinishedAt.IsZero() {
+	// Note: Docker containers can have a "FinishedAt" time set even when
+	// they're running. That happens when they've been stopped and then
+	// restarted. "FinishedAt" corresponds to the last time the container was
+	// stopped.
+	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
 		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
 		if time.Now().Sub(finishedAt) > excludeAge {
@@ -87,8 +88,7 @@ func (l *ContainerListener) createContainerService(
 	})
 
 	svc := &service{
-		entity:       container,
-		creationTime: integration.After,
+		entity: container,
 		adIdentifiers: ComputeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,

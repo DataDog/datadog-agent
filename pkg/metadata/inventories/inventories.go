@@ -87,8 +87,12 @@ const (
 	AgentInstallMethodToolVersion      AgentMetadataName = "install_method_tool_version"
 	AgentLogsTransport                 AgentMetadataName = "logs_transport"
 	AgentCWSEnabled                    AgentMetadataName = "feature_cws_enabled"
+	AgentOTLPEnabled                   AgentMetadataName = "feature_otlp_enabled"
 	AgentProcessEnabled                AgentMetadataName = "feature_process_enabled"
+	AgentProcessesContainerEnabled     AgentMetadataName = "feature_processes_container_enabled"
 	AgentNetworksEnabled               AgentMetadataName = "feature_networks_enabled"
+	AgentNetworksHTTPEnabled           AgentMetadataName = "feature_networks_http_enabled"
+	AgentNetworksHTTPSEnabled          AgentMetadataName = "feature_networks_https_enabled"
 	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
 	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
@@ -280,9 +284,15 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
 	SetAgentMetadata(AgentCWSEnabled, config.Datadog.GetBool("runtime_security_config.enabled"))
-	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.enabled"))
+	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
+	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.Datadog.GetBool("network_config.enabled"))
+	SetAgentMetadata(AgentNetworksHTTPEnabled, config.Datadog.GetBool("network_config.enable_http_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.Datadog.GetBool("network_config.enable_https_monitoring"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
+	// NOTE: until otlp config stabilizes, we set AgentOTLPEnabled in cmd/agent/app/run.go
+	// Also note we can't import OTLP here, as it would trigger an import loop - if we see another
+	// case like that, we should move otlp.IsEnabled to pkg/config/otlp
 }

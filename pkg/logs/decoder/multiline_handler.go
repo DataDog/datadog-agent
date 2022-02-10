@@ -30,11 +30,7 @@ type MultiLineHandler struct {
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
-func NewMultiLineHandler(outputChan chan *Message, newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int) *MultiLineHandler {
-	return newMultiLineHandler(make(chan *Message), outputChan, newContentRe, flushTimeout, lineLimit)
-}
-
-func newMultiLineHandler(inputChan chan *Message, outputChan chan *Message, newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int) *MultiLineHandler {
+func NewMultiLineHandler(inputChan chan *Message, outputChan chan *Message, newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int) *MultiLineHandler {
 	return &MultiLineHandler{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
@@ -44,16 +40,6 @@ func newMultiLineHandler(inputChan chan *Message, outputChan chan *Message, newC
 		lineLimit:    lineLimit,
 		countInfo:    config.NewCountInfo("MultiLine matches"),
 	}
-}
-
-// Handle forward lines to lineChan to process them.
-func (h *MultiLineHandler) Handle(input *Message) {
-	h.inputChan <- input
-}
-
-// Stop stops the handler.
-func (h *MultiLineHandler) Stop() {
-	close(h.inputChan)
 }
 
 // Start starts the handler.

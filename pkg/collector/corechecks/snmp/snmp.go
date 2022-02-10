@@ -58,7 +58,12 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
-			deviceCk.SetSender(report.NewMetricSender(sender, deviceCk.GetDeviceHostname()))
+			hostname, err := deviceCk.GetDeviceHostname()
+			if err != nil {
+				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
+				continue
+			}
+			deviceCk.SetSender(report.NewMetricSender(sender, hostname))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -68,7 +73,11 @@ func (c *Check) Run() error {
 		tags = append(tags, c.config.GetNetworkTags()...)
 		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, c.singleDeviceCk.GetDeviceHostname()))
+		hostname, err := c.singleDeviceCk.GetDeviceHostname()
+		if err != nil {
+			return err
+		}
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 

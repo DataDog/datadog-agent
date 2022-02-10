@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -77,7 +78,6 @@ func NewContainerdUtil() (ContainerdItf, error) {
 		queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
 		connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
 		socketPath:        config.Datadog.GetString("cri_socket_path"),
-		namespace:         config.Datadog.GetString("containerd_namespace"),
 	}
 	if containerdUtil.socketPath == "" {
 		log.Info("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")

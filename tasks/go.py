@@ -142,7 +142,7 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
 
     # add the /... suffix to the targets
     args = [f"{t}/..." for t in targets]
-    tags = build_tags or get_default_build_tags(build="test", arch=arch)
+    tags = build_tags[:] or get_default_build_tags(build="test", arch=arch)
     tags.append("dovet")
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
@@ -291,7 +291,9 @@ def deps(ctx, verbose=False):
     print("downloading dependencies")
     start = datetime.datetime.now()
     verbosity = ' -x' if verbose else ''
-    ctx.run(f"go mod download{verbosity}")
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            ctx.run(f"go mod download{verbosity}")
     dep_done = datetime.datetime.now()
     print(f"go mod download, elapsed: {dep_done - start}")
 
@@ -307,7 +309,7 @@ def deps_vendored(ctx, verbose=False):
     verbosity = ' -v' if verbose else ''
 
     ctx.run(f"go mod vendor{verbosity}")
-    ctx.run(f"go mod tidy{verbosity}")
+    ctx.run(f"go mod tidy{verbosity} -compat=1.17")
 
     # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
     # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
@@ -437,6 +439,9 @@ def generate_protobuf(ctx):
 
         ctx.run(f"mockgen -source={pbgo_dir}/api.pb.go -destination={mockgen_out}/api_mockgen.pb.go")
 
+    # generate messagepack marshallers
+    ctx.run("msgp -file pkg/proto/msgpgo/key.go -o=pkg/proto/msgpgo/key_gen.go")
+
 
 @task
 def reset(ctx):
@@ -461,14 +466,14 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
     errors_found = []
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy")
+            ctx.run("go mod tidy -compat=1.17")
             res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
             if res.exited is None or res.exited > 0:
                 errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
     generate_dummy_package(ctx, test_folder)
     with ctx.cd(test_folder):
-        ctx.run("go mod tidy")
+        ctx.run("go mod tidy -compat=1.17")
         res = ctx.run("go build main.go", warn=True)
         if res.exited is None or res.exited > 0:
             errors_found.append("could not build test module importing external modules")
@@ -485,4 +490,4 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
 def tidy_all(ctx):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy")
+            ctx.run("go mod tidy -compat=1.17")

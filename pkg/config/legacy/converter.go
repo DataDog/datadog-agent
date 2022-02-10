@@ -39,10 +39,10 @@ func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter
 
 	if enabled, err := isAffirmative(agentConfig["process_agent_enabled"]); enabled {
 		// process agent is explicitly enabled
-		converter.Set("process_config.enabled", "true")
+		converter.Set("process_config.process_collection.enabled", true)
 	} else if err == nil && !enabled {
 		// process agent is explicitly disabled
-		converter.Set("process_config.enabled", "disabled")
+		converter.Set("process_config.container_collection.enabled", false)
 	}
 
 	tags := strings.Split(agentConfig["tags"], ",")

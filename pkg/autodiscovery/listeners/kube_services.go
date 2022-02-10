@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -21,7 +21,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -47,11 +46,10 @@ type KubeServiceListener struct {
 
 // KubeServiceService represents a Kubernetes Service
 type KubeServiceService struct {
-	entity       string
-	tags         []string
-	hosts        map[string]string
-	ports        []ContainerPort
-	creationTime integration.CreationTime
+	entity string
+	tags   []string
+	hosts  map[string]string
+	ports  []ContainerPort
 }
 
 // Make sure KubeServiceService implements the Service interface
@@ -98,7 +96,7 @@ func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Servic
 		log.Errorf("Cannot list Kubernetes services: %s", err)
 	}
 	for _, s := range services {
-		l.createService(s, true)
+		l.createService(s)
 	}
 }
 
@@ -113,7 +111,7 @@ func (l *KubeServiceListener) added(obj interface{}) {
 		log.Errorf("Expected a Service type, got: %v", obj)
 		return
 	}
-	l.createService(castedObj, false)
+	l.createService(castedObj)
 }
 
 func (l *KubeServiceListener) deleted(obj interface{}) {
@@ -136,12 +134,12 @@ func (l *KubeServiceListener) updated(old, obj interface{}) {
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a Service type, got: %v", old)
-		l.createService(castedObj, false)
+		l.createService(castedObj)
 		return
 	}
 	if servicesDiffer(castedObj, castedOld) || l.promInclAnnot.AnnotationsDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
 		l.removeService(castedObj)
-		l.createService(castedObj, false)
+		l.createService(castedObj)
 	}
 }
 
@@ -190,7 +188,7 @@ func (l *KubeServiceListener) shouldIgnore(ksvc *v1.Service) bool {
 	return !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
-func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
+func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 	if ksvc == nil {
 		return
 	}
@@ -199,7 +197,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 		return
 	}
 
-	svc := processService(ksvc, firstRun)
+	svc := processService(ksvc)
 
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
@@ -209,13 +207,9 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	telemetry.WatchedResources.Inc(kubeServicesName, telemetry.ResourceKubeService)
 }
 
-func processService(ksvc *v1.Service, firstRun bool) *KubeServiceService {
+func processService(ksvc *v1.Service) *KubeServiceService {
 	svc := &KubeServiceService{
-		entity:       apiserver.EntityForService(ksvc),
-		creationTime: integration.After,
-	}
-	if firstRun {
-		svc.creationTime = integration.Before
+		entity: apiserver.EntityForService(ksvc),
 	}
 
 	// Service tags
@@ -267,8 +261,8 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 	}
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *KubeServiceService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeServiceService) GetServiceID() string {
 	return s.entity
 }
 
@@ -306,11 +300,6 @@ func (s *KubeServiceService) GetTags() ([]string, string, error) {
 // GetHostname returns nil and an error because port is not supported in Kubelet
 func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
-}
-
-// GetCreationTime returns the creation time of the service compare to the agent start.
-func (s *KubeServiceService) GetCreationTime() integration.CreationTime {
-	return s.creationTime
 }
 
 // IsReady returns if the service is ready

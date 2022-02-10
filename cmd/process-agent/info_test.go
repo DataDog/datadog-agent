@@ -88,7 +88,7 @@ func testServer(t *testing.T) *httptest.Server {
 
 func TestInfo(t *testing.T) {
 	assert := assert.New(t)
-	conf := config.NewDefaultAgentConfig(false)
+	conf := config.NewDefaultAgentConfig()
 	server := testServer(t)
 	assert.NotNil(server)
 	defer server.Close()
@@ -105,7 +105,7 @@ func TestInfo(t *testing.T) {
 
 func TestNotRunning(t *testing.T) {
 	assert := assert.New(t)
-	conf := config.NewDefaultAgentConfig(false)
+	conf := config.NewDefaultAgentConfig()
 	server := testServer(t)
 	assert.NotNil(server)
 	defer server.Close()
@@ -132,7 +132,7 @@ func TestNotRunning(t *testing.T) {
 
 func TestError(t *testing.T) {
 	assert := assert.New(t)
-	conf := config.NewDefaultAgentConfig(false)
+	conf := config.NewDefaultAgentConfig()
 	server := testServer(t)
 	assert.NotNil(server)
 	defer server.Close()

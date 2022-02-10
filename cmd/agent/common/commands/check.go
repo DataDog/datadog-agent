@@ -65,6 +65,7 @@ var (
 	profileMemoryVerbose   string
 	discoveryTimeout       uint
 	discoveryRetryInterval uint
+	discoveryMinInstances  uint
 )
 
 func setupCmd(cmd *cobra.Command) {
@@ -81,6 +82,7 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
 	cmd.Flags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
+	cmd.Flags().UintVarP(&discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
@@ -140,7 +142,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			opts.UseOrchestratorForwarder = false
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
-			common.LoadComponents(config.Datadog.GetString("confd_path"))
+			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
@@ -152,7 +154,8 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				discoveryRetryInterval = discoveryTimeout
 			}
 
-			allConfigs := waitForConfigs(checkName, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second)
+			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
+				common.SelectedCheckMatcherBuilder([]string{checkName}, discoveryMinInstances))
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -167,11 +170,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 					fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 					selectedChecks := []string{checkName}
 					if checkRate {
-						if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel, allConfigs); err != nil {
 							return fmt.Errorf("while running the jmx check: %v", err)
 						}
 					} else {
-						if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel, allConfigs); err != nil {
 							return fmt.Errorf("while running the jmx check: %v", err)
 						}
 					}
@@ -719,45 +722,4 @@ func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
 	}
 
 	return nil
-}
-
-// containsCheck returns true if at least one config corresponds to the check name.
-func containsCheck(checkName string, configs []integration.Config) bool {
-	for _, cfg := range configs {
-		if cfg.Name == checkName {
-			return true
-		}
-	}
-
-	return false
-}
-
-// waitForConfigs retries the collection of Autodiscovery configs until the check is found or the timeout is reached.
-// Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
-// depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
-// This function improves the resiliency of the check command.
-// Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
-func waitForConfigs(checkName string, retryInterval, timeout time.Duration) []integration.Config {
-	allConfigs := common.AC.GetAllConfigs()
-	if containsCheck(checkName, allConfigs) {
-		return allConfigs
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	retryTicker := time.NewTicker(retryInterval)
-	defer retryTicker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return allConfigs
-		case <-retryTicker.C:
-			allConfigs = common.AC.GetAllConfigs()
-			if containsCheck(checkName, allConfigs) {
-				return allConfigs
-			}
-		}
-	}
 }

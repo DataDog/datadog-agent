@@ -34,8 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -110,7 +110,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
+	needsOffsets := (!config.EnableRuntimeCompiler ||
+		config.AllowPrecompiledFallback ||
+		// hotfix: always force offset guessing for kernel < 4.6 when HTTPS monitoring is enabled
+		(config.EnableHTTPSMonitoring && currKernelVersion < kernel.VersionCode(4, 6, 0)))
+
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
 		for i := 0; i < 5; i++ {
@@ -237,16 +241,17 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	}
 
 	for _, p := range offsetMgr.Probes {
-		if _, enabled := enabledProbes[probes.ProbeName(p.Section)]; !enabled {
-			offsetOptions.ExcludedSections = append(offsetOptions.ExcludedSections, p.Section)
+		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
+			offsetOptions.ExcludedFunctions = append(offsetOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
-	for probeName := range enabledProbes {
+	for probeName, funcName := range enabledProbes {
 		offsetOptions.ActivatedProbes = append(
 			offsetOptions.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: string(probeName),
+					EBPFSection:  string(probeName),
+					EBPFFuncName: funcName,
 				},
 			})
 	}

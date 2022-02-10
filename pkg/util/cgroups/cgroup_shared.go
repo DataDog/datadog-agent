@@ -13,6 +13,11 @@ import (
 	"strings"
 )
 
+const (
+	cgroupProcsFile = "cgroup.procs"
+	procCgroupFile  = "cgroup"
+)
+
 // parseCPUSetFormat counts CPUs in CPUSet specs like "0,1,5-8". These are comma-separated lists
 // of processor IDs, with hyphenated ranges representing closed sets.
 // So "0,1,5-8" represents processors 0, 1, 5, 6, 7, 8.

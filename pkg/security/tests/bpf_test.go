@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -33,11 +34,7 @@ func TestBPFEventLoad(t *testing.T) {
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
-		if _, ok := err.(ErrUnsupportedArch); ok {
-			t.Skip(err)
-		} else {
-			t.Fatal(err)
-		}
+		t.Fatal(err)
 	}
 
 	t.Run("prog_load", func(t *testing.T) {
@@ -70,11 +67,7 @@ func TestBPFEventMap(t *testing.T) {
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
-		if _, ok := err.(ErrUnsupportedArch); ok {
-			t.Skip(err)
-		} else {
-			t.Fatal(err)
-		}
+		t.Fatal(err)
 	}
 
 	t.Run("map_lookup", func(t *testing.T) {

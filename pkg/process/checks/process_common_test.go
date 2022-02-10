@@ -142,7 +142,7 @@ func TestProcessChunking(t *testing.T) {
 	containers := []*containers.Container{}
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
-	cfg := config.NewDefaultAgentConfig(false)
+	cfg := config.NewDefaultAgentConfig()
 
 	for i, tc := range []struct {
 		cur, last          []*procutil.Process
@@ -202,7 +202,6 @@ func TestProcessChunking(t *testing.T) {
 			bl = append(bl, regexp.MustCompile(s))
 		}
 		cfg.Blacklist = bl
-		cfg.MaxPerMessage = tc.maxSize
 
 		cur := make(map[int32]*procutil.Process)
 		for _, c := range tc.cur {
@@ -224,7 +223,7 @@ func TestProcessChunking(t *testing.T) {
 
 		procs := fmtProcesses(cfg, cur, last, containersByPid(containers), syst2, syst1, lastRun, networks)
 		// only deal with non-container processes
-		chunked := chunkProcesses(procs[emptyCtrID], cfg.MaxPerMessage)
+		chunked := chunkProcesses(procs[emptyCtrID], tc.maxSize)
 		assert.Len(t, chunked, tc.expectedProcChunks, "len %d", i)
 		total := 0
 		for _, c := range chunked {
@@ -232,7 +231,7 @@ func TestProcessChunking(t *testing.T) {
 		}
 		assert.Equal(t, tc.expectedProcTotal, total, "total test %d", i)
 
-		chunkedStat := fmtProcessStats(cfg, curStats, lastStats, containers, syst2, syst1, lastRun, networks)
+		chunkedStat := fmtProcessStats(cfg, tc.maxSize, curStats, lastStats, containers, syst2, syst1, lastRun, networks)
 		assert.Len(t, chunkedStat, tc.expectedStatChunks, "len stat %d", i)
 		total = 0
 		for _, c := range chunkedStat {

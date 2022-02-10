@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver && kubelet
 // +build kubeapiserver,kubelet
 
 package kubemetadata
@@ -462,7 +463,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 			want: []workloadmeta.CollectorEvent{
 				{
 					Type:   workloadmeta.EventTypeSet,
-					Source: collectorID,
+					Source: workloadmeta.SourceClusterOrchestrator,
 					Entity: &workloadmeta.KubernetesPod{
 						EntityID: workloadmeta.EntityID{
 							Kind: workloadmeta.KindKubernetesPod,
@@ -500,7 +501,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 			want: []workloadmeta.CollectorEvent{
 				{
 					Type:   workloadmeta.EventTypeSet,
-					Source: collectorID,
+					Source: workloadmeta.SourceClusterOrchestrator,
 					Entity: &workloadmeta.KubernetesPod{
 						EntityID: workloadmeta.EntityID{
 							Kind: workloadmeta.KindKubernetesPod,
@@ -525,7 +526,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 			want: []workloadmeta.CollectorEvent{
 				{
 					Type:   workloadmeta.EventTypeSet,
-					Source: collectorID,
+					Source: workloadmeta.SourceClusterOrchestrator,
 					Entity: &workloadmeta.KubernetesPod{
 						EntityID: workloadmeta.EntityID{
 							Kind: workloadmeta.KindKubernetesPod,

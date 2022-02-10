@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -90,6 +91,9 @@ func (t *Tagger) Init() error {
 		t.ctx,
 		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
+		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+			return net.Dial("tcp", url)
+		}),
 	)
 	if err != nil {
 		return err

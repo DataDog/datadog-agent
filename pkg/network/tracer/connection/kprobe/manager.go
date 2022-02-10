@@ -10,10 +10,11 @@ package kprobe
 
 import (
 	"os"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -22,6 +23,41 @@ const (
 	maxActive = 128
 )
 
+var mainProbes = map[probes.ProbeName]string{
+	probes.TCPSendMsg:           "kprobe__tcp_sendmsg",
+	probes.TCPCleanupRBuf:       "kprobe__tcp_cleanup_rbuf",
+	probes.TCPClose:             "kprobe__tcp_close",
+	probes.TCPCloseReturn:       "kretprobe__tcp_close",
+	probes.TCPSetState:          "kprobe__tcp_set_state",
+	probes.IPMakeSkb:            "kprobe__ip_make_skb",
+	probes.IP6MakeSkb:           "kprobe__ip6_make_skb",
+	probes.UDPRecvMsg:           "kprobe__udp_recvmsg",
+	probes.UDPRecvMsgReturn:     "kretprobe__udp_recvmsg",
+	probes.UDPv6RecvMsg:         "kprobe__udpv6_recvmsg",
+	probes.UDPv6RecvMsgReturn:   "kretprobe__udpv6_recvmsg",
+	probes.TCPRetransmit:        "kprobe__tcp_retransmit_skb",
+	probes.InetCskAcceptReturn:  "kretprobe__inet_csk_accept",
+	probes.InetCskListenStop:    "kprobe__inet_csk_listen_stop",
+	probes.UDPDestroySock:       "kprobe__udp_destroy_sock",
+	probes.UDPDestroySockReturn: "kretprobe__udp_destroy_sock",
+	probes.InetBind:             "kprobe__inet_bind",
+	probes.Inet6Bind:            "kprobe__inet6_bind",
+	probes.InetBindRet:          "kretprobe__inet_bind",
+	probes.Inet6BindRet:         "kretprobe__inet6_bind",
+	probes.SockFDLookup:         "kprobe__sockfd_lookup_light",
+	probes.SockFDLookupRet:      "kretprobe__sockfd_lookup_light",
+	probes.DoSendfile:           "kprobe__do_sendfile",
+	probes.DoSendfileRet:        "kretprobe__do_sendfile",
+}
+
+var altProbes = map[probes.ProbeName]string{
+	probes.TCPRetransmitPre470: "kprobe__tcp_retransmit_skb_pre_4_7_0",
+	probes.IP6MakeSkbPre470:    "kprobe__ip6_make_skb__pre_4_7_0",
+	probes.UDPRecvMsgPre410:    "kprobe__udp_recvmsg_pre_4_1_0",
+	probes.UDPv6RecvMsgPre410:  "kprobe__udpv6_recvmsg_pre_4_1_0",
+	probes.TCPSendMsgPre410:    "kprobe__tcp_sendmsg__pre_4_1_0",
+}
+
 func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
@@ -29,6 +65,7 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Name: string(probes.TcpStatsMap)},
 			{Name: string(probes.ConnCloseBatchMap)},
 			{Name: "udp_recv_sock"},
+			{Name: "udpv6_recv_sock"},
 			{Name: string(probes.PortBindingsMap)},
 			{Name: string(probes.UdpPortBindingsMap)},
 			{Name: "pending_bind"},
@@ -49,32 +86,19 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 				},
 			},
 		},
-		Probes: []*manager.Probe{
-			{Section: string(probes.TCPSendMsg)},
-			{Section: string(probes.TCPCleanupRBuf)},
-			{Section: string(probes.TCPClose)},
-			{Section: string(probes.TCPCloseReturn), KProbeMaxActive: maxActive},
-			{Section: string(probes.TCPSetState)},
-			{Section: string(probes.IPMakeSkb)},
-			{Section: string(probes.IP6MakeSkb)},
-			{Section: string(probes.UDPRecvMsg)},
-			{Section: string(probes.UDPRecvMsgReturn), KProbeMaxActive: maxActive},
-			{Section: string(probes.TCPRetransmit)},
-			{Section: string(probes.InetCskAcceptReturn), KProbeMaxActive: maxActive},
-			{Section: string(probes.InetCskListenStop)},
-			{Section: string(probes.UDPDestroySock)},
-			{Section: string(probes.UDPDestroySockReturn), KProbeMaxActive: maxActive},
-			{Section: string(probes.InetBind)},
-			{Section: string(probes.Inet6Bind)},
-			{Section: string(probes.InetBindRet), KProbeMaxActive: maxActive},
-			{Section: string(probes.Inet6BindRet), KProbeMaxActive: maxActive},
-			{Section: string(probes.IPRouteOutputFlow)},
-			{Section: string(probes.IPRouteOutputFlowReturn), KProbeMaxActive: maxActive},
-			{Section: string(probes.SockFDLookup)},
-			{Section: string(probes.SockFDLookupRet), KProbeMaxActive: maxActive},
-			{Section: string(probes.DoSendfile)},
-			{Section: string(probes.DoSendfileRet), KProbeMaxActive: maxActive},
-		},
+	}
+
+	for probeName, funcName := range mainProbes {
+		p := &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  string(probeName),
+				EBPFFuncName: funcName,
+			},
+		}
+		if strings.HasPrefix(funcName, "kretprobe") {
+			p.KProbeMaxActive = maxActive
+		}
+		mgr.Probes = append(mgr.Probes, p)
 	}
 
 	// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
@@ -82,10 +106,11 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 	// tracer.
 	if !runtimeTracer {
 		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{Section: string(probes.TCPRetransmitPre470), MatchFuncName: "^tcp_retransmit_skb$"},
-			&manager.Probe{Section: string(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
-			&manager.Probe{Section: string(probes.UDPRecvMsgPre410), MatchFuncName: "^udp_recvmsg$"},
-			&manager.Probe{Section: string(probes.TCPSendMsgPre410), MatchFuncName: "^tcp_sendmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPRetransmitPre470), EBPFFuncName: "kprobe__tcp_retransmit_skb_pre_4_7_0"}, MatchFuncName: "^tcp_retransmit_skb$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.IP6MakeSkbPre470), EBPFFuncName: "kprobe__ip6_make_skb__pre_4_7_0"}, MatchFuncName: "^ip6_make_skb$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPRecvMsgPre410), EBPFFuncName: "kprobe__udp_recvmsg_pre_4_1_0"}, MatchFuncName: "^udp_recvmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPv6RecvMsgPre410), EBPFFuncName: "kprobe__udpv6_recvmsg_pre_4_1_0"}, MatchFuncName: "^udpv6_recvmsg$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgPre410), EBPFFuncName: "kprobe__tcp_sendmsg__pre_4_1_0"}, MatchFuncName: "^tcp_sendmsg$"},
 		)
 	}
 

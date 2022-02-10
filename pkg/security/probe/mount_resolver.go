@@ -11,7 +11,6 @@ package probe
 import (
 	"context"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,7 +40,7 @@ func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	// Has optional fields, which is a space separated list of values.
 	// Example: shared:2 master:7
 	if len(mnt.Optional) > 0 {
-		for _, field := range strings.Split(mnt.Optional, ",") {
+		for _, field := range strings.Split(mnt.Optional, " ") {
 			optionSplit := strings.SplitN(field, ":", 2)
 			if len(optionSplit) == 2 {
 				target, value := optionSplit[0], optionSplit[1]
@@ -260,7 +259,7 @@ func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) s
 		}
 
 		if p != "/" && !strings.HasPrefix(mount.MountPointStr, p) {
-			mountPointStr = path.Join(p, mount.MountPointStr)
+			mountPointStr = p + mount.MountPointStr
 		}
 	}
 
