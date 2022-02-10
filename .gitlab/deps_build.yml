@@ -39,10 +39,10 @@
     - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/llc | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     # fail if clang or llc targets anything other than bpf
     - $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-11 -print-targets > clang_targets.txt
-    - diff $SRC_PATH/pkg/ebpf/c/expected_targets.txt clang_targets.txt | egrep '*+' && exit 1
+    - diff $SRC_PATH/pkg/ebpf/c/expected_targets.txt clang_targets.txt
     - $DATADOG_AGENT_EMBEDDED_PATH/bin/llc --version > llc_targets.txt
     - sed -i -e 1,6d llc_targets.txt # remove first 6 lines of llc version output; we only care about the registered targets
-    - diff $SRC_PATH/pkg/ebpf/c/expected_targets.txt llc_targets.txt | egrep '*+' && exit 1
+    - diff $SRC_PATH/pkg/ebpf/c/expected_targets.txt llc_targets.txt
     - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-11 $S3_PERMANENT_ARTIFACTS_URI/clang-11.0.1.${ARCH}
     - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-11.0.1.${ARCH}
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/c/stdarg.h $S3_PERMANENT_ARTIFACTS_URI/stdarg.h
