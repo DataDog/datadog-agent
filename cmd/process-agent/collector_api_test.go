@@ -245,7 +245,7 @@ func TestSendPodMessage(t *testing.T) {
 	runCollectorTest(t, check, cfg, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
-		assert.Equal(t, "/api/v1/orchestrator", req.uri)
+		assert.Equal(t, "/api/v2/orch", req.uri)
 
 		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
 		assert.Equal(t, cfg.Orchestrator.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
@@ -457,7 +457,7 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 
 	orchestratorMux := http.NewServeMux()
 	orchestratorMux.HandleFunc("/api/v1/validate", m.handleValidate)
-	orchestratorMux.HandleFunc("/api/v1/orchestrator", m.handle)
+	orchestratorMux.HandleFunc("/api/v2/orch", m.handle)
 
 	m.collectorServer = &http.Server{Addr: ":", Handler: collectorMux}
 	m.orchestratorServer = &http.Server{Addr: ":", Handler: orchestratorMux}
