@@ -52,7 +52,7 @@ tests_deb-x64-py3:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
-tests_flavors_deb-x64:
+tests_flavor_iot_deb-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
@@ -62,7 +62,19 @@ tests_flavors_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors iot --flavors dogstatsd'
+    FLAVORS: '--flavors iot'
+
+tests_flavor_dogstatsd_deb-x64:
+  extends:
+    - .rtloader_tests
+    - .linux_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    PYTHON_RUNTIMES: '3'
+    CONDA_ENV: ddpy3
+    FLAVORS: '--flavors dogstatsd'
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
