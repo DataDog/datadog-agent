@@ -42,7 +42,9 @@ type dockerContainerLogInterface interface {
 //  - decoder
 //  - message forwarder
 type Tailer struct {
+	// ContainerID is the ID of the container this tailer is tailing.
 	ContainerID string
+
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
 	dockerutil  dockerContainerLogInterface
