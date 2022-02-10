@@ -157,7 +157,7 @@ var (
 	// `FIM` feature is enabled
 	MetricSecurityAgentFIMContainersRunning = newAgentMetric(".fim.containers_running")
 
-	// Runtime Compilaed Constants metrics
+	// Runtime Compiled Constants metrics
 
 	// MetricRuntimeCompiledConstantsEnabled is used to report if the runtime compilation has succeeded
 	MetricRuntimeCompiledConstantsEnabled = newRuntimeCompiledConstantsMetric(".enabled")
@@ -167,6 +167,142 @@ var (
 	MetricRuntimeCompiledConstantsCompilationDuration = newRuntimeCompiledConstantsMetric(".compilation_duration")
 	// MetricRuntimeCompiledConstantsHeaderFetchResult is used to report the result of the header fetching
 	MetricRuntimeCompiledConstantsHeaderFetchResult = newRuntimeCompiledConstantsMetric(".header_fetch_result")
+
+	// RuntimeMonitor metrics
+
+	// MetricRuntimeMonitorGoAlloc is the name of the metric used to report the size in bytes of allocated heap objects
+	// Tags: -
+	MetricRuntimeMonitorGoAlloc = newRuntimeMetric(".runtime_monitor.go.alloc")
+	// MetricRuntimeMonitorGoTotalAlloc is the name of the metric used to report the cumulative size of bytes allocated
+	// for heap objects
+	// Tags: -
+	MetricRuntimeMonitorGoTotalAlloc = newRuntimeMetric(".runtime_monitor.go.total_alloc")
+	// MetricRuntimeMonitorGoSys is the name of the metric used to report the total size in bytes of memory obtained from
+	// the OS
+	// Tags: -
+	MetricRuntimeMonitorGoSys = newRuntimeMetric(".runtime_monitor.go.sys")
+	// MetricRuntimeMonitorGoLookups is the name of the metric used to report the number of pointer lookups performed by
+	// the runtime
+	// Tags: -
+	MetricRuntimeMonitorGoLookups = newRuntimeMetric(".runtime_monitor.go.lookups")
+	// MetricRuntimeMonitorGoMallocs is the name of the metric used to report the cumulative count of allocated heap
+	// objects
+	// Tags: -
+	MetricRuntimeMonitorGoMallocs = newRuntimeMetric(".runtime_monitor.go.mallocs")
+	// MetricRuntimeMonitorGoFrees is the name of the metric used to report the cumulative count of freed heap objects
+	// Tags: -
+	MetricRuntimeMonitorGoFrees = newRuntimeMetric(".runtime_monitor.go.frees")
+	// MetricRuntimeMonitorGoHeapAlloc is the name of the metric used to report the size in bytes of allocated heap
+	// objects (including reachable and unreachable objects that the garbage collector has not yet freed)
+	// Tags: -
+	MetricRuntimeMonitorGoHeapAlloc = newRuntimeMetric(".runtime_monitor.go.heap_alloc")
+	// MetricRuntimeMonitorGoHeapSys is the name of the metric used to report the size in bytes of heap memory obtained
+	// from the OS. This includes virtual address space that has been reserved but not yet used, as well as virtual
+	// address space for which the physical memory has been returned to the OS after it became unused
+	// Tags: -
+	MetricRuntimeMonitorGoHeapSys = newRuntimeMetric(".runtime_monitor.go.heap_sys")
+	// MetricRuntimeMonitorGoHeapIdle is the name of the metric used to report the size in bytes in idle (unused) spans
+	// Tags: -
+	MetricRuntimeMonitorGoHeapIdle = newRuntimeMetric(".runtime_monitor.go.heap_idle")
+	// MetricRuntimeMonitorGoHeapInuse is the name of the metric used to report the size in bytes in in-use spans
+	// Tags: -
+	MetricRuntimeMonitorGoHeapInuse = newRuntimeMetric(".runtime_monitor.go.heap_inuse")
+	// MetricRuntimeMonitorGoHeapReleased is the name of the metric used to report the size in bytes of physical memory
+	// returned to the OS
+	// Tags: -
+	MetricRuntimeMonitorGoHeapReleased = newRuntimeMetric(".runtime_monitor.go.heap_released")
+	// MetricRuntimeMonitorGoHeapObjects is the name of the metric used to report the number of allocated heap objects
+	// Tags: -
+	MetricRuntimeMonitorGoHeapObjects = newRuntimeMetric(".runtime_monitor.go.heap_objects")
+	// MetricRuntimeMonitorGoStackInuse is the name of the metric used to report the size in bytes of stack spans
+	// Tags: -
+	MetricRuntimeMonitorGoStackInuse = newRuntimeMetric(".runtime_monitor.go.stack_inuse")
+	// MetricRuntimeMonitorGoStackSys is the name of the metric used to report the size in bytes of stack memory obtained
+	// from the OS
+	// Tags: -
+	MetricRuntimeMonitorGoStackSys = newRuntimeMetric(".runtime_monitor.go.stack_sys")
+	// MetricRuntimeMonitorGoMSpanInuse is the name of the metric used to report the size in bytes of allocated mspan
+	// structures
+	// Tags: -
+	MetricRuntimeMonitorGoMSpanInuse = newRuntimeMetric(".runtime_monitor.go.mspan_inuse")
+	// MetricRuntimeMonitorGoMSpanSys is the name of the metric used to report the size in bytes of memory obtained from
+	// the OS for mspan structures
+	// Tags: -
+	MetricRuntimeMonitorGoMSpanSys = newRuntimeMetric(".runtime_monitor.go.mspan_sys")
+	// MetricRuntimeMonitorGoMCacheInuse is the name of the metric used to report the size in bytes of allocated mcache
+	// structures
+	// Tags: -
+	MetricRuntimeMonitorGoMCacheInuse = newRuntimeMetric(".runtime_monitor.go.mcache_inuse")
+	// MetricRuntimeMonitorGoMCacheSys is the name of the metric used to report the size in bytes of memory obtained from
+	// the OS for mcache structures
+	// Tags: -
+	MetricRuntimeMonitorGoMCacheSys = newRuntimeMetric(".runtime_monitor.go.mcache_sys")
+	// MetricRuntimeMonitorGoBuckHashSys is the name of the metric used to report the size in bytes of memory in profiling
+	// bucket hash tables
+	// Tags: -
+	MetricRuntimeMonitorGoBuckHashSys = newRuntimeMetric(".runtime_monitor.go.buck_hash_sys")
+	// MetricRuntimeMonitorGoGCSys is the name of the metric used to report the size in bytes of memory in garbage
+	// collection metadata
+	// Tags: -
+	MetricRuntimeMonitorGoGCSys = newRuntimeMetric(".runtime_monitor.go.gc_sys")
+	// MetricRuntimeMonitorGoOtherSys is the name of the metric used to report the size in bytes of memory in miscellaneous
+	// off-heap runtime allocations
+	// Tags: -
+	MetricRuntimeMonitorGoOtherSys = newRuntimeMetric(".runtime_monitor.go.other_sys")
+	// MetricRuntimeMonitorGoNextGC is the name of the metric used to report the target heap size of the next GC cycle
+	// Tags: -
+	MetricRuntimeMonitorGoNextGC = newRuntimeMetric(".runtime_monitor.go.next_gc")
+	// MetricRuntimeMonitorGoNumGC is the name of the metric used to report the number of completed GC cycles
+	// Tags: -
+	MetricRuntimeMonitorGoNumGC = newRuntimeMetric(".runtime_monitor.go.num_gc")
+	// MetricRuntimeMonitorGoNumForcedGC is the name of the metric used to report the number of GC cycles that were forced
+	// by the application calling the GC function
+	// Tags: -
+	MetricRuntimeMonitorGoNumForcedGC = newRuntimeMetric(".runtime_monitor.go.num_forced_gc")
+
+	// MetricRuntimeMonitorProcRSS is the name of the metric used to report the RSS in bytes retrieved from Procfs
+	// Tags: -
+	MetricRuntimeMonitorProcRSS = newRuntimeMetric(".runtime_monitor.proc.rss")
+	// MetricRuntimeMonitorProcVMS is the name of the metric used to report the VMS in bytes retrieved from Procfs
+	// Tags: -
+	MetricRuntimeMonitorProcVMS = newRuntimeMetric(".runtime_monitor.proc.vms")
+	// MetricRuntimeMonitorProcShared is the name of the metric used to report the shared memory in bytes retrieved from Procfs
+	// Tags: -
+	MetricRuntimeMonitorProcShared = newRuntimeMetric(".runtime_monitor.proc.shared")
+	// MetricRuntimeMonitorProcText is the name of the metric used to report the text memory in bytes retrieved from Procfs
+	// Tags: -
+	MetricRuntimeMonitorProcText = newRuntimeMetric(".runtime_monitor.proc.text")
+	// MetricRuntimeMonitorProcLib is the name of the metric used to report the lib memory in bytes retrieved from Procfs
+	// Tags: -
+	MetricRuntimeMonitorProcLib = newRuntimeMetric(".runtime_monitor.proc.lib")
+	// MetricRuntimeMonitorProcData is the name of the metric used to report the data memory in bytes retrieved from Procfs
+	// Tags: -
+	MetricRuntimeMonitorProcData = newRuntimeMetric(".runtime_monitor.proc.data")
+	// MetricRuntimeMonitorProcDirty is the name of the metric used to report the dirty memory in bytes retrieved from Procfs
+	// Tags: -
+	MetricRuntimeMonitorProcDirty = newRuntimeMetric(".runtime_monitor.proc.dirty")
+
+	// MetricRuntimeCgroupMemoryStatPrefix is the prefix for the metrics collected in the memory.stat cgroup file
+	// Tags: -
+	MetricRuntimeCgroupMemoryStatPrefix = newRuntimeMetric(".runtime_monitor.cgroup.memory_stat.")
+	// MetricRuntimeCgroupMemoryUsageInBytes is the name of the metric used to report memory.usage_in_bytes
+	// Tags: -
+	MetricRuntimeCgroupMemoryUsageInBytes = newRuntimeMetric(".runtime_monitor.cgroup.memory.usage_in_bytes")
+	// MetricRuntimeCgroupMemoryLimitInBytes is the name of the metric used to report memory.limit_in_bytes
+	// Tags: -
+	MetricRuntimeCgroupMemoryLimitInBytes = newRuntimeMetric(".runtime_monitor.cgroup.memory.limit_in_bytes")
+	// MetricRuntimeCgroupMemoryMemSWUsageInBytes is the name of the metric used to report memory.memsw.usage_in_bytes
+	// Tags: -
+	MetricRuntimeCgroupMemoryMemSWUsageInBytes = newRuntimeMetric(".runtime_monitor.cgroup.memory.memsw_usage_in_bytes")
+	// MetricRuntimeCgroupMemoryMemSWLimitInBytes is the name of the metric used to report memory.memsw.limit_in_bytes
+	// Tags: -
+	MetricRuntimeCgroupMemoryMemSWLimitInBytes = newRuntimeMetric(".runtime_monitor.cgroup.memory.memsw_limit_in_bytes")
+	// MetricRuntimeCgroupMemoryKmemUsageInBytes is the name of the metric used to report memory.kmem.usage_in_bytes
+	// Tags: -
+	MetricRuntimeCgroupMemoryKmemUsageInBytes = newRuntimeMetric(".runtime_monitor.cgroup.memory.kmem_usage_in_bytes")
+	// MetricRuntimeCgroupMemoryKmemLimitInBytes is the name of the metric used to report memory.kmem.limit_in_bytes
+	// Tags: -
+	MetricRuntimeCgroupMemoryKmemLimitInBytes = newRuntimeMetric(".runtime_monitor.cgroup.memory.kmem_limit_in_bytes")
 )
 
 // SetTagsWithCardinality returns the array of tags and set the requested cardinality

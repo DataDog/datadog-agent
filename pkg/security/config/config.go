@@ -97,6 +97,8 @@ type Config struct {
 	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
 	// operation.
 	ActivityDumpCleanupPeriod time.Duration
+	// RuntimeMonitor defines if the runtime monitor should be enabled
+	RuntimeMonitor bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -141,6 +143,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		RuntimeCompiledConstantsIsSet:      aconfig.Datadog.IsSet("runtime_security_config.enable_runtime_compiled_constants"),
 		ActivityDumpEnabled:                aconfig.Datadog.GetBool("runtime_security_config.activity_dump_manager.enabled"),
 		ActivityDumpCleanupPeriod:          time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump_manager.cleanup_period")) * time.Second,
+		RuntimeMonitor:                     aconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
 	}
 
 	// if runtime is enabled then we force fim
