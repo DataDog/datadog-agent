@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/fatih/color"
@@ -30,6 +31,14 @@ var remoteConfigCmd = &cobra.Command{
 	Short: "Remote configuration state command",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		err := common.SetupConfigWithoutSecrets(confFilePath, "")
+		if err != nil {
+			return fmt.Errorf("Unable to set up global agent configuration: %v", err)
+		}
+
+		if !config.Datadog.GetBool("remote_configuration.enabled") {
+			return fmt.Errorf("Remote configuration is not enabled")
+		}
 		return state(cmd, args)
 	},
 }
@@ -37,10 +46,7 @@ var remoteConfigCmd = &cobra.Command{
 func state(cmd *cobra.Command, args []string, dialOpts ...grpc.DialOption) error {
 	fmt.Println("Fetching the configuration and director repos state..")
 	// Call GRPC endpoint returning state tree
-	err := common.SetupConfigWithoutSecrets(confFilePath, "")
-	if err != nil {
-		return fmt.Errorf("Unable to set up global agent configuration: %v", err)
-	}
+
 	token, err := security.FetchAuthToken()
 	if err != nil {
 		return fmt.Errorf("Couldn't get auth token: %v", err)
@@ -68,7 +74,7 @@ func state(cmd *cobra.Command, args []string, dialOpts ...grpc.DialOption) error
 	printTUFRepo(s.ConfigState)
 
 	fmt.Println("\nDirector repository")
-	fmt.Println(strings.Repeat("-", 25))
+	fmt.Println(strings.Repeat("-", 20))
 	printTUFRepo(s.DirectorState)
 
 	return nil
