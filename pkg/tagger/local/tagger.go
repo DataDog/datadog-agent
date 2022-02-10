@@ -28,36 +28,37 @@ import (
 type Tagger struct {
 	sync.RWMutex
 
-	store     *tagstore.TagStore
-	collector *collectors.WorkloadMetaCollector
+	tagStore      *tagstore.TagStore
+	workloadStore workloadmeta.Store
+	collector     *collectors.WorkloadMetaCollector
 
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
 // NewTagger returns an allocated tagger. You still have to run Init() once the
-// config package is ready.  You are probably looking for tagger.Tag() using
+// config package is ready. You are probably looking for tagger.Tag() using
 // the global instance instead of creating your own.
-func NewTagger(store workloadmeta.Store) *Tagger {
-	ctx, cancel := context.WithCancel(context.TODO())
-
-	tagStore := tagstore.NewTagStore()
-
-	t := &Tagger{
-		store:     tagStore,
-		collector: collectors.NewWorkloadMetaCollector(ctx, store, tagStore.InfoIn),
-		ctx:       ctx,
-		cancel:    cancel,
+func NewTagger(workloadStore workloadmeta.Store) *Tagger {
+	return &Tagger{
+		tagStore:      tagstore.NewTagStore(),
+		workloadStore: workloadStore,
 	}
-
-	return t
 }
 
 // Init goes through a catalog and tries to detect which are relevant
 // for this host. It then starts the collection logic and is ready for
 // requests.
-func (t *Tagger) Init() error {
-	go t.store.Run(t.ctx)
+func (t *Tagger) Init(ctx context.Context) error {
+	t.ctx, t.cancel = context.WithCancel(ctx)
+
+	t.collector = collectors.NewWorkloadMetaCollector(
+		t.ctx,
+		t.workloadStore,
+		t.tagStore.InfoIn,
+	)
+
+	go t.tagStore.Run(t.ctx)
 	go t.collector.Stream(t.ctx)
 
 	return nil
@@ -76,7 +77,7 @@ func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (
 		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
 	}
 
-	cachedTags := t.store.LookupHashed(entity, cardinality)
+	cachedTags := t.tagStore.LookupHashed(entity, cardinality)
 
 	telemetry.QueriesByCardinality(cardinality).Success.Inc()
 	return cachedTags, nil
@@ -105,14 +106,14 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 		return nil, fmt.Errorf("empty entity ID")
 	}
 
-	tags, err := t.store.LookupStandard(entity)
+	tags, err := t.tagStore.LookupStandard(entity)
 	if err == tagstore.ErrNotFound {
 		// entity not found yet in the tagger
 		// trigger tagger fetch operations
 		log.Debugf("Entity '%s' not found in tagger cache, will try to fetch it", entity)
 		_, _ = t.Tag(entity, collectors.LowCardinality)
 
-		return t.store.LookupStandard(entity)
+		return t.tagStore.LookupStandard(entity)
 	}
 
 	if err != nil {
@@ -124,22 +125,22 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	return t.store.GetEntity(entityID)
+	return t.tagStore.GetEntity(entityID)
 }
 
 // List the content of the tagger
 func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
-	return t.store.List()
+	return t.tagStore.List()
 }
 
 // Subscribe returns a channel that receives a slice of events whenever an entity is
 // added, modified or deleted. It can send an initial burst of events only to the new
 // subscriber, without notifying all of the others.
 func (t *Tagger) Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
-	return t.store.Subscribe(cardinality)
+	return t.tagStore.Subscribe(cardinality)
 }
 
 // Unsubscribe ends a subscription to entity events and closes its channel.
 func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
-	t.store.Unsubscribe(ch)
+	t.tagStore.Unsubscribe(ch)
 }

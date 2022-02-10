@@ -71,11 +71,11 @@ func NewTagger() *Tagger {
 
 // Init initializes the connection to the remote tagger and starts watching for
 // events.
-func (t *Tagger) Init() error {
+func (t *Tagger) Init(ctx context.Context) error {
 	t.health = health.RegisterLiveness("tagger")
 	t.telemetryTicker = time.NewTicker(1 * time.Minute)
 
-	t.ctx, t.cancel = context.WithCancel(context.Background())
+	t.ctx, t.cancel = context.WithCancel(ctx)
 
 	// NOTE: we're using InsecureSkipVerify because the gRPC server only
 	// persists its TLS certs in memory, and we currently have no
