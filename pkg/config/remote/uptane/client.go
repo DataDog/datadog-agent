@@ -127,6 +127,11 @@ func (s *State) DirectorTargetsVersion() uint64 {
 
 // State returns the state of the uptane client
 func (c *Client) State() (State, error) {
+	targets, err := c.Targets()
+	if err != nil {
+		return State{}, err
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -157,6 +162,9 @@ func (c *Client) State() (State, error) {
 		if err == nil {
 			s.DirectorState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
 		}
+	}
+	for targetName := range targets {
+		s.DirectorState[targetName] = MetaState{Version: 0, Hash: ""}
 	}
 
 	return s, nil

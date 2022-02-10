@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -84,7 +85,10 @@ func getStateString(state *pbgo.FileMetaState, padding int) string {
 	if state == nil {
 		return fmt.Sprintf(color.YellowString("%*s\n", padding, "- Not found"))
 	}
-	return fmt.Sprintf("%*s: %9d - Hash: %s\n", padding, "- Version", state.Version, state.Hash)
+	if state.Version > 0 {
+		return fmt.Sprintf("%*s: %9d - Hash: %s\n", padding, "- Version", state.Version, state.Hash)
+	}
+	return ""
 }
 
 func printTUFRepo(repo map[string]*pbgo.FileMetaState) {
@@ -116,7 +120,14 @@ func printTUFRepo(repo map[string]*pbgo.FileMetaState) {
 	}
 	fmt.Print(getStateString(targets, 14))
 
-	for name, state := range repo {
-		fmt.Printf("    |- %s %s\n", name, getStateString(state, 4))
+	// Sort the keys to display the targets in order
+	keys := make([]string, 0, len(repo))
+	for k := range repo {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, name := range keys {
+		fmt.Printf("    |- %s %s\n", name, getStateString(repo[name], 4))
 	}
 }

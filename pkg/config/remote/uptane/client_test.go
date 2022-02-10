@@ -101,7 +101,7 @@ func TestClientFullState(t *testing.T) {
 	state, err := client.State()
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(state.ConfigState))
-	assert.Equal(t, 4, len(state.DirectorState))
+	assert.Equal(t, 5, len(state.DirectorState))
 
 	assertMetaVersion(t, state.ConfigState, "root.json", 1)
 	assertMetaVersion(t, state.ConfigState, "timestamp.json", 11)
