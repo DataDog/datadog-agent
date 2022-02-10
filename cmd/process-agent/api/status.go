@@ -9,18 +9,14 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func statusHandler(w http.ResponseWriter, _ *http.Request) {
-	log.Trace("Received status request from process-agent")
+	log.Info("Got a request for the status. Making status.")
 
-	agentStatus, err := status.GetStatus()
-	if err != nil {
-		_ = log.Warn("failed to get status from agent:", agentStatus)
-	}
-
+	agentStatus := util.GetStatus()
 	b, err := json.Marshal(agentStatus)
 	if err != nil {
 		_ = log.Warn("failed to serialize status response from agent:", err)
