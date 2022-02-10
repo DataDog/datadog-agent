@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
+//go:build windows
 // +build windows
 
 package winkmem
@@ -29,10 +30,10 @@ const (
 	// KMemDefaultTopNum is the default number of kernel memory tags to return
 	KMemDefaultTopNum = 10
 
-	kSystemPoolTagInformation      = 0x16
-	kCEmptySystemInformationStruct = 48
-	kCEmptyPoolTagStruct           = 40
-	kStatusInformationMismatch     = 0xC0000004
+	systemPoolTagInformation          = 0x16
+	cEmptySystemInformationStructSize = 48
+	cEmptyPoolTagStructSize           = 40
+	statusInformationMismatchError    = 0xC0000004
 )
 
 var (
@@ -199,18 +200,18 @@ func (p sortKeyList) Swap(i, j int) {
 func (p sortKeyList) Less(i, j int) bool { return p[i].Key < p[j].Key }
 
 func getpoolinfo() (*systemPoolInformation, error) {
-	firstbuffer := make([]uint8, kCEmptySystemInformationStruct) // magic size of empty structure in C land
+	firstbuffer := make([]uint8, cEmptySystemInformationStructSize) // magic size of empty structure in C land
 	var returnlen uint32
-	r, _, _ := procNtQuerySystemInformation.Call(uintptr(kSystemPoolTagInformation),
+	r, _, _ := procNtQuerySystemInformation.Call(uintptr(systemPoolTagInformation),
 		uintptr(unsafe.Pointer(&firstbuffer[0])),
 		48,
 		uintptr(unsafe.Pointer(&returnlen)))
-	if r != kStatusInformationMismatch {
+	if r != statusInformationMismatchError {
 		return nil, fmt.Errorf("Expected STATUS_INFO_LENGTH_MISMATCH, got %v", r)
 	}
 
 	fullbuffer := make([]uint8, returnlen)
-	r, _, _ = procNtQuerySystemInformation.Call(uintptr(kSystemPoolTagInformation),
+	r, _, _ = procNtQuerySystemInformation.Call(uintptr(systemPoolTagInformation),
 		uintptr(unsafe.Pointer(&fullbuffer[0])),
 		uintptr(returnlen),
 		uintptr(unsafe.Pointer(&returnlen)))
@@ -238,7 +239,7 @@ func getpoolinfo() (*systemPoolInformation, error) {
 		// buffer, not 4.  (hence the 8+ in the magic calculation)
 		// Then, the actual structure is 40 bytes long, so the index into the buffer
 		// becomes the 8 bytes plus the number of structs we want to skip.
-		pt := (*systemPooltag)(unsafe.Pointer(&fullbuffer[8+(kCEmptyPoolTagStruct*i)]))
+		pt := (*systemPooltag)(unsafe.Pointer(&fullbuffer[8+(cEmptyPoolTagStructSize*i)]))
 
 		tagstr := string(pt.tag[:])
 		spi.byKey[tagstr] = i
