@@ -16,6 +16,11 @@ const mockedHostname = "VeryLongHostnameThatDoesNotFitIntoTheByteArray"
 
 var expectedEngineID = "\x80\xff\xff\xff\xff\x67\xb2\x0f\xe4\xdf\x73\x7a\xce\x28\x47\x03\x8f\x57\xe6\x5c\x98"
 
+var expectedEngineIDs = map[string]string{
+	"VeryLongHostnameThatDoesNotFitIntoTheByteArray": "\x80\xff\xff\xff\xff\x67\xb2\x0f\xe4\xdf\x73\x7a\xce\x28\x47\x03\x8f\x57\xe6\x5c\x98",
+	"VeryLongHostnameThatIsDifferent":                "\x80\xff\xff\xff\xff\xe7\x21\xcc\xd7\x0b\xe1\x60\xc5\x18\xd7\xde\x17\x86\xb0\x7d\x36",
+}
+
 func TestFullConfig(t *testing.T) {
 	Configure(t, Config{
 		Port: 1234,
@@ -97,7 +102,9 @@ func TestDefaultUsers(t *testing.T) {
 
 func TestBuildAuthoritativeEngineID(t *testing.T) {
 	Configure(t, Config{})
-	config, err := ReadConfig(mockedHostname)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedEngineID, config.authoritativeEngineID)
+	for hostname, engineID := range expectedEngineIDs {
+		config, err := ReadConfig(hostname)
+		assert.NoError(t, err)
+		assert.Equal(t, engineID, config.authoritativeEngineID)
+	}
 }
