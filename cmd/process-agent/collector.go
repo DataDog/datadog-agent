@@ -226,6 +226,7 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
 		extraHeaders.Set(headers.ProcessVersionHeader, Version)
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+		extraHeaders.Set("Content-Type", headers.ProtobufContentType)
 
 		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
