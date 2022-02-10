@@ -552,20 +552,6 @@ func Debugf(format string, params ...interface{}) {
 	logFormat(seelog.DebugLvl, func() { Debugf(format, params...) }, logger.debugf, format, params...)
 }
 
-// DebugServerless logs at the debug level only in a serverless context
-func DebugServerless(v ...interface{}) {
-	if isServerless() {
-		Debug(v...)
-	}
-}
-
-// DebugfServerless logs with format at the debug level only in a serverless context
-func DebugfServerless(format string, params ...interface{}) {
-	if isServerless() {
-		Debugf(format, params...)
-	}
-}
-
 // DebugcStackDepth logs at the debug level with context and the current stack depth plus the additional given one
 func DebugcStackDepth(message string, depth int, context ...interface{}) {
 	logContext(seelog.DebugLvl, func() { Debugc(message, context...) }, logger.debug, message, depth, context...)

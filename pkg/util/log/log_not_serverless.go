@@ -8,7 +8,12 @@
 
 package log
 
-// isServerless returns whether or not the agent is running in a serverless context
-func isServerless() bool {
-	return false
+// DebugServerless logs at the debug level only in a serverless context
+// no-op in a non serverless context
+func DebugServerless(v ...interface{}) {
+}
+
+// DebugfServerless logs with format at the debug level only in a serverless context
+// no-op in a non serverless context
+func DebugfServerless(format string, params ...interface{}) {
 }
