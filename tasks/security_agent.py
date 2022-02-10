@@ -478,7 +478,7 @@ RUN apt-get update -y \
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
-    cmd = 'docker run --name {container_name} {caps} --privileged -d --pid=host '
+    cmd = 'docker run --name {container_name} {caps} --privileged -d '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v /:/host/root -e HOST_ROOT=/host/root '

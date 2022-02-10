@@ -23,6 +23,7 @@
 kitchen_test_system_probe_linux_x64:
   extends:
     - .kitchen_test_system_probe
+    - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
   needs: [ "tests_ebpf_x64" ]
   variables:
@@ -68,6 +69,7 @@ kitchen_test_system_probe_windows_x64:
     - .kitchen_agent_a7
     - .kitchen_os_windows
     - .kitchen_test_system_probe
+    - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
   needs: [ "tests_windows_sysprobe_x64" ]
   variables:

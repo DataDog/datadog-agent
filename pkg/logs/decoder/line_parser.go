@@ -13,44 +13,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LineParser e
+// LineParser handles decoded lines, parsing them into decoder.Message's using
+// an embedded parsers.Parser.
+//
+// Input and output channels are given to the constructor for the concrete
+// type.  After Start(), the actor runs until its input channel is closed.
+// After all inputs are processed, the actor closes its output channel.
 type LineParser interface {
-	Handle(input *DecodedInput)
 	Start()
-	Stop()
 }
 
 // SingleLineParser makes sure that multiple lines from a same content
 // are properly put together.
 type SingleLineParser struct {
-	parser      parsers.Parser
-	inputChan   chan *DecodedInput
-	lineHandler LineHandler
+	parser     parsers.Parser
+	inputChan  chan *DecodedInput
+	outputChan chan *Message
 }
 
 // NewSingleLineParser returns a new SingleLineParser.
-func NewSingleLineParser(parser parsers.Parser, lineHandler LineHandler) *SingleLineParser {
+func NewSingleLineParser(
+	inputChan chan *DecodedInput,
+	outputChan chan *Message,
+	parser parsers.Parser) *SingleLineParser {
 	return &SingleLineParser{
-		parser:      parser,
-		inputChan:   make(chan *DecodedInput),
-		lineHandler: lineHandler,
+		parser:     parser,
+		inputChan:  inputChan,
+		outputChan: outputChan,
 	}
-}
-
-// Handle puts all new lines into a channel for later processing.
-func (p *SingleLineParser) Handle(input *DecodedInput) {
-	p.inputChan <- input
 }
 
 // Start starts the parser.
 func (p *SingleLineParser) Start() {
-	p.lineHandler.Start()
 	go p.run()
-}
-
-// Stop stops the parser.
-func (p *SingleLineParser) Stop() {
-	close(p.inputChan)
 }
 
 // run consumes new lines and processes them.
@@ -58,7 +53,7 @@ func (p *SingleLineParser) run() {
 	for input := range p.inputChan {
 		p.process(input)
 	}
-	p.lineHandler.Stop()
+	close(p.outputChan)
 }
 
 func (p *SingleLineParser) process(input *DecodedInput) {
@@ -67,7 +62,7 @@ func (p *SingleLineParser) process(input *DecodedInput) {
 	if err != nil {
 		log.Debug(err)
 	}
-	p.lineHandler.Handle(NewMessage(msg.Content, msg.Status, input.rawDataLen, msg.Timestamp))
+	p.outputChan <- NewMessage(msg.Content, msg.Status, input.rawDataLen, msg.Timestamp)
 }
 
 // MultiLineParser makes sure that chunked lines are properly put together.
@@ -75,7 +70,7 @@ type MultiLineParser struct {
 	buffer       *bytes.Buffer
 	flushTimeout time.Duration
 	inputChan    chan *DecodedInput
-	lineHandler  LineHandler
+	outputChan   chan *Message
 	parser       parsers.Parser
 	rawDataLen   int
 	lineLimit    int
@@ -84,30 +79,25 @@ type MultiLineParser struct {
 }
 
 // NewMultiLineParser returns a new MultiLineParser.
-func NewMultiLineParser(flushTimeout time.Duration, parser parsers.Parser, lineHandler LineHandler, lineLimit int) *MultiLineParser {
+func NewMultiLineParser(
+	inputChan chan *DecodedInput,
+	outputChan chan *Message,
+	flushTimeout time.Duration,
+	parser parsers.Parser,
+	lineLimit int,
+) *MultiLineParser {
 	return &MultiLineParser{
-		inputChan:    make(chan *DecodedInput),
+		inputChan:    inputChan,
+		outputChan:   outputChan,
 		buffer:       bytes.NewBuffer(nil),
 		flushTimeout: flushTimeout,
-		lineHandler:  lineHandler,
 		lineLimit:    lineLimit,
 		parser:       parser,
 	}
 }
 
-// Handle forward lines to lineChan to process them.
-func (p *MultiLineParser) Handle(input *DecodedInput) {
-	p.inputChan <- input
-}
-
-// Stop stops the handler.
-func (p *MultiLineParser) Stop() {
-	close(p.inputChan)
-}
-
 // Start starts the handler.
 func (p *MultiLineParser) Start() {
-	p.lineHandler.Start()
 	go p.run()
 }
 
@@ -120,7 +110,6 @@ func (p *MultiLineParser) run() {
 		// make sure the content stored in the buffer gets sent,
 		// this can happen when the stop is called in between two timer ticks.
 		p.sendLine()
-		p.lineHandler.Stop()
 	}()
 	for {
 		select {
@@ -179,6 +168,6 @@ func (p *MultiLineParser) sendLine() {
 	content := make([]byte, p.buffer.Len())
 	copy(content, p.buffer.Bytes())
 	if len(content) > 0 || p.rawDataLen > 0 {
-		p.lineHandler.Handle(NewMessage(content, p.status, p.rawDataLen, p.timestamp))
+		p.outputChan <- NewMessage(content, p.status, p.rawDataLen, p.timestamp)
 	}
 }

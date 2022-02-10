@@ -9,4 +9,5 @@ const (
 	defaultPort        = uint16(162) // Standard UDP port for traps.
 	defaultStopTimeout = 5
 	packetsChanSize    = 100
+	genericTrapOid     = "1.3.6.1.6.3.1.1.5"
 )

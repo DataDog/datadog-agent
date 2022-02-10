@@ -15,9 +15,11 @@ var truncatedFlag = []byte("...TRUNCATED...")
 // as delimiter for transport.
 var escapedLineFeed = []byte(`\n`)
 
-// LineHandler handles raw lines to form structured lines
+// LineHandler handles raw lines to form structured lines.
+//
+// Input and output channels are given to the constructor for the concrete
+// type.  After Start(), the actor runs until its input channel is closed.
+// After all inputs are processed, the actor closes its output channel.
 type LineHandler interface {
-	Handle(input *Message)
 	Start()
-	Stop()
 }

@@ -20,6 +20,7 @@ import (
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -94,7 +95,13 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 
 	httpClient := apiutil.GetClient(false)
 	ipcAddress, err := ddconfig.GetIPCAddress()
-	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, ddconfig.Datadog.GetInt("process_config.cmd_port"))
+
+	port := ddconfig.Datadog.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		return nil, fmt.Errorf("invalid process_config.cmd_port -- %d", port)
+	}
+
+	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, port)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +110,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand)
+	rootCmd.AddCommand(configCommand, app.StatusCmd())
 }
 
 // fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
@@ -323,9 +330,15 @@ func runAgent(exit chan struct{}) {
 		return
 	}
 
+	expVarPort := ddconfig.Datadog.GetInt("process_config.expvar_port")
+	if expVarPort <= 0 {
+		log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", expVarPort, ddconfig.DefaultProcessExpVarPort)
+		expVarPort = ddconfig.DefaultProcessExpVarPort
+	}
+
 	if opts.info {
 		// using the debug port to get info to work
-		url := fmt.Sprintf("http://localhost:%d/debug/vars", cfg.ProcessExpVarPort)
+		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
 		if err := Info(os.Stdout, cfg, url); err != nil {
 			cleanupAndExit(1)
 		}
@@ -337,9 +350,9 @@ func runAgent(exit chan struct{}) {
 		if ddconfig.Datadog.GetBool("telemetry.enabled") {
 			http.Handle("/telemetry", telemetry.Handler())
 		}
-		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil)
+		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", expVarPort), nil)
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", cfg.ProcessExpVarPort, err)
+			log.Errorf("Error creating expvar server on port %v: %v", expVarPort, err)
 		}
 	}()
 
