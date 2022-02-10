@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -95,10 +94,9 @@ func TestCreateContainerService(t *testing.T) {
 							"gcr.io/foobar",
 							"foobar",
 						},
-						hosts:        map[string]string{},
-						creationTime: integration.After,
-						ports:        []ContainerPort{},
-						ready:        true,
+						hosts: map[string]string{},
+						ports: []ContainerPort{},
+						ready: true,
 					},
 				},
 			},
@@ -132,10 +130,9 @@ func TestCreateContainerService(t *testing.T) {
 							"gcr.io/foobar",
 							"foobar",
 						},
-						hosts:        map[string]string{},
-						creationTime: integration.After,
-						ports:        []ContainerPort{},
-						ready:        true,
+						hosts: map[string]string{},
+						ports: []ContainerPort{},
+						ready: true,
 					},
 				},
 			},
@@ -162,8 +159,7 @@ func TestCreateContainerService(t *testing.T) {
 								Name: "http",
 							},
 						},
-						creationTime: integration.After,
-						ready:        true,
+						ready: true,
 					},
 				},
 			},
@@ -174,7 +170,7 @@ func TestCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newContainerListener(t)
 
-			listener.createContainerService(tt.container, integration.After)
+			listener.createContainerService(tt.container)
 
 			wlm.assertServices(tt.expectedServices)
 		})

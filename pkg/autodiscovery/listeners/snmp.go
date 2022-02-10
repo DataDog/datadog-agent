@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -48,7 +47,6 @@ type SNMPService struct {
 	adIdentifier string
 	entityID     string
 	deviceIP     string
-	creationTime integration.CreationTime
 	config       snmp.Config
 }
 
@@ -273,7 +271,6 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
-		creationTime: integration.Before,
 		config:       subnet.config,
 	}
 	l.services[entityID] = svc
@@ -363,11 +360,6 @@ func (s *SNMPService) GetPid(context.Context) (int, error) {
 // GetHostname returns nothing - not supported
 func (s *SNMPService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
-}
-
-// GetCreationTime returns the creation time of the Service
-func (s *SNMPService) GetCreationTime() integration.CreationTime {
-	return s.creationTime
 }
 
 // IsReady returns true

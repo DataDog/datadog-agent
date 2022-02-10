@@ -196,6 +196,8 @@ type DataType string
 const (
 	// Metrics type covers series & sketches
 	Metrics DataType = "metrics"
+	// Logs type covers all outgoing logs
+	Logs DataType = "logs"
 )
 
 // prometheusScrapeChecksTransformer is a trampoline function that delays the
@@ -986,6 +988,7 @@ func InitConfig(config Config) {
 
 	// Vector integration
 	bindVectorOptions(config, Metrics)
+	bindVectorOptions(config, Logs)
 
 	setAssetFs(config)
 	setupAPM(config)

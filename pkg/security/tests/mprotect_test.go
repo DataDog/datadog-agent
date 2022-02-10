@@ -25,7 +25,7 @@ func TestMProtectEvent(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mprotect",
-			Expression: `(mprotect.vm_protection & VM_WRITE > 0) && (mprotect.req_protection & VM_EXEC > 0)`,
+			Expression: `(mprotect.vm_protection & VM_WRITE > 0) && (mprotect.req_protection & VM_EXEC > 0) && process.file.name == "testsuite"`,
 		},
 	}
 

@@ -379,7 +379,7 @@ func (l *Launcher) startSocketTailer(container *Container, source *config.LogSou
 	tailer := tailer.NewTailer(dockerutil, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID, l.readTimeout)
 
 	// compute the offset to prevent from missing or duplicating logs
-	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
+	since, err := Since(l.registry, tailer.Identifier())
 	if err != nil {
 		log.Warnf("Could not recover tailing from last committed offset %v: %v", dockerutilpkg.ShortContainerID(containerID), err)
 	}
@@ -449,7 +449,7 @@ func (l *Launcher) restartTailer(containerID string) {
 	tailer := tailer.NewTailer(dockerutil, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID, l.readTimeout)
 
 	// compute the offset to prevent from missing or duplicating logs
-	since, err := Since(l.registry, tailer.Identifier(), service.Before)
+	since, err := Since(l.registry, tailer.Identifier())
 	if err != nil {
 		log.Warnf("Could not recover last committed offset for container %v: %v", dockerutilpkg.ShortContainerID(containerID), err)
 	}

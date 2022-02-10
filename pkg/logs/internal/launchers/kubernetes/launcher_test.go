@@ -487,7 +487,7 @@ func TestRetry(t *testing.T) {
 
 	sourceOutputChan := l.sources.GetAddedForType(config.FileType)
 
-	service := service.NewService(containerType, containerID, service.After)
+	service := service.NewService(containerType, containerID)
 	l.addSource(service)
 
 	ops := <-l.retryOperations
