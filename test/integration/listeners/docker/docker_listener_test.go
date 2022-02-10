@@ -61,7 +61,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	store.Start(context.Background())
 
 	tagger.SetDefaultTagger(local.NewTagger(store))
-	tagger.Init()
+	tagger.Init(context.Background())
 
 	var err error
 	suite.dockerutil, err = docker.GetDockerUtil()

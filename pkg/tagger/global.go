@@ -6,6 +6,7 @@
 package tagger
 
 import (
+	"context"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -48,7 +49,7 @@ var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_d
 	nil, "Dogstatsd UDP origin detection error count")
 
 // Init must be called once config is available, call it in your cmd
-func Init() error {
+func Init(ctx context.Context) error {
 	initOnce.Do(func() {
 		var err error
 		checkCard := config.Datadog.GetString("checks_tag_cardinality")

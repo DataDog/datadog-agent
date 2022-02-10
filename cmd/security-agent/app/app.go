@@ -279,7 +279,7 @@ func RunAgent(ctx context.Context) (err error) {
 	// Initialize the remote tagger
 	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
 		tagger.SetDefaultTagger(remote.NewTagger())
-		err := tagger.Init()
+		err := tagger.Init(ctx)
 		if err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}

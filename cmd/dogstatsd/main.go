@@ -213,10 +213,10 @@ func runAgent(ctx context.Context) (err error) {
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
 		store := workloadmeta.GetGlobalStore()
-		store.Start(context.Background())
+		store.Start(ctx)
 
 		tagger.SetDefaultTagger(local.NewTagger(store))
-		if err := tagger.Init(); err != nil {
+		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}

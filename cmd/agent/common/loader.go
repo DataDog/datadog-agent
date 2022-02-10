@@ -31,7 +31,7 @@ func LoadComponents(ctx context.Context, confdPath string) {
 		store.Start(ctx)
 
 		tagger.SetDefaultTagger(local.NewTagger(store))
-		if err := tagger.Init(); err != nil {
+		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
