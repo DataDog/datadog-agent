@@ -110,7 +110,6 @@ var (
 	downloadPolicyCmd = &cobra.Command{
 		Use:   "download",
 		Short: "Download policies",
-		Args:  cobra.MaximumNArgs(1),
 		RunE:  downloadPolicy,
 	}
 
@@ -333,7 +332,7 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 		policiesDir := coreconfig.Datadog.GetString("runtime_security_config.policies.dir")
 		outputPath = path.Join(policiesDir, "default.policy")
 	} else {
-		outputPath = args[0]
+		outputPath = downloadPolicyArgs.outputPath
 	}
 
 	downloadURL := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
