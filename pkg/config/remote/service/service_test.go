@@ -63,6 +63,11 @@ func (m *mockUptane) TargetsMeta() ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+func (m *mockUptane) TargetsCustom() ([]byte, error) {
+	args := m.Called()
+	return args.Get(0).([]byte), args.Error(1)
+}
+
 var (
 	testRCKey = msgpgo.RemoteConfigKey{
 		AppKey:     "fake_key",

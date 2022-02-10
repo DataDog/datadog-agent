@@ -855,7 +855,9 @@ func init() {
 	proto.RegisterType((*TaggerStateResponse)(nil), "datadog.model.v1.TaggerStateResponse")
 }
 
-func init() { proto.RegisterFile("datadog/model/v1/model.proto", fileDescriptor_bfe05c03006d01ea) }
+func init() {
+	proto.RegisterFile("datadog/model/v1/model.proto", fileDescriptor_bfe05c03006d01ea)
+}
 
 var fileDescriptor_bfe05c03006d01ea = []byte{
 	// 872 bytes of a gzipped FileDescriptorProto

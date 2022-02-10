@@ -113,6 +113,13 @@ func (c *Client) State() (State, error) {
 	}, nil
 }
 
+// TargetsCustom returns the current targets custom of this uptane client
+func (c *Client) TargetsCustom() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.directorLocalStore.GetMetaCustom(metaTargets)
+}
+
 // DirectorRoot returns a director root
 func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
 	c.Lock()
