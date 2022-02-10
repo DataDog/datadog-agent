@@ -238,15 +238,15 @@ func TestService(t *testing.T) {
 	uptaneClient.On("Targets").Return(data.TargetFiles{"datadog/2/APM_SAMPLING/id/1": {}, "datadog/2/TESTING1/id/1": {}, "datadog/2/APM_SAMPLING/id/2": {}, "datadog/2/APPSEC/id/1": {}}, nil)
 	uptaneClient.On("State").Return(uptane.State{
 		ConfigState: map[string]uptane.MetaState{
-			"root.json":      uptane.MetaState{Version: 1},
-			"snapshot.json":  uptane.MetaState{Version: 2},
-			"timestamp.json": uptane.MetaState{Version: 3},
-			"targets.json":   uptane.MetaState{Version: 4},
-			"role1.json":     uptane.MetaState{Version: 5},
+			"root.json":      {Version: 1},
+			"snapshot.json":  {Version: 2},
+			"timestamp.json": {Version: 3},
+			"targets.json":   {Version: 4},
+			"role1.json":     {Version: 5},
 		},
 		DirectorState: map[string]uptane.MetaState{
-			"root.json":    uptane.MetaState{Version: 4},
-			"targets.json": uptane.MetaState{Version: 5},
+			"root.json":    {Version: 4},
+			"targets.json": {Version: 5},
 		},
 	}, nil)
 	uptaneClient.On("DirectorRoot", uint64(3)).Return(root3, nil)
