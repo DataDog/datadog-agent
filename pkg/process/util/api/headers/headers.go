@@ -16,4 +16,6 @@ const (
 	ClusterIDHeader = "X-Dd-Orchestrator-ClusterID"
 	// TimestampHeader contains the timestamp that the check data was created
 	TimestampHeader = "X-DD-Agent-Timestamp"
+	// ProtobufContentType contains that the content type is protobuf
+	ProtobufContentType = "application/x-protobuf"
 )

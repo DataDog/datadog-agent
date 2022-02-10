@@ -423,6 +423,7 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 		extraHeaders.Set(headers.HostHeader, hostName)
 		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+		extraHeaders.Set("Content-Type", headers.ProtobufContentType)
 
 		body, err := processPayloadEncoder(m)
 		if err != nil {
