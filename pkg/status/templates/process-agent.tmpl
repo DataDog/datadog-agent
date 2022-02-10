@@ -2,79 +2,47 @@
 Process Agent
 =============
 
-{{- if .Errors }}
-  Status: Testing Process Agent Status on main agent
-  Error: {{ .Errors }}
+{{- if .error }}
+  Status: Not running or unreachable
 {{- else }}
-  Status: Running
-  Uptime: {{ .uptime }}
-  Last Updated: {{ formatUnixTime .updated_at }}
-{{- end }}
-{{- if .network_tracer }}
+  Version: {{ .core.version }}
+  Status date: {{ formatUnixTime .date }}
+  Process Agent Start: {{ formatUnixTime .expvars.uptime_nano }}
+  Pid: {{ .expvars.pid }}
+  Go Version: {{ .core.go_version }}
+  Build arch: {{ .core.build_arch }}
+  Log Level: {{ .core.config.log_level }}
+  Enabled Checks: {{ .expvars.enabled_checks }}
+  Allocated Memory: {{ .expvars.memstats.alloc }} bytes
+  Hostname: {{ .core.metadata.meta.hostname }}
 
-  NPM
-  ===
-  {{- if .network_tracer.Error }}
-    Status: Not running
-    Error: {{ .network_tracer.Error }}
+  =================
+  Process Endpoints
+  =================
+  {{- with .expvars.endpoints}}
+    {{- range $key, $value := .}}
+    {{$key}} - API Key{{ if gt (len $value) 1}}s{{end}} ending with:
+      {{- range $idx, $apikey := $value }}
+        - {{$apikey}}
+      {{- end}}
+    {{- end}}
   {{- else }}
-    Status: Running
-    {{- if .network_tracer.tracer.last_check }}
-    Last Check: {{ formatUnixTime .network_tracer.tracer.last_check }}
-    {{- end }}
-    {{- if .network_tracer.state.clients }}
-    Client Count: {{ len .network_tracer.state.clients }}
-    {{- end }}
-  {{- end }}
-{{- end }}
-{{- if .oom_kill_probe }}
 
-  OOM Kill
-  ========
-  {{- if .oom_kill_probe.Error }}
-    Status: Not running
-    Error: {{ .oom_kill_probe.Error }}
-  {{- else }}
-    Status: Running
-    {{- if .oom_kill_probe.last_check }}
-    Last Check: {{ formatUnixTime .oom_kill_probe.last_check }}
-    {{- end }}
+    No endpoints information. The agent may be misconfigured.
   {{- end }}
-{{- end }}
-{{- if .tcp_queue_length_tracer }}
 
-  TCP Queue Length
-  ================
-  {{- if .tcp_queue_length_tracer.Error }}
-    Status: Not running
-    Error: {{ .tcp_queue_length_tracer.Error }}
-  {{- else }}
-    Status: Running
-    {{- if .tcp_queue_length_tracer.last_check }}
-    Last Check: {{ formatUnixTime .tcp_queue_length_tracer.last_check }}
-    {{- end }}
-  {{- end }}
-{{- end }}
-{{- if .security_runtime }}
+  =========
+  Collector
+  =========
 
-  Runtime Security
-  ================
-  {{- if .security_runtime.Error }}
-    Status: Not running
-    Error: {{ .security_runtime.Error }}
-  {{- else }}
-    Status: Running
-  {{- end }}
-{{- end }}
-{{- if .process }}
-
-  Process
-  =======
-  {{- if .process.Error }}
-    Status: Not running
-    Error: {{ .process.Error }}
-  {{- else }}
-    Status: Running
-  {{- end }}
-{{- end }}
-
+    Last collection time: {{.expvars.last_collect_time}}
+    Docker socket: {{.expvars.docker_socket}}
+    Number of processes: {{.expvars.process_count}}
+    Number of containers: {{.expvars.container_count}}
+    Process Queue length: {{.expvars.process_queue_size}}
+    RTProcess Queue length: {{.expvars.rtprocess_queue_size}}
+    Pod Queue length: {{.expvars.pod_queue_size}}
+    Process Bytes enqueued: {{.expvars.process_queue_bytes}}
+    RTProcess Bytes enqueued: {{.expvars.rtprocess_queue_bytes}}
+    Pod Bytes enqueued: {{.expvars.pod_queue_bytes}}
+{{ end }}

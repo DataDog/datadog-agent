@@ -6,30 +6,37 @@
 package status
 
 import (
+	"encoding/json"
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
-// GetProcessAgentStats returns the status command of the process-agent
+//TODO: do not use a global var for this
+var httpClient = apiutil.GetClient(false)
+
+// GetProcessAgentStatus returns the status command of the process-agent
 func GetProcessAgentStatus() map[string]interface{} {
-	//net.SetSystemProbePath(socketPath)
-	//probeUtil, err := net.GetRemoteSystemProbeUtil()
-
-	//if err != nil {
-	//	return map[string]interface{}{
-	//		"Errors": fmt.Sprintf("%v", err),
-	//	}
-	//}
-
-	processAgentStatus := map[string]interface{}{
-		"Errors": fmt.Sprintf("Testing process-agent status"),
+	s := make(map[string]interface{})
+	addressPort, err := api.GetAPIAddressPort()
+	if err != nil {
+		s["error"] = fmt.Sprintf("%v", err.Error())
+		return s
 	}
 
-	//systemProbeDetails, err := probeUtil.GetStats()
-	//if err != nil {
-	//	return map[string]interface{}{
-	//		"Errors": fmt.Sprintf("issue querying stats from system probe: %v", err),
-	//	}
-	//}
+	statusEndpoint := fmt.Sprintf("http://%s/agent/status", addressPort)
+	b, err := apiutil.DoGet(httpClient, statusEndpoint)
+	if err != nil {
+		s["error"] = fmt.Sprintf("%v", err.Error())
+		return s
+	}
 
-	return processAgentStatus
+	err = json.Unmarshal(b, &s)
+	if err != nil {
+		s["error"] = fmt.Sprintf("%v", err.Error())
+		return s
+	}
+
+	return s
 }

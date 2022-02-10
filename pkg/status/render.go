@@ -139,6 +139,17 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	return b.String(), nil
 }
 
+// FormatProcessAgentStatus takes a json bytestring and prints out the formatted status for process-agent
+func FormatProcessAgentStatus(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats) //nolint:errcheck
+	renderStatusTemplate(b, "/process-agent.tmpl", stats)
+
+	return b.String(), nil
+}
+
 // FormatMetadataMapCLI builds the rendering in the metadataMapper template.
 func FormatMetadataMapCLI(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
