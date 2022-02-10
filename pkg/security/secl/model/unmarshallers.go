@@ -6,6 +6,7 @@
 package model
 
 import (
+	"fmt"
 	"time"
 	"unsafe"
 )
@@ -568,9 +569,8 @@ func (p *BPFProgram) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	p.Tag, err = UnmarshalString(data[56:64], 8)
-	if err != nil {
-		return 0, err
+	for _, b := range data[56:64] {
+		p.Tag += fmt.Sprintf("%x", b)
 	}
 	return 64, nil
 }

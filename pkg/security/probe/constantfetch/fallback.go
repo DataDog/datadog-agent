@@ -217,6 +217,27 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 112
 	case kv.IsRH8Kernel():
 		nameOffset = 80
+	case kv.IsSLES15Kernel():
+		nameOffset = 88
+	case kv.IsSLES12Kernel():
+		nameOffset = 176
+
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel5_1):
+		nameOffset = 176
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_1, kernel.Kernel5_3):
+		nameOffset = 200
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_5):
+		if kv.IsOracleUEKKernel() {
+			nameOffset = 200
+		} else {
+			nameOffset = 168
+		}
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_5, kernel.Kernel5_11):
+		nameOffset = 88
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_13):
+		nameOffset = 80
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+		nameOffset = 80
 	}
 
 	return nameOffset
@@ -227,7 +248,14 @@ func getBpfMapTypeOffset(kv *kernel.Version) uint64 {
 }
 
 func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
-	return uint64(32)
+	auxOffset := uint64(32)
+
+	switch {
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+		auxOffset = 56
+	}
+
+	return auxOffset
 }
 
 func getBpfProgTagOffset(kv *kernel.Version) uint64 {
@@ -250,6 +278,21 @@ func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
 		idOffset = 8
 	case kv.IsRH8Kernel():
 		idOffset = 32
+	case kv.IsSLES15Kernel():
+		idOffset = 28
+	case kv.IsSLES12Kernel():
+		idOffset = 16
+
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel5_0):
+		idOffset = 16
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_4):
+		idOffset = 20
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_8):
+		idOffset = 24
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_13):
+		idOffset = 28
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+		idOffset = 32
 	}
 
 	return idOffset
@@ -262,6 +305,25 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 	case kv.IsRH7Kernel():
 		nameOffset = 144
 	case kv.IsRH8Kernel():
+		nameOffset = 528
+	case kv.IsSLES15Kernel():
+		nameOffset = 256
+	case kv.IsSLES12Kernel():
+		nameOffset = 160
+
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
+		nameOffset = 152
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		nameOffset = 160
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_8):
+		nameOffset = 176
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_10):
+		nameOffset = 416
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		nameOffset = 496
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_13):
+		nameOffset = 504
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
 		nameOffset = 528
 	}
 

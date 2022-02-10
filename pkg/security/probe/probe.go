@@ -1081,7 +1081,7 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_offset", "struct bpf_prog", "aux", "linux/filter.h")
 	constantFetcher.AppendOffsetofRequest("bpf_prog_type_offset", "struct bpf_prog", "type", "linux/filter.h")
 
-	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code > kernel.Kernel4_16 {
+	if probe.kernelVersion.Code != 0 && (probe.kernelVersion.Code > kernel.Kernel4_16 || probe.kernelVersion.IsSLES12Kernel() || probe.kernelVersion.IsSLES15Kernel()) {
 		constantFetcher.AppendOffsetofRequest("bpf_prog_attach_type_offset", "struct bpf_prog", "expected_attach_type", "linux/filter.h")
 	}
 	return constantFetcher.FinishAndGetResults()
