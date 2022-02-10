@@ -335,7 +335,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		tlmTxHTTPErrors.Inc(t.Domain, transactionEndpointName, statusCode)
 	}
 
-	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
+	if resp.StatusCode == 400 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %q, dropping it", resp.Status, logURL, truncateBodyForLog(body))
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
