@@ -2871,7 +2871,7 @@ api_key:
 
         ## @param grpc - custom object - optional
         ## Configuration for OTLP/gRPC listener.
-        ## Setting this as an empty section will enable the OTLP/gRPC listener with default options.
+        ## Setting this as an empty section enables the OTLP/gRPC listener with default options.
         #
         # grpc:
 
@@ -2884,13 +2884,13 @@ api_key:
           ## @param transport - string - optional - default: tcp
           ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT - string - optional - default: tcp
           ## The OTLP/gRPC listener transport protocol. 
-          ## Known protocols are "tcp", "udp", "ip", "unix", "unixgram" and "unixpacket".
+          ## Known protocols are "tcp", "udp", "ip", "unix", "unixgram", and "unixpacket".
           # 
           # transport: tcp
 
         ## @param http - custom object - optional
         ## Configuration for OTLP/HTTP listener.
-        ## Setting this as an empty section will enable the OTLP/HTTP listener with default options.
+        ## Setting this as an empty section enables the OTLP/HTTP listener with default options.
         #
         # http:
 
