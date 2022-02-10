@@ -23,6 +23,7 @@ Bug Fixes
 - Fixes a panic that happens occasionally when handling tags for deleted
   containers or pods.
 
+- Fixes security module failing to start on kernels 4.14 and 4.15.
 
 .. _Release Notes_7.33.0:
 
