@@ -10,14 +10,10 @@ package log
 
 // DebugServerless logs at the debug level only in a serverless context
 func DebugServerless(v ...interface{}) {
-	if isServerless() {
-		Debug(v...)
-	}
+	Debug(v...)
 }
 
 // DebugfServerless logs with format at the debug level only in a serverless context
 func DebugfServerless(format string, params ...interface{}) {
-	if isServerless() {
-		Debugf(format, params...)
-	}
+	Debugf(format, params...)
 }
