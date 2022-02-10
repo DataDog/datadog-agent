@@ -6,6 +6,7 @@
 package local
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,10 +18,10 @@ import (
 
 func TestTagBuilder(t *testing.T) {
 	tagger := NewTagger(workloadmeta.GetGlobalStore())
-	tagger.Init()
+	tagger.Init(context.Background())
 	defer tagger.Stop()
 
-	tagger.store.ProcessTagInfo([]*collectors.TagInfo{
+	tagger.tagStore.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Entity:       "entity_name",
 			Source:       "stream",

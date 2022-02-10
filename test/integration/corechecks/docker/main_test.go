@@ -111,7 +111,7 @@ func setup() error {
 
 	// Setup tagger
 	tagger.SetDefaultTagger(local.NewTagger(store))
-	tagger.Init()
+	tagger.Init(context.Background())
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
