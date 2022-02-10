@@ -66,7 +66,9 @@ func (g *KeyGenerator) GenerateWithTags(name, hostname string, tagsBuf *tagset.H
 // Tags from l, r are combined to produce the key and deduplicated, but most of the time left in
 // their respective buffers.
 func (g *KeyGenerator) GenerateWithTags2(name, hostname string, l, r *tagset.HashingTagsAccumulator) (ContextKey, TagsKey, TagsKey) {
-	lHash, rHash := g.hg.Hash2(l, r)
+	g.hg.Dedup2(l, r)
+	lHash := l.Hash()
+	rHash := r.Hash()
 	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ lHash ^ rHash
 	return ContextKey(hash), TagsKey(lHash), TagsKey(rHash)
 }

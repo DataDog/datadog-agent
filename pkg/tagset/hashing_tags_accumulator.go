@@ -114,3 +114,15 @@ func (h *HashingTagsAccumulator) Swap(i, j int) {
 func (h *HashingTagsAccumulator) Dup() *HashingTagsAccumulator {
 	return &HashingTagsAccumulator{h.dup()}
 }
+
+// Hash returns combined hashes of all tags in the accumulator.
+//
+// Does not account for possibility of duplicates. Must be called after a call to Dedup2 or SortUniq
+// first.
+func (h *HashingTagsAccumulator) Hash() uint64 {
+	var hash uint64
+	for _, h := range h.hash {
+		hash ^= h
+	}
+	return hash
+}

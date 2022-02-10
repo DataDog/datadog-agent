@@ -136,24 +136,18 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 	return hash
 }
 
-// Hash2 combines the hashes of unique tags in l and r accumulators. Duplicate tags are removed, so
-// at the end tag each tag is present once in either l or r, but not both at the same time.
+// Dedup2 removes duplicates from two tags accumulators. Duplicate tags are removed, so at the end
+// tag each tag is present once in either l or r, but not both at the same time.
 //
 // First, duplicates are removed from l. Then duplicates are removed from r, including any tags that
 // are already present in l. Can move tags from one accumulator to another.
-func (g *HashGenerator) Hash2(l *HashingTagsAccumulator, r *HashingTagsAccumulator) (uint64, uint64) {
-	var hash [2]uint64
-
+func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumulator) {
 	ntags := l.Len() + r.Len()
 
 	if ntags > hashSetSize {
 		l.AppendHashingAccumulator(r)
 		l.SortUniq()
 		r.Reset()
-
-		for _, h := range l.hash {
-			hash[0] ^= h
-		}
 	} else if ntags > bruteforceSize {
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
@@ -168,7 +162,7 @@ func (g *HashGenerator) Hash2(l *HashingTagsAccumulator, r *HashingTagsAccumulat
 		copy(g.seenIdx[:size], g.empty[:size])
 
 		ibase := int16(0)
-		for tbi, tb := range [2]*HashingTagsAccumulator{l, r} {
+		for _, tb := range [2]*HashingTagsAccumulator{l, r} {
 			tags := tb.data
 			hashes := tb.hash
 			ntags := len(hashes)
@@ -180,7 +174,6 @@ func (g *HashGenerator) Hash2(l *HashingTagsAccumulator, r *HashingTagsAccumulat
 					if g.seenIdx[j] == blank {
 						g.seen[j] = h
 						g.seenIdx[j] = int16(i) + ibase
-						hash[tbi] ^= h
 						i++
 						break
 					} else if g.seen[j] == h {
@@ -215,7 +208,6 @@ func (g *HashGenerator) Hash2(l *HashingTagsAccumulator, r *HashingTagsAccumulat
 					continue L
 				}
 			}
-			hash[0] ^= h
 			g.seen[i] = h
 			i++
 		}
@@ -243,13 +235,10 @@ func (g *HashGenerator) Hash2(l *HashingTagsAccumulator, r *HashingTagsAccumulat
 					continue R
 				}
 			}
-			hash[1] ^= h
 			g.seen[lsize+i] = h
 			i++
 		}
 		r.Truncate(rsize)
 
 	}
-
-	return hash[0], hash[1]
 }
