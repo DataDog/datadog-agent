@@ -135,3 +135,121 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 
 	return hash
 }
+
+// Hash2 combines the hashes of unique tags in l and r accumulators. Duplicate tags are removed, so
+// at the end tag each tag is present once in either l or r, but not both at the same time.
+//
+// First, duplicates are removed from l. Then duplicates are removed from r, including any tags that
+// are already present in l. Can move tags from one accumulator to another.
+func (g *HashGenerator) Hash2(l *HashingTagsAccumulator, r *HashingTagsAccumulator) (uint64, uint64) {
+	var hash [2]uint64
+
+	ntags := l.Len() + r.Len()
+
+	if ntags > hashSetSize {
+		l.AppendHashingAccumulator(r)
+		l.SortUniq()
+		r.Reset()
+
+		for _, h := range l.hash {
+			hash[0] ^= h
+		}
+	} else if ntags > bruteforceSize {
+		// reset the `seen` hashset.
+		// it copies `g.empty` instead of using make because it's faster
+
+		// for smaller tag sets, initialize only a portion of the array. when len(tags) is
+		// close to a power of two, size one up to keep hashset load low.
+		size := 1 << bits.Len(uint(ntags+ntags/8))
+		if size > hashSetSize {
+			size = hashSetSize
+		}
+		mask := uint64(size - 1)
+		copy(g.seenIdx[:size], g.empty[:size])
+
+		ibase := int16(0)
+		for tbi, tb := range [2]*HashingTagsAccumulator{l, r} {
+			tags := tb.data
+			hashes := tb.hash
+			ntags := len(hashes)
+
+			for i := 0; i < ntags; {
+				h := hashes[i]
+				j := h & mask
+				for {
+					if g.seenIdx[j] == blank {
+						g.seen[j] = h
+						g.seenIdx[j] = int16(i) + ibase
+						hash[tbi] ^= h
+						i++
+						break
+					} else if g.seen[j] == h {
+						idx := g.seenIdx[j]
+						if (idx >= ibase && tags[idx-ibase] == tags[i]) ||
+							(idx < ibase && l.data[idx] == tags[i]) {
+							tags[i] = tags[ntags-1]
+							hashes[i] = hashes[ntags-1]
+							ntags--
+							break
+						}
+					}
+					j = (j + 1) & mask
+				}
+			}
+			ibase = int16(ntags)
+			tb.Truncate(ntags)
+		}
+	} else {
+		ldata := l.data
+		lhash := l.hash
+		lsize := len(ldata)
+
+	L:
+		for i := 0; i < lsize; {
+			h := lhash[i]
+			for j := 0; j < i; j++ {
+				if g.seen[j] == h && ldata[j] == ldata[i] {
+					lsize--
+					ldata[i] = ldata[lsize]
+					lhash[i] = lhash[lsize]
+					continue L
+				}
+			}
+			hash[0] ^= h
+			g.seen[i] = h
+			i++
+		}
+		l.Truncate(lsize)
+
+		rdata := r.data
+		rhash := r.hash
+		rsize := len(rdata)
+	R:
+		for i := 0; i < rsize; {
+			h := rhash[i]
+			for j := 0; j < lsize; j++ {
+				if g.seen[j] == h && ldata[j] == rdata[i] {
+					rsize--
+					rdata[i] = rdata[rsize]
+					rhash[i] = rhash[rsize]
+					continue R
+				}
+			}
+			for j := 0; j < i; j++ {
+				if g.seen[lsize+j] == h && rdata[j] == rdata[i] {
+					rsize--
+					rdata[i] = rdata[rsize]
+					rhash[i] = rhash[rsize]
+					continue R
+				}
+			}
+			hash[1] ^= h
+			g.seen[lsize+i] = h
+			i++
+		}
+		r.Truncate(rsize)
+
+	}
+
+	return hash[0], hash[1]
+}

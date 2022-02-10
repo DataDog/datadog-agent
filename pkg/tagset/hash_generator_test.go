@@ -8,6 +8,8 @@ package tagset
 import (
 	"fmt"
 	"math/rand"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,4 +114,87 @@ func genTags(count int, div int) ([]string, []string) {
 	}
 
 	return tags, uniq
+}
+
+func TestHash2Small(t *testing.T) {
+	g := NewHashGenerator()
+
+	cases := []struct {
+		name             string
+		l, r, expL, expR string
+	}{
+		{"empty", "", "", "", ""},
+		{"empty l small", "", "foo", "", "foo"},
+		{"empty r small", "foo", "", "foo", ""},
+		{"small-1", "foo,foo,bar", "ook", "foo,bar", "ook"},
+		{"small-2", "foo,bar", "foo,ook", "foo,bar", "ook"},
+		{"small-3", "foo", "ook,foo,eek", "foo", "ook,eek"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := NewHashingTagsAccumulatorWithTags(strings.Split(tc.l, ","))
+			r := NewHashingTagsAccumulatorWithTags(strings.Split(tc.r, ","))
+
+			b := NewHashingTagsAccumulator()
+			b.Append(l.Get()...)
+			b.Append(r.Get()...)
+
+			hl, hr := g.Hash2(l, r)
+			got := hl ^ hr
+			exp := g.Hash(b)
+
+			assert.EqualValues(t, exp, got)
+			assert.EqualValues(t, tc.expL, strings.Join(l.Get(), ","))
+			assert.EqualValues(t, tc.expR, strings.Join(r.Get(), ","))
+		})
+	}
+}
+
+func TestHash2Rand(t *testing.T) {
+	g := NewHashGenerator()
+
+	for i := 1; i <= 1024; i *= 4 {
+		for j := 1; j < 4; j++ {
+			for k := 0; k < 20; k++ {
+				tags, _ := genTags(i, j)
+				rand.Shuffle(len(tags), func(i, j int) { tags[i], tags[j] = tags[j], tags[i] })
+				for n := 0; n <= len(tags); n += len(tags)/5 + 1 {
+					b := NewHashingTagsAccumulatorWithTags(tags)
+					l := NewHashingTagsAccumulatorWithTags(tags[:n])
+					r := NewHashingTagsAccumulatorWithTags(tags[n:])
+
+					h1 := g.Hash(b)
+					hl, hr := g.Hash2(l, r)
+					h2 := hl ^ hr
+
+					assert.EqualValues(t, h1, h2)
+					l.AppendHashingAccumulator(r)
+
+					sort.Sort(b)
+					sort.Sort(l)
+
+					assert.EqualValues(t, b.Get(), l.Get())
+				}
+			}
+		}
+	}
+}
+
+func BenchmarkHash2(b *testing.B) {
+	tags, _ := genTags(2048, 1)
+	for i := 1; i < 4096; i *= 2 {
+		l := NewHashingTagsAccumulatorWithTags(tags[:i/2])
+		r := NewHashingTagsAccumulatorWithTags(tags[i/2 : i])
+		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
+			hg := NewHashGenerator()
+			l, r := l.Dup(), r.Dup()
+			b.ReportAllocs()
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				hl, hr := hg.Hash2(l, r)
+				Hash = hl ^ hr
+			}
+		})
+	}
 }
