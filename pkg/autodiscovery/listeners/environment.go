@@ -9,7 +9,6 @@ import (
 	"context"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -126,11 +125,6 @@ func (s *EnvironmentService) GetPid(context.Context) (int, error) {
 // GetHostname returns nil and an error because port is not supported in this listener
 func (s *EnvironmentService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
-}
-
-// GetCreationTime is always before for environment service
-func (s *EnvironmentService) GetCreationTime() integration.CreationTime {
-	return integration.Before
 }
 
 // IsReady is always true

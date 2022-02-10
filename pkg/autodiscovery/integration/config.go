@@ -27,16 +27,6 @@ type RawMap map[interface{}]interface{}
 // JSONMap is the generic type to hold JSON configurations
 type JSONMap map[string]interface{}
 
-// CreationTime represents the moment when the service was launched compare to the agent start.
-type CreationTime int
-
-const (
-	// Before indicates the service was launched before the agent start
-	Before CreationTime = iota
-	// After indicates the service was launched after the agent start
-	After
-)
-
 // Config is a generic container for configuration data specific to an
 // integration.  It contains snippets of configuration for various agent
 // components, in fields of type Data.
@@ -92,9 +82,6 @@ type Config struct {
 
 	// NodeName is node name in case of an endpoint check backed by a pod
 	NodeName string `json:"node_name"` // (include in digest: true)
-
-	// CreationTime is creation time of service
-	CreationTime CreationTime `json:"-"` // (include in digest: false)
 
 	// Source is the source of the configuration
 	Source string `json:"source"` // (include in digest: false)
