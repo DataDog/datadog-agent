@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"time"
@@ -327,17 +328,20 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 		site = "datadoghq.com"
 	}
 
-	var outputPath string
-	if downloadPolicyArgs.outputPath == "" {
-		policiesDir := coreconfig.Datadog.GetString("runtime_security_config.policies.dir")
-		outputPath = path.Join(policiesDir, "default.policy")
+	var outputWriter io.Writer
+	if downloadPolicyArgs.outputPath == "" || downloadPolicyArgs.outputPath == "-" {
+		outputWriter = os.Stdout
 	} else {
-		outputPath = downloadPolicyArgs.outputPath
+		f, err := os.Create(downloadPolicyArgs.outputPath)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		outputWriter = f
 	}
 
 	downloadURL := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
 	fmt.Printf("Policy download url: %s\n", downloadURL)
-	fmt.Printf("Output path:         %s\n", outputPath)
 
 	headers := map[string]string{
 		"Content-Type":       "application/json",
@@ -354,6 +358,7 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	resBytes := []byte(res)
 
 	tempDir, err := os.MkdirTemp("", "policy_check")
 	if err != nil {
@@ -362,7 +367,7 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 	defer os.RemoveAll(tempDir)
 
 	tempOutputPath := path.Join(tempDir, "check.policy")
-	if err := os.WriteFile(tempOutputPath, []byte(res), 0644); err != nil {
+	if err := os.WriteFile(tempOutputPath, resBytes, 0644); err != nil {
 		return err
 	}
 
@@ -372,5 +377,6 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return os.Rename(tempOutputPath, outputPath)
+	_, err = outputWriter.Write(resBytes)
+	return err
 }
