@@ -66,7 +66,7 @@ func writeError(w io.Writer, e error) {
 func fetchStatus() ([]byte, error) {
 	addressPort, err := api.GetAPIAddressPort()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("config error: %s", err.Error())
 	}
 
 	statusEndpoint := fmt.Sprintf("http://%s/agent/status", addressPort)

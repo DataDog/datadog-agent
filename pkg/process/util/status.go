@@ -17,18 +17,21 @@ import (
 
 var httpClient = apiutil.GetClient(false)
 
+// CoreStatus holds core info about the process-agent
 type CoreStatus struct {
-	AgentVersion  string       `json:"version"`
-	GoVersion     string       `json:"go_version"`
-	PythonVersion string       `json:"python_version"`
-	Arch          string       `json:"build_arch"`
-	Config        ConfigStatus `json:"config"`
-	Metadata      host.Payload `json:"metadata"`
+	AgentVersion string       `json:"version"`
+	GoVersion    string       `json:"go_version"`
+	Arch         string       `json:"build_arch"`
+	Config       ConfigStatus `json:"config"`
+	Metadata     host.Payload `json:"metadata"`
 }
 
+// ConfigStatus holds config settings from process-agent
 type ConfigStatus struct {
 	LogLevel string `json:"log_level"`
 }
+
+// InfoVersion holds information about process-agent version
 type InfoVersion struct {
 	Version   string
 	GitCommit string
@@ -37,6 +40,7 @@ type InfoVersion struct {
 	GoVersion string
 }
 
+// ProcessExpvars holds values fetched from the exp var server
 type ProcessExpvars struct {
 	Pid        int     `json:"pid"`
 	Uptime     int     `json:"uptime"`
@@ -62,22 +66,27 @@ type ProcessExpvars struct {
 	Endpoints           map[string][]string `json:"endpoints"`
 }
 
+// Status holds status info from process-agent
 type Status struct {
-	Date    float64
-	Core    CoreStatus     // Contains the status from the core agent
-	Expvars ProcessExpvars // Contains the expvars retrieved from the process agent
+	Date    float64        `json:"date"`
+	Core    CoreStatus     `json:"core"`    // Contains the status from the core agent
+	Expvars ProcessExpvars `json:"expvars"` // Contains the expvars retrieved from the process agent
 }
 
+// StatusOption is a function that acts on a Status object
 type StatusOption func(s *Status)
 
+// ConnectionError represents an error to connect to a HTTP server
 type ConnectionError struct {
 	error
 }
 
+// NewConnectionError returns a new ConnectionError
 func NewConnectionError(err error) ConnectionError {
 	return ConnectionError{err}
 }
 
+// OverrideTime overrides the Date from a Status object
 func OverrideTime(t time.Time) StatusOption {
 	return func(s *Status) {
 		s.Date = float64(t.UnixNano())
@@ -95,10 +104,9 @@ func getCoreStatus() (s CoreStatus) {
 	}
 
 	return CoreStatus{
-		AgentVersion:  version.AgentVersion,
-		GoVersion:     runtime.Version(),
-		PythonVersion: host.GetPythonVersion(),
-		Arch:          runtime.GOARCH,
+		AgentVersion: version.AgentVersion,
+		GoVersion:    runtime.Version(),
+		Arch:         runtime.GOARCH,
 		Config: ConfigStatus{
 			LogLevel: ddconfig.Datadog.GetString("log_level"),
 		},
@@ -127,20 +135,17 @@ func getExpvars() (s ProcessExpvars, err error) {
 	return
 }
 
-func GetStatus() map[string]interface{} {
-	stats := make(map[string]interface{})
-
+// GetStatus returns a Status object with runtime information about process-agent
+func GetStatus() (*Status, error) {
 	coreStatus := getCoreStatus()
-
-	processStatus, err := getExpvars()
+	processExpVars, err := getExpvars()
 	if err != nil {
-		stats["error"] = fmt.Sprintf("%v", err.Error())
-		return stats
+		return nil, err
 	}
 
-	stats["date"] = float64(time.Now().UnixNano())
-	stats["core"] = coreStatus
-	stats["expvars"] = processStatus
-
-	return stats
+	return &Status{
+		Date:    float64(time.Now().UnixNano()),
+		Core:    coreStatus,
+		Expvars: processExpVars,
+	}, nil
 }

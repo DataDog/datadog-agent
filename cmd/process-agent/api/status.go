@@ -16,10 +16,20 @@ import (
 func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	log.Info("Got a request for the status. Making status.")
 
-	agentStatus := util.GetStatus()
+	agentStatus, err := util.GetStatus()
+	if err != nil {
+		if err != nil {
+			_ = log.Warn("failed to get status from agent:", agentStatus)
+			body, _ := json.Marshal(map[string]string{"error": err.Error()})
+			http.Error(w, string(body), http.StatusInternalServerError)
+		}
+	}
+
 	b, err := json.Marshal(agentStatus)
 	if err != nil {
 		_ = log.Warn("failed to serialize status response from agent:", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), http.StatusInternalServerError)
 	}
 
 	_, err = w.Write(b)
