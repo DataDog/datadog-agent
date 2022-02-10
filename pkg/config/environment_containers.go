@@ -167,8 +167,8 @@ func detectFargate(features FeatureMap) {
 		// traces, events...
 		// To ease customer configuration, the agent should inject dd_tags to the dogstatsd_tags configuration option
 		// to have the same behaviour with dogstatsd metrics than with other metrics.
-		dsd_tags := merge(Datadog.GetStringSlice("dogstatsd_tags"), Datadog.GetStringSlice("dd_tags"))
-		AddOverride("dogstatsd_tags", dsd_tags)
+		dsdTags := merge(Datadog.GetStringSlice("dogstatsd_tags"), Datadog.GetStringSlice("dd_tags"))
+		AddOverride("dogstatsd_tags", dsdTags)
 	}
 }
 
