@@ -85,9 +85,7 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
     bool inMemory)
 {
     auto cflags = defaultCflags;
-    for (auto it = extraCflags.begin(); it != extraCflags.end(); it++) {
-        cflags.push_back(*it);
-    }
+    cflags.insert(cflags.end(), extraCflags.begin(), extraCflags.end());
 
     if (verbose) {
         cflags.push_back("-v");
