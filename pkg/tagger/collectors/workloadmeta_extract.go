@@ -166,7 +166,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) *TagInfo 
 		if err == nil {
 			kubeTags = true
 		} else {
-			log.Debugf("container %q cannot get tags from pod %s: %s (sources: %s)", container.ID, podID, err, ev.Sources)
+			log.Debugf("container %q cannot get tags from pod %s: %s", container.ID, podID, err)
 		}
 	}
 

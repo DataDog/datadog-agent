@@ -78,7 +78,7 @@ func (c *WorkloadMetaCollector) Stream(ctx context.Context) {
 		select {
 		case evBundle, ok := <-ch:
 			if !ok {
-				return nil
+				return
 			}
 
 			c.processEvents(evBundle)

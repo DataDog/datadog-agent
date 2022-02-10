@@ -507,36 +507,21 @@ func TestHandleContainer(t *testing.T) {
 					Tag:       "",
 				},
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
-						"docker_image:redis", // Notice that there's no tag
-						"image_name:redis",
-						"short_image:redis",
-						fmt.Sprintf("container_id:%s", entityID.ID),
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("display_container_name:%s_%s", podContainerName, podName),
-					},
-					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
-					},
-					LowCardTags: append([]string{
-						fmt.Sprintf("image_id:%s", podImage.ID),
-						fmt.Sprintf("image_name:%s", podImage.Name),
-						fmt.Sprintf("image_tag:%s", podImage.Tag),
-						fmt.Sprintf("kube_container_name:%s", podContainerName),
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("short_image:%s", podImage.ShortName),
-					}, standardTags...),
-					StandardTags: standardTags,
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("container_id:%s", entityID.ID),
+				},
+				OrchestratorCardTags: []string{},
+				LowCardTags: append([]string{
+					"docker_image:redis", // Notice that there's no tag
+					"image_name:redis",
+					"short_image:redis",
+				}),
+				StandardTags: []string{},
+			},
 		},
-	},
 		{
 			name: "k8s container",
 			container: workloadmeta.Container{
@@ -867,15 +852,12 @@ func TestHandlePodStaticTags(t *testing.T) {
 		},
 	}
 
-	expected := []*TagInfo{
-		{
-			Source:               podSource,
-			Entity:               "kubernetes_pod_uid://uid",
-			HighCardTags:         []string{},
-			OrchestratorCardTags: []string{},
-			LowCardTags:          []string{"eks_fargate_node:node", "kube_cluster_name:cluster"},
-			StandardTags:         []string{},
-		},
+	expected := &TagInfo{
+		Entity:               "kubernetes_pod_uid://uid",
+		HighCardTags:         []string{},
+		OrchestratorCardTags: []string{},
+		LowCardTags:          []string{"eks_fargate_node:node", "kube_cluster_name:cluster"},
+		StandardTags:         []string{},
 	}
 
 	actual := collector.handleKubePod(workloadmeta.Event{
@@ -883,7 +865,7 @@ func TestHandlePodStaticTags(t *testing.T) {
 		Entity: &pod,
 	})
 
-	assertTagInfoListEqual(t, expected, actual)
+	assertTagInfoEqual(t, expected, actual)
 }
 
 func TestParseJSONValue(t *testing.T) {
