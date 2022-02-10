@@ -269,14 +269,14 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	}, nil
 }
 
-// GetFullState returns the state of the configuration and the director repos in the local store
-func (s *Service) GetFullState() (*pbgo.FullStateResponse, error) {
+// ConfigGetState returns the state of the configuration and the director repos in the local store
+func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	state, err := s.uptane.State()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &pbgo.FullStateResponse{
+	response := &pbgo.GetStateConfigResponse{
 		ConfigState:   map[string]*pbgo.FileMetaState{},
 		DirectorState: map[string]*pbgo.FileMetaState{},
 	}

@@ -122,7 +122,7 @@ message FileMetaState {
   string hash = 2;
 }
 
-message FullStateResponse {
+message GetStateConfigResponse {
   map<string, FileMetaState> config_state = 1;
   map<string, FileMetaState> director_state = 2;
 }

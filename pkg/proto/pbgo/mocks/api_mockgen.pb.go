@@ -180,14 +180,14 @@ func (mr *MockAgentSecureClientMockRecorder) DogstatsdSetTaggerState(ctx, in int
 }
 
 // GetConfigFullState mocks base method.
-func (m *MockAgentSecureClient) GetConfigFullState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*pbgo.FullStateResponse, error) {
+func (m *MockAgentSecureClient) GetConfigFullState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*pbgo.GetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "GetConfigFullState", varargs...)
-	ret0, _ := ret[0].(*pbgo.FullStateResponse)
+	ret0, _ := ret[0].(*pbgo.GetStateConfigResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -431,10 +431,10 @@ func (mr *MockAgentSecureServerMockRecorder) DogstatsdSetTaggerState(arg0, arg1 
 }
 
 // GetConfigFullState mocks base method.
-func (m *MockAgentSecureServer) GetConfigFullState(arg0 context.Context, arg1 *emptypb.Empty) (*pbgo.FullStateResponse, error) {
+func (m *MockAgentSecureServer) GetConfigFullState(arg0 context.Context, arg1 *emptypb.Empty) (*pbgo.GetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetConfigFullState", arg0, arg1)
-	ret0, _ := ret[0].(*pbgo.FullStateResponse)
+	ret0, _ := ret[0].(*pbgo.GetStateConfigResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

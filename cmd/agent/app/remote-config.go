@@ -26,7 +26,7 @@ func init() {
 }
 
 var remoteConfigCmd = &cobra.Command{
-	Use:   "remote-config [command]",
+	Use:   "remote-config",
 	Short: "Remote configuration state command",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,45 +74,44 @@ func state(cmd *cobra.Command, args []string, dialOpts ...grpc.DialOption) error
 	return nil
 }
 
+func getStateString(state *pbgo.FileMetaState, padding int) string {
+	if state == nil {
+		return fmt.Sprintf(color.YellowString("%*s\n", padding, "- Not found"))
+	}
+	return fmt.Sprintf("%*s: %9d - Hash: %s\n", padding, "- Version", state.Version, state.Hash)
+}
+
 func printTUFRepo(repo map[string]*pbgo.FileMetaState) error {
 	root, found := repo["root.json"]
 	fmt.Print("root.json")
 	if found {
-		fmt.Printf("%20s: %9d - Hash: %s\n", "- Version", root.Version, root.Hash)
 		delete(repo, "root.json")
-	} else {
-		fmt.Printf(color.YellowString("%20s\n", "- Not found"))
 	}
+	fmt.Print(getStateString(root, 20))
 
 	timestamp, found := repo["timestamp.json"]
 	fmt.Print("|- timestamp.json")
 	if found {
-		fmt.Printf("%12s: %9d - Hash: %s\n", "- Version", timestamp.Version, timestamp.Hash)
 		delete(repo, "timestamp.json")
-	} else {
-		fmt.Printf(color.YellowString("%14s\n", "- Not found"))
 	}
+	fmt.Print(getStateString(timestamp, 12))
 
 	snapshot, found := repo["snapshot.json"]
 	fmt.Print("|- snapshot.json")
 	if found {
-		fmt.Printf("%13s: %9d - Hash: %s\n", "- Version", snapshot.Version, snapshot.Hash)
 		delete(repo, "snapshot.json")
-	} else {
-		fmt.Printf(color.YellowString("%15s\n", "- Not found"))
 	}
+	fmt.Print(getStateString(snapshot, 13))
 
 	targets, found := repo["targets.json"]
 	fmt.Print("|- targets.json")
 	if found {
-		fmt.Printf("%14s: %9d - Hash: %s\n", "- Version", targets.Version, targets.Hash)
 		delete(repo, "targets.json")
-	} else {
-		fmt.Printf(color.YellowString("%16s\n", "- Not found"))
 	}
+	fmt.Print(getStateString(targets, 14))
 
 	for name, state := range repo {
-		fmt.Printf("    |- %s - Version: %9d - Hash: %s\n", name, state.Version, state.Hash)
+		fmt.Printf("    |- %s %s\n", name, getStateString(state, 4))
 	}
 
 	return nil

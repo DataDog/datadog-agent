@@ -275,7 +275,7 @@ func TestService(t *testing.T) {
 	err = service.refresh()
 	assert.NoError(t, err)
 
-	stateResponse, err := service.GetFullState()
+	stateResponse, err := service.ConfigGetState()
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(stateResponse.ConfigState))
 	assert.Equal(t, uint64(5), stateResponse.ConfigState["role1.json"].Version)
