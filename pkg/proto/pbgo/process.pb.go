@@ -64,9 +64,7 @@ func init() {
 	proto.RegisterType((*ProcessStatRequest)(nil), "datadog.process.ProcessStatRequest")
 }
 
-func init() {
-	proto.RegisterFile("datadog/process/process.proto", fileDescriptor_07928c410743578c)
-}
+func init() { proto.RegisterFile("datadog/process/process.proto", fileDescriptor_07928c410743578c) }
 
 var fileDescriptor_07928c410743578c = []byte{
 	// 110 bytes of a gzipped FileDescriptorProto
