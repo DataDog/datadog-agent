@@ -47,7 +47,6 @@ type Tailer struct {
 
 	readTimeout        time.Duration
 	sleepDuration      time.Duration
-	shouldStop         bool
 	stop               chan struct{}
 	done               chan struct{}
 	erroredContainerID chan string
@@ -273,7 +272,6 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		t.shouldStop = true
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
