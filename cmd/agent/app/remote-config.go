@@ -87,7 +87,7 @@ func getStateString(state *pbgo.FileMetaState, padding int) string {
 	return fmt.Sprintf("%*s: %9d - Hash: %s\n", padding, "- Version", state.Version, state.Hash)
 }
 
-func printTUFRepo(repo map[string]*pbgo.FileMetaState) error {
+func printTUFRepo(repo map[string]*pbgo.FileMetaState) {
 	root, found := repo["root.json"]
 	fmt.Print("root.json")
 	if found {
@@ -119,6 +119,4 @@ func printTUFRepo(repo map[string]*pbgo.FileMetaState) error {
 	for name, state := range repo {
 		fmt.Printf("    |- %s %s\n", name, getStateString(state, 4))
 	}
-
-	return nil
 }
