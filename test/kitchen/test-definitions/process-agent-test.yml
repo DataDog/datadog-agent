@@ -4,15 +4,49 @@ suites:
     - "recipe[dd-agent-install]"
   attributes:
     datadog:
+      <% dd_agent_config.each do |key, value| %>
+      <%= key %>: <%= value %>
+      <% end %>
       extra_config:
         process_config:
           process_collection:
             enabled: true
+    dd-agent-install:
+      agent_major_version: <%= agent_major_version %>
+      <% if ENV['AGENT_VERSION'] %>
+      windows_version: "<%= ENV['AGENT_VERSION'] %>"
+      <% end %>
+      <% if ENV['WINDOWS_AGENT_FILE'] %>
+      windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+      <% end %>
+      windows_agent_url: <%= windows_agent_url %>
+      extra_config:
+        process_config:
+          process_collection:
+            enabled: true
+
 - name: "container-collection-test"
   run_list:
     - "recipe[dd-agent-install]"
   attributes:
     datadog:
+      <% dd_agent_config.each do |key, value| %>
+      <%= key %>: <%= value %>
+      <% end %>
+      extra_config:
+        process_config:
+          container_collection:
+            enabled: true
+
+    dd-agent-install:
+      agent_major_version: <%= agent_major_version %>
+      <% if ENV['AGENT_VERSION'] %>
+      windows_version: "<%= ENV['AGENT_VERSION'] %>"
+      <% end %>
+      <% if ENV['WINDOWS_AGENT_FILE'] %>
+      windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+      <% end %>
+      windows_agent_url: <%= windows_agent_url %>
       extra_config:
         process_config:
           container_collection:

@@ -218,3 +218,11 @@ kitchen_centos_fips_upgrade7_iot_agent-a7:
   extends:
     - .kitchen_scenario_centos_8_fips_a7
     - .kitchen_test_upgrade7_iot_agent
+
+kitchen_centos_process_agent-a7:
+  variables:
+    KITCHEN_OSVERS: "rhel-81"
+    DEFAULT_KITCHEN_OSVERS: "rhel-81"
+  extends:
+    - .kitchen_scenario_centos_all_non_fips_a7
+    - .kitchen_test_process_agent
