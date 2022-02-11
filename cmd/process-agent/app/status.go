@@ -112,6 +112,11 @@ func getAndWriteStatus(w io.Writer, options ...util.StatusOption) {
 	}
 
 	stats, err := ddstatus.FormatProcessAgentStatus(body)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
 	w.Write([]byte(stats))
 }
 
