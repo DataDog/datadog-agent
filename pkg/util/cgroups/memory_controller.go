@@ -30,7 +30,7 @@ type MemoryMonitor func(cgroup cgroups.Cgroup) (cgroups.MemoryEvent, func(), err
 // MemoryPercentageThresholdMonitor monitors memory usage above a specified percentage threshold
 func MemoryPercentageThresholdMonitor(cb func(), percentage uint64, swap bool) MemoryMonitor {
 	return func(cgroup cgroups.Cgroup) (cgroups.MemoryEvent, func(), error) {
-		metrics, err := cgroup.Stat()
+		metrics, err := cgroup.Stat(cgroups.IgnoreNotExist)
 		if err != nil {
 			return nil, nil, fmt.Errorf("can't get cgroup metrics: %w", err)
 		}
