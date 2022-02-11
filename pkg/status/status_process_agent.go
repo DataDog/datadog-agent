@@ -57,8 +57,8 @@ func marshalError(err error) []byte {
 	return b
 }
 
-// GetProcessAgentRuntimeConfig fetches the process-agent runtime configs
-// The API server in process-agent already scrubs and marshals the runtime configs as YAML.
+// GetProcessAgentRuntimeConfig fetches the process-agent runtime settings.
+// The API server in process-agent already scrubs and marshals the runtime settings as YAML.
 // Since the api_key has been obfuscated with *, we're not able to unmarshal the response as YAML because *
 // is not a valid YAML character
 func GetProcessAgentRuntimeConfig() []byte {
