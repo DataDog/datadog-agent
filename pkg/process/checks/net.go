@@ -98,7 +98,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	connTel := c.diffAndFormatTelemetry(conns.ConnTelemetry)
+	connTel := c.diffAndFormatTelemetry(conns.ConnTelemetryMap)
 
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
@@ -278,7 +278,7 @@ func batchConnections(
 	cxs []*model.Connection,
 	dns map[string]*model.DNSEntry,
 	networkID string,
-	connTelemetry map[string]int64,
+	connTelemetryMap map[string]int64,
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	domains []string,
 	routes []*model.Route,
@@ -398,7 +398,7 @@ func batchConnections(
 
 		// only add the telemetry to the first message to prevent double counting
 		if len(batches) == 0 {
-			cc.ConnTelemetryMap = connTelemetry
+			cc.ConnTelemetryMap = connTelemetryMap
 			cc.CompilationTelemetryByAsset = compilationTelemetry
 		}
 		batches = append(batches, cc)
