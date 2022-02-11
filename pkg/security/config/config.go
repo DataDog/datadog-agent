@@ -7,11 +7,13 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -106,6 +108,17 @@ func (c *Config) IsEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
 
+func setEnv() {
+	if aconfig.IsContainerized() && util.PathExists("/host") {
+		if v := os.Getenv("HOST_PROC"); v == "" {
+			os.Setenv("HOST_PROC", "/host/proc")
+		}
+		if v := os.Getenv("HOST_SYS"); v == "" {
+			os.Setenv("HOST_SYS", "/host/sys")
+		}
+	}
+}
+
 // NewConfig returns a new Config object
 func NewConfig(cfg *config.Config) (*Config, error) {
 	c := &Config{
@@ -180,5 +193,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}
 
+	setEnv()
 	return c, nil
 }
