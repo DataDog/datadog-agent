@@ -15,6 +15,7 @@ import (
 
 	"github.com/containerd/containerd"
 	apievents "github.com/containerd/containerd/api/events"
+	containerdcontainers "github.com/containerd/containerd/containers"
 	containerdevents "github.com/containerd/containerd/events"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -87,11 +88,9 @@ func TestIgnoreEvent(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			client := fake.MockedContainerdClient{
 				MockContainerWithCtx: test.getContainerFn,
-				MockImage: func(ctn containerd.Container) (containerd.Image, error) {
-					return &mockedImage{
-						mockName: func() string {
-							return test.imgName
-						},
+				MockInfo: func(containerd.Container) (containerdcontainers.Container, error) {
+					return containerdcontainers.Container{
+						Image: test.imgName,
 					}, nil
 				},
 			}

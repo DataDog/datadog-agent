@@ -59,21 +59,15 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	}
 
 	client := fake.MockedContainerdClient{
-		MockLabels: func(ctn containerd.Container) (map[string]string, error) {
-			return labels, nil
-		},
-		MockImage: func(ctn containerd.Container) (containerd.Image, error) {
-			return &mockedImage{
-				mockName: func() string {
-					return imgName
-				},
-			}, nil
-		},
 		MockEnvVars: func(ctn containerd.Container) (map[string]string, error) {
 			return envVars, nil
 		},
 		MockInfo: func(ctn containerd.Container) (containers.Container, error) {
-			return containers.Container{CreatedAt: createdAt}, nil
+			return containers.Container{
+				Labels:    labels,
+				CreatedAt: createdAt,
+				Image:     imgName,
+			}, nil
 		},
 		MockSpec: func(ctn containerd.Container) (*oci.Spec, error) {
 			return &oci.Spec{Hostname: hostName}, nil

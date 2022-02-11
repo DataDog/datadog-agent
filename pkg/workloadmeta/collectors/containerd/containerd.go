@@ -289,13 +289,13 @@ func (c *collector) ignoreEvent(ctx context.Context, containerdEvent *containerd
 		return false, err
 	}
 
-	img, err := c.containerdClient.Image(container)
+	info, err := c.containerdClient.Info(container)
 	if err != nil {
 		return false, err
 	}
 
 	// Only the image name is relevant to exclude paused containers
-	return c.filterPausedContainers.IsExcluded("", img.Name(), ""), nil
+	return c.filterPausedContainers.IsExcluded("", info.Image, ""), nil
 }
 
 func subscribeFilters() []string {
