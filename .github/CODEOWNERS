@@ -164,7 +164,7 @@
 /pkg/collector/corechecks/system/       @DataDog/agent-platform
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
-/pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
+/pkg/config/config_template.yaml        @DataDog/agent-core @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app

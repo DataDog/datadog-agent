@@ -15,10 +15,12 @@
 # NODE_LAYER_VERSION [number] - A specific layer version of datadog-lambda-js to use.
 # PYTHON_LAYER_VERSION [number] - A specific layer version of datadog-lambda-py to use.
 # JAVA_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-java to use.
+# ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
 
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
 DEFAULT_JAVA_TRACE_LAYER_VERSION=4
+DEFAULT_ENABLE_RACE_DETECTION=false
 
 # Text formatting constants
 RED="\e[1;41m"
@@ -49,10 +51,14 @@ LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
 if [ "$BUILD_EXTENSION" != "false" ]; then
     echo "Building extension"
 
+    if [ -z "$ENABLE_RACE_DETECTION" ]; then
+        export ENABLE_RACE_DETECTION=$DEFAULT_ENABLE_RACE_DETECTION
+    fi
+
     # This version number is arbitrary and won't be used by AWS
     PLACEHOLDER_EXTENSION_VERSION=123
 
-    ARCHITECTURE=amd64 VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
+    ARCHITECTURE=amd64 RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
 else
     echo "Skipping extension build, reusing previously built extension"
 fi
@@ -102,13 +108,18 @@ metric_functions=(
     "metric-java"
     "metric-go"
     "metric-csharp"
+    "metric-proxy"
     "timeout-node"
     "timeout-python"
     "timeout-java"
     "timeout-go"
+    "timeout-csharp"
+    "timeout-proxy"
     "error-node"
     "error-python"
     "error-java"
+    "error-csharp"
+    "error-proxy"
 )
 log_functions=(
     "log-node"
@@ -116,12 +127,15 @@ log_functions=(
     "log-java"
     "log-go"
     "log-csharp"
+    "log-proxy"
 )
 trace_functions=(
     "trace-node"
     "trace-python"
     "trace-java"
     "trace-go"
+    "trace-csharp"
+    "trace-proxy"
 )
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
@@ -129,7 +143,13 @@ all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
 functions_to_skip=(
-    # Not currently skipping any functions
+    # Tagging behavior after a timeout is currently known to be flaky
+    "timeout-node"
+    "timeout-python"
+    "timeout-java"
+    "timeout-go"
+    "timeout-csharp"
+    "timeout-proxy"
 )
 
 echo "Invoking functions for the first time..."
@@ -204,10 +224,14 @@ for function_name in "${all_functions[@]}"; do
         # Normalize logs
         logs=$(
             echo "$raw_logs" |
+                grep -v "\[trace\]" |
                 grep -v "\[sketch\]" |
                 grep "\[log\]" |
+                # remove configuration log line from dd-trace-go
+                grep -v "DATADOG TRACER CONFIGURATION" |
                 perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
                 perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
+                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
@@ -237,7 +261,7 @@ for function_name in "${all_functions[@]}"; do
 
     if [ ! -f "$function_snapshot_path" ]; then
         printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"
-        echo "$logs" > "$function_snapshot_path"
+        echo "$logs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         printf "${MAGENTA} UPDATE ${END_COLOR} $function_name\n"
         echo "$logs" >"$function_snapshot_path"

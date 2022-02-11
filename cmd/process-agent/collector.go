@@ -276,6 +276,7 @@ func (l *Collector) run(exit chan struct{}) error {
 			checkNames = append(checkNames, checks.Process.RealTimeName())
 		}
 	}
+	updateEnabledChecks(checkNames)
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)

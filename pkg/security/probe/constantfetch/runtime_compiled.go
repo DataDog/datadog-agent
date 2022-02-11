@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"debug/elf"
+	"encoding/base32"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -107,9 +108,11 @@ func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf
 	runtimeCompiler := runtime.NewRuntimeCompiler()
 	reader, err := runtimeCompiler.CompileObjectFile(config, nil, "constant_fetcher.c", provider)
 
-	telemetry := runtimeCompiler.GetRCTelemetry()
-	if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
-		log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
+	if cf.statsdClient != nil {
+		telemetry := runtimeCompiler.GetRCTelemetry()
+		if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
+			log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
+		}
 	}
 
 	return reader, err
@@ -175,8 +178,10 @@ func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kerne
 		return "", err
 	}
 	cCodeHash := hasher.Sum(nil)
+	// base32 is only [A-V0-9]+
+	cCodeHashB32 := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(cCodeHash)
 
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHash, flagHash)), nil
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHashB32, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {

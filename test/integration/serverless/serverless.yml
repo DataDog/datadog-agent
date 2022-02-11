@@ -17,10 +17,13 @@ provider:
     DD_LOGS_CONFIG_LOGS_NO_SSL: true
     DD_LOGS_INJECTION: true
     DD_MERGE_XRAY_TRACES: false
-    DD_TRACE_ENABLED: false
+    DD_TRACE_ENABLED: true
+    DD_APM_DD_URL: http://127.0.0.1:3333
     DD_ENV: integration-tests-env
     DD_VERSION: integration-tests-version
     DD_SERVICE: integration-tests-service
+    DD_TAGS: tagA:valueA tagB:valueB
+    DD_EXTRA_TAGS: tagC:valueC tagD:valueD
   lambdaHashingVersion: 20201221
   timeout: 15
   deploymentBucket:
@@ -51,9 +54,6 @@ functions:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
   metric-python:
     runtime: python3.8
@@ -63,8 +63,6 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       DD_LAMBDA_HANDLER: src/metricPython.metric
 
   metric-go:
@@ -73,9 +71,6 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
   metric-java:
     runtime: java8.al2
@@ -86,9 +81,6 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
   metric-csharp:
     runtime: dotnetcore3.1
@@ -99,11 +91,24 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      # TODO: Replace with production layer when released
+      - arn:aws:lambda:sa-east-1:601427279990:layer:poc-maxday-dotnet:130
     environment:
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      CORECLR_ENABLE_PROFILING: 1
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
+
+  metric-proxy:
+    runtime: nodejs14.x
+    handler: src/proxyTestFunctions.noop 
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
 
   error-node:
     runtime: nodejs14.x
@@ -112,9 +117,6 @@ functions:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
   error-python:
     runtime: python3.8
@@ -124,8 +126,6 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       DD_LAMBDA_HANDLER: src/metricPython.error
 
   error-java:
@@ -137,9 +137,34 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+
+  error-csharp:
+    runtime: dotnetcore3.1
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Error
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      # TODO: Replace with production layer when released
+      - arn:aws:lambda:sa-east-1:601427279990:layer:poc-maxday-dotnet:130
     environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+      CORECLR_ENABLE_PROFILING: 1
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
+
+  error-proxy:
+    runtime: nodejs14.x
+    handler: src/proxyTestFunctions.error 
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
 
   timeout-node:
     runtime: nodejs14.x
@@ -180,6 +205,35 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
+  timeout-csharp:
+    runtime: dotnetcore3.1
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Timeout
+    timeout: 1
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      # TODO: Replace with production layer when released
+      - arn:aws:lambda:sa-east-1:601427279990:layer:poc-maxday-dotnet:130
+    environment:
+      CORECLR_ENABLE_PROFILING: 1
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
+
+  timeout-proxy:
+    runtime: nodejs14.x
+    handler: src/proxyTestFunctions.timeout 
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+
   log-node:
     runtime: nodejs14.x
     handler: src/log.logTest
@@ -187,9 +241,6 @@ functions:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
   log-python:
     runtime: python3.8
@@ -199,8 +250,6 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
       DD_LAMBDA_HANDLER: src/logPython.log
 
   log-go:
@@ -209,9 +258,6 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
 
   log-csharp:
     runtime: dotnetcore3.1
@@ -222,11 +268,14 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      # TODO: Replace with production layer when released
+      - arn:aws:lambda:sa-east-1:601427279990:layer:poc-maxday-dotnet:130
     environment:
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
-      DD_EXPERIMENTAL_ENABLE_PROXY: true
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+      CORECLR_ENABLE_PROFILING: 1
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
 
   log-java:
     runtime: java8.al2
@@ -237,9 +286,16 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  
+  log-proxy:
+    runtime: nodejs14.x
+    handler: src/proxyTestFunctions.log 
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
 
   trace-node:
     runtime: nodejs14.x
@@ -250,10 +306,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_LAMBDA_HANDLER: src/trace.simpleTest
-      DD_TRACE_ENABLED: true
-      DD_APM_DD_URL: http://127.0.0.1:3333
-      DD_TAGS: tagA:valueA,tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC,tagD:valueD
 
   trace-python:
     runtime: python3.8
@@ -264,10 +316,6 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_LAMBDA_HANDLER: src/tracePython.simple_test
-      DD_TRACE_ENABLED: true
-      DD_APM_DD_URL: http://127.0.0.1:3333
-      DD_TAGS: tagA:valueA,tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC,tagD:valueD
 
   trace-go:
     runtime: provided.al2
@@ -275,11 +323,6 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_TRACE_ENABLED: true
-      DD_APM_DD_URL: http://127.0.0.1:3333
 
   trace-java:
     runtime: java8.al2
@@ -292,9 +335,33 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
-      DD_TAGS: tagA:valueA tagB:valueB
-      DD_EXTRA_TAGS: tagC:valueC tagD:valueD
-      DD_TRACE_ENABLED: true
-      DD_APM_DD_URL: http://127.0.0.1:3333
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar"'
       DD_JMXFETCH_ENABLED: false
+
+  trace-csharp:
+    runtime: dotnetcore3.1
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Trace
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      # TODO: Replace with production layer when released
+      - arn:aws:lambda:sa-east-1:601427279990:layer:poc-maxday-dotnet:130
+    environment:
+      CORECLR_ENABLE_PROFILING: 1
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+      DD_INTEGRATIONS: "/opt/datadog/integrations.json"
+
+  trace-proxy:
+    runtime: nodejs14.x
+    handler: src/proxyTestFunctions.noop 
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh

@@ -136,7 +136,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	for _, expired := range expires {
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceKubeMetadata,
+			Source: workloadmeta.SourceClusterOrchestrator,
 			Entity: expired,
 		})
 	}
@@ -215,7 +215,7 @@ func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workl
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceKubeMetadata,
+			Source: workloadmeta.SourceClusterOrchestrator,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: entity,
 		})

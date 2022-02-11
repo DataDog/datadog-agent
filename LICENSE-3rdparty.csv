@@ -37,6 +37,7 @@ core,github.com/DataDog/gohai/network,MIT,Datadog <info@datadoghq.com> | Kentaro
 core,github.com/DataDog/gohai/platform,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gohai/processes,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gohai/processes/gops,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
+core,github.com/DataDog/gohai/utils,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
 core,github.com/DataDog/gopsutil/cpu,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/DataDog/gopsutil/host,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/DataDog/gopsutil/internal/common,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
@@ -536,6 +537,7 @@ core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,The OPA Autho
 core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/ir,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/json/patch,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,The OPA Authors | lestrrat
 core,github.com/open-policy-agent/opa/internal/jwx/jwa,MIT,The OPA Authors | lestrrat
 core,github.com/open-policy-agent/opa/internal/jwx/jwk,MIT,The OPA Authors | lestrrat
@@ -546,6 +548,7 @@ core,github.com/open-policy-agent/opa/internal/lcss,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/leb128,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/merge,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/planner,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/ref,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/rego/opa,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/semver,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/strings,Apache-2.0,The OPA Authors
@@ -574,6 +577,7 @@ core,github.com/open-policy-agent/opa/topdown/builtins,Apache-2.0,The OPA Author
 core,github.com/open-policy-agent/opa/topdown/cache,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/copypropagation,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/print,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/tracing,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/types,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/util,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/version,Apache-2.0,The OPA Authors

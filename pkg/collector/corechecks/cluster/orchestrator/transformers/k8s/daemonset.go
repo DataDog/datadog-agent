@@ -48,5 +48,7 @@ func ExtractDaemonSet(ds *appsv1.DaemonSet) *model.DaemonSet {
 		daemonSet.Spec.Selectors = extractLabelSelector(ds.Spec.Selector)
 	}
 
+	daemonSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(ds.Spec.Template)
+
 	return &daemonSet
 }

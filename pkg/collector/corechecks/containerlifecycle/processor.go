@@ -52,7 +52,7 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 					continue
 				}
 
-				err := p.processContainer(container, event.Sources)
+				err := p.processContainer(container, []workloadmeta.Source{workloadmeta.SourceRuntime})
 				if err != nil {
 					log.Debugf("Couldn't process container %q: %w", container.ID, err)
 				}
@@ -103,7 +103,7 @@ func (p *processor) processPod(pod workloadmeta.Entity) error {
 	event.withObjectKind(types.ObjectKindPod)
 	event.withEventType(types.EventNameDelete)
 	event.withObjectID(pod.GetID().ID)
-	event.withSource(string(workloadmeta.SourceKubelet))
+	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
 
 	return p.podsQueue.add(event)
 }

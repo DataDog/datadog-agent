@@ -78,6 +78,22 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.internal_profiling.enabled",
 			defaultValue: false,
 		},
+		{
+			key:          "process_config.max_per_message",
+			defaultValue: DefaultProcessMaxPerMessage,
+		},
+		{
+			key:          "process_config.expvar_port",
+			defaultValue: DefaultProcessExpVarPort,
+		},
+		{
+			key:          "process_config.max_message_bytes",
+			defaultValue: DefaultProcessMaxMessageBytes,
+		},
+		{
+			key:          "process_config.cmd_port",
+			defaultValue: DefaultProcessCmdPort,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -249,6 +265,30 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
 			value:    "true",
 			expected: true,
+		},
+		{
+			key:      "process_config.max_per_message",
+			env:      "DD_PROCESS_CONFIG_MAX_PER_MESSAGE",
+			value:    "10",
+			expected: 10,
+		},
+		{
+			key:      "process_config.max_message_bytes",
+			env:      "DD_PROCESS_CONFIG_MAX_MESSAGE_BYTES",
+			value:    "100000",
+			expected: 100000,
+		},
+		{
+			key:      "process_config.expvar_port",
+			env:      "DD_PROCESS_CONFIG_EXPVAR_PORT",
+			value:    "1234",
+			expected: 1234,
+		},
+		{
+			key:      "process_config.cmd_port",
+			env:      "DD_PROCESS_CONFIG_CMD_PORT",
+			value:    "1235",
+			expected: 1235,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {

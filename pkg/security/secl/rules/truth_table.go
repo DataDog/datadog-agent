@@ -20,49 +20,73 @@ type truthTable struct {
 	Entries []truthEntry
 }
 
-func (tt *truthTable) getApprovers(fields ...string) map[eval.Field]FilterValues {
-	filterValues := make(map[eval.Field]FilterValues)
+func (tt *truthTable) isAlwaysFalseWith(filterValues ...FilterValue) bool {
+LOOP:
+	for _, entry := range tt.Entries {
+		// keep entries for which all the filterValues are "not". We want to check whether
+		// with all the opposive values we can find an entry with a "true" result. In that
+		// case it means that the final result doesn't depend on the given field values.
+		for _, eValue := range entry.Values {
+			for _, fValue := range filterValues {
+				if eValue.Field == fValue.Field {
+					// since not scalar value we can't determine the result
+					if !eValue.isScalar {
+						return false
+					}
+
+					if eValue.Value != fValue.notValue {
+						continue LOOP
+					}
+				}
+			}
+		}
+
+		if entry.Result {
+			return false
+		}
+	}
+	return true
+}
+
+// retrieve positive field value from the truth table for the given fields
+func (tt *truthTable) getFieldValues(entry *truthEntry, fields ...string) FilterValues {
+	var filterValues FilterValues
+	for _, eValue := range entry.Values {
+		for _, field := range fields {
+			if eValue.Field == field {
+				if eValue.not || !eValue.isScalar {
+					return nil
+				}
+				filterValues = filterValues.Merge(eValue)
+			}
+		}
+	}
+	return filterValues
+}
+
+func (tt *truthTable) getApprovers(fields ...string) FilterValues {
+	var allFilterValues FilterValues
 
 	for _, entry := range tt.Entries {
+		// consider only True result for later check if an opposite result with the same
+		// field values.
 		if !entry.Result {
 			continue
 		}
 
-		// a field value can't be an approver if we can find a entry that is true
-		// when all the fields are set to false.
-		allFalse := true
-		for _, field := range fields {
-			for _, value := range entry.Values {
-				if value.Field == field && !value.not {
-					allFalse = false
-					break
-				}
-			}
+		filterValues := tt.getFieldValues(&entry, fields...)
+		if filterValues == nil {
+			continue
 		}
 
-		if allFalse {
-			return nil
-		}
-
-		for _, field := range fields {
-		LOOP:
-			for _, value := range entry.Values {
-				if !value.ignore && !value.not && field == value.Field {
-					fvs := filterValues[value.Field]
-					for _, fv := range fvs {
-						// do not append twice the same value
-						if fv.Value == value.Value {
-							continue LOOP
-						}
-					}
-					fvs = append(fvs, value)
-					filterValues[value.Field] = fvs
-				}
-			}
+		// check whether a result is "true" while having all the fields values set to the
+		// "not" value. In that case it means that the field value are not approvers.
+		if tt.isAlwaysFalseWith(filterValues...) {
+			allFilterValues = allFilterValues.Merge(filterValues...)
 		}
 	}
 
-	return filterValues
+	return allFilterValues
 }
 
 func combineBitmasks(bitmasks []int) []int {
@@ -107,10 +131,10 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 
 			filterValues = append(filterValues, FilterValues{
 				{
-					Field:  field,
-					Value:  value,
-					Type:   eval.ScalarValueType,
-					ignore: true,
+					Field:    field,
+					Value:    value,
+					Type:     eval.ScalarValueType,
+					isScalar: false,
 				},
 			})
 
@@ -123,22 +147,26 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 		for _, fValue := range fValues {
 			switch fValue.Type {
 			case eval.ScalarValueType, eval.PatternValueType:
-				values = append(values, FilterValue{
-					Field: field,
-					Value: fValue.Value,
-					Type:  fValue.Type,
-				})
-
 				notValue, err := eval.NotOfValue(fValue.Value)
 				if err != nil {
 					return nil, &ErrValueTypeUnknown{Field: field}
 				}
 
-				values = append(values, FilterValue{
-					Field: field,
-					Value: notValue,
-					Type:  fValue.Type,
-					not:   true,
+				values = values.Merge(FilterValue{
+					Field:    field,
+					Value:    fValue.Value,
+					Type:     fValue.Type,
+					notValue: notValue,
+					isScalar: true,
+				})
+
+				values = values.Merge(FilterValue{
+					Field:    field,
+					Value:    notValue,
+					Type:     fValue.Type,
+					notValue: fValue.Value,
+					not:      true,
+					isScalar: true,
 				})
 			case eval.BitmaskValueType:
 				bitmasks = append(bitmasks, fValue.Value.(int))
@@ -148,11 +176,26 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 		// add combinations of bitmask if bitmasks are used
 		if len(bitmasks) > 0 {
 			for _, mask := range combineBitmasks(bitmasks) {
-				values = append(values, FilterValue{
-					Field: field,
-					Value: mask,
-					Type:  eval.BitmaskValueType,
-					not:   mask == 0,
+				notValue, err := eval.NotOfValue(mask)
+				if err != nil {
+					return nil, &ErrValueTypeUnknown{Field: field}
+				}
+
+				values = values.Merge(FilterValue{
+					Field:    field,
+					Value:    mask,
+					Type:     eval.BitmaskValueType,
+					notValue: notValue,
+					isScalar: true,
+				})
+
+				values = values.Merge(FilterValue{
+					Field:    field,
+					Value:    mask,
+					Type:     eval.BitmaskValueType,
+					notValue: mask,
+					not:      true,
+					isScalar: true,
 				})
 			}
 		}
@@ -212,11 +255,12 @@ func newTruthTable(rule *eval.Rule, event eval.Event) (*truthTable, error) {
 			}
 
 			entry.Values = append(entry.Values, FilterValue{
-				Field:  filterValue.Field,
-				Value:  filterValue.Value,
-				Type:   filterValue.Type,
-				not:    filterValue.not,
-				ignore: filterValue.ignore,
+				Field:    filterValue.Field,
+				Value:    filterValue.Value,
+				Type:     filterValue.Type,
+				notValue: filterValue.notValue,
+				not:      filterValue.not,
+				isScalar: filterValue.isScalar,
 			})
 		}
 

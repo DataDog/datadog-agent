@@ -95,7 +95,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 			events = append(events, workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceCloudfoundry,
+				Source: workloadmeta.SourceClusterOrchestrator,
 				Entity: &workloadmeta.GardenContainer{
 					EntityID: entityID,
 					EntityMeta: workloadmeta.EntityMeta{
@@ -126,7 +126,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 			events = append(events, workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceCloudfoundry,
+				Source: workloadmeta.SourceClusterOrchestrator,
 				Entity: &workloadmeta.GardenContainer{
 					EntityID: entityID,
 					EntityMeta: workloadmeta.EntityMeta{
@@ -145,7 +145,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	for _, expired := range expires {
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceCloudfoundry,
+			Source: workloadmeta.SourceClusterOrchestrator,
 			Entity: expired,
 		})
 	}

@@ -30,9 +30,6 @@ const (
 	agentRateKey      = "_dd.agent_psr"
 	ruleRateKey       = "_dd.rule_psr"
 	syncPeriod        = 3 * time.Second
-	// priorityLocalRateThresholdTo1 defines the maximum allowed sampling rate below 1.
-	// If this is surpassed, the rate is set to 1.
-	priorityLocalRateThresholdTo1 = 0.3
 )
 
 // PrioritySampler computes priority rates per tracerEnv, service to apply in a feedback loop with trace-agent clients.
@@ -67,7 +64,6 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),
 	}
-	s.localRates.setRateThresholdTo1(priorityLocalRateThresholdTo1)
 	return s
 }
 
@@ -227,9 +223,6 @@ func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signa
 	}
 	// Use the rate from the default local feedback loop
 	rate := s.localRates.GetSignatureSampleRate(signature)
-	if rate > priorityLocalRateThresholdTo1 {
-		rate = 1
-	}
 	setMetric(root, deprecatedRateKey, rate)
 	return rate
 }
