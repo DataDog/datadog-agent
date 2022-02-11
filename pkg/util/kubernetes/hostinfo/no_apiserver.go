@@ -7,10 +7,12 @@
 
 package hostinfo
 
-func apiserverNodeLabels(nodeName string) (map[string]string, error) {
+import "context"
+
+func apiserverNodeLabels(ctx context.Context, nodeName string) (map[string]string, error) {
 	return nil, nil
 }
 
-func apiserverNodeAnnotations(nodeName string) (map[string]string, error) {
+func apiserverNodeAnnotations(ctx context.Context, nodeName string) (map[string]string, error) {
 	return nil, nil
 }

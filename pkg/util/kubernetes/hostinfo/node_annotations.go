@@ -34,5 +34,5 @@ func GetNodeAnnotations(ctx context.Context) (map[string]string, error) {
 		}
 		return cl.GetNodeAnnotations(nodeName)
 	}
-	return apiserverNodeAnnotations(nodeName)
+	return apiserverNodeAnnotations(ctx, nodeName)
 }
