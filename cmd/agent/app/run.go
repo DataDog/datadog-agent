@@ -384,6 +384,11 @@ func StartAgent() error {
 		}
 	}
 
+	// Setup stats telemetry handler
+	if sender, err := demux.GetDefaultSender(); err == nil {
+		telemetry.RegisterStatsHandler(sender)
+	}
+
 	// Start OTLP intake
 	otlpEnabled := otlp.IsEnabled(config.Datadog)
 	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)

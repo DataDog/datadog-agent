@@ -12,8 +12,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var autoMultiLineTelemetryMetricName = "datadog.logs_agent.auto_multi_line"
 
 type scoredPattern struct {
 	score  int
@@ -167,10 +170,12 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 
 		if matchRatio >= h.matchThreshold {
 			log.Debugf("Pattern %v matched %d lines with a ratio of %f", topMatch.regexp.String(), topMatch.score, matchRatio)
+			telemetry.StatsTelemetryProvider().Count(autoMultiLineTelemetryMetricName, 1, []string{"success:true"})
 			h.detectedPattern.Set(topMatch.regexp)
 			h.switchToMultilineHandler(topMatch.regexp)
 		} else {
 			log.Debug("No pattern met the line match threshold during multiline autosensing - using single line handler")
+			telemetry.StatsTelemetryProvider().Count(autoMultiLineTelemetryMetricName, 1, []string{"success:false"})
 			// Stay with the single line handler and no longer attempt to detect multiline matches.
 			h.processsingFunc = h.singleLineHandler.process
 		}
