@@ -80,6 +80,14 @@ kitchen_ubuntu_install_script_agent-a7_x64:
     - .kitchen_scenario_ubuntu_a7_x64
     - .kitchen_test_install_script_agent
 
+kitchen_ubuntu_process_agent-a7_x64:
+  variables:
+    KITCHEN_OSVERS: "ubuntu-20-04"
+    DEFAULT_KITCHEN_OSVERS: "ubuntu-20-04"
+  extends:
+    - .kitchen_scenario_ubuntu_a7_x64
+    - .kitchen_test_process_agent
+
 kitchen_ubuntu_install_script_agent-a7_arm64:
   rules:
     !reference [.on_all_kitchen_builds_a7]
