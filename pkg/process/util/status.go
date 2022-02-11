@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"runtime"
 	"time"
 
@@ -12,10 +11,9 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-var httpClient = apiutil.GetClient(false)
 
 // CoreStatus holds core info about the process-agent
 type CoreStatus struct {
@@ -72,7 +70,7 @@ type ProcessExpvars struct {
 // Status holds runtime information from process-agent
 type Status struct {
 	Date    float64        `json:"date"`
-	Core    CoreStatus     `json:"core"`    // Contains the status from the core agent
+	Core    CoreStatus     `json:"core"`    // Contains fields that are collected similarly to the core agent in pkg/status
 	Expvars ProcessExpvars `json:"expvars"` // Contains the expvars retrieved from the process agent
 }
 
@@ -129,6 +127,8 @@ func getExpvars() (s ProcessExpvars, err error) {
 		port = ddconfig.DefaultProcessExpVarPort
 	}
 	expvarEndpoint := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
+
+	httpClient := apiutil.GetClient(false)
 	b, err := apiutil.DoGet(httpClient, expvarEndpoint)
 	if err != nil {
 		return s, ConnectionError{err}

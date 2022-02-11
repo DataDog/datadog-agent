@@ -21,13 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-type statusServer struct {
-	shutdownWg   *sync.WaitGroup
-	expVarServer *http.Server
+type expVarServer struct {
+	shutdownWg *sync.WaitGroup
+	server     *http.Server
 }
 
-func (s *statusServer) stop() error {
-	err := s.expVarServer.Shutdown(context.Background())
+func (s *expVarServer) stop() error {
+	err := s.server.Shutdown(context.Background())
 	if err != nil {
 		return err
 	}
@@ -36,7 +36,7 @@ func (s *statusServer) stop() error {
 	return nil
 }
 
-func startTestServer(t *testing.T, cfg config.Config, expectedExpVars ProcessExpvars) statusServer {
+func startTestServer(t *testing.T, cfg config.Config, expectedExpVars ProcessExpvars) expVarServer {
 	var serverWg sync.WaitGroup
 	serverWg.Add(1)
 
@@ -57,7 +57,7 @@ func startTestServer(t *testing.T, cfg config.Config, expectedExpVars ProcessExp
 		serverWg.Done()
 	}()
 
-	return statusServer{expVarServer: &expVarsServer, shutdownWg: &serverWg}
+	return expVarServer{server: &expVarsServer, shutdownWg: &serverWg}
 }
 
 func TestGetStatus(t *testing.T) {

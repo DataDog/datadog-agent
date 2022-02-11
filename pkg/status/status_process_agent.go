@@ -13,7 +13,7 @@ import (
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
-// GetProcessAgentStatus returns the status command of the process-agent
+// GetProcessAgentStatus fetches the process-agent status from the process-agent API server
 func GetProcessAgentStatus() map[string]interface{} {
 	httpClient := apiutil.GetClient(false)
 

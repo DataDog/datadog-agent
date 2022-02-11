@@ -95,6 +95,10 @@ func getAndWriteStatus(w io.Writer, options ...util.StatusOption) {
 	if len(options) > 0 {
 		var s util.Status
 		err = json.Unmarshal(body, &s)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
 
 		for _, option := range options {
 			option(&s)
@@ -103,6 +107,7 @@ func getAndWriteStatus(w io.Writer, options ...util.StatusOption) {
 		body, err = json.Marshal(s)
 		if err != nil {
 			writeError(w, err)
+			return
 		}
 	}
 

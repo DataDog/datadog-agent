@@ -107,7 +107,6 @@ func TestNotRunning(t *testing.T) {
 	assert.Equal(t, notRunning, b.String())
 }
 
-//
 // TestError tests an example error to make sure that the error template prints properly if we get something other than
 // a connection error
 func TestError(t *testing.T) {
