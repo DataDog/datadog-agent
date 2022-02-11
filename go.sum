@@ -1170,8 +1170,8 @@ github.com/onsi/gomega v1.10.3/go.mod h1:V9xEwhxec5O8UDM77eCW8vLymOMltsqPVYWrpDs
 github.com/onsi/gomega v1.10.5/go.mod h1:gza4q3jKQJijlu05nKWRCW/GavJumGt8aNRxWg7mt48=
 github.com/onsi/gomega v1.17.0 h1:9Luw4uT5HTjHTN8+aNcSThgH1vdXnmdJ8xIfZ4wyTRE=
 github.com/onsi/gomega v1.17.0/go.mod h1:HnhC7FXeEQY45zxNK3PPoIUhzk/80Xly9PcubAlGdZY=
-github.com/open-policy-agent/opa v0.37.1 h1:xOCmEnQAO7MZMHAQr6TWEG87YDWaeWiODrJx5tPgarI=
-github.com/open-policy-agent/opa v0.37.1/go.mod h1:9YlKCh5WIk1Pu0bpIPozaJKQWpUDTVCMVpe55FVUfik=
+github.com/open-policy-agent/opa v0.37.2 h1:pR9i4xlsnlq7b5Zgw6oj7PcFaJ9HX+sY4yfuzLI2WrA=
+github.com/open-policy-agent/opa v0.37.2/go.mod h1:9YlKCh5WIk1Pu0bpIPozaJKQWpUDTVCMVpe55FVUfik=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.43.0 h1:4XUwVfeiFqymx46E5gHUW1WydM6zpWVjLrX4iWmGTYA=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.43.0 h1:Joza34EPglKluiM8BXG4wxY51agVE0o7h9lAAi0Xjb4=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.43.0/go.mod h1:tef43YsykZVJsBQBmvjXhPqkIdNc90ginUpQT6xYuiQ=
