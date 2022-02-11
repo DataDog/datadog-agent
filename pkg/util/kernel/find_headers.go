@@ -49,13 +49,14 @@ const (
 	downloadSuccess
 	hostVersionErr
 	downloadFailure
+	headersNotFound
 )
 
 var errLinuxTypesHMissing = errors.New("correctly versioned kernel headers found, but linux/types.h missing")
 
 // GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
 // to  download them to headerDownloadDir
-func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir string) ([]string, HeaderFetchResult, error) {
+func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir string) ([]string, HeaderFetchResult, error) {
 	hv, hvErr := HostVersion()
 	if hvErr != nil {
 		return nil, hostVersionErr, fmt.Errorf("unable to determine host kernel version: %w", hvErr)
@@ -107,15 +108,18 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumR
 		}
 	}
 
-	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
-	if err = d.downloadHeaders(headerDownloadDir); err == nil {
-		log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
-		if err = validateHeaderDirs(hv, dirs); err == nil {
-			return dirs, downloadSuccess, nil
+	if downloadEnabled {
+		d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
+		if err = d.downloadHeaders(headerDownloadDir); err == nil {
+			log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
+			if err = validateHeaderDirs(hv, dirs); err == nil {
+				return dirs, downloadSuccess, nil
+			}
+			return nil, downloadFailure, fmt.Errorf("downloaded headers are not valid: %w", err)
 		}
-		return nil, downloadFailure, fmt.Errorf("downloaded headers are not valid: %w", err)
+		return nil, downloadFailure, fmt.Errorf("unable to download kernel headers: %w", err)
 	}
-	return nil, downloadFailure, fmt.Errorf("unable to download kernel headers: %w", err)
+	return nil, headersNotFound, fmt.Errorf("no valid matching kernel header directories found")
 }
 
 // validateHeaderDirs verifies that the kernel headers in at least 1 directory matches the kernel version of the running host
