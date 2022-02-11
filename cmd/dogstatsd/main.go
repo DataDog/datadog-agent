@@ -222,7 +222,8 @@ func runAgent(ctx context.Context) (err error) {
 		}
 	}
 
-	statsd, err = dogstatsd.NewServer(demux, nil)
+	staticTags := util.GetStaticTagsSlice(ctx)
+	statsd, err = dogstatsd.NewServer(demux, staticTags)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
