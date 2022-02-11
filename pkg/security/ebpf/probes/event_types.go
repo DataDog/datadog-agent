@@ -453,8 +453,12 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 
 	// List of probes required to capture signal events
 	"signal": {
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID,
+				EBPFSection: "kretprobe/check_kill_permission", EBPFFuncName: "kretprobe_check_kill_permission"}},
+		}},
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kill"}, EntryAndExit),
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kill"}, Entry),
 		},
 	},
 }

@@ -21,7 +21,7 @@ SYSCALL_KPROBE2(kill, int, pid, int, type) {
     struct syscall_cache_t syscall = {
         .type = EVENT_SIGNAL,
         .signal = {
-            .pid = pid,
+            .pid = pid, /* TODO: make a cache lookup to retrieve the host pid */
             .type = type,
         },
     };
@@ -39,26 +39,21 @@ int __attribute__((always_inline)) sys_kill_ret(void *ctx, int retval) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
+    /* constuct and send the event */
     struct signal_event_t event = {
         .syscall.retval = retval,
         .pid = syscall->signal.pid,
         .type = syscall->signal.type,
     };
-
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
-
     send_event(ctx, EVENT_SIGNAL, event);
     return 0;
 }
 
-SEC("tracepoint/syscalls/sys_exit_kill")
-int tracepoint_syscalls_sys_exit_kill(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_kill_ret(args, (int)args->ret);
-}
-
-SYSCALL_KRETPROBE(kill) {
+SEC("kretprobe/check_kill_permission")
+int kretprobe_check_kill_permission(struct pt_regs* ctx) {
     return sys_kill_ret(ctx, (int)PT_REGS_RC(ctx));
 }
 
