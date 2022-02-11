@@ -77,9 +77,14 @@ func state(cmd *cobra.Command, args []string, dialOpts ...grpc.DialOption) error
 	fmt.Println("\nDirector repository")
 	fmt.Println(strings.Repeat("-", 20))
 	printTUFRepo(s.DirectorState)
-	sort.Strings(s.TargetFilenames)
-	for _, name := range s.TargetFilenames {
-		fmt.Printf("    |- %s\n", name)
+	keys := make([]string, 0, len(s.TargetFilenames))
+	for k := range s.TargetFilenames {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, name := range keys {
+		fmt.Printf("    |- %s - Hash: %s\n", name, s.TargetFilenames[name])
 	}
 
 	return nil

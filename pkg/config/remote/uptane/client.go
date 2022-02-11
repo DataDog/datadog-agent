@@ -22,7 +22,7 @@ import (
 type State struct {
 	ConfigState     map[string]MetaState
 	DirectorState   map[string]MetaState
-	TargetFilenames []string
+	TargetFilenames map[string]string
 }
 
 // MetaState represents the state of a tuf file
@@ -132,8 +132,9 @@ func (c *Client) State() (State, error) {
 	defer c.Unlock()
 
 	s := State{
-		ConfigState:   map[string]MetaState{},
-		DirectorState: map[string]MetaState{},
+		ConfigState:     map[string]MetaState{},
+		DirectorState:   map[string]MetaState{},
+		TargetFilenames: map[string]string{},
 	}
 
 	metas, err := c.configLocalStore.GetMeta()
@@ -165,7 +166,10 @@ func (c *Client) State() (State, error) {
 		return State{}, err
 	}
 	for targetName := range targets {
-		s.TargetFilenames = append(s.TargetFilenames, targetName)
+		content, err := c.unsafeTargetFile(targetName)
+		if err == nil {
+			s.TargetFilenames[targetName] = metaHash(content)
+		}
 	}
 
 	return s, nil
@@ -204,10 +208,7 @@ func (c *Client) Targets() (data.TargetFiles, error) {
 	return c.unsafeTargets()
 }
 
-// TargetFile returns the content of a target if the repository is in a verified state
-func (c *Client) TargetFile(path string) ([]byte, error) {
-	c.Lock()
-	defer c.Unlock()
+func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 	err := c.verify()
 	if err != nil {
 		return nil, err
@@ -218,6 +219,13 @@ func (c *Client) TargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// TargetFile returns the content of a target if the repository is in a verified state
+func (c *Client) TargetFile(path string) ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.unsafeTargetFile(path)
 }
 
 // TargetsMeta returns the current raw targets.json meta of this uptane client

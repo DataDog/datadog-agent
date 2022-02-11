@@ -279,7 +279,7 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	response := &pbgo.GetStateConfigResponse{
 		ConfigState:     map[string]*pbgo.FileMetaState{},
 		DirectorState:   map[string]*pbgo.FileMetaState{},
-		TargetFilenames: make([]string, len(state.TargetFilenames)),
+		TargetFilenames: map[string]string{},
 	}
 
 	for metaName, metaState := range state.ConfigState {
@@ -290,7 +290,9 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 		response.DirectorState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
 	}
 
-	response.TargetFilenames = state.TargetFilenames
+	for targetName, targetHash := range state.TargetFilenames {
+		response.TargetFilenames[targetName] = targetHash
+	}
 
 	return response, nil
 }

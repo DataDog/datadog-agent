@@ -102,7 +102,7 @@ func TestClientFullState(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(state.ConfigState))
 	assert.Equal(t, 4, len(state.DirectorState))
-	assert.ElementsMatch(t, []string{"datadog/2/APM_SAMPLING/id/1"}, state.TargetFileNames)
+	assert.Equal(t, 1, len(state.TargetFilenames))
 
 	assertMetaVersion(t, state.ConfigState, "root.json", 1)
 	assertMetaVersion(t, state.ConfigState, "timestamp.json", 11)
