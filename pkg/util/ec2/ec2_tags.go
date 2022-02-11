@@ -40,12 +40,7 @@ func fetchEc2Tags(ctx context.Context) ([]string, error) {
 		log.Debugf("Could not fetch tags from instance metadata (trying EC2 API instead): %s", err)
 	}
 
-	tags, err := fetchEc2TagsFromAPI(ctx)
-	if err == nil {
-		return tags, err
-	}
-
-	return nil, err
+	return fetchEc2TagsFromAPI(ctx)
 }
 
 func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
