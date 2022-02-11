@@ -1,12 +1,33 @@
-require 'rspec'
+require 'json'
 require 'net/http'
 require 'rbconfig'
+require 'rspec'
+require 'yaml'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
 # logged.
 RSpec.configure do |c|
     c.default_formatter = "documentation"
+end
+
+def os
+  # OS Detection from https://stackoverflow.com/questions/11784109/detecting-operating-systems-in-ruby
+  os_cache ||= (
+    host_os = RbConfig::CONFIG['host_os']
+    case host_os
+    when /mswin|msys|mingw|cygwin|bccwin|wince|emc/
+      :windows
+    when /darwin|mac os/
+      :macosx
+    when /linux/
+      :linux
+    when /solaris|bsd/
+      :unix
+    else
+      raise Error::WebDriverError, "unknown os: #{host_os.inspect}"
+    end
+  )
 end
 
 def read_conf_file
