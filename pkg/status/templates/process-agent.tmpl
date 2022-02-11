@@ -1,10 +1,11 @@
 =============
 Process Agent
 =============
-
 {{- if .error }}
+
   Status: Not running or unreachable
 {{- else }}
+
   Version: {{ .core.version }}
   Status date: {{ formatUnixTime .date }}
   Process Agent Start: {{ formatUnixTime .expvars.uptime_nano }}
@@ -34,7 +35,6 @@ Process Agent
   =========
   Collector
   =========
-
     Last collection time: {{.expvars.last_collect_time}}
     Docker socket: {{.expvars.docker_socket}}
     Number of processes: {{.expvars.process_count}}
@@ -45,4 +45,5 @@ Process Agent
     Process Bytes enqueued: {{.expvars.process_queue_bytes}}
     RTProcess Bytes enqueued: {{.expvars.rtprocess_queue_bytes}}
     Pod Bytes enqueued: {{.expvars.pod_queue_bytes}}
-{{ end }}
+{{- end }}
+
