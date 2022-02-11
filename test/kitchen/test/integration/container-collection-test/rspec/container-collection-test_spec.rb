@@ -10,17 +10,17 @@ shared_examples_for 'a running Process Agent' do
     end
 end
 
-describe 'a Process Agent with Process Collection enabled' do
+describe 'a Process Agent with Container Collection enabled' do
     it_behaves_like 'a running Process Agent'
     it 'has process collection enabled' do
         conf = read_conf_file()
         expect(conf).to have_key("process_config")
-        expect(conf["process_config"]).to have_key("process_collection")
-        expect(conf["process_config"]["process_collection"]).to have_key("enabled")
-        expect(conf["process_config"]["process_collection"]["enabled"]).to be_truthy
+        expect(conf["process_config"]).to have_key("container_collection")
+        expect(conf["process_config"]["container_collection"]).to have_key("enabled")
+        expect(conf["process_config"]["container_collection"]["enabled"]).to be_truthy
 
     end
     it 'is running the process check' do
-        expect(check_enabled?("process")).to be_truthy
+        expect(check_enabled?("container")).to be_truthy
     end
 end
