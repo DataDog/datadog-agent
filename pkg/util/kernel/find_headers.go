@@ -131,7 +131,9 @@ func validateHeaderDirs(hv Version, dirs []string) []string {
 		dirv, err := getHeaderVersion(d)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
-				// version.h is not found in this directory
+				// version.h is not found in this directory; we'll consider it valid, in case
+				// it contains necessary files
+				log.Debugf("found non-versioned kernel headers at %s", d)
 				valid = append(valid, d)
 				continue
 			}
@@ -142,6 +144,7 @@ func validateHeaderDirs(hv Version, dirs []string) []string {
 			log.Debugf("error validating %s: header version %s does not match host version %s", d, dirv, hv)
 			continue
 		}
+		log.Debugf("found valid kernel headers at %s", d)
 		valid = append(valid, d)
 	}
 	return valid
