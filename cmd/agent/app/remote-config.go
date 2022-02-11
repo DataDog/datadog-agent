@@ -77,6 +77,10 @@ func state(cmd *cobra.Command, args []string, dialOpts ...grpc.DialOption) error
 	fmt.Println("\nDirector repository")
 	fmt.Println(strings.Repeat("-", 20))
 	printTUFRepo(s.DirectorState)
+	sort.Strings(s.TargetFilenames)
+	for _, name := range s.TargetFilenames {
+		fmt.Printf("    |- %s\n", name)
+	}
 
 	return nil
 }
@@ -85,42 +89,24 @@ func getStateString(state *pbgo.FileMetaState, padding int) string {
 	if state == nil {
 		return fmt.Sprintf(color.YellowString("%*s\n", padding, "- Not found"))
 	}
-	if state.Version > 0 {
-		return fmt.Sprintf("%*s: %9d - Hash: %s\n", padding, "- Version", state.Version, state.Hash)
+	return fmt.Sprintf("%*s: %9d - Hash: %s\n", padding, "- Version", state.Version, state.Hash)
+}
+
+func printAndRemoveFile(repo map[string]*pbgo.FileMetaState, name string, prefix string, padding int) {
+	file, found := repo[name]
+	fmt.Printf("%s%s%s", prefix, name, getStateString(file, padding))
+	if found {
+		delete(repo, name)
 	}
-	return ""
 }
 
 func printTUFRepo(repo map[string]*pbgo.FileMetaState) {
-	root, found := repo["root.json"]
-	fmt.Print("root.json")
-	if found {
-		delete(repo, "root.json")
-	}
-	fmt.Print(getStateString(root, 20))
+	printAndRemoveFile(repo, "root.json", "", 20)
+	printAndRemoveFile(repo, "timestamp.json", "|- ", 12)
+	printAndRemoveFile(repo, "snapshot.json", "|- ", 13)
+	printAndRemoveFile(repo, "targets.json", "|- ", 14)
 
-	timestamp, found := repo["timestamp.json"]
-	fmt.Print("|- timestamp.json")
-	if found {
-		delete(repo, "timestamp.json")
-	}
-	fmt.Print(getStateString(timestamp, 12))
-
-	snapshot, found := repo["snapshot.json"]
-	fmt.Print("|- snapshot.json")
-	if found {
-		delete(repo, "snapshot.json")
-	}
-	fmt.Print(getStateString(snapshot, 13))
-
-	targets, found := repo["targets.json"]
-	fmt.Print("|- targets.json")
-	if found {
-		delete(repo, "targets.json")
-	}
-	fmt.Print(getStateString(targets, 14))
-
-	// Sort the keys to display the targets in order
+	// Sort the keys to display the delegated targets in order
 	keys := make([]string, 0, len(repo))
 	for k := range repo {
 		keys = append(keys, k)

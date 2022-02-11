@@ -20,8 +20,9 @@ import (
 
 // State represents the state of an uptane client
 type State struct {
-	ConfigState   map[string]MetaState
-	DirectorState map[string]MetaState
+	ConfigState     map[string]MetaState
+	DirectorState   map[string]MetaState
+	TargetFilenames []string
 }
 
 // MetaState represents the state of a tuf file
@@ -127,11 +128,6 @@ func (s *State) DirectorTargetsVersion() uint64 {
 
 // State returns the state of the uptane client
 func (c *Client) State() (State, error) {
-	targets, err := c.Targets()
-	if err != nil {
-		return State{}, err
-	}
-
 	c.Lock()
 	defer c.Unlock()
 
@@ -163,8 +159,13 @@ func (c *Client) State() (State, error) {
 			s.DirectorState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
 		}
 	}
+
+	targets, err := c.unsafeTargets()
+	if err != nil {
+		return State{}, err
+	}
 	for targetName := range targets {
-		s.DirectorState[targetName] = MetaState{Version: 0, Hash: ""}
+		s.TargetFilenames = append(s.TargetFilenames, targetName)
 	}
 
 	return s, nil
@@ -188,15 +189,19 @@ func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
 	return root, nil
 }
 
-// Targets returns the current targets of this uptane client
-func (c *Client) Targets() (data.TargetFiles, error) {
-	c.Lock()
-	defer c.Unlock()
+func (c *Client) unsafeTargets() (data.TargetFiles, error) {
 	err := c.verify()
 	if err != nil {
 		return nil, err
 	}
 	return c.directorTUFClient.Targets()
+}
+
+// Targets returns the current targets of this uptane client
+func (c *Client) Targets() (data.TargetFiles, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.unsafeTargets()
 }
 
 // TargetFile returns the content of a target if the repository is in a verified state
