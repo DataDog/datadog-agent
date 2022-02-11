@@ -21,11 +21,6 @@ import (
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
 func buildWorkloadMetaContainer(container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
-	labels, err := containerdClient.Labels(container)
-	if err != nil {
-		return workloadmeta.Container{}, err
-	}
-
 	info, err := containerdClient.Info(container)
 	if err != nil {
 		return workloadmeta.Container{}, err
@@ -41,15 +36,9 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		return workloadmeta.Container{}, err
 	}
 
-	containerdImage, err := containerdClient.Image(container)
+	image, err := workloadmeta.NewContainerImage(info.Image)
 	if err != nil {
-		return workloadmeta.Container{}, err
-	}
-
-	imageName := containerdImage.Name()
-	image, err := workloadmeta.NewContainerImage(imageName)
-	if err != nil {
-		log.Debugf("cannot split image name %q: %s", imageName, err)
+		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
 
 	status, err := containerdClient.Status(container)
@@ -73,7 +62,7 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:   "", // Not available
-			Labels: labels,
+			Labels: info.Labels,
 		},
 		Image:   image,
 		EnvVars: envs,
