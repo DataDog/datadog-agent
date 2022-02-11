@@ -398,7 +398,7 @@ func batchConnections(
 
 		// only add the telemetry to the first message to prevent double counting
 		if len(batches) == 0 {
-			cc.ConnTelemetry = connTelemetry
+			cc.ConnTelemetryMap = connTelemetry
 			cc.CompilationTelemetryByAsset = compilationTelemetry
 		}
 		batches = append(batches, cc)

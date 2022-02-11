@@ -100,7 +100,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.Conns = agentConns
 	payload.Domains = dnsFormatter.Domains()
 	payload.Dns = dnsFormatter.DNS()
-	payload.ConnTelemetry = conns.ConnTelemetry
+	payload.ConnTelemetryMap = conns.ConnTelemetry
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
 	payload.Routes = routes
 
