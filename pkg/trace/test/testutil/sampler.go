@@ -7,7 +7,6 @@ package testutil
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
 // MockEngine mocks a sampler engine
@@ -38,9 +37,4 @@ func (e *MockEngine) Stop() {
 // GetState mocks Engine.GetState()
 func (e *MockEngine) GetState() interface{} {
 	return nil
-}
-
-// GetType mocks Engine.GetType()
-func (e *MockEngine) GetType() sampler.EngineType {
-	return sampler.NormalScoreEngineType
 }
