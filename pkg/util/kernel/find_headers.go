@@ -83,7 +83,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 		if dirs, err = getSysfsHeaderDirs(hv); err == nil {
 			return dirs, sysfsHeadersFound, nil
 		}
-		log.Debugf("unable to find system kernel headers: %s", err)
+		log.Debugf("unable to find system kernel headers: %w", err)
 	}
 
 	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir))
