@@ -35,6 +35,10 @@ func MemoryPercentageThresholdMonitor(cb func(), percentage uint64, swap bool) M
 			return nil, nil, fmt.Errorf("can't get cgroup metrics: %w", err)
 		}
 
+		if metrics.Memory == nil || metrics.Memory.Usage == nil {
+			return nil, nil, fmt.Errorf("can't get cgroup memory metrics: %w", err)
+		}
+
 		return cgroups.MemoryThresholdEvent(metrics.Memory.Usage.Limit*percentage/100, swap), cb, nil
 	}
 }
