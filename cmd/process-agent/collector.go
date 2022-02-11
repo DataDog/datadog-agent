@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gogo/protobuf/proto"
 )
 
 type checkResult struct {
@@ -188,7 +189,7 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 	}
 
 	if name == config.PodCheckName {
-		podtMessagesToResults(l, start, name, messages, results)
+		podMessagesToResults(l, start, name, messages, results)
 	} else {
 		payloads := make([]checkPayload, 0, len(messages))
 		sizeInBytes := 0
@@ -457,11 +458,14 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Connections.Name():
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			case checks.Pod.Name():
-				// Orchestrator intake response does not change RT checks enablement or interval
-				updateRTStatus = false
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
-			case config.PodManifestsCheckName:
-				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
+				// Pod Manifest doesn't have this header
+				if payload.headers.Get(headers.ContainerCountHeader) == "" {
+					responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
+				} else {
+					// Orchestrator intake response does not change RT checks enablement or interval
+					updateRTStatus = false
+					responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+				}
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
 				updateRTStatus = false
@@ -579,8 +583,8 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 	return statuses
 }
 
-// podtMessagesToResults split pod metadata and manifest from messages and add them to the queue
-func podtMessagesToResults(l *Collector, start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
+// podMessagesToResults split pod metadata and manifest from messages and add them to the queue
+func podMessagesToResults(l *Collector, start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
 
 	metadataPayloads := make([]checkPayload, 0, len(messages)/2)
 	manifestPayloads := make([]checkPayload, 0, len(messages)/2)
@@ -588,17 +592,8 @@ func podtMessagesToResults(l *Collector, start time.Time, name string, messages 
 	manifestSizeInBytes := 0
 
 	for _, m := range messages {
-		body, err := api.EncodePayload(m)
-		if err != nil {
-			log.Errorf("Unable to encode message: %s", err)
-			continue
-		}
 
 		extraHeaders := make(http.Header)
-		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
-		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
-		extraHeaders.Set(headers.ProcessVersionHeader, Version)
-		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 
 		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
@@ -609,14 +604,32 @@ func podtMessagesToResults(l *Collector, start time.Time, name string, messages 
 		msgType, err := model.DetectMessageType(m)
 		if err != nil {
 			log.Warnf("unable to detect message type: %s", err)
+			continue
 		}
 		if msgType == model.TypeCollectorManifest {
+			body, err := proto.Marshal(m)
+			if err != nil {
+				log.Warnf("unable to marshal manifest message")
+				continue
+			}
+			extraHeaders.Set("Content-Type", "application/x-protobuf")
 			manifestPayloads = append(manifestPayloads, checkPayload{
 				body:    body,
 				headers: extraHeaders,
 			})
 			manifestSizeInBytes += len(body)
 		} else {
+			body, err := api.EncodePayload(m)
+			if err != nil {
+				log.Errorf("Unable to encode message: %s", err)
+				continue
+			}
+
+			extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
+			extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
+			extraHeaders.Set(headers.ProcessVersionHeader, Version)
+			extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+
 			metadataPayloads = append(metadataPayloads, checkPayload{
 				body:    body,
 				headers: extraHeaders,
@@ -634,7 +647,7 @@ func podtMessagesToResults(l *Collector, start time.Time, name string, messages 
 	results.Add(result)
 	if len(manifestPayloads) != 0 {
 		result = &checkResult{
-			name:        config.PodManifestsCheckName,
+			name:        name,
 			payloads:    manifestPayloads,
 			sizeInBytes: int64(manifestSizeInBytes),
 		}
