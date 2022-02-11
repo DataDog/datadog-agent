@@ -1600,7 +1600,10 @@ func getValidHostAliasesWithConfig(config Config) []string {
 	return aliases
 }
 
-// GetConfiguredTags returns complete list of user configured tags
+// GetConfiguredTags returns complete list of user configured tags.
+//
+// This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
+// if includeDogstatsd is true.
 func GetConfiguredTags(includeDogstatsd bool) []string {
 	tags := Datadog.GetStringSlice("tags")
 	extraTags := Datadog.GetStringSlice("extra_tags")
