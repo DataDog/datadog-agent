@@ -36,11 +36,19 @@ type collector struct {
 	metaV1          *v1.Client
 	clusterName     string
 	hasResourceTags bool
+	resourceTags    map[string]resourceTags
+}
+
+type resourceTags struct {
+	tags                  map[string]string
+	containerInstanceTags map[string]string
 }
 
 func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{}
+		return &collector{
+			resourceTags: make(map[string]resourceTags),
+		}
 	})
 }
 
@@ -80,10 +88,18 @@ func (c *collector) Pull(ctx context.Context) error {
 		return err
 	}
 
+	// we always parse all the tasks coming from the API, as they are not
+	// immutable: the list of containers in the task changes as containers
+	// don't get added until they actually start running, and killed
+	// containers will get re-created.
 	events := c.parseTasks(ctx, tasks)
 
 	expires := c.expire.ComputeExpires()
 	for _, expired := range expires {
+		if c.hasResourceTags && expired.Kind == workloadmeta.KindECSTask {
+			delete(c.resourceTags, expired.ID)
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: workloadmeta.SourceECS,
@@ -112,13 +128,7 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 			ID:   task.Arn,
 		}
 
-		if created := c.expire.Update(entityID, now); !created {
-			// if the task already existed in the store, we don't
-			// try to updated to avoid too many calls to the V3
-			// metadata API, as it's very easy to hit throttling
-			// limits.
-			continue
-		}
+		c.expire.Update(entityID, now)
 
 		arnParts := strings.Split(task.Arn, "/")
 		taskID := arnParts[len(arnParts)-1]
@@ -137,44 +147,9 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 		}
 
 		if c.hasResourceTags {
-			var metaURI string
-			for _, taskContainer := range taskContainers {
-				container, err := c.store.GetContainer(taskContainer.ID)
-				if err != nil {
-					log.Tracef("cannot find container %q found in task %q: %s", taskContainer, task.Arn, err)
-					continue
-				}
-
-				uri, ok := container.EnvVars[v3.DefaultMetadataURIEnvVariable]
-				if ok && uri != "" {
-					metaURI = uri
-					break
-				}
-			}
-
-			if metaURI != "" {
-				metaV3 := v3.NewClient(metaURI)
-				taskWithTags, err := metaV3.GetTaskWithTags(ctx)
-				if err == nil {
-					entity.Tags = taskWithTags.TaskTags
-					entity.ContainerInstanceTags = taskWithTags.ContainerInstanceTags
-				} else {
-					log.Errorf("failed to get task with tags from metadata v3 API: %s", err)
-
-					// forget this task so this gets
-					// retried on the next pull. we do
-					// still produce an ECSTask with
-					// partial data.
-					c.expire.Remove(entityID)
-				}
-			} else {
-				log.Errorf("failed to get client for metadata v3 API from task %q and the following containers: %v", task.Arn, taskContainers)
-
-				// forget this task so this gets retried on the
-				// next pull. we do still produce an ECSTask
-				// with partial data.
-				c.expire.Remove(entityID)
-			}
+			rt := c.getResourceTags(ctx, entity)
+			entity.ContainerInstanceTags = rt.containerInstanceTags
+			entity.Tags = rt.tags
 		}
 
 		events = append(events, containerEvents...)
@@ -220,4 +195,52 @@ func (c *collector) parseTaskContainers(task v1.Task) ([]workloadmeta.Orchestrat
 	}
 
 	return taskContainers, events
+}
+
+// getResourceTags fetches task and container instance tags from the ECS API,
+// and caches them for the lifetime of the task, to avoid hitting throttling
+// limits from tasks being updated on every pull. Tags won't change in the
+// store even if they're changed in the resources themselves, but at least that
+// matches the old behavior present in the tagger.
+func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.ECSTask) resourceTags {
+	rt, ok := c.resourceTags[entity.ID]
+	if ok {
+		return rt
+	}
+
+	var metaURI string
+	for _, taskContainer := range entity.Containers {
+		container, err := c.store.GetContainer(taskContainer.ID)
+		if err != nil {
+			log.Tracef("cannot find container %q found in task %q: %s", taskContainer, entity.ID, err)
+			continue
+		}
+
+		uri, ok := container.EnvVars[v3.DefaultMetadataURIEnvVariable]
+		if ok && uri != "" {
+			metaURI = uri
+			break
+		}
+	}
+
+	if metaURI == "" {
+		log.Errorf("failed to get client for metadata v3 API from task %q and the following containers: %v", entity.ID, entity.Containers)
+		return rt
+	}
+
+	metaV3 := v3.NewClient(metaURI)
+	taskWithTags, err := metaV3.GetTaskWithTags(ctx)
+	if err != nil {
+		log.Errorf("failed to get task with tags from metadata v3 API: %s", err)
+		return rt
+	}
+
+	rt = resourceTags{
+		tags:                  taskWithTags.TaskTags,
+		containerInstanceTags: taskWithTags.ContainerInstanceTags,
+	}
+
+	c.resourceTags[entity.ID] = rt
+
+	return rt
 }
