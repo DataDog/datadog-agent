@@ -117,7 +117,10 @@ func getAndWriteStatus(w io.Writer, options ...util.StatusOption) {
 		return
 	}
 
-	w.Write([]byte(stats))
+	_, err = w.Write([]byte(stats))
+	if err != nil {
+		_ = log.Error(err)
+	}
 }
 
 // StatusCmd returns a cobra command that prints the current status
