@@ -132,6 +132,7 @@ func validateHeaderDirs(hv Version, dirs []string) []string {
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				// version.h is not found in this directory
+				valid = append(valid, d)
 				continue
 			}
 			log.Debugf("error validating %s: error validating headers version: %w", d, err)
