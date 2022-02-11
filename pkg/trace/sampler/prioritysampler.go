@@ -67,7 +67,6 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),
 	}
-	s.localRates.setRateThresholdTo1(priorityLocalRateThresholdTo1)
 	return s
 }
 
