@@ -511,51 +511,73 @@ func TestZipVersionHistory(t *testing.T) {
 }
 
 func TestZipProcessAgentFullConfig(t *testing.T) {
-	exp := `
-a: testA
-b: testB
-c: testC
-`
+	type ProcessConfig struct {
+		Enabled string `yaml:"enabled"`
+	}
+
+	globalCfg := struct {
+		Apikey     string        `yaml:"api_key"`
+		DDurl      string        `yaml:"dd_url"`
+		ProcessCfg ProcessConfig `yaml:"process_config"`
+	}{
+		"*****1234",
+		"https://my-url.com",
+		ProcessConfig{
+			"true",
+		},
+	}
+
+	exp := `api_key: '*****1234'
+dd_url: https://my-url.com
+process_config:
+  enabled: "true"`
 
 	cfg := config.Mock()
 	// Use different port in case the host is running a real agent
 	cfg.Set("process_config.cmd_port", 8182)
 
-	expVarMux := http.NewServeMux()
-	expVarMux.HandleFunc("/config/all", func(w http.ResponseWriter, _ *http.Request) {
-		b, err := yaml.Marshal(exp)
-		fmt.Println("MARSHALLED YAML: ", exp)
+	t.Run("without process-agent running", func(t *testing.T) {
+		dir, err := ioutil.TempDir("", "TestZipProcessAgentFullConfig")
 		require.NoError(t, err)
+		defer os.RemoveAll(dir)
 
-		_, err = w.Write(b)
+		zipProcessAgentFullConfig(dir, "")
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
 		require.NoError(t, err)
+		assert.Equal(t, "error: process-agent is not running or is unreachable", string(content))
 	})
 
-	expVarEndpoint := fmt.Sprintf("localhost:%d", cfg.GetInt("process_config.cmd_port"))
-	expVarsServer := http.Server{Addr: expVarEndpoint, Handler: expVarMux}
-	expVarsListener, err := net.Listen("tcp", expVarEndpoint)
-	require.NoError(t, err)
+	t.Run("with process-agent running", func(t *testing.T) {
+		// Create a server to mock process-agent /config/all endpoint
+		cfgMux := http.NewServeMux()
+		cfgMux.HandleFunc("/config/all", func(w http.ResponseWriter, _ *http.Request) {
+			b, err := yaml.Marshal(globalCfg)
+			require.NoError(t, err)
 
-	go func() {
-		_ = expVarsServer.Serve(expVarsListener)
-		//serverWg.Done()
-	}()
-	defer func() {
-		expVarsServer.Shutdown(context.Background())
-	}()
+			_, err = w.Write(b)
+			require.NoError(t, err)
+		})
 
-	dir, err := ioutil.TempDir("", "TestZipConfigCheck")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+		cfgEndpoint := fmt.Sprintf("localhost:%d", cfg.GetInt("process_config.cmd_port"))
+		cfgSrv := http.Server{Addr: cfgEndpoint, Handler: cfgMux}
+		cfgListener, err := net.Listen("tcp", cfgEndpoint)
+		require.NoError(t, err)
 
-	zipProcessAgentFullConfig(dir, "")
-	content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
-	require.NoError(t, err)
+		go func() {
+			_ = cfgSrv.Serve(cfgListener)
+		}()
+		defer func() {
+			err := cfgSrv.Shutdown(context.Background())
+			require.NoError(t, err)
+		}()
 
-	fmt.Println("RESULT:", string(content))
-	assert.Equal(t, exp, string(content))
+		dir, err := ioutil.TempDir("", "TestZipProcessAgentFullConfig")
+		require.NoError(t, err)
+		defer os.RemoveAll(dir)
 
-	// TODO: test when process-agent is not running
+		zipProcessAgentFullConfig(dir, "")
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, exp, string(content))
+	})
 }

@@ -44,9 +44,10 @@ func GetProcessAgentStatus() map[string]interface{} {
 
 // marshalError marshals an error as YAML
 func marshalError(err error) []byte {
-	errYaml := make(map[string]interface{})
+	errYaml := map[string]string{
+		"error": err.Error(),
+	}
 
-	errYaml["error"] = fmt.Sprintf("%v", err.Error())
 	b, err := yaml.Marshal(errYaml)
 	if err != nil {
 		log.Warn("Unable to marshal error as yaml")
@@ -65,19 +66,14 @@ func GetProcessAgentRuntimeConfig() []byte {
 
 	addressPort, err := api.GetAPIAddressPort()
 	if err != nil {
-		return marshalError(err)
+		return marshalError(fmt.Errorf("wrong configuration to connect to process-agent"))
 	}
 
 	statusEndpoint := fmt.Sprintf("http://%s/config/all", addressPort)
 	b, err := apiutil.DoGet(httpClient, statusEndpoint)
 	if err != nil {
-		return marshalError(err)
+		return marshalError(fmt.Errorf("process-agent is not running or is unreachable"))
 	}
 
-	fmt.Println("GOT RESPONSE FROM SERVER: ", string(b))
-	y := make(map[string]interface{})
-	err = yaml.Unmarshal(b, &y)
-	fmt.Println("ERROR UNMARSHALING? ", err)
-	fmt.Println("UNMARSHALLED YAML", y)
 	return b
 }
