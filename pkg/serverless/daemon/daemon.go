@@ -7,15 +7,13 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -74,7 +72,11 @@ type Daemon struct {
 
 	ExtraTags *serverlessLog.Tags
 
-	ExecutionContext *serverlessLog.ExecutionContext
+	// ExecutionContext stores the context of the current invocation
+	executionContext *executioncontext.ExecutionContext
+
+	// executionContextMutex is used to ensure that modifying ExecutionContext is thread-safe
+	executionContextMutex sync.Mutex
 
 	// TellDaemonRuntimeDoneOnce asserts that TellDaemonRuntimeDone will be called at most once per invocation (at the end of the function OR after a timeout).
 	// We store a pointer to a sync.Once, which should be reset to a new pointer at the beginning of each invocation.
@@ -110,7 +112,7 @@ func StartDaemon(addr string) *Daemon {
 		useAdaptiveFlush:  true,
 		flushStrategy:     &flush.AtTheEnd{},
 		ExtraTags:         &serverlessLog.Tags{},
-		ExecutionContext:  &serverlessLog.ExecutionContext{},
+		executionContext:  &executioncontext.ExecutionContext{},
 		metricsFlushMutex: sync.Mutex{},
 		tracesFlushMutex:  sync.Mutex{},
 		logsFlushMutex:    sync.Mutex{},
@@ -167,13 +169,14 @@ func (d *Daemon) GetFlushStrategy() string {
 // SetupLogCollectionHandler configures the log collection route handler
 func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
 	d.mux.Handle(route, &serverlessLog.LambdaLogsCollector{
-		ExtraTags:              d.ExtraTags,
-		ExecutionContext:       d.ExecutionContext,
-		LogChannel:             logsChan,
-		MetricChannel:          d.MetricAgent.GetMetricChannel(),
-		LogsEnabled:            logsEnabled,
-		EnhancedMetricsEnabled: enhancedMetricsEnabled,
-		HandleRuntimeDone:      d.HandleRuntimeDone,
+		ExtraTags:                          d.ExtraTags,
+		LogChannel:                         logsChan,
+		MetricChannel:                      d.MetricAgent.GetMetricChannel(),
+		LogsEnabled:                        logsEnabled,
+		EnhancedMetricsEnabled:             enhancedMetricsEnabled,
+		HandleRuntimeDone:                  d.HandleRuntimeDone,
+		GetExecutionContext:                d.GetExecutionContext,
+		UpdateExecutionContextFromStartLog: d.UpdateExecutionContextFromStartLog,
 	})
 }
 
@@ -345,7 +348,7 @@ func (d *Daemon) WaitForDaemon() {
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
 func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
-		tagMap := tags.BuildTagMap(d.ExecutionContext.ARN, configTags)
+		tagMap := tags.BuildTagMap(d.executionContext.ARN, configTags)
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent != nil {
 			d.MetricAgent.SetExtraTags(tagArray)
@@ -367,48 +370,4 @@ func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
 		return true
 	}
 	return false
-}
-
-// SetExecutionContext sets the current context to the daemon
-func (d *Daemon) SetExecutionContext(arn string, requestID string) {
-	d.ExecutionContext.ARN = strings.ToLower(arn)
-	d.ExecutionContext.LastRequestID = requestID
-	if len(d.ExecutionContext.ColdstartRequestID) == 0 {
-		d.ExecutionContext.Coldstart = true
-		d.ExecutionContext.ColdstartRequestID = requestID
-	} else {
-		d.ExecutionContext.Coldstart = false
-	}
-}
-
-// SaveCurrentExecutionContext stores the current context to a file
-func (d *Daemon) SaveCurrentExecutionContext() error {
-	file, err := json.Marshal(d.ExecutionContext)
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(persistedStateFilePath, file, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// RestoreCurrentStateFromFile loads the current context from a file
-func (d *Daemon) RestoreCurrentStateFromFile() error {
-	file, err := ioutil.ReadFile(persistedStateFilePath)
-	if err != nil {
-		return err
-	}
-	var restoredExecutionContext serverlessLog.ExecutionContext
-	err = json.Unmarshal(file, &restoredExecutionContext)
-	if err != nil {
-		return err
-	}
-	d.ExecutionContext.ARN = restoredExecutionContext.ARN
-	d.ExecutionContext.LastRequestID = restoredExecutionContext.LastRequestID
-	d.ExecutionContext.LastLogRequestID = restoredExecutionContext.LastLogRequestID
-	d.ExecutionContext.ColdstartRequestID = restoredExecutionContext.ColdstartRequestID
-	d.ExecutionContext.StartTime = restoredExecutionContext.StartTime
-	return nil
 }

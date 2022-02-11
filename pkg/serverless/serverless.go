@@ -168,7 +168,8 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
+			ec := daemon.GetExecutionContext()
+			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ec.Coldstart)
 			metricsChan := daemon.MetricAgent.GetMetricChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), metricsChan)
@@ -204,18 +205,19 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
 	daemon.TellDaemonRuntimeStarted()
 	log.Debug("Received invocation event...")
-	daemon.SetExecutionContext(arn, requestID)
+	daemon.SetExecutionContextFromInvocation(arn, requestID)
 	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+	ec := daemon.GetExecutionContext()
 
 	if daemon.MetricAgent != nil {
-		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ec.Coldstart)
 		metricsChan := daemon.MetricAgent.GetMetricChannel()
 		metrics.SendInvocationEnhancedMetric(metricTags, metricsChan)
 	} else {
 		log.Error("Could not send the invocation enhanced metric")
 	}
 
-	if daemon.ExecutionContext.Coldstart {
+	if ec.Coldstart {
 		daemon.UpdateStrategy()
 	}
 

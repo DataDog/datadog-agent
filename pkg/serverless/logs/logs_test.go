@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,20 +60,20 @@ func TestShouldProcessLog(t *testing.T) {
 	nonEmptyRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	emptyRequestID := ""
 
-	assert.True(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, validLog))
+	assert.True(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, validLog))
 
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
 
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
 }
 
 func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
@@ -196,7 +197,14 @@ func TestProcessMessageValid(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	mockGetExecutionContext := func() executioncontext.ExecutionContext {
+		return executioncontext.ExecutionContext{
+			ARN:           arn,
+			LastRequestID: lastRequestID,
+		}
+	}
+	mockUpdateExecutionContext := func(string, time.Time) {}
+	go processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
 	select {
 	case received := <-metricsChan:
@@ -207,7 +215,7 @@ func TestProcessMessageValid(t *testing.T) {
 
 	metricsChan = make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics = false
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	go processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
 	select {
 	case <-metricsChan:
@@ -230,7 +238,18 @@ func TestProcessMessageStartValid(t *testing.T) {
 	metricTags := []string{"functionname:test-function"}
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
-	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}
+
+	var mockExecutionContext executioncontext.ExecutionContext
+	mockGetExecutionContext := func() executioncontext.ExecutionContext {
+		return executioncontext.ExecutionContext{
+			ARN:           arn,
+			LastRequestID: lastRequestID,
+		}
+	}
+	mockUpdateExecutionContext := func(lastRequestID string, time time.Time) {
+		mockExecutionContext.LastLogRequestID = lastRequestID
+	}
+
 	computeEnhancedMetrics := true
 
 	runtimeDoneCallbackWasCalled := false
@@ -238,8 +257,8 @@ func TestProcessMessageStartValid(t *testing.T) {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
-	assert.Equal(t, lastRequestID, executionContext.LastLogRequestID)
+	processMessage(message, mockGetExecutionContext, mockUpdateExecutionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
+	assert.Equal(t, lastRequestID, mockExecutionContext.LastLogRequestID)
 	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
 }
 
@@ -260,7 +279,7 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
-	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
+	executionContext := &executioncontext.ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
 	computeEnhancedMetrics := true
 
 	runtimeDoneCallbackWasCalled := false
@@ -293,7 +312,7 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
-	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
+	executionContext := &executioncontext.ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
 	computeEnhancedMetrics := true
 
 	runtimeDoneCallbackWasCalled := false
@@ -326,7 +345,7 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: "", LastRequestID: ""}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	go processMessage(message, &executioncontext.ExecutionContext{ARN: "", LastRequestID: ""}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
 	select {
 	case <-metricsChan:
@@ -349,7 +368,7 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	go processMessage(message, &executioncontext.ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
 	select {
 	case <-metricsChan:
@@ -372,7 +391,7 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	go processMessage(message, &executioncontext.ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
 	select {
 	case received := <-metricsChan:
@@ -388,7 +407,7 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
+		ExecutionContext: &executioncontext.ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
 		},
@@ -427,7 +446,7 @@ func TestProcessLogMessageNoStringRecordPlatformLog(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
+		ExecutionContext: &executioncontext.ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
 		},
@@ -458,7 +477,7 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
+		ExecutionContext: &executioncontext.ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
 		},
@@ -491,7 +510,7 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
+		ExecutionContext: &executioncontext.ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
 		},
@@ -527,7 +546,7 @@ func TestServeHTTPInvalidPayload(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
+		ExecutionContext: &executioncontext.ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
 		},
@@ -549,7 +568,7 @@ func TestServeHTTPSuccess(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
+		ExecutionContext: &executioncontext.ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
 		},

@@ -162,29 +162,3 @@ func TestSetTraceTagOk(t *testing.T) {
 	}
 	assert.True(t, d.setTraceTags(tagsMap))
 }
-
-func TestSetExecutionContextUppercase(t *testing.T) {
-	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
-	defer d.Stop()
-	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
-	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	d.SetExecutionContext(testArn, testRequestID)
-	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", d.ExecutionContext.ARN)
-	assert.Equal(testRequestID, d.ExecutionContext.LastRequestID)
-	assert.Equal(true, d.ExecutionContext.Coldstart)
-	assert.Equal(testRequestID, d.ExecutionContext.ColdstartRequestID)
-}
-
-func TestSetExecutionContextNoColdstart(t *testing.T) {
-	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
-	defer d.Stop()
-	d.ExecutionContext.ColdstartRequestID = "coldstart-request-id"
-	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
-	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	d.SetExecutionContext(testArn, testRequestID)
-	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", d.ExecutionContext.ARN)
-	assert.Equal(testRequestID, d.ExecutionContext.LastRequestID)
-	assert.Equal(false, d.ExecutionContext.Coldstart)
-}
