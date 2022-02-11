@@ -13,11 +13,10 @@ import (
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
-//TODO: do not use a global var for this
-var httpClient = apiutil.GetClient(false)
-
 // GetProcessAgentStatus returns the status command of the process-agent
 func GetProcessAgentStatus() map[string]interface{} {
+	httpClient := apiutil.GetClient(false)
+
 	s := make(map[string]interface{})
 	addressPort, err := api.GetAPIAddressPort()
 	if err != nil {

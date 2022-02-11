@@ -40,14 +40,17 @@ type InfoVersion struct {
 	GoVersion string
 }
 
+// MemInfo holds information about memory usage from process-agent
+type MemInfo struct {
+	Alloc uint64 `json:"alloc"`
+}
+
 // ProcessExpvars holds values fetched from the exp var server
 type ProcessExpvars struct {
-	Pid        int     `json:"pid"`
-	Uptime     int     `json:"uptime"`
-	UptimeNano float64 `json:"uptime_nano"`
-	MemStats   struct {
-		Alloc uint64 `json:"alloc"`
-	} `json:"memstats"`
+	Pid                 int                 `json:"pid"`
+	Uptime              int                 `json:"uptime"`
+	UptimeNano          float64             `json:"uptime_nano"`
+	MemStats            MemInfo             `json:"memstats"`
 	Version             InfoVersion         `json:"version"`
 	DockerSocket        string              `json:"docker_socket"`
 	LastCollectTime     string              `json:"last_collect_time"`
@@ -66,7 +69,7 @@ type ProcessExpvars struct {
 	Endpoints           map[string][]string `json:"endpoints"`
 }
 
-// Status holds status info from process-agent
+// Status holds runtime information from process-agent
 type Status struct {
 	Date    float64        `json:"date"`
 	Core    CoreStatus     `json:"core"`    // Contains the status from the core agent
@@ -76,7 +79,7 @@ type Status struct {
 // StatusOption is a function that acts on a Status object
 type StatusOption func(s *Status)
 
-// ConnectionError represents an error to connect to a HTTP server
+// ConnectionError represents an error to connect to an HTTP server
 type ConnectionError struct {
 	error
 }
