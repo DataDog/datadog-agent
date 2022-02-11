@@ -128,6 +128,10 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 func validateHeaderDirs(hv Version, dirs []string) []string {
 	var valid []string
 	for _, d := range dirs {
+		if _, err := os.Stat(d); errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+
 		dirv, err := getHeaderVersion(d)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
