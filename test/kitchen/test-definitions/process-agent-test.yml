@@ -8,12 +8,12 @@ suites:
           process_config:
             process_collection:
               enabled: true
-# - name: "container-collection-test"
-#   run_list:
-#     - "recipe[dd-agent-install]"
-#   attributes:
-#     datadog:
-#       extra_config:
-#           process_config:
-#             container_collection:
-#               enabled: true
+- name: "container-collection-test"
+  run_list:
+    - "recipe[dd-agent-install]"
+  attributes:
+    datadog:
+      extra_config:
+          process_config:
+            container_collection:
+              enabled: true
