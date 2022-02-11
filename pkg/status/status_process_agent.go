@@ -74,5 +74,10 @@ func GetProcessAgentRuntimeConfig() []byte {
 		return marshalError(err)
 	}
 
+	fmt.Println("GOT RESPONSE FROM SERVER: ", string(b))
+	y := make(map[string]interface{})
+	err = yaml.Unmarshal(b, &y)
+	fmt.Println("ERROR UNMARSHALING? ", err)
+	fmt.Println("UNMARSHALLED YAML", y)
 	return b
 }

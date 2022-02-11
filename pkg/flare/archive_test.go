@@ -7,10 +7,12 @@ package flare
 
 import (
 	"archive/zip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -505,4 +508,54 @@ func TestZipVersionHistory(t *testing.T) {
 	actualContent, err := ioutil.ReadFile(targetPath)
 	require.NoError(t, err)
 	require.Equal(t, "mockfilecontent", string(actualContent))
+}
+
+func TestZipProcessAgentFullConfig(t *testing.T) {
+	exp := `
+a: testA
+b: testB
+c: testC
+`
+
+	cfg := config.Mock()
+	// Use different port in case the host is running a real agent
+	cfg.Set("process_config.cmd_port", 8182)
+
+	expVarMux := http.NewServeMux()
+	expVarMux.HandleFunc("/config/all", func(w http.ResponseWriter, _ *http.Request) {
+		b, err := yaml.Marshal(exp)
+		fmt.Println("MARSHALLED YAML: ", exp)
+		require.NoError(t, err)
+
+		_, err = w.Write(b)
+		require.NoError(t, err)
+	})
+
+	expVarEndpoint := fmt.Sprintf("localhost:%d", cfg.GetInt("process_config.cmd_port"))
+	expVarsServer := http.Server{Addr: expVarEndpoint, Handler: expVarMux}
+	expVarsListener, err := net.Listen("tcp", expVarEndpoint)
+	require.NoError(t, err)
+
+	go func() {
+		_ = expVarsServer.Serve(expVarsListener)
+		//serverWg.Done()
+	}()
+	defer func() {
+		expVarsServer.Shutdown(context.Background())
+	}()
+
+	dir, err := ioutil.TempDir("", "TestZipConfigCheck")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	zipProcessAgentFullConfig(dir, "")
+	content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
+	require.NoError(t, err)
+
+	fmt.Println("RESULT:", string(content))
+	assert.Equal(t, exp, string(content))
+
+	// TODO: test when process-agent is not running
 }
