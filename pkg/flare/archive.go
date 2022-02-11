@@ -525,6 +525,14 @@ func zipSystemProbeStats(tempDir, hostname string) error {
 	return writeScrubbedFile(sysProbeFile, sysProbeBuf)
 }
 
+// zipProcessAgentCfgDump fetches process-agent runtime config as YAML and writes it to process_agent_runtime_config_dump.yaml
+func zipProcessAgentCfgDump(tempDir, hostname string) error {
+	cfgB := status.GetProcessAgentRuntimeConfig()
+	f := filepath.Join(tempDir, hostname, "process_agent_runtime_config_dump.yaml")
+
+	return writeScrubbedFile(f, cfgB)
+}
+
 func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	c, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
@@ -540,6 +548,12 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 	err = writeScrubbedFile(f, c)
 	if err != nil {
 		return err
+	}
+
+	// Use best effort to write process-agent runtime configs
+	err = zipProcessAgentCfgDump(tempDir, hostname)
+	if err != nil {
+		log.Warnf("could not zip process_agent_runtime_config_dump.yaml: %s", err)
 	}
 
 	err = walkConfigFilePaths(tempDir, hostname, confSearchPaths, permsInfos)
