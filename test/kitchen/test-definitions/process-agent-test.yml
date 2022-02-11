@@ -1,0 +1,9 @@
+suites:
+- name: "process_collection_test"
+  run_list:
+    - "recipe[dd-agent-install]"
+  attributes:
+    datadog:
+      process_config:
+        process_collection:
+          enabled: true
