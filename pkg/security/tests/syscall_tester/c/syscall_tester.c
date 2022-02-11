@@ -152,10 +152,10 @@ int signal_sigusr(void) {
     int child = fork();
 
     if (child == 0) {
-        wait(NULL);
+        sleep(5);
     } else {
         kill(child, SIGUSR1);
-        wait(NULL);
+        sleep(1);
     }
     return EXIT_SUCCESS;
 }
