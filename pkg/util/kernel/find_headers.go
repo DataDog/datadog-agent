@@ -126,7 +126,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 		}
 		return nil, validationFailure, fmt.Errorf("downloaded headers are not valid: %w", err)
 	}
-	return nil, headersNotFound, fmt.Errorf("kernel header downloading is disabled")
+	return nil, headersNotFound, fmt.Errorf("no valid matching kernel header directories found")
 }
 
 // validateHeaderDirs verifies that the kernel headers in at least 1 directory matches the kernel version of the running host
