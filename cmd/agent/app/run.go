@@ -73,6 +73,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 
@@ -399,7 +400,7 @@ func StartAgent() error {
 	// Start SNMP trap server
 	if traps.IsEnabled() {
 		if config.Datadog.GetBool("logs_enabled") {
-			err = traps.StartServer()
+			err = traps.StartServer(hostname)
 			if err != nil {
 				log.Errorf("Failed to start snmp-traps server: %s", err)
 			}

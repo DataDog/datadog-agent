@@ -608,7 +608,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=""):
+def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow="default"):
     """
     Run e2e tests in several environments.
     """

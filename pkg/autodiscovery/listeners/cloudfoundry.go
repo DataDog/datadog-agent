@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +44,6 @@ type CloudFoundryService struct {
 	adIdentifier   cloudfoundry.ADIdentifier
 	containerIPs   map[string]string
 	containerPorts []ContainerPort
-	creationTime   integration.CreationTime
 }
 
 // Make sure CloudFoundryService implements the Service interface
@@ -72,20 +70,20 @@ func (l *CloudFoundryListener) Listen(newSvc chan<- Service, delSvc chan<- Servi
 	l.delService = delSvc
 
 	go func() {
-		l.refreshServices(true)
+		l.refreshServices()
 		for {
 			select {
 			case <-l.stop:
 				l.refreshTicker.Stop()
 				return
 			case <-l.refreshTicker.C:
-				l.refreshServices(false)
+				l.refreshServices()
 			}
 		}
 	}()
 }
 
-func (l *CloudFoundryListener) refreshServices(firstRun bool) {
+func (l *CloudFoundryListener) refreshServices() {
 	log.Debug("Refreshing services via CloudFoundryListener")
 	// make sure that we can't have two simultaneous runs of this function
 	l.Lock()
@@ -110,7 +108,7 @@ func (l *CloudFoundryListener) refreshServices(firstRun bool) {
 			delete(notSeen, strID)
 			continue
 		}
-		svc := l.createService(id, firstRun)
+		svc := l.createService(id)
 		// if the container is not in RUNNING state, we can't populate ports, thus createService would return nil
 		if svc != nil {
 			l.newService <- svc
@@ -123,12 +121,7 @@ func (l *CloudFoundryListener) refreshServices(firstRun bool) {
 	}
 }
 
-func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, firstRun bool) *CloudFoundryService {
-	crTime := integration.After
-	if firstRun {
-		crTime = integration.Before
-	}
-
+func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier) *CloudFoundryService {
 	var svc *CloudFoundryService
 	aLRP := adID.GetActualLRP()
 	if aLRP == nil {
@@ -140,7 +133,6 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 			adIdentifier:   adID,
 			containerIPs:   map[string]string{},
 			containerPorts: []ContainerPort{},
-			creationTime:   crTime,
 			tags:           dLRP.GetTagsFromDLRP(),
 		}
 	} else {
@@ -170,7 +162,6 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 			adIdentifier:   adID,
 			containerIPs:   ips,
 			containerPorts: ports,
-			creationTime:   crTime,
 		}
 	}
 	l.services[adID.String()] = svc
@@ -242,11 +233,6 @@ func (s *CloudFoundryService) GetPid(context.Context) (int, error) {
 // GetHostname returns nil and an error because hostnames are not supported in CF
 func (s *CloudFoundryService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
-}
-
-// GetCreationTime returns the creation time of the container
-func (s *CloudFoundryService) GetCreationTime() integration.CreationTime {
-	return s.creationTime
 }
 
 // IsReady always returns true on CF
