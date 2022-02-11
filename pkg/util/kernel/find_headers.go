@@ -87,17 +87,21 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 	}
 
 	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir))
-	for i := len(downloadedDirs) - 1; i >= 0; i-- {
-		d := downloadedDirs[i]
-		if !containsLinuxTypesHFile(d) {
-			log.Debugf("error validating %s: include/linux/types.h file missing", d)
-
-			// If this happens, it means we've previously downloaded kernel headers containing broken
-			// symlinks. We'll delete these to prevent them from affecting the next download
-			log.Infof("deleting previously downloaded kernel headers")
-			deleteKernelHeaderDirectory(d)
-			downloadedDirs = append(downloadedDirs[:i], downloadedDirs[i+1:]...)
+	linuxTypeHFound := false
+	for _, d := range downloadedDirs {
+		if containsLinuxTypesHFile(d) {
+			linuxTypeHFound = true
+			break
 		}
+	}
+	if !linuxTypeHFound {
+		// If this happens, it means we've previously downloaded kernel headers containing broken
+		// symlinks. We'll delete these to prevent them from affecting the next download
+		log.Infof("deleting previously downloaded kernel headers")
+		for _, d := range downloadedDirs {
+			deleteKernelHeaderDirectory(d)
+		}
+		downloadedDirs = nil
 	}
 	if len(downloadedDirs) > 0 {
 		return downloadedDirs, downloadedHeadersFound, nil
