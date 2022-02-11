@@ -1,5 +1,6 @@
 require 'rspec'
 require 'net/http'
+require 'rbconfig'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
@@ -36,4 +37,23 @@ end
 def check_enabled?(check_name)
   res = Net::HTTP.get('localhost', '/debug/vars', 6062)
   JSON.parse(res)["enabled_checks"].include? check_name
+end
+
+def os
+  # OS Detection from https://stackoverflow.com/questions/11784109/detecting-operating-systems-in-ruby
+  os_cache ||= (
+    host_os = RbConfig::CONFIG['host_os']
+    case host_os
+    when /mswin|msys|mingw|cygwin|bccwin|wince|emc/
+      :windows
+    when /darwin|mac os/
+      :macosx
+    when /linux/
+      :linux
+    when /solaris|bsd/
+      :unix
+    else
+      raise Error::WebDriverError, "unknown os: #{host_os.inspect}"
+    end
+  )
 end

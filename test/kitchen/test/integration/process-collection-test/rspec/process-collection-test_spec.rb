@@ -16,7 +16,7 @@ describe 'a Process Agent with Container Collection enabled' do
         conf = read_conf_file()
         expect(conf.Yaml).to have_key("process_config")
         expect(conf.Yaml["process_config"]).to have_key("process_collection")
-        expect(conf.Yaml["process_config"]["process_collection"]).to have_key("enabled")
+        expect(conf.Yaml["process_config"]["container_collection"]).to have_key("enabled")
         expect(conf.Yaml["process_config"]["container_collection"]["enabled"]).to be_truthy
 
     end
