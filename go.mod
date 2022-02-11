@@ -433,5 +433,3 @@ replace (
 	github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
 	github.com/go-logr/stdr => github.com/go-logr/stdr v0.4.0
 )
-
-replace github.com/DataDog/agent-payload/v5 v5.0.12 => github.com/DataDog/agent-payload/v5 v5.0.14-0.20220208101347-d5c0c45a5924
