@@ -1,6 +1,8 @@
 suites:
 - name: "process-collection-test"
   run_list:
+    - "recipe[dd-agent-disable-system-repos]"
+    - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-install]"
   attributes:
     datadog:
@@ -37,7 +39,6 @@ suites:
         process_config:
           container_collection:
             enabled: true
-
     dd-agent-install:
       agent_major_version: <%= agent_major_version %>
       <% if ENV['AGENT_VERSION'] %>
