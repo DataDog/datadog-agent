@@ -60,3 +60,29 @@ execute 'disable firewalld on redhat' do
     action :nothing
   end
 end
+
+directory "/opt/datadog-agent/embedded/bin" do
+  recursive true
+end
+
+directory "/opt/datadog-agent/embedded/include" do
+  recursive true
+end
+
+cookbook_file "/opt/datadog-agent/embedded/bin/clang" do
+  source "clang"
+  mode '0744'
+  action :create
+end
+
+cookbook_file "/opt/datadog-agent/embedded/bin/llc" do
+  source "llc"
+  mode '0744'
+  action :create
+end
+
+cookbook_file "/opt/datadog-agent/embedded/include/stdarg.h" do
+  source "stdarg.h"
+  mode '0744'
+  action :create
+end
