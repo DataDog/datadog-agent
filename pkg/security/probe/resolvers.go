@@ -269,7 +269,9 @@ func (r *Resolvers) snapshot() error {
 		}
 
 		// Sync the namespace cache
-		cacheModified = cacheModified || r.NamespaceResolver.SyncCache(proc)
+		if r.NamespaceResolver.SyncCache(proc) {
+			cacheModified = true
+		}
 	}
 
 	// There is a possible race condition when a process starts right after we called process.AllProcesses

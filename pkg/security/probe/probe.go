@@ -1007,7 +1007,7 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 
 	for tcKey, tcProbe := range p.tcPrograms {
 		if !tcProbe.IsTCFilterActive() {
-			_ = p.manager.DetachAndDeleteHook(tcProbe.ProbeIdentificationPair)
+			_ = p.manager.DetachHook(tcProbe.ProbeIdentificationPair)
 			delete(p.tcPrograms, tcKey)
 		} else {
 			if tcKey.IfIndex > 1 {
