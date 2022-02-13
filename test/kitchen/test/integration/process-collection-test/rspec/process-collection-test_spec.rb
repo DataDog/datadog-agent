@@ -18,9 +18,9 @@ describe 'a Process Agent with Process Collection enabled' do
         expect(conf["process_config"]).to have_key("process_collection")
         expect(conf["process_config"]["process_collection"]).to have_key("enabled")
         expect(conf["process_config"]["process_collection"]["enabled"]).to be_truthy
-
     end
     it 'is running the process check' do
+        sleep 30
         expect(check_enabled?("process")).to be_truthy
     end
 end
