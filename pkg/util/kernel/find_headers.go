@@ -122,7 +122,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 
 // validateHeaderDirs checks all the given directories and returns the directories containing kernel
 // headers matching the kernel version of the running host
-func validateHeaderDirs(hv Version, dirs []string, checkCritical bool) []string {
+func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool) []string {
 	var valid []string
 	for _, d := range dirs {
 		if _, err := os.Stat(d); errors.Is(err, fs.ErrNotExist) {
@@ -150,7 +150,7 @@ func validateHeaderDirs(hv Version, dirs []string, checkCritical bool) []string 
 		valid = append(valid, d)
 	}
 
-	if checkCritical && len(valid) != 0 && !containsCriticalHeaders(valid) {
+	if checkForCriticalHeaders && len(valid) != 0 && !containsCriticalHeaders(valid) {
 		log.Errorf("error validating %s: missing critical headers", valid)
 		return nil
 	}
