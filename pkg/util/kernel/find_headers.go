@@ -87,14 +87,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 	}
 
 	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir))
-	linuxTypeHFound := false
-	for _, d := range downloadedDirs {
-		if containsLinuxTypesHFile(d) {
-			linuxTypeHFound = true
-			break
-		}
-	}
-	if !linuxTypeHFound {
+	if !containsCriticalHeaders(downloadedDirs) {
 		// If this happens, it means we've previously downloaded kernel headers containing broken
 		// symlinks. We'll delete these to prevent them from affecting the next download
 		log.Infof("deleting previously downloaded kernel headers")
@@ -159,15 +152,33 @@ func validateHeaderDirs(hv Version, dirs []string) []string {
 	return valid
 }
 
-func containsLinuxTypesHFile(dir string) bool {
-	path := filepath.Join(dir, "include/linux/types.h")
-	f, err := os.Open(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false
+func containsCriticalHeaders(dirs []string) bool {
+	criticalPaths := []string{
+		"include/linux/types.h",
+		"include/linux/kconfig.h",
 	}
-	if f != nil {
-		defer f.Close()
+
+	searchResult := make(map[string]bool)
+	for _, path := range criticalPaths {
+		searchResult[path] = false
 	}
+
+	for _, criticalPath := range criticalPaths {
+		for _, dir := range dirs {
+			path := filepath.Join(dir, criticalPath)
+			_, err := os.Stat(path)
+			if !errors.Is(err, fs.ErrNotExist) {
+				searchResult[criticalPath] = true
+			}
+		}
+	}
+
+	for _, found := range searchResult {
+		if !found {
+			return false
+		}
+	}
+
 	return true
 }
 
