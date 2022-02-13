@@ -1084,5 +1084,9 @@ func GetOffsetConstantsFromFetcher(constantFetcher constantfetch.ConstantFetcher
 	if probe.kernelVersion.Code != 0 && (probe.kernelVersion.Code > kernel.Kernel4_16 || probe.kernelVersion.IsSLES12Kernel() || probe.kernelVersion.IsSLES15Kernel()) {
 		constantFetcher.AppendOffsetofRequest("bpf_prog_attach_type_offset", "struct bpf_prog", "expected_attach_type", "linux/filter.h")
 	}
+	// namespace nr offsets
+	constantFetcher.AppendOffsetofRequest("pid_level_offset", "struct pid", "level", "linux/pid.h")
+	constantFetcher.AppendOffsetofRequest("pid_numbers_offset", "struct pid", "numbers", "linux/pid.h")
+	constantFetcher.AppendSizeofRequest("sizeof_upid", "struct upid", "linux/pid.h")
 	return constantFetcher.FinishAndGetResults()
 }
