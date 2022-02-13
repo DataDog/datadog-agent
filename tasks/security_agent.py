@@ -289,14 +289,15 @@ def build_functional_tests(
             env["CGO_CPPFLAGS"] = ""
         env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
-    if nikos_embedded_path:
-        build_tags.append("dnf")
-
     if not skip_linters:
         targets = ['./pkg/security/tests']
         vet(ctx, targets=targets, build_tags=build_tags, arch=arch)
         golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
         staticcheck(ctx, targets=targets, build_tags=build_tags, arch=arch)
+
+    # linters have a hard time with dnf, so we add the build tag after running them
+    if nikos_embedded_path:
+        build_tags.append("dnf")
 
     build_tags = ",".join(build_tags)
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
