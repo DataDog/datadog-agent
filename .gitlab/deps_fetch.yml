@@ -4,7 +4,7 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.lz4 -I lz4 -C $GOPATH/pkg/mod
+  - mkdir -p $GOPATH/pkg/mod && tar xf modcache.tar.lz4 -I lz4 -C $GOPATH/pkg/mod
   - rm -f modcache.tar.gz
 
 .retrieve_linux_go_tools_deps:
@@ -18,7 +18,7 @@ go_deps:
   needs: []
   script:
     - inv -e deps --verbose
-    - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.lz4 -I lz4 .
+    - cd $GOPATH/pkg/mod/ && tar cf $CI_PROJECT_DIR/modcache.tar.lz4 -I lz4 .
   artifacts:
     expire_in: 1 day
     paths:
