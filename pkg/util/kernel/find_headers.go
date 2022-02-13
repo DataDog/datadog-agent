@@ -149,6 +149,12 @@ func validateHeaderDirs(hv Version, dirs []string) []string {
 		log.Debugf("found valid kernel headers at %s", d)
 		valid = append(valid, d)
 	}
+
+	if !containsCriticalHeaders(dirs) {
+		log.Errorf("error validating %s: missing critical headers", dirs)
+		return nil
+	}
+
 	return valid
 }
 
