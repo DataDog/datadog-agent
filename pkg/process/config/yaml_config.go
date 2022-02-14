@@ -85,11 +85,10 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 
 	// Enable/Disable the DataScrubber to obfuscate process args
 	if scrubArgsKey := key(ns, "scrub_args"); config.Datadog.IsSet(scrubArgsKey) {
-		scrubberEnabled := config.Datadog.GetBool(scrubArgsKey)
-		a.Scrubber.Enabled = scrubberEnabled
-		if scrubberEnabled {
-			log.Debug("Starting process-agent with Scrubber enabled")
-		}
+		a.Scrubber.Enabled = config.Datadog.GetBool(scrubArgsKey)
+	}
+	if a.Scrubber.Enabled { // Scrubber is enabled by default when it's created
+		log.Debug("Starting process-agent with Scrubber enabled")
 	}
 
 	// A custom word list to enhance the default one used by the DataScrubber

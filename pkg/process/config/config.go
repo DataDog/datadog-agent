@@ -262,7 +262,7 @@ func getContainerHostType() model.ContainerHostType {
 	return model.ContainerHostType_notSpecified
 }
 
-// loadEnvVariable reads env variables specific to process-agent and overrides the corresponding settings
+// loadEnvVariables reads env variables specific to process-agent and overrides the corresponding settings
 // in the global Config object.
 // This function is used to handle historic process-agent env vars. New settings should be
 // handled directly in the /pkg/config/process.go file
