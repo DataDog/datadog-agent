@@ -601,6 +601,7 @@ func getTestEndpoints(e Endpoint) *Endpoints {
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
+		BatchMaxPayloadSize:    coreConfig.DefaultBatchMaxPayloadSize,
 	}
 }
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
