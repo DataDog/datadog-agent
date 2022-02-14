@@ -107,7 +107,7 @@ func (t CompositeTags) Join(separator string) string {
 	return strings.Join(t.tags1, separator) + separator + strings.Join(t.tags2, separator)
 }
 
-// MarshalJSON serialization a Payload to JSON
+// MarshalJSON serializes a Payload to JSON
 func (t CompositeTags) MarshalJSON() ([]byte, error) {
 	tags := append([]string{}, t.tags1...)
 	return json.Marshal(append(tags, t.tags2...))
