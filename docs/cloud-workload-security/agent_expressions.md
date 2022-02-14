@@ -772,7 +772,8 @@ A signal was sent
 | `signal.target.ancestors.created_at` | int | Timestamp of the creation of the process |
 | `signal.target.ancestors.egid` | int | Effective GID of the process |
 | `signal.target.ancestors.egroup` | string | Effective group of the process |
-| `signal.target.ancestors.envs` | string | Environment variables of the process |
+| `signal.target.ancestors.envp` | string | Environment variables of the process |
+| `signal.target.ancestors.envs` | string | Environment variable names of the process |
 | `signal.target.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
 | `signal.target.ancestors.euid` | int | Effective UID of the process |
 | `signal.target.ancestors.euser` | string | Effective user of the process |
@@ -816,7 +817,8 @@ A signal was sent
 | `signal.target.created_at` | int | Timestamp of the creation of the process |
 | `signal.target.egid` | int | Effective GID of the process |
 | `signal.target.egroup` | string | Effective group of the process |
-| `signal.target.envs` | string | Environment variables of the process |
+| `signal.target.envp` | string | Environment variables of the process |
+| `signal.target.envs` | string | Environment variable names of the process |
 | `signal.target.envs_truncated` | bool | Indicator of environment variables truncation |
 | `signal.target.euid` | int | Effective UID of the process |
 | `signal.target.euser` | string | Effective user of the process |

@@ -2474,6 +2474,16 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe17(in *jl
 			out.Type = string(in.String())
 		case "pid":
 			out.PID = uint32(in.Uint32())
+		case "target":
+			if in.IsNull() {
+				in.Skip()
+				out.Target = nil
+			} else {
+				if out.Target == nil {
+					out.Target = new(ProcessContextSerializer)
+				}
+				(*out.Target).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2497,6 +2507,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe17(out *j
 		const prefix string = ",\"pid\":"
 		out.RawString(prefix)
 		out.Uint32(uint32(in.PID))
+	}
+	if in.Target != nil {
+		const prefix string = ",\"target\":"
+		out.RawString(prefix)
+		(*in.Target).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

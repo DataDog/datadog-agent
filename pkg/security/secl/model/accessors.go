@@ -6539,6 +6539,32 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "signal.target.ancestors.envp":
+		return &eval.StringArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result []string
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.Envp
+
+					results = append(results, result...)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+		}, nil
+
 	case "signal.target.ancestors.envs":
 		return &eval.StringArrayEvaluator{
 
@@ -7431,6 +7457,17 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "signal.target.envp":
+		return &eval.StringArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).Signal.Target.Process.Envp
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 
 	case "signal.target.envs":
@@ -9044,6 +9081,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"signal.target.ancestors.egroup",
 
+		"signal.target.ancestors.envp",
+
 		"signal.target.ancestors.envs",
 
 		"signal.target.ancestors.envs_truncated",
@@ -9131,6 +9170,8 @@ func (e *Event) GetFields() []eval.Field {
 		"signal.target.egid",
 
 		"signal.target.egroup",
+
+		"signal.target.envp",
 
 		"signal.target.envs",
 
@@ -13083,6 +13124,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
+	case "signal.target.ancestors.envp":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.Envp
+
+			values = append(values, result...)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
 	case "signal.target.ancestors.envs":
 
 		var values []string
@@ -13798,6 +13861,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "signal.target.egroup":
 
 		return e.Signal.Target.Process.Credentials.EGroup, nil
+
+	case "signal.target.envp":
+
+		return e.Signal.Target.Process.Envp, nil
 
 	case "signal.target.envs":
 
@@ -15517,6 +15584,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.ancestors.egroup":
 		return "signal", nil
 
+	case "signal.target.ancestors.envp":
+		return "signal", nil
+
 	case "signal.target.ancestors.envs":
 		return "signal", nil
 
@@ -15647,6 +15717,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 
 	case "signal.target.egroup":
+		return "signal", nil
+
+	case "signal.target.envp":
 		return "signal", nil
 
 	case "signal.target.envs":
@@ -17790,6 +17863,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "signal.target.ancestors.envp":
+
+		return reflect.String, nil
+
 	case "signal.target.ancestors.envs":
 
 		return reflect.String, nil
@@ -17963,6 +18040,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "signal.target.egroup":
+
+		return reflect.String, nil
+
+	case "signal.target.envp":
 
 		return reflect.String, nil
 
@@ -23895,6 +23976,21 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "signal.target.ancestors.envp":
+
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Envp"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.Envp = append(e.Signal.Target.Ancestor.ProcessContext.Process.Envp, str)
+
+		return nil
+
 	case "signal.target.ancestors.envs":
 
 		if e.Signal.Target.Ancestor == nil {
@@ -24487,6 +24583,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EGroup"}
 		}
 		e.Signal.Target.Process.Credentials.EGroup = str
+
+		return nil
+
+	case "signal.target.envp":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Envp"}
+		}
+		e.Signal.Target.Process.Envp = append(e.Signal.Target.Process.Envp, str)
 
 		return nil
 

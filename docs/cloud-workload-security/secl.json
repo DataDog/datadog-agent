@@ -2618,9 +2618,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "signal.target.ancestors.envs",
+          "name": "signal.target.ancestors.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "signal.target.ancestors.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "signal.target.ancestors.envs_truncated",
@@ -2838,9 +2843,14 @@
           "definition": "Effective group of the process"
         },
         {
-          "name": "signal.target.envs",
+          "name": "signal.target.envp",
           "type": "string",
           "definition": "Environment variables of the process"
+        },
+        {
+          "name": "signal.target.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process"
         },
         {
           "name": "signal.target.envs_truncated",
