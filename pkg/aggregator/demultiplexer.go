@@ -96,10 +96,10 @@ type AgentDemultiplexer struct {
 	// stopChan completely stops the flushLoop of the Demultiplexer when receiving
 	// a message, not doing anything else.
 	stopChan chan struct{}
-	// flushChan receives a flushTrigger to trigger an internal flush of all
+	// flushChan receives a trigger to run an internal flush of all
 	// samplers (TimeSampler, BufferedAggregator (CheckSampler, Events, ServiceChecks))
 	// to the shared serializer.
-	flushChan chan flushTrigger
+	flushChan chan trigger
 
 	// options are the options with which the demultiplexer has been created
 	options    DemultiplexerOptions
@@ -146,16 +146,25 @@ type dataOutputs struct {
 	sharedSerializer serializer.MetricSerializer
 }
 
-// flushTrigger must be used to trigger a flush of the TimeSampler.
-// If `BlockChan` is not nil, a message is sent when the flush is complete.
-type flushTrigger struct {
-	time      time.Time
+// trigger be used to trigger something in the TimeSampler or the BufferedAggregator.
+// If `blockChan` is not nil, a message is expected on this chan when the action is done.
+// See `flushTrigger` to see the usage in a flush trigger.
+type trigger struct {
+	time time.Time
+
+	// if not nil, the flusher will send a message in this chan when the flush is complete.
 	blockChan chan struct{}
 
 	// used by the BufferedAggregator to know if serialization of events,
 	// service checks and such have to be waited for before returning
 	// from Flush()
 	waitForSerializer bool
+}
+
+// flushTrigger is a trigger used to flush data, results is expected to be written
+// in flushedSeries (or seriesSink depending on the implementation) and flushedSketches.
+type flushTrigger struct {
+	trigger
 
 	flushedSeries   *[]metrics.Series
 	flushedSketches *[]metrics.SketchSeriesList
@@ -262,7 +271,7 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 	demux := &AgentDemultiplexer{
 		options:   options,
 		stopChan:  make(chan struct{}),
-		flushChan: make(chan flushTrigger),
+		flushChan: make(chan trigger),
 
 		// Input
 		aggregator: agg,
@@ -402,7 +411,7 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	// do a manual complete flush then stop
 	// stop all automatic flush & the mainloop,
 	if flush {
-		trigger := flushTrigger{
+		trigger := trigger{
 			time:              time.Now(),
 			blockChan:         make(chan struct{}),
 			waitForSerializer: flush,
@@ -463,7 +472,7 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 // and the BufferedAggregator to the serializer.
 // Safe to call from multiple threads.
 func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
-	trigger := flushTrigger{
+	trigger := trigger{
 		time:              start,
 		waitForSerializer: waitForSerializer,
 		blockChan:         make(chan struct{}),
@@ -493,6 +502,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		return
 	}
 
+	logPayloads := config.Datadog.GetBool("log_payloads")
 	flushedSeries := make([]metrics.Series, 0)
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
@@ -502,6 +512,9 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	if d.aggregator.flushAndSerializeInParallel.enabled {
 		seriesSink = metrics.NewIterableSeries(func(se *metrics.Serie) {
+			if logPayloads {
+				log.Debugf("Flushing serie: %s", se)
+			}
 			tagsetTlm.updateHugeSerieTelemetry(se)
 		}, d.aggregator.flushAndSerializeInParallel.bufferSize, d.aggregator.flushAndSerializeInParallel.channelSize)
 		done = make(chan struct{})
@@ -513,33 +526,42 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	for _, worker := range d.statsd.workers {
 		// order the flush to the time sampler, and wait, in a different routine
-		trigger := flushTrigger{
-			time:            start,
-			blockChan:       make(chan struct{}),
+		t := flushTrigger{
+			trigger: trigger{
+				time:      start,
+				blockChan: make(chan struct{}),
+			},
 			flushedSeries:   &flushedSeries,
 			flushedSketches: &flushedSketches,
 			seriesSink:      seriesSink,
 		}
 
-		worker.flushChan <- trigger
-		<-trigger.blockChan
+		worker.flushChan <- t
+		<-t.trigger.blockChan
 	}
 
 	// flush the aggregator (check samplers)
 	// -------------------------------------
 
 	if d.aggregator != nil {
-		trigger := flushTrigger{
-			time:              start,
-			blockChan:         make(chan struct{}),
-			waitForSerializer: waitForSerializer,
-			flushedSeries:     &flushedSeries,
-			flushedSketches:   &flushedSketches,
-			seriesSink:        seriesSink,
+		t := flushTrigger{
+			trigger: trigger{
+				time:              start,
+				blockChan:         make(chan struct{}),
+				waitForSerializer: waitForSerializer,
+			},
+			flushedSeries:   &flushedSeries,
+			flushedSketches: &flushedSketches,
+			seriesSink:      seriesSink,
 		}
 
-		d.aggregator.flushChan <- trigger
-		<-trigger.blockChan
+		d.aggregator.flushChan <- t
+		<-t.trigger.blockChan
+	}
+
+	if d.aggregator.flushAndSerializeInParallel.enabled {
+		seriesSink.SenderStopped()
+		<-done
 	}
 
 	// collect the series and sketches that the multiple samplers may have reported
@@ -553,6 +575,21 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	}
 	for _, s := range flushedSketches {
 		sketches = append(sketches, s...)
+	}
+
+	// debug flag to log payloads
+	// --------------------------
+
+	if logPayloads {
+		log.Debug("Flushing the following Series:")
+		for _, s := range series {
+			log.Debugf("%s", s)
+		}
+
+		log.Debug("Flushing the following Sketches:")
+		for _, s := range sketches {
+			log.Debugf("%s", s)
+		}
 	}
 
 	// send these to the serializer
@@ -570,11 +607,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		err := d.sharedSerializer.SendSketch(sketches)
 		updateSketchTelemetry(start, uint64(len(sketches)), err)
 		tagsetTlm.updateHugeSketchesTelemetry(&sketches)
-	}
-
-	if d.aggregator.flushAndSerializeInParallel.enabled {
-		seriesSink.SenderStopped()
-		<-done
 	}
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
@@ -743,11 +775,13 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
 	trigger := flushTrigger{
-		time:              start,
-		blockChan:         make(chan struct{}),
-		waitForSerializer: waitForSerializer,
-		flushedSeries:     &flushedSeries,
-		flushedSketches:   &flushedSketches,
+		trigger: trigger{
+			time:              start,
+			blockChan:         make(chan struct{}),
+			waitForSerializer: waitForSerializer,
+		},
+		flushedSeries:   &flushedSeries,
+		flushedSketches: &flushedSketches,
 	}
 
 	d.statsdWorker.flushChan <- trigger

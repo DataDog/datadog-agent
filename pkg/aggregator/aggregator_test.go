@@ -63,12 +63,14 @@ func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
-		time:              start,
-		blockChan:         nil,
-		waitForSerializer: waitForSerializer,
-		flushedSeries:     &flushedSeries,
-		flushedSketches:   &flushedSketches,
-		seriesSink:        seriesSink,
+		trigger: trigger{
+			time:              start,
+			blockChan:         nil,
+			waitForSerializer: waitForSerializer,
+		},
+		flushedSeries:   &flushedSeries,
+		flushedSketches: &flushedSketches,
+		seriesSink:      seriesSink,
 	}
 }
 

@@ -684,8 +684,6 @@ func (agg *BufferedAggregator) run() {
 			// - we don't need to Shrink() on stop
 			agg.tagsStore.Shrink()
 
-			addFlushTime("MainFlushTime", int64(time.Since(trigger.time)))
-			aggregatorNumberOfFlush.Add(1)
 			aggregatorEventPlatformErrorLogged = false
 		case <-agg.health.C:
 		case checkMetric := <-agg.checkMetricIn:
