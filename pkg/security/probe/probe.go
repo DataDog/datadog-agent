@@ -525,6 +525,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// copy some of the field from the entry
 		event.Exec.Process = event.processCacheEntry.Process
 		event.Exec.FileFields = event.processCacheEntry.Process.FileFields
+	case model.ExitEventType:
+		// do nothing
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
