@@ -13,14 +13,12 @@ end
 describe 'a Process Agent with Container Collection enabled' do
     it_behaves_like 'a running Process Agent'
     it 'has container collection enabled' do
-        conf = read_conf_file()
-        expect(conf).to have_key("process_config")
-        expect(conf["process_config"]).to have_key("container_collection")
-        expect(conf["process_config"]["container_collection"]).to have_key("enabled")
-        expect(conf["process_config"]["container_collection"]["enabled"]).to be_truthy
+        conf = get_runtime_config()
+        expect(conf).to have_key("container_collection")
+        expect(conf["container_collection"]).to have_key("enabled")
+        expect(conf["container_collection"]["enabled"]).to be_truthy
     end
     it 'is running the container check' do
-        sleep 30
         expect(check_enabled?("container")).to be_truthy
     end
 end

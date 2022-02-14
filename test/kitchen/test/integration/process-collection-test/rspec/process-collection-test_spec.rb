@@ -13,14 +13,12 @@ end
 describe 'a Process Agent with Process Collection enabled' do
     it_behaves_like 'a running Process Agent'
     it 'has process collection enabled' do
-        conf = read_conf_file()
-        expect(conf).to have_key("process_config")
-        expect(conf["process_config"]).to have_key("process_collection")
-        expect(conf["process_config"]["process_collection"]).to have_key("enabled")
-        expect(conf["process_config"]["process_collection"]["enabled"]).to be_truthy
+        conf = get_runtime_config()
+        expect(conf).to have_key("process_collection")
+        expect(conf["process_collection"]).to have_key("enabled")
+        expect(conf["process_collection"]["enabled"]).to be_truthy
     end
     it 'is running the process check' do
-        sleep 30
         expect(check_enabled?("process")).to be_truthy
     end
 end
