@@ -294,9 +294,65 @@ func TestEnvVarOverride(t *testing.T) {
 		{
 			key:      "process_config.container_source",
 			env:      "DD_PROCESS_CONFIG_CONTAINER_SOURCE",
-			value:    "[\"docker\",\"kubernetes\"]",
+			value:    `["docker","kubernetes"]`,
 			expType:  "stringSlice",
 			expected: []string{"docker", "kubernetes"},
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_SCRUB_ARGS",
+			value:    "false",
+			expType:  "boolean", // process_config.scrub_args has no default value so Get returns a string
+			expected: false,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_SCRUB_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_PROCESS_CONFIG_SCRUB_ARGS",
+			value:    "false",
+			expType:  "boolean",
+			expected: false,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_PROCESS_CONFIG_SCRUB_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_STRIP_PROCESS_ARGS",
+			value:    "false",
+			expType:  "boolean", // process_config.strip_proc_arguments has no default value so Get returns a string
+			expected: false,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_STRIP_PROCESS_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
+			value:    "false",
+			expType:  "boolean",
+			expected: false,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
@@ -332,32 +388,17 @@ func readCfgWithType(cfg Config, key, expType string) interface{} {
 	switch expType {
 	case "stringSlice":
 		return cfg.GetStringSlice(key)
+	case "boolean":
+		return cfg.GetBool(key)
 	default:
 		return cfg.Get(key)
 	}
 }
 
-func TestEnvVarScrubberSettings(t *testing.T) {
+func TestEnvVarCustomSensitiveWords(t *testing.T) {
 	cfg := setupConf()
 	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
 
-	// Scrub enabled/disabled
-	for _, envPrefix := range expectedPrefixes {
-		e := envPrefix + "SCRUB_ARGS"
-		t.Run(fmt.Sprintf("scrub disabled/%s", e), func(t *testing.T) {
-			reset := setEnvForTest(e, "false")
-			assert.Equal(t, false, cfg.GetBool("process_config.scrub_args"))
-			reset()
-		})
-
-		t.Run(fmt.Sprintf("scrub enabled/%s", e), func(t *testing.T) {
-			reset := setEnvForTest(e, "true")
-			assert.Equal(t, true, cfg.GetBool("process_config.scrub_args"))
-			reset()
-		})
-	}
-
-	// Sensitive words
 	for i, tc := range []struct {
 		words    string
 		expected []string
@@ -384,29 +425,6 @@ func TestEnvVarScrubberSettings(t *testing.T) {
 				reset()
 			})
 		}
-	}
-
-	// Strip all args
-	for _, envPrefix := range expectedPrefixes {
-		var e string
-		if envPrefix == "DD_" {
-			// historical setting
-			e = envPrefix + "STRIP_PROCESS_ARGS"
-		} else {
-			// expected setting: env var matching yaml config name
-			e = envPrefix + "STRIP_PROC_ARGUMENTS"
-		}
-		t.Run(fmt.Sprintf("strip all args disabled/%s", e), func(t *testing.T) {
-			reset := setEnvForTest(e, "false")
-			assert.Equal(t, false, cfg.GetBool("process_config.strip_proc_arguments"))
-			reset()
-		})
-
-		t.Run(fmt.Sprintf("strip all args enabled/%s", e), func(t *testing.T) {
-			reset := setEnvForTest(e, "true")
-			assert.Equal(t, true, cfg.GetBool("process_config.strip_proc_arguments"))
-			reset()
-		})
 	}
 }
 
