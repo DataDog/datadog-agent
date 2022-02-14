@@ -307,6 +307,8 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(c.Obfuscation.Memcached.Enabled)
 	assert.True(c.Obfuscation.CreditCards.Enabled)
 	assert.True(c.Obfuscation.CreditCards.Luhn)
+	assert.Equal("^my key regexp$", c.Obfuscation.AppSec.ParameterKeyRegexp.String())
+	assert.Equal("^my value regexp$", c.Obfuscation.AppSec.ParameterValueRegexp.String())
 }
 
 func TestUndocumentedYamlConfig(t *testing.T) {

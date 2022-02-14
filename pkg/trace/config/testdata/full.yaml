@@ -41,7 +41,7 @@ apm_config:
     - /health
     - /500
 
-  filter_tags:    
+  filter_tags:
     require: ["env:prod", "db:mongodb"]
     reject: ["outcome:success"]
 
@@ -73,5 +73,10 @@ apm_config:
     memcached:
       enabled: true
     credit_cards:
-      enabled: true 
+      enabled: true
       luhn: true
+
+appsec_config:
+  obfuscation:
+    parameter_key_regexp: "^my key regexp$"
+    parameter_value_regexp: "^my value regexp$"

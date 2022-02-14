@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -195,6 +196,38 @@ type AppSecObfuscationConfig struct {
 	// ParameterValueRegexp is the appsec event parameter value regular expression used to detect sensitive values in
 	// appsec events.
 	ParameterValueRegexp *regexp.Regexp
+}
+
+// MarshalJSON returns the JSON encoding of the AppSec obfuscation configuration using the string representation of the
+// underlying regular expressions.
+func (o *AppSecObfuscationConfig) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		ParameterKeyRegexp, ParameterValueRegexp string
+	}{
+		ParameterKeyRegexp:   o.ParameterKeyRegexp.String(),
+		ParameterValueRegexp: o.ParameterValueRegexp.String(),
+	})
+}
+
+// UnmarshalJSON parses the JSON-encoded AppSec obfuscation configuration.
+func (o *AppSecObfuscationConfig) UnmarshalJSON(buf []byte) error {
+	var cfg struct {
+		ParameterKeyRegexp, ParameterValueRegexp string
+	}
+	if err := json.Unmarshal(buf, &cfg); err != nil {
+		return err
+	}
+	keyRE, err := regexp.Compile(cfg.ParameterKeyRegexp)
+	if err != nil {
+		return err
+	}
+	valueRE, err := regexp.Compile(cfg.ParameterValueRegexp)
+	if err != nil {
+		return err
+	}
+	o.ParameterKeyRegexp = keyRE
+	o.ParameterValueRegexp = valueRE
+	return nil
 }
 
 // ReplaceRule specifies a replace rule.
@@ -400,7 +433,12 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		}}
 		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
 	}
-	c.Obfuscation = new(ObfuscationConfig)
+	c.Obfuscation = &ObfuscationConfig{
+		AppSec: AppSecObfuscationConfig{
+			ParameterKeyRegexp:   compileRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterKeyRegexp)),
+			ParameterValueRegexp: compileRegexp(config.Datadog.GetString(config.AppSecConfigKeyObfuscationParameterValueRegexp)),
+		},
+	}
 	if config.Datadog.IsSet("apm_config.obfuscation") {
 		var o ObfuscationConfig
 		err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &o)
