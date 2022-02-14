@@ -22,6 +22,7 @@ const (
 	RuntimeNameContainerd string = "containerd"
 	RuntimeNameCRIO       string = "cri-o"
 	RuntimeNameGarden     string = "garden"
+	RuntimeNamePodman     string = "podman"
 )
 
 const (
@@ -51,7 +52,9 @@ var (
 		RuntimeNameContainerd,
 		RuntimeNameCRIO,
 		RuntimeNameGarden,
+		RuntimeNamePodman,
 	}
+
 	// AllWindowsRuntimes lists all runtimes available on Windows
 	// nolint: deadcode, unused
 	AllWindowsRuntimes = []string{

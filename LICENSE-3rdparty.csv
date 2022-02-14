@@ -1616,6 +1616,7 @@ core,k8s.io/kube-state-metrics/v2/pkg/metrics_store,Apache-2.0,Cloud Native Comp
 core,k8s.io/kube-state-metrics/v2/pkg/options,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/sharding,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/kube-state-metrics/v2/pkg/watch,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubelet/pkg/apis/stats/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/metrics/pkg/apis/custom_metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/metrics/pkg/apis/custom_metrics/install,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,k8s.io/metrics/pkg/apis/custom_metrics/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
